@@ -1,0 +1,17 @@
+# The guest kernel the Windows package ships, pinned by version and by the
+# SHA-256 kernel.org publishes for that exact tarball.
+#
+# It is the SAME upstream release the Linux package uses (6.1.155): the two
+# packages must not disagree about what "the guest kernel" means, because the
+# guest binary, the overlayfs `userxattr` requirement, and the initrd contract
+# are shared. What differs is the build — Firecracker boots an uncompressed
+# `vmlinux` from its own CI, and Hyper-V's generation 2 firmware boots a PE
+# image, so this one is a `bzImage` built with the EFI stub and the Hyper-V
+# drivers a synthetic SCSI controller and a Hyper-V socket need.
+#
+# The digest is the one published in
+# https://cdn.kernel.org/pub/linux/kernel/v6.x/sha256sums.asc (PGP-signed by
+# the kernel.org autosigner). `build.sh` verifies it before a byte is extracted.
+KERNEL_VERSION=6.1.155
+KERNEL_URL=https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-6.1.155.tar.xz
+KERNEL_SHA256=c29387aeee085fbcbd91236224b9df805063bac43615e75cea2c6b29604a5c73

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Nessie Connected Browser",
+  "version": "0.1.0",
+  "description": "Lets you explicitly copy selected Chrome site sign-ins into a private Nessie browser.",
+  "permissions": ["activeTab", "debugger", "nativeMessaging", "tabs"],
+  "optional_permissions": ["cookies"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": {
+    "default_popup": "cookie-import.html",
+    "default_title": "Import selected site sign-ins to Nessie"
+  }
+}

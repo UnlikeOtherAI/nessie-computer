@@ -1,0 +1,277 @@
+[
+  {
+    "seed": 1,
+    "steps": 25,
+    "found": "a quiesce round ended before a computer saw another one's upload (simulator)"
+  },
+  {
+    "seed": 9,
+    "steps": 25,
+    "found": "two computers recreated one deleted folder; one directory became two pages and moved back and forth"
+  },
+  {
+    "seed": 33,
+    "steps": 25,
+    "found": "a lost space was forgotten on a scoped pass and its folder stayed on disk forever"
+  },
+  {
+    "seed": 34,
+    "steps": 25,
+    "found": "C5b on two computers: twin folders livelocked"
+  },
+  {
+    "seed": 57,
+    "steps": 25,
+    "found": "a move onto a path held by a file being recreated in place failed every pass"
+  },
+  {
+    "seed": 58,
+    "steps": 25,
+    "found": "a download replaced a file a person had just moved, reverting the move; twin files livelocked"
+  },
+  {
+    "seed": 61,
+    "steps": 25,
+    "found": "a new folder that had not settled got no retry"
+  },
+  {
+    "seed": 84,
+    "steps": 25,
+    "found": "Dismiss is not relayed through Nessie (simulator)"
+  },
+  {
+    "seed": 103,
+    "steps": 25,
+    "found": "a move adopted a new folder in its way; two entries named one path"
+  },
+  {
+    "seed": 104,
+    "steps": 25,
+    "found": "a space renamed on a scoped pass moved its files one by one and left the folder"
+  },
+  {
+    "seed": 110,
+    "steps": 25,
+    "found": "a file moved into a folder deleted in Nessie had no parent to be created under"
+  },
+  {
+    "seed": 133,
+    "steps": 25,
+    "found": "a transfer outlived its pass and raced a restarted engine over the journal (EPERM)"
+  },
+  {
+    "seed": 136,
+    "steps": 25,
+    "found": "a crash after a recreate left the old entry, so it was recreated twice"
+  },
+  {
+    "seed": 147,
+    "steps": 25,
+    "found": "nothing to unlock (simulator)"
+  },
+  {
+    "seed": 162,
+    "steps": 25,
+    "found": "an NFD name and its NFC twin were taken for one file"
+  },
+  {
+    "seed": 206,
+    "steps": 25,
+    "found": "chained space renames into a freed name"
+  },
+  {
+    "seed": 218,
+    "steps": 25,
+    "found": "a page downloaded onto a path another entry still named"
+  },
+  {
+    "seed": 228,
+    "steps": 25,
+    "found": "a page downloaded onto a path another entry still named"
+  },
+  {
+    "seed": 264,
+    "steps": 25,
+    "found": "a failed keep-both left an open conflict with no copy"
+  },
+  {
+    "seed": 336,
+    "steps": 25,
+    "found": "a crash inside a merge left the file renamed aside"
+  },
+  {
+    "seed": 410,
+    "steps": 25,
+    "found": "a scope hint in the wrong case made every file look new"
+  },
+  {
+    "seed": 437,
+    "steps": 25,
+    "found": "an item moving under its own name (case-insensitive disk)"
+  },
+  {
+    "seed": 452,
+    "steps": 25,
+    "found": "a local move recorded no new path for the read-only mirror"
+  },
+  {
+    "seed": 455,
+    "steps": 25,
+    "found": "a holder found only by its file id"
+  },
+  {
+    "seed": 500,
+    "steps": 25,
+    "found": "a holder found only by its file id"
+  },
+  {
+    "seed": 546,
+    "steps": 25,
+    "found": "a holder named in another case"
+  },
+  {
+    "seed": 580,
+    "steps": 25,
+    "found": "two entries at one path deadlocked waiting for each other"
+  },
+  {
+    "seed": 625,
+    "steps": 25,
+    "found": "an entry whose folder a person moved took the stat of the folder Nessie's rename put at its path; its real folder was created again every pass"
+  },
+  {
+    "seed": 642,
+    "steps": 25,
+    "found": "a lost space was forgotten on a scoped pass"
+  },
+  {
+    "seed": 670,
+    "steps": 25,
+    "found": "a page downloaded onto a file a person had moved there"
+  },
+  {
+    "seed": 732,
+    "steps": 25,
+    "found": "canonical file holding a copy's bytes (A4)"
+  },
+  {
+    "seed": 755,
+    "steps": 25,
+    "found": "a page downloaded onto a file a person had moved there"
+  },
+  {
+    "seed": 797,
+    "steps": 25,
+    "found": "a folder moved into another space was sent as a cross-space move the real server refuses; a file moved into it in Nessie was planned into the folder's old place"
+  },
+  {
+    "seed": 863,
+    "steps": 25,
+    "found": "a folder Nessie put inside its own subfolder was parked with that subfolder still inside it; the second leg made the missing parent, which became a new page every pass"
+  },
+  {
+    "seed": 901,
+    "steps": 25,
+    "found": "did not settle; fixed with seed 797 (entries planned after their mapped parents; no cross-space move sent)"
+  },
+  {
+    "seed": 955,
+    "steps": 25,
+    "found": "canonical file holding a copy's bytes (A4)"
+  },
+  {
+    "seed": 961,
+    "steps": 25,
+    "found": "did not settle; fixed with seed 797 (entries planned after their mapped parents; no cross-space move sent)"
+  },
+  {
+    "seed": 1026,
+    "steps": 25,
+    "found": "a page downloaded onto a file a person had moved there"
+  },
+  {
+    "seed": 1030,
+    "steps": 25,
+    "found": "canonical file holding a copy's bytes (A4)"
+  },
+  {
+    "seed": 1036,
+    "steps": 25,
+    "found": "kept edits deleted with their folder were not released (simulator)"
+  },
+  {
+    "seed": 1063,
+    "steps": 25,
+    "found": "a new page downloaded under a parent that could not land made the directory, which a stale entry then held forever"
+  },
+  {
+    "seed": 1092,
+    "steps": 25,
+    "found": "a new file replanned after a refused create resumed the old upload session, whose intent named a gone parent"
+  },
+  {
+    "seed": 2357,
+    "steps": 12,
+    "found": "a choice made in Nessie, applied from a report answer, was never carried out or reported resolved"
+  },
+  {
+    "seed": 2360,
+    "steps": 12,
+    "found": "a choice made in Nessie, applied from a report answer, was never carried out or reported resolved"
+  },
+  {
+    "seed": 2416,
+    "steps": 12,
+    "found": "renamed on both sides to one name in another case; the folder kept the local spelling"
+  },
+  {
+    "seed": 2566,
+    "steps": 12,
+    "found": "an edited file carried by its folder's rename was archived and created again; two entries then swapped one file forever"
+  },
+  {
+    "seed": 3133,
+    "steps": 12,
+    "found": "renamed on both sides in another case (as 2416); intermittent before the fix"
+  },
+  {
+    "seed": 3694,
+    "steps": 12,
+    "found": "a renamed space whose directory held nothing tracked left its old directory behind"
+  },
+  {
+    "seed": 5386,
+    "steps": 12,
+    "found": "the same nesting inversion, the names differing only in case"
+  },
+  {
+    "seed": 6648,
+    "steps": 12,
+    "found": "a new file in a folder renamed in Nessie was moved aside before the rename carried it there, failing every pass"
+  },
+  {
+    "seed": 8149,
+    "steps": 12,
+    "found": "a file with an open conflict never followed Nessie's rename of its page"
+  },
+  {
+    "seed": 8886,
+    "steps": 12,
+    "found": "a download that met a changed file could not move its staged copy back and left it under a hidden name"
+  },
+  {
+    "seed": 10086,
+    "steps": 12,
+    "found": "a conflicted child tried to vacate its future path before its enclosing folder moved"
+  },
+  {
+    "seed": 5780,
+    "steps": 12,
+    "found": "a previously reported exploration failure retained for replay"
+  },
+  {
+    "seed": 12604,
+    "steps": 12,
+    "found": "three colliding names waited on each other while reporting up to date"
+  }
+]

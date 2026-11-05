@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Nessie Executor Tray",
+  "mainBinaryName": "nessie-executor-tray",
+  "version": "0.1.0",
+  "identifier": "com.unlikeotherai.nessie.executor.tray",
+  "build": {
+    "frontendDist": "../../packages/executor-console"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "status",
+        "title": "Nessie Executor",
+        "width": 640,
+        "height": 680,
+        "resizable": true,
+        "decorations": true,
+        "shadow": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "alwaysOnTop": false,
+        "center": true,
+        "backgroundColor": "#ffffff"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'",
+      "capabilities": [
+        "default"
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [],
+    "publisher": "UnlikeOtherAI",
+    "copyright": "Copyright (c) 2026 UnlikeOtherAI",
+    "category": "Productivity",
+    "shortDescription": "Pair teams and manage this computer's executor permissions.",
+    "longDescription": "Runs paired team connections under your account and manages their local folders and command permissions.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "signCommand": null
+    }
+  }
+}

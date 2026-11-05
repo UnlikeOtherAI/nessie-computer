@@ -1,0 +1,1 @@
+{"entries":[{"kind":"dir","mode":448,"path":"src","size":0},{"kind":"file","mode":384,"path":"src/main.ts","size":23},{"kind":"dir","mode":493,"opaque":true,"path":"build","size":0},{"kind":"whiteout","mode":0,"path":"stale.txt","size":0}],"next":4,"version":1}

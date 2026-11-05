@@ -1,0 +1,36 @@
+[package]
+name = "nessie-hyperv-bridge"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Bridges a Hyper-V guest's vsock channels onto Windows named pipes for the Nessie executor daemon."
+
+# What Windows names this executable in Task Manager and its properties; the
+# icon beside it is embedded by build.rs.
+[package.metadata.tauri-winres]
+FileDescription = "Nessie Executor Hyper-V Bridge"
+ProductName = "Nessie Executor"
+
+[[bin]]
+name = "nessie-hyperv-bridge"
+path = "src/main.rs"
+
+# The protocol half — argument parsing, the port-to-service-GUID rule, and the
+# byte pump — is deliberately portable and has no dependencies at all, so it is
+# compiled and tested on Linux in CI. Only the sockets are Windows.
+[dependencies]
+
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Networking_WinSock",
+  "Win32_Security",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Pipes",
+  "Win32_System_Threading",
+] }
+
+# Windows only, like the sockets: the Linux build above stays dependency-free.
+[target."cfg(windows)".build-dependencies]
+tauri-winres = "0.3.6"

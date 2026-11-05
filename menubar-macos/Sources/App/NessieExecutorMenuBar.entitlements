@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Deliberately empty of sandbox keys. This app is a Developer ID
+	  distribution that supervises a local daemon and reads a folder a person
+	  chose with a native picker; the App Sandbox would put that daemon and its
+	  guest sessions inside the app's container, which is not where executor
+	  state belongs. The hardened runtime is on, and the bundled Node and CLI
+	  are separate processes rather than loaded libraries, so no
+	  library-validation exception is needed.
+	-->
+</dict>
+</plist>

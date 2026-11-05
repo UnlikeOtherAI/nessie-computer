@@ -1,0 +1,39 @@
+strict: true
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - first_where
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - override_in_extension
+  - private_outlet
+  - redundant_nil_coalescing
+  - unneeded_parentheses_in_closure_argument
+
+cyclomatic_complexity:
+  warning: 20
+  error: 25
+
+line_length:
+  warning: 120
+  error: 160
+  ignores_comments: true
+  ignores_urls: true
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 500
+  error: 600
+
+function_body_length:
+  warning: 60
+  error: 100
+
+excluded:
+  - .build
+  - macos/.build
+  - DerivedData

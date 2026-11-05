@@ -1,0 +1,25 @@
+{
+  "name": "@nessie/executor-protocol",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "default": "./dist/*.js"
+    }
+  },
+  "scripts": {
+    "build": "node ../../scripts/compile.mjs -p tsconfig.build.json",
+    "typecheck": "node ../../scripts/compile.mjs --noEmit -p tsconfig.json",
+    "lint": "eslint src --max-warnings 0"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
+  }
+}

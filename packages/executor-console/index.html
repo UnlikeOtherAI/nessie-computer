@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Nessie Executor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <div class="title-row">
+      <h1>Nessie Executor</h1>
+      <label class="switch" id="running-switch">
+        <span id="running-label">All team connections</span>
+        <input type="checkbox" id="running" role="switch" aria-labelledby="running-label">
+        <span class="track" aria-hidden="true"></span>
+      </label>
+      <span id="running-elsewhere" class="hint" hidden></span>
+      <button id="hide">Close</button>
+    </div>
+    <div class="team-row" id="team-row" hidden>
+      <label for="connection">Settings for</label>
+      <select id="connection"></select>
+    </div>
+  </header>
+  <div class="tabs" role="tablist" aria-label="Executor settings">
+    <button role="tab" id="tab-button-teams" data-tab="teams" aria-controls="tab-teams" aria-selected="true">Teams</button>
+    <button role="tab" id="tab-button-folders" data-tab="folders" aria-controls="tab-folders" aria-selected="false" tabindex="-1">Folders</button>
+    <button role="tab" id="tab-button-commands" data-tab="commands" aria-controls="tab-commands" aria-selected="false" tabindex="-1">Commands</button>
+    <button role="tab" id="tab-button-sync" data-tab="sync" aria-controls="tab-sync" aria-selected="false" tabindex="-1">Sync</button>
+    <button role="tab" id="tab-button-settings" data-tab="settings" aria-controls="tab-settings" aria-selected="false" tabindex="-1">Settings</button>
+  </div>
+  <p id="error" role="alert" hidden></p>
+  <main>
+    <section id="tab-teams" role="tabpanel" aria-labelledby="tab-button-teams">
+      <div class="section-heading"><h2>Teams</h2><button class="primary" data-action="pair">Add team</button></div>
+      <div id="executors-list"></div>
+    </section>
+    <div id="no-team" hidden>
+      <p>Add a team to choose its folders and commands.</p>
+      <button class="primary" data-action="pair">Add team</button>
+    </div>
+    <div id="team-loading" hidden><span id="team-loading-text" role="status"></span> <button id="team-reload" hidden>Try again</button></div>
+    <section id="tab-folders" role="tabpanel" aria-labelledby="tab-button-folders" hidden>
+      <div class="section-heading"><h2>Folders</h2><button id="add-folder">Add folder…</button></div>
+      <p class="hint">Nessie can read these folders and prepare file changes for you to approve. Terminal programs keep their own file access.</p>
+      <div id="reach-folders"></div>
+      <p id="last-folder" class="hint" hidden>Keep at least one folder. To end this team’s access, remove the team on Teams.</p>
+    </section>
+    <section id="tab-commands" role="tabpanel" aria-labelledby="tab-button-commands" hidden>
+      <label class="toggle"><input id="existing-coding-sessions" type="checkbox" aria-describedby="existing-sessions-hint"> Use existing Codex and Claude Code sessions</label>
+      <p id="existing-sessions-hint" class="hint">Nessie can read these conversations and send them instructions. Turning this off leaves them running.</p>
+      <p><button type="button" id="open-claude-channel" class="link">Set up Claude Code to receive messages…</button></p>
+      <hr>
+      <h2>Commands</h2>
+      <label for="command-mode">This team may run</label>
+      <select id="command-mode"><option value="all">All commands</option><option value="allowlist">Only listed commands</option></select>
+      <label for="command-allowlist">Allowed commands <span id="allowlist-unused" class="hint">— not used when all commands are allowed</span></label>
+      <textarea id="command-allowlist" rows="3" aria-describedby="command-format"></textarea>
+      <p id="allowlist-needed" class="field-error" hidden>Add at least one allowed command.</p>
+      <label for="command-denylist">Blocked commands</label>
+      <textarea id="command-denylist" rows="3" aria-describedby="command-format"></textarea>
+      <p id="command-format" class="hint">One command per line, for example <code>git status</code>. End a line with <code>*</code> to include anything after it, for example <code>git push *</code>. Blocked commands win.</p>
+      <p class="hint">These rules also decide which programs this team’s agents may start in an interactive terminal on this computer. A program started there runs with your account’s access and can run other commands.</p>
+    </section>
+    <section id="tab-sync" role="tabpanel" aria-labelledby="tab-button-sync" hidden>
+      <div class="sync-heading">
+        <label class="switch" id="sync-switch">
+          <span id="sync-switch-label"></span>
+          <input type="checkbox" id="sync-enabled" role="switch" aria-labelledby="sync-switch-label" aria-describedby="sync-intro">
+          <span class="track" aria-hidden="true"></span>
+        </label>
+      </div>
+      <p id="sync-intro" class="hint"></p>
+      <div id="sync-status" class="sync-status" role="status">
+        <p class="sync-state"><span id="sync-dot" class="sync-dot" aria-hidden="true"></span><span id="sync-state-text"></span></p>
+        <p id="sync-detail" class="hint" hidden></p>
+      </div>
+      <p id="sync-load-error" class="field-error" hidden><span id="sync-load-error-text"></span> <button id="sync-reload" type="button"></button></p>
+      <div id="sync-body">
+        <p id="sync-folder-label" class="label"></p>
+        <div class="sync-folder-row">
+          <p id="sync-folder" class="path"></p>
+          <button id="sync-choose" type="button" aria-describedby="sync-folder"></button>
+        </div>
+        <p id="sync-refusal" class="field-error" role="alert" hidden></p>
+        <div class="sync-actions">
+          <button id="sync-open-nessie" type="button" class="primary" hidden></button>
+          <button id="sync-pause" type="button"></button>
+          <button id="sync-open-folder" type="button"></button>
+          <button id="sync-deleted" type="button"></button>
+        </div>
+        <section id="sync-held" class="sync-block" aria-labelledby="sync-held-title" hidden>
+          <h3 id="sync-held-title"></h3>
+          <p id="sync-held-text"></p>
+          <ul id="sync-held-sample" class="sync-paths"></ul>
+          <div class="sync-actions"><button id="sync-held-restore" type="button"></button><button id="sync-held-confirm" type="button" class="danger"></button></div>
+        </section>
+        <section id="sync-conflicts" aria-labelledby="sync-conflicts-title" hidden>
+          <h3 id="sync-conflicts-title"></h3>
+          <div id="sync-conflict-list"></div>
+        </section>
+      </div>
+    </section>
+    <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
+      <label class="toggle"><input type="checkbox" id="autostart"> Open Nessie Executor when I log in</label>
+      <label class="toggle"><input type="checkbox" id="auto-restart" aria-describedby="auto-restart-hint"> Restart a connection if it stops</label>
+      <p id="auto-restart-hint" class="hint">If a team’s connection stops without you stopping it, Nessie Executor starts it again.</p>
+    </section>
+  </main>
+  <footer>
+    <button id="open-nessie">Open Nessie</button>
+    <div id="save-status" role="status"></div>
+  </footer>
+
+  <dialog id="pair-dialog" aria-labelledby="pairing-title">
+    <h2 id="pairing-title" tabindex="-1">Add a team</h2>
+    <form id="pair-form">
+      <label for="pairing-server">Nessie server address</label>
+      <input id="pairing-server" type="url" value="https://api.nessie.works" required aria-describedby="pairing-server-hint" aria-errormessage="pairing-form-error">
+      <p id="pairing-server-hint" class="hint">Keep this as it is for Nessie. If your organisation runs its own Nessie, use the address your administrator gave you.</p>
+      <p id="pairing-default-folders">This team will be able to read your Nessie folder and this computer’s Shared folder. You can change this in Folders.</p>
+      <div id="pairing-personal-plan-choice" hidden>
+        <label class="toggle"><input id="pairing-personal-plan" type="checkbox" aria-describedby="pairing-personal-plan-hint"><span id="pairing-personal-plan-label"></span></label>
+        <p id="pairing-personal-plan-hint" class="hint"></p>
+      </div>
+      <p id="pairing-form-error" class="dialog-error" role="alert" hidden></p>
+      <div class="actions"><button type="button" id="pairing-form-cancel" class="dialog-close">Cancel</button><button type="submit" class="primary">Get pairing code</button></div>
+    </form>
+    <section id="pairing-progress" hidden>
+      <p id="pairing-instruction"></p>
+      <div id="code-row"><output id="pairing-code" aria-label="Pairing code"></output><button id="copy-code" aria-label="Copy pairing code">Copy</button></div>
+      <p id="pairing-time" class="hint"></p>
+      <div id="pairing-fingerprint-block">
+        <p class="label">Computer fingerprint</p>
+        <p id="pairing-fingerprint" class="path"></p>
+        <p class="hint">Check that it matches the fingerprint Nessie shows.</p>
+      </div>
+      <p class="dialog-error" role="alert" hidden></p>
+      <div class="actions">
+        <button id="pairing-open-nessie">Open Nessie</button>
+        <button id="pairing-stop">Cancel pairing</button>
+        <button id="pairing-renew" class="primary" hidden>Get new code</button>
+      </div>
+    </section>
+    <p id="pairing-announce" class="visually-hidden" role="status"></p>
+  </dialog>
+
+  <dialog id="remove-dialog" aria-labelledby="remove-title">
+    <h2 id="remove-title" tabindex="-1">Remove team</h2>
+    <p id="remove-summary"></p>
+    <p>This deletes its settings on this computer and any file changes you haven’t approved yet. Your own files stay as they are.</p>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions"><button type="button" id="remove-cancel" class="dialog-close">Cancel</button><button id="remove-confirm" class="danger">Remove team</button></div>
+  </dialog>
+
+  <dialog id="claude-dialog" aria-labelledby="claude-title">
+    <h2 id="claude-title" tabindex="-1">Let Claude Code receive messages from Nessie</h2>
+    <div id="claude-steps">
+      <p>1. Create <code>nessie-channel.json</code> in your working folder and paste this into it:</p>
+      <pre id="claude-channel-config" class="code"></pre>
+      <button data-copy="claude-channel-config" aria-label="Copy the configuration">Copy</button>
+      <p>2. Open a terminal in that folder and run:</p>
+      <pre id="claude-channel-command" class="code">claude --mcp-config nessie-channel.json --dangerously-load-development-channels server:nessie</pre>
+      <button data-copy="claude-channel-command" aria-label="Copy the command">Copy</button>
+    </div>
+    <p id="claude-unavailable" hidden>Turn team connections on to set up Claude Code.</p>
+    <p class="hint">Claude Code still asks for your permission as usual. Conversations started without this can still be read by Nessie.</p>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions"><button type="button" class="dialog-close">Close</button></div>
+  </dialog>
+  <dialog id="chatgpt-dialog" aria-labelledby="chatgpt-title">
+    <h2 id="chatgpt-title" tabindex="-1">ChatGPT</h2>
+    <p id="chatgpt-team"></p>
+    <p id="chatgpt-disclosure"></p>
+    <p id="chatgpt-status" role="status"></p>
+    <label id="chatgpt-profile-label" for="chatgpt-profile"></label>
+    <select id="chatgpt-profile"></select>
+    <label class="toggle" id="chatgpt-restriction-row"><input id="chatgpt-restriction" type="checkbox"><span id="chatgpt-restriction-copy"></span></label>
+    <p id="chatgpt-background-copy" class="hint"></p>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions chatgpt-actions">
+      <button id="chatgpt-start" class="primary"></button>
+      <button id="chatgpt-cancel"></button>
+      <button id="chatgpt-background"></button>
+      <button id="chatgpt-disconnect"></button>
+      <button id="chatgpt-refresh"></button>
+      <button id="chatgpt-usage"></button>
+      <button id="chatgpt-close" class="dialog-close"></button>
+    </div>
+  </dialog>
+  <dialog id="sync-existing-dialog" aria-labelledby="sync-existing-title">
+    <h2 id="sync-existing-title" tabindex="-1"></h2>
+    <p id="sync-existing-body"></p>
+    <p id="sync-existing-path" class="path"></p>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions"><button type="button" id="sync-existing-cancel" class="dialog-close"></button><button type="button" id="sync-existing-accept" class="primary"></button></div>
+  </dialog>
+  <dialog id="sync-deleted-dialog" aria-labelledby="sync-deleted-title">
+    <h2 id="sync-deleted-title" tabindex="-1"></h2>
+    <p id="sync-deleted-hint" class="hint"></p>
+    <div id="sync-deleted-list" aria-live="polite"></div>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions"><button type="button" id="sync-deleted-open"></button><button type="button" id="sync-deleted-close" class="dialog-close"></button></div>
+  </dialog>
+  <script src="native.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="chatgpt.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
+</body>
+</html>

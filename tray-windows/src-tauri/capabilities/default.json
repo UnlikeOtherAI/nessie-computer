@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "What the tray's own status window may do. It renders a bundled local page and talks to the service only through this application's commands, so it needs no filesystem, shell, or HTTP permission of its own.",
+  "windows": [
+    "status"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
+    "dialog:default",
+    "opener:default"
+  ]
+}
