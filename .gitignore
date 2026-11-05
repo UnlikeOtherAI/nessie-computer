@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.turbo/
+.artifacts/
+.env
+*.local
+**/target/
+**/.build/
+**/gen/
+*.tsbuildinfo
+/menubar-macos/*.xcodeproj/
+/menubar-macos/build/

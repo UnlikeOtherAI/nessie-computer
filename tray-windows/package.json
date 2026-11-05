@@ -1,0 +1,15 @@
+{
+  "name": "@nessie/executor-tray",
+  "version": "0.0.0",
+  "private": true,
+  "license": "FSL-1.1-ALv2",
+  "type": "module",
+  "scripts": {
+    "tauri:build": "tauri build --no-bundle",
+    "test:renderer": "node test/renderer-harness.mjs",
+    "test:personal-pairing": "node test/personal-pairing-journey.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.2"
+  }
+}

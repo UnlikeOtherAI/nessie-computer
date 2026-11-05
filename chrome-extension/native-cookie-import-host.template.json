@@ -1,0 +1,7 @@
+{
+  "name": "works.nessie.executor.browser_import",
+  "description": "Nessie selected-site browser cookie import bridge",
+  "path": "/ABSOLUTE/OWNER-ONLY/PATH/nessie-executor-browser-host",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://RELEASE_PINNED_EXTENSION_ID/"]
+}

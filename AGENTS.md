@@ -1,0 +1,36 @@
+# Executor contributor instructions
+
+This public repository owns Nessie's executor source and releases. The private
+Nessie control plane consumes a pinned revision; do not add a private repository,
+database or server package as an executor dependency. Keep FSL-1.1-ALv2 and
+third-party notices intact. Describe the project as fair source / source
+available, including its two-year Apache 2.0 conversion.
+
+Work in an isolated worktree and branch. Keep changes focused, commit and push
+them, and use a pull request. Merge only after the required checks pass.
+
+Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
+Turbo using `scripts/turbo.public.json`; package tests must retain their build
+prerequisites. Windows state tests require the real native ACL helper beside
+their test Node. Native and installed verification run on their actual OS.
+Compiler success does not prove an installed trust boundary.
+
+Public contribution CI has no production signing credentials. Build candidates
+separately from publication. Official release signing retains UnlikeOtherAI's
+publisher identities and protected release environments. Never publish an
+unsigned development artifact or weaken custody to make a fixture pass.
+
+The local console in `packages/executor-console` is shared by Windows and
+macOS. Reuse it. Every visible change needs all supported translations, a local
+headless browser journey and matching before/after captures. Browser and native
+UI automation stay out of CI. Manually use every changed capability through its
+real entry point before claiming completion.
+
+Read [the security boundaries](SECURITY.md) before changing local permissions,
+pairing, native launch, provider credentials or updates. Persist no duplicate
+server-side UOA identities or memberships. A local cache never grants access.
+
+Keep code files cohesive and below 500 lines. Understanding natural-language
+intent belongs to a model; deterministic code acts on structural protocol facts.
+Keep documentation synchronized with implemented behaviour and state concrete
+verification limits.

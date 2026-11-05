@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  NessieExecutor_<version>_x64.msi — the standalone Nessie Executor.
+
+  It installs one directory of files, registers a service under its own virtual
+  account, tells Hyper-V about the socket the guest speaks on, and starts the
+  tray at login. Everything a person's executor state ever holds lives under
+  %ProgramData%, owned by the service account, and is deliberately left behind
+  on uninstall: a pairing is a machine key and a signed policy revision, and
+  removing a program is not a statement about wanting those destroyed.
+
+  Built by build-msi.mjs, which passes Version and StagingDir.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="Nessie Executor"
+    Manufacturer="UnlikeOtherAI"
+    Version="$(var.Version)"
+    UpgradeCode="9a1c6d2e-4f3b-4a7d-9c1e-2b8f5d6a4e10"
+    Scope="perMachine"
+    Compressed="yes"
+    InstallerVersion="500">
+
+    <SummaryInformation Description="Runs a paired Nessie executor as a Windows service." />
+
+    <!-- Same UpgradeCode, higher version: an upgrade replaces the files and
+         re-registers the service, and never touches the state root. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer Nessie Executor is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- A person double-clicking this package sees a product, not Windows
+         Installer's bare progress bar and a system dialog with an OK button.
+         WixUI_Minimal is the right set here: the package installs to one fixed
+         location under Program Files and exposes no features to choose, so a
+         directory or feature page would only offer choices that do not exist. -->
+    <ui:WixUI Id="WixUI_Minimal" />
+    <WixVariable Id="WixUILicenseRtf" Value="!(bindpath.Assets)\license.rtf" />
+    <WixVariable Id="WixUIDialogBmp" Value="!(bindpath.Assets)\dialog.bmp" />
+    <WixVariable Id="WixUIBannerBmp" Value="!(bindpath.Assets)\banner.bmp" />
+
+    <!-- What Apps & features shows about this package. Without these it lists a
+         nameless entry with the generic installer icon. -->
+    <Icon Id="NessieExecutorIcon" SourceFile="!(bindpath.Assets)\nessie-executor.ico" />
+    <Property Id="ARPPRODUCTICON" Value="NessieExecutorIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://nessie.works" />
+    <Property Id="ARPHELPLINK" Value="https://nessie.works/docs/executors" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+
+    <!-- The packaged Node and the guest artifacts are x86_64 only. -->
+    <Launch
+      Condition="VersionNT64"
+      Message="Nessie Executor requires 64-bit Windows 10 22H2 or later." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Nessie Executor">
+        <!-- Everything the Hyper-V sandbox backend resolves at session start.
+             The executor's stored vmHelperPath is the bridge below, and the
+             backend finds the pinned scripts as its siblings; its kernelPath
+             and guestInitrdBuilderPath are the two under guest\. The guest's
+             FAT32 boot disk is written in-process, so no filesystem tool
+             ships. -->
+        <Directory Id="RESOURCESFOLDER" Name="resources">
+          <Directory Id="GUESTFOLDER" Name="guest" />
+          <Directory Id="SCRIPTSFOLDER" Name="scripts" />
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <!-- Pairing material and machine keys belong to the service, not to a
+         person's profile. The installer establishes the service-owned DACL
+         before the first service start; the running service re-verifies it. -->
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="STATEFOLDER" Name="Nessie Executor">
+        <Directory Id="EXECUTORSFOLDER" Name="executors" />
+      </Directory>
+    </StandardDirectory>
+
+    <ComponentGroup Id="PackagedRuntime" Directory="INSTALLFOLDER">
+      <Component>
+        <File Id="NodeExe" Source="$(var.StagingDir)\nessie-executor-runtime.exe" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="ExecutorBundle" Source="$(var.StagingDir)\nessie-executor.cjs" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="RuntimeManifest" Source="$(var.StagingDir)\manifest.json" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="NodeLicense" Source="$(var.StagingDir)\NODE_LICENSE" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File
+          Id="NativeHelper"
+          Source="$(var.StagingDir)\nessie-executor-native.exe"
+          KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="TrayExe" Source="$(var.StagingDir)\nessie-executor-tray.exe" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <!-- The sandbox payload. Its own manifest.json records one SHA-256 per
+         file, the same way the Linux package records its resources, and the
+         daemon refuses to run a PowerShell script whose bytes have changed. -->
+    <ComponentGroup Id="SandboxResources">
+      <Component Directory="RESOURCESFOLDER">
+        <File Id="HypervBridge" Source="$(var.StagingDir)\resources\nessie-hyperv-bridge.exe" KeyPath="yes" />
+      </Component>
+      <Component Directory="RESOURCESFOLDER">
+        <File Id="ResourceManifest" Source="$(var.StagingDir)\resources\manifest.json" KeyPath="yes" />
+      </Component>
+      <Component Directory="GUESTFOLDER">
+        <File Id="GuestKernel" Source="$(var.StagingDir)\resources\guest\bzImage" KeyPath="yes" />
+      </Component>
+      <Component Directory="GUESTFOLDER">
+        <File Id="GuestInitrdBuilder" Source="$(var.StagingDir)\resources\guest\build-initrd.exe" KeyPath="yes" />
+      </Component>
+      <Component Directory="GUESTFOLDER">
+        <File Id="GuestInit" Source="$(var.StagingDir)\resources\guest\init" KeyPath="yes" />
+      </Component>
+      <Component Directory="SCRIPTSFOLDER">
+        <File Id="ScriptCreate" Source="$(var.StagingDir)\resources\scripts\create.ps1" KeyPath="yes" />
+      </Component>
+      <Component Directory="SCRIPTSFOLDER">
+        <File Id="ScriptStart" Source="$(var.StagingDir)\resources\scripts\start.ps1" KeyPath="yes" />
+      </Component>
+      <Component Directory="SCRIPTSFOLDER">
+        <File Id="ScriptStop" Source="$(var.StagingDir)\resources\scripts\stop.ps1" KeyPath="yes" />
+      </Component>
+      <Component Directory="SCRIPTSFOLDER">
+        <File Id="ScriptRemove" Source="$(var.StagingDir)\resources\scripts\remove.ps1" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+
+    <ComponentGroup Id="ExecutorService" Directory="INSTALLFOLDER">
+      <Component>
+        <File
+          Id="ServiceExe"
+          Source="$(var.StagingDir)\nessie-executor-service.exe"
+          KeyPath="yes" />
+        <!-- The virtual account NT SERVICE\NessieExecutor: Windows creates it
+             from the service name, it has no password and cannot log on
+             interactively, and it owns its own SID. Start="auto" is what puts
+             the executor online before anybody signs in. -->
+        <ServiceInstall
+          Id="NessieExecutorServiceInstall"
+          Name="NessieExecutor"
+          DisplayName="Nessie Executor"
+          Description="Supervises paired Nessie executors and their sandboxed sessions."
+          Type="ownProcess"
+          Start="auto"
+          ErrorControl="normal"
+          Account="NT SERVICE\NessieExecutor"
+          Vital="yes" />
+        <ServiceControl
+          Id="NessieExecutorServiceControl"
+          Name="NessieExecutor"
+          Start="install"
+          Stop="both"
+          Remove="uninstall"
+          Wait="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <ComponentGroup Id="MachineConfiguration">
+      <!-- Hyper-V addresses a Linux guest's vsock port as a GUID built from
+           Microsoft's VSOCK template with the port in its first field, so
+           0x0000c000 is 49152, the guest's control port; 0x0000c001 is the
+           forced-egress tunnel and 0x0000bfff the serial console. Each needs
+           its own registration — an unregistered GUID simply never opens. -->
+      <Component Directory="INSTALLFOLDER" Guid="4d2f8b71-6c05-4f2a-8d3e-71b0c9a54f22">
+        <RegistryKey
+          Root="HKLM"
+          Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000c000-facb-11e6-bd58-64006a7986d3"
+          ForceCreateOnInstall="yes"
+          ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Directory="INSTALLFOLDER" Guid="7e5a1c93-2b48-4d16-9f07-5c3a8be24d61">
+        <RegistryKey
+          Root="HKLM"
+          Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000c001-facb-11e6-bd58-64006a7986d3"
+          ForceCreateOnInstall="yes"
+          ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor egress" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <Component Directory="INSTALLFOLDER" Guid="b41d7f28-90c6-4e35-8a72-1d6e0f9b3c57">
+        <RegistryKey
+          Root="HKLM"
+          Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000bfff-facb-11e6-bd58-64006a7986d3"
+          ForceCreateOnInstall="yes"
+          ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor console" KeyPath="yes" />
+        </RegistryKey>
+      </Component>
+
+      <!-- The tray for the person installing it. Per-user by design: it is one
+           person's control surface, and the service it controls is already
+           running for everybody. Removed on uninstall with the component. -->
+      <Component Directory="INSTALLFOLDER" Guid="0b6a3f14-98d2-4c57-b0a9-3e7c1d5f8a44">
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="NessieExecutorTray"
+          Type="string"
+          Value="&quot;[INSTALLFOLDER]nessie-executor-tray.exe&quot;"
+          KeyPath="yes" />
+      </Component>
+
+      <!-- Created, never removed: MSI leaves a non-empty directory alone, and a
+           paired executor's state lives here. Reinstalling finds its pairings
+           where it left them. -->
+      <Component
+        Id="ExecutorStateDirectory"
+        Directory="EXECUTORSFOLDER"
+        Guid="c3f70a29-1d84-4e6b-95a2-8f4d0b7c6e31">
+        <CreateFolder />
+      </Component>
+    </ComponentGroup>
+
+    <!-- The Hyper-V WMI provider admits members of the built-in Hyper-V
+         Administrators alias (S-1-5-32-578) and nobody else, so the service
+         account joins it here. It runs AFTER StartServices because Windows
+         creates the virtual account when the service is created, and it ignores
+         its own failure on purpose: a Windows edition with no Hyper-V has no
+         such group, and the executor still installs and still serves the
+         workspace bundle. WiX's own util:User cannot do this — its custom
+         action fails to resolve a virtual account against a built-in alias. -->
+    <CustomAction
+      Id="JoinHypervAdministrators"
+      FileRef="ServiceExe"
+      ExeCommand="--join-hyperv-administrators"
+      Execute="deferred"
+      Impersonate="no"
+      Return="ignore" />
+
+    <!-- One action, not three, and the service binary rather than the helper.
+         The helper is a console program: calling it here opened a black window
+         per directory, three times, in the middle of an install. The service
+         binary has no console of its own and runs the helper with its output
+         piped, so nothing is ever drawn; it derives the same three paths the
+         service itself uses, so the installer cannot name a different root. -->
+    <CustomAction
+      Id="SecureServiceStateRoot"
+      FileRef="ServiceExe"
+      ExeCommand="--secure-state-root"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom Action="SecureServiceStateRoot" After="InstallServices" Condition="NOT Installed" />
+      <Custom Action="JoinHypervAdministrators" After="StartServices" Condition="NOT Installed" />
+    </InstallExecuteSequence>
+
+    <Feature Id="Main" Title="Nessie Executor" Level="1">
+      <ComponentGroupRef Id="PackagedRuntime" />
+      <ComponentGroupRef Id="ExecutorService" />
+      <ComponentGroupRef Id="MachineConfiguration" />
+      <ComponentGroupRef Id="SandboxResources" />
+    </Feature>
+  </Package>
+</Wix>

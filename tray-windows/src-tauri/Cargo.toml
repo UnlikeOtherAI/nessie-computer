@@ -1,0 +1,51 @@
+[package]
+name = "nessie-executor-tray"
+version = "0.1.0"
+description = "The Nessie Executor control surface beside the Windows clock."
+authors = ["UnlikeOtherAI"]
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "nessie-executor-tray"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.6.2", features = [] }
+
+[dependencies]
+# The service name, its virtual account, and the SID rendering the service
+# reads back — one statement, shared with nessie-executor-service.
+nessie-windows-common = { path = "../../windows-common" }
+nessie-windows-provenance = { path = "../../windows-provenance" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Used to parse and validate pairing origins with the same rules as the shared
+# TypeScript schema. Tauri already depends on `url`, but the tray's own code
+# relies on its API, so the dependency is stated explicitly.
+url = "2"
+# `tray-icon` is the whole point of this application; `image-png` decodes the
+# four state icons, which are compiled in rather than read from disk so a
+# tampered resource cannot repaint the tray.
+tauri = { version = "2.11.2", features = ["image-png", "tray-icon"] }
+tauri-plugin-dialog = "2.7.2"
+# Windows toasts, such as the console's "Settings saved". The same version as
+# Nessie Desktop, so both apps show notifications through one implementation.
+tauri-plugin-notification = "2.3.3"
+tauri-plugin-opener = "2.5.4"
+
+# Only the Win32 surfaces the tray needs: the control pipe as a client, the
+# elevated relaunch, and the workspace ACL grant the service account depends on.
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Pipes",
+  "Win32_System_IO",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }

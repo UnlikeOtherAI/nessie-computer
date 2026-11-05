@@ -1,0 +1,86 @@
+# The macOS menu bar app for the Nessie executor, generated with xcodegen the
+# way macos/project.yml already is. Nothing checks the .xcodeproj in: this file
+# is the project.
+#
+# Signing is deliberately absent. `scripts/build-app.sh` produces the .app and
+# prints its path; the packaging pipeline signs it with the configured
+# `Developer ID Application` identity and notarizes the DMG
+# (docs/standards/build-and-release.md).
+name: NessieExecutorMenuBar
+options:
+  bundleIdPrefix: com.unlikeotherai.nessie.executor
+  createIntermediateGroups: true
+  deploymentTarget:
+    macOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    # Apple Silicon only, which is the executor's own macOS support statement
+    # (executor/src/host-platform.ts refuses an Intel Mac rather than degrading).
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: NO
+    # The version the DMG is named after, so the installer pipeline has a real
+    # one to read out of CFBundleShortVersionString rather than a placeholder.
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    CLANG_ENABLE_MODULES: YES
+targets:
+  NessieExecutorMenuBar:
+    type: application
+    platform: macOS
+    # The core logic is compiled into the app and into the test bundle. It holds
+    # no AppKit, so a test can decide a menu state or an argument vector without
+    # a GUI, a window server, or a host application.
+    sources:
+      - path: Sources/Core
+      - path: Sources/App
+      - path: ../packages/executor-console
+        type: folder
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_NAME: Nessie Executor
+        PRODUCT_BUNDLE_IDENTIFIER: com.unlikeotherai.nessie.executor.menubar
+        INFOPLIST_FILE: Sources/App/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Sources/App/NessieExecutorMenuBar.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+        # Drawn by executor/scripts/generate-icons.mjs. Without it Finder, the
+        # DMG window and System Settings → Login Items show the generic
+        # application icon for this app.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # The packaging pipeline owns signing; a local build is unsigned and is
+        # never installable.
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+  NessieExecutorMenuBarTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Sources/Core
+      - path: Tests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.unlikeotherai.nessie.executor.menubar.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+schemes:
+  NessieExecutorMenuBar:
+    build:
+      targets:
+        NessieExecutorMenuBar: all
+        NessieExecutorMenuBarTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - NessieExecutorMenuBarTests
+    archive:
+      config: Release

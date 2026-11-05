@@ -1,0 +1,7 @@
+{
+  "name": "works.nessie.executor.browser",
+  "description": "Nessie executor connected-browser bridge",
+  "path": "/ABSOLUTE/OWNER-ONLY/PATH/nessie-executor",
+  "type": "stdio",
+  "allowed_origins": ["chrome-extension://RELEASE_PINNED_EXTENSION_ID/"]
+}

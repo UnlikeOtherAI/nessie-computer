@@ -1,0 +1,19 @@
+[package]
+name = "nessie-windows-provenance"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Authenticode release provenance pinned to one publisher, shared by every Nessie Windows binary."
+
+# Only the Win32 surfaces the decision needs: Authenticode verification with the
+# signer certificate behind it. The Catalog and Sip features are what expose the
+# WTHelper chain readers that answer "signed by whom", which WinVerifyTrust
+# alone never does.
+[target."cfg(windows)".dependencies]
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_Security_Cryptography",
+  "Win32_Security_Cryptography_Catalog",
+  "Win32_Security_Cryptography_Sip",
+  "Win32_Security_WinTrust",
+] }

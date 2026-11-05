@@ -1,0 +1,3 @@
+# xcodegen generates the project from project.yml; nothing here is checked in.
+NessieExecutorMenuBar.xcodeproj/
+build/

@@ -1,0 +1,76 @@
+# The Hyper-V guest kernel's configuration fragment, merged over
+# `x86_64_defconfig`. Every line here is load-bearing; the base supplies the
+# rest of a working x86_64 kernel.
+#
+# THE BUILT-IN COMMAND LINE IS NOT A CONVENIENCE. Hyper-V's generation 2
+# firmware boots `\EFI\BOOT\BOOTX64.EFI` with empty UEFI load options and
+# offers no way to set them, so this is the only kernel command line the guest
+# ever gets. It must equal `HYPERV_BUILTIN_BOOT_ARGS` in
+# executor/src/hyperv/backend.ts, and the test beside that file asserts it.
+# Everything that varies per session travels in the initrd instead
+# (`nessie.args=initrd`, written by `build-initrd --boot-args`).
+CONFIG_CMDLINE_BOOL=y
+CONFIG_CMDLINE="console=ttyS0 reboot=k panic=1 rdinit=/init nessie.args=initrd initrd=\\EFI\\BOOT\\initrd.img"
+# CONFIG_CMDLINE_OVERRIDE is not set
+
+# The EFI stub is what makes the kernel itself the boot loader: "A kernel
+# zImage/bzImage can masquerade as a PE/COFF image, thereby convincing EFI
+# firmware loaders to load it as an EFI executable"
+# (Documentation/admin-guide/efi-stub.rst). The generic-stub initrd loader is
+# what reads `initrd=` at all.
+CONFIG_EFI=y
+CONFIG_EFI_STUB=y
+CONFIG_EFI_GENERIC_STUB_INITRD_CMDLINE_LOADER=y
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_RD_GZIP=y
+CONFIG_INITRAMFS_SOURCE=""
+
+# Hyper-V. The synthetic SCSI controller is how all four disks arrive, and
+# Hyper-V sockets are how both guest channels reach the daemon: "A supported
+# Linux guest must have kernel support for CONFIG_VSOCKET=y and
+# CONFIG_HYPERV_VSOCKETS=y" (Make your own integration services).
+CONFIG_HYPERVISOR_GUEST=y
+CONFIG_PARAVIRT=y
+CONFIG_HYPERV=y
+CONFIG_HYPERV_TIMER=y
+CONFIG_HYPERV_STORAGE=y
+CONFIG_HYPERV_KEYBOARD=y
+CONFIG_NET=y
+CONFIG_VSOCKETS=y
+CONFIG_HYPERV_VSOCKETS=y
+
+# The block devices the SCSI controller presents, and the filesystems the guest
+# mounts on them: three ext4 images composed as an overlay, exactly as under
+# Firecracker. `userxattr` needs 5.11 or newer; this is 6.1.
+CONFIG_SCSI=y
+CONFIG_BLK_DEV_SD=y
+CONFIG_EXT4_FS=y
+CONFIG_EXT4_USE_FOR_EXT2=y
+CONFIG_OVERLAY_FS=y
+
+# The guest finds each image by reading the ext4 label of every device it sees
+# under /sys/block, so sysfs is not optional. /proc carries the command line and
+# devtmpfs carries the device nodes an initramfs has no CONFIG_DEVTMPFS_MOUNT
+# for.
+CONFIG_PROC_FS=y
+CONFIG_SYSFS=y
+CONFIG_DEVTMPFS=y
+CONFIG_TMPFS=y
+
+# The serial console the built-in command line names. Generation 2 machines
+# have no UART until one is added, and `create.ps1` adds COM 1 as a named pipe
+# so a boot that dies before the control hello still leaves evidence.
+CONFIG_SERIAL_8250=y
+CONFIG_SERIAL_8250_CONSOLE=y
+CONFIG_TTY=y
+CONFIG_PRINTK=y
+
+# The guest never reads the boot disk: the firmware loads the kernel and the
+# initrd from it, and nothing inside the guest mounts it. Stating that here is
+# what keeps a later change from quietly adding a FAT mount.
+# CONFIG_VFAT_FS is not set
+# CONFIG_FAT_FS is not set
+
+# There is no network adapter and never will be one, so a guest kernel that
+# could configure an interface is surface with no purpose.
+# CONFIG_INET is not set

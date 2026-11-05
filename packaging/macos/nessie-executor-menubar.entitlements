@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The menu bar app's own entitlements, applied when the bundle is signed for
+  Developer ID distribution with the hardened runtime.
+
+  The app's whole job is to run the packaged `nessie-executor` CLI and hold its
+  parent-liveness pipe, so it needs to launch a child that is signed by the same
+  team but is not part of its own code signature. `allow-dyld-environment-
+  variables` is deliberately absent: nothing here injects a library into a child.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <false/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <false/>
+  <key>com.apple.security.automation.apple-events</key>
+  <false/>
+</dict>
+</plist>

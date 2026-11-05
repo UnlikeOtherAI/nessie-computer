@@ -1,0 +1,50 @@
+# Nessie Executor — the `service` supervisor.
+#
+# One instance per executor id: `nessie-executor@<executorId>`. The instance
+# name is the state directory's name, so the unit and `nessie-executor enable`
+# agree on which executor they are talking about without any extra state.
+#
+# Installed to /usr/lib/systemd/user/ by the nessie-executor package and
+# enabled per user with `nessie-executor enable <executorId>`, which also turns
+# on lingering so this daemon starts at boot and outlives a logout.
+[Unit]
+Description=Nessie Executor (%i)
+Documentation=https://nessie.works/docs/executors
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nessie-executor serve --state-dir %h/.local/state/nessie-executor/%i
+
+# The packaged CLI verifies its own root-owned runtime before it serves, and
+# the descriptor reports which supervisor is running it.
+Environment=NESSIE_EXECUTOR_PACKAGED_CLI=1
+Environment=NESSIE_EXECUTOR_SUPERVISOR=service
+
+Restart=on-failure
+RestartSec=5
+
+# Stopping is the daemon's own graceful path: SIGTERM makes it stop every guest
+# session, release its durable lease, and exit. Its teardown budget is ten
+# seconds, so systemd waits fifteen.
+KillSignal=SIGTERM
+
+# KillMode is deliberately left at its default, `control-group`: the daemon's
+# guest helpers are in its cgroup and must receive the same stop signal.
+# `mixed` would signal only the main process and leave a half-torn-down guest.
+
+# systemd.kill(5) documents SendSIGKILL=no as "generally not recommended",
+# because a process that ignores SIGTERM is then never killed and the unit
+# stays in its stopping state until someone intervenes. That is the trade-off
+# accepted here, deliberately: a SIGKILL delivered mid-teardown leaves a micro-
+# VM and a workspace overlay behind with no process left to clean them, which
+# is a worse and less visible failure than a unit that visibly refuses to
+# finish stopping. `systemctl --user status nessie-executor@<id>` shows the
+# stuck stop, and `systemctl --user kill -s SIGKILL nessie-executor@<id>` is
+# the explicit human escalation.
+TimeoutStopSec=15
+SendSIGKILL=no
+
+[Install]
+WantedBy=default.target

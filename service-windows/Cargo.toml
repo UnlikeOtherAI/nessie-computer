@@ -1,0 +1,50 @@
+[package]
+name = "nessie-executor-service"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "The Nessie Executor Windows service: the standalone package's daemon host."
+
+# What Windows names this executable in Task Manager and its properties; the
+# icon beside it is embedded by build.rs.
+[package.metadata.tauri-winres]
+FileDescription = "Nessie Executor Service"
+ProductName = "Nessie Executor"
+
+[[bin]]
+name = "nessie-executor-service"
+path = "src/main.rs"
+
+[dependencies]
+nessie-windows-common = { path = "../windows-common" }
+nessie-windows-provenance = { path = "../windows-provenance" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.10.9"
+url = "2"
+
+[dev-dependencies]
+tempfile = "3.24.0"
+
+# The Windows halves: the service control protocol itself, the named-pipe
+# control channel and its DACL, the account and group work the installer's
+# custom action performs, and the process handle that answers whether a prior
+# daemon is still tearing down.
+[target."cfg(windows)".dependencies]
+windows-service = "0.8.1"
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_NetworkManagement_NetManagement",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_JobObjects",
+  "Win32_System_Pipes",
+  "Win32_System_SystemServices",
+  "Win32_System_Threading",
+] }
+
+# Embeds the icon and version information (build.rs); Windows builds only.
+[target."cfg(windows)".build-dependencies]
+tauri-winres = "0.3.6"
