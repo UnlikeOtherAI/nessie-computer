@@ -6,6 +6,8 @@
 import { strict as assert } from 'node:assert'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -56,8 +58,13 @@ test('the personal installed floor binds the final signed service and tray, refu
 })
 
 test('the tray build uses the supported no-installer option', () => {
-  assert.ok(buildScript.includes("'tauri', 'build', '--no-bundle'"))
+  assert.ok(buildScript.includes("require.resolve('@tauri-apps/cli/tauri.js'), 'build', '--no-bundle'"))
   assert.equal(buildScript.includes("'--bundles', 'none'"), false)
+  const cli = createRequire(import.meta.url).resolve('@tauri-apps/cli/tauri.js')
+  const version = execFileSync(process.execPath, [cli, '--version'], {
+    cwd: join(packaging, '../../tray-windows'), encoding: 'utf8',
+  })
+  assert.match(version, /tauri-cli \d/u)
 })
 
 test('WiX builds first and validates with the intended ICE exceptions', () => {

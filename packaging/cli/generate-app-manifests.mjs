@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { appCask, stableAppTag, wingetManifests } from './app-manifests.mjs'
 import { assertDeveloperIdSignature } from '../macos/dmg-plan.mjs'
+import { REPOSITORY } from './release-plan.mjs'
 
 const run = promisify(execFile)
 const [kind, declaredTag, input, destination = 'dist/package-manifests'] = process.argv.slice(2)
 const tag = stableAppTag(declaredTag)
+const releaseRepository = process.env.NESSIE_EXECUTOR_RELEASE_REPOSITORY
 if (!input) throw new Error('Provide the signed installer path.')
 const file = resolve(input)
 const output = resolve(destination)
@@ -41,7 +43,7 @@ if (kind === 'desktop' || kind === 'executor') {
     const directory = join(output, 'Casks')
     await mkdir(directory, { recursive: true })
     const path = join(directory, `${kind === 'desktop' ? 'nessie' : 'nessie-executor-app'}.rb`)
-    await writeFile(path, appCask({ app: kind, version: stdout.trim(), tag, sha256 }))
+    await writeFile(path, appCask({ app: kind, version: stdout.trim(), tag, sha256, releaseRepository }))
     process.stdout.write(`${path}\n`)
   } finally {
     await run('hdiutil', ['detach', mount])
@@ -55,7 +57,10 @@ if (kind === 'desktop' || kind === 'executor') {
   const facts = JSON.parse(stdout.replace(/^\uFEFF/, ''))
   const directory = join(output, 'manifests/u/UnlikeOtherAI/NessieExecutor', facts.version)
   await mkdir(directory, { recursive: true })
-  for (const [name, contents] of Object.entries(wingetManifests({ ...facts, tag, sha256 }))) {
+  const licenseRevision = (await run('git', ['rev-parse', 'HEAD'], { cwd: REPOSITORY })).stdout.trim()
+  for (const [name, contents] of Object.entries(wingetManifests({
+    ...facts, tag, sha256, releaseRepository, licenseRevision,
+  }))) {
     await writeFile(join(directory, name), contents)
   }
   process.stdout.write(`${directory}\n`)

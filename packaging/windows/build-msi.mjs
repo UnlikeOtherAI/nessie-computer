@@ -14,6 +14,7 @@ import { execFile } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { copyFile, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 
@@ -23,6 +24,7 @@ import { BUILT_BINARIES, msiFileName, msiVersion } from './msi-plan.mjs'
 import { sealWindowsLaunchConsumers } from './launch-consumers.mjs'
 
 const run = promisify(execFile)
+const require = createRequire(import.meta.url)
 
 const packagingDirectory = dirname(fileURLToPath(import.meta.url))
 const executorDirectory = resolve(packagingDirectory, '../..')
@@ -76,9 +78,11 @@ const cargoRelease = async (manifestDirectory) => {
  * leaving the binary for the MSI to carry.
  */
 const buildTray = async () => {
-  await run('pnpm', ['exec', 'tauri', 'build', '--no-bundle'], {
+  // Resolve the installed CLI from this module. A checkout nested as Nessie's
+  // submodule has its own pnpm workspace boundary, while the hoisted dependency
+  // and binary belong to the enclosing installation.
+  await run(process.execPath, [require.resolve('@tauri-apps/cli/tauri.js'), 'build', '--no-bundle'], {
     cwd: join(executorDirectory, 'tray-windows'),
-    shell: true,
   })
 }
 

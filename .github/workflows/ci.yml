@@ -36,20 +36,49 @@ jobs:
       matrix:
         os: [ubuntu-24.04, windows-2022, macos-15]
     runs-on: ${{ matrix.os }}
+    env:
+      CARGO_BUILD_JOBS: '2'
+      NESSIE_NATIVE_BASE: ${{ github.event.before || github.event.pull_request.base.sha }}
     steps:
       - uses: actions/checkout@v4
-      - run: cargo test --locked --manifest-path native/Cargo.toml --jobs 2
-      - if: runner.os == 'Windows'
+        with:
+          fetch-depth: 0
+      - id: scope
+        run: node scripts/native-ci-inputs.mjs
+      - if: steps.scope.outputs.helper == '1'
+        run: cargo test --locked --manifest-path native/Cargo.toml --jobs 2
+      - if: runner.os == 'Windows' && steps.scope.outputs.windows == '1'
         run: |
           cargo test --locked --manifest-path windows-common/Cargo.toml --jobs 2
           cargo test --locked --manifest-path service-windows/Cargo.toml --jobs 2
-      - if: runner.os == 'Linux'
+      - if: runner.os == 'Linux' && steps.scope.outputs.guest == '1'
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache-dependency-path: guest/go.sum
-      - if: runner.os == 'Linux'
+      - if: runner.os == 'Linux' && steps.scope.outputs.guest == '1'
         working-directory: guest
         run: sudo "$(command -v go)" test ./...
-      - if: runner.os == 'macOS'
+      - if: runner.os == 'macOS' && steps.scope.outputs.vm == '1'
         run: swift test --package-path vm
+      - if: runner.os == 'macOS' && (steps.scope.outputs.macos_app == '1' || steps.scope.outputs.macos_tests == '1')
+        uses: pnpm/action-setup@v4
+      - if: runner.os == 'macOS' && (steps.scope.outputs.macos_app == '1' || steps.scope.outputs.macos_tests == '1')
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - if: runner.os == 'macOS' && (steps.scope.outputs.macos_app == '1' || steps.scope.outputs.macos_tests == '1')
+        run: |
+          pnpm install --frozen-lockfile
+          brew install xcodegen swiftlint
+      - if: runner.os == 'macOS' && steps.scope.outputs.macos_app == '1'
+        name: Build the unsigned source candidate
+        run: |
+          pnpm exec turbo run build --root-turbo-json=scripts/turbo.public.json --concurrency=2
+          menubar-macos/scripts/build-app.sh --configuration Debug --output "$RUNNER_TEMP/executor-source-app"
+      - if: runner.os == 'macOS' && steps.scope.outputs.macos_tests == '1'
+        name: Test native menu and control logic without a UI host
+        run: menubar-macos/scripts/test-app.sh
+      - name: Report unchanged inputs
+        run: echo "Native steps above run only for their changed component inputs; source candidates are never signed, installed or published."

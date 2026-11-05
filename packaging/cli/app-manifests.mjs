@@ -1,7 +1,7 @@
 import { releaseVersion, RELEASES } from './release-plan.mjs'
 
 export const stableAppTag = (tag) => {
-  if (!/^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(tag ?? '')) {
+  if (!/^(?:executor-)?v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(tag ?? '')) {
     throw new Error('App manifests require an immutable vMAJOR.MINOR.PATCH release, never an edge URL.')
   }
   return tag
@@ -11,7 +11,14 @@ const digest = (value) => {
   return value
 }
 
-export const appCask = ({ app, version, tag, sha256 }) => {
+const releaseBase = (repository) => {
+  if (!['UnlikeOtherAI/nessie-executor', 'UnlikeOtherAI/Nessie'].includes(repository)) {
+    throw new Error('Choose an official executor or Desktop release repository.')
+  }
+  return `https://github.com/${repository}/releases`
+}
+
+export const appCask = ({ app, version, tag, sha256, releaseRepository }) => {
   releaseVersion(version)
   stableAppTag(tag)
   digest(sha256)
@@ -20,7 +27,7 @@ export const appCask = ({ app, version, tag, sha256 }) => {
   const token = executor ? 'nessie-executor-app' : 'nessie'
   const name = executor ? 'Nessie Executor' : 'Nessie'
   const asset = executor ? 'Nessie-Executor-macOS-Apple-Silicon.dmg' : 'Nessie-macOS-Apple-Silicon.dmg'
-  const releases = executor ? RELEASES : 'https://github.com/UnlikeOtherAI/Nessie/releases'
+  const releases = releaseBase(releaseRepository ?? (executor ? 'UnlikeOtherAI/nessie-executor' : 'UnlikeOtherAI/Nessie'))
   return `cask "${token}" do
   version "${version}"
   sha256 "${sha256.toLowerCase()}"
@@ -39,10 +46,12 @@ end
 `
 }
 
-export const wingetManifests = ({ version, tag, sha256, productCode }) => {
+export const wingetManifests = ({ version, tag, sha256, productCode, releaseRepository, licenseRevision = tag }) => {
   releaseVersion(version)
   stableAppTag(tag)
   digest(sha256)
+  if (licenseRevision !== tag && !/^[a-f0-9]{40}$/.test(licenseRevision)) throw new Error('Use the reviewed public source revision.')
+  const releases = releaseRepository ? releaseBase(releaseRepository) : RELEASES
   if (!/^\{[A-Fa-f0-9-]{36}\}$/.test(productCode ?? '')) throw new Error('Read ProductCode from the actual signed MSI.')
   const id = 'UnlikeOtherAI.NessieExecutor'
   const common = `PackageIdentifier: ${id}\nPackageVersion: ${version}\n`
@@ -55,7 +64,7 @@ PublisherUrl: https://nessie.works
 PackageName: Nessie Executor
 PackageUrl: https://nessie.works/docs/executor-setup
 License: FSL-1.1-ALv2
-LicenseUrl: https://github.com/UnlikeOtherAI/nessie-executor/blob/${tag}/LICENSE
+LicenseUrl: https://github.com/UnlikeOtherAI/nessie-executor/blob/${licenseRevision}/LICENSE
 ShortDescription: Connect your computer to Nessie with local per-team permissions.
 Moniker: nessie-executor
 ManifestType: defaultLocale
@@ -66,7 +75,7 @@ Scope: machine
 UpgradeBehavior: install
 Installers:
   - Architecture: x64
-    InstallerUrl: ${RELEASES}/download/${tag}/Nessie-Executor-Windows.msi
+    InstallerUrl: ${releases}/download/${tag}/Nessie-Executor-Windows.msi
     InstallerSha256: ${sha256.toUpperCase()}
     ProductCode: '${productCode}'
     AppsAndFeaturesEntries:

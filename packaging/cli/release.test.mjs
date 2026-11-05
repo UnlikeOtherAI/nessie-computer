@@ -90,3 +90,17 @@ test('app manifests refuse moving URLs and retain the actual installed app versi
   assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /Scope: machine/)
   assert.throws(() => wingetManifests({ version: '1.0.0', tag: 'v1.0.0', sha256: 'a'.repeat(64) }), /ProductCode/)
 })
+test('standalone manifests use public releases while Desktop companions retain their publishing repository', () => {
+  const source = 'a'.repeat(40)
+  assert.equal(stableAppTag('executor-v1.0.0'), 'executor-v1.0.0')
+  const input = { app: 'executor', version: '1.0.0', tag: 'executor-v1.0.0', sha256: 'b'.repeat(64) }
+  assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.0/'))
+  assert.ok(appCask({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie' })
+    .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
+  const manifests = wingetManifests({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie',
+    licenseRevision: source, productCode: '{12345678-1234-1234-1234-123456789abc}' })
+  assert.ok(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml']
+    .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
+  assert.ok(manifests['UnlikeOtherAI.NessieExecutor.locale.en-US.yaml']
+    .includes(`UnlikeOtherAI/nessie-executor/blob/${source}/LICENSE`))
+})
