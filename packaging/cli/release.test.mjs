@@ -49,7 +49,7 @@ test('publication rejects verification keys, altered payloads and mismatched sou
       assert.equal(command, 'gh')
       assert.equal(args[args.indexOf('--source-ref') + 1], 'refs/heads/main')
       assert.equal(args[args.indexOf('--source-digest') + 1], candidate.commit)
-      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/Nessie/.github/workflows/executor-cli.yml')
+      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/nessie-executor/.github/workflows/executor-cli.yml')
       assert.ok(args.includes('--deny-self-hosted-runners'))
     })
     assert.equal(attested.commit, candidate.commit)
@@ -65,7 +65,7 @@ test('publication rejects verification keys, altered payloads and mismatched sou
 })
 
 test('build workflow cannot publish a release or silently produce an unsigned Mac archive', async () => {
-  const workflow = await readFile(new URL('../../../.github/workflows/executor-cli.yml', import.meta.url), 'utf8')
+  const workflow = await readFile(new URL('../../.github/workflows/executor-cli.yml', import.meta.url), 'utf8')
   assert.match(workflow, /contents: read/)
   assert.doesNotMatch(workflow, /contents: write|publish\.mjs|gh release create/)
   assert.match(workflow, /NESSIE_EXECUTOR_SIGNING_IDENTITY/)

@@ -50,6 +50,6 @@ jobs:
           cache-dependency-path: guest/go.sum
       - if: runner.os == 'Linux'
         working-directory: guest
-        run: go test ./...
+        run: sudo "$(command -v go)" test ./...
       - if: runner.os == 'macOS'
         run: swift test --package-path vm

@@ -33,8 +33,8 @@ export const verifyCandidate = async (directory, platform, version, execute = ru
   }
   // The signed manifest authenticates every payload hash and the signing mode.
   // Neither an edited JSON label nor an attestation from a branch is sufficient.
-  await execute('gh', ['attestation', 'verify', manifest, '--repo', 'UnlikeOtherAI/Nessie',
-    '--signer-workflow', 'UnlikeOtherAI/Nessie/.github/workflows/executor-cli.yml',
+  await execute('gh', ['attestation', 'verify', manifest, '--repo', 'UnlikeOtherAI/nessie-executor',
+    '--signer-workflow', 'UnlikeOtherAI/nessie-executor/.github/workflows/executor-cli.yml',
     '--source-ref', 'refs/heads/main', '--source-digest', candidate.commit, '--deny-self-hosted-runners'])
   return candidate
 }

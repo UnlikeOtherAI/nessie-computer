@@ -8,13 +8,13 @@ import { releaseTag, releaseVersion } from './release-plan.mjs'
 const run = promisify(execFile)
 const version = releaseVersion()
 const directory = resolve(process.argv[2] ?? 'dist/executor-cli')
-const repo = 'UnlikeOtherAI/Nessie'
+const repo = 'UnlikeOtherAI/nessie-executor'
 const linux = await verifyCandidate(directory, 'linux', version)
 const mac = await verifyCandidate(directory, 'darwin', version)
 if (linux.commit !== mac.commit) throw new Error('All platforms must come from the same source revision.')
 const json = async (args) => JSON.parse((await run('gh', args)).stdout)
 const runs = await json(['api', `repos/${repo}/actions/runs?head_sha=${linux.commit}&event=push&per_page=100`])
-for (const path of ['.github/workflows/ci.yml', '.github/workflows/desktop-ci.yml']) {
+for (const path of ['.github/workflows/ci.yml']) {
   const latest = runs.workflow_runs.filter((item) => item.path === path && item.head_branch === 'main')
     .sort((left, right) => right.id - left.id)[0]
   if (latest?.conclusion !== 'success') throw new Error(`The source needs a green main run of ${path}.`)

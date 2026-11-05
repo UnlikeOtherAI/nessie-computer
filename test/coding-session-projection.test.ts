@@ -71,9 +71,9 @@ test('credentials read <secret>, whether the host knows the value or only its sh
   const token = `ghp_${'A1b2'.repeat(9)}`
   assert.equal(projector.toolInput('Bash', { command: `export GH_TOKEN=${token}` }), 'export GH_TOKEN=<secret>')
   assert.equal(projector.toolResult(`${token}\n`, false), '<secret>')
-  assert.equal(projector.toolInput('Bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnopqrstuvwx" https://x' }), // gitleaks:allow -- synthetic test value, never a credential
+  assert.equal(projector.toolInput('Bash', { command: 'curl -H "Authorization: Bearer abcdefghijklmnopqrstuvwx" https://x' }), // gitleaks:allow
     'curl -H "Authorization: Bearer <secret>" https://x')
-  assert.equal(projector.line(`key sk-ant-api03-${'x'.repeat(30)} and AKIAABCDEFGHIJKLMNOP`, 300), 'key <secret> and <secret>') // gitleaks:allow -- synthetic test value, never a credential
+  assert.equal(projector.line(`key sk-ant-api03-${'x'.repeat(30)} and AKIAABCDEFGHIJKLMNOP`, 300), 'key <secret> and <secret>') // gitleaks:allow
   assert.equal(projector.line(`jwt eyJhbGciOiJIUzI1.eyJzdWIiOiIxMjM0.SflKxwRJSMeKKF2QT4`, 300), 'jwt <secret>')
   assert.equal(projector.line('DB_PASSWORD="hunter2hunter2" API_KEY: abcdef123', 300), 'DB_PASSWORD=<secret> API_KEY: <secret>')
   assert.equal(projector.text('-----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbn\n-----END OPENSSH PRIVATE KEY-----', 300), '<secret>')

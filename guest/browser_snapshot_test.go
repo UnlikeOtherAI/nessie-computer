@@ -8,7 +8,7 @@ import (
 )
 
 func TestCommonSnapshotRealChromiumEditableAX(t *testing.T) {
-	payload, err := os.ReadFile("../../packages/browser-cloud/test/fixtures/editable-ax.json")
+	payload, err := os.ReadFile("testdata/editable-ax.json")
 	if err != nil {
 		t.Fatal(err)
 	}

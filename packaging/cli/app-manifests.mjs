@@ -20,10 +20,11 @@ export const appCask = ({ app, version, tag, sha256 }) => {
   const token = executor ? 'nessie-executor-app' : 'nessie'
   const name = executor ? 'Nessie Executor' : 'Nessie'
   const asset = executor ? 'Nessie-Executor-macOS-Apple-Silicon.dmg' : 'Nessie-macOS-Apple-Silicon.dmg'
+  const releases = executor ? RELEASES : 'https://github.com/UnlikeOtherAI/Nessie/releases'
   return `cask "${token}" do
   version "${version}"
   sha256 "${sha256.toLowerCase()}"
-  url "${RELEASES}/download/${tag}/${asset}"
+  url "${releases}/download/${tag}/${asset}"
   name "${name}"
   desc "${executor ? 'Connect your computer to Nessie with local per-team permissions' : 'Team collaboration with agents that do the work'}"
   homepage "https://nessie.works"
@@ -54,7 +55,7 @@ PublisherUrl: https://nessie.works
 PackageName: Nessie Executor
 PackageUrl: https://nessie.works/docs/executor-setup
 License: FSL-1.1-ALv2
-LicenseUrl: https://github.com/UnlikeOtherAI/Nessie/blob/${tag}/LICENSE
+LicenseUrl: https://github.com/UnlikeOtherAI/nessie-executor/blob/${tag}/LICENSE
 ShortDescription: Connect your computer to Nessie with local per-team permissions.
 Moniker: nessie-executor
 ManifestType: defaultLocale

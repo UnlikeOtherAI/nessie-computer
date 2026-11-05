@@ -51,7 +51,7 @@ func guestEgressToken() throws {
 
 @Test("guest egress tunnel has one fixed distinct-session prelude")
 func guestEgressTunnelPrelude() throws {
-  let token = "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo" // gitleaks:allow -- synthetic test value, never a credential
+  let token = "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo" // gitleaks:allow
   let prelude = try GuestEgressTunnelCodec.encodePrelude(sessionToken: token)
   #expect(prelude.count == guestEgressPreludeBytes)
   #expect(prelude == Data([0x4e, 0x45, 0x58, 0x47, 1]) + Data(token.utf8))
@@ -79,7 +79,7 @@ func guestEgressAdmissionSession() throws {
 
   let authenticated = DispatchSemaphore(value: 0)
   let terminated = DispatchSemaphore(value: 0)
-  let token = "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo" // gitleaks:allow -- synthetic test value, never a credential
+  let token = "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo" // gitleaks:allow
   let session = try GuestEgressTunnelSession(
     fileDescriptor: host,
     expectedSessionToken: token,
@@ -110,7 +110,7 @@ func guestEgressAdmissionRejectsWrongToken() throws {
   let terminated = DispatchSemaphore(value: 0)
   let session = try GuestEgressTunnelSession(
     fileDescriptor: host,
-    expectedSessionToken: "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo", // gitleaks:allow -- synthetic test value, never a credential
+    expectedSessionToken: "AN43IKRZz4QAd6L6iE-D9mklr0Pm6SEq9jiiB9PAVPo", // gitleaks:allow
     onAuthenticated: { authenticated.signal() },
     onTerminated: { _ in terminated.signal() },
   )

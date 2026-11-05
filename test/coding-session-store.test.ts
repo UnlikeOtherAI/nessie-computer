@@ -37,7 +37,7 @@ const scratch = async (): Promise<{ dir: string; paths: CodingSessionPaths }> =>
 }
 
 const meta: CodingSessionMeta = {
-  version: 1, sessionId: SESSION, ownerKey: 'owner-a-0123456789', agent: 'claude', rootName: 'work', path: '.', // gitleaks:allow -- synthetic test value, never a credential
+  version: 1, sessionId: SESSION, ownerKey: 'owner-a-0123456789', agent: 'claude', rootName: 'work', path: '.', // gitleaks:allow
   title: 'Task', createdAt: '2026-09-22T00:00:00.000Z',
 }
 
