@@ -46,6 +46,10 @@
     "//#test:public-portability": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "//#test:updates": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

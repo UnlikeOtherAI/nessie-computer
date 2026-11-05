@@ -1,7 +1,7 @@
 import { createHash, createPublicKey, verify } from 'node:crypto'
 import { z } from 'zod'
 
-const Version = z.string().regex(/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/u)
+const Version = z.string().regex(/^(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})$/u)
 const Asset = z.object({
   name: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,159}$/u),
   url: z.string().url(),
@@ -19,7 +19,7 @@ const Manifest = z.object({
   publishedAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
   minimumUpdaterProtocol: z.number().int().positive(),
-  targets: z.record(UpdateTargetSchema, z.array(Asset).min(1).max(3)),
+  targets: z.record(UpdateTargetSchema, z.array(Asset).min(1).max(3)).refine(value => Object.keys(value).length > 0),
 }).strict()
 const Envelope = z.object({
   payload: z.string().min(1).max(180_000),

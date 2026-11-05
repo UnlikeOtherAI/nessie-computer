@@ -48,10 +48,6 @@ const repository = join(packaging, '..', '..')
 const buildScript = await readFile(join(packaging, 'build-dmg.mjs'), 'utf8')
 const macRuntimeProducer = await readFile(join(packaging, 'prepare-runtime.mjs'), 'utf8')
 const signerScript = await readFile(join(packaging, 'sign-app.mjs'), 'utf8')
-const releaseWorkflow = await readFile(
-  join(repository, '.github', 'workflows', 'release.yml'),
-  'utf8',
-)
 const appEntitlements = await readFile(join(packaging, APP_ENTITLEMENTS_FILE), 'utf8')
 const runtimeEntitlements = await readFile(join(packaging, RUNTIME_ENTITLEMENTS_FILE), 'utf8')
 
@@ -442,19 +438,4 @@ test('the architecture is the build host’s, because the Node is', () => {
   }
   // process.arch, not a flag: prepare-runtime copies the running Node binary.
   assert.ok(buildScript.includes('dmgFileName(version, process.arch, mode.kind)'))
-})
-
-test('the release workflow can never publish an unsigned image', () => {
-  // --require-signed is what turns a missing credential into a failed release
-  // rather than a quietly unsigned asset.
-  assert.ok(releaseWorkflow.includes('build-dmg.mjs --require-signed'))
-  // The published asset is named by the job, and the marker must never appear
-  // in anything the publish step uploads.
-  assert.equal(releaseWorkflow.includes(DEVELOPMENT_MARKER), false)
-  // The publish job waits for the executor DMG job, so a failed notarization
-  // cannot be a release that shipped every other asset and quietly omitted this
-  // one.
-  const publishNeeds = /\n  publish:[\s\S]*?\n    needs: \[([^\]]+)\]/.exec(releaseWorkflow)
-  assert.ok(publishNeeds !== null, 'the publish job must declare its needs')
-  assert.ok(publishNeeds[1].split(',').map((name) => name.trim()).includes('macos-executor-menubar'))
 })

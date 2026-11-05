@@ -18,13 +18,17 @@ or production signing credential is required for source verification.
 ```sh
 pnpm install --frozen-lockfile
 pnpm verify
-pnpm start -- --help
+pnpm start --version
 ```
 
 Native packages require their platform toolchains. Unsigned development
 artifacts cannot establish personal credential custody and must never be
 published or installed as official releases. Browser journeys run locally and
 headless; they are deliberately separate from ordinary CI unit tests.
+
+Automatic updates are being built; they are not active in installed releases.
+The policy, trust model and remaining delivery gates are in
+[automatic updates](docs/automatic-updates.md).
 
 On Windows, build the native ACL helper before running unit tests:
 `cargo build --release --manifest-path native/Cargo.toml`. The test runner puts

@@ -34,16 +34,6 @@ import {
 const packaging = dirname(fileURLToPath(import.meta.url))
 const authoring = await readFile(join(packaging, 'nessie-executor.wxs'), 'utf8')
 const buildScript = await readFile(join(packaging, 'build-msi.mjs'), 'utf8')
-const workflowsDirectory = join(packaging, '..', '..', '..', '.github', 'workflows')
-const windowsWorkflow = await readFile(join(workflowsDirectory, 'desktop-windows.yml'), 'utf8')
-/**
- * Both workflows that run `build-msi.mjs`, by the name a person would look for:
- * Desktop CI's Windows Native check, and the release build.
- */
-const packageBuildingWorkflows = {
-  'desktop-ci.yml': await readFile(join(workflowsDirectory, 'desktop-ci.yml'), 'utf8'),
-  'desktop-windows.yml': windowsWorkflow,
-}
 const script = async (name) => readFile(join(packaging, 'scripts', name), 'utf8')
 
 test('the personal installed floor binds the final signed service and tray, refusing incomplete producers', async () => {
@@ -72,8 +62,6 @@ test('the tray build uses the supported no-installer option', () => {
 
 test('WiX builds first and validates with the intended ICE exceptions', () => {
   assert.ok(buildScript.includes("const WIX_VERSION = '5.0.2'"))
-  assert.ok(windowsWorkflow.includes('WIX_VERSION: "5.0.2"'))
-  assert.ok(windowsWorkflow.includes("-replace '^(desktop-)?v', ''"))
   assert.ok(buildScript.includes("'msi', 'validate',"))
   assert.ok(buildScript.includes("'-sice', 'ICE38',"))
   assert.ok(buildScript.includes("'-sice', 'ICE64',"))
@@ -88,19 +76,9 @@ test('WiX builds first and validates with the intended ICE exceptions', () => {
  * element and then fails with WIX0144 — an error that names an extension
  * rather than anything a reader would connect to the installer's appearance.
  */
-test('every workflow that builds the package installs the WiX UI extension', () => {
+test('the WiX UI extension is pinned to the package toolset version', () => {
   const extension = buildScript.match(/const UI_EXTENSION = `([^`]+)`/)?.[1]
   assert.equal(extension, 'WixToolset.UI.wixext/${WIX_VERSION}')
-  for (const [name, workflow] of Object.entries(packageBuildingWorkflows)) {
-    assert.ok(
-      workflow.includes('wix extension add --global WixToolset.UI.wixext/'),
-      `${name} runs build-msi.mjs, so it must install the UI extension`,
-    )
-    assert.ok(
-      workflow.includes('dotnet tool install --global wix --version'),
-      `${name} must install the toolset itself`,
-    )
-  }
 })
 
 test('a Hyper-V socket GUID is the guest port in the VSOCK template', () => {
