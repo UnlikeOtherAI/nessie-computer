@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -27,4 +28,15 @@ test('public source verification has no Prisma or private-package preflight', as
   const licence = await readFile(join(root, 'LICENSE'), 'utf8')
   assert.match(licence, /FSL-1\.1-ALv2/u)
   assert.match(licence, /second anniversary/u)
+})
+
+test('Unix entry points retain executable Git modes after extraction on Windows', () => {
+  const entries = ['guest/kernel/build.sh', 'guest/works.nessie.executor.guest',
+    'menubar-macos/scripts/build-app.sh', 'menubar-macos/scripts/test-app.sh', 'vm/scripts/build-guest-initrd.sh']
+  const modes = new Map(execFileSync('git', ['ls-files', '--stage', '--', ...entries],
+    { cwd: root, encoding: 'utf8' }).trim().split('\n').map(line => {
+    const [metadata, path] = line.split('\t')
+    return [path, metadata.split(' ')[0]]
+  }))
+  for (const path of entries) assert.equal(modes.get(path), '100755', `${path} must run after a Unix checkout`)
 })

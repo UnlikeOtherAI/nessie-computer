@@ -8,3 +8,5 @@ dist/
 **/.build/
 **/gen/
 *.tsbuildinfo
+/menubar-macos/*.xcodeproj/
+/menubar-macos/build/
