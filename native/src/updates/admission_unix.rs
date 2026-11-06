@@ -78,6 +78,10 @@ fn permitted(value: &Maintenance, digest: &str, arguments: &[String]) -> bool {
 }
 
 pub(crate) fn admit(release: &Release, arguments: &[String]) -> Result<(), NativeError> {
+    if super::unix_clearance::activity(arguments).is_some() && super::unix_legacy::remaining(&release.digest)
+        .map_err(|_| NativeError::new("EXECUTOR_UPDATE_STATE_UNVERIFIED"))? {
+        return Err(NativeError::new("EXECUTOR_UPDATE_BOOTSTRAP_REQUIRED"));
+    }
     let value = read().map_err(|_| NativeError::new("EXECUTOR_UPDATE_STATE_UNVERIFIED"))?;
     if !permitted(&value, &release.digest, arguments) { return Err(NativeError::new("EXECUTOR_UPDATE_IN_PROGRESS")); }
     Ok(())

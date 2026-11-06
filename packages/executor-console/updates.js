@@ -21,7 +21,8 @@
     node('install').textContent = text('install', status?.availableVersion)
     node('hint').textContent = status?.automatic === false ? words.offHint : words.automaticHint
     const phase = status?.phase ?? 'checking'
-    node('status').textContent = text(words[phase] ? phase : 'unavailable', version)
+    node('status').textContent = status?.code === 'update.bootstrap_required'
+      ? words.bootstrap : text(words[phase] ? phase : 'unavailable', version)
     if (phase === 'failed' && status?.availableVersion) {
       node('status').textContent += ` ${text('available', status.availableVersion)}`
     }

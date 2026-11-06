@@ -11,6 +11,7 @@ fn now() -> u64 {
 }
 fn spawn_worker() -> Result<Child, String> {
     let store = Store::new(host::root().map_err(str::to_owned)?);
+    if !store.installation_enabled().map_err(str::to_owned)? { return Err("update.installation_removed".into()); }
     let lease = store.runner().map_err(str::to_owned)?;
     drop(lease);
     let image = unix_runtime::worker_image().map_err(str::to_owned)?;
@@ -107,11 +108,27 @@ pub(super) fn worker() -> Result<(), String> {
     unix_runtime::verify_worker().map_err(str::to_owned)?;
     let store = Store::new(host::root().map_err(str::to_owned)?);
     let _runner = store.runner().map_err(str::to_owned)?;
+    if !store.installation_enabled().map_err(str::to_owned)? { return Ok(()); }
     store.mutate_journal(|journal| { journal.check_requested_at = Some(now()); Ok(()) }).map_err(str::to_owned)?;
     let network = Network::default();
     let installer = Host;
     let coordinator = Coordinator { store: &store, network: &network, installer: &installer };
     loop {
+        if !store.installation_enabled().map_err(str::to_owned)? { return Ok(()); }
+        match super::unix_legacy::bootstrap() {
+            Ok(true) => {
+                store.mutate_journal(|journal| {
+                    if journal.check_code.as_deref() == Some("update.bootstrap_required") { journal.check_code = None; }
+                    Ok(())
+                }).map_err(str::to_owned)?;
+            },
+            result => {
+                let code = result.err().unwrap_or("update.bootstrap_required");
+                store.mutate_journal(|journal| { journal.check_code = Some(code.into()); Ok(()) }).map_err(str::to_owned)?;
+                std::thread::sleep(Duration::from_secs(3));
+                continue;
+            },
+        }
         coordinator.tick(now()).map_err(str::to_owned)?;
         if store.journal().map_err(str::to_owned)?.pending.is_none()
             && installer.installed().map_err(str::to_owned)?.source_commit != env!("NESSIE_EXECUTOR_SOURCE_COMMIT") {

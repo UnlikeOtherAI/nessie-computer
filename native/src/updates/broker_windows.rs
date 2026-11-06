@@ -286,6 +286,7 @@ fn connection(mut file: File) -> Result<(), String> {
 
 fn spawn_worker() -> Result<Child, String> {
     let store = Store::new(host::root().map_err(str::to_owned)?);
+    if !store.installation_enabled().map_err(str::to_owned)? { return Err("update.installation_removed".into()); }
     // Kernel-owned lease recovery also covers a worker surviving an MSI's SCM stop.
     let lease = store.runner().map_err(str::to_owned)?;
     drop(lease);
@@ -310,6 +311,7 @@ pub fn worker() -> Result<(), String> {
     host::verify_worker().map_err(str::to_owned)?;
     let store = Store::new(host::root().map_err(str::to_owned)?);
     let _runner = store.runner().map_err(str::to_owned)?;
+    if !store.installation_enabled().map_err(str::to_owned)? { return Ok(()); }
     store
         .mutate_journal(|journal| {
             journal.check_requested_at = Some(now());
@@ -324,6 +326,7 @@ pub fn worker() -> Result<(), String> {
         installer: &installer,
     };
     loop {
+        if !store.installation_enabled().map_err(str::to_owned)? { return Ok(()); }
         coordinator.tick(now()).map_err(str::to_owned)?;
         if store.journal().map_err(str::to_owned)?.pending.is_none()
             && installer.installed().map_err(str::to_owned)?.source_commit

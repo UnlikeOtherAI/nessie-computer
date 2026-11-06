@@ -18,3 +18,4 @@ pub(in crate::updates) use applications::{prepare_exit, resume as resume_applica
 pub(in crate::updates) use health::{confirm_restarted, observe_daemon};
 pub(in crate::updates) use package::{replace_when_clear, verify_publishers};
 pub(in crate::updates) use runtime::{initialize, installed, target, verify_worker, worker_image};
+pub(in crate::updates) use runtime::uninstall;

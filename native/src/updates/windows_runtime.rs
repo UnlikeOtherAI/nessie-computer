@@ -168,8 +168,15 @@ pub(in crate::updates) fn initialize() -> UpdateResult<()> {
     // A replacing worker may hold the persistent lock throughout this MSI.
     // Setup never clears or takes ownership of its existing maintenance state.
     let worker = worker_image()?;
+    nessie_executor_updater::storage::Store::new(root.clone()).set_installation_enabled(true)?;
     super::setup::configure(&worker)?;
     Ok(())
+}
+
+pub(in crate::updates) fn uninstall() -> UpdateResult<()> {
+    system()?;
+    directory(&root()?)?;
+    nessie_executor_updater::storage::Store::new(root()?).set_installation_enabled(false)
 }
 
 pub(in crate::updates) fn worker_image() -> UpdateResult<PathBuf> {

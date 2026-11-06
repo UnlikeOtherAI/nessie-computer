@@ -17,6 +17,8 @@ pub(crate) mod unix_health;
 #[cfg(unix)]
 mod unix_package;
 #[cfg(unix)]
+mod unix_legacy;
+#[cfg(unix)]
 mod broker_unix;
 #[cfg(target_os = "macos")]
 mod macos_applications;
@@ -52,6 +54,9 @@ pub fn service() -> Result<(), NativeError> {
 }
 pub fn install() -> Result<(), NativeError> {
     broker::install().map_err(|_| rejected())
+}
+pub fn uninstall() -> Result<(), NativeError> {
+    host::platform::uninstall().map_err(|_| rejected())
 }
 pub fn worker() -> Result<(), NativeError> {
     broker::worker().map_err(|_| rejected())

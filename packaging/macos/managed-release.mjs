@@ -21,7 +21,7 @@ export const finishMacManagedManifest = async (runtime) => {
   const resources = join(runtime.runtimeDirectory, 'resources')
   await mkdir(resources, { recursive: true })
   await writeFile(join(resources, 'manifest.json'), `${JSON.stringify({ format: 1, files: [] })}\n`)
-  const manifest = { ...runtime.manifest, managedLaunchProtocol: 1, personalInferenceGuardVersion: 2,
+  const manifest = { ...runtime.manifest, managedLaunchProtocol: 1, updateAdmissionProtocol: 1, personalInferenceGuardVersion: 2,
     executorBundleSha256: await digest(runtime.executorBundlePath), nodeSha256: await digest(runtime.nodePath),
     nativeHelper: 'nessie-executor-native', nativeHelperSha256: await digest(join(runtime.runtimeDirectory,
       'nessie-executor-native')), resourcesManifestSha256: await digest(join(resources, 'manifest.json')) }

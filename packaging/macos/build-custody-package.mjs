@@ -29,10 +29,10 @@ if (mode.kind === 'release') {
   const requirement = `anchor apple generic and certificate leaf[subject.OU] = "${mode.teamId}"`
     + ' and certificate leaf[field.1.2.840.113635.100.6.1.13] exists'
   for (const name of ['nessie-executor-native', 'nessie-executor-runtime']) {
-    await run('/usr/bin/codesign', ['--verify', '--strict', '-R', requirement, join(resolve(runtimeDirectory), name)])
+    await run('/usr/bin/codesign', ['--verify', '--strict', '-R', `=${requirement}`, join(resolve(runtimeDirectory), name)])
   }
   const application = resolve(applicationDirectory)
-  await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '-R', requirement, application])
+  await run('/usr/bin/codesign', ['--verify', '--deep', '--strict', '-R', `=${requirement}`, application])
   for (const [key, expected] of [['CFBundleIdentifier', 'com.unlikeotherai.nessie.executor.menubar'],
     ['CFBundleShortVersionString', version], ['NessieExecutorManagedLaunchProtocol', '1'],
     ['NessieExecutorPersonalInferenceGuardVersion', '2'], ['NessieExecutorIndependentRuntime', '1']]) {

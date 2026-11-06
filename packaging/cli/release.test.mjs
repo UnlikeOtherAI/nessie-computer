@@ -20,7 +20,8 @@ test('native Linux packages keep the runtime and service at their trusted locati
   for (const format of ['deb', 'rpm']) {
     const config = linuxPackage('1.0.0', '/build/payload', format, '/temporary/signing-key.asc')
     assert.deepEqual(config.contents, [{ src: '/build/payload/usr/', dst: '/usr', type: 'tree' }])
-    assert.deepEqual(config.scripts, { postinstall: '/build/payload/install-custody-barrier.sh' })
+    assert.deepEqual(config.scripts, { postinstall: '/build/payload/install-custody-barrier.sh',
+      preremove: '/build/payload/disable-updater-for-removal.sh' })
     assert.ok(config.depends.includes('tmux'))
     assert.ok(config.depends.includes('systemd'))
     assert.equal(config.rpm.signature.key_file, '/temporary/signing-key.asc')

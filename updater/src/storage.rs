@@ -71,6 +71,20 @@ impl Store {
         &self.root
     }
 
+    /// A privileged package removal disables work without deleting accepted
+    /// transactions, replay floors, local policy or credential custody fences.
+    pub fn installation_enabled(&self) -> UpdateResult<bool> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Installation { format: u32, enabled: bool }
+        let Some(value): Option<Installation> = self.read("installation.json")? else { return Ok(true); };
+        if value.format != 1 { return Err("update.state_unavailable"); }
+        Ok(value.enabled)
+    }
+    pub fn set_installation_enabled(&self, enabled: bool) -> UpdateResult<()> {
+        self.write("installation.json", &serde_json::json!({"format":1,"enabled":enabled}))
+    }
+
     /// Only the native host supplies this receipt, after kernel creation proof.
     /// It never accepts receipt fields or a destination path from IPC callers.
     pub fn save_health(&self, value: &serde_json::Value) -> UpdateResult<()> {
@@ -411,5 +425,25 @@ mod tests {
         assert_eq!(store.journal().unwrap().last_checked_at, Some(100));
         fs::write(directory.path().join("preferences.json"), b"broken").unwrap();
         assert!(store.preferences().is_err());
+    }
+    #[test]
+    fn removal_survives_restart_and_retains_accepted_work_and_policy_for_repair() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::new(directory.path().to_path_buf());
+        store.mutate_preferences(|preferences| { preferences.automatic = false; Ok(()) }).unwrap();
+        store.mutate_journal(|journal| {
+            journal.pending = Some(crate::protocol::PendingInstall { channel: crate::protocol::Channel::Stable,
+                envelope: "retained accepted bytes".into(), digest: "a".repeat(64),
+                phase: crate::protocol::Phase::Installing, started_at: 100 });
+            Ok(())
+        }).unwrap();
+        store.set_installation_enabled(false).unwrap();
+        let reopened = Store::new(directory.path().to_path_buf());
+        assert!(!reopened.installation_enabled().unwrap());
+        assert_eq!(reopened.journal().unwrap().pending.unwrap().envelope, "retained accepted bytes");
+        reopened.set_installation_enabled(true).unwrap();
+        assert!(reopened.installation_enabled().unwrap());
+        assert!(!reopened.preferences().unwrap().automatic);
+        assert_eq!(reopened.journal().unwrap().pending.unwrap().digest, "a".repeat(64));
     }
 }

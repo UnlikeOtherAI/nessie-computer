@@ -170,6 +170,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
         Command::UpdateControl => updates::control(),
         Command::UpdateService => updates::service(),
         Command::UpdateInstall => updates::install(),
+        Command::UpdateUninstall => updates::uninstall(),
         Command::UpdateWorker => updates::worker(),
         Command::UpdateApplicationReopen => updates::reopen_application(),
         Command::PersonalChatgptBrowser => chatgpt_browser::open(),
@@ -334,7 +335,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
         Some(Command::BuildInfo | Command::UpdateControl | Command::UpdateService
-            | Command::UpdateInstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
+            | Command::UpdateInstall | Command::UpdateUninstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
             println!("{}", serde_json::json!({"error":error.code}));
         }
         Some(Command::KernelProcessContext(_)) => {

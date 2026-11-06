@@ -5,6 +5,15 @@ local controls are implemented in source. No signed installed upgrade has been
 verified, and macOS/Linux installer adapters and the transition release remain
 unfinished. No public update channel is enabled.
 
+Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
+at `c7ac37d` has verified timestamped signatures and matching extracted payload
+hashes; its native helper and CLI report the expected version/source. The macOS
+0.9.0 app and DMG at `b0e5c3b` passed Developer ID validation, notarization,
+stapling and Gatekeeper. Neither candidate has been installed, published or
+used for an A-to-B upgrade, and the macOS update PKG still needs its Installer
+certificate. macOS signing uses a temporary launchd job in the existing GUI
+session so SSH does not require another keychain sign-in or copied credentials.
+
 The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
 helper. A development-labelled bundle is not a release candidate.
@@ -201,6 +210,28 @@ build information. Linux additionally verifies the pinned package publisher in
 `packaging/linux/keys`; macOS checks the Installer team, Gatekeeper and package
 identifier/version. Initial retirement of legacy creators and installed package
 recovery still need completion before release.
+
+Package removal now writes a protected disable marker before stopping the
+updater. Accepted bytes, replay floors, local update preferences and credential
+fences remain intact; a surviving worker cannot reinstall the removed package.
+Major upgrades skip removal intent. Windows removal rollback and package repair
+reenable the restored installation; Linux reinstall runs the same protected
+setup. Actual removal/rollback testing is still pending.
+
+Unix release manifests declare update-admission protocol `1`. On the initial
+transition, the protected worker waits for whole-machine clearance and removes
+user read/execute permission from legacy native creators, runtimes and bundles,
+retaining their exact bytes for audit or repair. It preserves the existing
+machine lock and public custody journals. New actors remain fenced until that
+step finishes. Later releases enforce selected-current and maintenance state
+themselves. The first transition requires older executors to finish and close;
+the installer does not terminate their work. This path needs installed testing.
+The local Settings page explains this initial wait in all supported languages
+and removes the message when setup recovers. Its focused headless journey is
+`node tray-windows/test/renderer-harness.mjs --updates-bootstrap-only`; add
+`--updates-before=<base-sha>` for matching base-revision captures. These checks
+exercise the shared Windows/macOS renderer with broker fixtures, not an installed
+bootstrap. The 440/640-pixel states and all seven locales passed on Maxis.
 
 The macOS menu app now requests a native handoff once runtime work is clear.
 The Root broker records the actual app and agent process generations. A retained

@@ -26,6 +26,7 @@ impl Coordinator<'_> {
     /// Accepted transactions resume even when a fresh catalogue check is offline.
     pub fn tick(&self, now: u64) -> UpdateResult<()> {
         let _worker = self.store.worker()?;
+        if !self.store.installation_enabled()? { return Ok(()); }
         let journal = self.store.journal()?;
         self.publish_admission(&journal)?;
         let check_due = journal.next_check_at <= now

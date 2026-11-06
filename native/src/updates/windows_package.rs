@@ -98,9 +98,22 @@ pub fn replace_when_clear(
 ) -> UpdateResult<bool> {
     system()?;
     let mut admission = Admission::acquire(true).map_err(|_| "update.admission_busy")?;
+    if !nessie_executor_updater::storage::Store::new(crate::updates::host::root()?).installation_enabled()? {
+        return Err("update.installation_removed");
+    }
     // Resume a crash after Windows committed the package but before the
     // coordinator recorded Restarting. New daemons need no second MSI run.
     if let Ok(current) = runtime() {
+        if let Some(version) = &current.version {
+            let ordering = nessie_executor_updater::catalog::compare_versions(version, &manifest.version)?;
+            if ordering == std::cmp::Ordering::Greater {
+                return Err("update.downgrade_refused");
+            }
+            if ordering == std::cmp::Ordering::Equal
+                && current.source_commit.as_deref() != Some(manifest.source_commit.as_str()) {
+                return Err("update.version_conflict");
+            }
+        }
         if current.version.as_deref() == Some(manifest.version.as_str())
             && current.source_commit.as_deref() == Some(manifest.source_commit.as_str())
         {

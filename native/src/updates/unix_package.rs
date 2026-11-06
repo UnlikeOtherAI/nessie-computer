@@ -133,15 +133,20 @@ pub(super) fn replace_when_clear(manifest: &Manifest, directory: &Path,
     begin: &mut dyn FnMut() -> UpdateResult<()>) -> UpdateResult<bool> {
     unix_runtime::privileged()?;
     let _barrier = crate::managed_machine_barrier::MachineBarrier::acquire().map_err(|_| "update.admission_busy")?;
+    if !nessie_executor_updater::storage::Store::new(super::host::root()?).installation_enabled()? {
+        return Err("update.installation_removed");
+    }
     let mut maintenance = admission_unix::read()?;
     if let Ok(release) = crate::managed_release::installed() {
         if release.version.as_deref() == Some(&manifest.version) && release.source_commit.as_deref() == Some(&manifest.source_commit) {
             maintenance.target = Some(release.digest); admission_unix::write(&maintenance)?; return Ok(true);
         }
         if let Some(version) = &release.version {
-            if nessie_executor_updater::catalog::compare_versions(version, &manifest.version)? == std::cmp::Ordering::Greater {
+            let ordering = nessie_executor_updater::catalog::compare_versions(version, &manifest.version)?;
+            if ordering == std::cmp::Ordering::Greater {
                 return Err("update.downgrade_refused");
             }
+            if ordering == std::cmp::Ordering::Equal { return Err("update.version_conflict"); }
         }
     }
     if !super::unix_clearance::ready()? { return Ok(false); }

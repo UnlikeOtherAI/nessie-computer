@@ -8,6 +8,7 @@ use crate::{
 
 impl Coordinator<'_> {
     pub fn control(&self, request: Request, now: u64) -> UpdateResult<Status> {
+        if !self.store.installation_enabled()? { return Err("update.installation_removed"); }
         match request {
             Request::Status => {}
             Request::Channel { channel } => {

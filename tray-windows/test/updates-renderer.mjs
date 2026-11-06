@@ -7,7 +7,9 @@ import { installRendererHost } from './renderer-host.mjs'
 
 export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   const before = process.argv.find((arg) => arg.startsWith('--updates-before='))?.split('=')[1]
-  const output = join(root, '.artifacts/executor-console-updates', before ? 'before' : 'after')
+  const bootstrapOnly = process.argv.includes('--updates-bootstrap-only')
+  const output = join(root, bootstrapOnly ? '.artifacts/executor-console-bootstrap' : '.artifacts/executor-console-updates',
+    before ? 'before' : 'after')
   await mkdir(output, { recursive: true })
   const resource = (file) => before
     ? execFileSync('git', ['show', `${before}:packages/executor-console/${file}`], { cwd: root, maxBuffer: 2_000_000 })
@@ -23,6 +25,9 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       else if (['downloading', 'waiting', 'installing', 'restarting'].includes(state)) {
         Object.assign(window.updateStatus, { phase: state, targetVersion: '1.0.1' })
       } else if (state === 'unsupported') Object.assign(window.updateStatus, { phase: state, canInstall: false })
+      else if (state === 'bootstrap') Object.assign(window.updateStatus, {
+        phase: 'failed', canInstall: false, code: 'update.bootstrap_required', availableVersion: undefined,
+      })
       else if (['available', 'failed'].includes(state)) window.updateStatus.phase = state
     }, state)
     const page = await context.newPage()
@@ -45,7 +50,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   }
   for (const host of ['windows', 'macos']) {
     for (const width of [640, 440]) {
-      const states = before ? ['idle'] : ['idle', 'available', 'prompt', 'downloading', 'waiting', 'installing',
+      const states = bootstrapOnly ? ['bootstrap'] : before ? ['idle'] : ['idle', 'available', 'prompt', 'downloading', 'waiting', 'installing',
         'restarting', 'failed', 'unsupported', 'unavailable']
       for (const state of states) {
         const { context, page, errors } = await open({ host, width, state })
@@ -53,7 +58,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
           if (state === 'unavailable') await page.locator('#update-error').waitFor()
           else await page.locator('#update-version').getByText('1.0.0', { exact: true }).waitFor()
           if (state === 'prompt') await page.locator('#update-dialog[open]').waitFor()
-          assert.equal(await page.locator('#update-policy').isVisible(), !['unsupported', 'unavailable'].includes(state))
+          assert.equal(await page.locator('#update-policy').isVisible(), !['unsupported', 'unavailable', 'bootstrap'].includes(state))
           assert.equal(await page.locator('#update-install').isVisible(), ['available', 'failed', 'prompt'].includes(state))
           assert.equal(await page.locator('#update-install').isEnabled(), true)
           if (!['prompt'].includes(state)) {
@@ -61,6 +66,16 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
           }
         }
         await page.screenshot({ path: join(output, `${host}-${width}-${state}.png`), fullPage: true })
+        if (!before && state === 'bootstrap') {
+          await page.getByText('Finish current work and stop older Nessie executors. Update setup will then finish automatically.',
+            { exact: true }).waitFor()
+          await page.evaluate(() => {
+            Object.assign(window.updateStatus, { phase: 'idle', canInstall: true, code: undefined })
+            window.emitTray('executor://update-available')
+          })
+          await page.waitForFunction(() => document.getElementById('update-status').textContent === window.executorUpdateWords.idle)
+          assert.equal(await page.locator('#update-policy').isVisible(), true)
+        }
         if (!before && state === 'prompt') {
           await page.locator('#update-prompt-remind').click()
           await page.waitForFunction(() => !document.getElementById('update-dialog').open)
@@ -103,7 +118,16 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   }
   if (!before) {
     for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
-      const { context, page, errors } = await open({ locale, width: 440, state: 'prompt' })
+      const { context, page, errors } = await open({ locale, width: 440, state: bootstrapOnly ? 'bootstrap' : 'prompt' })
+      if (bootstrapOnly) {
+        await page.waitForFunction(() => document.getElementById('update-status').textContent === window.executorUpdateWords.bootstrap)
+        assert.equal(await page.locator('#software-updates').evaluate((element) => element.scrollWidth <= element.clientWidth), true)
+        await page.screenshot({ path: join(output, `windows-440-bootstrap-${locale}.png`), fullPage: true })
+        assert.deepEqual(errors, [])
+        journeys++
+        await context.close()
+        continue
+      }
       await page.locator('#update-dialog[open]').waitFor()
       assert.equal(await page.locator('#update-dialog').evaluate((dialog) => dialog.scrollWidth <= dialog.clientWidth), true)
       assert.ok((await page.locator('#update-prompt-install').textContent()).includes('1.0.1'))
