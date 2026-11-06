@@ -1,11 +1,10 @@
 //! Authenticated MSI inspection and the fixed privileged installation transaction.
-use super::runtime::{runtime, service_root, system, wide, ERROR, PIN};
+use super::runtime::{runtime, system, wide, ERROR, PIN};
 use nessie_executor_updater::{
     catalog::UpdateResult,
     protocol::{Manifest, Target},
 };
 use nessie_windows_common::{
-    custody_store::Store as CustodyStore,
     release,
     update_admission::{self, Admission},
 };
@@ -111,13 +110,10 @@ pub fn replace_when_clear(
             return Ok(true);
         }
     }
-    let state = CustodyStore::new(&service_root()?)
-        .read()
-        .map_err(|_| "update.custody_unverified")?;
-    if !state.runtimes.is_empty() || !state.hosts.is_empty() || !state.holds.is_empty() {
+    if !super::clearance::custody_idle()? {
         return Ok(false);
     }
-    if !super::clearance::ready()? {
+    if !super::clearance::ready(false)? {
         return Ok(false);
     }
     admission
@@ -129,6 +125,9 @@ pub fn replace_when_clear(
     let system_dir =
         update_admission::known_folder(&windows_sys::Win32::UI::Shell::FOLDERID_System)
             .map_err(|_| ERROR)?;
+    let windows = update_admission::known_folder(&windows_sys::Win32::UI::Shell::FOLDERID_Windows)
+        .map_err(|_| ERROR)?;
+    let temporary = super::runtime::installer_temporary()?;
     let result = Command::new(system_dir.join("msiexec.exe"))
         .args(["/i"])
         .arg(package(manifest, directory)?)
@@ -139,6 +138,11 @@ pub fn replace_when_clear(
             "MSIRESTARTMANAGERCONTROL=DisableShutdown",
         ])
         .env_clear()
+        .env("SystemRoot", &windows)
+        .env("WINDIR", &windows)
+        .env("TEMP", &temporary)
+        .env("TMP", &temporary)
+        .current_dir(&temporary)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

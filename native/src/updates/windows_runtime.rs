@@ -130,6 +130,12 @@ fn directory(path: &Path) -> UpdateResult<()> {
     Ok(())
 }
 
+pub(super) fn installer_temporary() -> UpdateResult<PathBuf> {
+    let path = root()?.join("installer-temp");
+    directory(&path)?;
+    Ok(path)
+}
+
 pub(in crate::updates) fn initialize() -> UpdateResult<()> {
     system()?;
     // The installer calls the exact newly installed helper, not caller code.

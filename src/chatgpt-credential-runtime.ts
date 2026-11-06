@@ -144,8 +144,18 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
       if (!key) return refused()
       while (!controller.signal.aborted) {
         try {
-          await runProfileChatgptHost({ runtime, profile, key, renewAuthority: renew, signal: controller.signal,
-            oauth, backendOptions: dependencies.backendOptions })
+          const updatedVersion = await runProfileChatgptHost({ runtime, profile, key, renewAuthority: renew,
+            signal: controller.signal, oauth, backendOptions: dependencies.backendOptions })
+          if (updatedVersion) {
+            await store.update(profileId, prior => {
+              if (!prior || prior.operationId !== operationId || prior.phase === 'disconnecting'
+                || prior.accountGeneration !== profile!.accountGeneration
+                || prior.consentRevision !== profile!.consentRevision) return refused()
+              return { ...prior, revision: prior.revision + 1, phase: 'reconnecting', reason: null, planEnabled: false,
+                restartAfterUpdate: { version: updatedVersion, operationId } }
+            })
+            process.exitCode = 75
+          }
           break
         } catch {
           const current = await store.read(profileId)

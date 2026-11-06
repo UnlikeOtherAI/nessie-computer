@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var console: ConsoleWindowController?
     /// Held so the observer lives as long as the app does.
     private var secondLaunchObserver: NSObjectProtocol?
+    private let updates = ExecutorUpdateMonitor()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let controller = ExecutorConnections(isDevelopmentBuild: AppBuild.isDevelopment)
@@ -27,12 +28,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             console?.show(ConsoleTarget(section: .settings))
         }
         controller.start()
+        updates.start(console: console, connections: controller)
     }
 
     /// Quitting stops the daemon, and waits for it: this app's daemon is its own
     /// child, and a sandbox mid-teardown is waited for rather than killed.
     func applicationWillTerminate(_ notification: Notification) {
         controller?.shutdown()
+        updates.stop()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

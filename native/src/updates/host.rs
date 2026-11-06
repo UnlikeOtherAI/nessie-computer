@@ -15,10 +15,16 @@ impl Installer for Host {
     fn set_draining(&self, draining: bool, restart_ready: bool) -> UpdateResult<()> {
         #[cfg(windows)]
         {
-            nessie_windows_common::update_admission::Admission::acquire(true)
-                .map_err(|_| "update.admission_busy")?
+            {
+            let mut admission = nessie_windows_common::update_admission::Admission::acquire(true)
+                .map_err(|_| "update.admission_busy")?;
+            if draining && !restart_ready { platform::capture_drain()?; }
+            admission
                 .set_draining(draining, restart_ready)
-                .map_err(|_| "update.state_unavailable")
+                .map_err(|_| "update.state_unavailable")?;
+            }
+            if !draining || restart_ready { platform::resume_applications(!draining)?; }
+            Ok(())
         }
         #[cfg(not(windows))]
         {

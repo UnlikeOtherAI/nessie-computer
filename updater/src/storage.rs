@@ -77,6 +77,21 @@ impl Store {
         self.write("healthy.json", value)
     }
 
+    /// The native host supplies only independently observed application owners
+    /// and generations. All mutations hold the native admission lock.
+    pub fn applications(&self) -> UpdateResult<serde_json::Value> {
+        Ok(self.read("applications.json")?.unwrap_or_else(|| serde_json::json!([])))
+    }
+    pub fn save_applications(&self, value: &serde_json::Value) -> UpdateResult<()> {
+        self.write("applications.json", value)
+    }
+    pub fn restart_observation(&self) -> UpdateResult<Option<serde_json::Value>> {
+        self.read("restart-observation.json")
+    }
+    pub fn save_restart_observation(&self, value: &serde_json::Value) -> UpdateResult<()> {
+        self.write("restart-observation.json", value)
+    }
+
     pub(crate) fn save_superseded(
         &self,
         journal: &Journal,

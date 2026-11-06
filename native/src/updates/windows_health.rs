@@ -13,6 +13,17 @@ pub fn confirm_restarted(manifest: &Manifest) -> UpdateResult<bool> {
     {
         return Ok(false);
     }
+    if !super::applications::confirmed(&manifest.source_commit)? { return Ok(false); }
+    if !daemon_healthy(&release, manifest)? && !super::restart_observation::native_only(manifest)? {
+        return Ok(false);
+    }
+    let mut admission = Admission::acquire(true).map_err(|_| "update.admission_busy")?;
+    super::applications::complete()?;
+    admission.set_target(None).map_err(|_| ERROR)?;
+    Ok(true)
+}
+
+fn daemon_healthy(release: &release::Release, manifest: &Manifest) -> UpdateResult<bool> {
     // Fresh process confirmation is supplied by the broker after native parent
     // generation and immutable release proof; newer files alone never pass.
     let path = root()?.join("healthy.json");
@@ -34,10 +45,6 @@ pub fn confirm_restarted(manifest: &Manifest) -> UpdateResult<bool> {
     if process.generation != generation || !process.alive() {
         return Ok(false);
     }
-    Admission::acquire(true)
-        .map_err(|_| "update.admission_busy")?
-        .set_target(None)
-        .map_err(|_| ERROR)?;
     Ok(true)
 }
 

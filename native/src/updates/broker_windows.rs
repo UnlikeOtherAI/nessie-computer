@@ -32,7 +32,7 @@ use windows_service::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        GetLastError, LocalFree, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, INVALID_HANDLE_VALUE,
+        GetLastError, LocalFree, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, INVALID_HANDLE_VALUE,
     },
     Security::{
         Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW, SECURITY_ATTRIBUTES,
@@ -156,7 +156,7 @@ fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
     let active = Arc::new(AtomicUsize::new(0));
     let mut worker: Option<Child> = None;
     let mut first = true;
-    while !stopped.load(Ordering::Acquire) {
+    'accept: while !stopped.load(Ordering::Acquire) {
         if worker
             .as_mut()
             .is_none_or(|child| child.try_wait().ok().flatten().is_some())
@@ -185,6 +185,9 @@ fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
             if connected != 0 || error == ERROR_PIPE_CONNECTED {
                 break;
             }
+            // A client may time out or exit before acceptance. Keep the broker
+            // alive and replace only this abandoned connection.
+            if error == ERROR_NO_DATA { continue 'accept; }
             if error != ERROR_PIPE_LISTENING {
                 return Err(ERROR.into());
             }
@@ -229,9 +232,20 @@ fn connection(mut file: File) -> Result<(), String> {
     if bytes.len() > 16_384 {
         return Err(ERROR.into());
     }
-    let response = serde_json::from_slice::<Request>(&bytes)
+    let response = serde_json::from_slice::<serde_json::Value>(&bytes)
         .map_err(|_| ERROR.to_owned())
-        .and_then(|request| {
+        .and_then(|value| {
+            if value == serde_json::json!({"operation":"app_ready"}) {
+                let store = Store::new(host::root().map_err(str::to_owned)?);
+                let network = Network::default();
+                let installer = Host;
+                let status = Coordinator { store: &store, network: &network, installer: &installer }
+                    .status(now()).map_err(str::to_owned)?;
+                return host::platform::prepare_exit(file.as_raw_handle().cast(),
+                    status.draining && status.phase == nessie_executor_updater::protocol::Phase::Waiting)
+                    .map(|allowed| serde_json::json!({"mayExit":allowed})).map_err(str::to_owned);
+            }
+            let request = serde_json::from_value::<Request>(value).map_err(|_| ERROR.to_owned())?;
             if matches!(request, Request::Status) {
                 // Failure is ordinary for a CLI or an older runtime; it grants no
                 // health authority and never makes a status read fail.

@@ -1,9 +1,9 @@
 # Automatic executor updates
 
-Status: **not released**. Source extraction and signed catalogue verification
-exist. Installed computers do not yet update themselves. The native installer,
-local controls, notifications and transition release remain to be implemented
-and exercised on each supported operating system.
+Status: **not released**. The Windows native installer coordinator and shared
+local controls are implemented in source. No signed installed upgrade has been
+verified, and macOS/Linux installer adapters and the transition release remain
+unfinished. No public update channel is enabled.
 
 The `updater/` Rust crate owns signed catalogue selection, bounded resumable
 downloads and the durable installation journal. Its host installer adapters
@@ -119,11 +119,41 @@ prevented from stopping applications. A fresh native-created daemon with the
 new immutable release supplies restart confirmation. Partial installation uses
 the surviving trusted worker and original accepted transaction for repair.
 
-These Windows paths compile but have not yet passed a signed installed upgrade.
+The shared local app exposes installed version, automatic installation, Check
+for updates and a version-labelled Update button in Settings, including before
+pairing. With automatic updates off, its native monitor opens that surface and
+the update/remind popup even when the window was hidden. Both native hosts use
+the same bounded authenticated coordinator calls as the CLI. Changed copy is
+translated into all seven supported locales. The local headless renderer
+journey is `node tray-windows/test/renderer-harness.mjs --updates-only`; it is
+not a CI job. Matching base screenshots can be captured with
+`--updates-before=<base-commit>` from actual Git objects without changing UI.
+
+Windows observes exited generations and empty Job Objects independently of
+stale service records; it never deletes that journal or its credential fences
+to make progress. Once runtime work is clear, the authenticated native tray
+requests permission to exit. The SYSTEM broker records its real account,
+interactive session and process generation, and restarts only the installed,
+verified tray as that user. It never starts Node as SYSTEM for a health check.
+Restart confirmation requires a new daemon when the drained installation had
+one. An installation with no running daemon instead exercises the exact signed
+native helper's compiled version, revision and protocol. App restart records
+remain until the new app is alive and health is confirmed; opt-out resumes the
+same installed app. These paths still need actual signed installation tests.
+
+Direct local inference and personal-plan credential actors stop accepting new
+claims, finish active generations and leave through normal cleanup. An
+intentional personal-plan restart stores only a target version and operation
+reference in its existing owner-only metadata. The native app's normal status
+interface can resume that previously granted profile through the current
+factory, repeating pairing authority and custody checks. Registration, account
+generation, consent, encrypted credentials and unsettled receipt keys remain
+intact; a disconnect or revocation prevents resumption.
+
 macOS and Linux installer adapters remain disabled until their native package,
-publisher and clearance paths are implemented and verified. The local console
-preference and popup, app restart coordination, and the Desktop transition to
-the independent runtime are also unfinished. No public update channel is enabled.
+publisher and clearance paths are implemented and verified. The macOS controls
+still need a native compile and app exercise. The Desktop transition to the
+independent runtime and all-platform signed installed acceptance are unfinished.
 
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue

@@ -16,6 +16,7 @@ import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
 import type { ChatgptOAuthProvider } from './chatgpt-oauth-provider.js'
 import { reconcileStoppedChatgptReceipts } from './chatgpt-profile-outbox.js'
 import { readChatgptBackgroundConsent } from './chatgpt-background-consent.js'
+import { watchInferenceUpdateDrain } from './updates/inference-drain.js'
 
 const fail = (): never => { throw new PersonalInferenceProtectionError('chatgpt_host_authority_unavailable') }
 
@@ -25,7 +26,7 @@ export const runProfileChatgptHost = async (input: {
   renewAuthority: () => Promise<ExecutorChatgptContext>; signal: AbortSignal
   oauth?: Pick<ChatgptOAuthProvider, 'refresh'>
   backendOptions?: Parameters<typeof createChatgptBackend>[1]
-}): Promise<void> => {
+}): Promise<string | undefined> => {
   const context = await input.renewAuthority()
   const api = createLocalInferenceDaemonApi({ apiBaseUrl: context.principal.serverOrigin })
   const challenge = await api.issueChallenge({ hostId: context.hostId })
@@ -65,7 +66,8 @@ export const runProfileChatgptHost = async (input: {
       || prior.accountGeneration !== source.accountGeneration || prior.consentRevision !== source.consentRevision) {
       return fail()
     }
-    return { ...prior, revision: prior.revision + 1, phase: 'ready', reason: null, planEnabled: true }
+    return { ...prior, revision: prior.revision + 1, phase: 'ready', reason: null, planEnabled: true,
+      restartAfterUpdate: undefined }
   })
   const auth = createProfileChatgptAuthProvider({ ...input, context: claimed,
     assertInvocationPrepared: attempt => custody.assertInvocationPrepared(attempt) })
@@ -76,6 +78,7 @@ export const runProfileChatgptHost = async (input: {
     backend: createChatgptBackend(auth, input.backendOptions), coordinator, journal,
     personalReceipts: custody.transport,
     isPaused: () => input.signal.aborted, origin: 'https://api.openai.com/v1', onError: () => undefined })
+  const update = watchInferenceUpdateDrain({ loop: session.loop })
   let timer: NodeJS.Timeout | undefined
   let working: Promise<void> | undefined
   let rejectRuntime!: (error: unknown) => void
@@ -102,8 +105,9 @@ export const runProfileChatgptHost = async (input: {
         await session.heartbeat()
       })().catch(rejectRuntime).finally(() => { working = undefined })
     }, 5000)
-    await Promise.race([aborted, failed, session.refused.then(fail)])
+    return await Promise.race([aborted.then(() => undefined), failed, session.refused.then(fail), update.ready])
   } finally {
+    update.stop()
     clearInterval(timer)
     session.loop.stop()
     await session.stop()

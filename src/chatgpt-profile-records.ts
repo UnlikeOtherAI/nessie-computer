@@ -22,6 +22,9 @@ export const ChatgptProfileRecordSchema = PersonalChatgptProfileStatusSchema
     pid: z.number().int().positive(), startedAt: z.string().regex(/^\d+$/u),
     bootId: z.string().uuid(),
   }).strict().nullable(),
+  /** An intentional software restart preserves the existing registration and consent. */
+  restartAfterUpdate: z.object({ version: z.string().regex(/^\d{1,16}\.\d{1,16}\.\d{1,16}$/u),
+    operationId: z.string().uuid() }).strict().optional(),
 }).strict()
 export type ChatgptProfileRecord = z.infer<typeof ChatgptProfileRecordSchema>
 

@@ -1,5 +1,6 @@
 //! Verify the operating system's actual broker peer before sending a fixed request.
 use nessie_executor_updater::protocol::Request;
+#[cfg(unix)]
 use std::io::{BufRead, BufReader, Read, Write};
 
 pub const REJECTED: &str = "update.coordinator_unavailable";
@@ -9,8 +10,9 @@ pub const SOCKET: &str = "/var/lib/nessie-executor/update-control.sock";
 #[cfg(target_os = "macos")]
 pub const SOCKET: &str = "/Library/Application Support/Nessie Executor/update-control.sock";
 #[cfg(windows)]
-pub const PIPE: &str = r"\\.\pipe\NessieExecutorUpdater";
+pub const PIPE: &str = nessie_windows_common::update_channel::PIPE;
 
+#[cfg(unix)]
 fn exchange(mut stream: impl Read + Write, request: &Request) -> Result<serde_json::Value, String> {
     let mut bytes = serde_json::to_vec(request).map_err(|_| REJECTED)?;
     bytes.push(b'\n');
@@ -88,40 +90,8 @@ pub fn call(request: &Request) -> Result<serde_json::Value, String> {
 
 #[cfg(windows)]
 pub fn call(request: &Request) -> Result<serde_json::Value, String> {
-    use std::{
-        fs::File,
-        os::windows::{ffi::OsStrExt, io::FromRawHandle},
-    };
-    use windows_sys::Win32::{
-        Foundation::{CloseHandle, INVALID_HANDLE_VALUE},
-        Storage::FileSystem::{CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING},
-        System::Pipes::WaitNamedPipeW,
-    };
-    let name: Vec<u16> = std::ffi::OsStr::new(PIPE)
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-    unsafe { WaitNamedPipeW(name.as_ptr(), 5000) };
-    let handle = unsafe {
-        CreateFileW(
-            name.as_ptr(),
-            nessie_windows_common::CONTROL_PIPE_CLIENT_ACCESS,
-            0,
-            std::ptr::null(),
-            OPEN_EXISTING,
-            FILE_ATTRIBUTE_NORMAL,
-            std::ptr::null_mut(),
-        )
-    };
-    if handle.is_null() || handle == INVALID_HANDLE_VALUE {
-        return Err(REJECTED.into());
-    }
-    if let Err(error) = nessie_windows_common::service_channel::verify_updater(
-        handle,
+    nessie_windows_common::update_channel::call(
+        &serde_json::to_value(request).map_err(|_| REJECTED)?,
         option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"),
-    ) {
-        unsafe { CloseHandle(handle) };
-        return Err(error);
-    }
-    exchange(unsafe { File::from_raw_handle(handle.cast()) }, request)
+    )
 }

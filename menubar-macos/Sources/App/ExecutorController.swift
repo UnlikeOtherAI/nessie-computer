@@ -27,6 +27,24 @@ final class ExecutorController: ObservableObject {
     private var restarts = RestartSchedule()
     /// The start in flight is an automatic restart, so a failed one is retried.
     private var restarting = false
+    private var checkingPersonalUpdate = false
+
+    /// The ordinary status command resumes only a profile that intentionally
+    /// drained for an update, retaining its original registration and consent.
+    func resumePersonalUpdate() {
+        guard !checkingPersonalUpdate, model.description != nil, let runner else { return }
+        checkingPersonalUpdate = true
+        Task {
+            defer { checkingPersonalUpdate = false }
+            let invocation = ExecutorCLIInvocation(
+                arguments: ["personal-chatgpt-local", "--operation-stdin", "--state-dir", stateDirectory],
+                standardInput: Data("{\"operation\":\"status\"}".utf8)
+            )
+            _ = try? await PersonalChatgptProcess().run(
+                process: runner.process(for: invocation), invocation: invocation
+            )
+        }
+    }
 
     init(isDevelopmentBuild: Bool, stateDirectory: String, refusal: ExecutorRefusal? = nil) {
         self.isDevelopmentBuild = isDevelopmentBuild

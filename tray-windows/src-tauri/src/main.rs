@@ -39,6 +39,7 @@ mod service_identity;
 mod service_peer;
 mod state;
 mod sync_status;
+mod update_controls;
 mod user_connections;
 mod user_runtime;
 
@@ -239,6 +240,7 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            update_controls::executor_update_control,
             console_commands::executor_console_describe,
             console_commands::executor_configure,
             console_commands::executor_autostart,
@@ -276,6 +278,7 @@ fn main() {
             let handle = app.handle().clone();
             build_tray(&handle)?;
             user_connections::start_paired();
+            update_controls::start(handle.clone());
             start_polling(handle);
             Ok(())
         })

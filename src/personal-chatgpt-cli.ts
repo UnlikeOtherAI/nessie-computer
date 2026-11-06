@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { isAbsolute, resolve } from 'node:path'
 import { PersonalChatgptConsoleOperationSchema, PersonalChatgptConsoleStatusSchema, type PersonalChatgptConnectIntent,
@@ -11,12 +10,13 @@ import { matchingChatgptPairing } from './chatgpt-profile-authority.js'
 import { withManagedRuntimeInventory } from './managed-runtime-inventory.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
 import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
-import { executorChildCommand } from './executor-child-command.js'
+import { launchChatgptCredential } from './chatgpt-credential-launch.js'
+import { resumeChatgptAfterUpdate } from './updates/chatgpt-resume.js'
 import { acquireOwnerStateLock } from './personal-admission-lock.js'
 import type { ChatgptProfileRecord } from './chatgpt-profile-records.js'
 import { profileBackgroundConsent, setChatgptBackgroundConsent } from './chatgpt-background-consent.js'
 import { resolveChatgptLocalOperation } from './chatgpt-local-operation.js'
-import { windowsServiceReference, windowsServiceExecutorId } from './chatgpt-windows-service-authority.js'
+import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
 
 type Operation = ReturnType<typeof PersonalChatgptConsoleOperationSchema.parse>
 const usage = (): never => {
@@ -56,50 +56,10 @@ const preflight = async (stateDirectory: string, intent: PersonalChatgptConnectI
     }
   })
 }
-const launch = async (
-  stateDirectory: string, profileId: string, operationId: string,
-  retainOwner: (stopped: Promise<void>) => void,
-): Promise<{ stopped: Promise<void> }> => {
-  const command = executorChildCommand({ execPath: process.execPath, execArgv: process.execArgv,
-    entry: process.argv[1]!, packaged: process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' },
-  ['personal-chatgpt-credential', windowsServiceExecutorId(stateDirectory) ? '--service-executor' : '--state-dir',
-    windowsServiceExecutorId(stateDirectory) ?? stateDirectory,
-    '--profile-id', profileId, '--operation-id', operationId])
-  let closed!: Promise<void>
-  await new Promise<void>((done, reject) => {
-    const child = spawn(command[0]!, command.slice(1), { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
-    // The outer native supervisor retains the entire descendant tree. This
-    // controller remains foreground and never treats unref as tree clearance.
-    closed = new Promise<void>(resolve => { child.once('close', () => resolve()) })
-    // Ownership survives ACK timeout/error. The public controller still waits
-    // for actual tree close, while another status operation can inspect it.
-    retainOwner(closed)
-    let output = ''
-    let settled = false
-    const timer = setTimeout(() => finish(new Error('credential_start_deferred')), 15000)
-    const finish = (error?: Error): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(timer)
-      if (!error) child.stdout?.destroy()
-      if (error) reject(error)
-      else done()
-    }
-    child.once('error', finish)
-    child.once('close', () => { if (!output.includes('\n')) finish(new Error('credential_start_failed')) })
-    child.stdout?.on('data', (bytes: Buffer) => {
-      if (settled) return // Drain late public ACKs; do not create an EPIPE writer.
-      output += bytes.toString('utf8')
-      if (output.length > 1024) finish(new Error('credential_start_failed'))
-      else if (output.includes('\n')) {
-        finish(output === '{"started":true}\n' ? undefined : new Error('credential_start_failed'))
-      }
-    })
-  })
-  return { stopped: closed }
-}
-
 const reconcile = async (store: ChatgptProfileStore, profile: ChatgptProfileRecord): Promise<ChatgptProfileRecord> => {
+  // An update restart keeps its original operation and consent. Status may
+  // resume it through the current native factory after the old actor is gone.
+  if (profile.restartAfterUpdate?.operationId === profile.operationId) return profile
   if (!['ready', 'signing_in', 'reconnecting'].includes(profile.phase)) return profile
   try {
     const start = await acquireOwnerStateLock(store.profileDirectory(profile.profileId), 'profile-start.lock')
@@ -154,7 +114,11 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         })
         profiles = [publicChatgptProfileStatus(next)]
         if (['linux', 'darwin', 'win32'].includes(process.platform)) {
-          try { ({ stopped } = await launch(stateDirectory, next.profileId, next.operationId!, retainOwner)) }
+          try {
+            ({ stopped } = await launchChatgptCredential(
+              stateDirectory, next.profileId, next.operationId!, retainOwner,
+            ))
+          }
           catch { /* The existing actor observes the public fence; unknown custody remains protected. */ }
         }
       }
@@ -177,6 +141,8 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
       }
       if (operation.operation === 'status') {
         for (const original of scoped) {
+          await resumeChatgptAfterUpdate({ stateDirectory, store, profile: original, retainOwner })
+            .catch(() => undefined)
           const profile = await reconcile(store, original)
           if (profile.phase === 'disconnecting' && ['linux', 'darwin', 'win32'].includes(process.platform)) {
             // Kernel generation proof inside the guard refuses live/unknown
@@ -185,7 +151,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
             const stillDisconnecting = await store.read(profile.profileId)
             if (stillDisconnecting?.phase === 'disconnecting' && stillDisconnecting.operationId) {
               try {
-                ({ stopped } = await launch(stateDirectory, profile.profileId,
+                ({ stopped } = await launchChatgptCredential(stateDirectory, profile.profileId,
                   stillDisconnecting.operationId, retainOwner))
               } catch { /* A live credential owner remains responsible for cleanup. */ }
             }
@@ -211,7 +177,9 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         profiles = [publicChatgptProfileStatus(next)]
         // A running credential owner observes this fence and clears locally.
         // Restart recovery uses a new registered child rather than controller token reads.
-        try { ({ stopped } = await launch(stateDirectory, next.profileId, next.operationId!, retainOwner)) }
+        try {
+          ({ stopped } = await launchChatgptCredential(stateDirectory, next.profileId, next.operationId!, retainOwner))
+        }
         catch { /* A live actor already owns this profile and observes the disconnect fence. */ }
       } else {
         if (operation.acknowledgeHostRestriction !== true) reason = 'host_restriction_acknowledgement_required'
@@ -227,7 +195,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
               const remaining = await store.read(existing.profileId)
               if (remaining?.phase === 'disconnecting') {
                 try {
-                  await launch(stateDirectory, existing.profileId, existing.operationId, retainOwner)
+                  await launchChatgptCredential(stateDirectory, existing.profileId, existing.operationId, retainOwner)
                 } catch { /* Retained ownership and public status keep unknown cleanup recoverable. */ }
               }
             }
@@ -264,7 +232,9 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
                     ?? { clientId: null, extAgentHostId, issuer: CHATGPT_ISSUER, subject: null },
               }))
               profiles = [publicChatgptProfileStatus(next)]
-              const launched = await launch(stateDirectory, next.profileId, next.operationId!, retainOwner)
+              const launched = await launchChatgptCredential(
+                stateDirectory, next.profileId, next.operationId!, retainOwner,
+              )
               stopped = launched.stopped
             } finally { await starting.release() }
           }
