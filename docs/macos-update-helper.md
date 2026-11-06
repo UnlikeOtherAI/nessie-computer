@@ -103,3 +103,13 @@ It is waiting for older Nessie/CTO processes. Those processes and their journals
 remain intact pending coordinated shutdown; this is not a completed migration.
 The DMG SHA-256 is
 `0c1632af196b026d882164d49d612b125d9cf0d64c678495684c4def3dd39bac`.
+
+With explicit permission, the legacy CTO service was stopped through launchd
+and Nessie Desktop through its Quit action. The CTO job's automatic relaunch is
+disabled; its configuration and state are retained. The helper then selected
+release `906495a8666c565113599a225c82bc4423ff92067c83cbb8264cf37b85db6a93`.
+Its compiled build information reports 0.9.0 at `879a601`, the protected broker
+and worker run, and maintenance has returned to non-draining. Status RPCs still
+time out, including a 25-second authenticated-peer diagnostic. Preserve this
+live failure while debugging; do not restart the service or clear its journals
+to hide it. No completed update or working Settings control is claimed.
