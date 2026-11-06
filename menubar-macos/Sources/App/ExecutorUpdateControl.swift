@@ -21,8 +21,11 @@ enum ExecutorUpdateControl {
         guard let helper = runtime.managedHelperURL() else { throw ExecutorRefusal(unavailable) }
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
-                do { continuation.resume(returning: try exchange(helper: helper, payload: payload)) }
-                catch { continuation.resume(throwing: ExecutorRefusal(unavailable)) }
+                do {
+                    continuation.resume(returning: try exchange(helper: helper, payload: payload))
+                } catch {
+                    continuation.resume(throwing: ExecutorRefusal(unavailable))
+                }
             }
         }
     }

@@ -163,7 +163,7 @@ pub fn handle(
             kind,
         } => {
             machine.admit(&release.digest)?;
-            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon) {
+            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential) {
                 machine.admit_daemon(&release.digest)?;
             }
             let machine = matches!(

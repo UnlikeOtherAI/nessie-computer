@@ -276,7 +276,17 @@ impl Store {
     /// A live worker retains this kernel lease across downloads and installers.
     /// A crash releases the lease without removing its accepted transaction.
     pub fn worker(&self) -> UpdateResult<File> {
-        let lock = self.open_lock("worker.lock")?;
+        self.try_lease("worker.lock")
+    }
+    pub fn broker(&self) -> UpdateResult<File> {
+        self.try_lease("broker.lock")
+    }
+    /// Retained for the native worker process lifetime, including sleeps between ticks.
+    pub fn runner(&self) -> UpdateResult<File> {
+        self.try_lease("runner.lock")
+    }
+    fn try_lease(&self, name: &str) -> UpdateResult<File> {
+        let lock = self.open_lock(name)?;
         fs2::FileExt::try_lock_exclusive(&lock).map_err(|error| {
             if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
                 "update.busy"
@@ -340,6 +350,24 @@ fn replace(from: &Path, to: &Path) -> UpdateResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn process_leases_survive_between_ticks_and_release_without_deleting_state() {
+        let directory = tempfile::tempdir().unwrap();
+        let store = Store::new(directory.path().to_path_buf());
+        let broker = store.broker().unwrap();
+        let runner = store.runner().unwrap();
+        assert!(matches!(store.broker(), Err("update.busy")));
+        assert!(matches!(store.runner(), Err("update.busy")));
+        // The lifetime lease does not deadlock the per-tick coordinator lease.
+        let tick = store.worker().unwrap();
+        drop(tick);
+        drop(runner);
+        assert!(store.runner().is_ok());
+        drop(broker);
+        assert!(store.broker().is_ok());
+        assert!(directory.path().join("runner.lock").is_file());
+        assert!(directory.path().join("broker.lock").is_file());
+    }
     #[test]
     fn progress_merges_a_request_accepted_while_an_installer_was_busy() {
         let directory = tempfile::tempdir().unwrap();

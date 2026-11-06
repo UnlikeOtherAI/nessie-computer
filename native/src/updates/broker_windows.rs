@@ -287,7 +287,7 @@ fn connection(mut file: File) -> Result<(), String> {
 fn spawn_worker() -> Result<Child, String> {
     let store = Store::new(host::root().map_err(str::to_owned)?);
     // Kernel-owned lease recovery also covers a worker surviving an MSI's SCM stop.
-    let lease = store.worker().map_err(str::to_owned)?;
+    let lease = store.runner().map_err(str::to_owned)?;
     drop(lease);
     let executable = host::worker_image().map_err(str::to_owned)?;
     let windows = nessie_windows_common::update_admission::known_folder(
@@ -309,6 +309,7 @@ fn spawn_worker() -> Result<Child, String> {
 pub fn worker() -> Result<(), String> {
     host::verify_worker().map_err(str::to_owned)?;
     let store = Store::new(host::root().map_err(str::to_owned)?);
+    let _runner = store.runner().map_err(str::to_owned)?;
     store
         .mutate_journal(|journal| {
             journal.check_requested_at = Some(now());

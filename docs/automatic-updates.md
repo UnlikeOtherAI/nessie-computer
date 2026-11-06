@@ -161,6 +161,16 @@ these through Code Signing Services; an older or modified app remains refused.
 Windows/Linux Desktop transition and all-platform signed installed acceptance
 are unfinished.
 
+Unix native creation rechecks the selected release while retaining the existing
+machine admission inode. Root-owned update maintenance state pauses new daemons,
+direct hosts and credential actors during draining, and admits only the verified
+replacement digest while restarting. Native worker and broker lifetime leases
+are separate from the coordinator's per-tick lease, so a service restart can
+reuse a surviving worker without starting competing retry loops. The Unix
+socket, protected worker cache and system-service setup are staged in source;
+their installer/health adapters are not enabled or accepted yet. The macOS
+custody package now carries the `current` symlink its consumers select.
+
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue
 outages and expiry using its originally verified signed bytes. Kernel-owned

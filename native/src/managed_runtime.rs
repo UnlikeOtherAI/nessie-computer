@@ -174,6 +174,8 @@ fn gated_child(
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let release = managed_release::load()?;
     let barrier = managed_runtime_context::Barrier::acquire()?;
+    managed_release::require_selected(&release)?;
+    crate::updates::admission_unix::admit(&release, arguments)?;
     barrier.check_protection()?;
     // Kernel reparents living descendants to this retained parent. Its exit
     // code is not tree-stop proof: the durable record stays until every child

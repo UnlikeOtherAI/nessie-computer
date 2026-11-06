@@ -2,6 +2,16 @@
 mod broker;
 mod channel;
 mod host;
+#[cfg(unix)]
+pub(super) mod admission_unix;
+#[cfg(unix)]
+mod unix_runtime;
+#[cfg(unix)]
+mod unix_setup;
+#[cfg(unix)]
+mod unix_process;
+#[cfg(unix)]
+mod broker_unix;
 
 use crate::protocol::NativeError;
 use nessie_executor_updater::protocol::Request;

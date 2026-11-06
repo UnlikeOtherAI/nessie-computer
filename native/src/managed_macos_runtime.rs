@@ -103,7 +103,10 @@ fn unresolved_host(root: &Path) -> Result<bool, NativeError> {
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let release = managed_release::load()?;
     let _retained_release = (&release.node, &release.node_digest, &release.handles);
-    let barrier = managed_runtime_context::Barrier::acquire()?; barrier.check_protection()?;
+    let barrier = managed_runtime_context::Barrier::acquire()?;
+    managed_release::require_selected(&release)?;
+    crate::updates::admission_unix::admit(&release, arguments)?;
+    barrier.check_protection()?;
     let directory = barrier.root.join("managed-runtimes");
     let supervisor = unsafe { libc::getpid() };
     let boot = managed_runtime_context::boot_id()?;

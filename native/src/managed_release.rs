@@ -121,7 +121,18 @@ pub fn load() -> Result<Release, NativeError> {
         crate::macos_provenance::require_current_release()?;
         std::env::current_exe().map_err(|_| refused())?
     };
-    load_image(executable, true)
+    let release = load_image(executable, true)?;
+    // A retired native creator must not launch its old Node after an update.
+    // Existing accepted updater workers use installed(), rather than creating
+    // a managed runtime from their own surviving immutable image.
+    require_selected(&release)?;
+    Ok(release)
+}
+
+/// Repeat under the machine admission lock immediately before native creation.
+pub fn require_selected(release: &Release) -> Result<(), NativeError> {
+    if installed()?.digest != release.digest { return Err(refused()); }
+    Ok(())
 }
 
 /// The installed pointer may advance while an immutable updater worker finishes
