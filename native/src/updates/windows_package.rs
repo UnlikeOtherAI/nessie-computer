@@ -35,6 +35,7 @@ pub fn verify_publishers(manifest: &Manifest, directory: &Path) -> UpdateResult<
         ("UpgradeCode", "{9A1C6D2E-4F3B-4A7D-9C1E-2B8F5D6A4E10}"),
         ("ProductVersion", manifest.version.as_str()),
         ("NessieManagedRuntimeGuardVersion", "2"),
+        ("NessieAutomaticUpdateProtocol", "1"),
     ] {
         if msi_property(&package, property)? != expected {
             return Err("update.invalid_package");

@@ -17,6 +17,12 @@ session so SSH does not require another keychain sign-in or copied credentials.
 The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
 helper. A development-labelled bundle is not a release candidate.
+Unsigned Windows source candidates omit the SYSTEM updater service and its
+setup/removal actions. Their MSI records update protocol `0`; a signed build
+records `1`, and both publication inspection and the production updater reject
+packages without that floor.
+This keeps candidate installation independent of production credentials while
+retaining publisher verification for protected setup and every real update.
 
 macOS release construction supplies that version to its native helper, CLI
 bundle and application Info dictionary. The custody PKG producer takes the
@@ -214,6 +220,9 @@ The Linux repository producer emits `<package>.asc` for both DEB and RPM with
 the same signing key as repository metadata. Candidate hashes and `SHA256SUMS`
 include these detached signatures, and publication requires their exact bytes.
 Verification-key builds retain their explicit non-publishable signing mode.
+The package workflow verifies both detached signatures before recording candidate
+provenance. Its container install fixture explicitly installs `util-linux` for
+the unprivileged `runuser` check, including on minimal Fedora images.
 
 Package removal now writes a protected disable marker before stopping the
 updater. Accepted bytes, replay floors, local update preferences and credential

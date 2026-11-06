@@ -235,6 +235,7 @@ await run('wix', [
   '-bindpath', `Assets=${assetsDirectory}`,
   '-d', `Version=${version}`,
   '-d', `StagingDir=${stagingDirectory}`,
+  '-d', `EnableUpdater=${process.env.NESSIE_WINDOWS_SIGN_COMMAND ? '1' : '0'}`,
   '-o', packagePath,
 ])
 // Wix.exe builds and validates as separate operations. The tray's autostart

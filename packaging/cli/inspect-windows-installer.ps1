@@ -28,4 +28,8 @@ function Read-MsiProperty([string] $Name) {
 }
 if ((Read-MsiProperty 'ProductName') -ne 'Nessie Executor' -or
     (Read-MsiProperty 'Manufacturer') -ne 'UnlikeOtherAI') { throw 'This MSI is not Nessie Executor.' }
+if ((Read-MsiProperty 'NessieManagedRuntimeGuardVersion') -ne '2' -or
+    (Read-MsiProperty 'NessieAutomaticUpdateProtocol') -ne '1') {
+  throw 'Publication requires the signed installed runtime and automatic updater protocols.'
+}
 @{ version = Read-MsiProperty 'ProductVersion'; productCode = Read-MsiProperty 'ProductCode' } | ConvertTo-Json -Compress

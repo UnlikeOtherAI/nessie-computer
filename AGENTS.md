@@ -20,6 +20,7 @@ The native coordinator, constrained OS installers and local update policy follow
 The shared local Settings/update popup has a headless `--updates-only` renderer journey documented there; keep it out of CI.
 The macOS update PKG carries both the signed app and its protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
+Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
 
 Public contribution CI has no production signing credentials. Build candidates
 separately from publication. Official release signing retains UnlikeOtherAI's
