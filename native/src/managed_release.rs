@@ -119,7 +119,7 @@ pub fn load() -> Result<Release, NativeError> {
     #[cfg(target_os = "macos")]
     let executable = {
         crate::macos_provenance::require_current_release()?;
-        std::env::current_exe().map_err(|_| refused())?
+        kernel_image()?
     };
     let release = load_image(executable, true)?;
     // A retired native creator must not launch its old Node after an update.
@@ -127,6 +127,14 @@ pub fn load() -> Result<Release, NativeError> {
     // a managed runtime from their own surviving immutable image.
     require_selected(&release)?;
     Ok(release)
+}
+
+/// Bind the loaded vnode, not the launch alias, which may select a newer
+/// release while this process is still running.
+#[cfg(target_os = "macos")]
+fn kernel_image() -> Result<PathBuf, NativeError> {
+    crate::macos_processes::information(std::process::id() as i32)?
+        .map(|process| process.executable).ok_or_else(refused)
 }
 
 /// Repeat under the machine admission lock immediately before native creation.
@@ -306,6 +314,24 @@ pub fn environment(home: &Path) -> Vec<(std::ffi::OsString, std::ffi::OsString)>
 mod tests {
     use super::*;
     use std::os::unix::fs::PermissionsExt;
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn kernel_image_is_independent_of_launch_symlinks() {
+        const EXPECTED: &str = "NESSIE_TEST_KERNEL_IMAGE";
+        if let Some(expected) = std::env::var_os(EXPECTED) {
+            assert_eq!(kernel_image().unwrap(), PathBuf::from(expected));
+            return;
+        }
+        let actual = fs::canonicalize(kernel_image().unwrap()).unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let alias = directory.path().join("launch-alias");
+        std::os::unix::fs::symlink(&actual, &alias).unwrap();
+        let result = std::process::Command::new(alias)
+            .args(["--exact", "managed_release::tests::kernel_image_is_independent_of_launch_symlinks"])
+            .env(EXPECTED, actual).status().unwrap();
+        assert!(result.success());
+    }
 
     #[test]
     fn loader_and_helper_overrides_never_reach_managed_node() {
