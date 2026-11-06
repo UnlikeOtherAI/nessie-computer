@@ -1,4 +1,4 @@
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 
 import { EXISTING_CODING_SESSION_OWNER_KEY } from '@nessie/executor-protocol'
 
@@ -15,7 +15,7 @@ import { findProviderProgram } from './programs.js'
 import { existingSessionsEnabled } from './settings.js'
 import type { ExistingSession } from './types.js'
 
-type Providers = { codex?: Pick<ExistingCodex, 'list' | 'read' | 'queue' | 'close' | 'program' | 'nextCursor'>;
+type Providers = { codex?: Pick<ExistingCodex, 'list' | 'read' | 'queue' | 'close' | 'program' | 'nextCursor'> & { listAll?: () => Promise<ExistingSession[]> };
   claude?: Pick<ExistingClaude, 'list' | 'program' | 'read'> }
 
 export class ExistingSessions {
@@ -58,12 +58,14 @@ export class ExistingSessions {
     if (this.refreshing) return this.refreshing
     this.refreshing = (async () => {
       const providers = await this.connect()
-      const results = await Promise.allSettled([providers.codex?.list() ?? [], providers.claude?.list() ?? []])
+      const results = await Promise.allSettled([
+        providers.codex?.listAll?.() ?? providers.codex?.list() ?? [], providers.claude?.list() ?? [],
+      ])
       this.providerStatus = Object.fromEntries((['codex', 'claude'] as const).map((name, index) => [
         name, !providers[name] ? 'not_installed' : results[index]!.status === 'fulfilled' ? 'available' : 'unavailable',
       ]))
       this.rows = results.flatMap((result) => result.status === 'fulfilled' ? result.value : [])
-        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 32)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 5000)
       this.remember(this.rows)
       this.refreshedAt = Date.now()
       return await this.enabled() ? this.rows : []
@@ -73,7 +75,7 @@ export class ExistingSessions {
 
   private remember(rows: ExistingSession[]): void {
     for (const row of rows) { this.discovered.delete(row.sessionId); this.discovered.set(row.sessionId, row) }
-    while (this.discovered.size > 256) this.discovered.delete(this.discovered.keys().next().value!)
+    while (this.discovered.size > 5000) this.discovered.delete(this.discovered.keys().next().value!)
   }
 
   async page(provider?: 'codex' | 'claude', cursor?: string, search?: string): Promise<Record<string, unknown>> {
@@ -103,11 +105,13 @@ export class ExistingSessions {
     return this.discovered.get(id)
   }
 
+  inventoryIsComplete(): boolean { return !Object.values(this.providerStatus).includes('unavailable') }
+
   async inventory(): Promise<Record<string, unknown>[]> {
     if (!await existingAuthorityIsLive(this.stateDir)) return []
     return (await this.list()).map((row) => ({ sessionId: row.sessionId, ownerKey: EXISTING_CODING_SESSION_OWNER_KEY,
       origin: 'external', title: row.title, status: row.status, agent: row.provider,
-      root: 'existing', updatedAt: row.updatedAt }))
+      root: basename(row.cwd) || 'existing', updatedAt: row.updatedAt }))
   }
 
   async read(id: string, includeText = false): Promise<Record<string, unknown>> {

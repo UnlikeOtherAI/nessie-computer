@@ -42,3 +42,6 @@ Keep code files cohesive and below 500 lines. Understanding natural-language
 intent belongs to a model; deterministic code acts on structural protocol facts.
 Keep documentation synchronized with implemented behaviour and state concrete
 verification limits.
+
+Computer telemetry, Claude/Codex account probes, native history and human input follow
+[computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.

@@ -82,7 +82,13 @@ only to the protected `executor-updates` environment, restricted to protected
 main. Contribution CI receives no signing secret. `packaging/updates/sign-catalog.mjs`
 is the machine-only metadata authoring interface via `pnpm exec tsx`; it writes
 a new file and refuses to overwrite an existing catalogue. This command does
-not validate installed software or authorize publication. Candidate attestations,
+not validate installed software or authorize publication.
+`packaging/updates/compose-catalog.mjs` builds the unsigned manifest from the
+packages already attached to `executor-v<version>`, hashing the downloaded bytes;
+it maps only package shapes the native installer accepts (currently the Apple
+Silicon DMG) and refuses any other file. The manual `Publish Update Catalogue`
+workflow runs both commands in the `executor-updates` environment on main and
+replaces `catalog.json` on the channel's `update-catalog-<channel>` release. Candidate attestations,
 platform signing and actual upgrade verification remain release prerequisites.
 
 No catalogue is published until all supported official packages are ready.

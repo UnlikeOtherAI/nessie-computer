@@ -14,7 +14,7 @@ import { existingSessionsEnabled } from '../src/existing-session/settings.js'
 import { existingSessionId, type ExistingSession } from '../src/existing-session/types.js'
 
 const NATIVE = '11111111-1111-4111-a111-111111111111'
-const nativeRow = { id: NATIVE, name: 'Same title', cwd: '/same/repo', updatedAt: 1_790_000_000, source: 'vscode' }
+const nativeRow = { id: NATIVE, name: 'Same title', cwd: '/same/repo', updatedAt: Math.floor(Date.now() / 1000), source: 'vscode' }
 
 test('Codex reports a thread running only when its own runtime status says so', async () => {
   const ids = ['22222222-2222-4222-a222-222222222222', '33333333-3333-4333-a333-333333333333', NATIVE]
@@ -170,7 +170,7 @@ test('Claude delivery receipts survive restart and never turn a transport write 
 
 test('a definitive native queue rejection is failed, while secret projection preserves opaque IDs', async () => {
   const { deliverOnce } = await import('../src/existing-session/delivery.js')
-  const { CodexOperationRejected } = await import('../src/existing-session/codex-rpc.js')
+  const { CodexOperationRejected } = await import('../src/provider-process/codex-rpc.js')
   const { createExistingProjection } = await import('../src/existing-session/projection.js')
   const directory = await mkdtemp(join(tmpdir(), 'nessie-rejected-'))
   try {

@@ -9,7 +9,7 @@
   "scripts": {
     "test:executor-pairing": "node --test --test-concurrency=1 --import tsx test/pairing-code.test.ts test/pairing-code-cli.test.ts",
     "test:public-portability": "node scripts/run-tests.mjs --test-concurrency=1 packaging/cli/public-boundary.test.mjs test/coding-session-daemon.test.ts",
-    "test:updates": "node scripts/run-tests.mjs --test-concurrency=1 test/updates-manifest.test.ts test/updates-state.test.ts test/updates-catalog.test.ts test/updates-heartbeat.test.ts test/updates-drain.test.ts test/local-inference-supervisor.test.ts test/chatgpt-profile-store.test.ts test/control-plane-e2e.test.ts",
+    "test:updates": "node scripts/run-tests.mjs --test-concurrency=1 test/updates-manifest.test.ts test/updates-manifest-darwin.test.ts test/updates-state.test.ts test/updates-catalog.test.ts test/updates-heartbeat.test.ts test/updates-drain.test.ts test/local-inference-supervisor.test.ts test/chatgpt-profile-store.test.ts test/control-plane-e2e.test.ts",
     "test:updates-native": "node --test --test-concurrency=1 packaging/windows/*.test.mjs packaging/macos/managed-release.test.mjs scripts/native-ci-inputs.test.mjs",
     "test:executor-cancellation": "node --test --test-force-exit --test-concurrency=1 --import tsx test/command-cancellation.test.ts test/command-recovery.test.ts test/command-session-manager.test.ts test/mcp-session-manager.test.ts test/mcp-dispatch.test.ts test/control-plane-e2e.test.ts",
     "test:browser-control": "node --test --test-concurrency=1 --import tsx test/browser-snapshot-payload.test.ts test/guest-vm-control.test.ts test/browser-session-manager.test.ts",
@@ -20,7 +20,7 @@
     "prepare:chrome-cookie-import": "node scripts/prepare-chrome-cookie-import.mjs",
     "start": "tsx src/index.ts",
     "smoke:local-ollama": "tsx scripts/local-ollama-smoke.ts",
-    "test": "node --test --test-concurrency=2 packaging/cli/*.test.mjs packaging/macos/*.test.mjs packaging/windows/*.test.mjs scripts/native-ci-inputs.test.mjs && node scripts/run-tests.mjs --test-concurrency=2 test/**/*.test.ts",
+    "test": "node --test --test-concurrency=2 packaging/cli/*.test.mjs packaging/macos/*.test.mjs packaging/windows/*.test.mjs packaging/updates/*.test.mjs scripts/native-ci-inputs.test.mjs && node scripts/run-tests.mjs --test-concurrency=2 test/**/*.test.ts",
     "test:mcp": "node --test --test-force-exit --import tsx test/mcp-session-manager.test.ts test/mcp-dispatch.test.ts test/mcp-images.test.ts test/command-attachments.test.ts test/kelpie-detect.test.ts test/local-mcp-report.test.ts test/ollama-search-mcp.test.ts test/coding-session-config.test.ts test/coding-session-projection.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-env.test.ts test/coding-session-capabilities.test.ts test/coding-session-store.test.ts test/coding-session-review.test.ts test/coding-session-bridge.test.ts test/coding-session-owners.test.ts test/coding-session-limits.test.ts test/coding-session-containment.test.ts test/coding-session-guard.test.ts test/coding-session-systemd.test.ts test/coding-session-policy.test.ts test/coding-session-merge-commands.test.ts test/coding-session-daemon.test.ts test/coding-session-teardown.test.ts",
     "typecheck": "node scripts/compile.mjs --noEmit -p tsconfig.json",
     "test:terminal": "node --test --import tsx test/terminal-session.test.ts test/session-view-relay.test.ts",
@@ -28,7 +28,9 @@
     "test:chatgpt-backend": "node --test --test-concurrency=1 --import tsx test/chatgpt-backend.test.ts test/personal-provider-acceptance.test.ts test/local-inference-receipts.test.ts test/inference-resource-identity.test.ts test/local-inference-api.test.ts test/chatgpt-coordinator.test.ts test/cloud-capacity-receipts.test.ts test/coordinator-lock-crash.test.ts test/local-inference-coordinator.test.ts",
     "test:personal-inference": "node --test --test-concurrency=1 --import tsx test/personal-inference-guard.test.ts test/personal-admission-lock.test.ts test/personal-process-proof.test.ts test/executor-child-command.test.ts test/native-control-lease.test.ts test/prepare-runtime.test.ts test/unpair.test.ts packaging/cli/mac-managed-release.test.mjs",
     "test:chatgpt-auth": "node --test --test-concurrency=1 --import tsx test/chatgpt-oauth-provider.test.ts test/chatgpt-loopback-login.test.ts test/personal-native-writers.test.ts test/personal-authority-origin.test.ts test/chatgpt-profile-store.test.ts test/chatgpt-profile-authority.test.ts test/chatgpt-windows-service-authority.test.ts test/chatgpt-profile-auth-provider.test.ts test/chatgpt-receipt-custody.test.ts",
-    "verify": "turbo run build lint typecheck test --root-turbo-json=scripts/turbo.public.json --concurrency=2"
+    "verify": "turbo run build lint typecheck test --root-turbo-json=scripts/turbo.public.json --concurrency=2",
+    "test:computer-data": "node --test --import tsx test/computer-data.test.ts test/existing-coding-sessions.test.ts test/session-view-relay.test.ts",
+    "test:conversation-control": "node scripts/run-tests.mjs --test-concurrency=1 test/session-conversation-control.test.ts test/coding-session-daemon.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

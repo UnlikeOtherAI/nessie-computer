@@ -44,11 +44,27 @@
       "cache": false
     },
     "//#test:public-portability": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     },
     "//#test:updates": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:computer-data": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:conversation-control": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     },
     "//#test:updates-native": {

@@ -1,5 +1,7 @@
 import {
   FolderSyncHeartbeatSummarySchema,
+  ExecutorMonitorSnapshotSchema,
+  type ExecutorMonitorSnapshot,
   type ExecutorDaemonHeartbeatWithFolderSyncRequest,
   type ExecutorLocalMcpReport,
   type FolderSyncHeartbeatSummary,
@@ -69,6 +71,7 @@ export const heartbeatExecutor = async (
   api: Pick<ExecutorApiClient, 'heartbeat'> = executorApi,
   updates?: { status: ExecutorSoftwareStatus;
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void },
+  monitor?: ExecutorMonitorSnapshot,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
     throw new Error('Executor has not claimed a live daemon connection.')
@@ -85,6 +88,7 @@ export const heartbeatExecutor = async (
     ...(localMcp === undefined ? {} : { localMcp }),
     ...(updates === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
     observedAt,
+    ...(monitor === undefined ? {} : { monitor: ExecutorMonitorSnapshotSchema.parse(monitor) }),
   }
   const signature = signExecutorDaemonPayload(state.machinePrivateKey, 'heartbeat', signed)
   type HeartbeatBody = Omit<ExecutorDaemonHeartbeatWithFolderSyncRequest, 'executorId'> & { executorId: string }

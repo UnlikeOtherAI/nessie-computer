@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
+import { ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
 
 import {
@@ -711,6 +712,7 @@ export const ExecutorDaemonClaimRequestSchema = z.object({
 export type ExecutorDaemonClaimRequest = z.infer<typeof ExecutorDaemonClaimRequestSchema>
 
 export const ExecutorDaemonHeartbeatRequestSchema = z.object({
+  monitor: ExecutorMonitorSnapshotSchema.optional(),
   connectionEpoch: z.string().regex(/^\d+$/),
   executorId: ExecutorIdSchema,
   /**

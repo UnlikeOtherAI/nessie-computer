@@ -1,7 +1,8 @@
 import { homedir } from 'node:os'
 import { join, resolve } from 'node:path'
 
-import { CodexRpc } from './codex-rpc.js'
+import { readNativeTranscript } from './transcript.js'
+import { CodexRpc } from '../provider-process/codex-rpc.js'
 import type { ProviderProgram } from './programs.js'
 import { existingSessionId, nativeIdIsValid, objectOf, textOf, type ExistingSession } from './types.js'
 
@@ -58,15 +59,40 @@ export class ExistingCodex {
     return threads.flatMap((thread) => { const row = this.project(thread); return row ? [row] : [] })
   }
 
+  async listAll(): Promise<ExistingSession[]> {
+    const rows: ExistingSession[] = []
+    const cursors = new Set<string>()
+    let cursor: string | undefined
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    do {
+      const page = await this.list(cursor)
+      rows.push(...page.filter((row) => Date.parse(row.updatedAt) >= cutoff))
+      if (!this.nextCursor || cursors.has(this.nextCursor) || rows.length >= 5000
+        || (page.length > 0 && page.every((row) => Date.parse(row.updatedAt) < cutoff))) break
+      cursor = this.nextCursor
+      cursors.add(cursor)
+    } while (true)
+    return rows.slice(0, 5000)
+  }
+
   async read(session: ExistingSession, includeText: boolean): Promise<Record<string, unknown>> {
     const result = objectOf(await this.rpc.call('thread/read', {
-      threadId: session.nativeId, includeTurns: includeText,
+      threadId: session.nativeId, includeTurns: false,
     }))
     const thread = objectOf(result.thread)
     if (thread.id !== session.nativeId) throw new Error('Codex returned a different thread.')
-    const turns = Array.isArray(thread.turns) ? thread.turns.map(objectOf) : []
-    const last = turns.at(-1)
-    const text = includeText ? turns.slice(-3).flatMap((turn) => (
+    const conversation = includeText && typeof thread.path === 'string'
+      ? await readNativeTranscript('codex', join(this.profile, 'sessions'), thread.path, session.nativeId) : null
+    const full = includeText && !conversation ? objectOf(await this.rpc.call('thread/read', {
+      threadId: session.nativeId, includeTurns: true,
+    })) : { thread }
+    const turns = Array.isArray(objectOf(full.thread).turns) ? objectOf(full.thread).turns as unknown[] : []
+    const records = turns.map(objectOf)
+    const last = records.at(-1)
+    const text = includeText && conversation ? conversation.messages
+      .filter((message) => message.role === 'user' || message.role === 'assistant').slice(-4)
+      .map((message) => ({ role: message.role, text: message.parts.filter((part) => part.kind === 'text')
+        .map((part) => part.text).join('\n').slice(0, 4000) })) : includeText ? records.slice(-3).flatMap((turn) => (
       Array.isArray(turn.items) ? turn.items.map(objectOf).flatMap((item) => {
         if (item.type === 'agentMessage') return [{ role: 'assistant', text: textOf(item.text, 4_000) }]
         if (item.type !== 'userMessage' || !Array.isArray(item.content)) return []
@@ -74,7 +100,9 @@ export class ExistingCodex {
           .map((part) => textOf(part.text, 2_000)).join('\n').slice(0, 4_000) }]
       }) : []
     )).slice(-4) : undefined
-    return { ...session, origin: 'external', providerVersion: this.program.version,
+    return { ...session, ...(conversation ? { conversation: { ...conversation,
+      capturedAt: new Date().toISOString(), sendMode: session.capabilities.queue ? 'queue' : null,
+      canInterrupt: false } } : {}), origin: 'external', providerVersion: this.program.version,
       observedAt: new Date().toISOString(), observation: 'Saved native thread; live runtime state is unknown.',
       ...(last ? { lastRecordedTurn: { id: last.id, status: last.status } } : {}),
       ...(text ? { recentMessages: text } : {}) }
