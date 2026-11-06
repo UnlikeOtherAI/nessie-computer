@@ -36,9 +36,12 @@ struct ExecutorProcessRunner {
 
     func process(for invocation: ExecutorCLIInvocation) -> Process {
         let process = Process()
-        let activity = ["serve", "serve-direct-local-inference", "personal-chatgpt-credential", "personal-chatgpt-local"]
+        let activity = [
+            "serve", "serve-direct-local-inference", "personal-chatgpt-credential", "personal-chatgpt-local"
+        ]
             .contains(invocation.arguments.first ?? "")
-        if let creator = runtime.managedHelperURL() ?? (!isDevelopmentBuild && activity ? ComputerUpdateService.factory : nil) {
+        let required = !isDevelopmentBuild && activity ? ComputerUpdateService.factory : nil
+        if let creator = runtime.managedHelperURL() ?? required {
             process.executableURL = creator
             process.arguments = ["managed-runtime", "--"] + invocation.arguments
         } else {

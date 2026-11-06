@@ -21,13 +21,13 @@ enum ExecutorUpdateControl {
         let helper = runtime.managedHelperURL() ?? ComputerUpdateService.factory
         do {
             return try await withCheckedThrowingContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                do {
-                    continuation.resume(returning: try exchange(helper: helper, payload: payload))
-                } catch {
-                    continuation.resume(throwing: ExecutorRefusal(unavailable))
+                DispatchQueue.global(qos: .utility).async {
+                    do {
+                        continuation.resume(returning: try exchange(helper: helper, payload: payload))
+                    } catch {
+                        continuation.resume(throwing: ExecutorRefusal(unavailable))
+                    }
                 }
-            }
             }
         } catch {
             if operation == "status", let setup = ComputerUpdateService.unavailableStatus() { return setup }
