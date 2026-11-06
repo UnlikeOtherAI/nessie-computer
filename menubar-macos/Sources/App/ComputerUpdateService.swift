@@ -33,7 +33,8 @@ enum ComputerUpdateService {
                 // macOS may report launch denial after registering a daemon
                 // that still awaits approval. Its status is the recovery door.
                 if service.status != .requiresApproval {
-                    logger.error("Background helper registration failed: \(String(describing: error), privacy: .public)")
+                    let message = String(describing: error)
+                    logger.error("Background helper registration failed: \(message, privacy: .public)")
                     throw error
                 }
             }
