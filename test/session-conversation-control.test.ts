@@ -37,6 +37,12 @@ test('daemon conversation input reaches one managed host once and observations l
       const stop = await harness.call('session_user_action', { ...action, id: randomUUID(), kind: 'interrupt',
         message: undefined }, { daemon: true })
       assert.equal((stop.body.receipt as { state: string }).state, 'accepted')
-      await harness.waitForStatus(sessionId, (row) => row.status === 'interrupted', owner)
+      await waitUntil(async () => {
+        const events = await readFile(paths.events, 'utf8')
+        return events.split('\n').filter(Boolean).some((line) => {
+          const event = JSON.parse(line) as { kind?: string; status?: string }
+          return event.kind === 'system' && event.status === 'interrupted'
+        }) ? true : undefined
+      }, 30_000, 'the host to record the interrupted turn')
     } finally { await harness.cleanup() }
   })

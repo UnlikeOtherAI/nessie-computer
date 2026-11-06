@@ -105,6 +105,8 @@ export class ExistingSessions {
     return this.discovered.get(id)
   }
 
+  inventoryIsComplete(): boolean { return !Object.values(this.providerStatus).includes('unavailable') }
+
   async inventory(): Promise<Record<string, unknown>[]> {
     if (!await existingAuthorityIsLive(this.stateDir)) return []
     return (await this.list()).map((row) => ({ sessionId: row.sessionId, ownerKey: EXISTING_CODING_SESSION_OWNER_KEY,

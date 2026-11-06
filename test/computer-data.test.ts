@@ -8,6 +8,7 @@ import { ExecutorMonitorSnapshotSchema, ExecutorSessionConversationSchema } from
 import { codexSubscription, claudeSubscription } from '../src/provider-subscriptions.js'
 import { listSavedClaudeSessions } from '../src/existing-session/claude-saved.js'
 import { readNativeTranscript } from '../src/existing-session/transcript.js'
+import { ExistingSessions } from '../src/existing-session/manager.js'
 import { createSystemMonitor } from '../src/system-monitor.js'
 import { readSessionConversation } from '../src/coding-session/session-view.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
@@ -96,4 +97,17 @@ test('viewing managed conversation does not consume the agent cursor or create r
     assert.equal(view?.messages[0]?.parts[0]?.text, 'hello')
     assert.equal(await readFile(cursor, 'utf8'), 'unchanged')
   } finally { await rm(dir, { recursive: true, force: true }) }
+})
+
+
+test('a failed provider scan cannot certify an inventory as complete', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-scan-failure-'))
+  const manager = new ExistingSessions(directory, async () => ({ claude: {
+    program: { path: '/fake/claude', version: 'test' },
+    list: async () => { throw new Error('Provider temporarily unavailable') }, read: async () => ({}),
+  } }))
+  try {
+    assert.deepEqual(await manager.list(), [])
+    assert.equal(manager.inventoryIsComplete(), false)
+  } finally { await manager.close(); await rm(directory, { recursive: true, force: true }) }
 })

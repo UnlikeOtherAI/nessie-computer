@@ -23,7 +23,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   const managed = await createManagedBridge(loaded)
   const project = createExistingProjection(managed.rewriter)
   const existing = new ExistingSessions(dirname(loaded.configPath))
-  let inventory: { id: string; observedAt: string; sessions: Record<string, unknown>[] } | undefined
+  let inventory: { id: string; observedAt: string; complete: boolean; sessions: Record<string, unknown>[] } | undefined
   process.stdin.once('end', () => { void existing.close() })
   return { rewriter: managed.rewriter, call: async (tool, value, meta) => {
     if (tool === 'session_user_action' && meta.daemonControl) {
@@ -40,14 +40,15 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       if (!cursor || !inventory || cursor[1] !== inventory.id) {
         const result = await managed.call(tool, {}, meta)
         const native = project(await existing.inventory())
-        inventory = { id: randomUUID(), observedAt: new Date().toISOString(),
+        inventory = { id: randomUUID(), observedAt: new Date().toISOString(), complete: existing.inventoryIsComplete(),
           sessions: openFirst([...(result.sessions as Record<string, unknown>[]), ...native], 5000) }
       }
       const offset = cursor?.[1] === inventory.id ? Math.min(5000, Number(cursor[2])) : 0
       const sessions = inventory.sessions.slice(offset, offset + 32)
-      const complete = offset + sessions.length >= inventory.sessions.length
+      const end = offset + sessions.length >= inventory.sessions.length
+      const complete = end && inventory.complete
       return { sessions, inventory: { id: inventory.id, observedAt: inventory.observedAt, complete },
-        nextCursor: complete ? null : `${inventory.id}:${offset + sessions.length}` }
+        nextCursor: end ? null : `${inventory.id}:${offset + sessions.length}` }
     }
     if (tool === 'session_list_all') {
       const result = await managed.call(tool, value, meta)

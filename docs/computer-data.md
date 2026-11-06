@@ -35,6 +35,8 @@ thread list without resuming threads. Stable identities include provider profile
 and native ID. Discovery does not imply a thread is running: unknown stays unknown.
 The full inventory travels in stable 32-row batches. Only a completed batch can
 close an absent open session; retries and late batches cannot overwrite newer ones.
+A provider discovery failure leaves its batch incomplete, preserving previously
+reported work until a successful inventory reconciles it.
 
 On viewer demand, the executor projects at most 200 recent messages from a bounded
 native transcript tail, including text, reasoning summaries and tool calls/results.
