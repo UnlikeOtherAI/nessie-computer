@@ -19,11 +19,11 @@ $installer = New-Object -ComObject WindowsInstaller.Installer
 $database = $installer.OpenDatabase((Resolve-Path -LiteralPath $Path).Path, 0)
 function Read-MsiProperty([string] $Name) {
   $view = $database.OpenView("SELECT Value FROM Property WHERE Property = '$Name'")
-  $view.Execute()
+  $null = $view.Execute()
   $record = $view.Fetch()
   if (-not $record) { throw "Missing MSI property: $Name" }
   $result = $record.StringData(1)
-  $view.Close()
+  $null = $view.Close()
   return $result
 }
 if ((Read-MsiProperty 'ProductName') -ne 'Nessie Executor' -or

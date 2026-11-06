@@ -30,8 +30,12 @@ enum ComputerUpdateService {
             status: service.status, attempted: UserDefaults.standard.bool(forKey: attempted), requested: requested
         ) {
             do { try service.register() } catch {
-                logger.error("Background helper registration failed: \(String(describing: error), privacy: .public)")
-                throw error
+                // macOS may report launch denial after registering a daemon
+                // that still awaits approval. Its status is the recovery door.
+                if service.status != .requiresApproval {
+                    logger.error("Background helper registration failed: \(String(describing: error), privacy: .public)")
+                    throw error
+                }
             }
             UserDefaults.standard.set(true, forKey: attempted)
         }

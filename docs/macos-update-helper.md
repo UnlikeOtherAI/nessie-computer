@@ -80,3 +80,18 @@ retained outside the checkout. Its compiled `build-info` reports version 0.9.0
 and source `e511bf86d9f0c3ffccbd7fd67e9ade1ee0579e4e`. The real local Settings
 rendered setup and its button opened macOS background-helper approval. This
 does not yet establish an approved Root helper or an A-to-B upgrade.
+
+The registration fix at `c79eac7` passed Core tests, strict Swift lint and the
+full App/Core typecheck. Its new signed and notarized 0.9.0 app is installed;
+macOS's administrator approval is recorded and its Root job starts. The first
+protected copy exposed a `ditto` destination-resolution failure. A private-cwd
+archive-copy probe preserved the signed app and passed Gatekeeper; the native
+replacement still requires a signed installed retry. No protected factory or
+completed upgrade is claimed yet. Existing failed snapshots and journals remain.
+
+The same revision's 0.9.0 Windows MSI was built and signed on Maxis. It passed
+publisher, profile EKU, timestamp, SignTool and updater-protocol inspection;
+SHA-256 `fbe63a66d41b90866d0e0dff9d11091e8dadaff6cb2dcc8570e5cee6e71f10d4`.
+It remains uninstalled and unpublished. Matching setup screenshots cover the
+actual base `54c6175`, two console widths and all seven supported locales, with
+denial/retry journeys. Their broker responses are fixtures, not installed proof.

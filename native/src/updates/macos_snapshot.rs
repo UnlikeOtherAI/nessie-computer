@@ -52,6 +52,20 @@ fn freeze(path: &Path, app: &Path, depth: u32) -> UpdateResult<()> {
     File::open(path).and_then(|file| file.sync_all()).map_err(|_| ERROR)
 }
 
+fn unprivileged(command: &mut Command, uid: u32, gid: u32, destination: Option<CString>) {
+    command.env_clear().env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin").current_dir("/")
+        .stderr(Stdio::null());
+    unsafe { command.pre_exec(move || {
+        if destination.as_ref().is_some_and(|path| libc::chdir(path.as_ptr()) != 0)
+            || libc::setgroups(0, std::ptr::null()) != 0 || libc::setgid(gid) != 0 || libc::setuid(uid) != 0 {
+            return Err(std::io::Error::last_os_error());
+        }
+        let limit = libc::rlimit { rlim_cur: 268_435_456, rlim_max: 268_435_456 };
+        if libc::setrlimit(libc::RLIMIT_FSIZE, &limit) != 0 { return Err(std::io::Error::last_os_error()); }
+        Ok(())
+    }); }
+}
+
 pub(super) fn capture(source: &Path, key: &str) -> UpdateResult<PathBuf> {
     unix_runtime::privileged()?;
     if key.len() != 64 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(ERROR); }
@@ -88,27 +102,30 @@ pub(super) fn capture(source: &Path, key: &str) -> UpdateResult<PathBuf> {
     let (uid, gid) = nobody()?;
     let destination = CString::new(directory.as_os_str().as_bytes()).map_err(|_| ERROR)?;
     if unsafe { libc::chown(destination.as_ptr(), uid, gid) } != 0 { return Err(ERROR); }
-    let mut command = Command::new("/usr/bin/ditto");
-    command.args(["--noacl", "--noqtn"]).arg(source).arg("Nessie Executor.app")
-        .env_clear().env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
-        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null());
-    // Only the child drops privileges. Its working directory is reachable
-    // through the retained cwd, while its Root-only parent blocks other users.
-    unsafe { command.pre_exec(move || {
-        if libc::chdir(destination.as_ptr()) != 0 || libc::setgroups(0, std::ptr::null()) != 0
-            || libc::setgid(gid) != 0 || libc::setuid(uid) != 0 {
-            return Err(std::io::Error::last_os_error());
-        }
-        let limit = libc::rlimit { rlim_cur: 268_435_456, rlim_max: 268_435_456 };
-        if libc::setrlimit(libc::RLIMIT_FSIZE, &limit) != 0 { return Err(std::io::Error::last_os_error()); }
-        Ok(())
-    }); }
-    let mut child = command.spawn().map_err(|_| ERROR)?;
+    // ditto resolves its destination through the inaccessible private parent.
+    // Apple's archive tools use relative extraction from the retained cwd.
+    // Both fixed, platform-protected tools drop Root before reading or writing;
+    // no caller code or archive is ever extracted with Root privileges.
+    let mut archive = Command::new("/usr/bin/tar");
+    archive.args(["-cf", "-", "-C"]).arg(source.parent().ok_or(ERROR)?)
+        .arg(source.file_name().ok_or(ERROR)?).stdin(Stdio::null()).stdout(Stdio::piped());
+    unprivileged(&mut archive, uid, gid, None);
+    let mut producer = archive.spawn().map_err(|_| ERROR)?;
+    let output = producer.stdout.take().ok_or(ERROR)?;
+    let mut extract = Command::new("/usr/bin/tar");
+    extract.args(["-xf", "-", "--no-same-owner"]).stdin(Stdio::from(output)).stdout(Stdio::null());
+    unprivileged(&mut extract, uid, gid, Some(destination));
+    let mut receiver = match extract.spawn() {
+        Ok(child) => child,
+        Err(_) => { let _ = producer.kill(); let _ = producer.wait(); return Err("update.bundle_copy_failed"); },
+    };
+    drop(extract);
     let deadline = Instant::now() + Duration::from_secs(60);
     let outcome = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break if status.success() { Ok(()) } else { Err("update.bundle_copy_failed") },
-            Err(_) => break Err("update.bundle_copy_failed"),
+        match (producer.try_wait(), receiver.try_wait()) {
+            (Ok(Some(first)), Ok(Some(second))) if first.success() && second.success() => break Ok(()),
+            (Err(_), _) | (_, Err(_)) => break Err("update.bundle_copy_failed"),
+            (Ok(Some(status)), _) | (_, Ok(Some(status))) if !status.success() => break Err("update.bundle_copy_failed"),
             _ => {},
         }
         if Instant::now() >= deadline || within_budget(&directory, &mut 0, &mut 0, 0).is_err() {
@@ -116,7 +133,10 @@ pub(super) fn capture(source: &Path, key: &str) -> UpdateResult<PathBuf> {
         }
         std::thread::sleep(Duration::from_millis(100));
     };
-    if outcome.is_err() { let _ = child.kill(); let _ = child.wait(); }
+    if outcome.is_err() {
+        let _ = producer.kill(); let _ = producer.wait();
+        let _ = receiver.kill(); let _ = receiver.wait();
+    }
     let name = CString::new(directory.as_os_str().as_bytes()).map_err(|_| ERROR)?;
     if unsafe { libc::chown(name.as_ptr(), 0, 0) } != 0 { return Err(ERROR); }
     fs::set_permissions(&directory, fs::Permissions::from_mode(0o700)).map_err(|_| ERROR)?;

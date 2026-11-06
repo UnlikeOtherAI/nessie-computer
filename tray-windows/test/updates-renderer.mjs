@@ -8,7 +8,9 @@ import { installRendererHost } from './renderer-host.mjs'
 export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   const before = process.argv.find((arg) => arg.startsWith('--updates-before='))?.split('=')[1]
   const bootstrapOnly = process.argv.includes('--updates-bootstrap-only')
-  const output = join(root, bootstrapOnly ? '.artifacts/executor-console-bootstrap' : '.artifacts/executor-console-updates',
+  const setupOnly = process.argv.includes('--updates-setup-only')
+  const output = join(root, setupOnly ? '.artifacts/executor-console-setup'
+    : bootstrapOnly ? '.artifacts/executor-console-bootstrap' : '.artifacts/executor-console-updates',
     before ? 'before' : 'after')
   await mkdir(output, { recursive: true })
   const resource = (file) => before
@@ -29,7 +31,8 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         phase: 'failed', canInstall: false, code: 'update.bootstrap_required', availableVersion: undefined,
       })
       else if (state === 'setup') Object.assign(window.updateStatus, {
-        phase: 'unsupported', canInstall: false, code: 'update.setup_required', availableVersion: undefined,
+        installedVersion: '', sourceCommit: '', phase: 'unsupported', canInstall: false,
+        code: 'update.setup_required', availableVersion: undefined,
       })
       else if (['available', 'failed'].includes(state)) window.updateStatus.phase = state
     }, state)
@@ -51,17 +54,19 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     if (!before) await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_update_control'))
     return { context, page, errors }
   }
-  for (const host of ['windows', 'macos']) {
+  for (const host of setupOnly ? ['macos'] : ['windows', 'macos']) {
     for (const width of [640, 440]) {
-      const states = bootstrapOnly ? ['bootstrap'] : before ? ['idle'] : ['idle', 'available', 'prompt', 'downloading', 'waiting', 'installing',
+      const states = setupOnly ? [before ? 'unavailable' : 'setup'] : bootstrapOnly ? ['bootstrap'] : before ? ['idle']
+        : ['idle', 'available', 'prompt', 'downloading', 'waiting', 'installing',
         'restarting', 'failed', 'unsupported', 'unavailable']
       for (const state of states) {
         const { context, page, errors } = await open({ host, width, state })
         if (!before) {
           if (state === 'unavailable') await page.locator('#update-error').waitFor()
+          else if (state === 'setup') await page.locator('#update-version').getByText('Version unavailable', { exact: true }).waitFor()
           else await page.locator('#update-version').getByText('1.0.0', { exact: true }).waitFor()
           if (state === 'prompt') await page.locator('#update-dialog[open]').waitFor()
-          assert.equal(await page.locator('#update-policy').isVisible(), !['unsupported', 'unavailable', 'bootstrap'].includes(state))
+          assert.equal(await page.locator('#update-policy').isVisible(), !['unsupported', 'unavailable', 'bootstrap', 'setup'].includes(state))
           assert.equal(await page.locator('#update-install').isVisible(), ['available', 'failed', 'prompt'].includes(state))
           assert.equal(await page.locator('#update-install').isEnabled(), true)
           if (!['prompt'].includes(state)) {
@@ -138,7 +143,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       journeys++
       await context.close()
     }
-    for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
+    if (!setupOnly) for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
       const { context, page, errors } = await open({ locale, width: 440, state: bootstrapOnly ? 'bootstrap' : 'prompt' })
       if (bootstrapOnly) {
         await page.waitForFunction(() => document.getElementById('update-status').textContent === window.executorUpdateWords.bootstrap)
