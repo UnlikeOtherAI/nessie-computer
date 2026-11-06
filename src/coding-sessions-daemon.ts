@@ -9,6 +9,11 @@ import {
   executorCodingSessionOwnerKeyInput,
   ExecutorCodingSessionSummarySchema,
   ExecutorSessionScreenSchema,
+  ExecutorSessionActionReceiptSchema, type ExecutorSessionAction, type ExecutorSessionActionReceipt,
+  ExecutorSessionConversationSchema,
+  type ExecutorSessionConversation,
+  ExecutorSessionInventoryPageSchema,
+  type ExecutorSessionInventoryPage,
   type ExecutorSessionViewRequest,
   type ExecutorSessionScreen,
   type ExecutorCodingSessionClose,
@@ -103,7 +108,9 @@ const DEFINITIVE_FAILURES = new Set(['EXECUTOR_NOT_FOUND', 'EXECUTOR_DAEMON_PROO
 const PENDING_CLOSE_MAXIMUM = 64
 
 export type CodingSessionsDaemon = {
-  inventory: () => Promise<ExecutorCodingSessionSummary[] | undefined>
+  action?: (action: ExecutorSessionAction) => Promise<ExecutorSessionActionReceipt>
+  conversation?: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionConversation | null>
+  inventory: (cursor?: string) => Promise<ExecutorSessionInventoryPage | undefined>
   screen: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionScreen | null>
   /** The reserved `_meta` for one call, command rules included: defined only for the built-in bridge. */
   callMeta: (
@@ -201,7 +208,21 @@ export const createCodingSessionsDaemon = (input: {
   }
 
   return {
-    inventory: () => sessionReport('session_inventory'),
+    action: async (action) => {
+      const answer = await daemonCall('session_user_action', action)
+      const parsed = ExecutorSessionActionReceiptSchema.safeParse(answer?.receipt)
+      return parsed.success ? parsed.data : { id: action.id, state: 'outcome_unknown', code: 'delivery_unknown' }
+    },
+    inventory: async (cursor) => {
+      const answer = await serially(() => daemonCall('session_inventory', cursor ? { cursor } : {}))
+      const parsed = ExecutorSessionInventoryPageSchema.safeParse(answer)
+      return parsed.success ? parsed.data : undefined
+    },
+    conversation: async (request) => {
+      const answer = await daemonCall('session_conversation', request)
+      const parsed = ExecutorSessionConversationSchema.safeParse(answer?.conversation)
+      return parsed.success ? parsed.data : null
+    },
     screen: async (request) => {
       if (request.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) {
         const answer = await daemonCall('existing_session_screen', request)

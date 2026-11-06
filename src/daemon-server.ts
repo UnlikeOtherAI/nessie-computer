@@ -31,6 +31,7 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { createExecutorMcpSessionManager } from './mcp-session-manager.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
+import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
@@ -71,6 +72,7 @@ export const serveExecutor = async (
       sessions: mcpSessions,
     })
     const localMcp = createLocalMcpReporter(namedMcpServers, mcpSessions, { codingSessions: codingBridge.report })
+    const monitor = startComputerMonitor(stateDir)
     const relayScreens = createSessionViewRelay(codingBridge)
     const screenPoll = createNonOverlappingExecutorTask(() => relayScreens(live).catch(() => undefined))
     void localMcp.refresh().catch(() => undefined)
@@ -115,13 +117,17 @@ export const serveExecutor = async (
         // Closing never delays the next heartbeat: it runs beside it, serialised on its own,
         // and every heartbeat retries whatever an earlier one could not carry out.
         const close = await heartbeatExecutor(
-          live, localMcp.current(), codingBridge.connectionHealthy, folderSync.summary(),
+          live, localMcp.current(), (allowed) => {
+            codingBridge.connectionHealthy(allowed)
+            monitor.connected(true)
+          }, folderSync.summary(), undefined, monitor.current(),
         )
         void codingBridge.close(close).catch(() => undefined)
       } catch (error) {
         await browserSessions.stopAll()
         await commandSessions.stopAll()
         await codingSessions.stopAll()
+        monitor.connected(false)
         await codingBridge.connectionFailed('heartbeat_failed', error).catch(() => undefined)
         if (!shuttingDown) {
           try {
@@ -158,6 +164,7 @@ export const serveExecutor = async (
       clearInterval(commandInterval)
       executorApi.cancelPending()
       // Its in-flight calls were just cancelled; whatever a transfer left is in its journal.
+      await monitor.stop()
       await folderSync.stop()
       await localInference.supervisor.stop()
       await Promise.allSettled([

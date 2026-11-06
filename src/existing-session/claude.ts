@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path'
 import { runCommand } from '../coding-session/agent-env.js'
 import { readJson } from '../coding-session/session-files.js'
 import { channelRegistrationPath, type ChannelRegistration } from './channel-files.js'
+import { readNativeTranscript } from './transcript.js'
+import { listSavedClaudeSessions } from './claude-saved.js'
 import { readClaudeRecentMessages } from './claude-history.js'
 import type { ProviderProgram } from './programs.js'
 import { existingSessionId, nativeIdIsValid, objectOf, textOf, type ExistingSession } from './types.js'
@@ -17,6 +19,7 @@ export const claudeAgents = async (program: string, env: NodeJS.ProcessEnv): Pro
 
 export class ExistingClaude {
   readonly profile: string
+  private transcriptPaths = new Map<string, string>()
   constructor(
     readonly program: ProviderProgram, private readonly env: NodeJS.ProcessEnv, private readonly stateDir: string,
   ) {
@@ -24,7 +27,10 @@ export class ExistingClaude {
   }
 
   async list(): Promise<ExistingSession[]> {
-    const agents = await claudeAgents(this.program.path, this.env)
+    const [agents, saved] = await Promise.all([
+      claudeAgents(this.program.path, this.env).catch(() => []), listSavedClaudeSessions(this.profile),
+    ])
+    this.transcriptPaths = new Map(saved.map((row) => [row.session.sessionId, row.path]))
     const rows: ExistingSession[] = []
     for (const agent of agents) {
       if (!nativeIdIsValid(agent.sessionId) || typeof agent.pid !== 'number' || !agent.startedAt) continue
@@ -42,12 +48,20 @@ export class ExistingClaude {
             : 'This session has no connected Nessie channel. Claude requires its channel configuration and startup opt-in.' },
       })
     }
-    return rows.slice(0, 32)
+    const active = new Set(rows.map((row) => row.sessionId))
+    return [...rows, ...saved.filter((row) => !active.has(row.session.sessionId)).map((row) => row.session)]
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5000)
   }
 
   async read(session: ExistingSession, includeText: boolean): Promise<Record<string, unknown>> {
-    return { ...session, origin: 'external', observedAt: new Date().toISOString(),
+    const filename = this.transcriptPaths.get(session.sessionId)
+    const conversation = includeText && filename
+      ? await readNativeTranscript('claude', join(this.profile, 'projects'), filename, session.nativeId) : null
+    return { ...session, ...(conversation ? { conversation: { ...conversation, capturedAt: new Date().toISOString(),
+      sendMode: session.capabilities.push ? 'push' : null, canInterrupt: false } } : {}), origin: 'external', observedAt: new Date().toISOString(),
       providerVersion: this.program.version, observation: 'Claude native active-session registry.',
-      ...(includeText ? await readClaudeRecentMessages(this.profile, session) : {}) }
+      ...(includeText ? await readClaudeRecentMessages(
+        this.profile, session, this.transcriptPaths.get(session.sessionId),
+      ) : {}) }
   }
 }

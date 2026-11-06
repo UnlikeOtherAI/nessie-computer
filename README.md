@@ -44,3 +44,6 @@ are restricted. Each version becomes available under Apache 2.0 after two
 years. This is fair source / source available software.
 
 Bundled third-party components retain their own licences and notices.
+
+Computer telemetry, Claude/Codex account probes, native history and human input follow
+[computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.

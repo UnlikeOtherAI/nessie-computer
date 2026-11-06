@@ -39,10 +39,11 @@ test('terminal relay signs HTTP exchanges, uploads only demanded screens and dro
     assert(address && typeof address === 'object')
     let reads = 0
     const relay = createSessionViewRelay({
-      inventory: async () => [{
+      inventory: async () => ({ inventory: { id: randomUUID(), observedAt: new Date().toISOString(), complete: true },
+        nextCursor: null, sessions: [{
         ...request, title: 'Live terminal', agent: 'terminal', root: 'work', status: 'working',
         updatedAt: new Date().toISOString(),
-      }],
+      }] }),
       screen: async (asked) => {
         assert.deepEqual(asked, request)
         reads += 1

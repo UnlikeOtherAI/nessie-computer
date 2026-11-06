@@ -8,7 +8,9 @@ import {
 } from '@nessie/executor-protocol'
 
 import { readJson, type CodingSessionPaths } from './session-files.js'
-import type { CodingSessionMeta } from './types.js'
+import type { CodingSessionMeta, CodingSessionState } from './types.js'
+import { codingConversation } from './conversation.js'
+import { deriveCodingStatus } from './status.js'
 
 /** A bounded text observation for the model; only the viewer receives ANSI. */
 export const sessionScreenText = async (screen: ExecutorSessionScreen | null): Promise<string> => {
@@ -59,5 +61,25 @@ export const readSessionScreen = async (
       ansi: text.replaceAll('\n', '\r\n'), capturedAt: info.mtime.toISOString(), kind: 'activity',
       cols: EXECUTOR_TERMINAL_COLS, rows: EXECUTOR_TERMINAL_ROWS,
     }
+  } finally { await file.close() }
+}
+
+/** Independent observation: never moves the agent cursor or starts a host. */
+export const readSessionConversation = async (paths: CodingSessionPaths, meta: CodingSessionMeta) => {
+  if (meta.agent === 'terminal') return null
+  const state = await readJson<CodingSessionState>(paths.state)
+  const derived = await deriveCodingStatus(paths, state)
+  const file = await open(paths.events, 'r').catch(() => undefined)
+  if (!file) return null
+  try {
+    const info = await file.stat()
+    const start = Math.max(0, info.size - 192_000)
+    const buffer = Buffer.alloc(Math.min(info.size, 192_000))
+    const { bytesRead } = await file.read(buffer, 0, buffer.length, start)
+    const lines = buffer.subarray(0, bytesRead).toString('utf8').split('\n')
+    if (start > 0) lines.shift()
+    lines.pop()
+    const events = lines.flatMap((line) => { try { return [JSON.parse(line)] } catch { return [] } })
+    return codingConversation({ events, status: derived.status, truncated: start > 0 })
   } finally { await file.close() }
 }

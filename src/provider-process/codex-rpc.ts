@@ -1,11 +1,11 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+import { homedir } from 'node:os'
 import { createInterface } from 'node:readline'
 
-import { objectOf } from './types.js'
 
 export class CodexOperationRejected extends Error {}
 
-/** This helper reads the native store and queues native input. It never resumes a thread. */
+/** Bounded native app-server transport shared by account probes and session control. */
 export class CodexRpc {
   private child: ChildProcessWithoutNullStreams | undefined
   private ready: Promise<void> | undefined
@@ -16,7 +16,7 @@ export class CodexRpc {
 
   private start(): Promise<void> {
     this.ready ??= (async () => {
-      const child = spawn(this.program, ['app-server', '--stdio'], { env: this.env, windowsHide: true, stdio: 'pipe' })
+      const child = spawn(this.program, ['app-server', '--stdio'], { env: this.env, cwd: homedir(), windowsHide: true, stdio: 'pipe' })
       this.child = child
       // Stderr can contain provider paths or diagnostic content; drain without forwarding it.
       child.stderr.resume()
@@ -29,12 +29,16 @@ export class CodexRpc {
         bytes = 0
         if (line.length > 16 * 1024 * 1024) return
         let message: Record<string, unknown>
-        try { message = objectOf(JSON.parse(line)) } catch { return }
+        try {
+          const value: unknown = JSON.parse(line)
+          if (!value || typeof value !== 'object' || Array.isArray(value)) return
+          message = value as Record<string, unknown>
+        } catch { return }
         if (typeof message.id !== 'number') return
         const pending = this.pending.get(message.id)
         if (!pending) return
         this.pending.delete(message.id)
-        if (message.error) pending.reject(new CodexOperationRejected('Codex refused this experimental operation; no input was queued.'))
+        if (message.error) pending.reject(new CodexOperationRejected('Codex refused the requested operation.'))
         else pending.resolve(message.result)
       })
       const ended = (): void => {
@@ -55,7 +59,7 @@ export class CodexRpc {
     return this.ready
   }
 
-  private request(method: string, params: Record<string, unknown>): Promise<unknown> {
+  private request(method: string, params: Record<string, unknown> | null): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = ++this.nextId
       const timer = setTimeout(() => {
@@ -73,7 +77,7 @@ export class CodexRpc {
     })
   }
 
-  async call(method: string, params: Record<string, unknown>): Promise<unknown> {
+  async call(method: string, params: Record<string, unknown> | null): Promise<unknown> {
     await this.start()
     return this.request(method, params)
   }

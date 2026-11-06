@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
 import { EXISTING_CODING_SESSION_OWNER_KEY } from '@nessie/executor-protocol'
@@ -10,6 +11,8 @@ import { codingSessionPaths } from './session-files.js'
 import { readSessionMeta } from './session-requests.js'
 import type { LoadedCodingSessionsConfig } from './config.js'
 import { createCodingBridge as createManagedBridge, type CodingBridge } from './managed-bridge.js'
+import { readSessionConversation } from './session-view.js'
+import { sessionUserAction } from '../session-user-action.js'
 import { openFirst } from './session-report.js'
 import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
@@ -20,12 +23,49 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   const managed = await createManagedBridge(loaded)
   const project = createExistingProjection(managed.rewriter)
   const existing = new ExistingSessions(dirname(loaded.configPath))
+  let inventory: { id: string; observedAt: string; sessions: Record<string, unknown>[] } | undefined
   process.stdin.once('end', () => { void existing.close() })
   return { rewriter: managed.rewriter, call: async (tool, value, meta) => {
-    if (['session_list_all', 'session_inventory'].includes(tool)) {
+    if (tool === 'session_user_action' && meta.daemonControl) {
+      const receipt = await sessionUserAction(value, dirname(loaded.configPath), managed, async (...args) => {
+        await assertPersonalHostExecution()
+        return existing.send(...args)
+      })
+      return { receipt }
+    }
+    if (tool === 'session_inventory') {
+      if (!meta.daemonControl) throw new CodingBridgeError('coding_session_owner_required', 'Daemon control is required.')
+      const args = argumentsFor(value, ['cursor'])
+      const cursor = typeof args.cursor === 'string' ? /^([a-f0-9-]{36}):(\d+)$/u.exec(args.cursor) : null
+      if (!cursor || !inventory || cursor[1] !== inventory.id) {
+        const result = await managed.call(tool, {}, meta)
+        const native = project(await existing.inventory())
+        inventory = { id: randomUUID(), observedAt: new Date().toISOString(),
+          sessions: openFirst([...(result.sessions as Record<string, unknown>[]), ...native], 5000) }
+      }
+      const offset = cursor?.[1] === inventory.id ? Math.min(5000, Number(cursor[2])) : 0
+      const sessions = inventory.sessions.slice(offset, offset + 32)
+      const complete = offset + sessions.length >= inventory.sessions.length
+      return { sessions, inventory: { id: inventory.id, observedAt: inventory.observedAt, complete },
+        nextCursor: complete ? null : `${inventory.id}:${offset + sessions.length}` }
+    }
+    if (tool === 'session_list_all') {
       const result = await managed.call(tool, value, meta)
       const native = project(await existing.inventory())
       return { ...result, sessions: openFirst([...(result.sessions as Record<string, unknown>[]), ...native]) }
+    }
+    if (tool === 'session_conversation' && meta.daemonControl) {
+      const args = argumentsFor(value, ['sessionId', 'ownerKey'])
+      const id = sessionIdArgument(args.sessionId)
+      if (args.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) {
+        const result = project(await existing.read(id, true))
+        return { conversation: result.conversation ?? null }
+      }
+      if (typeof args.ownerKey !== 'string') throw new CodingBridgeError('coding_session_owner_required', 'Owner is required.')
+      const paths = codingSessionPaths(loaded.stateDir, id)
+      const session = await readSessionMeta(paths)
+      if (!session || session.ownerKey !== args.ownerKey) return { conversation: null }
+      return { conversation: await readSessionConversation(paths, session) }
     }
     if (tool === 'existing_session_screen' && meta.daemonControl) {
       const args = argumentsFor(value, ['sessionId', 'ownerKey'])

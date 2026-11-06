@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { CodingBridgeError } from '../coding-session/bridge-tools.js'
 import { createJsonExclusive, ensureCodingStateDir, readJson, writeJsonAtomic } from '../coding-session/session-files.js'
 import { channelInboxDir } from './channel-files.js'
-import { CodexOperationRejected } from './codex-rpc.js'
+import { CodexOperationRejected } from '../provider-process/codex-rpc.js'
 
 type Result = Record<string, unknown>
 type Delivery = { fingerprint: string; sessionId: string; createdAt: number; result: Result }
