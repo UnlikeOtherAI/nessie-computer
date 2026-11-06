@@ -1,5 +1,7 @@
 //! Native Unix installation retains the same custody inode and accepted journal.
-use super::super::{admission_unix, unix_health, unix_runtime, unix_setup};
+use super::super::{admission_unix, unix_health, unix_runtime};
+#[cfg(target_os = "linux")]
+use super::super::unix_setup;
 use nessie_executor_updater::catalog::UpdateResult;
 pub(in crate::updates) use super::super::unix_package::{verify_publishers, replace_when_clear};
 pub(in crate::updates) use super::super::unix_runtime::installed;
@@ -22,9 +24,14 @@ pub(in crate::updates) fn set_draining(draining: bool, restart_ready: bool) -> U
 }
 
 pub(in crate::updates) fn initialize() -> UpdateResult<()> {
+    #[cfg(target_os = "macos")]
+    { Err("update.setup_required") }
+    #[cfg(target_os = "linux")]
+    {
     let worker = unix_runtime::initialize()?;
     nessie_executor_updater::storage::Store::new(super::root()?).set_installation_enabled(true)?;
     unix_setup::configure(&worker)
+    }
 }
 
 pub(in crate::updates) fn uninstall() -> UpdateResult<()> {

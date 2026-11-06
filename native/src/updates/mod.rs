@@ -6,7 +6,7 @@ mod host;
 pub(super) mod admission_unix;
 #[cfg(unix)]
 mod unix_runtime;
-#[cfg(unix)]
+#[cfg(target_os = "linux")]
 mod unix_setup;
 #[cfg(unix)]
 mod unix_process;

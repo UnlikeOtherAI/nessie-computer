@@ -5,18 +5,17 @@ local controls are implemented in source. No signed installed upgrade has been
 verified, and macOS/Linux installer adapters and the transition release remain
 unfinished. No public update channel is enabled.
 
-The Mac distribution is being revised to reuse its existing Developer ID
+The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
-background helper. The PKG adapter below is the earlier prototype, not the
-chosen release path; see [the helper transition](macos-update-helper.md).
+background helper. See [the helper trust contract](macos-update-helper.md).
 
 Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
 at `c7ac37d` has verified timestamped signatures and matching extracted payload
 hashes; its native helper and CLI report the expected version/source. The macOS
 0.9.0 app and DMG at `b0e5c3b` passed Developer ID validation, notarization,
 stapling and Gatekeeper. Neither candidate has been installed, published or
-used for an A-to-B upgrade, and the macOS update PKG still needs its Installer
-certificate. macOS signing uses a temporary launchd job in the existing GUI
+used for an A-to-B upgrade. No additional Installer certificate is required.
+macOS signing uses a temporary launchd job in the existing GUI
 session so SSH does not require another keychain sign-in or copied credentials.
 
 The Windows MSI producer requires Node 22 and supplies the selected numeric
@@ -30,11 +29,10 @@ This keeps candidate installation independent of production credentials while
 retaining publisher verification for protected setup and every real update.
 
 macOS release construction supplies that version to its native helper, CLI
-bundle and application Info dictionary. The custody PKG producer takes the
-prepared runtime, output directory, numeric version and signed menu app as its
-four arguments, followed by `--require-signed`. It checks the app's publisher,
-independent-consumer floor and exact embedded runtime manifest, then packages
-both the app and protected runtime in one signed, notarized transaction.
+bundle and application Info dictionary. The signed DMG includes the sealed
+runtime and fixed app-bundled native service. Apple owns its one-time administrator
+approval. The native adapter verifies the DMG publisher and Gatekeeper before
+mounting it readonly, then validates a private copied app before replacement.
 Unsigned candidates remain explicitly labelled and cannot be installed.
 The menu-app Xcode build uses two jobs and passes the numeric release version
 as its marketing/build settings before the installer checks its identity.
@@ -218,8 +216,8 @@ does not erase custody evidence. Restart health challenges the retained native
 parent and confirms the new daemon's actual process generation. A stopped or
 unpaired installation instead executes the exact new native helper's compiled
 build information. Linux additionally verifies the pinned package publisher in
-`packaging/linux/keys`; macOS checks the Installer team, Gatekeeper and package
-identifier/version. Initial retirement of legacy creators and installed package
+`packaging/linux/keys`; macOS checks the Developer ID Application publisher,
+Gatekeeper, sealed app floors and runtime version/source. Initial retirement of legacy creators and installed package
 recovery still need completion before release.
 The Linux repository producer emits `<package>.asc` for both DEB and RPM with
 the same signing key as repository metadata. Candidate hashes and `SHA256SUMS`

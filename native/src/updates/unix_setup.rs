@@ -44,28 +44,3 @@ pub(super) fn configure(image: &Path) -> UpdateResult<()> {
     run("/usr/bin/systemctl", arguments)
 }
 
-#[cfg(target_os = "macos")]
-pub(super) fn configure(image: &Path) -> UpdateResult<()> {
-    let _pin = unix_runtime::pin_worker(image)?;
-    let path = Path::new("/Library/LaunchDaemons/com.unlikeotherai.nessie.executor.updater.plist");
-    let image = image.to_str().ok_or(ERROR)?.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
-    let content = format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
-        <!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n\
-        <plist version=\"1.0\"><dict>\n\
-        <key>Label</key><string>com.unlikeotherai.nessie.executor.updater</string>\n\
-        <key>ProgramArguments</key><array><string>{image}</string><string>update-service</string></array>\n\
-        <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>\n\
-        <key>AbandonProcessGroup</key><true/>\n\
-        <key>ProcessType</key><string>Background</string>\n\
-        </dict></plist>\n");
-    write(path, content.as_bytes())?;
-    // Bootstrap only a missing job. Killing a job to reload its plist would
-    // interrupt the very installation the surviving worker must finish.
-    let loaded = Command::new("/bin/launchctl").args(["print", "system/com.unlikeotherai.nessie.executor.updater"])
-        .env_clear().stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null())
-        .status().map_err(|_| ERROR)?.success();
-    if !loaded {
-        run("/bin/launchctl", &["bootstrap", "system", path.to_str().ok_or(ERROR)?])?;
-    }
-    Ok(())
-}

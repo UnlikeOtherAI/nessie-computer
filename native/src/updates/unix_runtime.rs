@@ -108,6 +108,7 @@ pub(super) fn verify_worker() -> UpdateResult<()> {
     let _pin = pin_worker(&executable)?;
     Ok(())
 }
+#[cfg(target_os = "linux")]
 pub(super) fn initialize() -> UpdateResult<PathBuf> {
     privileged()?;
     let release = crate::managed_release::load().map_err(|_| ERROR)?;

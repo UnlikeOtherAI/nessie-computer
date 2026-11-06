@@ -8,9 +8,8 @@ private key is already in the login keychain. The signed 0.9.0 app and DMG have
 already passed notarization and Gatekeeper with this identity. No new Apple
 account, publisher or certificate is needed for that distribution format.
 
-The earlier updater prototype selected a PKG, which introduced a separate
-Developer ID Installer requirement. Replace that route with the notarized DMG
-and an app-bundled native LaunchDaemon registered through `SMAppService`.
+The updater uses the notarized DMG and an app-bundled native LaunchDaemon
+registered through `SMAppService`. It needs no Developer ID Installer identity.
 Apple documents the [bundle-relative helper layout and approval
 model](https://developer.apple.com/documentation/servicemanagement/updating-helper-executables-from-earlier-versions-of-macos).
 An administrator must approve the background helper once in System Settings;
@@ -30,6 +29,9 @@ into a Root-owned staging directory, verifies the readonly copied contents,
 then atomically selects the immutable release. It preserves the existing
 custody inode and journals. Initial migration still waits for legacy creators
 and work to finish naturally; it never signals a process to obtain clearance.
+The copied app is read by an unprivileged process inside a private directory,
+then frozen and verified. A verified snapshot is reused for retries rather than
+copying the same app on each restart.
 
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.
@@ -45,7 +47,9 @@ and its bundled runtime against the accepted version/source, then uses the
 existing machine barrier, drain and independent clearance proof for replacement.
 No shell or arbitrary installer script runs as Root.
 
-The app and CLI factory switch in one journaled transaction. Partial replacement
+The app and CLI factory switch in one journaled transaction. A macOS atomic
+directory exchange preserves the app's registered helper throughout replacement;
+the old app and runtime remain available for recovery. Partial replacement
 keeps admissions fenced and retries the accepted bytes. Completion requires the
 new runtime generation and the appropriate application restart proof. A nested
 menu app inside Nessie Desktop remains part of that signed parent bundle; it
@@ -61,3 +65,18 @@ on the Mac before publication.
 The public release also supplies the actual Mac and Windows URLs used by
 Nessie's Computers page. Its existing download buttons must not be enabled
 before those public immutable assets exist and their anonymous downloads verify.
+
+At `e511bf8`, 42 Mac helper tests and 17 updater tests passed. App/Core typechecking
+and strict Swift lint passed at `3bbadc4`; 31 focused update tests and the public
+TypeScript gate passed on Maxis. The setup, denial and retry controls passed
+18 headless shared-console journeys. These source checks do not establish an
+approved installed helper or a completed signed upgrade.
+
+The `e511bf8` 0.9.0 DMG was signed, notarized, stapled and accepted by Gatekeeper
+on the Mac. SHA-256:
+`efb1d4c683bd8338f5c064101d90271673e5786c536d293f7206a50f347c0e71`.
+The same verified app was installed in `/Applications`, with the previous app
+retained outside the checkout. Its compiled `build-info` reports version 0.9.0
+and source `e511bf86d9f0c3ffccbd7fd67e9ade1ee0579e4e`. The real local Settings
+rendered setup and its button opened macOS background-helper approval. This
+does not yet establish an approved Root helper or an A-to-B upgrade.
