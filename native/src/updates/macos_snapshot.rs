@@ -52,8 +52,9 @@ fn freeze(path: &Path, app: &Path, depth: u32) -> UpdateResult<()> {
     File::open(path).and_then(|file| file.sync_all()).map_err(|_| ERROR)
 }
 
-pub(super) fn capture(source: &Path) -> UpdateResult<PathBuf> {
+pub(super) fn capture(source: &Path, key: &str) -> UpdateResult<PathBuf> {
     unix_runtime::privileged()?;
+    if key.len() != 64 || !key.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(ERROR); }
     let root = super::host::root()?.join("application-snapshots");
     match fs::symlink_metadata(&root) {
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -64,6 +65,15 @@ pub(super) fn capture(source: &Path) -> UpdateResult<PathBuf> {
         _ => return Err(ERROR),
     }
     admission_unix::directory(&root)?;
+    let cached = root.join(key);
+    if let Ok(entry) = fs::symlink_metadata(&cached) {
+        if !entry.is_dir() || entry.file_type().is_symlink() || entry.uid() != 0 || entry.mode() & 0o077 != 0 {
+            return Err(ERROR);
+        }
+        let app = cached.join("Nessie Executor.app");
+        crate::macos_provenance::require_updater_app(&app).map_err(|_| ERROR)?;
+        return Ok(app);
+    }
     let name = CString::new(root.as_os_str().as_bytes()).map_err(|_| ERROR)?;
     let mut space: libc::statvfs = unsafe { std::mem::zeroed() };
     if unsafe { libc::statvfs(name.as_ptr(), &mut space) } != 0
@@ -113,6 +123,35 @@ pub(super) fn capture(source: &Path) -> UpdateResult<PathBuf> {
     outcome?;
     within_budget(&directory, &mut 0, &mut 0, 0)?;
     let app = directory.join("Nessie Executor.app");
+    freeze(&app, &app, 0)?;
+    crate::macos_provenance::require_updater_app(&app).map_err(|_| ERROR)?;
+    fs::rename(&directory, &cached).map_err(|_| ERROR)?;
+    File::open(&root).and_then(|file| file.sync_all()).map_err(|_| ERROR)?;
+    Ok(cached.join("Nessie Executor.app"))
+}
+
+/// Only a frozen Root snapshot is eligible for this privileged copy. Its
+/// internal symlinks were already confined before the seal was accepted.
+pub(super) fn clone_verified(source: &Path) -> UpdateResult<PathBuf> {
+    unix_runtime::privileged()?;
+    let root = super::host::root()?.join("application-snapshots");
+    let container = source.parent().ok_or(ERROR)?;
+    let key = container.file_name().and_then(|name| name.to_str()).ok_or(ERROR)?;
+    if container.parent() != Some(root.as_path()) || key.len() != 64
+        || !key.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || source.file_name().and_then(|name| name.to_str()) != Some("Nessie Executor.app") { return Err(ERROR); }
+    admission_unix::directory(container)?;
+    crate::macos_provenance::require_updater_app(source).map_err(|_| ERROR)?;
+    let mut random = [0_u8; 16];
+    unsafe { libc::arc4random_buf(random.as_mut_ptr().cast(), random.len()); }
+    let nonce: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
+    let directory = root.join(format!("replace-{nonce}"));
+    fs::DirBuilder::new().mode(0o700).create(&directory).map_err(|_| ERROR)?;
+    let app = directory.join("Nessie Executor.app");
+    let status = Command::new("/usr/bin/ditto").args(["--noacl", "--noqtn"])
+        .arg(source).arg(&app).env_clear().env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+        .stdin(Stdio::null()).stdout(Stdio::null()).stderr(Stdio::null()).status().map_err(|_| ERROR)?;
+    if !status.success() { return Err("update.bundle_copy_failed"); }
     freeze(&app, &app, 0)?;
     crate::macos_provenance::require_updater_app(&app).map_err(|_| ERROR)?;
     Ok(app)

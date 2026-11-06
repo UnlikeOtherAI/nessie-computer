@@ -19,6 +19,46 @@ pub(super) struct Bundle {
 }
 
 impl Bundle {
+    pub(super) fn candidate(app: &Path, manifest: &nessie_executor_updater::protocol::Manifest) -> UpdateResult<Self> {
+        let key = format!("{:x}", Sha256::digest(serde_json::to_vec(manifest).map_err(|_| ERROR)?));
+        let snapshot = super::macos_snapshot::capture(app, &key)?;
+        let value = Self::open(&snapshot)?;
+        if value.version != manifest.version || value.source != manifest.source_commit { return Err(ERROR); }
+        Ok(value)
+    }
+
+    /// An exchange keeps a registered BundleProgram present across power loss.
+    /// The prior app is retained inside the private snapshot container.
+    pub(super) fn replace_application(&self) -> UpdateResult<()> {
+        unix_runtime::privileged()?;
+        let applications = Path::new("/Applications");
+        let parent = fs::symlink_metadata(applications).map_err(|_| ERROR)?;
+        // macOS permits the local admin group to install apps here. Root's
+        // source is still its immutable private snapshot, never that directory.
+        if !parent.is_dir() || parent.file_type().is_symlink() || parent.uid() != 0 || parent.mode() & 0o002 != 0 {
+            return Err(ERROR);
+        }
+        let target = applications.join("Nessie Executor.app");
+        let prepared = super::macos_snapshot::clone_verified(&self.app)?;
+        let source = std::ffi::CString::new(prepared.as_os_str().as_encoded_bytes()).map_err(|_| ERROR)?;
+        let destination = std::ffi::CString::new(target.as_os_str().as_encoded_bytes()).map_err(|_| ERROR)?;
+        match fs::symlink_metadata(&target) {
+            Ok(entry) if entry.is_dir() && !entry.file_type().is_symlink() => {
+                // RENAME_SWAP is atomic, including the app's registered service.
+                if unsafe { libc::renamex_np(source.as_ptr(), destination.as_ptr(), libc::RENAME_SWAP) } != 0 {
+                    return Err("update.application_replace_failed");
+                }
+            },
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                fs::rename(&prepared, &target).map_err(|_| "update.application_replace_failed")?;
+            },
+            _ => return Err("update.application_replace_failed"),
+        }
+        File::open(applications).and_then(|file| file.sync_all()).map_err(|_| ERROR)?;
+        File::open(prepared.parent().ok_or(ERROR)?).and_then(|file| file.sync_all()).map_err(|_| ERROR)?;
+        crate::macos_provenance::require_updater_app(&target).map_err(|_| ERROR)
+    }
+
     /// SMAppService executes this fixed bundled native image as Root only after
     /// administrator approval. No path or source claim arrives over IPC.
     pub(super) fn authorize_registered() -> UpdateResult<PathBuf> {
@@ -39,7 +79,7 @@ impl Bundle {
         let executable = std::env::current_exe().map_err(|_| ERROR)?;
         // Validate the copied seal, rather than trusting a manifest read from
         // a user-writable app between two independent signature checks.
-        let snapshot = super::macos_snapshot::capture(&app)?;
+        let snapshot = super::macos_snapshot::capture(&app, &unix_runtime::hash(&executable)?)?;
         let value = Self::open(&snapshot)?;
         if value.source != env!("NESSIE_EXECUTOR_SOURCE_COMMIT") || value.version != env!("NESSIE_EXECUTOR_VERSION") {
             return Err(ERROR);

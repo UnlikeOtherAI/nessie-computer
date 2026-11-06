@@ -25,6 +25,10 @@ mod macos_applications;
 #[cfg(target_os = "macos")]
 mod macos_bundle;
 #[cfg(target_os = "macos")]
+mod macos_disk;
+#[cfg(target_os = "macos")]
+mod macos_cli;
+#[cfg(target_os = "macos")]
 mod macos_snapshot;
 #[cfg(target_os = "macos")]
 mod macos_service;

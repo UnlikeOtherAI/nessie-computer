@@ -23,12 +23,13 @@ pub(super) fn run() -> UpdateResult<()> {
     let has_worker = present(&root()?.join("worker.json"))?;
     // A partial accepted replacement belongs to the protected worker and its
     // journal. A surviving bundled helper must never reset it from its app.
-    let recovering = has_pointer || has_worker || store.journal()?.pending.is_some();
-    let image = if crate::managed_release::installed().is_ok() {
+    let recovering = has_worker || store.journal()?.pending.is_some();
+    let image = if unix_runtime::installed().is_ok() {
         unix_runtime::initialize_selected()?
     } else if recovering {
         unix_runtime::worker_image()?
     } else {
+        if has_pointer && crate::managed_release::installed().is_err() { return Err(ERROR); }
         let bundle = Bundle::registered()?;
         let process = super::unix_process::information(std::process::id() as i32)?.ok_or(ERROR)?;
         loop {
@@ -52,6 +53,7 @@ pub(super) fn run() -> UpdateResult<()> {
         }
         unix_runtime::initialize_selected()?
     };
+    super::macos_cli::install()?;
     let _pin = unix_runtime::pin_worker(&image)?;
     let error = Command::new(image).arg("update-service").env_clear()
         .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin").current_dir("/")

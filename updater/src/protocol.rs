@@ -14,8 +14,8 @@ pub enum Channel {
 pub enum Target {
     #[serde(rename = "windows-x64-msi")]
     WindowsX64Msi,
-    #[serde(rename = "darwin-arm64-pkg")]
-    DarwinArm64Pkg,
+    #[serde(rename = "darwin-arm64-dmg")]
+    DarwinArm64Dmg,
     #[serde(rename = "linux-x64-deb")]
     LinuxX64Deb,
     #[serde(rename = "linux-x64-rpm")]

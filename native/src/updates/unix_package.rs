@@ -13,7 +13,7 @@ pub(super) fn target() -> UpdateResult<Target> {
         return Err("update.unsupported_platform");
     }
     #[cfg(target_os = "macos")]
-    { if std::env::consts::ARCH == "aarch64" { Ok(Target::DarwinArm64Pkg) } else { Err("update.unsupported_platform") } }
+    { if std::env::consts::ARCH == "aarch64" { Ok(Target::DarwinArm64Dmg) } else { Err("update.unsupported_platform") } }
     #[cfg(target_os = "linux")]
     {
         if std::env::consts::ARCH != "x86_64" { return Err("update.unsupported_platform"); }
@@ -63,10 +63,10 @@ pub(super) fn inspect(mut command: Command, input: Option<Vec<u8>>) -> UpdateRes
 fn package(manifest: &Manifest, directory: &Path) -> UpdateResult<PathBuf> {
     let target = target()?;
     let assets = manifest.targets.get(&target).ok_or("update.unsupported_platform")?;
-    let suffix = match target { Target::DarwinArm64Pkg => ".pkg", Target::LinuxX64Deb => ".deb",
+    let suffix = match target { Target::DarwinArm64Dmg => ".dmg", Target::LinuxX64Deb => ".deb",
         Target::LinuxX64Rpm => ".rpm", _ => return Err("update.unsupported_platform") };
     let packages: Vec<_> = assets.iter().filter(|asset| asset.name.ends_with(suffix)).collect();
-    if packages.len() != 1 || assets.len() != if target == Target::DarwinArm64Pkg { 1 } else { 2 } {
+    if packages.len() != 1 || assets.len() != if target == Target::DarwinArm64Dmg { 1 } else { 2 } {
         return Err("update.invalid_package");
     }
     Ok(directory.join(&packages[0].name))
@@ -95,19 +95,7 @@ pub(super) fn verify_publishers(manifest: &Manifest, directory: &Path) -> Update
     let package = package(manifest, directory)?;
     #[cfg(target_os = "macos")]
     {
-        let team = option_env!("NESSIE_DESKTOP_SIGNING_TEAM_ID").filter(|team| team.len() == 10)
-            .ok_or("update.wrong_publisher")?;
-        let signature = inspect({ let mut value = command("/usr/sbin/pkgutil"); value.arg("--check-signature").arg(&package); value }, None)?;
-        if !signature.lines().any(|line| line.trim().starts_with("1. Developer ID Installer: ")
-            && line.trim().ends_with(&format!("({team})"))) { return Err("update.wrong_publisher"); }
-        inspect({ let mut value = command("/usr/sbin/spctl"); value.args(["--assess", "--type", "install"]).arg(&package); value }, None)?;
-        let metadata = inspect({ let mut value = command("/usr/bin/xar"); value.args(["-x", "-O", "-f"])
-            .arg(&package).arg("PackageInfo"); value }, None)?;
-        for (attribute, expected) in [("identifier", "com.unlikeotherai.nessie.executor.custody"), ("version", manifest.version.as_str())] {
-            let actual = inspect({ let mut value = command("/usr/bin/xmllint");
-                value.args(["--nonet", "--xpath", &format!("string(/pkg-info/@{attribute})"), "-"]); value }, Some(metadata.as_bytes().to_vec()))?;
-            if actual.trim() != expected { return Err("update.invalid_package"); }
-        }
+        super::macos_disk::verify(&package)?;
     }
     #[cfg(target_os = "linux")]
     {
@@ -151,17 +139,27 @@ pub(super) fn replace_when_clear(manifest: &Manifest, directory: &Path,
     }
     if !super::unix_clearance::ready()? { return Ok(false); }
     verify_publishers(manifest, directory)?;
+    let package = package(manifest, directory)?;
+    #[cfg(target_os = "macos")]
+    let bundle = super::macos_disk::stage(manifest, &package)?;
     begin()?;
     maintenance.target = Some(String::new());
     admission_unix::write(&maintenance)?;
-    let package = package(manifest, directory)?;
+    #[cfg(target_os = "macos")]
+    {
+        let digest = bundle.install_factory()?;
+        bundle.replace_application()?;
+        super::macos_bundle::select(&digest)?;
+    }
+    #[cfg(target_os = "linux")]
+    {
     let mut install = match target()? {
-        Target::DarwinArm64Pkg => { let mut value = command("/usr/sbin/installer"); value.arg("-pkg").arg(package).args(["-target", "/"]); value },
         Target::LinuxX64Deb => { let mut value = command("/usr/bin/dpkg"); value.arg("--install").arg(package); value },
         Target::LinuxX64Rpm => { let mut value = command("/usr/bin/rpm"); value.arg("--upgrade").arg(package); value },
         _ => return Err("update.unsupported_platform"),
     };
     if !install.stdout(Stdio::null()).status().map_err(|_| "update.installer_failed")?.success() { return Err("update.installer_failed"); }
+    }
     let release = crate::managed_release::installed().map_err(|_| ERROR)?;
     if release.version.as_deref() != Some(&manifest.version) || release.source_commit.as_deref() != Some(&manifest.source_commit) { return Err(ERROR); }
     maintenance.target = Some(release.digest);
