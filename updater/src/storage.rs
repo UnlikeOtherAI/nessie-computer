@@ -45,6 +45,18 @@ pub struct Journal {
     pub code: Option<String>,
     #[serde(default)]
     pub check_requested_at: Option<u64>,
+    #[serde(default)]
+    pub next_check_at: u64,
+    #[serde(default)]
+    pub next_install_attempt_at: u64,
+    #[serde(default)]
+    pub check_failures: u32,
+    #[serde(default)]
+    pub last_check_attempt_at: u64,
+    #[serde(default)]
+    pub check_code: Option<String>,
+    #[serde(default)]
+    pub install_failures: u32,
 }
 
 pub struct Store {
@@ -172,6 +184,26 @@ impl Store {
     }
 
     fn lock(&self, name: &str) -> UpdateResult<File> {
+        let lock = self.open_lock(name)?;
+        fs2::FileExt::lock_exclusive(&lock).map_err(|_| "update.state_unavailable")?;
+        Ok(lock)
+    }
+
+    /// A live worker retains this kernel lease across downloads and installers.
+    /// A crash releases the lease without removing its accepted transaction.
+    pub fn worker(&self) -> UpdateResult<File> {
+        let lock = self.open_lock("worker.lock")?;
+        fs2::FileExt::try_lock_exclusive(&lock).map_err(|error| {
+            if error.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
+                "update.busy"
+            } else {
+                "update.state_unavailable"
+            }
+        })?;
+        Ok(lock)
+    }
+
+    fn open_lock(&self, name: &str) -> UpdateResult<File> {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
         #[cfg(unix)]
@@ -184,7 +216,10 @@ impl Store {
         let lock = options
             .open(self.root.join(name))
             .map_err(|_| "update.state_unavailable")?;
-        fs2::FileExt::lock_exclusive(&lock).map_err(|_| "update.state_unavailable")?;
+        let metadata = lock.metadata().map_err(|_| "update.state_unavailable")?;
+        if !metadata.is_file() || metadata.len() != 0 {
+            return Err("update.state_unavailable");
+        }
         Ok(lock)
     }
 }

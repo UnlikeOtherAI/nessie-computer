@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+const Version = z.string().regex(/^(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})$/u)
+
 /** Public software status only: no local paths, credentials or release URLs. */
 export const ExecutorUpdatePhaseSchema = z.enum([
   'idle', 'checking', 'available', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported',
@@ -8,7 +10,8 @@ export const ExecutorSoftwareStatusSchema = z.object({
   format: z.literal(1),
   installedVersion: z.string().min(1).max(64),
   sourceCommit: z.string().regex(/^[a-f0-9]{40}$/u).optional(),
-  availableVersion: z.string().regex(/^(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})\.(0|[1-9]\d{0,15})$/u).optional(),
+  availableVersion: Version.optional(),
+  targetVersion: Version.optional(),
   automatic: z.boolean(),
   channel: z.enum(['stable', 'preview']),
   phase: ExecutorUpdatePhaseSchema,

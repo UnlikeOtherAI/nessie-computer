@@ -96,6 +96,17 @@ open protected provider profiles to an older process.
 
 ## Required verification before enabling a channel
 
+The coordinator persists check deadlines and bounded retries separately from
+installation progress. An accepted transaction resumes through catalogue
+outages and expiry using its originally verified signed bytes. Kernel-owned
+worker and journal locks recover after process exit; network calls never hold
+the preference lock. A concurrent local opt-out survives every progress write.
+Manual requests join the current transaction and never authorize an unrelated
+future release. Corrupt downloads are retained for diagnosis before a fresh
+attempt. CLI launch checks are bounded and human-terminal-only, with the same
+supported languages as Nessie. The pending target version remains visible
+after package replacement while fresh runtime confirmation is outstanding.
+
 Use the actual signed installed package on Windows, macOS and Linux. Exercise
 automatic installation, persistent opt-out, popup and reminders, explicit
 update, active work, offline recovery, interrupted installation and reboot.

@@ -1,5 +1,6 @@
 import { createInterface } from 'node:readline/promises'
 import { localUpdate } from './native-client.js'
+import { cliUpdateWords } from './words.js'
 import type { ExecutorLocalUpdateRequest, ExecutorLocalUpdateStatus } from '@nessie/executor-protocol'
 
 const usage = 'Usage: nessie-executor updates [status|check|install|remind|automatic on|automatic off] [--json]'
@@ -21,20 +22,23 @@ export const parseUpdateArguments = (args: string[]): {
   throw new Error(usage)
 }
 
-const describe = (status: ExecutorLocalUpdateStatus): string => [
+const describe = (status: ExecutorLocalUpdateStatus): string => {
+  const words = cliUpdateWords()
+  return [
   `Nessie Computer ${status.installedVersion}`,
-  ...(status.phase === 'unsupported' ? ['Update this installation with its package manager.'] : [
-    `Automatic updates: ${status.automatic ? 'on' : 'off'}.`,
-    ...(status.availableVersion ? [`Version ${status.availableVersion} is available.`] : []),
-    ...(status.phase === 'waiting' ? ['The update will wait for active work to finish.'] : []),
-    ...(status.phase === 'failed' ? ['The update failed. Run nessie-executor updates install to retry.'] : []),
+  ...(status.phase === 'unsupported' ? [words.unsupported] : [
+    status.automatic ? words.on : words.off,
+    ...(status.availableVersion ? [words.available.replace('{version}', status.availableVersion)] : []),
+    ...(status.phase === 'waiting' ? [words.waiting] : []),
+    ...(status.phase === 'failed' ? [words.failed] : []),
   ]),
 ].join('\n')
+}
 
 export const runUpdateCli = async (args: string[]): Promise<boolean> => {
   const command = parseUpdateArguments(args)
   if (!command) return false
-  const status = await localUpdate(command.request)
+  const status = await localUpdate(command.request).catch(() => { throw new Error(cliUpdateWords().unavailable) })
   process.stdout.write(command.json ? `${JSON.stringify(status)}\n` : `${describe(status)}\n`)
   return true
 }
@@ -42,20 +46,32 @@ export const runUpdateCli = async (args: string[]): Promise<boolean> => {
 /** Only human terminals get a prompt. Built-in servers and JSON output keep their wire contract. */
 export const offerUpdateAtLaunch = async (args: string[]): Promise<boolean> => {
   if (!process.stdin.isTTY || !process.stderr.isTTY || args.includes('--json')) return false
+  const words = cliUpdateWords()
+  let chosen = false
   try {
-    const status = await localUpdate({ operation: 'check' })
-    if (!status.canInstall || !status.notify || !status.availableVersion) return false
+    let status = await localUpdate({ operation: 'check' })
+    const deadline = Date.now() + 5_000
+    while (status.canInstall && status.phase === 'checking' && Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 200))
+      status = await localUpdate({ operation: 'status' })
+    }
+    if (!status.canInstall || !status.notify || !status.availableVersion
+      || ['downloading', 'waiting', 'installing', 'restarting'].includes(status.phase)) return false
     const terminal = createInterface({ input: process.stdin, output: process.stderr })
     try {
       const answer = await terminal.question(
-        `Nessie Computer ${status.availableVersion} is available. [u] Update now, [r] remind me tomorrow, [Enter] continue: `,
+        words.prompt.replace('{version}', status.availableVersion),
       )
+      chosen = ['r', 'u'].includes(answer.trim().toLowerCase())
       if (answer.trim().toLowerCase() === 'r') await localUpdate({ operation: 'remind' })
       if (answer.trim().toLowerCase() !== 'u') return false
       await localUpdate({ operation: 'install' })
-      process.stderr.write('Update requested. Active work will finish before installation.\n')
+      process.stderr.write(`${words.requested}\n`)
       // Leaving this old runtime allows its native launch lease to drain.
       return true
     } finally { terminal.close() }
-  } catch { return false }
+  } catch {
+    if (chosen) process.stderr.write(`${words.requestFailed}\n`)
+    return false
+  }
 }

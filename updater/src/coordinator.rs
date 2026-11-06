@@ -35,7 +35,7 @@ pub struct Coordinator<'a> {
 }
 
 impl Coordinator<'_> {
-    fn accepted(&self, pending: &PendingInstall) -> UpdateResult<VerifiedManifest> {
+    pub(crate) fn accepted(&self, pending: &PendingInstall) -> UpdateResult<VerifiedManifest> {
         // A root-owned accepted transaction survives catalogue expiry during reboot.
         // Verify its original signed validity interval at acceptance, and retain its replay floor.
         let verified = verify_manifest(
@@ -95,9 +95,14 @@ impl Coordinator<'_> {
                 current.available_envelope = if ordering == Ordering::Greater {
                     Some(envelope)
                 } else {
+                    // An Update now request applies to this check, never to a
+                    // future release after the person has disabled installation.
+                    if current.pending.is_none() && current.request_id == journal.request_id {
+                        current.manual = false;
+                    }
                     None
                 };
-                current.code = None;
+                current.check_code = None;
                 Ok(())
             })
             .map(|_| ())
@@ -121,9 +126,8 @@ impl Coordinator<'_> {
                 if journal.request_id.as_deref() == Some(request_id) {
                     return Ok(());
                 }
-                if journal.pending.is_some() && journal.manual {
-                    return Err("update.busy");
-                }
+                // A second person-action joins the accepted transaction. It
+                // does not create another installation or leave future intent.
                 journal.manual = true;
                 journal.request_id = Some(request_id.to_owned());
                 Ok(())

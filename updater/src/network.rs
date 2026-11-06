@@ -13,17 +13,23 @@ use std::{
 
 pub struct Network {
     agent: ureq::Agent,
+    catalog_agent: ureq::Agent,
 }
 impl Default for Network {
     fn default() -> Self {
-        let agent = ureq::Agent::config_builder()
-            .https_only(true)
-            .timeout_global(Some(Duration::from_secs(600)))
-            .timeout_connect(Some(Duration::from_secs(15)))
-            .timeout_per_read(Some(Duration::from_secs(30)))
-            .build()
-            .into();
-        Self { agent }
+        let agent = |seconds| {
+            ureq::Agent::config_builder()
+                .https_only(true)
+                .timeout_global(Some(Duration::from_secs(seconds)))
+                .timeout_connect(Some(Duration::from_secs(15)))
+                .timeout_per_read(Some(Duration::from_secs(30)))
+                .build()
+                .into()
+        };
+        Self {
+            agent: agent(600),
+            catalog_agent: agent(30),
+        }
     }
 }
 
@@ -37,7 +43,7 @@ impl Network {
             "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/{tag}/catalog.json"
         );
         let mut response = self
-            .agent
+            .catalog_agent
             .get(&url)
             .header("User-Agent", "Nessie-Executor-Updater/1")
             .call()

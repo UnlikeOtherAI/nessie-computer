@@ -101,6 +101,8 @@ pub struct Status {
     pub can_install: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_version: Option<String>,
     pub phase: Phase,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub last_checked_at: Option<String>,
