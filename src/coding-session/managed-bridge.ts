@@ -443,7 +443,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       })
     }
     sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    return { sessions: openFirst(sessions) }
+    return { sessions: openFirst(sessions, includeClosed ? 5000 : undefined) }
   }
 
   return {

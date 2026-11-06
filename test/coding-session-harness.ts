@@ -169,7 +169,12 @@ export const createCodingHarness = async (options: {
       },
     },
   }))
-  const bridgeEnv = { ...options.bridgeEnv }
+  // The SDK strips nonstandard environment names. Preserve the runner's real
+  // Windows ACL-helper context for this built-in bridge, as production does.
+  const bridgeEnv = {
+    ...(process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' ? { NESSIE_EXECUTOR_PACKAGED_CLI: '1' } : {}),
+    ...options.bridgeEnv,
+  }
   if (options.reviewedDigest) {
     const written = normalizeCodingSessionsConfig(JSON.parse(await readFile(configPath, 'utf8')))
     bridgeEnv[CODING_SESSIONS_CONFIG_DIGEST_ENV] = codingSessionsConfigDigest(written)

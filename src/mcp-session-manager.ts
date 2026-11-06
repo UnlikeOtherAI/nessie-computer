@@ -430,11 +430,14 @@ export const createExecutorMcpSessionManager = (
       // result measured before its code was added could pass here, be refused
       // by the control plane's own cap, and leave the receipt nowhere to go.
       const resultBytes = Buffer.byteLength(JSON.stringify(document))
-      if (resultBytes > maxResultBytes) {
+      // Viewer history never becomes an agent tool result or enters the command journal.
+      const resultBudget = session.trustedCodingBridge && meta?.['nessie/daemon-control'] === true
+        && tool === 'session_conversation' ? 1024 * 1024 : maxResultBytes
+      if (resultBytes > resultBudget) {
         return {
           code: 'EXECUTOR_MCP_RESULT_TOO_LARGE',
-          maxResultBytes,
-          message: `The MCP server "${server}" answered with ${resultBytes} bytes, over the ${maxResultBytes}-byte result budget.`,
+          maxResultBytes: resultBudget,
+          message: `The MCP server "${server}" answered with ${resultBytes} bytes, over the ${resultBudget}-byte result budget.`,
           resultBytes,
           success: false,
         }
