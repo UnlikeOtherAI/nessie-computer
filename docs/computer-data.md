@@ -44,7 +44,11 @@ It confines files to the discovered provider history root, checks native IDs and
 ownership where supported, and handles Windows long-path prefixes without widening
 that root. Transcripts pass through the existing secret/path projection. Managed
 history reads the projected log independently; it never advances the agent cursor
-or starts a host. Native history remains on the computer. The API holds encrypted
+or starts a host. Native history remains on the computer. Conversation writers explicitly negotiate conversationVersion=1 before the API
+offers human actions; older strict relays keep the original requests-only response.
+Browser conversation reads opt in with view?conversation=1; original view reads
+retain their strict screen-only contract. Deploy the API before new executor packages.
+The API holds encrypted
 conversation snapshots for the existing 30-second viewer-demand lifetime.
 
 Only the verified built-in bridge's daemon-only session_conversation response has

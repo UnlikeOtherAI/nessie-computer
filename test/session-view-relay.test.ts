@@ -60,6 +60,7 @@ test('terminal relay signs HTTP exchanges, uploads only demanded screens and dro
     }
     await relay(state)
     assert.equal(reads, 0, 'no viewer demand means no screen is read or uploaded')
+    assert.equal(received[0]?.conversationVersion, 1, 'the relay explicitly negotiates conversation actions')
     assert.equal(received[0]?.sessions?.length, 1, 'metadata is reported independently of viewers')
     await relay(state)
     assert.equal(received[1]?.frames[0]?.screen?.ansi, 'real screen contract')

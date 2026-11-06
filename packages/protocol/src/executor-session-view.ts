@@ -91,6 +91,7 @@ export const ExecutorSessionViewExchangeSchema = z.object({
   sessions: z.array(ExecutorCodingSessionSummarySchema).max(32).optional(),
   inventory: ExecutorSessionInventorySchema.optional(),
   receipts: z.array(ExecutorSessionActionReceiptSchema).max(8).optional(),
+  conversationVersion: z.literal(1).optional(),
   signature: z.string().min(1).max(256),
 }).strict()
 export type ExecutorSessionViewExchange = z.infer<typeof ExecutorSessionViewExchangeSchema>

@@ -36,7 +36,7 @@ export const createSessionViewRelay = (bridge: Pick<CodingSessionsDaemon, 'scree
     }
     const payload = {
       executorId: state.executorId, connectionEpoch: state.connectionEpoch,
-      observedAt: new Date().toISOString(), frames,
+      observedAt: new Date().toISOString(), frames, conversationVersion: 1 as const,
       ...(receipts.length ? { receipts } : {}),
       ...(pendingInventory ? { sessions: pendingInventory.sessions, inventory: pendingInventory.inventory } : {}),
     }
