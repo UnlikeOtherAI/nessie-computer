@@ -8,7 +8,7 @@ const Asset = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/u),
   size: z.number().int().positive().max(2_147_483_648),
 }).strict()
-export const UpdateTargetSchema = z.enum(['windows-x64-msi', 'darwin-arm64-pkg', 'linux-x64-deb', 'linux-x64-rpm'])
+export const UpdateTargetSchema = z.enum(['windows-x64-msi', 'darwin-arm64-dmg', 'linux-x64-deb', 'linux-x64-rpm'])
 export type UpdateTarget = z.infer<typeof UpdateTargetSchema>
 const Manifest = z.object({
   format: z.literal(1),
