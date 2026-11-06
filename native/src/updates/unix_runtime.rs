@@ -83,7 +83,8 @@ pub(super) fn worker_image() -> UpdateResult<PathBuf> {
     directory(&folder)?;
     let output = folder.join("nessie-computer-updater");
     if !output.exists() {
-        let draft = folder.join(format!(".worker-{}.draft", std::process::id()));
+        let nonce = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_err(|_| ERROR)?.as_nanos();
+        let draft = folder.join(format!(".worker-{}-{nonce}.draft", std::process::id()));
         let mut file = OpenOptions::new().write(true).create_new(true).mode(0o500)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&draft).map_err(|_| ERROR)?;
         let mut input = File::open(&source).map_err(|_| ERROR)?;
@@ -113,8 +114,14 @@ pub(super) fn initialize() -> UpdateResult<PathBuf> {
     if release.source_commit.as_deref() != Some(env!("NESSIE_EXECUTOR_SOURCE_COMMIT")) { return Err(ERROR); }
     crate::managed_machine_barrier::install().map_err(|_| ERROR)?;
     directory(&root()?)?;
-    let _admission = crate::managed_machine_barrier::MachineBarrier::acquire().map_err(|_| "update.admission_busy")?;
-    // Re-publish verified state without clearing an existing replacement fence.
-    admission_unix::write(&admission_unix::read()?)?;
+    // A replacing worker retains MachineBarrier throughout installer execution.
+    // Setup verifies its existing fence without attempting a nested lock or
+    // clearing admissions. Only first installation creates maintenance state.
+    if root()?.join("maintenance.json").try_exists().map_err(|_| ERROR)? {
+        admission_unix::read()?;
+    } else {
+        let _admission = crate::managed_machine_barrier::MachineBarrier::acquire().map_err(|_| "update.admission_busy")?;
+        admission_unix::write(&admission_unix::read()?)?;
+    }
     worker_image()
 }

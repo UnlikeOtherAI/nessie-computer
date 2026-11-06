@@ -175,6 +175,7 @@ mod tests {
             child_pid: unsafe { libc::getpid() },
             child_started_at: managed_runtime_context::birth(unsafe { libc::getpid() }).unwrap(),
             release_digest: "a".repeat(64),
+            activity: None,
         }
     }
     #[test]

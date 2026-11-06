@@ -22,6 +22,7 @@ fn spawn_worker() -> Result<Child, String> {
     command.spawn().map_err(|_| ERROR.into())
 }
 fn connection(stream: UnixStream) -> Result<(), String> {
+    let _ = super::unix_health::observe(&stream);
     stream.set_read_timeout(Some(Duration::from_secs(5))).map_err(|_| ERROR)?;
     stream.set_write_timeout(Some(Duration::from_secs(5))).map_err(|_| ERROR)?;
     let mut bytes = Vec::new();
@@ -64,6 +65,16 @@ pub(super) fn run() -> Result<(), String> {
     let mut checked = Instant::now() - Duration::from_secs(3);
     loop {
         if checked.elapsed() >= Duration::from_secs(3) {
+            if store.journal().map_err(str::to_owned)?.pending.is_none() {
+                let image = unix_runtime::worker_image().map_err(str::to_owned)?;
+                if std::env::current_exe().map_err(|_| ERROR)? != image {
+                    // Exec only the verified protected image. The accepted
+                    // worker survives; service/socket ownership is reacquired.
+                    let error = Command::new(image).arg("update-service").env_clear()
+                        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin").current_dir("/").exec();
+                    return Err(error.to_string());
+                }
+            }
             if worker.as_mut().is_none_or(|child| child.try_wait().ok().flatten().is_some()) {
                 worker = spawn_worker().ok();
             }

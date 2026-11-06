@@ -116,11 +116,11 @@ pub fn replace_when_clear(
     if !super::clearance::ready(false)? {
         return Ok(false);
     }
+    verify_publishers(manifest, directory)?;
+    begin()?;
     admission
         .set_target(Some(String::new()))
         .map_err(|_| "update.state_unavailable")?;
-    verify_publishers(manifest, directory)?;
-    begin()?;
     // No command shell, user environment, transform or caller-selected property.
     let system_dir =
         update_admission::known_folder(&windows_sys::Win32::UI::Shell::FOLDERID_System)

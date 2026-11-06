@@ -154,8 +154,8 @@ factory, repeating pairing authority and custody checks. Registration, account
 generation, consent, encrypted credentials and unsettled receipt keys remain
 intact; a disconnect or revocation prevents resumption.
 
-macOS and Linux installer adapters remain disabled until their native package,
-publisher and clearance paths are implemented and verified. The macOS controls
+macOS and Linux installer adapters are being connected in source; they have
+not passed installed acceptance and no catalogue is published. The macOS controls
 passed a native Swift typecheck at `489c3c3`; app exercise remains unverified.
 The macOS menu bar and Desktop now select the fixed installed `current` factory
 rather than the executor digest embedded in their app bundle. A sealed Developer
@@ -172,10 +172,20 @@ replacement digest while restarting. Native worker and broker lifetime leases
 are separate from the coordinator's per-tick lease, so a service restart can
 reuse a surviving worker without starting competing retry loops. The Unix
 socket, protected worker cache and system-service setup are staged in source;
-their installer/health adapters are not enabled or accepted yet. The macOS
+their installer/health adapters are not accepted yet. The macOS
 custody package now carries the `current` symlink its consumers select.
 An installed but incomplete macOS factory is kept as the launch target so a
 partial replacement cannot silently fall back to the app's older bundled Node.
+
+Unix adapters use the existing machine lock, all-account public native journals
+and two kernel inventories. A current-boot orphan remains a blocker; the updater
+does not erase custody evidence. Restart health challenges the retained native
+parent and confirms the new daemon's actual process generation. A stopped or
+unpaired installation instead executes the exact new native helper's compiled
+build information. Linux additionally verifies the pinned package publisher in
+`packaging/linux/keys`; macOS checks the Installer team, Gatekeeper and package
+identifier/version. Initial retirement of legacy creators, menu-app restart and
+installed package recovery still need completion before release.
 
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue

@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 #[cfg(windows)]
 #[path = "host_windows.rs"]
 pub(super) mod platform;
+#[cfg(unix)]
+#[path = "host_unix.rs"]
+pub(super) mod platform;
 
 pub struct Host;
 impl Installer for Host {
@@ -26,10 +29,9 @@ impl Installer for Host {
             if !draining || restart_ready { platform::resume_applications(!draining)?; }
             Ok(())
         }
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         {
-            let _ = (draining, restart_ready);
-            Err("update.installation_authorization_required")
+            platform::set_draining(draining, restart_ready)
         }
     }
     fn target(&self) -> UpdateResult<Target> {
@@ -37,9 +39,9 @@ impl Installer for Host {
         {
             platform::target()
         }
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         {
-            Err("update.installation_authorization_required")
+            platform::target()
         }
     }
     fn installed(&self) -> UpdateResult<Installed> {
@@ -49,12 +51,7 @@ impl Installer for Host {
         }
         #[cfg(unix)]
         {
-            let release = crate::managed_release::installed()
-                .map_err(|_| "update.installed_release_unverified")?;
-            Ok(Installed {
-                version: release.version.ok_or("update.bootstrap_required")?,
-                source_commit: release.source_commit.ok_or("update.bootstrap_required")?,
-            })
+            platform::installed()
         }
     }
     fn verify_publishers(&self, manifest: &Manifest, directory: &Path) -> UpdateResult<()> {
@@ -62,10 +59,9 @@ impl Installer for Host {
         {
             platform::verify_publishers(manifest, directory)
         }
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         {
-            let _ = (manifest, directory);
-            Err("update.installation_authorization_required")
+            platform::verify_publishers(manifest, directory)
         }
     }
     fn replace_when_clear(
@@ -78,10 +74,9 @@ impl Installer for Host {
         {
             platform::replace_when_clear(manifest, directory, begin)
         }
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         {
-            let _ = (manifest, directory, begin);
-            Err("update.installation_authorization_required")
+            platform::replace_when_clear(manifest, directory, begin)
         }
     }
     fn confirm_restarted(&self, manifest: &Manifest) -> UpdateResult<bool> {
@@ -89,10 +84,9 @@ impl Installer for Host {
         {
             platform::confirm_restarted(manifest)
         }
-        #[cfg(not(windows))]
+        #[cfg(unix)]
         {
-            let _ = manifest;
-            Ok(false)
+            platform::confirm_restarted(manifest)
         }
     }
 }

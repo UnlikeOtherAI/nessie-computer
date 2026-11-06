@@ -131,7 +131,8 @@ fn install_managed_custody() -> Result<(), NativeError> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         let _release = managed_release::load()?;
-        managed_machine_barrier::install()
+        managed_machine_barrier::install()?;
+        updates::install()
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {

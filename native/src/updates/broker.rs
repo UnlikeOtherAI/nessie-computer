@@ -8,9 +8,9 @@ pub fn run() -> Result<(), String> {
     {
         platform::run()
     }
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     {
-        Err("update.installation_authorization_required".into())
+        super::broker_unix::run()
     }
 }
 pub fn install() -> Result<(), String> {
@@ -18,9 +18,9 @@ pub fn install() -> Result<(), String> {
     {
         super::host::initialize().map_err(str::to_owned)
     }
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     {
-        Err("update.installation_authorization_required".into())
+        super::host::platform::initialize().map_err(str::to_owned)
     }
 }
 pub fn worker() -> Result<(), String> {
@@ -28,8 +28,8 @@ pub fn worker() -> Result<(), String> {
     {
         platform::worker()
     }
-    #[cfg(not(windows))]
+    #[cfg(unix)]
     {
-        Err("update.installation_authorization_required".into())
+        super::broker_unix::worker()
     }
 }

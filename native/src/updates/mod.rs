@@ -11,6 +11,12 @@ mod unix_setup;
 #[cfg(unix)]
 mod unix_process;
 #[cfg(unix)]
+pub(crate) mod unix_clearance;
+#[cfg(unix)]
+pub(crate) mod unix_health;
+#[cfg(unix)]
+mod unix_package;
+#[cfg(unix)]
 mod broker_unix;
 
 use crate::protocol::NativeError;
