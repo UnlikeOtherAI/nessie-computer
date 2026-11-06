@@ -31,13 +31,31 @@ pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
     let zombie = info.pbi_status == 5; // sys/proc.h SZOMB
     let mut path = vec![0_i8; 4096]; // PROC_PIDPATHINFO_MAXSIZE
     let read = unsafe { proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
-    if read <= 0 && !zombie { return Err(refused()); }
-    let executable = if zombie { PathBuf::new() } else {
+    let executable = if zombie { PathBuf::new() } else if read > 0 {
         PathBuf::from(unsafe { CStr::from_ptr(path.as_ptr()) }.to_str().map_err(|_| refused())?)
-    };
-    if info.pbi_pid != pid as u32 || !zombie && !executable.is_absolute() { return Err(refused()); }
+    } else if std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT)
+        && !product_name(command(&info.pbi_comm)?) {
+        // A live process whose image was replaced on disk (a browser helper
+        // after its app updated) has no path. It cannot be a product process,
+        // so it stays in the tree with no executable rather than hiding it.
+        PathBuf::new()
+    } else { return Err(refused()); };
+    if info.pbi_pid != pid as u32 || !zombie && !executable.as_os_str().is_empty() && !executable.is_absolute() {
+        return Err(refused());
+    }
     Ok(Some(Process { pid, parent_pid: info.pbi_ppid as i32, group: info.pbi_pgid as i32,
         uid: info.pbi_uid, started_at: kernel_context::birth(pid)?, executable, zombie }))
+}
+
+fn command(name: &[libc::c_char]) -> Result<&str, NativeError> {
+    if !name.contains(&0) { return Err(refused()); }
+    unsafe { CStr::from_ptr(name.as_ptr()) }.to_str().map_err(|_| refused())
+}
+
+/// Names a Node or product process may carry. Such a process is observed in
+/// full or the snapshot is refused.
+fn product_name(name: &str) -> bool {
+    ["node", "nodejs", "Nessie", "nessie", "Nessie Executor"].contains(&name) || name.starts_with("nessie-executor")
 }
 
 pub fn all() -> Result<Vec<Process>, NativeError> {
@@ -46,22 +64,23 @@ pub fn all() -> Result<Vec<Process>, NativeError> {
     let capacity = (pids.len() * std::mem::size_of::<i32>()) as i32;
     let bytes = unsafe { proc_listpids(1, 0, pids.as_mut_ptr().cast(), capacity) };
     if bytes <= 0 || bytes >= capacity || bytes % 4 != 0 { return Err(refused()); }
+    let own = unsafe { libc::getuid() };
     let mut found = Vec::new();
     for pid in pids.into_iter().take(bytes as usize / 4).filter(|pid| *pid > 0) {
-        let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
-        let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
-        if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
+        // The short record is readable for every user's process; the full
+        // record is refused (EPERM) for other users, including Root daemons.
+        let mut info = std::mem::MaybeUninit::<libc::proc_bsdshortinfo>::zeroed();
+        let size = std::mem::size_of::<libc::proc_bsdshortinfo>() as i32;
+        if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDT_SHORTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
             if std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) { continue; }
             return Err(refused());
         }
         let info = unsafe { info.assume_init() };
-        if info.pbi_uid != unsafe { libc::getuid() } {
-            if info.pbi_uid != 0 { continue; }
+        if info.pbsi_uid != own {
+            if info.pbsi_uid != 0 { continue; }
             // Root system daemons are irrelevant; an elevated Node/product
             // process can access private credentials and must be observed.
-            let name = unsafe { CStr::from_ptr(info.pbi_comm.as_ptr().cast()) }.to_str().map_err(|_| refused())?;
-            if !["node", "nodejs", "Nessie", "nessie", "Nessie Executor"].contains(&name)
-                && !name.starts_with("nessie-executor") { continue; }
+            if !product_name(command(&info.pbsi_comm)?) { continue; }
         }
         if let Some(process) = information(pid)? { found.push(process); }
     }
@@ -110,5 +129,24 @@ mod tests {
         observations.retain(&own).unwrap();
         observations.unchanged().unwrap();
         assert!(information(i32::MAX).unwrap().is_none());
+    }
+
+    #[test]
+    fn snapshot_includes_this_process_while_root_daemons_exist() {
+        // launchd is always a Root process whose full record is refused to
+        // ordinary users; the snapshot must still succeed and see itself.
+        let pid = std::process::id() as i32;
+        let table = all().unwrap();
+        assert!(table.iter().any(|process| process.pid == pid && process.executable.is_absolute()));
+        assert!(table.iter().all(|process| process.uid == unsafe { libc::getuid() } || process.uid == 0));
+    }
+
+    #[test]
+    fn product_names_are_never_unnamed() {
+        for name in ["node", "nodejs", "Nessie", "Nessie Executor", "nessie-executor-native"] {
+            assert!(product_name(name), "{name}");
+        }
+        for name in ["browser_crashpa", "launchd", "nodes", ""] { assert!(!product_name(name), "{name}"); }
+        assert!(command(&[b'a' as libc::c_char; 4]).is_err());
     }
 }

@@ -127,3 +127,11 @@ Installed timing and recovery still need verification with the signed fix.
 Managed CLI creation now binds its release to the kernel's loaded native image,
 not the mutable `current` launch alias. The Mac regression test launches the
 test executable through a symlink and confirms the same kernel image is used.
+
+Ordinary-user process snapshots read every process's short kernel record, which
+macOS allows across users, and take the full record only for the user's own
+processes and Root processes named like Node or Nessie. The full record is
+refused (EPERM) for Root daemons such as launchd, so the earlier snapshot failed
+on every Mac with `EXECUTOR_MACOS_PROCESS_UNVERIFIED` and no managed runtime
+could start. A user process whose image was replaced on disk stays in the tree
+with no executable path unless its name is a product name, which still refuses.
