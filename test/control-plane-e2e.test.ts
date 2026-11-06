@@ -173,12 +173,9 @@ test('pairing, signed control traffic, and selected-folder enforcement work end 
       }
       if (path === '/api/executor-daemon/heartbeat') {
         assert.equal(body.connectionEpoch, connectionEpoch)
-        assertSignature(publicKey, 'nessie.executor.daemon.heartbeat.v1', {
-          connectionEpoch,
-          executorId: body.executorId,
-          ...(body.localMcp === undefined ? {} : { localMcp: body.localMcp }),
-          observedAt: body.observedAt,
-        }, body.signature)
+        // Verify the exact transmitted body, including signed software status.
+        const { signature, ...payload } = body
+        assertSignature(publicKey, 'nessie.executor.daemon.heartbeat.v1', payload, signature)
         send(response, { connectionEpoch, status: 'online' })
         return
       }

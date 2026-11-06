@@ -191,7 +191,8 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("nessie-executor.cjs"), "printf started > \"$1\"\n").unwrap();
         let release = managed_release::Release { directory: directory.path().into(), digest: "a".repeat(64),
-            node: File::open("/bin/sh").unwrap(), node_digest: "b".repeat(64), handles: Vec::new() };
+            node: File::open("/bin/sh").unwrap(), node_digest: "b".repeat(64), handles: Vec::new(),
+            version: None, source_commit: None };
         (directory, release)
     }
     #[test]

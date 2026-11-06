@@ -17,6 +17,8 @@ extern "C" {
     fn SecRequirementCreateWithString(text: Reference, flags: u32, requirement: *mut Reference) -> i32;
     fn SecStaticCodeCreateWithPath(path: Reference, flags: u32, code: *mut Reference) -> i32;
     fn SecStaticCodeCheckValidity(code: Reference, flags: u32, requirement: Reference) -> i32;
+    fn SecCodeCopySigningInformation(code: Reference, flags: u32, information: *mut Reference) -> i32;
+    static kSecCodeInfoPList: Reference;
 }
 #[link(name = "CoreFoundation", kind = "framework")]
 extern "C" {
@@ -29,6 +31,39 @@ extern "C" {
         count: isize, key_callbacks: *const c_void, value_callbacks: *const c_void) -> Reference;
     static kCFTypeDictionaryKeyCallBacks: c_void;
     static kCFTypeDictionaryValueCallBacks: c_void;
+    fn CFGetTypeID(value: Reference) -> usize;
+    fn CFDictionaryGetTypeID() -> usize;
+    fn CFDictionaryGetValue(dictionary: Reference, key: Reference) -> Reference;
+    fn CFNumberGetTypeID() -> usize;
+    fn CFNumberGetValue(number: Reference, kind: i32, value: *mut c_void) -> u8;
+}
+
+/// Only a sealed Developer ID app may declare an independent runtime consumer.
+/// A missing floor remains an old entrypoint, even when it has the same publisher.
+pub fn require_independent_app(path: &Path) -> Result<(), NativeError> {
+    require_current_release()?;
+    let code = static_file(path)?;
+    let requirement = requirement(release_team()?)?;
+    if unsafe { SecStaticCodeCheckValidity(code.0, STRICT, requirement.0) } != 0 { return Err(refused()); }
+    // Read Code Signing Services' secured dictionary, never a second untrusted
+    // filesystem read of Info.plist after checking the app's signature.
+    let mut information = std::ptr::null();
+    if unsafe { SecCodeCopySigningInformation(code.0, 0, &mut information) } != 0 { return Err(refused()); }
+    let information = Owned::new(information)?;
+    let dictionary = unsafe { CFDictionaryGetValue(information.0, kSecCodeInfoPList) };
+    if dictionary.is_null() || unsafe { CFGetTypeID(dictionary) != CFDictionaryGetTypeID() } { return Err(refused()); }
+    for (name, expected) in [("NessieExecutorManagedLaunchProtocol", 1),
+        ("NessieExecutorPersonalInferenceGuardVersion", 2), ("NessieExecutorIndependentRuntime", 1)] {
+        let name = CString::new(name).map_err(|_| refused())?;
+        let key = Owned::new(unsafe { CFStringCreateWithCString(std::ptr::null(), name.as_ptr(), UTF8) })?;
+        let value = unsafe { CFDictionaryGetValue(dictionary, key.0) };
+        if value.is_null() || unsafe { CFGetTypeID(value) != CFNumberGetTypeID() } { return Err(refused()); }
+        let mut number = 0_i32;
+        if unsafe { CFNumberGetValue(value, 3, (&mut number as *mut i32).cast()) } == 0 || number != expected {
+            return Err(refused());
+        }
+    }
+    Ok(())
 }
 
 struct Owned(Reference);
@@ -87,16 +122,20 @@ pub fn require_process(pid: i32) -> Result<(), NativeError> {
 /// "signed" boolean or a hash manifest by itself.
 pub fn require_file(path: &Path) -> Result<(), NativeError> {
     require_current_release()?;
-    if !path.is_absolute() { return Err(refused()); }
     let requirement = requirement(release_team()?)?;
+    let code = static_file(path)?;
+    if unsafe { SecStaticCodeCheckValidity(code.0, STRICT, requirement.0) } != 0 { return Err(refused()); }
+    Ok(())
+}
+
+fn static_file(path: &Path) -> Result<Owned, NativeError> {
+    if !path.is_absolute() { return Err(refused()); }
     let bytes = path.as_os_str().as_bytes();
     let url = Owned::new(unsafe { CFURLCreateFromFileSystemRepresentation(std::ptr::null(),
         bytes.as_ptr(), bytes.len() as isize, 0) })?;
     let mut code = std::ptr::null();
     if unsafe { SecStaticCodeCreateWithPath(url.0, 0, &mut code) } != 0 { return Err(refused()); }
-    let code = Owned::new(code)?;
-    if unsafe { SecStaticCodeCheckValidity(code.0, STRICT, requirement.0) } != 0 { return Err(refused()); }
-    Ok(())
+    Owned::new(code)
 }
 
 #[cfg(test)]

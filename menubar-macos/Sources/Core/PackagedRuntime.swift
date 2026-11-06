@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 
 /// Where the bundled CLI and its pinned Node live inside the app.
 ///
@@ -26,13 +25,11 @@ public struct PackagedRuntime: Equatable, Sendable {
     /// Selection only. The fixed native creator proves signatures, root
     /// ownership, immutable files and machine custody before starting Node.
     public func managedHelperURL(
-        manifest: Data? = nil,
         fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }
     ) -> URL? {
-        guard let bytes = manifest ?? (try? Data(contentsOf: manifestURL)), bytes.count <= 65_536 else { return nil }
-        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-        let directory = URL(fileURLWithPath: "/Library/Application Support/Nessie Executor/releases")
-            .appendingPathComponent(digest)
+        // The installed factory selects its own immutable release. App bundles
+        // carry the consumer protocol floor, rather than pinning an old runtime.
+        let directory = URL(fileURLWithPath: "/Library/Application Support/Nessie Executor/current")
         let helper = directory.appendingPathComponent("nessie-executor-native")
         guard fileExists(helper.path), fileExists(directory.appendingPathComponent(Self.nodeFileName).path),
               fileExists(directory.appendingPathComponent(Self.bundleFileName).path) else { return nil }

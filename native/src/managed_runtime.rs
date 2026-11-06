@@ -283,6 +283,8 @@ mod tests {
             digest: "fixture-only".to_owned(),
             node: File::open("/bin/sh").unwrap(),
             node_digest: "fixture-only".to_owned(),
+            version: None,
+            source_commit: None,
             handles: Vec::new(),
         };
         (directory, release)

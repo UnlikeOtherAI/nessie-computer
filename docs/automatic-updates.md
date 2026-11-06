@@ -152,8 +152,14 @@ intact; a disconnect or revocation prevents resumption.
 
 macOS and Linux installer adapters remain disabled until their native package,
 publisher and clearance paths are implemented and verified. The macOS controls
-still need a native compile and app exercise. The Desktop transition to the
-independent runtime and all-platform signed installed acceptance are unfinished.
+passed a native Swift typecheck at `489c3c3`; app exercise remains unverified.
+The macOS menu bar and Desktop now select the fixed installed `current` factory
+rather than the executor digest embedded in their app bundle. A sealed Developer
+ID app declares launch protocol `1`, personal-inference guard `2` and independent
+runtime consumption in its signed Info dictionary. The native helper validates
+these through Code Signing Services; an older or modified app remains refused.
+Windows/Linux Desktop transition and all-platform signed installed acceptance
+are unfinished.
 
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue
