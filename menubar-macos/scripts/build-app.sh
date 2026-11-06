@@ -79,6 +79,7 @@ xcodegen generate --spec "${app_directory}/project.yml" --project "${app_directo
 derived_data="${build_directory}/DerivedData"
 echo "build-app.sh: building ${configuration}…" >&2
 xcodebuild \
+  -jobs 2 \
   -project "${app_directory}/NessieExecutorMenuBar.xcodeproj" \
   -scheme NessieExecutorMenuBar \
   -configuration "${configuration}" \

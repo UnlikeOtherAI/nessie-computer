@@ -16,6 +16,7 @@ four arguments, followed by `--require-signed`. It checks the app's publisher,
 independent-consumer floor and exact embedded runtime manifest, then packages
 both the app and protected runtime in one signed, notarized transaction.
 Unsigned candidates remain explicitly labelled and cannot be installed.
+The menu-app Xcode build uses two jobs to keep native candidate builds bounded.
 
 The `updater/` Rust crate owns signed catalogue selection, bounded resumable
 downloads and the durable installation journal. Its host installer adapters
