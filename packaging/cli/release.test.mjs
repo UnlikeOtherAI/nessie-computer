@@ -65,6 +65,31 @@ test('publication rejects verification keys, altered payloads and mismatched sou
   }
 })
 
+test('Linux publication requires each detached package signature and binds its bytes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-linux-candidate-'))
+  try {
+    const files = {}
+    for (const file of candidateFiles('linux', '1.2.3')) {
+      await writeFile(join(directory, file), file)
+      files[file] = createHash('sha256').update(file).digest('hex')
+    }
+    const candidate = { platform: 'linux', version: '1.2.3', commit: 'a'.repeat(40), signing: 'release', files }
+    const manifest = join(directory, 'linux-candidate.json')
+    await writeFile(manifest, JSON.stringify(candidate))
+    await verifyCandidate(directory, 'linux', '1.2.3', async () => {})
+    const signature = 'nessie-executor_1.2.3_amd64.deb.asc'
+    assert.ok(signature in files)
+    assert.ok('nessie-executor_1.2.3_x86_64.rpm.asc' in files)
+    await writeFile(join(directory, signature), 'changed signature')
+    await assert.rejects(verifyCandidate(directory, 'linux', '1.2.3', async () => {}), /Candidate file changed/)
+    delete candidate.files[signature]
+    await writeFile(manifest, JSON.stringify(candidate))
+    await assert.rejects(verifyCandidate(directory, 'linux', '1.2.3', async () => {}), /file set differs/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
 test('build workflow cannot publish a release or silently produce an unsigned Mac archive', async () => {
   const workflow = await readFile(new URL('../../.github/workflows/executor-cli.yml', import.meta.url), 'utf8')
   assert.match(workflow, /contents: read/)

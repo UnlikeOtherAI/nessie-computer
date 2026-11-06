@@ -15,6 +15,7 @@ export const candidateFiles = (platform, version) => {
   if (platform !== 'linux') throw new Error('Only Linux and macOS CLI releases are supported.')
   return [
     `nessie-executor_${version}_amd64.deb`, `nessie-executor_${version}_x86_64.rpm`,
+    `nessie-executor_${version}_amd64.deb.asc`, `nessie-executor_${version}_x86_64.rpm.asc`,
     `nessie-executor_${version}_repository.tar.gz`, 'nessie-executor.asc', 'SHA256SUMS', 'SHA256SUMS.asc',
   ]
 }

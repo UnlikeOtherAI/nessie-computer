@@ -210,6 +210,10 @@ build information. Linux additionally verifies the pinned package publisher in
 `packaging/linux/keys`; macOS checks the Installer team, Gatekeeper and package
 identifier/version. Initial retirement of legacy creators and installed package
 recovery still need completion before release.
+The Linux repository producer emits `<package>.asc` for both DEB and RPM with
+the same signing key as repository metadata. Candidate hashes and `SHA256SUMS`
+include these detached signatures, and publication requires their exact bytes.
+Verification-key builds retain their explicit non-publishable signing mode.
 
 Package removal now writes a protected disable marker before stopping the
 updater. Accepted bytes, replay floors, local update preferences and credential
