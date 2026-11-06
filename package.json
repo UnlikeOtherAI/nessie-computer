@@ -19,7 +19,7 @@
     "prepare:chrome-cookie-import": "node scripts/prepare-chrome-cookie-import.mjs",
     "start": "tsx src/index.ts",
     "smoke:local-ollama": "tsx scripts/local-ollama-smoke.ts",
-    "test": "node --test --test-concurrency=2 packaging/cli/*.test.mjs packaging/macos/*.test.mjs packaging/windows/*.test.mjs scripts/native-ci-inputs.test.mjs && node scripts/run-tests.mjs --test-concurrency=2 test/**/*.test.ts",
+    "test": "node --test --test-concurrency=2 packaging/cli/*.test.mjs packaging/macos/*.test.mjs packaging/windows/*.test.mjs packaging/updates/*.test.mjs scripts/native-ci-inputs.test.mjs && node scripts/run-tests.mjs --test-concurrency=2 test/**/*.test.ts",
     "test:mcp": "node --test --test-force-exit --import tsx test/mcp-session-manager.test.ts test/mcp-dispatch.test.ts test/mcp-images.test.ts test/command-attachments.test.ts test/kelpie-detect.test.ts test/local-mcp-report.test.ts test/ollama-search-mcp.test.ts test/coding-session-config.test.ts test/coding-session-projection.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-env.test.ts test/coding-session-capabilities.test.ts test/coding-session-store.test.ts test/coding-session-review.test.ts test/coding-session-bridge.test.ts test/coding-session-owners.test.ts test/coding-session-limits.test.ts test/coding-session-containment.test.ts test/coding-session-guard.test.ts test/coding-session-systemd.test.ts test/coding-session-policy.test.ts test/coding-session-merge-commands.test.ts test/coding-session-daemon.test.ts test/coding-session-teardown.test.ts",
     "typecheck": "node scripts/compile.mjs --noEmit -p tsconfig.json",
     "test:terminal": "node --test --import tsx test/terminal-session.test.ts test/session-view-relay.test.ts",
