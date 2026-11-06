@@ -112,6 +112,7 @@ final class ExecutorController: ObservableObject {
 
     private func startIfRequested() {
         guard model.description != nil, model.daemon == .stopped, !busy, !pairingBlocksStart else { return }
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady else { return }
         if restarts.takeDue() {
             guard wantsDaemon, AutoRestart.isEnabled else { return }
             restarting = true
@@ -261,6 +262,10 @@ final class ExecutorController: ObservableObject {
         if daemon?.isRunning == true { return }
         wantsDaemon = true
         ConnectionRunPreference.set(true, for: stateDirectory)
+        if !isDevelopmentBuild && !ComputerUpdateService.factoryReady {
+            startAfterRefresh = true
+            return
+        }
         if leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) {
             fail("The prior local daemon is still tearing down. Wait for it to finish before starting again.")
             if automatic { scheduleRestart(ran: 0) }

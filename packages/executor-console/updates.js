@@ -14,6 +14,8 @@
     node('automatic').disabled = busy || !status?.canInstall
     node('policy').hidden = !status?.canInstall
     node('check').disabled = busy || status?.canInstall === false || active.has(status?.phase)
+    node('setup').hidden = status?.code !== 'update.setup_required'
+    node('setup').disabled = busy
     const version = status?.targetVersion ?? status?.availableVersion
     const canUpdate = status?.canInstall && status?.availableVersion && !active.has(status.phase)
     node('install').hidden = !canUpdate
@@ -21,7 +23,7 @@
     node('install').textContent = text('install', status?.availableVersion)
     node('hint').textContent = status?.automatic === false ? words.offHint : words.automaticHint
     const phase = status?.phase ?? 'checking'
-    node('status').textContent = status?.code === 'update.bootstrap_required'
+    node('status').textContent = status?.code === 'update.setup_required' ? words.setupHint : status?.code === 'update.bootstrap_required'
       ? words.bootstrap : text(words[phase] ? phase : 'unavailable', version)
     if (phase === 'failed' && status?.availableVersion) {
       node('status').textContent += ` ${text('available', status.availableVersion)}`
@@ -47,7 +49,9 @@
     render()
     node('error').hidden = node('prompt-error').hidden = true
     try {
-      const next = await window.executorNative.invoke('executor_update_control', { request })
+      const next = request.operation === 'setup'
+        ? await window.executorNative.invoke('executor_update_setup')
+        : await window.executorNative.invoke('executor_update_control', { request })
       if (!next || typeof next.installedVersion !== 'string' || typeof next.canInstall !== 'boolean') {
         throw new Error('invalid update status')
       }
@@ -71,10 +75,12 @@
   node('version-label').textContent = words.installed
   node('automatic-label').textContent = words.automatic
   node('check').textContent = words.check
+  node('setup').textContent = words.setup
   node('prompt-title').textContent = words.promptTitle
   node('prompt-remind').textContent = words.remind
   node('prompt-hint').textContent = words.automaticHint
   node('check').onclick = () => load({ operation: 'check' })
+  node('setup').onclick = () => load({ operation: 'setup' })
   node('install').onclick = node('prompt-install').onclick = () => load({ operation: 'install' })
   node('automatic').onchange = () => load({ operation: 'automatic', enabled: node('automatic').checked })
   node('prompt-remind').onclick = () => load({ operation: 'remind' })

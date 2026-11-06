@@ -64,7 +64,14 @@ pub(super) fn bootstrap() -> UpdateResult<bool> {
     maintenance.restart_ready = false;
     admission_unix::write(&maintenance)?;
     if !super::unix_clearance::ready_with(true, None)? { return Ok(false); }
-    for directory in candidates(&release.digest)? {
+    retire_cleared(&release.digest)?;
+    Ok(true)
+}
+
+/// Caller retains MachineBarrier after independent whole-machine clearance.
+pub(super) fn retire_cleared(digest: &str) -> UpdateResult<()> {
+    unix_runtime::privileged()?;
+    for directory in candidates(digest)? {
         for name in CREATORS {
             let file = protected(&directory.join(name))?;
             // Keep the exact bytes for audit/repair while removing every old
@@ -75,5 +82,5 @@ pub(super) fn bootstrap() -> UpdateResult<bool> {
         }
         File::open(directory).and_then(|file| file.sync_all()).map_err(|_| ERROR)?;
     }
-    Ok(true)
+    Ok(())
 }

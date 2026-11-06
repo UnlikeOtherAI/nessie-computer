@@ -28,6 +28,9 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       else if (state === 'bootstrap') Object.assign(window.updateStatus, {
         phase: 'failed', canInstall: false, code: 'update.bootstrap_required', availableVersion: undefined,
       })
+      else if (state === 'setup') Object.assign(window.updateStatus, {
+        phase: 'unsupported', canInstall: false, code: 'update.setup_required', availableVersion: undefined,
+      })
       else if (['available', 'failed'].includes(state)) window.updateStatus.phase = state
     }, state)
     const page = await context.newPage()
@@ -117,6 +120,24 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     }
   }
   if (!before) {
+    for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
+      const { context, page, errors } = await open({ host: 'macos', width: 440, locale, state: 'setup' })
+      await page.locator('#update-setup').waitFor()
+      assert.equal(await page.locator('#update-policy').isVisible(), false)
+      assert.equal(await page.locator('#update-check').isEnabled(), false)
+      await page.screenshot({ path: join(output, `macos-440-setup-${locale}.png`), fullPage: true })
+      await page.evaluate(() => { window.updateSetupDenied = true })
+      await page.locator('#update-setup').click()
+      await page.locator('#update-error').waitFor()
+      assert.equal(await page.locator('#update-setup').isVisible(), true)
+      await page.evaluate(() => { window.updateSetupDenied = false })
+      await page.locator('#update-setup').click()
+      await page.waitForFunction(() => document.getElementById('update-setup').hidden)
+      assert.equal(await page.locator('#update-policy').isVisible(), true)
+      assert.deepEqual(errors, [])
+      journeys++
+      await context.close()
+    }
     for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
       const { context, page, errors } = await open({ locale, width: 440, state: bootstrapOnly ? 'bootstrap' : 'prompt' })
       if (bootstrapOnly) {

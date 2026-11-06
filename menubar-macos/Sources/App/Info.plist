@@ -8,6 +8,8 @@
 	<integer>2</integer>
 	<key>NessieExecutorIndependentRuntime</key>
 	<integer>1</integer>
+	<key>NessieExecutorUpdateServiceProtocol</key>
+	<integer>1</integer>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>

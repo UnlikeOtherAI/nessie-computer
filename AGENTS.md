@@ -21,6 +21,7 @@ The shared local Settings/update popup has a headless `--updates-only` renderer 
 The macOS update PKG carries both the signed app and its protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
+The macOS update path is transitioning from the PKG prototype to the existing signed DMG and an approved native helper; follow [that trust contract](docs/macos-update-helper.md).
 
 Public contribution CI has no production signing credentials. Build candidates
 separately from publication. Official release signing retains UnlikeOtherAI's

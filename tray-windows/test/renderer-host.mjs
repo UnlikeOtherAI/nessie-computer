@@ -21,6 +21,11 @@ await context.addInitScript(({ host, paired }) => {
   }
   const invoke = async (command, args = {}) => {
     window.calls.push({ command, args })
+    if (command === 'executor_update_setup') {
+      if (window.updateSetupDenied) throw new Error('update.coordinator_unavailable')
+      window.updateStatus = { ...window.updateStatus, phase: 'idle', canInstall: true, code: undefined }
+      return { ...window.updateStatus }
+    }
     if (command === 'executor_update_control') {
       if (window.updateUnavailable) throw new Error('update.coordinator_unavailable')
       const request = args.request

@@ -148,6 +148,47 @@ pub fn installed() -> Result<Release, NativeError> {
     load_image(executable, false)
 }
 
+fn trusted_ancestors(directory: &Path) -> Result<(), NativeError> {
+    let mut ancestor = Some(directory);
+    while let Some(path) = ancestor {
+        let entry = fs::symlink_metadata(path).map_err(|_| refused())?;
+        if !entry.is_dir() || entry.file_type().is_symlink() || entry.uid() != 0 || entry.mode() & 0o022 != 0 {
+            return Err(refused());
+        }
+        ancestor = path.parent();
+    }
+    Ok(())
+}
+
+/// Privileged bundle installation verifies copied, readonly contents before
+/// selecting them. This accepts only its fixed protected staging namespace;
+/// ordinary creators still require the selected immutable release below.
+#[cfg(target_os = "macos")]
+pub(crate) fn load_staged(directory: &Path, expected_digest: &str) -> Result<Release, NativeError> {
+    let root = Path::new("/Library/Application Support/Nessie Executor/releases");
+    if unsafe { libc::getuid() } != 0 || unsafe { libc::geteuid() } != 0
+        || directory.parent() != Some(root) || expected_digest.len() != 64
+        || !expected_digest.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(refused()); }
+    let prefix = format!(".staged-{expected_digest}-");
+    let nonce = directory.file_name().and_then(|name| name.to_str())
+        .and_then(|name| name.strip_prefix(&prefix)).ok_or_else(refused)?;
+    if nonce.len() != 32 || !nonce.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(refused()); }
+    trusted_ancestors(root)?;
+    let release = load_contents(directory.to_path_buf(), None)?;
+    if release.digest != expected_digest { return Err(refused()); }
+    Ok(release)
+}
+
+/// Root installation can reuse an already verified immutable candidate. This
+/// never changes selection or grants an old creator admission to launch Node.
+#[cfg(target_os = "macos")]
+pub(crate) fn retained(digest: &str) -> Result<Release, NativeError> {
+    if unsafe { libc::getuid() } != 0 || unsafe { libc::geteuid() } != 0
+        || digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(refused()); }
+    load_image(Path::new("/Library/Application Support/Nessie Executor/releases").join(digest)
+        .join("nessie-executor-native"), false)
+}
+
 fn load_image(executable: PathBuf, current: bool) -> Result<Release, NativeError> {
     let directory = executable.parent().ok_or_else(refused)?.to_path_buf();
     #[cfg(target_os = "linux")]
@@ -161,26 +202,20 @@ fn load_image(executable: PathBuf, current: bool) -> Result<Release, NativeError
         return Err(refused());
     }
     // Ancestors are trusted package directories; release contents are readonly.
-    let mut ancestor = Some(releases);
-    while let Some(path) = ancestor {
-        let entry = fs::symlink_metadata(path).map_err(|_| refused())?;
-        if !entry.is_dir()
-            || entry.file_type().is_symlink()
-            || entry.uid() != 0
-            || entry.mode() & 0o022 != 0
-        {
-            return Err(refused());
-        }
-        ancestor = path.parent();
+    trusted_ancestors(releases)?;
+    let release = load_contents(directory, current.then_some(executable.as_path()))?;
+    if release.directory.file_name().and_then(|name| name.to_str()) != Some(release.digest.as_str()) {
+        return Err(refused());
     }
+    Ok(release)
+}
+
+fn load_contents(directory: PathBuf, current_image: Option<&Path>) -> Result<Release, NativeError> {
     let mut handles = Vec::new();
     collect(&directory, &mut handles)?;
     let manifest_file = immutable(&directory.join("manifest.json"), false)?;
     let manifest_bytes = bytes(&manifest_file, 64 * 1024)?;
     let digest = hex_digest(&manifest_bytes);
-    if directory.file_name().and_then(|name| name.to_str()) != Some(digest.as_str()) {
-        return Err(refused());
-    }
     let manifest: Manifest = serde_json::from_slice(&manifest_bytes).map_err(|_| refused())?;
     if manifest.format != 1
         || manifest.managed_launch_protocol != 1
@@ -206,14 +241,14 @@ fn load_image(executable: PathBuf, current: bool) -> Result<Release, NativeError
     }
     // The kernel's loaded native image, not merely the matching current path.
     #[cfg(target_os = "linux")]
-    if current && digest_file(&File::open("/proc/self/exe").map_err(|_| refused())?)?
+    if current_image.is_some() && digest_file(&File::open("/proc/self/exe").map_err(|_| refused())?)?
         != manifest.native_helper_sha256
     {
         return Err(refused());
     }
     #[cfg(target_os = "macos")]
-    if current && digest_file(&immutable(&executable, false)?)? != manifest.native_helper_sha256 {
-        return Err(refused());
+    if let Some(executable) = current_image {
+        if digest_file(&immutable(executable, false)?)? != manifest.native_helper_sha256 { return Err(refused()); }
     }
     #[cfg(target_os = "macos")]
     for name in ["nessie-executor-native", "nessie-executor-runtime"] {

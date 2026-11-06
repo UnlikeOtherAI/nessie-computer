@@ -112,6 +112,14 @@ pub(super) fn initialize() -> UpdateResult<PathBuf> {
     privileged()?;
     let release = crate::managed_release::load().map_err(|_| ERROR)?;
     if release.source_commit.as_deref() != Some(env!("NESSIE_EXECUTOR_SOURCE_COMMIT")) { return Err(ERROR); }
+    initialize_selected()
+}
+
+/// The approved macOS service has already checked its sealed app and selects
+/// an installed factory independently of the app's own bundled version.
+pub(super) fn initialize_selected() -> UpdateResult<PathBuf> {
+    privileged()?;
+    crate::managed_release::installed().map_err(|_| ERROR)?;
     crate::managed_machine_barrier::install().map_err(|_| ERROR)?;
     directory(&root()?)?;
     // A replacing worker retains MachineBarrier throughout installer execution.

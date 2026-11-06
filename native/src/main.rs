@@ -169,6 +169,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
         },
         Command::UpdateControl => updates::control(),
         Command::UpdateService => updates::service(),
+        Command::UpdateRegisteredService => updates::registered_service(),
         Command::UpdateInstall => updates::install(),
         Command::UpdateUninstall => updates::uninstall(),
         Command::UpdateWorker => updates::worker(),
@@ -335,6 +336,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
         Some(Command::BuildInfo | Command::UpdateControl | Command::UpdateService
+            | Command::UpdateRegisteredService
             | Command::UpdateInstall | Command::UpdateUninstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
             println!("{}", serde_json::json!({"error":error.code}));
         }

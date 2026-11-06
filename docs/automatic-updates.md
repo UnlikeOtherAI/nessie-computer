@@ -5,6 +5,11 @@ local controls are implemented in source. No signed installed upgrade has been
 verified, and macOS/Linux installer adapters and the transition release remain
 unfinished. No public update channel is enabled.
 
+The Mac distribution is being revised to reuse its existing Developer ID
+Application identity and notarized DMG, with an approved app-bundled native
+background helper. The PKG adapter below is the earlier prototype, not the
+chosen release path; see [the helper transition](macos-update-helper.md).
+
 Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
 at `c7ac37d` has verified timestamped signatures and matching extracted payload
 hashes; its native helper and CLI report the expected version/source. The macOS

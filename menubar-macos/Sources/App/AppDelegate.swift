@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.secondLaunchObserver = MenuBarSingleInstance.observeSecondLaunches { [weak console] in
             console?.show(ConsoleTarget(section: .settings))
         }
+        try? ComputerUpdateService.prepare()
+        if ComputerUpdateService.unavailableStatus() != nil { console.show(ConsoleTarget(section: .settings)) }
         controller.start()
         updates.start(console: console, connections: controller)
     }

@@ -22,6 +22,12 @@ mod unix_legacy;
 mod broker_unix;
 #[cfg(target_os = "macos")]
 mod macos_applications;
+#[cfg(target_os = "macos")]
+mod macos_bundle;
+#[cfg(target_os = "macos")]
+mod macos_snapshot;
+#[cfg(target_os = "macos")]
+mod macos_service;
 
 use crate::protocol::NativeError;
 use nessie_executor_updater::protocol::Request;
@@ -51,6 +57,12 @@ pub fn control() -> Result<(), NativeError> {
 
 pub fn service() -> Result<(), NativeError> {
     broker::run().map_err(|_| rejected())
+}
+pub fn registered_service() -> Result<(), NativeError> {
+    #[cfg(target_os = "macos")]
+    { macos_service::run().map_err(|code| NativeError::new(code)) }
+    #[cfg(not(target_os = "macos"))]
+    { Err(rejected()) }
 }
 pub fn install() -> Result<(), NativeError> {
     broker::install().map_err(|_| rejected())

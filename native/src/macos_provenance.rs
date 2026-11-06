@@ -41,6 +41,15 @@ extern "C" {
 /// Only a sealed Developer ID app may declare an independent runtime consumer.
 /// A missing floor remains an old entrypoint, even when it has the same publisher.
 pub fn require_independent_app(path: &Path) -> Result<(), NativeError> {
+    require_app(path, false)
+}
+
+/// Only the app that sealed the registered native service may bootstrap it.
+pub fn require_updater_app(path: &Path) -> Result<(), NativeError> {
+    require_app(path, true)
+}
+
+fn require_app(path: &Path, updater: bool) -> Result<(), NativeError> {
     require_current_release()?;
     let code = static_file(path)?;
     let requirement = requirement(release_team()?)?;
@@ -52,8 +61,10 @@ pub fn require_independent_app(path: &Path) -> Result<(), NativeError> {
     let information = Owned::new(information)?;
     let dictionary = unsafe { CFDictionaryGetValue(information.0, kSecCodeInfoPList) };
     if dictionary.is_null() || unsafe { CFGetTypeID(dictionary) != CFDictionaryGetTypeID() } { return Err(refused()); }
-    for (name, expected) in [("NessieExecutorManagedLaunchProtocol", 1),
-        ("NessieExecutorPersonalInferenceGuardVersion", 2), ("NessieExecutorIndependentRuntime", 1)] {
+    let floors = [("NessieExecutorManagedLaunchProtocol", 1),
+        ("NessieExecutorPersonalInferenceGuardVersion", 2), ("NessieExecutorIndependentRuntime", 1),
+        ("NessieExecutorUpdateServiceProtocol", 1)];
+    for (name, expected) in floors.into_iter().take(if updater { 4 } else { 3 }) {
         let name = CString::new(name).map_err(|_| refused())?;
         let key = Owned::new(unsafe { CFStringCreateWithCString(std::ptr::null(), name.as_ptr(), UTF8) })?;
         let value = unsafe { CFDictionaryGetValue(dictionary, key.0) };

@@ -193,6 +193,10 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
     private func invoke(_ command: String, args: [String: Any]) async throws -> Any {
         if command.hasPrefix("executor_pairing_") { return try await pairing(command, args: args) }
         switch command {
+        case "executor_update_setup":
+            guard args.isEmpty else { throw ExecutorRefusal("update.coordinator_unavailable") }
+            try ComputerUpdateService.prepare(requested: true)
+            return try await ExecutorUpdateControl.run(["operation": "status"])
         case "executor_update_control":
             guard let request = args["request"] as? [String: Any] else {
                 throw ExecutorRefusal("update.coordinator_unavailable")
