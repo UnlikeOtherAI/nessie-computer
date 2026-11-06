@@ -85,9 +85,11 @@ pub(super) fn capture() -> UpdateResult<()> {
 pub(super) fn observe(stream: &UnixStream) -> UpdateResult<()> {
     unix_runtime::privileged()?;
     let caller = peer(stream)?;
+    if caller.executable.file_name().and_then(|name| name.to_str()) != Some("nessie-executor-native") { return Err(ERROR); }
+    let parent = unix_process::information(caller.parent)?.ok_or(ERROR)?;
+    if parent.executable.file_name().and_then(|name| name.to_str()) != Some("nessie-executor-runtime") { return Err(ERROR); }
     let release = crate::managed_release::installed().map_err(|_| ERROR)?;
     if caller.executable != release.directory.join("nessie-executor-native") { return Err(ERROR); }
-    let parent = unix_process::information(caller.parent)?.ok_or(ERROR)?;
     if parent.uid != caller.uid || parent.executable != release.directory.join("nessie-executor-runtime") { return Err(ERROR); }
     for (uid, root) in unix_clearance::roots()?.into_iter().filter(|(uid, _)| *uid == caller.uid) {
         for record in unix_clearance::records(uid, &root)? {

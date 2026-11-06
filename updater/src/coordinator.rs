@@ -21,6 +21,11 @@ pub struct Installed {
 pub trait Installer {
     fn target(&self) -> UpdateResult<Target>;
     fn installed(&self) -> UpdateResult<Installed>;
+    /// One coherent installation snapshot for status. Native hosts may share
+    /// the same retained provenance check with platform eligibility.
+    fn installation_status(&self) -> UpdateResult<(Installed, bool)> {
+        Ok((self.installed()?, self.target().is_ok()))
+    }
     /// Pause new daemon creation while existing work drains. Existing runtime
     /// factories stay available until independent clearance permits replacement.
     fn set_draining(&self, draining: bool, restart_ready: bool) -> UpdateResult<()>;

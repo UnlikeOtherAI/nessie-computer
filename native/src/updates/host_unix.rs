@@ -7,6 +7,15 @@ pub(in crate::updates) use super::super::unix_package::{verify_publishers, repla
 pub(in crate::updates) use super::super::unix_runtime::installed;
 pub(in crate::updates) use super::super::unix_health::confirm_restarted;
 
+pub(in crate::updates) fn installation_status() -> UpdateResult<(nessie_executor_updater::coordinator::Installed, bool)> {
+    let release = crate::managed_release::installed().map_err(|_| unix_runtime::ERROR)?;
+    let installed = unix_runtime::release_information(&release)?;
+    let can_install = super::super::unix_legacy::remaining(&release.digest)
+        .and_then(|remaining| if remaining { Err("update.bootstrap_required") }
+            else { super::super::unix_package::target() }).is_ok();
+    Ok((installed, can_install))
+}
+
 pub(in crate::updates) fn target() -> UpdateResult<nessie_executor_updater::protocol::Target> {
     let release = crate::managed_release::installed().map_err(|_| "update.installed_release_unverified")?;
     if super::super::unix_legacy::remaining(&release.digest)? { return Err("update.bootstrap_required"); }

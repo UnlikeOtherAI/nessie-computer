@@ -11,7 +11,7 @@ impl Coordinator<'_> {
     pub fn status(&self, now: u64) -> UpdateResult<Status> {
         let preferences = self.store.preferences()?;
         let journal = self.store.journal()?;
-        let installed = self.installer.installed()?;
+        let (installed, can_install) = self.installer.installation_status()?;
         let (candidate, catalog_code) = match &journal.pending {
             Some(pending) => (Some(self.accepted(pending)?), None),
             None => match &journal.available_envelope {
@@ -73,7 +73,7 @@ impl Coordinator<'_> {
             channel: preferences.channel,
             installed_version: installed.version,
             source_commit: installed.source_commit,
-            can_install: self.installer.target().is_ok(),
+            can_install,
             draining,
             phase,
             notify: version

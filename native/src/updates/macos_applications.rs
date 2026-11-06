@@ -88,6 +88,9 @@ pub(super) fn wait(stream: &UnixStream) -> UpdateResult<serde_json::Value> {
 /// The new app's ordinary status client supplies kernel-observed parentage;
 /// a version claim from JavaScript cannot complete the restart record.
 pub(super) fn observe(stream: &UnixStream) -> UpdateResult<()> {
+    // Ordinary Settings probes cannot complete a restart that was never
+    // requested. Avoid verifying a whole app for that unrelated observation.
+    if plans()?.is_empty() { return Ok(()); }
     let caller = unix_health::peer(stream)?;
     let release = crate::managed_release::installed().map_err(|_| ERROR)?;
     if caller.executable != release.directory.join("nessie-executor-native") { return Err(ERROR); }

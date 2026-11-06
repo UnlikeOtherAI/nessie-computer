@@ -15,6 +15,12 @@ pub(super) mod platform;
 
 pub struct Host;
 impl Installer for Host {
+    fn installation_status(&self) -> UpdateResult<(Installed, bool)> {
+        #[cfg(unix)]
+        { platform::installation_status() }
+        #[cfg(windows)]
+        { Ok((self.installed()?, self.target().is_ok())) }
+    }
     fn set_draining(&self, draining: bool, restart_ready: bool) -> UpdateResult<()> {
         #[cfg(windows)]
         {

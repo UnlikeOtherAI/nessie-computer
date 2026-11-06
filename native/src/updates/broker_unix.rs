@@ -3,7 +3,7 @@ use super::{channel::SOCKET, host::{self, Host}, unix_runtime};
 use nessie_executor_updater::{coordinator::{Coordinator, Installer}, network::Network, protocol::Request, storage::Store};
 use std::{fs, io::{BufRead, BufReader, Read, Write}, os::unix::{fs::{FileTypeExt, MetadataExt, PermissionsExt},
     net::{UnixListener, UnixStream}, process::CommandExt}, process::{Child, Command, Stdio},
-    sync::{atomic::{AtomicUsize, Ordering}, Arc}, time::{Duration, Instant, SystemTime, UNIX_EPOCH}};
+    sync::{atomic::{AtomicUsize, Ordering}, Arc}, time::{Duration, SystemTime, UNIX_EPOCH}};
 
 const ERROR: &str = "update.coordinator_unavailable";
 fn now() -> u64 {
@@ -72,24 +72,12 @@ pub(super) fn run() -> Result<(), String> {
     fs::set_permissions(SOCKET, fs::Permissions::from_mode(0o666)).map_err(|_| ERROR)?;
     listener.set_nonblocking(true).map_err(|_| ERROR)?;
     let active = Arc::new(AtomicUsize::new(0));
-    let mut worker: Option<Child> = None;
-    let mut checked = Instant::now() - Duration::from_secs(3);
+    // Signature/hash verification and worker startup can take seconds. They
+    // must not stop the listener accepting bounded local control requests.
+    let supervisor = std::thread::spawn(supervise);
     loop {
-        if checked.elapsed() >= Duration::from_secs(3) {
-            if store.journal().map_err(str::to_owned)?.pending.is_none() {
-                let image = unix_runtime::worker_image().map_err(str::to_owned)?;
-                if std::env::current_exe().map_err(|_| ERROR)? != image {
-                    // Exec only the verified protected image. The accepted
-                    // worker survives; service/socket ownership is reacquired.
-                    let error = Command::new(image).arg("update-service").env_clear()
-                        .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin").current_dir("/").exec();
-                    return Err(error.to_string());
-                }
-            }
-            if worker.as_mut().is_none_or(|child| child.try_wait().ok().flatten().is_some()) {
-                worker = spawn_worker().ok();
-            }
-            checked = Instant::now();
+        if supervisor.is_finished() {
+            return supervisor.join().unwrap_or_else(|_| Err(ERROR.into()));
         }
         match listener.accept() {
             Ok((stream, _)) => {
@@ -101,6 +89,27 @@ pub(super) fn run() -> Result<(), String> {
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => std::thread::sleep(Duration::from_millis(50)),
             Err(_) => return Err(ERROR.into()),
         }
+    }
+}
+
+fn supervise() -> Result<(), String> {
+    let store = Store::new(host::root().map_err(str::to_owned)?);
+    let mut worker: Option<Child> = None;
+    loop {
+        if store.journal().map_err(str::to_owned)?.pending.is_none() {
+            let image = unix_runtime::worker_image().map_err(str::to_owned)?;
+            if std::env::current_exe().map_err(|_| ERROR)? != image {
+                // Exec only the verified protected image. The accepted worker
+                // survives; service/socket ownership is reacquired.
+                let error = Command::new(image).arg("update-service").env_clear()
+                    .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin").current_dir("/").exec();
+                return Err(error.to_string());
+            }
+        }
+        if worker.as_mut().is_none_or(|child| child.try_wait().ok().flatten().is_some()) {
+            worker = spawn_worker().ok();
+        }
+        std::thread::sleep(Duration::from_secs(3));
     }
 }
 

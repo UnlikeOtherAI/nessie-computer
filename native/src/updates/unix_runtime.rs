@@ -27,8 +27,11 @@ pub(super) fn directory(path: &Path) -> UpdateResult<()> {
 }
 pub(super) fn installed() -> UpdateResult<Installed> {
     let release = crate::managed_release::installed().map_err(|_| ERROR)?;
-    let version = release.version.ok_or("update.bootstrap_required")?;
-    let source_commit = release.source_commit.ok_or("update.bootstrap_required")?;
+    release_information(&release)
+}
+pub(super) fn release_information(release: &crate::managed_release::Release) -> UpdateResult<Installed> {
+    let version = release.version.clone().ok_or("update.bootstrap_required")?;
+    let source_commit = release.source_commit.clone().ok_or("update.bootstrap_required")?;
     nessie_executor_updater::catalog::compare_versions(&version, &version)?;
     if source_commit.len() != 40 || !source_commit.bytes().all(|byte| byte.is_ascii_hexdigit()) { return Err(ERROR); }
     Ok(Installed { version, source_commit })

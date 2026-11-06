@@ -113,3 +113,17 @@ and worker run, and maintenance has returned to non-draining. Status RPCs still
 time out, including a 25-second authenticated-peer diagnostic. Preserve this
 live failure while debugging; do not restart the service or clear its journals
 to hide it. No completed update or working Settings control is claimed.
+
+Read-only live sampling isolated the delay to repeated payload hashing and
+signature validation on the broker's listener and ordinary status path. Three
+subsequent status requests returned the correct protected version and policy
+after 5.0–6.3 seconds, beyond the native client's five-second deadline. Worker
+supervision now runs separately from socket acceptance. Status retains one
+fully verified release for version and eligibility together; irrelevant health
+and application-restart observations are rejected before payload verification.
+No verification result is cached across requests or used to authorize creation.
+Installed timing and recovery still need verification with the signed fix.
+
+Managed CLI creation now binds its release to the kernel's loaded native image,
+not the mutable `current` launch alias. The Mac regression test launches the
+test executable through a symlink and confirms the same kernel image is used.
