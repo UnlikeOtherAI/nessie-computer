@@ -18,6 +18,8 @@
 import { createHash } from 'node:crypto'
 import { chmod, copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 import { build } from 'esbuild'
 
@@ -102,6 +104,7 @@ export const resolveWindowsPackagedNodeLicense = async (nodeExecutablePath = pro
 export const prepareExecutorRuntime = async ({
   entryPoint,
   executorVersion = 'development',
+  executorSourceCommit,
   executorAppleTeamId = '',
   nativeHelperPath,
   nodeLicenseContents,
@@ -110,6 +113,10 @@ export const prepareExecutorRuntime = async ({
   platform = process.platform,
 }) => {
   const runtimeDirectory = resolve(outputDirectory)
+  const sourceCommit = executorSourceCommit ?? execFileSync('git', ['rev-parse', 'HEAD'], {
+    cwd: fileURLToPath(new URL('..', import.meta.url)), encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+  }).trim()
+  if (!/^[a-f0-9]{40}$/u.test(sourceCommit)) throw new Error('The executor source revision must be a complete Git SHA.')
   const executorBundlePath = resolve(runtimeDirectory, 'nessie-executor.cjs')
   const nodeExecutable = nodeExecutableName(platform)
   const nodePath = resolve(runtimeDirectory, nodeExecutable)
@@ -124,6 +131,7 @@ export const prepareExecutorRuntime = async ({
     bundle: true,
     define: {
       __NESSIE_EXECUTOR_VERSION__: JSON.stringify(executorVersion),
+      __NESSIE_EXECUTOR_SOURCE_COMMIT__: JSON.stringify(sourceCommit),
       __NESSIE_EXECUTOR_APPLE_TEAM_ID__: JSON.stringify(executorAppleTeamId),
     },
     entryPoints: [resolve(entryPoint)],
@@ -151,6 +159,8 @@ export const prepareExecutorRuntime = async ({
   }
 
   const manifest = {
+    executorVersion,
+    executorSourceCommit: sourceCommit,
     ...(platform === 'win32' ? { managedRuntimeGuardVersion: 2 } : {}),
     executorBundleSha256: await digest(executorBundlePath),
     format: EXECUTOR_RUNTIME_MANIFEST_FORMAT,

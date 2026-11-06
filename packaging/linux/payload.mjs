@@ -190,7 +190,7 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   entryPoint = join(executorDirectory, 'src/index.ts'),
 } = {}) => {
   if (process.platform !== 'linux' || process.arch !== 'x64') throw new Error('Build Linux packages on a Linux x86_64 host.')
-  const expectedStaging = resolve(executorDirectory, '../dist/executor-cli/linux-payload')
+  const expectedStaging = resolve(executorDirectory, 'dist/executor-cli/linux-payload')
   if (resolve(stagingDirectory) !== expectedStaging) throw new Error('The Linux payload uses its dedicated build directory.')
   // Prior generated payloads have readonly release directories. Restore only
   // this exact disposable staging tree's directory permissions for replacement.

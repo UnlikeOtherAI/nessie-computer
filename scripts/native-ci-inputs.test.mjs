@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { nativeCiInputs } from './native-ci-inputs.mjs'
 
-const empty = { helper: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+const empty = { helper: false, updater: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+
+test('the native updater is tested on every host without compiling unrelated applications', () => {
+  assert.deepEqual(nativeCiInputs(['updater/src/network.rs'], () => null, () => null), { ...empty, updater: true })
+})
 test('documentation and JavaScript test changes do not build native applications', () => {
   assert.deepEqual(nativeCiInputs(['README.md', 'docs/automatic-updates.md', 'test/updates-state.test.ts'], () => null, () => null), empty)
 })

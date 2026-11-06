@@ -11,6 +11,7 @@ import { claimExecutor, heartbeatExecutor } from './daemon.js'
 import { serveExecutor } from './daemon-server.js'
 import { describeExecutor } from './describe.js'
 import { runDistributionCli } from './distribution-cli.js'
+import { offerUpdateAtLaunch, runUpdateCli } from './updates/cli.js'
 import { runMacServiceCli } from './service-macos.js'
 import { runServiceRestartCli } from './service-restart-cli.js'
 import { runPairingCodeCli } from './pairing-code-cli.js'
@@ -104,7 +105,8 @@ export const run = async (args: string[]): Promise<void> => {
   if (await (await import('./chatgpt-service-attestation.js')).runChatgptServiceAttestation(args)) return
   if (await (await import('./personal-chatgpt-cli.js')).runPersonalChatgptCli(args)) return
   if (await (await import('./chatgpt-credential-runtime.js')).runChatgptCredentialRuntime(args)) return
-  if (runDistributionCli(args) || await runMacServiceCli(args)) return
+  if (runDistributionCli(args) || await runUpdateCli(args)) return
+  if (await offerUpdateAtLaunch(args) || await runMacServiceCli(args)) return
   if (await runServiceRestartCli(args)) return
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return

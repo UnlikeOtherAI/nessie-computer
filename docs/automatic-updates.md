@@ -5,6 +5,25 @@ exist. Installed computers do not yet update themselves. The native installer,
 local controls, notifications and transition release remain to be implemented
 and exercised on each supported operating system.
 
+The `updater/` Rust crate owns signed catalogue selection, bounded resumable
+downloads and the durable installation journal. Its host installer adapters
+and authenticated local transport are still being connected. A corrupt complete
+download is retained with a `.rejected` suffix and downloaded afresh on retry;
+the accepted transaction is retained. Source/development CLIs report an
+unsupported updater and never claim to have installed an update.
+
+The CLI entry point exposes `updates status`, `updates check`, `updates install`,
+`updates automatic on|off` and `updates remind`, with `--json` for scripts.
+Human terminals may offer an available update at launch; JSON output and
+internal MCP pipes never receive a prompt. These operations require the
+authenticated installed coordinator before they can replace software.
+
+The implementation adds a public software-status contract for signed heartbeats
+and a fixed install request containing only a request ID and timestamp. It
+cannot choose a download URL, command or update policy. The packaged CLI's
+version and source revision are compiled into the signed bundle and included
+in its runtime manifest; process environment overrides cannot change them.
+
 Stable installation defaults to automatic. A local opt-out survives subsequent
 catalogue checks, downloads, app restarts and upgrades. Opting out keeps version
 checks and prompts for a new version with Update now and Remind me tomorrow;

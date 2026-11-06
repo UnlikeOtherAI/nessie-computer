@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
 
 import {
@@ -723,6 +724,7 @@ export const ExecutorDaemonHeartbeatRequestSchema = z.object({
    * exactly when it is present, so an older daemon's signature still verifies.
    */
   localMcp: ExecutorLocalMcpReportSchema.optional(),
+  software: ExecutorSoftwareStatusSchema.optional(),
   observedAt: TimestampSchema,
   signature: ExecutorDaemonSignatureSchema,
 }).strict()
@@ -768,6 +770,7 @@ export type ExecutorDaemonConnectionResponse = z.infer<typeof ExecutorDaemonConn
 export const ExecutorDaemonHeartbeatResponseSchema = ExecutorDaemonConnectionResponseSchema.extend({
   codingSessionClose: ExecutorCodingSessionCloseListSchema.optional(),
   existingSessionsAllowed: z.boolean().optional(),
+  softwareUpdateRequest: ExecutorSoftwareUpdateRequestSchema.optional(),
 }).strict()
 export type ExecutorDaemonHeartbeatResponse = z.infer<typeof ExecutorDaemonHeartbeatResponseSchema>
 
@@ -1119,6 +1122,9 @@ export type ExecutorAccessChangeConfirmation = z.infer<
 >
 
 export const ExecutorRecordResponseSchema = z.object({
+  software: ExecutorSoftwareStatusSchema.optional(),
+  softwareObservedAt: TimestampSchema.optional(),
+  softwareUpdateRequested: z.boolean().optional(),
   sharedWithTeam: z.boolean().optional(),
   // On the person's own list only: whether they paired this machine, which
   // splits Your computers into Mine and Shared with me.

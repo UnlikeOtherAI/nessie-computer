@@ -32,6 +32,7 @@ import { createExecutorMcpSessionManager } from './mcp-session-manager.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
+import { reportedSoftwareStatus, requestSoftwareUpdate } from './updates/native-client.js'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
 const CODING_SESSION_SHUTDOWN_BUDGET_MS = 5_000
@@ -116,6 +117,9 @@ export const serveExecutor = async (
         // and every heartbeat retries whatever an earlier one could not carry out.
         const close = await heartbeatExecutor(
           live, localMcp.current(), codingBridge.connectionHealthy, folderSync.summary(),
+          executorApi, { status: await reportedSoftwareStatus(), onRequest: async request => {
+            await requestSoftwareUpdate(request)
+          } },
         )
         void codingBridge.close(close).catch(() => undefined)
       } catch (error) {
