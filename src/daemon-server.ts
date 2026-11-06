@@ -76,6 +76,9 @@ export const serveExecutor = async (
     const screenPoll = createNonOverlappingExecutorTask(() => relayScreens(live).catch(() => undefined))
     void localMcp.refresh().catch(() => undefined)
     let shuttingDown = false
+    let drainingForUpdate = false
+    let finishUpdateDrain: () => void = () => undefined
+    const updateReady = new Promise<void>((resolve) => { finishUpdateDrain = resolve })
     // One store for the daemon's whole life. Building it per poll re-secured
     // the runtime directory every second, which on Windows is two native-helper
     // process spawns a second and nothing at all on POSIX.
@@ -113,11 +116,17 @@ export const serveExecutor = async (
     })
     const heartbeat = createNonOverlappingExecutorTask(async () => {
       try {
+        const software = await reportedSoftwareStatus()
+        if (software.canInstall && software.draining !== undefined) {
+          drainingForUpdate = software.draining && software.installedVersion !== software.targetVersion
+          if (drainingForUpdate) await localInference.supervisor.drain().catch(() => undefined)
+          else localInference.supervisor.resume()
+        }
         // Closing never delays the next heartbeat: it runs beside it, serialised on its own,
         // and every heartbeat retries whatever an earlier one could not carry out.
         const close = await heartbeatExecutor(
           live, localMcp.current(), codingBridge.connectionHealthy, folderSync.summary(),
-          executorApi, { status: await reportedSoftwareStatus(), onRequest: async request => {
+          executorApi, { status: software, onRequest: async request => {
             await requestSoftwareUpdate(request)
           } },
         )
@@ -147,14 +156,27 @@ export const serveExecutor = async (
     })
     // Local inference has no tick here: its host holds a socket and claims
     // when Nessie pushes work; only its inventory heartbeat rides the 20 s task.
-    const commandInterval = setInterval(() => {
+    const idle = () => !commandPoll.current() && !screenPoll.current()
+      && browserSessions.isIdle() && commandSessions.isIdle() && codingSessions.isIdle()
+      && localInference.supervisor.isIdle()
+    const pollTick = createNonOverlappingExecutorTask(async () => {
+      if (shuttingDown) return
+      if (drainingForUpdate && idle() && await codingBridge.isIdle() && drainingForUpdate && idle()) {
+        shuttingDown = true
+        process.exitCode = 75 // supported supervisors retry against the selected immutable release
+        finishUpdateDrain()
+        return
+      }
+      // Existing work, including its follow-up commands and Close actions,
+      // continues while the update waits. No session is stopped to make it idle.
       void commandPoll.run()
       void screenPoll.run()
-    }, 1_000)
+    })
+    const commandInterval = setInterval(() => { void pollTick.run().catch(() => undefined) }, 1_000)
     const interval = setInterval(() => { void heartbeat.run() }, 20_000)
     void heartbeat.run()
     try {
-      await waitForExecutorDaemonShutdown(options.parentLiveness)
+      await waitForExecutorDaemonShutdown(options.parentLiveness, updateReady)
     } finally {
       shuttingDown = true
       localMcp.stop()

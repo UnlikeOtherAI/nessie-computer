@@ -23,6 +23,7 @@
     InstallerVersion="500">
 
     <SummaryInformation Description="Runs a paired Nessie executor as a Windows service." />
+    <Property Id="NessieManagedRuntimeGuardVersion" Value="2" />
 
     <!-- Same UpgradeCode, higher version: an upgrade replaces the files and
          re-registers the service, and never touches the state root. -->
@@ -135,6 +136,15 @@
 
 
     <ComponentGroup Id="ExecutorService" Directory="INSTALLFOLDER">
+      <Component>
+        <File Id="UpdaterExe" Source="$(var.StagingDir)\nessie-computer-updater.exe" KeyPath="yes" />
+        <ServiceInstall Id="NessieUpdaterServiceInstall" Name="NessieExecutorUpdater"
+          DisplayName="Nessie Computer Updates" Description="Installs verified Nessie Computer updates after active work finishes."
+          Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem"
+          Arguments="update-service" Vital="yes" />
+        <ServiceControl Id="NessieUpdaterServiceControl" Name="NessieExecutorUpdater"
+          Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
       <Component>
         <File
           Id="ServiceExe"
@@ -256,8 +266,12 @@
 
     <InstallExecuteSequence>
       <Custom Action="SecureServiceStateRoot" After="InstallServices" Condition="NOT Installed" />
+      <Custom Action="SecureUpdaterStateRoot" After="SecureServiceStateRoot" Condition="NOT Installed" />
       <Custom Action="JoinHypervAdministrators" After="StartServices" Condition="NOT Installed" />
     </InstallExecuteSequence>
+
+    <CustomAction Id="SecureUpdaterStateRoot" FileRef="ServiceExe"
+      ExeCommand="--secure-updater-root" Execute="deferred" Impersonate="no" Return="check" />
 
     <Feature Id="Main" Title="Nessie Executor" Level="1">
       <ComponentGroupRef Id="PackagedRuntime" />

@@ -80,6 +80,7 @@ export class LocalInferenceHostLoop {
   #frameSequences = new Map<string, number>()
   #polling = false
   #stopped = false
+  #draining = false
   #pendingPoll: LocalInferenceCoordinatorLease | null = null
 
   constructor(private readonly dependencies: {
@@ -105,7 +106,7 @@ export class LocalInferenceHostLoop {
       : await observeOllamaInventory(this.dependencies.origin, this.dependencies.fetchImpl)
     await this.dependencies.transport.heartbeat({
       inventory: inventory.models.map((model) => publishedModel(model, now.toISOString())),
-      paused: this.dependencies.isPaused() || (await this.dependencies.coordinator.control()).paused,
+      paused: this.#draining || this.dependencies.isPaused() || (await this.dependencies.coordinator.control()).paused,
     })
   }
 
@@ -122,7 +123,7 @@ export class LocalInferenceHostLoop {
    */
   async claimOnce(): Promise<LocalInferenceClaimOutcome> {
     if (this.#stopped || this.dependencies.isPaused()) await this.reconcileReceipts()
-    if (this.#polling || this.#stopped || this.dependencies.isPaused()) return { kind: 'idle' }
+    if (this.#polling || this.#stopped || this.#draining || this.dependencies.isPaused()) return { kind: 'idle' }
     this.#polling = true
     let pollingReleased = false
     const releasePoll = () => { if (!pollingReleased) { pollingReleased = true; this.#polling = false } }
@@ -237,6 +238,17 @@ export class LocalInferenceHostLoop {
   applyControl(attemptId: string, state: Exclude<LocalInferenceAttemptControlState, 'active'>): void {
     this.#active.get(attemptId)?.abort(state)
   }
+
+  async drain(): Promise<void> {
+    this.#draining = true
+    if (!this.#polling && this.#pendingPoll) {
+      await this.#pendingPoll.abandonPoll()
+      this.#pendingPoll = null
+    }
+  }
+
+  isIdle(): boolean { return !this.#polling && this.#active.size === 0 && this.#pendingPoll === null }
+  resume(): void { this.#draining = false }
 
   /** Stop every in-flight local request when this host loses its authority. */
   stop(): void {

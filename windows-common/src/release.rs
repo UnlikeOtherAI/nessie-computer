@@ -29,8 +29,24 @@ use windows_sys::Win32::{
 pub struct Release {
     pub runtime: VerifiedRuntime,
     pub digest: String,
+    pub version: Option<String>,
+    pub source_commit: Option<String>,
     pub launch_consumers: Option<LaunchConsumers>,
     _pins: Vec<File>,
+}
+impl Release {
+    /// A coherent installed package includes the signed launch consumers,
+    /// not only its native helper and JavaScript payload.
+    pub fn verify_launch_consumers(&mut self, pin_eku: Option<&str>) -> Result<(), String> {
+        let consumers = self.launch_consumers.as_ref().ok_or(REJECTED)?;
+        for (name, expected) in [("nessie-executor-service.exe", &consumers.service_sha256),
+            ("nessie-executor-tray.exe", &consumers.tray_sha256)] {
+            let file = pin_launcher(&self.runtime.root.join(name), pin_eku)?;
+            verify_launcher_digest(&file, expected)?;
+            self._pins.push(file);
+        }
+        Ok(())
+    }
 }
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -152,6 +168,12 @@ fn pin(path: &Path, directory: bool, protected: bool) -> Result<File, String> {
     }
     Ok(file)
 }
+
+/// Retain a root-owned updater path with the same reparse, owner and DACL
+/// checks used for installed releases. Public read access grants no writes.
+pub fn pin_protected(path: &Path, directory: bool) -> Result<File, String> {
+    pin(path, directory, true)
+}
 pub(crate) fn pin_launcher(path: &Path, pin_eku: Option<&str>) -> Result<File, String> {
     let file = pin(path, false, true)?;
     nessie_windows_provenance::decide_release_signature(
@@ -236,6 +258,8 @@ pub fn load_at(executable: &Path, pin_eku: Option<&str>) -> Result<Release, Stri
     Ok(Release {
         runtime,
         digest,
+        version: manifest.get("executorVersion").and_then(|value| value.as_str()).map(str::to_owned),
+        source_commit: manifest.get("executorSourceCommit").and_then(|value| value.as_str()).map(str::to_owned),
         launch_consumers,
         _pins: pins,
     })

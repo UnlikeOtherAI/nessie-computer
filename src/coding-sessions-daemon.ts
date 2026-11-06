@@ -103,6 +103,7 @@ const DEFINITIVE_FAILURES = new Set(['EXECUTOR_NOT_FOUND', 'EXECUTOR_DAEMON_PROO
 const PENDING_CLOSE_MAXIMUM = 64
 
 export type CodingSessionsDaemon = {
+  isIdle: () => Promise<boolean>
   inventory: () => Promise<ExecutorCodingSessionSummary[] | undefined>
   screen: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionScreen | null>
   /** The reserved `_meta` for one call, command rules included: defined only for the built-in bridge. */
@@ -201,6 +202,7 @@ export const createCodingSessionsDaemon = (input: {
   }
 
   return {
+    isIdle: async () => !bridge || (await sessionReport('session_inventory'))?.length === 0,
     inventory: () => sessionReport('session_inventory'),
     screen: async (request) => {
       if (request.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) {

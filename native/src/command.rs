@@ -13,6 +13,11 @@ pub const MAX_JOB_ARGUMENT_LENGTH: usize = 32_767;
 /// only the bodies behind the workspace commands are POSIX-only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    BuildInfo,
+    UpdateControl,
+    UpdateService,
+    UpdateInstall,
+    UpdateWorker,
     PersonalChatgptBrowser,
     /// Run one program â€” a coding agent â€” inside a Job Object that kills the
     /// whole tree when the helper exits, passing stdio through and exiting
@@ -100,6 +105,11 @@ fn job_argv(values: &[String]) -> Result<Vec<String>, NativeError> {
 
 pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
     match arguments {
+        [command] if command == "build-info" => Ok(Command::BuildInfo),
+        [command] if command == "update-control" => Ok(Command::UpdateControl),
+        [command] if command == "update-service" => Ok(Command::UpdateService),
+        [command] if command == "update-install" => Ok(Command::UpdateInstall),
+        [command] if command == "update-worker" => Ok(Command::UpdateWorker),
         [command] if command == "personal-chatgpt-browser" => Ok(Command::PersonalChatgptBrowser),
         [command] if command == "managed-host-check" => Ok(Command::ManagedHostCheck),
         [command] if command == "managed-protection-status" => Ok(Command::ManagedProtectionStatus),

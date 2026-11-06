@@ -280,6 +280,10 @@ pub fn secure_service_directory(path: &str) -> Result<(), NativeError> {
     secure_directory_for_owner(path, service_sid()?, true)
 }
 
+pub fn verify_service_directory(path: &str) -> Result<(), NativeError> {
+    verify_owner_only_for(path, &service_sid()?, false, None)
+}
+
 /// Every ACE of a protected DACL, read once. A NULL DACL is world-writable
 /// and an empty one is not: absence of the pointer is the failure.
 fn admits_only(acl: *const ACL, user: &OwnedSid, system: &OwnedSid, allow_inherited: bool) -> bool {

@@ -10,6 +10,26 @@ impl Coordinator<'_> {
     pub fn control(&self, request: Request, now: u64) -> UpdateResult<Status> {
         match request {
             Request::Status => {}
+            Request::Channel { channel } => {
+                self.store.mutate_journal(|journal| {
+                    if self.store.preferences()?.channel == channel {
+                        return Ok(());
+                    }
+                    if journal.pending.is_some() {
+                        return Err("update.installation_in_progress");
+                    }
+                    self.store.mutate_preferences(|preferences| {
+                        preferences.channel = channel;
+                        Ok(())
+                    })?;
+                    journal.available_envelope = None;
+                    journal.last_checked_at = None;
+                    journal.check_requested_at = Some(now);
+                    journal.check_code = None;
+                    journal.next_check_at = now;
+                    Ok(())
+                })?;
+            }
             Request::Check => {
                 self.store.mutate_journal(|journal| {
                     journal.check_requested_at = Some(now);

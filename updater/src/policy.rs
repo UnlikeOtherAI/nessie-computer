@@ -1,5 +1,28 @@
 use crate::{catalog::UpdateResult, storage::Preferences};
 
+pub(crate) fn active_transaction(
+    preferences: &Preferences,
+    journal: &crate::storage::Journal,
+) -> bool {
+    use crate::protocol::Phase;
+    journal.pending.as_ref().is_some_and(|pending| {
+        preferences.automatic
+            || journal.manual
+            || matches!(pending.phase, Phase::Installing | Phase::Restarting)
+    })
+}
+
+pub(crate) fn draining(preferences: &Preferences, journal: &crate::storage::Journal) -> bool {
+    use crate::protocol::Phase;
+    active_transaction(preferences, journal)
+        && journal.pending.as_ref().is_some_and(|pending| {
+            matches!(
+                pending.phase,
+                Phase::Waiting | Phase::Installing | Phase::Restarting
+            )
+        })
+}
+
 pub fn should_notify(preferences: &Preferences, version: &str, now: u64) -> bool {
     !preferences.automatic
         && (preferences.reminded_version.as_deref() != Some(version)

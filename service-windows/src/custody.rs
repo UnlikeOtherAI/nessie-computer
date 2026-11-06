@@ -197,6 +197,7 @@ pub fn handle(
     operation: Operation,
 ) -> Result<serde_json::Value, String> {
     let _lock = ADMISSION.lock().map_err(|_| REJECTED)?;
+    let machine = nessie_windows_common::update_admission::Admission::acquire(false)?;
     nessie_windows_common::custody::validate(&operation)?;
     let mut pid = 0;
     if unsafe { GetNamedPipeClientProcessId(pipe, &mut pid) } == 0 || pid == 0 {
@@ -253,6 +254,10 @@ pub fn handle(
             release_digest,
             kind,
         } => {
+            machine.admit(&release.digest)?;
+            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon) {
+                machine.admit_daemon(&release.digest)?;
+            }
             let machine = matches!(
                 kind,
                 RuntimeKind::MachineAttestation
@@ -375,6 +380,7 @@ pub fn handle(
             serde_json::json!({"cleared":true,"epoch":epoch})
         }
         Operation::HostAcquire { nonce } => {
+            machine.admit(&release.digest)?;
             if !state.fences.is_empty() || state.hosts.contains_key(&nonce) {
                 return Err(REJECTED.into());
             }

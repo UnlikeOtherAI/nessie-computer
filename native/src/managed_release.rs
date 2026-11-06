@@ -24,6 +24,8 @@ struct Manifest {
     native_helper: String,
     native_helper_sha256: String,
     resources_manifest_sha256: String,
+    executor_version: Option<String>,
+    executor_source_commit: Option<String>,
 }
 
 pub struct Release {
@@ -31,6 +33,8 @@ pub struct Release {
     pub digest: String,
     pub node: File,
     pub node_digest: String,
+    pub version: Option<String>,
+    pub source_commit: Option<String>,
     // Opened immutable release files remain tied to the verified inodes. The
     // native parent retains them for the child's lifetime.
     pub handles: Vec<File>,
@@ -117,13 +121,31 @@ pub fn load() -> Result<Release, NativeError> {
         crate::macos_provenance::require_current_release()?;
         std::env::current_exe().map_err(|_| refused())?
     };
+    load_image(executable, true)
+}
+
+/// The installed pointer may advance while an immutable updater worker finishes
+/// its accepted transaction. Read that release with the same provenance checks.
+pub fn installed() -> Result<Release, NativeError> {
+    #[cfg(target_os = "linux")]
+    let current = Path::new("/usr/lib/nessie-executor/current");
+    #[cfg(target_os = "macos")]
+    let current = Path::new("/Library/Application Support/Nessie Executor/current");
+    let pointer = fs::symlink_metadata(current).map_err(|_| refused())?;
+    if !pointer.file_type().is_symlink() || pointer.uid() != 0 { return Err(refused()); }
+    let executable = fs::canonicalize(current.join("nessie-executor-native")).map_err(|_| refused())?;
+    load_image(executable, false)
+}
+
+fn load_image(executable: PathBuf, current: bool) -> Result<Release, NativeError> {
     let directory = executable.parent().ok_or_else(refused)?.to_path_buf();
     #[cfg(target_os = "linux")]
     let releases = Path::new("/usr/lib/nessie-executor/releases");
     #[cfg(target_os = "macos")]
     let releases = Path::new("/Library/Application Support/Nessie Executor/releases");
     if directory.parent() != Some(releases)
-        || executable.file_name().and_then(|name| name.to_str()) != Some("nessie-executor-native")
+        || !matches!(executable.file_name().and_then(|name| name.to_str()),
+            Some("nessie-executor-native" | "nessie-computer-updater"))
     {
         return Err(refused());
     }
@@ -173,9 +195,13 @@ pub fn load() -> Result<Release, NativeError> {
     }
     // The kernel's loaded native image, not merely the matching current path.
     #[cfg(target_os = "linux")]
-    if digest_file(&File::open("/proc/self/exe").map_err(|_| refused())?)?
+    if current && digest_file(&File::open("/proc/self/exe").map_err(|_| refused())?)?
         != manifest.native_helper_sha256
     {
+        return Err(refused());
+    }
+    #[cfg(target_os = "macos")]
+    if current && digest_file(&immutable(&executable, false)?)? != manifest.native_helper_sha256 {
         return Err(refused());
     }
     #[cfg(target_os = "macos")]
@@ -188,6 +214,8 @@ pub fn load() -> Result<Release, NativeError> {
         digest,
         node,
         node_digest: manifest.node_sha256,
+        version: manifest.executor_version,
+        source_commit: manifest.executor_source_commit,
         handles,
     })
 }

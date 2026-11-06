@@ -15,6 +15,7 @@ export const INSTALLED_FILES = [
   'manifest.json',
   'NODE_LICENSE',
   'nessie-executor-native.exe',
+  'nessie-computer-updater.exe',
   'nessie-executor-service.exe',
   'nessie-executor-tray.exe',
 ]

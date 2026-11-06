@@ -3,6 +3,9 @@ import { connectExecutorLocalInference } from './local-inference-runtime.js'
 import type { ExecutorLocalState } from './state-store.js'
 
 export type ExecutorLocalInferenceSupervisor = {
+  drain: () => Promise<void>
+  resume: () => void
+  isIdle: () => boolean
   heartbeat: () => Promise<void>
   reconnect: (state: ExecutorLocalState) => Promise<ExecutorLocalState>
   stop: () => Promise<void>
@@ -36,6 +39,7 @@ export const startExecutorLocalInferenceSupervisor = async (
 ): Promise<{ state: ExecutorLocalState; supervisor: ExecutorLocalInferenceSupervisor }> => {
   let desiredState = state
   let connected: Connected | null = null
+  let draining = false
   // The daemon's stderr is the only place a lost local host says why, so each
   // distinct reason is written once, not every twenty seconds; the server's
   // Offline state is what the person sees, this is what the operator reads.
@@ -62,6 +66,7 @@ export const startExecutorLocalInferenceSupervisor = async (
     desiredState = nextState
     const next = await connectLocal(stateDir, desiredState)
     connected = next
+    if (draining) await next.session.loop.drain()
     desiredState = next.state
     void next.session.refused.then(async () => {
       if (connected !== next) return
@@ -82,6 +87,9 @@ export const startExecutorLocalInferenceSupervisor = async (
   return {
     state: desiredState,
     supervisor: {
+      drain: async () => { draining = true; await connected?.session.loop.drain() },
+      resume: () => { draining = false; connected?.session.loop.resume() },
+      isIdle: () => connected?.session.loop.isIdle() ?? true,
       heartbeat: async () => {
         let stage: 'connect' | 'heartbeat' = connected ? 'heartbeat' : 'connect'
         if (!connected && Date.now() < claimNotBefore) return

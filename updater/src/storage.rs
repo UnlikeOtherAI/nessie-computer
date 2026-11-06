@@ -71,6 +71,75 @@ impl Store {
         &self.root
     }
 
+    /// Only the native host supplies this receipt, after kernel creation proof.
+    /// It never accepts receipt fields or a destination path from IPC callers.
+    pub fn save_health(&self, value: &serde_json::Value) -> UpdateResult<()> {
+        self.write("healthy.json", value)
+    }
+
+    pub(crate) fn save_superseded(
+        &self,
+        journal: &Journal,
+        next: &str,
+        now: u64,
+    ) -> UpdateResult<()> {
+        let prior = journal.pending.as_ref().ok_or("update.state_unavailable")?;
+        for digest in [&prior.digest, next] {
+            if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return Err("update.invalid_manifest");
+            }
+        }
+        let root = self.root.join("superseded");
+        fs::create_dir_all(&root).map_err(|_| "update.state_unavailable")?;
+        let entry = fs::symlink_metadata(&root).map_err(|_| "update.state_unavailable")?;
+        if !entry.is_dir() || entry.file_type().is_symlink() {
+            return Err("update.state_unavailable");
+        }
+        let archive = Store::new(root);
+        let name = format!("{}--{next}.json", prior.digest);
+        let transaction = serde_json::to_value(prior).map_err(|_| "update.state_unavailable")?;
+        if let Some(existing) = archive.read::<serde_json::Value>(&name)? {
+            return if existing["transaction"] == transaction && existing["supersededBy"] == next {
+                Ok(())
+            } else {
+                Err("update.state_unavailable")
+            };
+        }
+        archive.write(
+            &name,
+            &serde_json::json!({ "transaction":transaction, "supersededBy":next, "at":now,
+                "failureCode":journal.code, "installFailures":journal.install_failures,
+                "requestId":journal.request_id }),
+        )
+    }
+
+    pub fn save_worker_reference(&self, digest: &str) -> UpdateResult<()> {
+        if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err("update.invalid_worker");
+        }
+        self.write(
+            "worker.json",
+            &serde_json::json!({ "format": 1, "digest": digest }),
+        )
+    }
+
+    pub fn worker_reference(&self) -> UpdateResult<String> {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Reference {
+            format: u32,
+            digest: String,
+        }
+        let value: Reference = self.read("worker.json")?.ok_or("update.invalid_worker")?;
+        if value.format != 1
+            || value.digest.len() != 64
+            || !value.digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+        {
+            return Err("update.invalid_worker");
+        }
+        Ok(value.digest)
+    }
+
     fn read<T: DeserializeOwned>(&self, name: &str) -> UpdateResult<Option<T>> {
         let path = self.root.join(name);
         let metadata = match fs::symlink_metadata(&path) {

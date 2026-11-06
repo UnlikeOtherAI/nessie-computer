@@ -1,6 +1,6 @@
 //! Project protected state through the same bounded contract as the app and heartbeat.
 use crate::{
-    catalog::{compare_versions, release_key, verify_manifest, UpdateResult},
+    catalog::{compare_versions, verify_manifest, UpdateResult},
     coordinator::Coordinator,
     policy::should_notify,
     protocol::{Phase, Status},
@@ -12,17 +12,20 @@ impl Coordinator<'_> {
         let preferences = self.store.preferences()?;
         let journal = self.store.journal()?;
         let installed = self.installer.installed()?;
-        let candidate = match &journal.pending {
-            Some(pending) => Some(self.accepted(pending)?),
+        let (candidate, catalog_code) = match &journal.pending {
+            Some(pending) => (Some(self.accepted(pending)?), None),
             None => match &journal.available_envelope {
-                Some(envelope) => Some(verify_manifest(
+                Some(envelope) => match verify_manifest(
                     envelope,
-                    &release_key()?,
+                    &self.key()?,
                     now as i64,
                     preferences.channel,
                     journal.seen.get(&preferences.channel),
-                )?),
-                None => None,
+                ) {
+                    Ok(verified) => (Some(verified), None),
+                    Err(code) => (None, Some(code.to_owned())),
+                },
+                None => (None, None),
             },
         };
         let target_version = if journal.pending.is_some() {
@@ -36,17 +39,27 @@ impl Coordinator<'_> {
             compare_versions(&value.manifest.version, &installed.version) == Ok(Ordering::Greater)
         });
         let version = available.map(|value| value.manifest.version);
-        let code = journal.code.clone().or_else(|| {
-            if journal.pending.is_none() {
-                journal.check_code.clone()
-            } else {
-                None
-            }
-        });
+        let active = crate::policy::active_transaction(&preferences, &journal);
+        let draining = crate::policy::draining(&preferences, &journal);
+        let code = journal
+            .code
+            .clone()
+            .or_else(|| {
+                if journal.pending.is_none() {
+                    journal.check_code.clone()
+                } else {
+                    None
+                }
+            })
+            .or(catalog_code);
         let phase = if code.is_some() {
             Phase::Failed
         } else if let Some(pending) = &journal.pending {
-            pending.phase
+            if active {
+                pending.phase
+            } else {
+                Phase::Available
+            }
         } else if journal.check_requested_at.is_some() || journal.last_checked_at.is_none() {
             Phase::Checking
         } else if version.is_some() {
@@ -61,10 +74,11 @@ impl Coordinator<'_> {
             installed_version: installed.version,
             source_commit: installed.source_commit,
             can_install: self.installer.target().is_ok(),
+            draining,
             phase,
-            notify: version.as_ref().is_some_and(|version| {
-                journal.pending.is_none() && should_notify(&preferences, version, now)
-            }),
+            notify: version
+                .as_ref()
+                .is_some_and(|version| !active && should_notify(&preferences, version, now)),
             available_version: version,
             target_version,
             last_checked_at: journal

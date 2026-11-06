@@ -99,6 +99,7 @@ pub struct Status {
     pub source_commit: String,
     pub channel: Channel,
     pub can_install: bool,
+    pub draining: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub available_version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -128,5 +129,6 @@ pub enum Request {
     Install,
     Automatic { enabled: bool },
     Remind,
+    Channel { channel: Channel },
     Request { request: UpdateRequest },
 }

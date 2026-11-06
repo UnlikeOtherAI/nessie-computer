@@ -1,8 +1,9 @@
-type UpdateWords = { unsupported: string; on: string; off: string; available: string; waiting: string;
+type UpdateWords = { channel: string; unsupported: string; on: string; off: string; available: string; waiting: string;
   failed: string; prompt: string; requested: string; requestFailed: string; unavailable: string }
 
 const translations: Record<string, UpdateWords> = {
   "en": {
+    "channel": "Release channel: {channel}.",
     "unsupported": "Update this installation with its package manager.",
     "on": "Automatic updates: on.",
     "off": "Automatic updates: off.",
@@ -15,6 +16,7 @@ const translations: Record<string, UpdateWords> = {
     "unavailable": "The installed Nessie Computer updater could not be reached."
   },
   "cs": {
+    "channel": "Kanál vydání: {channel}.",
     "unsupported": "Tuto instalaci aktualizujte pomocí správce balíčků.",
     "on": "Automatické aktualizace: zapnuté.",
     "off": "Automatické aktualizace: vypnuté.",
@@ -27,6 +29,7 @@ const translations: Record<string, UpdateWords> = {
     "unavailable": "Nainstalovaný aktualizátor Nessie Computer není dostupný."
   },
   "de": {
+    "channel": "Veröffentlichungskanal: {channel}.",
     "unsupported": "Aktualisieren Sie diese Installation mit der Paketverwaltung.",
     "on": "Automatische Updates: aktiviert.",
     "off": "Automatische Updates: deaktiviert.",
@@ -39,6 +42,7 @@ const translations: Record<string, UpdateWords> = {
     "unavailable": "Der installierte Nessie Computer-Updater ist nicht erreichbar."
   },
   "fr": {
+    "channel": "Canal de publication : {channel}.",
     "unsupported": "Mettez cette installation à jour avec son gestionnaire de paquets.",
     "on": "Mises à jour automatiques : activées.",
     "off": "Mises à jour automatiques : désactivées.",
@@ -51,6 +55,7 @@ const translations: Record<string, UpdateWords> = {
     "unavailable": "Le programme de mise à jour de Nessie Computer installé est inaccessible."
   },
   "it": {
+    "channel": "Canale di rilascio: {channel}.",
     "unsupported": "Aggiorna questa installazione con il suo gestore di pacchetti.",
     "on": "Aggiornamenti automatici: attivati.",
     "off": "Aggiornamenti automatici: disattivati.",
@@ -63,6 +68,7 @@ const translations: Record<string, UpdateWords> = {
     "unavailable": "Il programma di aggiornamento di Nessie Computer installato non è raggiungibile."
   },
   "es": {
+    "channel": "Canal de publicación: {channel}.",
     "unsupported": "Actualiza esta instalación con su gestor de paquetes.",
     "on": "Actualizaciones automáticas: activadas.",
     "off": "Actualizaciones automáticas: desactivadas.",

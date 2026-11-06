@@ -14,6 +14,9 @@ Turbo using `scripts/turbo.public.json`; package tests must retain their build
 prerequisites. Windows state tests require the real native ACL helper beside
 their test Node. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
+The native coordinator, constrained OS installers and local update policy follow
+[automatic updates](docs/automatic-updates.md); use `test:updates` and
+`test:updates-native` through the public Turbo graph for their focused gates.
 
 Public contribution CI has no production signing credentials. Build candidates
 separately from publication. Official release signing retains UnlikeOtherAI's

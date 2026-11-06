@@ -50,6 +50,10 @@
     "//#test:updates": {
       "dependsOn": ["^build"],
       "cache": false
+    },
+    "//#test:updates-native": {
+      "dependsOn": ["^build"],
+      "cache": false
     }
   }
 }

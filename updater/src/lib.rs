@@ -7,3 +7,4 @@ pub mod protocol;
 pub mod service;
 pub mod status;
 pub mod storage;
+mod supersession;

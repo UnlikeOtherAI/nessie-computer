@@ -16,6 +16,7 @@ export const ExecutorSoftwareStatusSchema = z.object({
   channel: z.enum(['stable', 'preview']),
   phase: ExecutorUpdatePhaseSchema,
   canInstall: z.boolean(),
+  draining: z.boolean().optional(),
   lastCheckedAt: z.string().datetime().optional(),
   code: z.string().regex(/^update\.[a-z_]{1,64}$/u).optional(),
   requestId: z.string().uuid().optional(),
@@ -40,5 +41,6 @@ export const ExecutorLocalUpdateRequestSchema = z.discriminatedUnion('operation'
   z.object({ operation: z.literal('install') }).strict(),
   z.object({ operation: z.literal('automatic'), enabled: z.boolean() }).strict(),
   z.object({ operation: z.literal('remind') }).strict(),
+  z.object({ operation: z.literal('channel'), channel: z.enum(['stable', 'preview']) }).strict(),
 ])
 export type ExecutorLocalUpdateRequest = z.infer<typeof ExecutorLocalUpdateRequestSchema>

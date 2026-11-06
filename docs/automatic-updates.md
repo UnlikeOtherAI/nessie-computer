@@ -96,16 +96,55 @@ open protected provider profiles to an older process.
 
 ## Required verification before enabling a channel
 
+Deploy Nessie's software-reporting API and nullable schema migration before
+enabling the public stable channel. The new signed heartbeat includes software
+metadata; older control planes can reject unknown request fields. Preview
+verification uses the matching private implementation in an isolated instance.
+
+Windows native source now includes a SYSTEM broker and an independent protected
+worker. The MSI establishes its root and points SCM at a durable signed image
+outside the package being replaced. Normal service recovery restarts it after
+failure. Controls accept fixed update operations only; no caller can supply a
+path, executable, URL or installer argument. A persistent kernel lock serializes
+native runtime creation and replacement. Existing custody records remain owned
+and written by the executor service; the updater reads their shared contract.
+The broker authenticates its SYSTEM peer, protected image and pinned publisher.
+
+The daemon waits for live command, browser and coding sessions to finish;
+inference pauses new claims while active generations finish normally. Automatic
+opt-out restores admissions before installation starts. Installation is reported
+only after native clearance and a durable journal write. The MSI identity,
+version, guard floor, digest and publisher must match, and Restart Manager is
+prevented from stopping applications. A fresh native-created daemon with the
+new immutable release supplies restart confirmation. Partial installation uses
+the surviving trusted worker and original accepted transaction for repair.
+
+These Windows paths compile but have not yet passed a signed installed upgrade.
+macOS and Linux installer adapters remain disabled until their native package,
+publisher and clearance paths are implemented and verified. The local console
+preference and popup, app restart coordination, and the Desktop transition to
+the independent runtime are also unfinished. No public update channel is enabled.
+
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue
 outages and expiry using its originally verified signed bytes. Kernel-owned
 worker and journal locks recover after process exit; network calls never hold
 the preference lock. A concurrent local opt-out survives every progress write.
+An explicitly selected newer signed release can recover a failed transaction;
+its predecessor, failure code and request remain archived, and native fences
+stay authoritative until replacement and fresh health are verified. Expired
+catalogues do not hide the installed version or block local policy changes.
 Manual requests join the current transaction and never authorize an unrelated
 future release. Corrupt downloads are retained for diagnosis before a fresh
 attempt. CLI launch checks are bounded and human-terminal-only, with the same
 supported languages as Nessie. The pending target version remains visible
 after package replacement while fresh runtime confirmation is outstanding.
+
+`nessie-executor updates` supports `status`, `check`, `install`, `remind`,
+`automatic on`, `automatic off`, `channel stable` and `channel preview`, with
+`--json` for machine-readable status. Channels are fixed vendor origins; a
+remote Nessie request cannot change them. Stable is the default. Channel changes
+wait until an accepted installation finishes; they cannot retarget its package.
 
 Use the actual signed installed package on Windows, macOS and Linux. Exercise
 automatic installation, persistent opt-out, popup and reminders, explicit

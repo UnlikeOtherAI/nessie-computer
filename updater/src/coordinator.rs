@@ -1,6 +1,6 @@
 //! One transaction owner for all installed platforms. Only native hosts implement installation.
 use crate::{
-    catalog::{compare_versions, release_key, verify_manifest, UpdateResult},
+    catalog::{compare_versions, verify_manifest, UpdateResult},
     network::{self, Network},
     protocol::{Manifest, PendingInstall, Phase, SeenRelease, Target, VerifiedManifest},
     storage::{Journal, Store},
@@ -21,9 +21,17 @@ pub struct Installed {
 pub trait Installer {
     fn target(&self) -> UpdateResult<Target>;
     fn installed(&self) -> UpdateResult<Installed>;
+    /// Pause new daemon creation while existing work drains. Existing runtime
+    /// factories stay available until independent clearance permits replacement.
+    fn set_draining(&self, draining: bool, restart_ready: bool) -> UpdateResult<()>;
     fn verify_publishers(&self, manifest: &Manifest, directory: &Path) -> UpdateResult<()>;
     /// False means active work or unresolved native clearance; do not stop or cancel it.
-    fn replace_when_clear(&self, manifest: &Manifest, directory: &Path) -> UpdateResult<bool>;
+    fn replace_when_clear(
+        &self,
+        manifest: &Manifest,
+        directory: &Path,
+        begin: &mut dyn FnMut() -> UpdateResult<()>,
+    ) -> UpdateResult<bool>;
     /// A newly running verified installation, not merely newer files on disk.
     fn confirm_restarted(&self, manifest: &Manifest) -> UpdateResult<bool>;
 }
@@ -32,15 +40,27 @@ pub struct Coordinator<'a> {
     pub store: &'a Store,
     pub network: &'a Network,
     pub installer: &'a dyn Installer,
+    #[cfg(test)]
+    pub(crate) test_key: String,
 }
 
 impl Coordinator<'_> {
+    pub(crate) fn key(&self) -> UpdateResult<String> {
+        #[cfg(test)]
+        {
+            Ok(self.test_key.clone())
+        }
+        #[cfg(not(test))]
+        {
+            crate::catalog::release_key()
+        }
+    }
     pub(crate) fn accepted(&self, pending: &PendingInstall) -> UpdateResult<VerifiedManifest> {
         // A root-owned accepted transaction survives catalogue expiry during reboot.
         // Verify its original signed validity interval at acceptance, and retain its replay floor.
         let verified = verify_manifest(
             &pending.envelope,
-            &release_key()?,
+            &self.key()?,
             pending.started_at as i64,
             pending.channel,
             None,
@@ -57,7 +77,7 @@ impl Coordinator<'_> {
         let envelope = self.network.catalog(preferences.channel)?;
         let verified = verify_manifest(
             &envelope,
-            &release_key()?,
+            &self.key()?,
             now as i64,
             preferences.channel,
             journal.seen.get(&preferences.channel),
@@ -76,7 +96,7 @@ impl Coordinator<'_> {
                 // Another check may have completed while this download was in flight.
                 verify_manifest(
                     &envelope,
-                    &release_key()?,
+                    &self.key()?,
                     now as i64,
                     preferences.channel,
                     current.seen.get(&preferences.channel),
@@ -92,14 +112,18 @@ impl Coordinator<'_> {
                 if current.check_requested_at == journal.check_requested_at {
                     current.check_requested_at = None;
                 }
-                current.available_envelope = if ordering == Ordering::Greater {
-                    Some(envelope)
-                } else {
+                if ordering != Ordering::Greater {
                     // An Update now request applies to this check, never to a
                     // future release after the person has disabled installation.
                     if current.pending.is_none() && current.request_id == journal.request_id {
                         current.manual = false;
                     }
+                }
+                // Retain an equal signed release to reconcile an installation
+                // completed by the OS package manager outside this worker.
+                current.available_envelope = if ordering != Ordering::Less {
+                    Some(envelope)
+                } else {
                     None
                 };
                 current.check_code = None;
@@ -154,6 +178,7 @@ impl Coordinator<'_> {
     }
 
     pub fn advance(&self, now: u64) -> UpdateResult<()> {
+        self.supersede(now)?;
         let preferences = self.store.preferences()?;
         let journal = self.store.journal()?;
         if journal.pending.is_none() {
@@ -165,7 +190,7 @@ impl Coordinator<'_> {
             };
             let verified = verify_manifest(
                 envelope,
-                &release_key()?,
+                &self.key()?,
                 now as i64,
                 preferences.channel,
                 journal.seen.get(&preferences.channel),
@@ -179,6 +204,9 @@ impl Coordinator<'_> {
             }
             self.store.mutate_journal(|current| {
                 if current.pending.is_none() {
+                    if self.store.preferences()?.channel != preferences.channel {
+                        return Err("update.channel_changed");
+                    }
                     current.pending = Some(PendingInstall {
                         channel: preferences.channel,
                         envelope: envelope.clone(),
@@ -208,6 +236,16 @@ impl Coordinator<'_> {
         let directory = self.stage_directory(&pending.digest)?;
         match pending.phase {
             Phase::Downloading => {
+                let required = assets.iter().try_fold(1_073_741_824_u64, |total, asset| {
+                    total
+                        .checked_add(asset.size.checked_mul(4).ok_or("update.invalid_asset")?)
+                        .ok_or("update.invalid_asset")
+                })?;
+                if fs2::available_space(&directory).map_err(|_| "update.disk_unavailable")?
+                    < required
+                {
+                    return Err("update.insufficient_disk_space");
+                }
                 for asset in assets {
                     self.network.download(asset, &directory)?;
                 }
@@ -221,14 +259,20 @@ impl Coordinator<'_> {
                     return Ok(());
                 }
                 for asset in assets {
-                    network::verify_file(&directory.join(&asset.name), asset)?;
+                    if let Err(code) = network::verify_file(&directory.join(&asset.name), asset) {
+                        // Repair this same accepted transaction. Native
+                        // maintenance fences survive the temporary re-download.
+                        self.phase(&mut journal, Phase::Downloading)?;
+                        return Err(code);
+                    }
                 }
                 self.installer
                     .verify_publishers(&verified.manifest, &directory)?;
-                self.phase(&mut journal, Phase::Installing)?;
                 if self
                     .installer
-                    .replace_when_clear(&verified.manifest, &directory)?
+                    .replace_when_clear(&verified.manifest, &directory, &mut || {
+                        self.phase(&mut journal, Phase::Installing)
+                    })?
                 {
                     self.phase(&mut journal, Phase::Restarting)?;
                 } else {
@@ -236,7 +280,13 @@ impl Coordinator<'_> {
                 }
             }
             Phase::Restarting => {
-                let installed = self.installer.installed()?;
+                let installed = match self.installer.installed() {
+                    Ok(installed) => installed,
+                    Err(code) => {
+                        self.phase(&mut journal, Phase::Installing)?;
+                        return Err(code);
+                    }
+                };
                 if installed.version != verified.manifest.version
                     || installed.source_commit != verified.manifest.source_commit
                     || !self.installer.confirm_restarted(&verified.manifest)?
@@ -297,3 +347,7 @@ impl Coordinator<'_> {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "coordinator_tests.rs"]
+mod tests;

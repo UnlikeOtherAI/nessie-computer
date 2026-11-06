@@ -39,6 +39,9 @@ export function nativeCiInputs(files, before, after) {
     guest ||= file.startsWith('guest/')
     macosTests ||= file.startsWith('menubar-macos/')
     if (testing(file) || /(?:^|\/)turbo\.[^/]+$/u.test(file)) continue
+    // The updater is linked into the native helper and shipped by each app.
+    helper ||= file.startsWith('updater/')
+    helperPayload ||= file.startsWith('updater/')
     if (file.endsWith('package.json')) {
       try { if (JSON.stringify(packageInputs(before(file))) === JSON.stringify(packageInputs(after(file)))) continue }
       catch { /* An unknown build configuration selects verification. */ }

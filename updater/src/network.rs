@@ -171,19 +171,23 @@ fn quarantine(path: &Path) -> UpdateResult<()> {
     if !metadata.is_file() || metadata.file_type().is_symlink() {
         return Err("update.invalid_asset");
     }
-    let nonce = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| "update.download_failed")?
-        .as_nanos();
     let name = path
         .file_name()
         .and_then(|value| value.to_str())
         .ok_or("update.invalid_asset")?;
-    fs::rename(
-        path,
-        path.with_file_name(format!("{name}.rejected.{nonce}")),
-    )
-    .map_err(|_| "update.download_failed")
+    let retained = path.with_file_name(format!("{name}.rejected"));
+    match fs::symlink_metadata(&retained) {
+        Ok(entry) if entry.is_file() && !entry.file_type().is_symlink() => {
+            // Keep the first corrupt sample. Repeated untrusted bytes cannot
+            // grow diagnostic storage without bound or replace its evidence.
+            fs::remove_file(path).map_err(|_| "update.download_failed")
+        }
+        Ok(_) => Err("update.invalid_asset"),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::rename(path, retained).map_err(|_| "update.download_failed")
+        }
+        Err(_) => Err("update.download_failed"),
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +214,9 @@ mod tests {
             .unwrap()
             .path();
         assert_eq!(fs::read(rejected).unwrap(), b"evil");
+        fs::write(&path, b"other bad bytes").unwrap();
+        quarantine(&path).unwrap();
+        assert_eq!(fs::read_dir(directory.path()).unwrap().count(), 1);
         fs::write(&path, b"good").unwrap();
         verify_file(&path, &asset).unwrap();
     }

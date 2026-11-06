@@ -14,10 +14,20 @@ fn jitter() -> u64 {
 }
 
 impl Coordinator<'_> {
+    fn publish_admission(&self, journal: &crate::storage::Journal) -> UpdateResult<()> {
+        self.installer.set_draining(
+            crate::policy::draining(&self.store.preferences()?, journal),
+            journal
+                .pending
+                .as_ref()
+                .is_some_and(|pending| pending.phase == crate::protocol::Phase::Restarting),
+        )
+    }
     /// Accepted transactions resume even when a fresh catalogue check is offline.
     pub fn tick(&self, now: u64) -> UpdateResult<()> {
         let _worker = self.store.worker()?;
         let journal = self.store.journal()?;
+        self.publish_admission(&journal)?;
         let check_due = journal.next_check_at <= now
             || journal
                 .check_requested_at
@@ -52,7 +62,7 @@ impl Coordinator<'_> {
             return Ok(());
         }
         let result = self.advance(now);
-        self.store.mutate_journal(|current| {
+        let current = self.store.mutate_journal(|current| {
             match result {
                 Ok(()) => {
                     current.install_failures = 0;
@@ -67,6 +77,7 @@ impl Coordinator<'_> {
             }
             Ok(())
         })?;
+        self.publish_admission(&current)?;
         Ok(())
     }
 }

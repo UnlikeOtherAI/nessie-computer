@@ -3,7 +3,8 @@ import { localUpdate } from './native-client.js'
 import { cliUpdateWords } from './words.js'
 import type { ExecutorLocalUpdateRequest, ExecutorLocalUpdateStatus } from '@nessie/executor-protocol'
 
-const usage = 'Usage: nessie-executor updates [status|check|install|remind|automatic on|automatic off] [--json]'
+const usage = 'Usage: nessie-executor updates '
+  + '[status|check|install|remind|automatic on|automatic off|channel stable|channel preview] [--json]'
 
 export const parseUpdateArguments = (args: string[]): {
   request: ExecutorLocalUpdateRequest; json: boolean
@@ -19,6 +20,9 @@ export const parseUpdateArguments = (args: string[]): {
   if (values.length === 2 && values[0] === 'automatic' && ['on', 'off'].includes(values[1] ?? '')) {
     return { request: { operation: 'automatic', enabled: values[1] === 'on' }, json }
   }
+  if (values.length === 2 && values[0] === 'channel' && ['stable', 'preview'].includes(values[1] ?? '')) {
+    return { request: { operation: 'channel', channel: values[1] as 'stable' | 'preview' }, json }
+  }
   throw new Error(usage)
 }
 
@@ -26,6 +30,7 @@ const describe = (status: ExecutorLocalUpdateStatus): string => {
   const words = cliUpdateWords()
   return [
   `Nessie Computer ${status.installedVersion}`,
+  words.channel.replace('{channel}', status.channel),
   ...(status.phase === 'unsupported' ? [words.unsupported] : [
     status.automatic ? words.on : words.off,
     ...(status.availableVersion ? [words.available.replace('{version}', status.availableVersion)] : []),
@@ -39,7 +44,8 @@ export const runUpdateCli = async (args: string[]): Promise<boolean> => {
   const command = parseUpdateArguments(args)
   if (!command) return false
   const status = await localUpdate(command.request).catch(() => { throw new Error(cliUpdateWords().unavailable) })
-  process.stdout.write(command.json ? `${JSON.stringify(status)}\n` : `${describe(status)}\n`)
+  const acknowledgement = command.request.operation === 'install' ? `${cliUpdateWords().requested}\n` : ''
+  process.stdout.write(command.json ? `${JSON.stringify(status)}\n` : `${acknowledgement}${describe(status)}\n`)
   return true
 }
 

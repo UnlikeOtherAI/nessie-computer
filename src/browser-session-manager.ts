@@ -35,6 +35,7 @@ type PreparedLeaseSource = {
 }
 
 export type ExecutorBrowserSessionManager = {
+  isIdle: () => boolean
 	act: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
   observe: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
   open: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
@@ -87,6 +88,7 @@ export const createExecutorBrowserSessionManager = (
   }
 
   return {
+    isIdle: () => activeByRun.size === 0 && openingByRun.size === 0,
     open: async (command, runId) => {
       const browserSandbox = state.browserSandbox
       if (!browserSandbox) return unavailable()
