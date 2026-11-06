@@ -18,6 +18,7 @@ The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
 The shared local Settings/update popup has a headless `--updates-only` renderer journey documented there; keep it out of CI.
+The macOS update PKG carries both the signed app and its protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 
 Public contribution CI has no production signing credentials. Build candidates
 separately from publication. Official release signing retains UnlikeOtherAI's

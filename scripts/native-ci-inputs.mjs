@@ -29,8 +29,10 @@ export function nativeCiInputs(files, before, after) {
   let runtime = false, helper = false, helperPayload = false, windows = false, vm = false, guest = false, macosApp = false
   let macosTests = false
   let updater = false
+  let linuxHelper = false
   for (const file of files) {
     if (documentation(file)) continue
+    linuxHelper ||= file.startsWith('packaging/linux/keys/')
     updater ||= file.startsWith('updater/')
     helper ||= file.startsWith('native/')
     const windowsPath = /^(?:windows-common|windows-provenance|service-windows|tray-windows)\//u.test(file)
@@ -65,7 +67,7 @@ export function nativeCiInputs(files, before, after) {
     macosApp ||= file.startsWith('menubar-macos/') || file.startsWith('packaging/macos/') || file === '.swiftlint.yml'
   }
   macosApp ||= helperPayload || runtime
-  return { helper, updater, windows: windows || helperPayload || runtime, vm, guest, macos_app: macosApp,
+  return { helper, linux_helper: linuxHelper, updater, windows: windows || helperPayload || runtime, vm, guest, macos_app: macosApp,
     macos_tests: macosTests || macosApp }
 }
 

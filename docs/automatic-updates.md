@@ -9,6 +9,14 @@ The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
 helper. A development-labelled bundle is not a release candidate.
 
+macOS release construction supplies that version to its native helper, CLI
+bundle and application Info dictionary. The custody PKG producer takes the
+prepared runtime, output directory, numeric version and signed menu app as its
+four arguments, followed by `--require-signed`. It checks the app's publisher,
+independent-consumer floor and exact embedded runtime manifest, then packages
+both the app and protected runtime in one signed, notarized transaction.
+Unsigned candidates remain explicitly labelled and cannot be installed.
+
 The `updater/` Rust crate owns signed catalogue selection, bounded resumable
 downloads and the durable installation journal. Its host installer adapters
 and authenticated local transport are still being connected. A corrupt complete
@@ -176,6 +184,11 @@ their installer/health adapters are not accepted yet. The macOS
 custody package now carries the `current` symlink its consumers select.
 An installed but incomplete macOS factory is kept as the launch target so a
 partial replacement cannot silently fall back to the app's older bundled Node.
+
+On Linux, a real systemd host enables and starts the updater unit. A container
+or offline image without systemd as PID 1 only enables the unit for a later
+host boot; it does not claim that a coordinator is running or gain personal
+credential eligibility.
 
 Unix adapters use the existing machine lock, all-account public native journals
 and two kernel inventories. A current-boot orphan remains a blocker; the updater

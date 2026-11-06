@@ -34,10 +34,14 @@ pub(super) fn configure(image: &Path) -> UpdateResult<()> {
         Restart=always\nRestartSec=5\nKillMode=process\nSendSIGKILL=no\nTimeoutStopSec=10\n\
         [Install]\nWantedBy=multi-user.target\n", image.display());
     write(Path::new("/etc/systemd/system/nessie-executor-updater.service"), unit.as_bytes())?;
-    run("/usr/bin/systemctl", &["daemon-reload"])?;
+    let running = Path::new("/run/systemd/system").is_dir()
+        && fs::read_to_string("/proc/1/comm").is_ok_and(|value| value.trim() == "systemd");
+    if running { run("/usr/bin/systemctl", &["daemon-reload"])?; }
     // An already running broker remains alive through package replacement. Its
     // next clean restart uses the new protected image; no worker is cancelled.
-    run("/usr/bin/systemctl", &["enable", "--now", "nessie-executor-updater.service"])
+    let arguments: &[&str] = if running { &["enable", "--now", "nessie-executor-updater.service"] }
+        else { &["enable", "nessie-executor-updater.service"] };
+    run("/usr/bin/systemctl", arguments)
 }
 
 #[cfg(target_os = "macos")]

@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { nativeCiInputs } from './native-ci-inputs.mjs'
 
-const empty = { helper: false, updater: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+const empty = { helper: false, linux_helper: false, updater: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+
+test('a Linux package publisher rotation verifies only the Linux native trust consumer', () => {
+  assert.deepEqual(nativeCiInputs(['packaging/linux/keys/unlikeotherai-executor.gpg'], () => null, () => null),
+    { ...empty, linux_helper: true })
+})
 
 test('the native updater selects its linked helper and actual app consumers', () => {
   assert.deepEqual(nativeCiInputs(['updater/src/network.rs'], () => null, () => null),

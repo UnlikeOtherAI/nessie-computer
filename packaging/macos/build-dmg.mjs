@@ -115,8 +115,8 @@ const plistValue = async (appPath, key) => {
  * here: the desktop bundle, the Linux package and this installer are three
  * callers of one preparation.
  */
-const embedExecutorRuntime = async (appPath) => prepareMacExecutorRuntime(repositoryDirectory,
-  join(appPath, EXECUTOR_RUNTIME_DIRECTORY))
+const embedExecutorRuntime = async (appPath, version) => prepareMacExecutorRuntime(repositoryDirectory,
+  join(appPath, EXECUTOR_RUNTIME_DIRECTORY), version)
 
 const sha256File = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 
@@ -160,7 +160,10 @@ const version = resolveDmgVersion({
 const name = dmgFileName(version, process.arch, mode.kind)
 const packagePath = join(outputDirectory, name)
 
-const runtime = await embedExecutorRuntime(appPath)
+for (const key of ['CFBundleShortVersionString', 'CFBundleVersion']) {
+  await run('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${version}`, join(appPath, 'Contents/Info.plist')])
+}
+const runtime = await embedExecutorRuntime(appPath, version)
 
 if (mode.kind === 'release') {
   await signMacApp(appPath, mode, runtime)

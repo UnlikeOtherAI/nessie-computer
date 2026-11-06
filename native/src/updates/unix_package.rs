@@ -1,8 +1,12 @@
 //! Fixed native package identity and publisher checks precede privileged replacement.
-use super::{admission_unix, host::root, unix_runtime::{self, ERROR}};
+use super::{admission_unix, unix_runtime::{self, ERROR}};
+#[cfg(target_os = "linux")]
+use super::host::root;
 use nessie_executor_updater::{catalog::UpdateResult, protocol::{Manifest, Target}};
-use std::{fs::{self, OpenOptions}, io::{Read, Write}, os::unix::fs::OpenOptionsExt,
+use std::{io::{Read, Write},
     path::{Path, PathBuf}, process::{Command, Stdio}, time::{Duration, Instant}};
+#[cfg(target_os = "linux")]
+use std::{fs::{self, OpenOptions}, os::unix::fs::OpenOptionsExt};
 
 pub(super) fn target() -> UpdateResult<Target> {
     if std::env::consts::ARCH != "x86_64" && std::env::consts::ARCH != "aarch64" {
