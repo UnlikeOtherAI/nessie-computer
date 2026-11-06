@@ -23,19 +23,29 @@ fn spawn_worker() -> Result<Child, String> {
 }
 fn connection(stream: UnixStream) -> Result<(), String> {
     let _ = super::unix_health::observe(&stream);
+    #[cfg(target_os = "macos")]
+    let _ = super::macos_applications::observe(&stream);
     stream.set_read_timeout(Some(Duration::from_secs(5))).map_err(|_| ERROR)?;
     stream.set_write_timeout(Some(Duration::from_secs(5))).map_err(|_| ERROR)?;
     let mut bytes = Vec::new();
     let mut reader = BufReader::new(stream.take(16_385));
     reader.read_until(b'\n', &mut bytes).map_err(|_| ERROR)?;
     if bytes.len() > 16_384 || !bytes.ends_with(b"\n") { return Err(ERROR.into()); }
-    let response = serde_json::from_slice::<Request>(&bytes).map_err(|_| ERROR.to_owned()).and_then(|request| {
+    let response = (|| {
+        #[cfg(target_os = "macos")]
+        {
+            let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| ERROR.to_owned())?;
+            if value["operation"] == "application_wait" && value.as_object().is_some_and(|value| value.len() == 1) {
+                return super::macos_applications::wait(reader.get_ref().get_ref()).map_err(str::to_owned);
+            }
+        }
+        let request: Request = serde_json::from_slice(&bytes).map_err(|_| ERROR.to_owned())?;
         let store = Store::new(host::root().map_err(str::to_owned)?);
         let network = Network::default();
         let installer = Host;
         Coordinator { store: &store, network: &network, installer: &installer }.control(request, now())
             .map(|value| serde_json::to_value(value).unwrap()).map_err(str::to_owned)
-    });
+    })();
     let response = response.unwrap_or_else(|code| serde_json::json!({"error":code}));
     let mut bytes = serde_json::to_vec(&response).map_err(|_| ERROR)?;
     bytes.push(b'\n');

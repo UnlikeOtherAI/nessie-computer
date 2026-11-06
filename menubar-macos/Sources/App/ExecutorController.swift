@@ -77,7 +77,7 @@ final class ExecutorController: ObservableObject {
 
     func start() {
         pairing.restore()
-        refresh(startWhenPaired: true)
+        refresh(startWhenPaired: ConnectionRunPreference.wanted(stateDirectory))
         // The daemon's own lease and a child that exited on its own are both
         // facts this app has to notice without being clicked, so the icon can
         // never be showing something that stopped being true.
@@ -260,6 +260,7 @@ final class ExecutorController: ObservableObject {
         }
         if daemon?.isRunning == true { return }
         wantsDaemon = true
+        ConnectionRunPreference.set(true, for: stateDirectory)
         if leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) {
             fail("The prior local daemon is still tearing down. Wait for it to finish before starting again.")
             if automatic { scheduleRestart(ran: 0) }
@@ -311,6 +312,7 @@ final class ExecutorController: ObservableObject {
     }
 
     private func beginStop() -> SupervisedDaemon? {
+        ConnectionRunPreference.set(false, for: stateDirectory)
         startAfterRefresh = false
         wantsDaemon = false
         restarts.cancel()
@@ -341,6 +343,8 @@ final class ExecutorController: ObservableObject {
     func shutdown() {
         pairing.shutdown()
         guard daemon != nil else { return }
+        let wanted = ConnectionRunPreference.wanted(stateDirectory)
+        defer { ConnectionRunPreference.set(wanted, for: stateDirectory) }
         _ = stopDaemon()
         daemon?.parentLiveness.closeFile()
         daemon = nil

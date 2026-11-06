@@ -13,7 +13,7 @@ pub const SOCKET: &str = "/Library/Application Support/Nessie Executor/update-co
 pub const PIPE: &str = nessie_windows_common::update_channel::PIPE;
 
 #[cfg(unix)]
-fn exchange(mut stream: impl Read + Write, request: &Request) -> Result<serde_json::Value, String> {
+fn exchange(mut stream: impl Read + Write, request: &serde_json::Value) -> Result<serde_json::Value, String> {
     let mut bytes = serde_json::to_vec(request).map_err(|_| REJECTED)?;
     bytes.push(b'\n');
     stream
@@ -36,6 +36,11 @@ fn exchange(mut stream: impl Read + Write, request: &Request) -> Result<serde_js
 
 #[cfg(unix)]
 pub fn call(request: &Request) -> Result<serde_json::Value, String> {
+    call_value(&serde_json::to_value(request).map_err(|_| REJECTED)?)
+}
+
+#[cfg(unix)]
+pub(super) fn call_value(request: &serde_json::Value) -> Result<serde_json::Value, String> {
     use std::{
         fs,
         os::{

@@ -18,6 +18,7 @@ pub enum Command {
     UpdateService,
     UpdateInstall,
     UpdateWorker,
+    UpdateApplicationReopen,
     PersonalChatgptBrowser,
     /// Run one program â€” a coding agent â€” inside a Job Object that kills the
     /// whole tree when the helper exits, passing stdio through and exiting
@@ -110,6 +111,7 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
         [command] if command == "update-service" => Ok(Command::UpdateService),
         [command] if command == "update-install" => Ok(Command::UpdateInstall),
         [command] if command == "update-worker" => Ok(Command::UpdateWorker),
+        [command] if command == "update-application-reopen" => Ok(Command::UpdateApplicationReopen),
         [command] if command == "personal-chatgpt-browser" => Ok(Command::PersonalChatgptBrowser),
         [command] if command == "managed-host-check" => Ok(Command::ManagedHostCheck),
         [command] if command == "managed-protection-status" => Ok(Command::ManagedProtectionStatus),

@@ -96,12 +96,16 @@ pub(super) fn records(uid: u32, root: &Path) -> UpdateResult<Vec<Record>> {
     Ok(records)
 }
 
-fn allowed(process: &Process) -> UpdateResult<bool> {
+fn allowed(process: &Process, menu_apps: bool) -> UpdateResult<bool> {
+    #[cfg(not(target_os = "macos"))]
+    let _ = menu_apps;
     if process.executable.file_name().and_then(|name| name.to_str()) == Some("nessie-computer-updater") {
         if process.uid != 0 { return Err(ERROR); }
         let _pin = unix_runtime::pin_worker(&process.executable)?;
         return Ok(true);
     }
+    #[cfg(target_os = "macos")]
+    if super::macos_applications::allowed(process, menu_apps)? { return Ok(true); }
     #[cfg(target_os = "macos")]
     if ["/Applications/Nessie.app/Contents/MacOS/Nessie", "/Applications/Nessie Desktop.app/Contents/MacOS/Nessie"]
         .iter().any(|path| process.executable == Path::new(path)) {
@@ -116,13 +120,23 @@ fn allowed(process: &Process) -> UpdateResult<bool> {
 
 /// MachineBarrier is retained by the caller. Never prune records to get clear.
 pub(super) fn ready() -> UpdateResult<bool> {
+    ready_with(false, None)
+}
+
+pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResult<bool> {
     for (uid, root) in roots()? {
         if !records(uid, &root)?.is_empty() { return Ok(false); }
     }
     let mut initial = unix_process::products()?;
     initial.sort_by_key(|process| process.pid);
     for process in &initial {
-        if !allowed(process)? { return Ok(false); }
+        let generic_node = matches!(process.executable.file_name().and_then(|name| name.to_str()), Some("node" | "nodejs"));
+        let product_path = process.executable.components().any(|component| component.as_os_str().to_string_lossy()
+            .to_ascii_lowercase().contains("nessie"));
+        let product_parent = initial.iter().any(|parent| parent.pid == process.parent && parent.executable.file_name()
+            .is_some_and(|name| name.to_string_lossy().to_ascii_lowercase().starts_with("nessie")));
+        if generic_node && !product_path && !product_parent { continue; }
+        if agent != Some(process) && !allowed(process, menu_apps)? { return Ok(false); }
         if !unix_process::same_generation(process)? { return Ok(false); }
     }
     let mut second = unix_process::products()?;

@@ -197,8 +197,17 @@ parent and confirms the new daemon's actual process generation. A stopped or
 unpaired installation instead executes the exact new native helper's compiled
 build information. Linux additionally verifies the pinned package publisher in
 `packaging/linux/keys`; macOS checks the Installer team, Gatekeeper and package
-identifier/version. Initial retirement of legacy creators, menu-app restart and
-installed package recovery still need completion before release.
+identifier/version. Initial retirement of legacy creators and installed package
+recovery still need completion before release.
+
+The macOS menu app now requests a native handoff once runtime work is clear.
+The Root broker records the actual app and agent process generations. A retained
+same-user native agent waits while the app is replaced, then opens only the
+publisher-verified fixed installed app after the replacement is admitted.
+It does not run Node as Root. Completion also requires a new verified app
+generation. The menu app remembers each connection's local running switch;
+an update or app reopen must not start a connection the person stopped.
+These handoff and late-stop paths still need signed installed acceptance.
 
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue

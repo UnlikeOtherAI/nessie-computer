@@ -18,6 +18,8 @@ pub(crate) mod unix_health;
 mod unix_package;
 #[cfg(unix)]
 mod broker_unix;
+#[cfg(target_os = "macos")]
+mod macos_applications;
 
 use crate::protocol::NativeError;
 use nessie_executor_updater::protocol::Request;
@@ -53,4 +55,11 @@ pub fn install() -> Result<(), NativeError> {
 }
 pub fn worker() -> Result<(), NativeError> {
     broker::worker().map_err(|_| rejected())
+}
+
+pub fn reopen_application() -> Result<(), NativeError> {
+    #[cfg(target_os = "macos")]
+    { macos_applications::reopen().map_err(|_| rejected()) }
+    #[cfg(not(target_os = "macos"))]
+    { Err(rejected()) }
 }

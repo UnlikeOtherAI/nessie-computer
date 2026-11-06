@@ -71,6 +71,7 @@ enum ExecutorUpdateControl {
 final class ExecutorUpdateMonitor {
     private var task: Task<Void, Never>?
     private var announced: String?
+    private let restart = ExecutorApplicationRestart()
 
     func start(console: ConsoleWindowController, connections: ExecutorConnections) {
         task = Task { [weak self, weak console, weak connections] in
@@ -78,6 +79,9 @@ final class ExecutorUpdateMonitor {
                 if let status = try? await ExecutorUpdateControl.run(["operation": "status"]),
                    let self, let console {
                     let version = status["availableVersion"] as? String
+                    if status["phase"] as? String == "waiting", status["draining"] as? Bool == true {
+                        self.restart.start()
+                    }
                     if status["canInstall"] as? Bool == true,
                        status["draining"] as? Bool != true || (status["phase"] as? String == "restarting"
                         && status["installedVersion"] as? String == status["targetVersion"] as? String) {
@@ -95,5 +99,8 @@ final class ExecutorUpdateMonitor {
         }
     }
 
-    func stop() { task?.cancel() }
+    func stop() {
+        task?.cancel()
+        restart.stop()
+    }
 }

@@ -128,8 +128,12 @@ pub(super) fn confirm_restarted(manifest: &Manifest) -> UpdateResult<bool> {
             && value["managedLaunchProtocol"] == 1 && value["personalInferenceGuardVersion"] == 2
     } else { false };
     if !healthy { return Ok(false); }
+    #[cfg(target_os = "macos")]
+    if !super::macos_applications::confirmed(&manifest.source_commit)? { return Ok(false); }
     let _barrier = crate::managed_machine_barrier::MachineBarrier::acquire().map_err(|_| "update.admission_busy")?;
     let mut state = super::admission_unix::read()?;
+    #[cfg(target_os = "macos")]
+    super::macos_applications::complete()?;
     state.target = None;
     super::admission_unix::write(&state)?;
     Ok(true)
