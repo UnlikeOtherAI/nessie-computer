@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { ExecutorCodingSessionOwnerKeySchema, ExecutorCodingSessionSummarySchema } from './executor-coding-sessions.js'
+import { ExecutorSessionAnswerSchema, ExecutorSessionRequestListSchema } from './executor-session-requests.js'
 
 export const EXECUTOR_TERMINAL_COLS = 120
 export const EXECUTOR_TERMINAL_ROWS = 36
@@ -39,6 +40,8 @@ export const ExecutorSessionConversationSchema = z.object({
   capturedAt: z.string().datetime(),
   sendMode: z.enum(['managed', 'queue', 'push']).nullable(),
   canInterrupt: z.boolean(),
+  /** Pending requests first, then recently settled ones so their cards can say what happened. */
+  requests: ExecutorSessionRequestListSchema.optional(),
 }).strict()
 export type ExecutorSessionConversation = z.infer<typeof ExecutorSessionConversationSchema>
 export type ExecutorSessionMessage = z.infer<typeof ExecutorSessionMessageSchema>
@@ -59,18 +62,32 @@ export const ExecutorSessionInventoryPageSchema = z.object({
 }).strict()
 export type ExecutorSessionInventoryPage = z.infer<typeof ExecutorSessionInventoryPageSchema>
 
-export const ExecutorSessionActionBodySchema = z.object({
-  id: z.string().uuid(), kind: z.enum(['managed', 'queue', 'push', 'interrupt']),
-  message: z.string().min(1).max(32_000).optional(),
-}).strict().superRefine((value, ctx) => {
-  if ((value.kind !== 'interrupt') !== Boolean(value.message?.trim())) {
+export const ExecutorSessionActionKindSchema = z.enum(['managed', 'queue', 'push', 'interrupt', 'answer'])
+export type ExecutorSessionActionKind = z.infer<typeof ExecutorSessionActionKindSchema>
+
+/** Input carries a message, an answer carries an answer, an interrupt carries neither. */
+type ActionShape = { kind: ExecutorSessionActionKind; message?: string; answer?: unknown }
+const refineAction = (value: ActionShape, ctx: z.RefinementCtx) => {
+  const sends = value.kind === 'managed' || value.kind === 'queue' || value.kind === 'push'
+  if (sends !== Boolean(value.message?.trim())) {
     ctx.addIssue({ code: 'custom', message: 'A message is required only for sending input.' })
   }
-})
+  if ((value.kind === 'answer') !== (value.answer !== undefined)) {
+    ctx.addIssue({ code: 'custom', message: 'An answer is required only for answering a request.' })
+  }
+}
+
+export const ExecutorSessionActionBodySchema = z.object({
+  id: z.string().uuid(), kind: ExecutorSessionActionKindSchema,
+  message: z.string().min(1).max(32_000).optional(),
+  answer: ExecutorSessionAnswerSchema.optional(),
+}).strict().superRefine(refineAction)
 export const ExecutorSessionActionSchema = ExecutorSessionViewRequestSchema.extend({
-  id: z.string().uuid(), kind: z.enum(['managed', 'queue', 'push', 'interrupt']),
-  message: z.string().min(1).max(32_000).optional(), expiresAt: z.string().datetime(),
-}).strict()
+  id: z.string().uuid(), kind: ExecutorSessionActionKindSchema,
+  message: z.string().min(1).max(32_000).optional(),
+  answer: ExecutorSessionAnswerSchema.optional(),
+  expiresAt: z.string().datetime(),
+}).strict().superRefine(refineAction)
 export const ExecutorSessionActionReceiptSchema = z.object({
   id: z.string().uuid(), state: z.enum(['accepted', 'failed', 'outcome_unknown']),
   code: z.string().regex(/^[a-z0-9_]{1,100}$/u),
