@@ -190,7 +190,7 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   entryPoint = join(executorDirectory, 'src/index.ts'),
 } = {}) => {
   if (process.platform !== 'linux' || process.arch !== 'x64') throw new Error('Build Linux packages on a Linux x86_64 host.')
-  const expectedStaging = resolve(executorDirectory, '../dist/executor-cli/linux-payload')
+  const expectedStaging = resolve(executorDirectory, 'dist/executor-cli/linux-payload')
   if (resolve(stagingDirectory) !== expectedStaging) throw new Error('The Linux payload uses its dedicated build directory.')
   // Prior generated payloads have readonly release directories. Restore only
   // this exact disposable staging tree's directory permissions for replacement.
@@ -239,7 +239,7 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
 
   // The release name binds the manifest bytes, which bind every executable and
   // the resource manifest. No package upgrade rewrites a published release.
-  const manifest = { ...prepared.manifest, managedLaunchProtocol: 1,
+  const manifest = { ...prepared.manifest, managedLaunchProtocol: 1, updateAdmissionProtocol: 1,
     personalInferenceGuardVersion: PERSONAL_INFERENCE_GUARD_VERSION,
     resourcesManifestSha256: await sha256File(join(resourcesDirectory, 'manifest.json')) }
   await writeFile(prepared.manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o444 })
@@ -257,6 +257,14 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await writeFile(join(stagingDirectory, 'install-custody-barrier.sh'), [
     '#!/bin/sh', 'set -eu', 'unset NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH',
     `exec /${INSTALL_PREFIX}/releases/${releaseDigest}/nessie-executor-native managed-custody-install`, '',
+  ].join('\n'), { mode: 0o755 })
+  await writeFile(join(stagingDirectory, 'disable-updater-for-removal.sh'), [
+    '#!/bin/sh', 'set -eu', 'unset NODE_OPTIONS NODE_PATH LD_PRELOAD LD_LIBRARY_PATH',
+    'case "${1:-}" in remove|purge|0)',
+    `  /${INSTALL_PREFIX}/releases/${releaseDigest}/nessie-executor-native update-uninstall`,
+    '  /usr/bin/systemctl disable nessie-executor-updater.service',
+    '  if [ -d /run/systemd/system ]; then /usr/bin/systemctl stop nessie-executor-updater.service; fi',
+    '  ;;', 'esac', '',
   ].join('\n'), { mode: 0o755 })
   await mkdir(join(stagingDirectory, 'usr/share/licenses/nessie-executor'), { recursive: true })
   await copyFile(join(executorDirectory, 'LICENSE'), join(stagingDirectory, 'usr/share/licenses/nessie-executor/LICENSE'))

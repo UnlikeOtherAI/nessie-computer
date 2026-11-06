@@ -6,6 +6,8 @@ import type {
   ExecutorDaemonCommandAttachmentResponse,
   ExecutorSessionViewExchange,
   ExecutorSessionViewRequest,
+  ExecutorSoftwareStatus,
+  ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
 
@@ -52,9 +54,11 @@ export type ExecutorApiClient = {
     Promise<{ connectionEpoch: string; status: string }>
   heartbeat: (
     baseUrl: string,
-    input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string },
+    input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string;
+      software?: ExecutorSoftwareStatus },
   ) => Promise<{
-    connectionEpoch: string; status: string; codingSessionClose?: unknown; existingSessionsAllowed?: boolean
+    connectionEpoch: string; status: string; codingSessionClose?: unknown; existingSessionsAllowed?: boolean;
+    softwareUpdateRequest?: ExecutorSoftwareUpdateRequest
   }>
   pollCommand: (
     baseUrl: string,

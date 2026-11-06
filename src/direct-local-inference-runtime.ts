@@ -18,6 +18,7 @@ import { startLocalInferenceHostSession, type LocalInferenceHostSession } from '
 import { LocalInferenceCoordinator } from './local-inference-coordinator.js'
 import { EncryptedLocalInferenceReceiptJournal } from './local-inference-receipts.js'
 import { discoverOllamaInventory } from './ollama-observed.js'
+import { watchInferenceUpdateDrain } from './updates/inference-drain.js'
 
 const RECEIPT_FILE = 'direct-local-inference-receipts.json'
 const DIRECT_HEARTBEAT_INTERVAL_MS = 20_000
@@ -191,7 +192,10 @@ export const serveDirectLocalInference = async (): Promise<void> => {
   process.once('SIGTERM', stop)
   process.stdin.once('close', stop)
   process.stdin.once('end', stop)
-  await superviseDirectLocalInference({ session, stopped })
+  const update = watchInferenceUpdateDrain({ loop: session.loop })
+  void update.ready.then(() => { process.exitCode = 75; stop() })
+  try { await superviseDirectLocalInference({ session, stopped }) }
+  finally { update.stop() }
   // A typed signed goodbye cannot be mistaken for a heartbeat. The server may
   // be unavailable during quit, in which case its short lease remains the
   // conservative fallback.

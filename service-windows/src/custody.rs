@@ -1,18 +1,15 @@
 //! Service-wide managed creation and public persistent admission, independently observed.
 use crate::custody_store::{Host, State, Store};
 use nessie_windows_common::{
+    custody_observation::{absent, job_members},
     custody::RuntimeKind,
     custody::{Operation, Record, REJECTED, VERSION},
     process::{self, Owned, Process},
 };
 use std::{os::windows::ffi::OsStrExt, path::Path, sync::Mutex};
 use windows_sys::Win32::{
-    Foundation::{GetLastError, ERROR_FILE_NOT_FOUND, ERROR_INVALID_PARAMETER},
     System::{
-        JobObjects::{
-            IsProcessInJob, JobObjectBasicProcessIdList, OpenJobObjectW, QueryInformationJobObject,
-            JOBOBJECT_BASIC_PROCESS_ID_LIST,
-        },
+        JobObjects::{IsProcessInJob, OpenJobObjectW},
         Pipes::GetNamedPipeClientProcessId,
     },
 };
@@ -22,95 +19,6 @@ use windows_sys::Win32::{
 static ADMISSION: Mutex<()> = Mutex::new(());
 const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
-fn job_members(name: &str) -> Result<Vec<u32>, String> {
-    let name: Vec<u16> = std::ffi::OsStr::new(name)
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-    let handle = unsafe { OpenJobObjectW(JOB_OBJECT_QUERY, 0, name.as_ptr()) };
-    if handle.is_null() {
-        return if unsafe { GetLastError() } == ERROR_FILE_NOT_FOUND {
-            Ok(Vec::new())
-        } else {
-            Err(REJECTED.into())
-        };
-    }
-    let job = Owned(handle);
-    let mut buffer = vec![0_usize; 4098];
-    let mut returned = 0;
-    if unsafe {
-        QueryInformationJobObject(
-            job.0,
-            JobObjectBasicProcessIdList,
-            buffer.as_mut_ptr().cast(),
-            (buffer.len() * std::mem::size_of::<usize>()) as u32,
-            &mut returned,
-        )
-    } == 0
-    {
-        return Err(REJECTED.into());
-    }
-    let list = unsafe { &*buffer.as_ptr().cast::<JOBOBJECT_BASIC_PROCESS_ID_LIST>() };
-    if list.NumberOfAssignedProcesses != list.NumberOfProcessIdsInList
-        || list.NumberOfProcessIdsInList > 4096
-    {
-        return Err(REJECTED.into());
-    }
-    let ids = unsafe {
-        std::slice::from_raw_parts(
-            list.ProcessIdList.as_ptr(),
-            list.NumberOfProcessIdsInList as usize,
-        )
-    };
-    let mut members: Vec<u32> = ids
-        .iter()
-        .map(|id| u32::try_from(*id).map_err(|_| String::from(REJECTED)))
-        .collect::<Result<_, _>>()?;
-    members.sort_unstable();
-    Ok(members)
-}
-fn absent(generation: &nessie_windows_common::custody::Generation) -> Result<bool, String> {
-    if generation.boot_id != process::boot_id()? {
-        return Ok(true);
-    }
-    use windows_sys::Win32::{
-        Foundation::{FILETIME, WAIT_OBJECT_0},
-        System::Threading::{
-            GetProcessTimes, OpenProcess, WaitForSingleObject, PROCESS_QUERY_LIMITED_INFORMATION,
-            PROCESS_SYNCHRONIZE,
-        },
-    };
-    let handle = unsafe {
-        OpenProcess(
-            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
-            0,
-            generation.pid,
-        )
-    };
-    if handle.is_null() {
-        return if unsafe { GetLastError() } == ERROR_INVALID_PARAMETER {
-            Ok(true)
-        } else {
-            Err(REJECTED.into())
-        };
-    }
-    let handle = Owned(handle);
-    if unsafe { WaitForSingleObject(handle.0, 0) } == WAIT_OBJECT_0 {
-        return Ok(true);
-    }
-    let mut times = [FILETIME {
-        dwLowDateTime: 0,
-        dwHighDateTime: 0,
-    }; 4];
-    let [created, exited, kernel, user] = &mut times;
-    if unsafe { GetProcessTimes(handle.0, created, exited, kernel, user) } == 0 {
-        return Err(REJECTED.into());
-    }
-    Ok(
-        (((created.dwHighDateTime as u64) << 32) | created.dwLowDateTime as u64).to_string()
-            != generation.started_at,
-    )
-}
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
     let mut gone = Vec::new();
@@ -197,6 +105,7 @@ pub fn handle(
     operation: Operation,
 ) -> Result<serde_json::Value, String> {
     let _lock = ADMISSION.lock().map_err(|_| REJECTED)?;
+    let machine = nessie_windows_common::update_admission::Admission::acquire(false)?;
     nessie_windows_common::custody::validate(&operation)?;
     let mut pid = 0;
     if unsafe { GetNamedPipeClientProcessId(pipe, &mut pid) } == 0 || pid == 0 {
@@ -253,6 +162,10 @@ pub fn handle(
             release_digest,
             kind,
         } => {
+            machine.admit(&release.digest)?;
+            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential) {
+                machine.admit_daemon(&release.digest)?;
+            }
             let machine = matches!(
                 kind,
                 RuntimeKind::MachineAttestation
@@ -375,6 +288,7 @@ pub fn handle(
             serde_json::json!({"cleared":true,"epoch":epoch})
         }
         Operation::HostAcquire { nonce } => {
+            machine.admit_daemon(&release.digest)?;
             if !state.fences.is_empty() || state.hosts.contains_key(&nonce) {
                 return Err(REJECTED.into());
             }

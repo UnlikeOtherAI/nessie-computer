@@ -3,7 +3,18 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { nativeCiInputs } from './native-ci-inputs.mjs'
 
-const empty = { helper: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+const empty = { helper: false, linux_helper: false, updater: false, windows: false, vm: false, guest: false, macos_app: false, macos_tests: false }
+
+test('a Linux package publisher rotation verifies only the Linux native trust consumer', () => {
+  assert.deepEqual(nativeCiInputs(['packaging/linux/keys/unlikeotherai-executor.gpg'], () => null, () => null),
+    { ...empty, linux_helper: true })
+})
+
+test('the native updater selects its linked helper and actual app consumers', () => {
+  assert.deepEqual(nativeCiInputs(['updater/src/network.rs'], () => null, () => null),
+    { ...empty, updater: true, helper: true, windows: true, macos_app: true, macos_tests: true })
+  assert.deepEqual(nativeCiInputs(['updater/tests/catalog.rs'], () => null, () => null), { ...empty, updater: true })
+})
 test('documentation and JavaScript test changes do not build native applications', () => {
   assert.deepEqual(nativeCiInputs(['README.md', 'docs/automatic-updates.md', 'test/updates-state.test.ts'], () => null, () => null), empty)
 })

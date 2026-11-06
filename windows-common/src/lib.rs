@@ -14,6 +14,9 @@
 mod sid;
 
 pub mod custody;
+pub mod custody_store;
+#[cfg(windows)]
+pub mod custody_observation;
 pub mod lease;
 #[cfg(windows)]
 pub mod process;
@@ -27,6 +30,12 @@ pub mod runtime;
 #[cfg(windows)]
 pub mod service_channel;
 pub mod unpair;
+#[cfg(windows)]
+pub mod update_admission;
+#[cfg(windows)]
+pub mod update_runtime;
+#[cfg(windows)]
+pub mod update_channel;
 
 #[cfg(windows)]
 pub use sid::sid_to_string;

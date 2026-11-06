@@ -12,8 +12,15 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
     private var target = ConsoleTarget(section: .settings)
     private var teams = false
     private var pair = false
+    private var update = false
 
     init(connections: ExecutorConnections) { self.connections = connections }
+
+    func showUpdate() {
+        show(ConsoleTarget(section: .settings))
+        update = true
+        selectSection()
+    }
 
     func showTeams(pair: Bool = false) {
         show(ConsoleTarget(section: .settings))
@@ -24,6 +31,7 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
 
     func show(_ target: ConsoleTarget) {
         self.target = target
+        update = false
         teams = false
         pair = false
         if let window {
@@ -62,6 +70,9 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
     }
 
     private func selectSection() {
+        if update {
+            webView?.evaluateJavaScript("window.dispatchEvent(new Event('executor://update-available'))")
+        }
         guard teams else {
             webView?.evaluateJavaScript(target.script)
             return

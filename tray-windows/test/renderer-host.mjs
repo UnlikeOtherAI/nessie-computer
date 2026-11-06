@@ -8,6 +8,8 @@ await context.addInitScript(({ host, paired }) => {
   window.existingSessions = {}
   window.enabled = false
   window.autoRestart = true
+  window.updateStatus = { format: 1, installedVersion: '1.0.0', sourceCommit: 'a'.repeat(40),
+    automatic: true, channel: 'stable', phase: 'idle', canInstall: true, notify: false }
   window.chosen = ['/Users/person/Notes']
   // The person enters the code in Nessie: the claim alone pairs, and the host starts the daemon.
   window.claimInNessie = () => {
@@ -19,6 +21,20 @@ await context.addInitScript(({ host, paired }) => {
   }
   const invoke = async (command, args = {}) => {
     window.calls.push({ command, args })
+    if (command === 'executor_update_setup') {
+      if (window.updateSetupDenied) throw new Error('update.coordinator_unavailable')
+      window.updateStatus = { ...window.updateStatus, phase: 'idle', canInstall: true, code: undefined }
+      return { ...window.updateStatus }
+    }
+    if (command === 'executor_update_control') {
+      if (window.updateUnavailable) throw new Error('update.coordinator_unavailable')
+      const request = args.request
+      if (request.operation === 'automatic') window.updateStatus.automatic = request.enabled
+      if (request.operation === 'remind') window.updateStatus.notify = false
+      if (request.operation === 'install') window.updateStatus = { ...window.updateStatus,
+        targetVersion: window.updateStatus.availableVersion, phase: 'downloading', notify: false }
+      return { ...window.updateStatus }
+    }
     if (window.syncHost && (command.startsWith('executor_sync_') || command === 'executor_open_path')) return window.syncHost(command, args)
     const id = args.executorId
     if (command === 'executor_personal_chatgpt') {

@@ -23,6 +23,8 @@
     InstallerVersion="500">
 
     <SummaryInformation Description="Runs a paired Nessie executor as a Windows service." />
+    <Property Id="NessieManagedRuntimeGuardVersion" Value="2" />
+    <Property Id="NessieAutomaticUpdateProtocol" Value="$(var.EnableUpdater)" />
 
     <!-- Same UpgradeCode, higher version: an upgrade replaces the files and
          re-registers the service, and never touches the state root. -->
@@ -135,6 +137,17 @@
 
 
     <ComponentGroup Id="ExecutorService" Directory="INSTALLFOLDER">
+      <?if $(var.EnableUpdater) = 1 ?>
+      <Component>
+        <File Id="UpdaterExe" Source="$(var.StagingDir)\nessie-computer-updater.exe" KeyPath="yes" />
+        <ServiceInstall Id="NessieUpdaterServiceInstall" Name="NessieExecutorUpdater"
+          DisplayName="Nessie Computer Updates" Description="Installs verified Nessie Computer updates after active work finishes."
+          Type="ownProcess" Start="auto" ErrorControl="normal" Account="LocalSystem"
+          Arguments="update-service" Vital="yes" />
+        <ServiceControl Id="NessieUpdaterServiceControl" Name="NessieExecutorUpdater"
+          Start="install" Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+      <?endif?>
       <Component>
         <File
           Id="ServiceExe"
@@ -255,9 +268,23 @@
       Return="check" />
 
     <InstallExecuteSequence>
+      <?if $(var.EnableUpdater) = 1 ?>
+      <Custom Action="RestoreUpdaterAfterFailedRemoval" Before="DisableUpdaterForRemoval" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="DisableUpdaterForRemoval" Before="StopServices" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="SecureUpdaterStateRoot" After="SecureServiceStateRoot" Condition="NOT Installed OR REINSTALL" />
+      <?endif?>
       <Custom Action="SecureServiceStateRoot" After="InstallServices" Condition="NOT Installed" />
       <Custom Action="JoinHypervAdministrators" After="StartServices" Condition="NOT Installed" />
     </InstallExecuteSequence>
+
+    <?if $(var.EnableUpdater) = 1 ?>
+    <CustomAction Id="SecureUpdaterStateRoot" FileRef="ServiceExe"
+      ExeCommand="--secure-updater-root" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="DisableUpdaterForRemoval" FileRef="ServiceExe"
+      ExeCommand="--disable-updater-for-removal" Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="RestoreUpdaterAfterFailedRemoval" FileRef="ServiceExe"
+      ExeCommand="--secure-updater-root" Execute="rollback" Impersonate="no" Return="check" />
+    <?endif?>
 
     <Feature Id="Main" Title="Nessie Executor" Level="1">
       <ComponentGroupRef Id="PackagedRuntime" />

@@ -5,6 +5,10 @@ import {
   type ExecutorDaemonHeartbeatWithFolderSyncRequest,
   type ExecutorLocalMcpReport,
   type FolderSyncHeartbeatSummary,
+  ExecutorSoftwareStatusSchema,
+  ExecutorSoftwareUpdateRequestSchema,
+  type ExecutorSoftwareStatus,
+  type ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
 import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
@@ -65,6 +69,8 @@ export const heartbeatExecutor = async (
   onExistingSessionAccess?: (allowed: boolean) => void,
   folderSync?: FolderSyncHeartbeatSummary,
   api: Pick<ExecutorApiClient, 'heartbeat'> = executorApi,
+  updates?: { status: ExecutorSoftwareStatus;
+    onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void },
   monitor?: ExecutorMonitorSnapshot,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
@@ -80,6 +86,7 @@ export const heartbeatExecutor = async (
     // Checked against its contract before it is signed.
     ...(folderSync === undefined ? {} : { folderSync: FolderSyncHeartbeatSummarySchema.parse(folderSync) }),
     ...(localMcp === undefined ? {} : { localMcp }),
+    ...(updates === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
     observedAt,
     ...(monitor === undefined ? {} : { monitor: ExecutorMonitorSnapshotSchema.parse(monitor) }),
   }
@@ -88,6 +95,14 @@ export const heartbeatExecutor = async (
   const body: HeartbeatBody = { ...signed, signature }
   const response = await api.heartbeat(state.apiBaseUrl, body)
   onExistingSessionAccess?.(response.existingSessionsAllowed === true)
+  if (response.softwareUpdateRequest && updates) {
+    const request = ExecutorSoftwareUpdateRequestSchema.safeParse(response.softwareUpdateRequest)
+    if (request.success) {
+      // Update delivery is retried independently. A coordinator refusal must not
+      // turn a successful heartbeat into a connection failure that stops work.
+      void Promise.resolve().then(() => updates.onRequest(request.data)).catch(() => undefined)
+    }
+  }
   return response.codingSessionClose
 }
 

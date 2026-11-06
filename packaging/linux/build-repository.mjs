@@ -20,6 +20,11 @@ await mkdir(join(apt, 'dists/stable/main/binary-amd64'), { recursive: true })
 await mkdir(rpm, { recursive: true })
 const debFile = `nessie-executor_${version}_amd64.deb`
 const rpmFile = `nessie-executor_${version}_x86_64.rpm`
+const gpg = async (args) => run('gpg', ['--batch', '--yes', '--local-user', fingerprint, ...args])
+for (const file of [debFile, rpmFile]) {
+  const packagePath = join(output, file)
+  await gpg(['--armor', '--detach-sign', '--output', `${packagePath}.asc`, packagePath])
+}
 await copyFile(join(output, debFile), join(apt, 'pool/main', debFile))
 await copyFile(join(output, rpmFile), join(rpm, rpmFile))
 // Both repository metadata and the RPM package carry signatures.
@@ -39,7 +44,6 @@ const release = await run('apt-ftparchive', [
 ], { cwd: apt })
 const releasePath = join(apt, 'dists/stable/Release')
 await writeFile(releasePath, release.stdout)
-const gpg = async (args) => run('gpg', ['--batch', '--yes', '--local-user', fingerprint, ...args])
 await gpg(['--clearsign', '--output', join(apt, 'dists/stable/InRelease'), releasePath])
 await gpg(['--armor', '--detach-sign', '--output', `${releasePath}.gpg`, releasePath])
 await run('createrepo_c', [rpm])
@@ -61,7 +65,7 @@ await writeFile(join(site, 'index.html'), '<!doctype html><title>Nessie Executor
 await writeFile(join(site, 'version.json'), JSON.stringify({ version, fingerprint }))
 await run('tar', ['-czf', join(output, `nessie-executor_${version}_repository.tar.gz`), '-C', site, '.'])
 const sums = []
-for (const file of [debFile, rpmFile, `nessie-executor_${version}_repository.tar.gz`].sort()) {
+for (const file of [debFile, `${debFile}.asc`, rpmFile, `${rpmFile}.asc`, `nessie-executor_${version}_repository.tar.gz`].sort()) {
   sums.push(`${createHash('sha256').update(await readFile(join(output, file))).digest('hex')}  ${file}`)
 }
 await writeFile(join(output, 'SHA256SUMS'), `${sums.join('\n')}\n`)

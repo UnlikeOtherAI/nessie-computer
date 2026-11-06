@@ -1,4 +1,5 @@
 mod command;
+mod updates;
 mod chatgpt_browser;
 mod job_run;
 mod kernel_context;
@@ -130,7 +131,8 @@ fn install_managed_custody() -> Result<(), NativeError> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         let _release = managed_release::load()?;
-        managed_machine_barrier::install()
+        managed_machine_barrier::install()?;
+        updates::install()
     }
     #[cfg(not(any(target_os = "linux", target_os = "macos")))]
     {
@@ -156,6 +158,22 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
+        Command::BuildInfo => {
+            println!("{}", serde_json::json!({
+                "version": env!("NESSIE_EXECUTOR_VERSION"),
+                "sourceCommit": env!("NESSIE_EXECUTOR_SOURCE_COMMIT"),
+                "managedLaunchProtocol": 1,
+                "personalInferenceGuardVersion": 2,
+            }));
+            Ok(())
+        },
+        Command::UpdateControl => updates::control(),
+        Command::UpdateService => updates::service(),
+        Command::UpdateRegisteredService => updates::registered_service(),
+        Command::UpdateInstall => updates::install(),
+        Command::UpdateUninstall => updates::uninstall(),
+        Command::UpdateWorker => updates::worker(),
+        Command::UpdateApplicationReopen => updates::reopen_application(),
         Command::PersonalChatgptBrowser => chatgpt_browser::open(),
         Command::KernelProcessContext(pid) => kernel_context::respond(*pid),
         Command::VerifyServiceContext => {
@@ -317,6 +335,11 @@ fn run(command: &Command) -> Result<(), NativeError> {
 /// unparsable argv keeps answering in the promotion shape, as it always has.
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
+        Some(Command::BuildInfo | Command::UpdateControl | Command::UpdateService
+            | Command::UpdateRegisteredService
+            | Command::UpdateInstall | Command::UpdateUninstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
+            println!("{}", serde_json::json!({"error":error.code}));
+        }
         Some(Command::KernelProcessContext(_)) => {
             println!(
                 "{}",

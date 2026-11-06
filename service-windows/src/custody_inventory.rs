@@ -58,6 +58,10 @@ pub(super) fn inventory(
         let lower = entry.name.to_ascii_lowercase();
         if lower == "node.exe" || lower.contains("nessie") || lower == "electron.exe" {
             let current = Process::open(entry.pid)?;
+            if lower == "nessie-computer-updater.exe" {
+                nessie_windows_common::update_runtime::verify_process(&current, PIN)?;
+                continue;
+            }
             // Service and signed native companion executables contain no
             // provider material. Actual Node children require creation proof.
             if lower == "nessie-executor-service.exe"
@@ -177,6 +181,10 @@ pub(super) fn credential_clearance(
         }
         let process = Process::open(entry.pid)?;
         let name = entry.name.to_ascii_lowercase();
+        if name == "nessie-computer-updater.exe" {
+            nessie_windows_common::update_runtime::verify_process(&process, PIN)?;
+            continue;
+        }
         if name == "nessie-executor-tray.exe" || name == "nessie-executor-service.exe" {
             process.signed(PIN)?;
             if nessie_windows_common::release::load_at(&process.image, PIN)?.digest != release {

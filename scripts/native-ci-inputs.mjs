@@ -28,8 +28,12 @@ const packageInputs = source => {
 export function nativeCiInputs(files, before, after) {
   let runtime = false, helper = false, helperPayload = false, windows = false, vm = false, guest = false, macosApp = false
   let macosTests = false
+  let updater = false
+  let linuxHelper = false
   for (const file of files) {
     if (documentation(file)) continue
+    linuxHelper ||= file.startsWith('packaging/linux/keys/')
+    updater ||= file.startsWith('updater/')
     helper ||= file.startsWith('native/')
     const windowsPath = /^(?:windows-common|windows-provenance|service-windows|tray-windows)\//u.test(file)
     windows ||= windowsPath && !file.endsWith('package.json')
@@ -37,6 +41,9 @@ export function nativeCiInputs(files, before, after) {
     guest ||= file.startsWith('guest/')
     macosTests ||= file.startsWith('menubar-macos/')
     if (testing(file) || /(?:^|\/)turbo\.[^/]+$/u.test(file)) continue
+    // The updater is linked into the native helper and shipped by each app.
+    helper ||= file.startsWith('updater/')
+    helperPayload ||= file.startsWith('updater/')
     if (file.endsWith('package.json')) {
       try { if (JSON.stringify(packageInputs(before(file))) === JSON.stringify(packageInputs(after(file)))) continue }
       catch { /* An unknown build configuration selects verification. */ }
@@ -60,7 +67,7 @@ export function nativeCiInputs(files, before, after) {
     macosApp ||= file.startsWith('menubar-macos/') || file.startsWith('packaging/macos/') || file === '.swiftlint.yml'
   }
   macosApp ||= helperPayload || runtime
-  return { helper, windows: windows || helperPayload || runtime, vm, guest, macos_app: macosApp,
+  return { helper, linux_helper: linuxHelper, updater, windows: windows || helperPayload || runtime, vm, guest, macos_app: macosApp,
     macos_tests: macosTests || macosApp }
 }
 
@@ -73,7 +80,7 @@ function main() {
     const read = revision => file => { try { return git(['show', `${revision}:${file}`]) } catch { return null } }
     flags = nativeCiInputs(files, read(base), read('HEAD'))
   } catch {
-    flags = { helper: true, windows: true, vm: true, guest: true, macos_app: true, macos_tests: true }
+    flags = { helper: true, updater: true, windows: true, vm: true, guest: true, macos_app: true, macos_tests: true }
     process.stdout.write('Native comparison unavailable; checking the complete native source.\n')
   }
   const output = Object.entries(flags).map(([name, enabled]) => `${name}=${enabled ? '1' : '0'}\n`).join('')

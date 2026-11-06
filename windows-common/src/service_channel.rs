@@ -64,6 +64,23 @@ pub fn verify(
     pipe: windows_sys::Win32::Foundation::HANDLE,
     pin: Option<&str>,
 ) -> Result<(), String> {
+    verify_named(pipe, pin, "nessie-executor-service.exe", false)
+}
+
+/// The update broker must be SYSTEM and must be the exact signed native role.
+pub fn verify_updater(
+    pipe: windows_sys::Win32::Foundation::HANDLE,
+    pin: Option<&str>,
+) -> Result<(), String> {
+    verify_named(pipe, pin, "nessie-computer-updater.exe", true)
+}
+
+fn verify_named(
+    pipe: windows_sys::Win32::Foundation::HANDLE,
+    pin: Option<&str>,
+    expected_image: &str,
+    system_only: bool,
+) -> Result<(), String> {
     use std::{ffi::OsString, os::windows::ffi::OsStringExt, path::PathBuf};
     use windows_sys::Win32::{
         Foundation::{CloseHandle, HANDLE, WAIT_TIMEOUT},
@@ -129,6 +146,7 @@ pub fn verify(
             }
             let sid = unsafe { (*bytes.as_ptr().cast::<TOKEN_USER>()).User.Sid };
             if unsafe { IsWellKnownSid(sid, WinLocalSystemSid) } == 0 {
+                if system_only { return Err(refused()); }
                 let actual = crate::sid_to_string(sid).ok_or_else(refused)?;
                 // The virtual account's SID is derived by Windows, not by a
                 // caller's asserted administrator role or an environment value.
@@ -149,12 +167,15 @@ pub fn verify(
             return Err(refused());
         }
         let path = PathBuf::from(OsString::from_wide(&image[..length as usize]));
-        if path.file_name().and_then(|name| name.to_str()) != Some("nessie-executor-service.exe") {
+        if path.file_name().and_then(|name| name.to_str()) != Some(expected_image) {
             return Err(refused());
         }
         let facts =
             nessie_windows_provenance::collect_signature_facts(&path).ok_or_else(refused)?;
         nessie_windows_provenance::decide_release_signature(pin, Some(facts))?;
+        if system_only {
+            let _pins = crate::update_runtime::pin_image(&path, pin)?;
+        }
         let mut still_pid = 0;
         if unsafe { GetNamedPipeServerProcessId(pipe, &mut still_pid) } == 0
             || still_pid != pid

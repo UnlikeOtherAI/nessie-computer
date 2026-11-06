@@ -8,19 +8,25 @@ import { installRendererHost } from './renderer-host.mjs'
 import { verifyChatgptLocales } from './chatgpt-renderer.mjs'
 import { verifyPersonalPlanPairing } from './personal-pairing-renderer.mjs'
 import { verifySyncTab } from './sync-renderer.mjs'
+import { verifySoftwareUpdates } from './updates-renderer.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ui = join(root, 'packages/executor-console')
 const output = join(root, '.artifacts/executor-console')
 const files = ['index.html', 'style.css', 'native.js', 'autosave.js', 'main.js', 'chatgpt-words.js', 'chatgpt.js',
   'teams.js', 'team-drafts.js', 'pairing-words.js', 'pairing.js', 'permissions.js',
-  'sync-reasons-words.js', 'sync-words.js', 'sync.js']
+  'sync-reasons-words.js', 'sync-words.js', 'sync.js', 'updates-words.js', 'updates.js']
 await mkdir(output, { recursive: true })
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
   ?? (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined)
 const browser = await chromium.launch({ executablePath, headless: true })
 const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
 try {
+  if (process.argv.includes('--updates-only') || process.argv.includes('--updates-bootstrap-only')
+    || process.argv.some((arg) => arg.startsWith('--updates-before='))) {
+    await verifySoftwareUpdates(browser, ui, files, root)
+    process.exit(0)
+  }
   if (process.argv.includes('--sync-only')) {
     await verifySyncTab(browser, ui, files, root)
     process.exit(0)
@@ -232,7 +238,7 @@ try {
     await page.waitForFunction(() => window.enabled)
     // Restarting a stopped connection sits below the login switch, on until turned off.
     const settings = await page.locator('#tab-settings input[type=checkbox]').evaluateAll((inputs) => inputs.map((input) => input.id))
-    assert.deepEqual(settings, ['autostart', 'auto-restart'])
+    assert.deepEqual(settings, ['autostart', 'auto-restart', 'update-automatic'])
     assert.equal(await page.getByLabel('Restart a connection if it stops').isChecked(), true)
     await page.screenshot({ path: join(output, `${host}-settings.png`), fullPage: true })
     await page.getByLabel('Restart a connection if it stops').uncheck()

@@ -104,6 +104,10 @@ jobs:
         run: |
           node packaging/linux/build-packages.mjs
           node packaging/linux/build-repository.mjs
+          gpg --batch --export "$NESSIE_REPOSITORY_SIGNING_FINGERPRINT" > "$RUNNER_TEMP/executor-verify-key.gpg"
+          for package in dist/executor-cli/*.deb dist/executor-cli/*.rpm; do
+            gpgv --keyring "$RUNNER_TEMP/executor-verify-key.gpg" "$package.asc" "$package"
+          done
           node packaging/cli/candidate.mjs linux
       - name: Smoke-test installed DEB
         run: |

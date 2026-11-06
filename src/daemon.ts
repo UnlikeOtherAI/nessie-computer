@@ -450,6 +450,7 @@ export const pollAndExecuteCommand = async (
 
 export const waitForExecutorDaemonShutdown = async (
   parentLiveness?: Readable,
+  updateReady?: Promise<void>,
 ): Promise<void> => new Promise((resolve) => {
   const stop = () => {
     process.off('SIGINT', stop)
@@ -464,6 +465,7 @@ export const waitForExecutorDaemonShutdown = async (
   }
   process.once('SIGINT', stop)
   process.once('SIGTERM', stop)
+  void updateReady?.then(stop)
   if (parentLiveness) {
     parentLiveness.once('close', stop)
     parentLiveness.once('end', stop)

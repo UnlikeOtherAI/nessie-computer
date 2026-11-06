@@ -108,6 +108,7 @@ const DEFINITIVE_FAILURES = new Set(['EXECUTOR_NOT_FOUND', 'EXECUTOR_DAEMON_PROO
 const PENDING_CLOSE_MAXIMUM = 64
 
 export type CodingSessionsDaemon = {
+  isIdle: () => Promise<boolean>
   action?: (action: ExecutorSessionAction) => Promise<ExecutorSessionActionReceipt>
   conversation?: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionConversation | null>
   inventory: (cursor?: string) => Promise<ExecutorSessionInventoryPage | undefined>
@@ -208,6 +209,10 @@ export const createCodingSessionsDaemon = (input: {
   }
 
   return {
+    // Only work this daemon started can be cut short by a restart; a Codex or
+    // Claude conversation found already open belongs to its own client.
+    isIdle: async () => !bridge || (await sessionReport('session_list_all'))?.every((session) =>
+      session.origin === 'external' || ['closed', 'failed', 'interrupted'].includes(session.status)) === true,
     action: async (action) => {
       const answer = await daemonCall('session_user_action', action)
       const parsed = ExecutorSessionActionReceiptSchema.safeParse(answer?.receipt)

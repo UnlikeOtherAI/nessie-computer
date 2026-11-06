@@ -45,6 +45,11 @@ pub fn secure_service_directory(path: &str) -> Result<(), NativeError> {
     imp::secure_service_directory(path)
 }
 
+#[cfg(windows)]
+pub fn verify_service_directory(path: &str) -> Result<(), NativeError> {
+    imp::verify_service_directory(path)
+}
+
 /// Prove that a directory is still owned by the current user and that every ACE
 /// on it admits only that user or SYSTEM, with nothing inherited.
 pub fn verify_owner_only(path: &str) -> Result<(), NativeError> {

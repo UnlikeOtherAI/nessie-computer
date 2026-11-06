@@ -18,6 +18,8 @@ pub struct Record {
     pub protocol_version: u32, pub boot_id: String, pub guard_version: u32,
     pub supervisor_pid: i32, pub supervisor_started_at: String,
     pub child_pid: i32, pub child_started_at: String, pub release_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
 }
 
 fn publish(path: &Path, record: &Record) -> Result<(), NativeError> {
@@ -43,7 +45,7 @@ pub fn peer(stream: &UnixStream) -> Result<i32, NativeError> {
 }
 
 fn probe(mut stream: UnixStream, record: &Record) -> Result<(), NativeError> {
-    peer(&stream)?;
+    if !crate::updates::unix_health::authorize_probe(&stream) { return Err(refused()); }
     stream.set_read_timeout(Some(Duration::from_millis(250))).map_err(|_| refused())?;
     stream.set_write_timeout(Some(Duration::from_millis(250))).map_err(|_| refused())?;
     let mut nonce = [0_u8; 65];
@@ -103,7 +105,10 @@ fn unresolved_host(root: &Path) -> Result<bool, NativeError> {
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let release = managed_release::load()?;
     let _retained_release = (&release.node, &release.node_digest, &release.handles);
-    let barrier = managed_runtime_context::Barrier::acquire()?; barrier.check_protection()?;
+    let barrier = managed_runtime_context::Barrier::acquire()?;
+    managed_release::require_selected(&release)?;
+    crate::updates::admission_unix::admit(&release, arguments)?;
+    barrier.check_protection()?;
     let directory = barrier.root.join("managed-runtimes");
     let supervisor = unsafe { libc::getpid() };
     let boot = managed_runtime_context::boot_id()?;
@@ -118,7 +123,8 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let creation = (|| {
         let record = Record { protocol_version: 1, boot_id: boot, guard_version: managed_release::GUARD_VERSION,
             supervisor_pid: supervisor, supervisor_started_at: start, child_pid: pid,
-            child_started_at: managed_runtime_context::birth(pid)?, release_digest: release.digest.clone() };
+            child_started_at: managed_runtime_context::birth(pid)?, release_digest: release.digest.clone(),
+            activity: crate::updates::unix_clearance::activity(arguments) };
         publish(&journal, &record)?;
         CHILD.store(pid, Ordering::Relaxed);
         unsafe {
@@ -191,7 +197,8 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         fs::write(directory.path().join("nessie-executor.cjs"), "printf started > \"$1\"\n").unwrap();
         let release = managed_release::Release { directory: directory.path().into(), digest: "a".repeat(64),
-            node: File::open("/bin/sh").unwrap(), node_digest: "b".repeat(64), handles: Vec::new() };
+            node: File::open("/bin/sh").unwrap(), node_digest: "b".repeat(64), handles: Vec::new(),
+            version: None, source_commit: None };
         (directory, release)
     }
     #[test]

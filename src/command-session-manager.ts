@@ -35,6 +35,7 @@ type PreparedLeaseSource = {
 }
 
 export type ExecutorCommandSessionManager = {
+  isIdle: () => boolean
   run: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
   stop: (runId: string) => Promise<boolean>
   stopAll: () => Promise<void>
@@ -170,6 +171,7 @@ export const createExecutorCommandSessionManager = (
   }
 
   return {
+    isIdle: () => activeByRun.size === 0 && openingByRun.size === 0,
     run: async (command, runId) => {
       const args = ExecutorCommandRunArgumentsSchema.safeParse(command.payload.args)
       if (!args.success) return denied()

@@ -75,6 +75,20 @@ test('public profile projection and exact selected-team filtering never read cre
     for (const secret of ['opaque-openai-subject', 'issued-workspace-registration', 'fixture-access-token',
       'publicKey', 'credentialProcess', 'principal']) assert.equal(publicStatus.includes(secret), false)
     assert.equal(await f.store.hostId(), record.registration.extAgentHostId)
+    const credentialBytes = await readFile(f.path)
+    const operationId = randomUUID()
+    await f.store.update(f.profileId, prior => {
+      assert.ok(prior)
+      return { ...prior, revision: prior.revision + 1, phase: 'reconnecting', operationId,
+        restartAfterUpdate: { version: '1.0.1', operationId } }
+    })
+    const restarting = await f.store.read(f.profileId)
+    assert.deepEqual(restarting?.restartAfterUpdate, { version: '1.0.1', operationId })
+    assert.deepEqual(restarting?.registration, record.registration)
+    assert.equal(restarting?.accountGeneration, record.accountGeneration)
+    assert.equal(restarting?.consentRevision, record.consentRevision)
+    assert.deepEqual(await readFile(f.path), credentialBytes, 'a software restart never rewrites provider credentials')
+    assert.equal('restartAfterUpdate' in publicChatgptProfileStatus(restarting!), false)
   } finally { await f.clean() }
 })
 

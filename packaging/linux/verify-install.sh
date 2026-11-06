@@ -19,6 +19,8 @@ gpgcheck=1
 repo_gpgcheck=1
 gpgkey=file:///packages/nessie-executor.asc
 REPO
+  # Minimal Fedora images do not include runuser, which this user-flow fixture needs.
+  dnf install -y util-linux
   dnf install -y "nessie-executor-$version"
 else
   echo 'Choose deb or rpm.' >&2

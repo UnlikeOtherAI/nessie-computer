@@ -61,6 +61,9 @@ const requireWindows = () => {
       + `This host is ${process.platform}.`,
     )
   }
+  if (process.versions.node.split('.')[0] !== '22') {
+    throw new Error('Build the Windows release with Node 22 so its packaged runtime matches the supported version.')
+  }
 }
 
 const packageVersion = async () => msiVersion(
@@ -158,7 +161,7 @@ const resourceManifest = async (directory) => {
   return { files, version: 1 }
 }
 
-const stage = async () => {
+const stage = async (version) => {
   await rm(stagingDirectory, { force: true, recursive: true })
   await mkdir(stagingDirectory, { recursive: true })
 
@@ -188,6 +191,7 @@ const stage = async () => {
   // hashed after signing, so the shipped bytes are the ones the manifest names.
   await prepareExecutorRuntime({
     entryPoint: join(executorDirectory, 'src/index.ts'),
+    executorVersion: version,
     nativeHelperPath,
     nodeLicenseContents: await resolveWindowsPackagedNodeLicense(),
     outputDirectory: stagingDirectory,
@@ -200,6 +204,7 @@ const stage = async () => {
   // Signatures alone cannot distinguish an older signed direct-Node launcher.
   // Bind the service/tray's final signed bytes into this exact release digest.
   await sealWindowsLaunchConsumers(stagingDirectory)
+  await copyFile(join(stagingDirectory, 'nessie-executor-native.exe'), join(stagingDirectory, 'nessie-computer-updater.exe'))
 
   const resourcesDirectory = join(stagingDirectory, 'resources')
   await stageResources(resourcesDirectory)
@@ -217,7 +222,7 @@ const name = msiFileName(version)
 const packagePath = join(outputDirectory, name)
 
 await mkdir(outputDirectory, { recursive: true })
-await stage()
+await stage(version)
 await run('wix', [
   'build',
   join(packagingDirectory, 'nessie-executor.wxs'),
@@ -230,6 +235,7 @@ await run('wix', [
   '-bindpath', `Assets=${assetsDirectory}`,
   '-d', `Version=${version}`,
   '-d', `StagingDir=${stagingDirectory}`,
+  '-d', `EnableUpdater=${process.env.NESSIE_WINDOWS_SIGN_COMMAND ? '1' : '0'}`,
   '-o', packagePath,
 ])
 // Wix.exe builds and validates as separate operations. The tray's autostart

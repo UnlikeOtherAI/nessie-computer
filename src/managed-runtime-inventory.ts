@@ -13,6 +13,7 @@ const RecordSchema = z.object({
   supervisorStartedAt: z.string().regex(/^\d+$/u),
   childPid: z.number().int().positive(), childStartedAt: z.string().regex(/^\d+$/u),
   releaseDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  activity: z.enum(['serve', 'serve-direct-local-inference', 'personal-chatgpt-credential']).optional(),
 }).strict()
 const InventorySchema = z.object({
   status: z.literal('verified'), protocolVersion: z.literal(1), nonce: z.string().regex(/^[a-f0-9]{64}$/u),

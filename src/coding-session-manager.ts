@@ -32,6 +32,7 @@ type OpeningCodingSession = {
 type CodingSessionStarter = (input: GuestVmSessionInput) => Promise<GuestVmSession>
 
 export type ExecutorCodingSessionManager = {
+  isIdle: () => boolean
   launch: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
   observe: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
   stop: (runId: string) => Promise<boolean>
@@ -74,6 +75,7 @@ export const createExecutorCodingSessionManager = (
   }
 
   return {
+    isIdle: () => activeByRun.size === 0 && openingByRun.size === 0,
     launch: async (command, runId) => {
       const sandbox = state.codexSandbox
       const args = ExecutorCodingLaunchArgumentsSchema.safeParse(command.payload.args)

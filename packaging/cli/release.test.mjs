@@ -20,7 +20,8 @@ test('native Linux packages keep the runtime and service at their trusted locati
   for (const format of ['deb', 'rpm']) {
     const config = linuxPackage('1.0.0', '/build/payload', format, '/temporary/signing-key.asc')
     assert.deepEqual(config.contents, [{ src: '/build/payload/usr/', dst: '/usr', type: 'tree' }])
-    assert.deepEqual(config.scripts, { postinstall: '/build/payload/install-custody-barrier.sh' })
+    assert.deepEqual(config.scripts, { postinstall: '/build/payload/install-custody-barrier.sh',
+      preremove: '/build/payload/disable-updater-for-removal.sh' })
     assert.ok(config.depends.includes('tmux'))
     assert.ok(config.depends.includes('systemd'))
     assert.equal(config.rpm.signature.key_file, '/temporary/signing-key.asc')
@@ -59,6 +60,31 @@ test('publication rejects verification keys, altered payloads and mismatched sou
     candidate.files['unexpected-file'] = 'b'.repeat(64)
     await writeFile(path, JSON.stringify(candidate))
     await assert.rejects(verifyCandidate(directory, 'darwin', '1.2.3'), /file set differs/)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('Linux publication requires each detached package signature and binds its bytes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-linux-candidate-'))
+  try {
+    const files = {}
+    for (const file of candidateFiles('linux', '1.2.3')) {
+      await writeFile(join(directory, file), file)
+      files[file] = createHash('sha256').update(file).digest('hex')
+    }
+    const candidate = { platform: 'linux', version: '1.2.3', commit: 'a'.repeat(40), signing: 'release', files }
+    const manifest = join(directory, 'linux-candidate.json')
+    await writeFile(manifest, JSON.stringify(candidate))
+    await verifyCandidate(directory, 'linux', '1.2.3', async () => {})
+    const signature = 'nessie-executor_1.2.3_amd64.deb.asc'
+    assert.ok(signature in files)
+    assert.ok('nessie-executor_1.2.3_x86_64.rpm.asc' in files)
+    await writeFile(join(directory, signature), 'changed signature')
+    await assert.rejects(verifyCandidate(directory, 'linux', '1.2.3', async () => {}), /Candidate file changed/)
+    delete candidate.files[signature]
+    await writeFile(manifest, JSON.stringify(candidate))
+    await assert.rejects(verifyCandidate(directory, 'linux', '1.2.3', async () => {}), /file set differs/)
   } finally {
     await rm(directory, { recursive: true, force: true })
   }

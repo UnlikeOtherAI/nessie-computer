@@ -106,12 +106,31 @@
       <label class="toggle"><input type="checkbox" id="autostart"> Open Nessie Executor when I log in</label>
       <label class="toggle"><input type="checkbox" id="auto-restart" aria-describedby="auto-restart-hint"> Restart a connection if it stops</label>
       <p id="auto-restart-hint" class="hint">If a team’s connection stops without you stopping it, Nessie Executor starts it again.</p>
+      <section id="software-updates" aria-labelledby="update-title">
+        <h2 id="update-title"></h2>
+        <p><span id="update-version-label"></span>: <strong id="update-version"></strong></p>
+        <div id="update-policy" hidden>
+          <label class="toggle"><input type="checkbox" id="update-automatic" aria-describedby="update-hint"><span id="update-automatic-label"></span></label>
+          <p id="update-hint" class="hint"></p>
+        </div>
+        <p id="update-status" role="status"></p>
+        <div class="update-actions"><button id="update-setup" class="primary" hidden></button><button id="update-check"></button><button id="update-install" class="primary" hidden></button></div>
+        <p id="update-error" class="update-error" role="alert" hidden></p>
+      </section>
     </section>
   </main>
   <footer>
     <button id="open-nessie">Open Nessie</button>
     <div id="save-status" role="status"></div>
   </footer>
+
+  <dialog id="update-dialog" aria-labelledby="update-prompt-title" aria-describedby="update-prompt-body update-prompt-hint">
+    <h2 id="update-prompt-title"></h2>
+    <p id="update-prompt-body"></p>
+    <p id="update-prompt-hint" class="hint"></p>
+    <p id="update-prompt-error" class="update-error" role="alert" hidden></p>
+    <div class="actions"><button id="update-prompt-remind"></button><button id="update-prompt-install" class="primary"></button></div>
+  </dialog>
 
   <dialog id="pair-dialog" aria-labelledby="pairing-title">
     <h2 id="pairing-title" tabindex="-1">Add a team</h2>
@@ -203,6 +222,6 @@
     <p class="dialog-error" role="alert" hidden></p>
     <div class="actions"><button type="button" id="sync-deleted-open"></button><button type="button" id="sync-deleted-close" class="dialog-close"></button></div>
   </dialog>
-  <script src="native.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="chatgpt.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
+  <script src="native.js"></script><script src="updates-words.js"></script><script src="updates.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="chatgpt.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
 </body>
 </html>

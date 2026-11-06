@@ -37,6 +37,8 @@ pub struct Record {
     pub child_pid: i32,
     pub child_started_at: String,
     pub release_digest: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub activity: Option<String>,
 }
 
 fn publish(path: &Path, record: &Record) -> Result<(), NativeError> {
@@ -86,7 +88,7 @@ fn peer(stream: &UnixStream) -> Result<libc::ucred, NativeError> {
 }
 
 fn probe(mut stream: UnixStream, record: &Record) -> Result<(), NativeError> {
-    if peer(&stream)?.uid != unsafe { libc::getuid() } {
+    if !crate::updates::unix_health::authorize_probe(&stream) {
         return Err(refused());
     }
     stream
@@ -174,6 +176,8 @@ fn gated_child(
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let release = managed_release::load()?;
     let barrier = managed_runtime_context::Barrier::acquire()?;
+    managed_release::require_selected(&release)?;
+    crate::updates::admission_unix::admit(&release, arguments)?;
     barrier.check_protection()?;
     // Kernel reparents living descendants to this retained parent. Its exit
     // code is not tree-stop proof: the durable record stays until every child
@@ -202,6 +206,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
             child_pid: pid,
             child_started_at: managed_runtime_context::birth(pid)?,
             release_digest: release.digest.clone(),
+            activity: crate::updates::unix_clearance::activity(arguments),
         };
         publish(&journal, &record)?;
         CHILD.store(pid, Ordering::Relaxed);
@@ -283,6 +288,8 @@ mod tests {
             digest: "fixture-only".to_owned(),
             node: File::open("/bin/sh").unwrap(),
             node_digest: "fixture-only".to_owned(),
+            version: None,
+            source_commit: None,
             handles: Vec::new(),
         };
         (directory, release)

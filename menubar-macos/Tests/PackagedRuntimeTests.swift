@@ -28,16 +28,14 @@ final class PackagedRuntimeTests: XCTestCase {
         }
     }
 
-    func testManagedCreationRequiresTheExactManifestReleaseAndEveryFixedFile() {
+    func testManagedCreationSelectsTheCurrentFactoryAndNeverFallsBackDuringRepair() {
         let runtime = PackagedRuntime(root: resources.appendingPathComponent("executor-runtime"))
-        let manifest = Data("verified package manifest".utf8)
-        let creator = runtime.managedHelperURL(manifest: manifest, fileExists: { _ in true })
-        XCTAssertTrue(creator?.path.hasPrefix("/Library/Application Support/Nessie Executor/releases/") == true)
+        let creator = runtime.managedHelperURL(fileExists: { _ in true })
+        XCTAssertEqual(creator?.path, "/Library/Application Support/Nessie Executor/current/nessie-executor-native")
         XCTAssertEqual(creator?.lastPathComponent, "nessie-executor-native")
-        let replacement = runtime.managedHelperURL(manifest: Data("replacement".utf8), fileExists: { _ in true })
-        XCTAssertNotEqual(creator, replacement)
-        XCTAssertNil(runtime.managedHelperURL(manifest: manifest, fileExists: { !$0.hasSuffix("nessie-executor.cjs") }))
-        XCTAssertNil(runtime.managedHelperURL(manifest: Data(repeating: 0, count: 65_537), fileExists: { _ in true }))
+        XCTAssertEqual(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor.cjs") }), creator)
+        XCTAssertEqual(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor-native") }), creator)
+        XCTAssertNil(runtime.managedHelperURL(fileExists: { _ in false }))
     }
 
     func testNoLeaseNeverBlocksAStart() {

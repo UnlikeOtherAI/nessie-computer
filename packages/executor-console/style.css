@@ -63,7 +63,7 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; backgrou
 .switch input:disabled + .track { opacity: .5; }
 dialog { border: 1px solid var(--line); border-radius: 10px; padding: 22px 24px; width: min(520px, calc(100vw - 32px)); color: var(--text); box-shadow: 0 12px 40px #0003; }
 dialog::backdrop { background: #14182066; }
-.dialog-error { color: var(--error); background: #fbeff0; border-radius: 6px; padding: 8px 10px; margin: 12px 0 0; overflow-wrap: anywhere; }
+.dialog-error, .update-error { color: var(--error); background: #fbeff0; border-radius: 6px; padding: 8px 10px; margin: 12px 0 0; overflow-wrap: anywhere; }
 #code-row { display: flex; align-items: center; gap: 14px; margin: 20px 0; }
 #pairing-code { color: #000; background: #fff; font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
 #copy-code { padding: 5px 9px; font-size: 12px; }
@@ -77,6 +77,12 @@ pre.code { white-space: pre-wrap; overflow-wrap: anywhere; background: var(--sof
 hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
 .toggle { display: flex; align-items: center; gap: 8px; }
+#software-updates { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 12px; }
+#software-updates h2 { font-size: 15px; }
+.update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.update-actions button, #update-dialog button, #update-policy .toggle { min-height: 44px; }
+#update-dialog { max-height: calc(100vh - 32px); overflow-y: auto; }
+#update-dialog .actions { flex-wrap: wrap; }
 #pairing-personal-plan-choice .toggle { min-height: 44px; }
 #pair-dialog { max-height: calc(100vh - 32px); overflow-y: auto; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

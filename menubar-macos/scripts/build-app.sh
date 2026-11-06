@@ -78,7 +78,17 @@ xcodegen generate --spec "${app_directory}/project.yml" --project "${app_directo
 
 derived_data="${build_directory}/DerivedData"
 echo "build-app.sh: building ${configuration}…" >&2
+set --
+if [[ -n "${NESSIE_EXECUTOR_VERSION:-}" ]]; then
+  if [[ ! "${NESSIE_EXECUTOR_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "build-app.sh: NESSIE_EXECUTOR_VERSION must be a numeric release version." >&2
+    exit 2
+  fi
+  set -- "MARKETING_VERSION=${NESSIE_EXECUTOR_VERSION}" "CURRENT_PROJECT_VERSION=${NESSIE_EXECUTOR_VERSION}"
+fi
 xcodebuild \
+  -jobs 2 \
+  "$@" \
   -project "${app_directory}/NessieExecutorMenuBar.xcodeproj" \
   -scheme NessieExecutorMenuBar \
   -configuration "${configuration}" \
@@ -116,6 +126,9 @@ for required in nessie-executor-runtime nessie-executor.cjs manifest.json NODE_L
   fi
 done
 chmod 0755 "${resources}/nessie-executor-runtime"
+mkdir -p "${app_path}/Contents/Library/LaunchDaemons"
+cp "${app_directory}/LaunchDaemons/com.unlikeotherai.nessie.executor.updater.plist" \
+  "${app_path}/Contents/Library/LaunchDaemons/"
 
 # The bundle is left exactly as xcodebuild produced it: no code signature is
 # applied here, not even an ad-hoc one. `CODE_SIGNING_ALLOWED=NO` leaves the

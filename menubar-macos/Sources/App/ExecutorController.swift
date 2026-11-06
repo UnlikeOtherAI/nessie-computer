@@ -27,6 +27,24 @@ final class ExecutorController: ObservableObject {
     private var restarts = RestartSchedule()
     /// The start in flight is an automatic restart, so a failed one is retried.
     private var restarting = false
+    private var checkingPersonalUpdate = false
+
+    /// The ordinary status command resumes only a profile that intentionally
+    /// drained for an update, retaining its original registration and consent.
+    func resumePersonalUpdate() {
+        guard !checkingPersonalUpdate, model.description != nil, let runner else { return }
+        checkingPersonalUpdate = true
+        Task {
+            defer { checkingPersonalUpdate = false }
+            let invocation = ExecutorCLIInvocation(
+                arguments: ["personal-chatgpt-local", "--operation-stdin", "--state-dir", stateDirectory],
+                standardInput: Data("{\"operation\":\"status\"}".utf8)
+            )
+            _ = try? await PersonalChatgptProcess().run(
+                process: runner.process(for: invocation), invocation: invocation
+            )
+        }
+    }
 
     init(isDevelopmentBuild: Bool, stateDirectory: String, refusal: ExecutorRefusal? = nil) {
         self.isDevelopmentBuild = isDevelopmentBuild
@@ -59,7 +77,7 @@ final class ExecutorController: ObservableObject {
 
     func start() {
         pairing.restore()
-        refresh(startWhenPaired: true)
+        refresh(startWhenPaired: ConnectionRunPreference.wanted(stateDirectory))
         // The daemon's own lease and a child that exited on its own are both
         // facts this app has to notice without being clicked, so the icon can
         // never be showing something that stopped being true.
@@ -94,6 +112,7 @@ final class ExecutorController: ObservableObject {
 
     private func startIfRequested() {
         guard model.description != nil, model.daemon == .stopped, !busy, !pairingBlocksStart else { return }
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady else { return }
         if restarts.takeDue() {
             guard wantsDaemon, AutoRestart.isEnabled else { return }
             restarting = true
@@ -242,6 +261,11 @@ final class ExecutorController: ObservableObject {
         }
         if daemon?.isRunning == true { return }
         wantsDaemon = true
+        ConnectionRunPreference.set(true, for: stateDirectory)
+        if !isDevelopmentBuild && !ComputerUpdateService.factoryReady {
+            startAfterRefresh = true
+            return
+        }
         if leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) {
             fail("The prior local daemon is still tearing down. Wait for it to finish before starting again.")
             if automatic { scheduleRestart(ran: 0) }
@@ -293,6 +317,7 @@ final class ExecutorController: ObservableObject {
     }
 
     private func beginStop() -> SupervisedDaemon? {
+        ConnectionRunPreference.set(false, for: stateDirectory)
         startAfterRefresh = false
         wantsDaemon = false
         restarts.cancel()
@@ -323,6 +348,8 @@ final class ExecutorController: ObservableObject {
     func shutdown() {
         pairing.shutdown()
         guard daemon != nil else { return }
+        let wanted = ConnectionRunPreference.wanted(stateDirectory)
+        defer { ConnectionRunPreference.set(wanted, for: stateDirectory) }
         _ = stopDaemon()
         daemon?.parentLiveness.closeFile()
         daemon = nil

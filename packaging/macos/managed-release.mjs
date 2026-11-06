@@ -1,6 +1,6 @@
 // One immutable personal-custody payload for signed CLI and app runtimes.
 import { createHash } from 'node:crypto'
-import { chmod, cp, mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, readdir, rename, symlink, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 export const MAC_MANAGED_ROOT = '/Library/Application Support/Nessie Executor'
@@ -21,7 +21,7 @@ export const finishMacManagedManifest = async (runtime) => {
   const resources = join(runtime.runtimeDirectory, 'resources')
   await mkdir(resources, { recursive: true })
   await writeFile(join(resources, 'manifest.json'), `${JSON.stringify({ format: 1, files: [] })}\n`)
-  const manifest = { ...runtime.manifest, managedLaunchProtocol: 1, personalInferenceGuardVersion: 2,
+  const manifest = { ...runtime.manifest, managedLaunchProtocol: 1, updateAdmissionProtocol: 1, personalInferenceGuardVersion: 2,
     executorBundleSha256: await digest(runtime.executorBundlePath), nodeSha256: await digest(runtime.nodePath),
     nativeHelper: 'nessie-executor-native', nativeHelperSha256: await digest(join(runtime.runtimeDirectory,
       'nessie-executor-native')), resourcesManifestSha256: await digest(join(resources, 'manifest.json')) }
@@ -51,6 +51,7 @@ export const stageMacManagedRelease = async (runtimeDirectory, payloadDirectory,
   const released = join(root, 'releases', releaseDigest)
   await cp(runtimeDirectory, staging, { recursive: true, errorOnExist: true, force: false })
   await readonly(staging); await rename(staging, released)
+  await symlink(`releases/${releaseDigest}`, join(root, 'current'), 'dir')
   const launcher = `#!/bin/sh\nset -eu\nunset NODE_OPTIONS NODE_PATH LD_PRELOAD DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH\n`
     + `exec '${MAC_MANAGED_ROOT}/releases/${releaseDigest}/nessie-executor-native' managed-runtime -- "$@"\n`
   const bin = join(resolve(payloadDirectory), 'usr/local/bin')

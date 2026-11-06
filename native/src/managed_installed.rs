@@ -84,6 +84,8 @@ mod tests {
             digest: "a".repeat(64),
             node: fs::File::open("/bin/sh").unwrap(),
             node_digest: "fixture-only".to_owned(),
+            version: None,
+            source_commit: None,
             handles: Vec::new(),
         };
         let script = launcher(&release);

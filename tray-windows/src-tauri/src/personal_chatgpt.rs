@@ -159,6 +159,25 @@ pub async fn executor_personal_chatgpt(
         .map_err(|error| error.to_string())?
 }
 
+/// The existing status interface resumes only profiles carrying an intentional
+/// update marker. It reads no provider credentials in this native process.
+pub fn resume_updates() {
+    use std::{collections::BTreeSet, sync::{Mutex, OnceLock}};
+    static CHECKING: OnceLock<Mutex<BTreeSet<String>>> = OnceLock::new();
+    let crate::state::ServiceView::Reachable { executors } = crate::commands::view() else { return; };
+    for executor in executors {
+        let id = executor.executor_id;
+        let checking = CHECKING.get_or_init(Default::default);
+        let Ok(mut held) = checking.lock() else { return; };
+        if !held.insert(id.clone()) { continue; }
+        drop(held);
+        std::thread::spawn(move || {
+            let _ = operate(&id, serde_json::json!({"operation":"status"}));
+            if let Ok(mut held) = checking.lock() { held.remove(&id); }
+        });
+    }
+}
+
 #[tauri::command]
 pub fn executor_chatgpt_usage(app: tauri::AppHandle) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;

@@ -217,7 +217,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                             | "pairing-cancel" | "configure" | "connect" | "describe" | "unpair",
                         ),
                     ) => RuntimeKind::ServiceControl,
-                    (_, Some("serve")) => RuntimeKind::UserDaemon,
+                    (_, Some("serve" | "serve-direct-local-inference")) => RuntimeKind::UserDaemon,
                     (_, Some("personal-chatgpt" | "personal-chatgpt-local")) => {
                         RuntimeKind::PublicController
                     }

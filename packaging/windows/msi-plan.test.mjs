@@ -125,10 +125,11 @@ test('every sandbox resource has a component, and nothing else is installed', ()
       `${name} must be installed by the authoring`,
     )
   }
-  // The package ships no conditional component group: the guest's FAT32 boot
-  // disk is written by the executor itself, so there is no external filesystem
-  // tool a release might or might not have staged.
-  assert.equal(/<\?ifdef/.test(authoring), false, 'the authoring must be unconditional')
+  // Sandbox resources are identical in source candidates and signed releases.
+  // Only the trusted updater service is omitted from an unsigned candidate.
+  const resources = authoring.match(/<ComponentGroup Id="SandboxResources"[\s\S]*?<\/ComponentGroup>/)?.[0]
+  assert.ok(resources)
+  assert.equal(/<\?if/.test(resources), false, 'sandbox resources must be unconditional')
   // `manifest.json` is installed beside them and excluded from its own listing.
   const sources = [...authoring.matchAll(/Source="\$\(var\.StagingDir\)\\resources\\([^"]+)"/g)]
   assert.deepEqual(
@@ -283,12 +284,13 @@ test('no custom action runs a console program', () => {
   }
 })
 
-test('the authoring declares one WiX package and both preprocessor variables', () => {
+test('the authoring declares one WiX package and its preprocessor variables', () => {
   // Well-formedness is the WiX compiler's own first check, and it is the one
   // thing that cannot fail silently; what a test can usefully add is that the
   // two values `build-msi.mjs` passes are the two the authoring reads.
   assert.equal(authoring.match(/<Package\b/g)?.length, 1)
   assert.ok(authoring.includes('$(var.Version)'))
   assert.ok(authoring.includes('$(var.StagingDir)'))
+  assert.ok(authoring.includes('Id="NessieAutomaticUpdateProtocol" Value="$(var.EnableUpdater)"'))
   assert.ok(authoring.includes('xmlns="http://wixtoolset.org/schemas/v4/wxs"'))
 })

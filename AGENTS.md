@@ -14,6 +14,14 @@ Turbo using `scripts/turbo.public.json`; package tests must retain their build
 prerequisites. Windows state tests require the real native ACL helper beside
 their test Node. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
+The native coordinator, constrained OS installers and local update policy follow
+[automatic updates](docs/automatic-updates.md); use `test:updates` and
+`test:updates-native` through the public Turbo graph for their focused gates.
+The shared local Settings/update popup has a headless `--updates-only` renderer journey documented there; keep it out of CI.
+The macOS signed DMG carries the app and protected runtime; Linux package-publisher rotations also select the Linux native trust check.
+Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
+Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
+macOS uses the existing Developer ID Application identity, notarized DMG and approved app-bundled helper; follow [that trust contract](docs/macos-update-helper.md).
 
 Public contribution CI has no production signing credentials. Build candidates
 separately from publication. Official release signing retains UnlikeOtherAI's
