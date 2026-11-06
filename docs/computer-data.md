@@ -46,8 +46,9 @@ that root. Transcripts pass through the existing secret/path projection. Managed
 history reads the projected log independently; it never advances the agent cursor
 or starts a host. Native history remains on the computer. Conversation writers explicitly negotiate conversationVersion=1 before the API
 offers human actions; older strict relays keep the original requests-only response.
-Browser conversation reads opt in with view?conversation=1; original view reads
-retain their strict screen-only contract. Deploy the API before new executor packages.
+Browser conversation reads opt in with view?conversation=1 and include the
+receiving executor label; original view reads retain their strict screen-only
+contract. Deploy the API before new executor packages.
 The API holds encrypted
 conversation snapshots for the existing 30-second viewer-demand lifetime.
 
@@ -68,7 +69,9 @@ The server admits input inside the selected team against fresh session capabilit
 captures stable human-authority references, encrypts pending text and rechecks live
 standing before dispatch. Requests expire after 60 seconds. UUIDs bind the same
 request across network retries; local delivery journals prevent duplicate provider
-writes and preserve unknown outcomes without replaying them. The API clears text
+writes and preserve unknown outcomes without replaying them. An unexpected
+exception after native dispatch stays unknown; only definite refusals report
+failure. Expiry without confirmation is not proof of non-delivery. The API clears text
 on a receipt/expiry and retains reconciliation metadata for at most one day while
 the daemon connects. Native queue/channel acceptance is not consumption. All local
 permission, reviewed-configuration and personal-custody checks still apply.

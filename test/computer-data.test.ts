@@ -8,6 +8,8 @@ import { ExecutorMonitorSnapshotSchema, ExecutorSessionConversationSchema } from
 import { codexSubscription, claudeSubscription } from '../src/provider-subscriptions.js'
 import { listSavedClaudeSessions } from '../src/existing-session/claude-saved.js'
 import { readNativeTranscript } from '../src/existing-session/transcript.js'
+import { sessionUserAction } from '../src/session-user-action.js'
+import { CodingBridgeError } from '../src/coding-session/bridge-tools.js'
 import { ExistingSessions } from '../src/existing-session/manager.js'
 import { createSystemMonitor } from '../src/system-monitor.js'
 import { readSessionConversation } from '../src/coding-session/session-view.js'
@@ -110,4 +112,20 @@ test('a failed provider scan cannot certify an inventory as complete', async () 
     assert.deepEqual(await manager.list(), [])
     assert.equal(manager.inventoryIsComplete(), false)
   } finally { await manager.close(); await rm(directory, { recursive: true, force: true }) }
+})
+
+
+test('an ambiguous native delivery exception is never labelled a definite refusal', async () => {
+  const action = { id: randomUUID(), sessionId: randomUUID(), ownerKey: 'sha256:' + 'a'.repeat(64),
+    kind: 'queue', message: 'continue', expiresAt: new Date(Date.now() + 60_000).toISOString() }
+  const managed = { rewriter: {} as never, call: async () => { throw new Error('Managed input must not run') } }
+  const uncertain = await sessionUserAction(action, tmpdir(), managed, async () => {
+    throw new Error('The provider may have accepted input before the receipt failed')
+  })
+  assert.equal(uncertain.state, 'outcome_unknown')
+  assert.equal(uncertain.code, 'delivery_unknown')
+  const rejected = await sessionUserAction(action, tmpdir(), managed, async () => {
+    throw new CodingBridgeError('coding_session_action_unavailable', 'No native queue')
+  })
+  assert.equal(rejected.state, 'failed')
 })

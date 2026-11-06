@@ -35,7 +35,7 @@ export const sessionUserAction = async (
       : result.state === 'queued_natively' ? 'queued_natively' : 'channel_event_accepted')
   } catch (error) {
     // Do not export provider stderr, paths or credentials in a failure receipt.
-    return receipt('failed', error instanceof CodingBridgeError && /^[a-z0-9_]{1,100}$/u.test(error.code)
-      ? error.code : 'input_unavailable')
+    return error instanceof CodingBridgeError && /^[a-z0-9_]{1,100}$/u.test(error.code)
+      ? receipt('failed', error.code) : receipt('outcome_unknown', 'delivery_unknown')
   }
 }

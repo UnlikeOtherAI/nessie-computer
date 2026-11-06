@@ -108,6 +108,7 @@ export const ExecutorSessionViewResponseSchema = z.object({
   session: ExecutorCodingSessionSummarySchema.omit({ ownerKey: true }),
   canShare: z.boolean(),
   canInteract: z.boolean().optional(),
+  executorLabel: z.string().optional(),
 }).strict()
 
 const HostSessionSummarySchema = ExecutorCodingSessionSummarySchema.omit({ ownerKey: true })
