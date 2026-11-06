@@ -125,7 +125,8 @@ pub(super) fn capture(source: &Path, key: &str) -> UpdateResult<PathBuf> {
         match (producer.try_wait(), receiver.try_wait()) {
             (Ok(Some(first)), Ok(Some(second))) if first.success() && second.success() => break Ok(()),
             (Err(_), _) | (_, Err(_)) => break Err("update.bundle_copy_failed"),
-            (Ok(Some(status)), _) | (_, Ok(Some(status))) if !status.success() => break Err("update.bundle_copy_failed"),
+            (Ok(Some(status)), _) if !status.success() => break Err("update.bundle_copy_failed"),
+            (_, Ok(Some(status))) if !status.success() => break Err("update.bundle_copy_failed"),
             _ => {},
         }
         if Instant::now() >= deadline || within_budget(&directory, &mut 0, &mut 0, 0).is_err() {
