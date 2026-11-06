@@ -43,4 +43,3 @@ pub(super) fn configure(image: &Path) -> UpdateResult<()> {
         else { &["enable", "nessie-executor-updater.service"] };
     run("/usr/bin/systemctl", arguments)
 }
-

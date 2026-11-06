@@ -14,6 +14,16 @@ fn present(path: &Path) -> UpdateResult<bool> {
 }
 
 pub(super) fn run() -> UpdateResult<()> {
+    let result = run_registered();
+    if let Err(code) = result {
+        if let Ok(message) = std::ffi::CString::new(format!("Nessie update helper: {code}")) {
+            unsafe { libc::syslog(libc::LOG_ERR, c"%s".as_ptr(), message.as_ptr()); }
+        }
+    }
+    result
+}
+
+fn run_registered() -> UpdateResult<()> {
     Bundle::authorize_registered()?;
     crate::managed_machine_barrier::install().map_err(|_| ERROR)?;
     unix_runtime::directory(&root()?)?;

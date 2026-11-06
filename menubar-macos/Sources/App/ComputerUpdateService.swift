@@ -1,10 +1,12 @@
 import Foundation
+import OSLog
 import ServiceManagement
 
 /// Apple owns approval; the registered native helper owns the installed factory.
 enum ComputerUpdateService {
     private static let plist = "com.unlikeotherai.nessie.executor.updater.plist"
     private static let attempted = "computer-update-helper-registration-attempted"
+    private static let logger = Logger(subsystem: "com.unlikeotherai.nessie.executor.menubar", category: "updates")
     static let factory = URL(fileURLWithPath:
         "/Library/Application Support/Nessie Executor/current/nessie-executor-native")
 
@@ -24,10 +26,16 @@ enum ComputerUpdateService {
     static func prepare(requested: Bool = false) throws {
         guard supported else { return }
         let service = SMAppService.daemon(plistName: plist)
-        if service.status == .notRegistered && (requested || !UserDefaults.standard.bool(forKey: attempted)) {
-            try service.register()
+        if ComputerUpdateRegistration.shouldRegister(
+            status: service.status, attempted: UserDefaults.standard.bool(forKey: attempted), requested: requested
+        ) {
+            do { try service.register() } catch {
+                logger.error("Background helper registration failed: \(String(describing: error), privacy: .public)")
+                throw error
+            }
             UserDefaults.standard.set(true, forKey: attempted)
         }
+        logger.info("Background helper status: \(service.status.rawValue)")
         if requested && service.status != .enabled { SMAppService.openSystemSettingsLoginItems() }
     }
 
