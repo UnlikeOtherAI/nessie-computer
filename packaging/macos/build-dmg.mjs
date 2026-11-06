@@ -160,9 +160,6 @@ const version = resolveDmgVersion({
 const name = dmgFileName(version, process.arch, mode.kind)
 const packagePath = join(outputDirectory, name)
 
-for (const key of ['CFBundleShortVersionString', 'CFBundleVersion']) {
-  await run('/usr/libexec/PlistBuddy', ['-c', `Set :${key} ${version}`, join(appPath, 'Contents/Info.plist')])
-}
 const runtime = await embedExecutorRuntime(appPath, version)
 
 if (mode.kind === 'release') {

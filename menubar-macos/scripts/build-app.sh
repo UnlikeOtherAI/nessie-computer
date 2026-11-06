@@ -78,8 +78,17 @@ xcodegen generate --spec "${app_directory}/project.yml" --project "${app_directo
 
 derived_data="${build_directory}/DerivedData"
 echo "build-app.sh: building ${configuration}…" >&2
+set --
+if [[ -n "${NESSIE_EXECUTOR_VERSION:-}" ]]; then
+  if [[ ! "${NESSIE_EXECUTOR_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "build-app.sh: NESSIE_EXECUTOR_VERSION must be a numeric release version." >&2
+    exit 2
+  fi
+  set -- "MARKETING_VERSION=${NESSIE_EXECUTOR_VERSION}" "CURRENT_PROJECT_VERSION=${NESSIE_EXECUTOR_VERSION}"
+fi
 xcodebuild \
   -jobs 2 \
+  "$@" \
   -project "${app_directory}/NessieExecutorMenuBar.xcodeproj" \
   -scheme NessieExecutorMenuBar \
   -configuration "${configuration}" \
