@@ -21,7 +21,7 @@ test('daemon conversation input reaches one managed host once and observations l
       const conversation = ExecutorSessionConversationSchema.parse(observed.body.conversation)
       assert(conversation.messages.length > 0)
       assert.equal(await readFile(paths.delivered, 'utf8').catch(() => null), before)
-      const action = { id: randomUUID(), ownerKey: OWNER_A, sessionId, kind: 'managed', message: 'also check the UI',
+      const action = { id: randomUUID(), ownerKey: owner, sessionId, kind: 'managed', message: 'also check the UI',
         expiresAt: new Date(Date.now() + 60_000).toISOString() }
       const sent = await harness.call('session_user_action', action, { daemon: true })
       assert.equal((sent.body.receipt as { state: string }).state, 'accepted', JSON.stringify(sent.body))
