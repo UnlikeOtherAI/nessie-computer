@@ -95,3 +95,11 @@ SHA-256 `fbe63a66d41b90866d0e0dff9d11091e8dadaff6cb2dcc8570e5cee6e71f10d4`.
 It remains uninstalled and unpublished. Matching setup screenshots cover the
 actual base `54c6175`, two console widths and all seven supported locales, with
 denial/retry journeys. Their broker responses are fixtures, not installed proof.
+
+The signed `879a601` app was subsequently installed by atomic exchange, using
+the existing approval. Its Root service stays running after snapshot creation
+and validation, with public maintenance state draining and no selected factory.
+It is waiting for older Nessie/CTO processes. Those processes and their journals
+remain intact pending coordinated shutdown; this is not a completed migration.
+The DMG SHA-256 is
+`0c1632af196b026d882164d49d612b125d9cf0d64c678495684c4def3dd39bac`.
