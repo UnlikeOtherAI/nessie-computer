@@ -19,6 +19,11 @@ test('provider windows use reported utilization and duration, with unknown limit
       secondary: { usedPercent: -1 } }, model: { primary: { usedPercent: 10 } } },
   }, at)
   assert.equal(codex.plan, 'promax')
+  const exhausted = codexSubscription({ account: {} }, { rateLimits: { primary: {
+    usedPercent: 125, resetsAt: 1e30, windowDurationMins: Infinity,
+  } }, rateLimitsByLimitId: { model: { primary: { usedPercent: 5 } } } }, at)
+  assert.equal(exhausted.windows[0]?.remainingPercent, 0)
+  assert.equal(exhausted.windows[0]?.resetsAt, null)
   assert.deepEqual(codex.windows.map((item) => [item.kind, item.remainingPercent]), [['weekly', 22], ['other', 90]])
   assert.equal(codexSubscription({ account: null }, null, at).status, 'signed_out')
   assert.deepEqual(codexSubscription({ account: { planType: 'pro' } }, null, at).windows, [])

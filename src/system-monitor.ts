@@ -82,7 +82,8 @@ const processes = async (): Promise<Processes> => {
 const gpu = async (): Promise<number | null> => {
   const nvidia = await run('nvidia-smi', ['--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'])
   if (nvidia !== null) {
-    const values = nvidia.trim().split('\n').map((line) => percent(Number(line.trim())))
+    const values = nvidia.trim().split('\n').filter((line) => line.trim().length > 0)
+      .map((line) => percent(Number(line.trim())))
       .filter((value): value is number => value !== null)
     if (values.length) return Math.max(...values)
   }

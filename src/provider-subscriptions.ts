@@ -13,7 +13,7 @@ const remaining = (used: unknown): number | null =>
   typeof used === 'number' && Number.isFinite(used) && used >= 0 ? Math.max(0, 100 - used) : null
 const time = (value: unknown): string | null => {
   const epoch = typeof value === 'number' ? value * 1000 : typeof value === 'string' ? Date.parse(value) : NaN
-  return Number.isFinite(epoch) && epoch > 0 ? new Date(epoch).toISOString() : null
+  return Number.isFinite(epoch) && epoch > 0 && epoch <= 8_640_000_000_000_000 ? new Date(epoch).toISOString() : null
 }
 const base = (provider: ExecutorSubscription['provider'], checkedAt: string): ExecutorSubscription => ({
   provider, checkedAt, status: 'unavailable', account: null, plan: null, windows: [],
@@ -31,14 +31,15 @@ export const codexSubscription = (
   const main = object(buckets.codex ?? limits.rateLimits)
   const plan = text(main.planType ?? account.planType, 100)
   const windows: ExecutorUsageWindow[] = []
-  const snapshots = Object.keys(buckets).length ? Object.entries(buckets) : [['codex', main]] as const
+  const snapshots = [['codex', main], ...Object.entries(buckets).filter(([id]) => id !== 'codex')] as const
   for (const [bucketId, raw] of snapshots) {
     const snapshot = object(raw)
     for (const name of ['primary', 'secondary'] as const) {
       const window = object(snapshot[name])
       const left = remaining(window.usedPercent)
       if (left === null) continue
-      const duration = typeof window.windowDurationMins === 'number' && window.windowDurationMins > 0
+      const duration = typeof window.windowDurationMins === 'number'
+        && Number.isFinite(window.windowDurationMins) && window.windowDurationMins > 0
         ? window.windowDurationMins : null
       const kind = bucketId !== 'codex' ? 'other' : duration !== null
         ? duration >= 30 * 24 * 60 ? 'monthly' : duration >= 7 * 24 * 60 ? 'weekly' : 'session'

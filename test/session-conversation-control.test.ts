@@ -11,7 +11,8 @@ test('daemon conversation input reaches one managed host once and observations l
     const harness = await createCodingHarness({ reviewedDigest: true })
     const owner = 'sha256:' + 'a'.repeat(64)
     try {
-      const started = await harness.call('session_start', { agent: 'claude', root: 'work', prompt: '#hold=chat initial task' }, { owner })
+      const started = await harness.call('session_start', { agent: 'claude', root: 'work',
+        prompt: '#hold=chat initial task' }, { owner })
       assert.equal(started.ok, true, JSON.stringify(started.body))
       const sessionId = String(started.body.sessionId)
       await harness.waitForStatus(sessionId, (row) => row.status === 'working', owner)
@@ -27,7 +28,8 @@ test('daemon conversation input reaches one managed host once and observations l
       assert.equal((sent.body.receipt as { state: string }).state, 'accepted', JSON.stringify(sent.body))
       const replay = await harness.call('session_user_action', action, { daemon: true })
       assert.equal((replay.body.receipt as { state: string }).state, 'accepted')
-      await waitUntil(async () => (await harness.agents()).some((row) => row.text === action.message) ? true : undefined,
+      await waitUntil(async () => (await harness.agents()).some((row) => row.text === action.message)
+        ? true : undefined,
         30_000, 'the existing managed agent to receive the message')
       assert.equal((await harness.agents()).filter((row) => row.text === action.message).length, 1)
       const denied = await harness.call('session_user_action', { ...action, id: randomUUID() })
