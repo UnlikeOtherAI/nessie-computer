@@ -28,13 +28,14 @@ final class PackagedRuntimeTests: XCTestCase {
         }
     }
 
-    func testManagedCreationSelectsTheCurrentFactoryAndRequiresEveryFixedFile() {
+    func testManagedCreationSelectsTheCurrentFactoryAndNeverFallsBackDuringRepair() {
         let runtime = PackagedRuntime(root: resources.appendingPathComponent("executor-runtime"))
         let creator = runtime.managedHelperURL(fileExists: { _ in true })
         XCTAssertEqual(creator?.path, "/Library/Application Support/Nessie Executor/current/nessie-executor-native")
         XCTAssertEqual(creator?.lastPathComponent, "nessie-executor-native")
-        XCTAssertNil(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor.cjs") }))
-        XCTAssertNil(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor-native") }))
+        XCTAssertEqual(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor.cjs") }), creator)
+        XCTAssertEqual(runtime.managedHelperURL(fileExists: { !$0.hasSuffix("nessie-executor-native") }), creator)
+        XCTAssertNil(runtime.managedHelperURL(fileExists: { _ in false }))
     }
 
     func testNoLeaseNeverBlocksAStart() {

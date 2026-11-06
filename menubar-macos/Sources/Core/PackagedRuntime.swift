@@ -29,10 +29,12 @@ public struct PackagedRuntime: Equatable, Sendable {
     ) -> URL? {
         // The installed factory selects its own immutable release. App bundles
         // carry the consumer protocol floor, rather than pinning an old runtime.
-        let directory = URL(fileURLWithPath: "/Library/Application Support/Nessie Executor/current")
+        let root = URL(fileURLWithPath: "/Library/Application Support/Nessie Executor")
+        guard fileExists(root.path) else { return nil }
+        let directory = root.appendingPathComponent("current")
         let helper = directory.appendingPathComponent("nessie-executor-native")
-        guard fileExists(helper.path), fileExists(directory.appendingPathComponent(Self.nodeFileName).path),
-              fileExists(directory.appendingPathComponent(Self.bundleFileName).path) else { return nil }
+        // A partial installed update must fail at its fixed factory, never
+        // silently start the older Node bundled in this app instead.
         return helper
     }
 

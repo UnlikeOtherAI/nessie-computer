@@ -170,6 +170,8 @@ reuse a surviving worker without starting competing retry loops. The Unix
 socket, protected worker cache and system-service setup are staged in source;
 their installer/health adapters are not enabled or accepted yet. The macOS
 custody package now carries the `current` symlink its consumers select.
+An installed but incomplete macOS factory is kept as the launch target so a
+partial replacement cannot silently fall back to the app's older bundled Node.
 
 The coordinator persists check deadlines and bounded retries separately from
 installation progress. An accepted transaction resumes through catalogue
