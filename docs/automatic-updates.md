@@ -5,6 +5,10 @@ local controls are implemented in source. No signed installed upgrade has been
 verified, and macOS/Linux installer adapters and the transition release remain
 unfinished. No public update channel is enabled.
 
+The Windows MSI producer requires Node 22 and supplies the selected numeric
+release version to the packaged CLI as well as to the installer and native
+helper. A development-labelled bundle is not a release candidate.
+
 The `updater/` Rust crate owns signed catalogue selection, bounded resumable
 downloads and the durable installation journal. Its host installer adapters
 and authenticated local transport are still being connected. A corrupt complete
