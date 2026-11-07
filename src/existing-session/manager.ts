@@ -15,7 +15,8 @@ import { findProviderProgram } from './programs.js'
 import { existingSessionsEnabled } from './settings.js'
 import type { ExistingSession } from './types.js'
 
-type Providers = { codex?: Pick<ExistingCodex, 'list' | 'read' | 'queue' | 'close' | 'program' | 'nextCursor'> & { listAll?: () => Promise<ExistingSession[]> };
+type Providers = { codex?: Pick<ExistingCodex, 'list' | 'read' | 'queue' | 'close' | 'program' | 'nextCursor'>
+  & { listAll?: () => Promise<ExistingSession[]>; statuses?: () => Promise<ExistingSession[]> };
   claude?: Pick<ExistingClaude, 'list' | 'program' | 'read'> }
 
 export class ExistingSessions {
@@ -26,6 +27,7 @@ export class ExistingSessions {
   private readonly discovered = new Map<string, ExistingSession>()
   private refreshing: Promise<ExistingSession[]> | undefined
   private lastQueuedAt = 0
+  private statusesAt = 0
   private serial: Promise<unknown> = Promise.resolve()
 
   constructor(private readonly stateDir: string, private readonly providerFactory?: () => Promise<Providers>) {}
@@ -105,13 +107,39 @@ export class ExistingSessions {
     return this.discovered.get(id)
   }
 
+  /**
+   * Re-reads the runtime status of the Codex threads already listed, at most
+   * every `minimumMs`, without their history: true when a thread's status or
+   * what it waits on changed, so the daemon reports at once.
+   */
+  async refreshStatuses(minimumMs = 5_000): Promise<boolean> {
+    if (this.rows.length === 0 || Date.now() - this.statusesAt < minimumMs) return false
+    if (!await existingAuthorityIsLive(this.stateDir) || !await this.enabled()) return false
+    const codex = (await this.connect()).codex
+    if (!codex?.statuses) return false
+    this.statusesAt = Date.now()
+    const fresh = new Map((await codex.statuses().catch(() => [] as ExistingSession[]))
+      .map((row) => [row.sessionId, row]))
+    let changed = false
+    this.rows = this.rows.map((row) => {
+      const next = fresh.get(row.sessionId)
+      if (!next) return row
+      if (next.status !== row.status || JSON.stringify(next.pending) !== JSON.stringify(row.pending)) changed = true
+      const { pending: _was, ...rest } = row
+      return { ...rest, status: next.status, updatedAt: next.updatedAt,
+        ...(next.pending ? { pending: next.pending } : {}) }
+    })
+    this.remember(this.rows)
+    return changed
+  }
+
   inventoryIsComplete(): boolean { return !Object.values(this.providerStatus).includes('unavailable') }
 
   async inventory(): Promise<Record<string, unknown>[]> {
     if (!await existingAuthorityIsLive(this.stateDir)) return []
     return (await this.list()).map((row) => ({ sessionId: row.sessionId, ownerKey: EXISTING_CODING_SESSION_OWNER_KEY,
       origin: 'external', title: row.title, status: row.status, agent: row.provider,
-      root: basename(row.cwd) || 'existing', updatedAt: row.updatedAt }))
+      root: basename(row.cwd) || 'existing', updatedAt: row.updatedAt, ...(row.pending ? { pending: row.pending } : {}) }))
   }
 
   async read(id: string, includeText = false): Promise<Record<string, unknown>> {

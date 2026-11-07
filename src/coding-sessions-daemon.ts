@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
 import { existingAuthorityWriter } from './existing-session/authority.js'
 
 import {
@@ -24,6 +24,7 @@ import {
 
 import type { LocalCommandPolicy } from './command-policy.js'
 import { loadCodingSessionsConfig } from './coding-session/config.js'
+import { codingSessionChangeMarker } from './coding-session/session-change-marker.js'
 import { codingSessionPaths } from './coding-session/session-files.js'
 import { readSessionMeta } from './coding-session/session-requests.js'
 import { readSessionScreen } from './coding-session/session-view.js'
@@ -132,6 +133,14 @@ export type CodingSessionsDaemon = {
   shutdown: () => Promise<void>
   /** The open sessions for the local-MCP report, or undefined when the bridge could not say. */
   report: () => Promise<ExecutorCodingSessionSummary[] | undefined>
+  /** The file every session host replaces when a session changes, or undefined without a bridge. */
+  changeMarker: () => string | undefined
+  /**
+   * Re-reads the status of the Codex threads found open on this computer (at
+   * most every five seconds, never their history): true when one started or
+   * stopped waiting on its own client's approval or input.
+   */
+  refreshExisting: () => Promise<boolean>
 }
 
 type TextResult = { content?: { text?: unknown }[]; success?: unknown }
@@ -159,6 +168,7 @@ export const createCodingSessionsDaemon = (input: {
 }): CodingSessionsDaemon => {
   const bridge = codingSessionsPolicyOf(input.facts, input.servers)?.server
   const bridgeConfig = bridge ? codingSessionsServerConfigPath(bridge) : undefined
+  const changeMarker = bridgeConfig ? codingSessionChangeMarker(join(dirname(bridgeConfig), 'coding-sessions')) : undefined
   const writeAuthority = bridgeConfig && input.facts?.existingSessions
     ? existingAuthorityWriter(dirname(bridgeConfig)) : async () => undefined
   const log = input.log ?? ((message: string) => { console.error(`[nessie-executor] ${message}`) })
@@ -309,5 +319,11 @@ export const createCodingSessionsDaemon = (input: {
       if (optedIn) await serially(async () => { await daemonCall('session_close_all', { reason: 'daemon_shutdown' }) })
     },
     report: () => sessionReport('session_list_all'),
+    changeMarker: () => changeMarker,
+    refreshExisting: async () => {
+      if (!bridge || !input.facts?.existingSessions) return false
+      const answer = await serially(() => daemonCall('existing_session_refresh', {})).catch(() => undefined)
+      return answer?.changed === true
+    },
   }
 }
