@@ -88,6 +88,8 @@ export const ExecutorSessionRequestSchema = z.object({
   envName: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]{0,127}$/u).optional(),
   /** The approval answers this provider accepts, in the order to offer them. */
   decisions: z.array(ExecutorSessionDecisionSchema).max(4).optional(),
+  /** Once `answered` with a decision: which one, so a card can say what was chosen. */
+  decision: ExecutorSessionDecisionSchema.optional(),
 }).strict()
 export type ExecutorSessionRequest = z.infer<typeof ExecutorSessionRequestSchema>
 

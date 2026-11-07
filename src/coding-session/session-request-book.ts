@@ -118,7 +118,7 @@ export class SessionRequestBook {
     const entry = this.#entries.find((candidate) => candidate.request.id === answer.requestId)
     const problem = answerProblem(entry?.request, answer)
     if (problem || !entry) return problem ?? 'request_not_pending'
-    this.settle(entry, 'answered')
+    this.settle(entry, 'answered', undefined, answer.decision)
     entry.responder?.answer(answer)
     return undefined
   }
@@ -150,8 +150,11 @@ export class SessionRequestBook {
     return [...pending.slice(0, EXECUTOR_SESSION_REQUEST_MAXIMUM), ...settled].map((entry) => entry.request)
   }
 
-  private settle(entry: Entry, status: Exclude<ExecutorSessionRequest['status'], 'pending'>, reason?: string): void {
-    entry.request = { ...entry.request, status, ...(reason ? { reason } : {}) }
+  private settle(
+    entry: Entry, status: Exclude<ExecutorSessionRequest['status'], 'pending'>, reason?: string,
+    decision?: ExecutorSessionDecision,
+  ): void {
+    entry.request = { ...entry.request, status, ...(reason ? { reason } : {}), ...(decision ? { decision } : {}) }
     entry.settled = (this.#settled += 1)
     // Aged-out settled requests are forgotten, so a long session's book stays bounded.
     const kept = new Set(this.list())

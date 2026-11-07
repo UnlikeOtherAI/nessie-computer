@@ -53,6 +53,9 @@ test('an answer must fit its request: pending, answerable, and of its own shape'
   assert.equal(answerProblem(secret, { requestId: secret.id, decision: 'cancel' }), 'answer_shape_mismatch')
   assert.equal(book.answer({ requestId: command.id, decision: 'accept' }), undefined)
   assert.equal(book.answer({ requestId: command.id, decision: 'accept' }), 'request_not_pending', 'a request is answered once')
+  assert.equal(book.get(command.id)?.decision, 'accept', 'an answered approval says which decision was taken')
+  assert.equal(book.answer({ requestId: asked.id, answers: both }), undefined)
+  assert.equal(book.get(asked.id)?.decision, undefined, 'an answered question carries no decision')
 })
 
 test('the book lists pending first, keeps the most recent settled within the cap, and forgets the rest', () => {
