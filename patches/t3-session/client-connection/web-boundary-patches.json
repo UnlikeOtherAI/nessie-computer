@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "file": "apps/web/src/environments/primary/target.ts",
+      "beforeSha256": "374c66e634e81d26f4cc3fef43121d0f05a5f5a90eceba56f3614029b4d4dd42",
+      "afterSha256": "6467e32b5da73d71c6ddab021d10d18056cfb7cb1cb1b550d6e6d7c99312a11c",
+      "from": "import * as Schema from \"effect/Schema\";",
+      "to": "import * as Schema from \"effect/Schema\";\nimport { environmentEndpointUrl, httpBaseUrlFromWebSocket } from \"@t3tools/shared/advertisedEndpoint\";",
+      "semantics": "The omitted web app consumes the same canonical boundary as shared clients."
+    },
+    {
+      "file": "apps/web/src/environments/primary/target.ts",
+      "beforeSha256": "6467e32b5da73d71c6ddab021d10d18056cfb7cb1cb1b550d6e6d7c99312a11c",
+      "afterSha256": "350392551562ab194c87c1e53444994a976a85f4058562063a5528e5220e7d4c",
+      "from": "  const url = parseTargetUrl({\n    rawValue: resolveHttpRequestBaseUrl(primaryTarget),\n    source: primaryTarget.source,\n    urlKind: \"http-base-url\",\n  });\n  url.pathname = pathname;",
+      "to": "  const url = new URL(environmentEndpointUrl(resolveHttpRequestBaseUrl(primaryTarget), pathname));",
+      "semantics": "Preserve the configured environment mount in primary web HTTP requests."
+    },
+    {
+      "file": "apps/web/src/environments/primary/target.ts",
+      "beforeSha256": "350392551562ab194c87c1e53444994a976a85f4058562063a5528e5220e7d4c",
+      "afterSha256": "ae9918883dd9987a0e6eb601080d3893e732b0076b26be0ff70fffd3f1162772",
+      "from": "  return currentUrl.origin;\n",
+      "to": "  return new URL(targetUrl.pathname, currentUrl.origin).toString();\n",
+      "semantics": "Retain the configured base path when the existing loopback dev proxy changes only the origin."
+    },
+    {
+      "file": "apps/web/src/environments/primary/target.ts",
+      "beforeSha256": "ae9918883dd9987a0e6eb601080d3893e732b0076b26be0ff70fffd3f1162772",
+      "afterSha256": "1a1343cc33bb8018f492104f135b370a2629c86a280eafc7fa13260e2ede09ba",
+      "from": "    (configuredWsBaseUrl?.toLowerCase().startsWith(\"wss:\")\n      ? swapBaseUrlProtocol(configuredWsBaseUrl, \"https:\", \"websocket-base-url\")\n      : swapBaseUrlProtocol(configuredWsBaseUrl!, \"http:\", \"websocket-base-url\"));",
+      "to": "    httpBaseUrlFromWebSocket(\n      normalizeBaseUrl(configuredWsBaseUrl!, \"configured\", \"websocket-base-url\"),\n    );",
+      "semantics": "A ws-only explicit /ws setting derives the HTTP environment directory rather than treating /ws as a mount."
+    }
+  ]
+}

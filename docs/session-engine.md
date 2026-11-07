@@ -9,6 +9,10 @@ This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;
 this source preparation does not create another doorway or identity authority.
 
+The source-only [T3 client connection patch](t3-session-client-connection.md)
+preserves mounted environment URLs through the existing shared URL helpers;
+account integration and live client/gateway acceptance remain separate work.
+
 ## Source and distribution decision
 
 Use MIT T3 source at
