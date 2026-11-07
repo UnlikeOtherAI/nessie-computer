@@ -22,6 +22,7 @@ The shared local Settings/update popup has a headless `--updates-only` renderer 
 The macOS signed DMG carries the app and protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
+Linux archive staging keeps builder ownership for rootless containers; nFPM supplies installed root ownership.
 macOS uses the existing Developer ID Application identity, notarized DMG and approved app-bundled helper; follow [that trust contract](docs/macos-update-helper.md).
 
 Public contribution CI has no production signing credentials. Build candidates

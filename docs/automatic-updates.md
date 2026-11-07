@@ -150,6 +150,10 @@ before producing a candidate. This includes interrupted workspace-promotion
 rollback after an earlier journal scan and repeated directory enumeration.
 These source checks do not establish installed update acceptance.
 
+Linux staging verifies the pinned Firecracker archive and extracts it without
+restoring upstream file ownership. nFPM assigns installed root ownership. The
+same producer supports rootless build containers without mapped upstream UIDs.
+
 Deploy Nessie's software-reporting API and nullable schema migration before
 enabling the public stable channel. The new signed heartbeat includes software
 metadata; older control planes can reject unknown request fields. Preview
