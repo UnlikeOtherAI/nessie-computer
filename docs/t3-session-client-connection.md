@@ -177,8 +177,26 @@ private executor pin only after public integration.
 
 T19B still needs the canonical UOA account adapter, complete entitled directory
 registration and cleanup/renewal after T08/T09; no fake Clerk JWT is introduced.
+The reserved future fork files are:
+
+- `apps/mobile/src/features/cloud/CloudAuthProvider.tsx`,
+  `cloudAccountService.ts`, `publicConfig.ts`, and `ConnectOnboardingRouteScreen.tsx`;
+- `apps/mobile/src/connection/platform.ts` and
+  `apps/mobile/src/features/connection/{CloudEnvironmentRows,ConnectionsNewRouteScreen}.tsx`;
+- conditionally, `apps/mobile/src/connection/{catalog,catalog-store,storage}.ts`
+  and `apps/mobile/src/state/use-remote-environment-registry.ts` for scoped cleanup;
+- conditionally, `packages/client-runtime/src/relay/managedRelay.ts` and
+  `packages/shared/src/relayJwt.ts` if the relay-shaped option is selected;
+- the web account/registration boundary in `apps/web/src/connection/platform.ts`
+  and `apps/web/src/environments/primary/auth.ts`, alongside the already declared
+  primary target patch;
+- `apps/mobile/src/connection/runtime.ts` and
+  `apps/mobile/src/features/threads/use-composer-command-menu.ts` only where the
+  existing capability flags do not already omit excluded usage displays.
+
 The conditional v2 uncertain-dispatch fix needs gateway receipt evidence before
-any outbox change. Capability configuration must exclude usage/billing surfaces
-in the later client fork. A future T3 fork/release, actual T3 sync against the
+changing `apps/mobile/src/state/thread-outbox-model.ts` or the shared typed
+dispatch/error boundary. Capability configuration must exclude usage/billing
+surfaces in the later client fork. A future T3 fork/release, actual T3 sync against the
 gateway, config/readiness lifecycle, phone byte transfers and native installed
 evidence remain separate deliveries.
