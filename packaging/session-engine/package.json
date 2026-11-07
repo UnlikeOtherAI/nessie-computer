@@ -1,0 +1,48 @@
+{
+  "name": "@nessie/session-engine-source-build",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "packageManager": "pnpm@10.22.0",
+  "dependencies": {
+    "effect": "4.1.2",
+    "mdast-util-directive": "3.1.0",
+    "micromark-extension-directive": "4.0.0",
+    "micromark-util-character": "2.1.1",
+    "property-information": "7.2.0",
+    "rehype-raw": "7.0.0",
+    "rehype-sanitize": "6.0.0",
+    "remark-breaks": "4.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3",
+    "@types/node": "24.12.4",
+    "@types/mdast": "4.0.4",
+    "micromark-util-types": "2.0.2",
+    "eslint": "10.2.0",
+    "@typescript-eslint/parser": "8.58.0",
+    "@typescript-eslint/eslint-plugin": "8.58.0"
+  },
+  "scripts": {
+    "test:source": "node --test --test-concurrency=1 source.test.mjs",
+    "build:core": "node build.mjs",
+    "lint": "eslint --config eslint.config.mjs *.mjs core/*.ts --max-warnings 0"
+  },
+  "pnpm": {
+    "overrides": {
+      "micromark": "4.0.2",
+      "micromark-extension-gfm-table": "2.1.1",
+      "mdast-util-to-hast": "13.2.1"
+    },
+    "patchedDependencies": {
+      "micromark@4.0.2": ".artifacts/upstream-patches/micromark@4.0.2.patch",
+      "mdast-util-to-hast@13.2.1": ".artifacts/upstream-patches/mdast-util-to-hast@13.2.1.patch",
+      "micromark-extension-gfm-table@2.1.1": ".artifacts/upstream-patches/micromark-extension-gfm-table@2.1.1.patch"
+    }
+  }
+}
