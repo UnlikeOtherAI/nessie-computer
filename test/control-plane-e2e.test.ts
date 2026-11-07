@@ -118,6 +118,11 @@ test('pairing, signed control traffic, and selected-folder enforcement work end 
 
   const server = createServer(async (request, response) => {
     try {
+      // An older Nessie has no doorbell: its upgrade is refused, and the daemon polls as it always did.
+      if (request.url === '/api/executor-daemon/socket') {
+        send(response, { code: 'NOT_FOUND', message: 'Not found' }, 404)
+        return
+      }
       const body = await readBody(request)
       const path = request.url
       if (path === '/api/executor-enrollments/submit') {
