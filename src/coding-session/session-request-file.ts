@@ -24,11 +24,18 @@ export const readSessionRequests = async (
   })
 }
 
+/** The host's list, and the public key the bridge seals what the owner typed in secret to (`answer-seal.ts`). */
 export const writeSessionRequests = (
-  paths: CodingSessionPaths, requests: readonly ExecutorSessionRequest[],
+  paths: CodingSessionPaths, requests: readonly ExecutorSessionRequest[], answerKey?: string,
 ): Promise<void> => (
-  writeJsonAtomic(paths.requests, { version: 1, requests })
+  writeJsonAtomic(paths.requests, { version: 1, requests, ...(answerKey ? { answerKey } : {}) })
 )
+
+/** The live host's answer key, or undefined from a host too old to have one. */
+export const readSessionAnswerKey = async (paths: CodingSessionPaths): Promise<string | undefined> => {
+  const file = await readJsonPatiently<{ answerKey?: unknown }>(paths.requests)
+  return typeof file?.answerKey === 'string' && file.answerKey.length <= 200 ? file.answerKey : undefined
+}
 
 /** A list row's `pending`, or nothing to spread when nothing waits. */
 export const pendingOf = (requests: readonly ExecutorSessionRequest[]): { pending?: ExecutorSessionPendingSummary } => {

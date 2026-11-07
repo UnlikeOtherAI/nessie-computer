@@ -10,7 +10,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
-import { createCodingHarness, waitUntil, type CodingHarness } from './coding-session-harness.js'
+import { alive, createCodingHarness, waitUntil, type CodingHarness } from './coding-session-harness.js'
 
 const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
 
@@ -295,3 +295,40 @@ test('until Nessie shows it reads requests, every prompt is turned down at once,
       await harness.cleanup()
     }
   })
+
+test('a supplied secret stays <secret> in what the agent prints, across a host restart', { timeout: 150_000 }, async () => {
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
+  try {
+    const sessionId = await startSession(harness, 'claude', '#secret-tool connect stripe')
+    const request = await pendingOf(harness, sessionId, 'secret')
+    assert.equal((await reply(harness, sessionId, { requestId: request.id, secret: SECRET })).state, 'accepted')
+    await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input', OWNER)
+    const printed = async (message: string): Promise<string> => {
+      const before = (await conversation(harness, sessionId)).messages.length
+      await harness.call('session_send', { sessionId, message }, { owner: OWNER })
+      const grew = async (): Promise<true | undefined> => (
+        (await conversation(harness, sessionId)).messages.length > before ? true : undefined)
+      await waitUntil(grew, 30_000, 'the agent to print the file')
+      await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input', OWNER)
+      return JSON.stringify((await conversation(harness, sessionId)).messages)
+    }
+    const first = await printed('#cat=.env.local show me')
+    assert.equal(first.includes(SECRET), false, 'neither the tool output nor the prose carries the value')
+    assert.match(first, /STRIPE_KEY=<secret>/u)
+    const session = codingSessionPaths(harness.stateDir, sessionId)
+    assert.equal((await readFile(session.events, 'utf8')).includes(SECRET), false)
+    const records = await readdir(join(session.dir, 'secret-destinations'))
+    assert.deepEqual(JSON.parse(await readFile(join(session.dir, 'secret-destinations', records[0]!), 'utf8')),
+      { destination: '.env.local', envName: 'STRIPE_KEY' }, 'which file holds it, never the value')
+
+    // A new host starts with an empty projector, and reads the value back from its file.
+    const lock = JSON.parse(await readFile(join(session.dir, 'host.lock'), 'utf8')) as { pid: number }
+    process.kill(lock.pid, 'SIGKILL')
+    await waitUntil(async () => (alive(lock.pid) ? undefined : true), 10_000, 'the host to be gone')
+    const second = await printed('#cat=.env.local once more')
+    assert.equal(second.includes(SECRET), false, 'still redacted after the host restarted')
+    assert.equal((await readFile(session.events, 'utf8')).includes(SECRET), false)
+  } finally {
+    await harness.cleanup()
+  }
+})

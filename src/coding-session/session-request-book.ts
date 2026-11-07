@@ -27,8 +27,11 @@ import {
 export type SessionRequestDraft = Omit<ExecutorSessionRequest, 'id' | 'status' | 'reason' | 'openedAt' | 'answerable'>
   & { answerable?: boolean }
 
-/** The answer as the host receives it: a secret's value never reaches the host, only that it was saved. */
-export type HostAnswer = Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true }
+/**
+ * The answer as the host receives it: a secret's value is in its file, and
+ * reaches the host only sealed, so it can be redacted (`answer-seal.ts`).
+ */
+export type HostAnswer = Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true; sealed?: unknown }
 
 export type SessionRequestResponder = {
   answer: (answer: HostAnswer) => void

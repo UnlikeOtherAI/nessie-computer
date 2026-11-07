@@ -126,6 +126,40 @@ const readExisting = async (target: string, readText: boolean): Promise<{ found:
   }
 }
 
+/** The value of `NAME=…` as `setDotenvLine` writes it (quoted and escaped, or bare), or undefined. */
+export const dotenvValue = (content: string, name: string): string | undefined => {
+  const line = content.split(/\r?\n/u).find((entry) => new RegExp(`^\\s*(?:export\\s+)?${name}\\s*=`, 'u').test(entry))
+  const raw = line?.slice(line.indexOf('=') + 1).trim()
+  if (raw === undefined) return undefined
+  if (!raw.startsWith('"')) return raw
+  const quoted = /^"((?:[^"\\]|\\.)*)"/u.exec(raw)?.[1]
+  return quoted?.replace(/\\(.)/gu, (_, character: string) => (
+    character === 'n' ? '\n' : character === 'r' ? '\r' : character))
+}
+
+/** How a value is spelled in the file it was written to, beside the value itself: both are what `cat` shows. */
+export const secretSpellings = (value: string): string[] => {
+  const quoted = quoteDotenv(value)
+  return quoted === value ? [value] : [value, quoted.slice(1, -1)]
+}
+
+/**
+ * Reads back a value the owner supplied, as safely as it was written: a file
+ * directly in the folder, through a handle that follows no link.
+ */
+export const readSecretFromFolder = async (input: {
+  folder: string; destination: string; envName?: string
+}): Promise<string | undefined> => {
+  const [name] = secretDestinationSegments(input.destination) as [string]
+  const root = await realpath(input.folder).catch(refuse)
+  const folder = await lstat(root).catch(refuse)
+  if (folder.isSymbolicLink() || !folder.isDirectory()) refuse()
+  const existing = await readExisting(join(root, name), true)
+  await folderUnchanged(root, folder)
+  if (!existing.found) return undefined
+  return input.envName === undefined ? existing.text : dotenvValue(existing.text, input.envName)
+}
+
 /**
  * Writes the secret into the one file the destination names, directly in the
  * folder. `security` reaches the state-security module (its tests use it to
