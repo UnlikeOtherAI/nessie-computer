@@ -292,7 +292,9 @@ combine independently bundled candidates.
 The producer and T01 alias plugin share `pluginData.nessieSharedEffect === true`
 as the dependency-resolution recursion marker. The producer preserves existing
 metadata, adds `nessieSharedEffectRoot` for the selected absolute dependency root,
-and refuses a conflicting root. Both plugins must receive the same directory.
+and refuses a conflicting root. A T01 boolean marker without root metadata still
+passes through producer resolution once so the selected root is enforced.
+Both plugins must receive the same directory.
 `plugin-proof.mjs` loads the exact committed T01 helper and runs real esbuild in
 both plugin orders. First-party and virtual original imports must share the
 actual Schema namespace and codec objects, with one dependency-root module graph.
@@ -494,3 +496,25 @@ SHA-256 `763ec6d19901614479f8a0d710255dd6cae6c58dde971b29a71c2d53296fe1ed`.
 Both plugin orders produce the same bundle SHA-256
 `ddbdb025c1de1977621b093a179fec2d0e388ca2bf0e249af8bf0c83aabe3975`,
 with 306 Effect source modules and actual shared Schema/codec identity.
+
+The independent default engine at producer checkpoint
+`e10c35f3173bad03b31d6b3355a189695dc1c7e0` selects state, client and extraction
+only: 151 operations, combined digest
+`8787aa945472cda3c4530c7b57f0c191d44a1829ddaf0ebcdccca2e39007383b`.
+Its 4,388,954-byte bundle SHA-256 is
+`0082ff6f8fb03d074aca3df6bb7cc440dfe04901f706bdad6830b0bf5032faf2`.
+Strict checking covers 922 files and 347 runtime source modules. The 373-file
+portable declaration closure has digest
+`8a69a6412ef9986d45156241485e9578b890d149e17215afb369e001261ab7b6`.
+Actual import smoke passes, and ordinary strict Bundler and NodeNext consumers
+both pass with library checking enabled. NodeNext was checked with the same
+generated consumer using `--module NodeNext --moduleResolution NodeNext`.
+
+The fresh independent history candidate at that checkpoint has bundle SHA-256
+`06568f446cff55fea0a07d7567f807234dab21ea3c39a176e113eee74261e6b1`,
+3,566,433 bytes, 284 runtime source modules and 854 checked files. It reruns all
+80 migrations and the history/replay/reopen outcomes above. It selects no
+request-privacy family and therefore makes no privacy qualification claim.
+The subsequent producer root-marker enforcement passes the combined-plugin
+regression with unchanged emitted proof bytes; its resolver SHA-256 is
+`6b1b1f3d61b5fbbe8fe85eed786cf841e7245e4ac7ff36aee58d7246402394b1`.

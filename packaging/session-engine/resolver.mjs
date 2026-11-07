@@ -105,8 +105,9 @@ export const sessionEngineSourcePlugin = ({ snapshot, dependencyDirectory, depen
         if (args.pluginData?.nessieSharedEffectRoot && args.pluginData.nessieSharedEffectRoot !== selectedRoot) {
           refuse('SESSION_ENGINE_EFFECT_DEPENDENCY_ROOT_MISMATCH')
         }
-        // T01's alias plugin uses the same flag, so composing the two hooks cannot recurse.
-        if (args.pluginData?.nessieSharedEffect === true) return undefined
+        // T01's marker stops its hook; our root marker also proves the selected root was enforced.
+        if (args.pluginData?.nessieSharedEffect === true
+          && args.pluginData.nessieSharedEffectRoot === selectedRoot) return undefined
         const name = args.path.startsWith('@') ? args.path.split('/').slice(0, 2).join('/') : 'effect'
         if (!admitted.has(name)) refuse('SESSION_ENGINE_RUNTIME_DEPENDENCY_NOT_ADMITTED')
         return build.resolve(args.path, { kind: args.kind, resolveDir: dependencyDirectory,
