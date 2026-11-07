@@ -23,13 +23,37 @@ export type OwnerRequestsGate = {
   ready: (connectionEpoch: string) => void
   /** The current connection's Nessie has shown it reads `pending` and `requests`. */
   understood: () => boolean
+  /**
+   * Hold session rows back for a moment rather than send them stripped. After
+   * a new connection epoch, a Nessie that read requests on the previous epoch
+   * almost certainly still does and says `ready` within a second; a stripped
+   * row would tell it every wait had ended, clearing the row and ringing the
+   * owner again when the wait reappears. Never held at daemon start (nothing
+   * is known of the server yet, and an older one must still get its rows),
+   * and never longer than `REPORT_HOLD_MS` per epoch.
+   */
+  holdReports: () => boolean
 }
 
-export const createOwnerRequestsGate = (currentEpoch: () => string | undefined): OwnerRequestsGate => {
+export const REPORT_HOLD_MS = 10_000
+
+export const createOwnerRequestsGate = (
+  currentEpoch: () => string | undefined, now: () => number = Date.now,
+): OwnerRequestsGate => {
   let readyEpoch: string | undefined
+  let everReady = false
+  let heldEpoch: string | undefined
+  let heldSince = 0
+  const understood = (): boolean => readyEpoch !== undefined && readyEpoch === currentEpoch()
   return {
-    ready: (connectionEpoch) => { readyEpoch = connectionEpoch },
-    understood: () => readyEpoch !== undefined && readyEpoch === currentEpoch(),
+    ready: (connectionEpoch) => { readyEpoch = connectionEpoch; everReady = true },
+    understood,
+    holdReports: () => {
+      if (!everReady || understood()) return false
+      const epoch = currentEpoch()
+      if (epoch !== heldEpoch) { heldEpoch = epoch; heldSince = now() }
+      return now() - heldSince < REPORT_HOLD_MS
+    },
   }
 }
 

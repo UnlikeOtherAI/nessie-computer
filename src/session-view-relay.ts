@@ -34,6 +34,8 @@ export type SessionViewRelay = ((state: RelayState) => Promise<void>) & {
 export const createSessionViewRelay = (
   bridge: Pick<CodingSessionsDaemon, 'screen' | 'inventory' | 'conversation' | 'action'>,
   serverReadsRequests: () => boolean,
+  /** Hold rows back briefly while a known request-reading Nessie confirms a new epoch (`holdReports`). */
+  holdReports: () => boolean = () => false,
 ): SessionViewRelay => {
   let requests: ExecutorSessionViewRequest[] = []
   let hot = false
@@ -59,7 +61,9 @@ export const createSessionViewRelay = (
         conversation: conversationForServer(await bridge.conversation(request).catch(() => null), understood),
       } : {}),
     })))
-    if (forced && !pendingInventory) {
+    if (!understood && !pendingInventory && holdReports()) {
+      // The rows wait for this epoch's ready; `forced` stays set so they go out with it.
+    } else if (forced && !pendingInventory) {
       forced = false
       cursor = undefined
       pendingInventory = await bridge.inventory()

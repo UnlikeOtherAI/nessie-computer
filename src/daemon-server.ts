@@ -83,7 +83,9 @@ export const serveExecutor = async (
     })
     const localMcp = createLocalMcpReporter(namedMcpServers, mcpSessions, { codingSessions: codingBridge.report })
     const monitor = startComputerMonitor(stateDir)
-    const relayScreens = createSessionViewRelay(codingBridge, ownerRequestsGate.understood)
+    const relayScreens = createSessionViewRelay(
+      codingBridge, ownerRequestsGate.understood, ownerRequestsGate.holdReports,
+    )
     const screenPoll = createNonOverlappingExecutorTask(() => relayScreens(live).catch(() => undefined))
     void localMcp.refresh().catch(() => undefined)
     let shuttingDown = false

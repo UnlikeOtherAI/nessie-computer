@@ -10,7 +10,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { ownerRequestsLeaseIsLive, ownerRequestsLeaseWriter } from '../src/coding-session/owner-requests-lease.js'
-import { createOwnerRequestsGate, reportForServer } from '../src/owner-requests-gate.js'
+import { createOwnerRequestsGate, REPORT_HOLD_MS, reportForServer } from '../src/owner-requests-gate.js'
 
 const now = new Date().toISOString()
 const report: ExecutorLocalMcpReport = ExecutorLocalMcpReportSchema.parse([{
@@ -34,6 +34,25 @@ test('the gate opens on a ready for the current connection epoch only', () => {
   assert.equal(gate.understood(), false, 'a reconnect may meet a different Nessie')
   epoch = undefined
   assert.equal(gate.understood(), false)
+})
+
+test('after a new epoch, rows wait briefly for a known Nessie\'s ready instead of going out stripped', () => {
+  let epoch: string | undefined = '1'
+  let clock = 0
+  const gate = createOwnerRequestsGate(() => epoch, () => clock)
+  assert.equal(gate.holdReports(), false, 'at daemon start nothing is known: an older Nessie must still get its rows')
+  gate.ready('1')
+  assert.equal(gate.holdReports(), false, 'an understood epoch sends rows with their waits')
+  epoch = '2'
+  assert.equal(gate.holdReports(), true, 'a Nessie that read requests a moment ago most likely still does')
+  clock += REPORT_HOLD_MS - 1
+  assert.equal(gate.holdReports(), true)
+  clock += 1
+  assert.equal(gate.holdReports(), false, 'never longer than the hold: a rolled-back Nessie gets stripped rows')
+  epoch = '3'
+  assert.equal(gate.holdReports(), true, 'each new epoch has its own hold')
+  gate.ready('3')
+  assert.equal(gate.holdReports(), false)
 })
 
 test('the heartbeat report leaves pending out until Nessie has shown it reads it', () => {
