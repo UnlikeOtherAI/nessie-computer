@@ -11,7 +11,11 @@ import { sourceFunctions } from './source-functions.mjs'
 const dependencyDirectory = process.env.T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY
 if (!dependencyDirectory) throw new Error('Explicit owned T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY is required')
 const snapshot = applyClientConnectionPatches(await readOriginalSnapshot())
-const loader = createSourceModuleLoader(snapshot, { dependencyDirectory })
+const loader = createSourceModuleLoader(snapshot, {
+  dependencyDirectory,
+  // No account/device identities are supplied. Keep unrelated analytics hashing inactive.
+  stubs: { '@t3tools/shared/telemetryId': { hashTelemetryId: () => { throw new Error('UNEXPECTED_TELEMETRY_HASH') } } },
+})
 const http = await loader.load('packages/client-runtime/src/rpc/http.ts')
 const auth = await loader.load('packages/client-runtime/src/authorization/remote.ts')
 const remote = await loader.load('packages/shared/src/remote.ts')
@@ -64,6 +68,7 @@ test('actual Effect URL builders and HTTP requests retain root/mounted paths and
       const fixture = recorder(invalidAuth())
       const expected = urls.orchestration[name](input)
       assert.equal(new URL(expected).origin + new URL(expected).pathname, base + path)
+      assert.deepEqual(Object.fromEntries(new URL(expected).searchParams), input.query ?? {})
       const result = await run(Effect.gen(function* () {
         const client = yield* http.makeEnvironmentHttpApiGroupClient(base, 'orchestration')
         return yield* client[name](input)
@@ -76,10 +81,12 @@ test('actual Effect URL builders and HTTP requests retain root/mounted paths and
     }
     // Exercise the full-client constructor as well as the group constructor.
     const fixture = recorder(ticket())
-    await run(Effect.gen(function* () {
+    const issued = await run(Effect.gen(function* () {
       const client = yield* http.makeEnvironmentHttpApiClient(base)
       return yield* client.auth.webSocketTicketFor({ headers: {}, params: { use: 'rpc' } })
     }), fixture)
+    assert.equal(Redacted.value(issued.ticket), 'synthetic-ticket', 'original ticket codec decodes the redacted result')
+    assert.equal(fixture.calls.length, 1)
     assert.equal(fixture.calls[0].url, `${base}api/auth/websocket-ticket/rpc`)
   }
 })
@@ -119,8 +126,11 @@ test('actual bearer and DPoP token exchange use mounted public URLs and original
     for (const type of ['Bearer', 'DPoP']) {
       const fixture = recorder(token(type))
       const input = { httpBaseUrl: base, credential: 'synthetic-bootstrap', scopes: ['orchestration:read'] }
-      await run(type === 'Bearer' ? auth.bootstrapRemoteBearerSession(input)
+      const issued = await run(type === 'Bearer' ? auth.bootstrapRemoteBearerSession(input)
         : auth.exchangeRemoteDpopAccessToken({ ...input, dpopProof: 'synthetic-token-proof' }), fixture)
+      assert.equal(issued.access_token, 'synthetic-access')
+      assert.equal(issued.token_type, type)
+      assert.equal(fixture.calls.length, 1)
       assert.equal(fixture.calls[0].url, `${base}oauth/token`)
       assert.equal(fixture.calls[0].init.method, 'POST')
       const body = fixture.calls[0].init.body
@@ -128,6 +138,10 @@ test('actual bearer and DPoP token exchange use mounted public URLs and original
       assert.equal(fields.get('subject_token'), 'synthetic-bootstrap')
       assert.equal(fields.get('scope'), 'orchestration:read')
       assert.equal(fields.get('grant_type'), 'urn:ietf:params:oauth:grant-type:token-exchange')
+      assert.equal(fields.get('subject_token_type'), contracts.AuthEnvironmentBootstrapTokenType)
+      assert.equal(fields.get('requested_token_type'), contracts.AuthAccessTokenType)
+      assert.equal(fixture.calls[0].init.headers.authorization, undefined)
+      assert.notEqual(fixture.calls[0].init.credentials, 'include')
       if (type === 'DPoP') assert.equal(fixture.calls[0].init.headers.dpop, 'synthetic-token-proof')
     }
     const fixture = recorder(invalidAuth())
@@ -156,8 +170,15 @@ test('actual socket DPoP proofs name public ticket and upgrade paths, including 
       assert.equal(url.origin + url.pathname, `${wsBase}ws`)
       assert.equal(url.searchParams.get('proxy'), 'keep')
       assert.equal(url.searchParams.get('wsTicket'), 'synthetic-ticket')
+      assert.equal(url.searchParams.get('dpop'), `synthetic-proof-${fallback ? 3 : 2}`)
+      assert.equal(proofs.length, fallback ? 3 : 2)
+      assert.equal(fixture.calls.length, fallback ? 2 : 1)
       assert.equal(fixture.calls[0].url, proofs[0].url)
-      if (fallback) assert.equal(fixture.calls[1].url, proofs[1].url)
+      for (let index = 0; index < fixture.calls.length; index += 1) {
+        assert.equal(fixture.calls[index].url, proofs[index].url)
+        assert.equal(fixture.calls[index].init.headers.authorization, 'DPoP synthetic-access')
+        assert.equal(fixture.calls[index].init.headers.dpop, `synthetic-proof-${index + 1}`)
+      }
     }
     const fixture = recorder(ticket())
     const bearerSocket = new URL(await run(auth.resolveRemoteWebSocketConnectionUrl({
@@ -165,15 +186,87 @@ test('actual socket DPoP proofs name public ticket and upgrade paths, including 
     }), fixture))
     assert.equal(bearerSocket.pathname, new URL(`${base}ws`).pathname)
   }
-  const fixture = recorder()
-  let proofCount = 0
-  const result = await run(auth.resolveRemoteDpopWebSocketConnectionUrl({
-    httpBaseUrl: mountedBase, wsBaseUrl: 'wss://api.example/t3/environments/other/ws', accessToken: 'synthetic',
-    createProof: () => { proofCount += 1; return Effect.succeed('never') },
-  }).pipe(Effect.exit), fixture)
-  assert.equal(result._tag, 'Failure')
-  assert.equal(proofCount, 0)
-  assert.equal(fixture.calls.length, 0)
+})
+
+test('actual bearer/DPoP sockets reject foreign origins and mounts before reading credentials or creating proofs', async () => {
+  for (const wsBaseUrl of [
+    'wss://foreign.example/t3/environments/key%2Fopaque%25/ws', 'wss://api.example/ws',
+    'wss://api.example/t3/environments/other/ws', 'ws://api.example/t3/environments/key%2Fopaque%25/ws',
+    `${mountedBase.replace('https:', 'wss:')}../other/ws`, 'file:///ws',
+  ]) {
+    for (const [method, credential] of [
+      ['resolveRemoteWebSocketConnectionUrl', 'bearerToken'], ['resolveRemoteDpopWebSocketConnectionUrl', 'accessToken'],
+    ]) {
+      const fixture = recorder()
+      let credentialReads = 0
+      let proofs = 0
+      const input = { httpBaseUrl: mountedBase, wsBaseUrl,
+        createProof: () => { proofs += 1; return Effect.succeed('never') } }
+      Object.defineProperty(input, credential, { get: () => { credentialReads += 1; return 'never' } })
+      const result = await run(auth[method](input).pipe(Effect.exit), fixture)
+      assert.equal(result._tag, 'Failure', `${method}: ${wsBaseUrl}`)
+      assert.equal(credentialReads, 0)
+      assert.equal(proofs, 0)
+      assert.equal(fixture.calls.length, 0)
+    }
+  }
+})
+
+test('actual bearer fallback stays mounted and DPoP never reuses a proof for a different ticket path', async () => {
+  for (const base of bases) {
+    const fixture = recorder(new Response('', { status: 404 }), ticket())
+    const issued = await run(auth.issueRemoteWebSocketTicket({
+      httpBaseUrl: base, bearerToken: 'synthetic-bearer', use: 'rpc',
+    }), fixture)
+    assert.equal(Redacted.value(issued.ticket), 'synthetic-ticket')
+    assert.deepEqual(fixture.calls.map(call => call.url), [
+      `${base}api/auth/websocket-ticket/rpc`, `${base}api/auth/websocket-ticket`,
+    ])
+    for (const call of fixture.calls) assert.equal(call.init.headers.authorization, 'Bearer synthetic-bearer')
+    const dpop = recorder(new Response('', { status: 404 }))
+    const result = await run(auth.issueRemoteDpopWebSocketTicket({
+      httpBaseUrl: base, accessToken: 'synthetic-access', dpopProof: 'rpc-path-only', use: 'rpc',
+    }).pipe(Effect.result), dpop)
+    assert.equal(result.failure._tag, 'RemoteEnvironmentAuthUndeclaredStatusError')
+    assert.equal(result.failure.status, 404)
+    assert.equal(dpop.calls.length, 1, 'no bare-path fallback without a new proof')
+  }
+})
+
+test('original HTTP error mapping preserves typed rejection, codec, undeclared-status, fetch and timeout failures', async () => {
+  const requestUrl = `${mountedBase}api/auth/websocket-ticket`
+  for (const [response, expected] of [
+    [invalidAuth(), 'EnvironmentAuthInvalidError'],
+    [Response.json({ ticket: 'synthetic-ticket', expiresAt: 'not-a-date' }), 'RemoteEnvironmentAuthInvalidJsonError'],
+    [new Response('not JSON', { headers: { 'content-type': 'application/json' } }), 'RemoteEnvironmentAuthInvalidJsonError'],
+    [new Response('', { status: 502 }), 'RemoteEnvironmentAuthUndeclaredStatusError'],
+  ]) {
+    const fixture = recorder(response)
+    const result = await run(auth.issueRemoteWebSocketTicket({ httpBaseUrl: mountedBase, bearerToken: 'synthetic' })
+      .pipe(Effect.result), fixture)
+    assert.equal(result.failure._tag, expected)
+    if (expected === 'EnvironmentAuthInvalidError') assert.ok(result.failure instanceof contracts.EnvironmentAuthInvalidError)
+    if (expected === 'RemoteEnvironmentAuthUndeclaredStatusError') {
+      assert.equal(result.failure.status, 502)
+      assert.equal(result.failure.requestUrl, requestUrl)
+    }
+    assert.equal(fixture.calls.length, 1)
+  }
+  const broken = { fetch: async () => { throw new Error('SYNTHETIC_TRANSPORT_FAILURE') } }
+  const failed = await run(auth.issueRemoteWebSocketTicket({ httpBaseUrl: mountedBase, bearerToken: 'synthetic' })
+    .pipe(Effect.result), broken)
+  assert.ok(failed.failure instanceof http.RemoteEnvironmentAuthFetchError)
+  let aborted = false
+  const stalled = { fetch: (_url, init) => new Promise((_resolve, reject) => {
+    init.signal.addEventListener('abort', () => { aborted = true; reject(new Error('SYNTHETIC_ABORT')) }, { once: true })
+  }) }
+  const timedOut = await run(auth.issueRemoteWebSocketTicket({
+    httpBaseUrl: mountedBase, bearerToken: 'synthetic', timeoutMs: 25,
+  }).pipe(Effect.result), stalled)
+  assert.ok(timedOut.failure instanceof http.RemoteEnvironmentAuthTimeoutError)
+  assert.equal(timedOut.failure.requestUrl, requestUrl)
+  assert.equal(timedOut.failure.timeoutMs, 25)
+  assert.equal(aborted, true)
 })
 
 test('descriptor and config/readiness socket negotiation retain their original public entry points', async () => {
@@ -206,15 +299,19 @@ test('actual ordinary HTTP authorization signs the same public bounded-history U
     'const executeEnvironmentRequest =', null, ['executeEnvironmentRequest'],
     { Effect, Option, Result, ...http, ...prelude })
   const proofs = []
+  const renewals = []
   const fixture = recorder(invalidAuth(), invalidAuth())
   const prepared = {
     environmentId: 'synthetic-environment', httpBaseUrl: mountedBase,
     target: { _tag: 'BearerConnectionTarget' }, httpAuthorization: { _tag: 'Dpop', accessToken: 'old' },
   }
-  const authorization = { _tag: 'Dpop', accessToken: 'synthetic-access' }
   const request = executeEnvironmentRequest({
     prepared, signer: Option.some({ createProof: input => { proofs.push(input); return Effect.succeed('synthetic-proof') } }),
-    remoteAuthorization: Option.some({ authorizeDpopHttp: () => Effect.succeed({ httpBaseUrl: mountedBase, httpAuthorization: authorization }) }),
+    remoteAuthorization: Option.some({ authorizeDpopHttp: input => {
+      renewals.push(input)
+      return Effect.succeed({ httpBaseUrl: 'https://foreign.example/',
+        httpAuthorization: { _tag: 'Dpop', accessToken: `synthetic-access-${renewals.length}` } })
+    } }),
     method: 'GET', timeoutMs: 2000, group: 'orchestration',
     url: urls => urls.threadHistoryPage({ params: { threadId: 'mcp:č/a' }, query: { cursor: 'cursor/+%' } }),
     request: ({ client, headers }) => client.threadHistoryPage({
@@ -222,11 +319,19 @@ test('actual ordinary HTTP authorization signs the same public bounded-history U
       params: { threadId: 'mcp:č/a' }, query: { cursor: 'cursor/+%' },
     }),
   })
-  await run(request.pipe(Effect.result), fixture)
+  const result = await run(request.pipe(Effect.result), fixture)
+  assert.ok(result.failure instanceof contracts.EnvironmentAuthInvalidError)
+  assert.deepEqual(renewals, [
+    { expectedEnvironmentId: 'synthetic-environment' },
+    { expectedEnvironmentId: 'synthetic-environment', rejectedAccessToken: 'synthetic-access-1' },
+  ])
   assert.equal(fixture.calls.length, 2, 'original typed-auth retry is retained')
+  assert.equal(proofs.length, 2)
   for (let i = 0; i < fixture.calls.length; i += 1) {
     assert.equal(proofs[i].url, fixture.calls[i].url)
     assert.ok(proofs[i].url.startsWith(mountedBase))
+    assert.equal(proofs[i].accessToken, `synthetic-access-${i + 1}`)
+    assert.equal(fixture.calls[i].init.headers.authorization, `DPoP synthetic-access-${i + 1}`)
     assert.equal(fixture.calls[i].init.headers.dpop, 'synthetic-proof')
   }
 })
