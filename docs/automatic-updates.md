@@ -145,6 +145,11 @@ open protected provider profiles to an older process.
 
 ## Required verification before enabling a channel
 
+Run `cargo test --manifest-path native/Cargo.toml` in the Linux package builder
+before producing a candidate. This includes interrupted workspace-promotion
+rollback after an earlier journal scan and repeated directory enumeration.
+These source checks do not establish installed update acceptance.
+
 Deploy Nessie's software-reporting API and nullable schema migration before
 enabling the public stable channel. The new signed heartbeat includes software
 metadata; older control planes can reject unknown request fields. Preview
