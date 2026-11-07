@@ -1,6 +1,6 @@
 import { createRequire, stripTypeScriptTypes } from 'node:module'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { readFileSync, realpathSync } from 'node:fs'
+import { isAbsolute, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { SourceTextModule, SyntheticModule } from 'node:vm'
 
@@ -9,7 +9,17 @@ import { createSessionEngineSourceResolver } from '../../packaging/session-engin
 /** Full pinned modules, C02 resolution, and one explicitly owned Effect 4.1.2 singleton. */
 export const createSourceModuleLoader = (snapshot, { dependencyDirectory, stubs = {}, env = {} }) => {
   const require = createRequire(pathToFileURL(resolve(dependencyDirectory, 'package.json')))
-  const effectManifest = JSON.parse(readFileSync(require.resolve('effect/package.json')))
+  const root = realpathSync(dependencyDirectory)
+  const resolveEffect = specifier => {
+    if (specifier !== 'effect' && !specifier.startsWith('effect/')) throw new Error('ONLY_EFFECT_DEPENDENCY_ALLOWED')
+    const path = realpathSync(require.resolve(specifier))
+    const local = relative(root, path)
+    if (isAbsolute(local) || local === '..' || local.startsWith('../') || local.startsWith('..\\')) {
+      throw new Error('OWNED_EFFECT_DEPENDENCY_REQUIRED')
+    }
+    return path
+  }
+  const effectManifest = JSON.parse(readFileSync(resolveEffect('effect/package.json')))
   if (effectManifest.version !== '4.1.2') throw new Error('PINNED_EFFECT_VERSION_REQUIRED')
   const resolver = createSessionEngineSourceResolver(snapshot)
   const cache = new Map()
@@ -25,10 +35,10 @@ export const createSourceModuleLoader = (snapshot, { dependencyDirectory, stubs 
     const key = selected.path
     if (cache.has(key)) return cache.get(key)
     if (selected.kind !== 'source') {
-      if (selected.kind !== 'dependency' || !key.startsWith('effect/')) {
+      if (selected.kind !== 'dependency' || (key !== 'effect' && !key.startsWith('effect/'))) {
         throw new Error(`UNSCHEDULED_DEPENDENCY_REFUSED:${key}`)
       }
-      const namespace = await import(pathToFileURL(require.resolve(key)).href)
+      const namespace = await import(pathToFileURL(resolveEffect(key)).href)
       const result = synthetic(key, namespace)
       cache.set(key, result)
       return result
@@ -42,7 +52,7 @@ export const createSourceModuleLoader = (snapshot, { dependencyDirectory, stubs 
     return result
   }
   return {
-    external: specifier => import(pathToFileURL(require.resolve(specifier)).href),
+    external: specifier => import(pathToFileURL(resolveEffect(specifier)).href),
     load: async path => {
       const module = await get(`t3-source:${path}`)
       if (module.status === 'unlinked') await module.link((specifier, importer) => get(specifier, importer.identifier))

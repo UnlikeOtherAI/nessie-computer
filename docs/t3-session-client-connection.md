@@ -134,12 +134,14 @@ only disposable synthetic build inputs under this worktree's ignored
 supplied with `T3_CLIENT_CONNECTION_SOURCE_ARCHIVE`; the separate web check
 still requires its committed Git source.
 
-The separately scheduled full-module test uses only Effect `4.1.2`, with its
+The full-module test uses only Effect `4.1.2`, with its
 exact integrity from C02's lock. Effect has no dependency entries in that lock.
 `prepare-dependencies.mjs` writes a minimal isolated package and lock under the
 owned artifact directory and refuses conflicting existing inputs. It does not
-install anything. After explicit release of the shared heavy slot, use a fresh
-load check, at least 6 GiB free, a 1,536 MiB cap and sequential commands:
+install anything. Run only in a coordinator-allocated resource lane, with a
+fresh load/headroom check before each job, at least 10 GiB free, a 1,536 MiB heap
+cap and sequential commands. The auxiliary lane used for this verification did
+not require or claim release of T01's priority slot:
 
 ```powershell
 $env:NODE_OPTIONS = '--max-old-space-size=1536'
@@ -151,19 +153,67 @@ node --experimental-vm-modules --test --test-concurrency=1 test/t3-session-clien
 
 The VM loader executes original patched modules through C02's resolver and one
 owned pinned Effect singleton. No source-checkout modules or another worktree's
-dependencies are consumed. Fetch fixtures are synthetic in-memory responses;
+dependencies are consumed; resolved dependency files must remain inside the
+explicit owned directory after realpath resolution. Both Effect's root export
+and its subpaths are admitted. Fetch fixtures are synthetic in-memory responses;
 they never call a live gateway or provider. The web-only disabled-environment
-switch is injected for that boundary test. Full HTTP/auth modules and their
+switch is injected for that boundary test. No cloud/device identity is supplied;
+the unrelated telemetry hash import is a fail-closed binding that throws if
+called, avoiding an additional hashing dependency. Full HTTP/auth modules and their
 original contracts/codecs are executed, rather than mocked clients/builders.
 Ordinary authenticated HTTP and preview/speech constructors use exact source
 function slices with actual Effect and explicit dependency bindings to avoid
 activating unrelated application graphs.
 
-Current result: ten pure Node checks passed on Windows Maxis with Node
-`24.19.0` and `--max-old-space-size=512`. Full Effect checks are prepared and
-await the explicitly coordinated dependency slot. Packaged Node 22 is unverified.
-No native build, install, database, retained session, provider or credential was
-accessed. No browser/mobile/live-gateway/readiness-lifecycle acceptance is claimed.
+## Verified fixture result — 7 November 2026
+
+The final full-module run passed **11 tests, 0 failed, 0 skipped**. The pure
+actual-source gate passed **10 tests, 0 failed, 0 skipped**. Both ran sequentially
+on Windows Maxis, Windows 11 Pro `10.0.26300`, Node `24.19.0`, pnpm `10.22.0`,
+from private base `0de1eb1a59118671cb31fbc2304e125dbf473840` and public executor
+base `04c853ab79997a6ef20a8355aa6d6574ecd5bba1`. The test-only corrections do not
+change either URL patch manifest, source hash, patch API or patched-file hash.
+
+The owned Effect fixture has package-manifest SHA-256
+`a243083c6d82d436139047f6c638b7d6e4025e3863922013ccee3c9f806a8911`
+and lock SHA-256
+`2d4df57e4280fb6f0b326f38df036fdd89895572c27ca3fee8894048f34fa99b`.
+Its sole dependency is Effect `4.1.2`, integrity
+`sha512-d3Oah1WyKxFLFh19yWheS5IXIVaITzxZ71JkE1rkUozq/6EcJSU5nPk5bF2QrSygZ3SQoiNQB8TsxFriyMeMaQ==`.
+The frozen, lifecycle-disabled install above downloaded one package. The
+manifest and lock remained byte-identical after installation.
+
+The real Effect `urlBuilder`, group and full-client constructors exercised
+loopback/root/mounted environments, once-encoded path parameters, opaque query
+values and protocol headers. Original codecs decoded access tokens, redacted
+tickets and descriptors. Ordinary DPoP HTTP proofs matched the fetch URL on both
+the initial request and the one permitted auth retry. The retry reported the
+rejected token and retained the selected direct environment even when renewal
+returned a different base.
+
+Bearer and DPoP socket tests exercised ticket audiences, the legacy bare-path
+404 fallback and the mounted upgrade proof. A DPoP ticket request without a new
+fallback proof made no fallback request. Wrong origins, sibling/root mounts,
+protocol downgrade, traversal and unsupported schemes failed before credential
+property reads, proof creation or fetch. Original typed rejection, malformed
+JSON/schema responses, undeclared status, transport failure and timeout with
+fetch cancellation retained their original failure categories.
+
+The remaining fixture checks exercised pairing, descriptor/protocol negotiation,
+preview/device and speech constructors, configured web mounts, ws-only settings
+and the loopback dev proxy. The pure gate also exercised explicit custom socket
+paths, cookie-primary socket construction, minted resources and the deliberate
+absolute local-media resource exception alongside credential-endpoint rejection.
+
+At `22:16:35Z`, the final Effect run started with 13.64 GiB free and 28% CPU,
+using the 1,536 MiB heap cap. At `22:17:41Z`, the pure gate started with
+12.89 GiB free and 76% CPU, using a 512 MiB heap cap. The auxiliary lane was
+released after these commands exited; T01's priority lane was never claimed.
+
+These are synthetic in-memory-fetch fixtures against pinned source, not live
+HTTP acceptance. Packaged Node 22, real config/readiness lifecycle, browser,
+mobile, gateway and provider acceptance remain unverified. No native build,
+install, database, retained session, provider or credential was accessed.
 
 ## Integration requests and remaining work
 
