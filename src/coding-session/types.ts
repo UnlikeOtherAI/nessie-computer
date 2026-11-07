@@ -1,4 +1,4 @@
-import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
+import type { ExecutorSessionAnswer, PersonalInferenceAuthority } from '@nessie/executor-protocol'
 
 /**
  * The shapes the coding-sessions bridge and its session hosts share on disk.
@@ -151,9 +151,11 @@ export type CodingSessionEvent = CodingEventBody & { seq: number; at: string }
 /** A request the bridge leaves for the host, named after the executor command that caused it. */
 export type CodingSessionRequest = {
   id: string
-  kind: 'start' | 'send' | 'interrupt' | 'close' | 'retire'
+  kind: 'start' | 'send' | 'interrupt' | 'close' | 'retire' | 'answer'
   text?: string
   reason?: string
+  /** `answer`: the owner's answer, a secret's value replaced by the fact that it was saved. */
+  answer?: Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true }
   at: string
 }
 

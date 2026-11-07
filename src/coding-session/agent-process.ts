@@ -10,6 +10,8 @@ import type { CodingEventBody, CodingProcessIdentity, CodingSessionState } from 
 import { admitPersonalHostExecution } from '../personal-host-execution.js'
 import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
 import type { PersonalInferenceGuard } from '../personal-inference-guard.js'
+import type { SessionRequestBook } from './session-request-book.js'
+import type { SessionSecretServer } from './session-secret-server.js'
 
 /**
  * What both agent drivers share: the context a host gives them, and one
@@ -34,6 +36,10 @@ export type AgentDriverContext = {
   log: (message: string) => void
   personalAuthority?: PersonalInferenceAuthority
   personalGuard?: PersonalInferenceGuard
+  /** What the agent waits on its owner for; the driver opens requests here and answers its provider. */
+  requests: SessionRequestBook
+  /** The `request_secret` MCP server the agent is given. */
+  secretServer?: SessionSecretServer
 }
 
 export type AgentDriver = {

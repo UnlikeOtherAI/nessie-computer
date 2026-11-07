@@ -48,8 +48,9 @@ import {
   writeRequest,
   type CommandRecord,
 } from './session-requests.js'
+import { answerSessionRequest } from './session-answer.js'
 import { composeCodingStatus, deriveCodingStatus } from './status.js'
-import { openFirst } from './session-report.js'
+import { costOf, reportCodingSessions } from './session-report.js'
 import { readSessionScreen, sessionScreenText } from './session-view.js'
 import { terminalLaunch } from './terminal-launch.js'
 import {
@@ -102,23 +103,10 @@ const ALLOWED_UNREVIEWED = new Set([
   'session_close', 'session_interrupt', 'session_close_all', 'session_list_all', 'session_inventory',
 ])
 
-/** The report's own limit; a title a rewrite lengthened is clipped rather than dropped from the report. */
-const TITLE_MAX = 120
-
-const clipTitle = (title: string): string => (title.length > TITLE_MAX ? `${title.slice(0, TITLE_MAX - 1)}…` : title)
-
 const titleFrom = (prompt: string): string => {
   const first = prompt.split(/\r?\n/u).find((line) => line.trim())?.trim() ?? 'Coding session'
   return first.length > 80 ? `${first.slice(0, 79)}…` : first
 }
-
-/**
- * What the session has cost across its turns, once a turn has reported a cost — the figure
- * `session_status` answers, which a ticket's work and the heartbeat intake add to its spend.
- */
-const costOf = (state: CodingSessionState | undefined): { totalCostUsd?: number } => (
-  state?.totalCostUsd === undefined ? {} : { totalCostUsd: state.totalCostUsd }
-)
 
 /** How a terminal session's program exited, once it has: whether the command it ran succeeded. */
 const exitOf = (state: CodingSessionState | undefined): { exitCode?: number } => (
@@ -417,33 +405,13 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     return { closing: closed.reduce((sum: number, count) => sum + count, 0) }
   }
 
-  /**
-   * What the daemon reports on its heartbeat: every session not yet closed,
-   * newest first, by title, status, agent, root, owner, its turn count, when
-   * its last turn ended and what it has cost so far — nothing any of them said
-   * or did.
-   */
+  /** The daemon's heartbeat report and inventory (`session-report.ts`). */
   const listAll = async (
     value: unknown, meta: CodingBridgeCallMeta, includeClosed = false,
   ): Promise<Record<string, unknown>> => {
     daemonOnly(meta)
     argumentsFor(value, [])
-    const sessions = []
-    for (const session of await listSessionMetas(stateDir)) {
-      const paths = codingSessionPaths(stateDir, session.sessionId)
-      const state = await readState(paths)
-      const derived = await deriveCodingStatus(paths, state)
-      if (!includeClosed && derived.status === 'closed') continue
-      sessions.push({
-        sessionId: session.sessionId, ownerKey: session.ownerKey,
-        title: clipTitle(rootSet.rewriter.rewrite(session.title)), status: derived.status,
-        ...(derived.reason ? { reason: derived.reason } : {}),
-        agent: session.agent, root: session.rootName, updatedAt: state?.updatedAt ?? session.createdAt,
-        turn: state?.turn ?? 0, lastTurnEndedAt: state?.lastTurnEndedAt ?? null, ...costOf(state),
-      })
-    }
-    sessions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
-    return { sessions: openFirst(sessions, includeClosed ? 5000 : undefined) }
+    return { sessions: await reportCodingSessions(stateDir, rootSet.rewriter, includeClosed) }
   }
 
   return {
@@ -480,6 +448,15 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
         if (tool === 'session_interrupt') return await request('interrupt', args, ownerKey, commandId)
         if (tool === 'session_close') return await request('close', args, ownerKey, commandId)
         if (tool === 'session_review') return await review(args, ownerKey)
+        if (tool === 'session_answer') {
+          daemonOnly(meta)
+          const { sessionId, answer } = argumentsFor(args, ['sessionId', 'answer'])
+          const { paths, meta: session } = await owned(sessionId, ownerKey)
+          return await answerSessionRequest({ paths, answer, commandId,
+            hostLive: (await deriveCodingStatus(paths, await readState(paths))).hostLive,
+            folder: () => resolveCodingFolder(findCodingRoot(rootSet, session.rootName), session.path),
+            ensureHost: () => ensureHost(paths, session.sessionId) })
+        }
         throw new CodingBridgeError('coding_session_unknown_tool', 'That is not a coding-sessions tool.')
       } catch (error) {
         if (error instanceof CodingRootError) throw new CodingBridgeError(`coding_session_${error.code}`, error.message)

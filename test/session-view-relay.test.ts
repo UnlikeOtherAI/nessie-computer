@@ -77,3 +77,57 @@ test('terminal relay signs HTTP exchanges, uploads only demanded screens and dro
     await new Promise<void>((resolve) => setImmediate(resolve))
   }
 })
+
+test('a watched session keeps the relay hot, and a session change forces a fresh first inventory page', async () => {
+  const { privateKey } = generateKeyPairSync('ed25519')
+  const request = { sessionId: randomUUID(), ownerKey: 'sha256:' + 'a'.repeat(64) }
+  let offers: unknown = { requests: [request] }
+  const bodies: Array<ReturnType<typeof ExecutorSessionViewExchangeSchema.parse>> = []
+  const server = createServer(async (incoming, response) => {
+    const chunks = []
+    for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
+    bodies.push(ExecutorSessionViewExchangeSchema.parse(JSON.parse(Buffer.concat(chunks).toString())))
+    response.writeHead(200, { 'content-type': 'application/json', connection: 'close' })
+    response.end(JSON.stringify({ data: offers }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    assert(address && typeof address === 'object')
+    const cursors: (string | undefined)[] = []
+    const relay = createSessionViewRelay({
+      inventory: async (cursor) => {
+        cursors.push(cursor)
+        const inventory = { id: randomUUID(), observedAt: new Date().toISOString(), complete: true }
+        return { inventory, nextCursor: null,
+          sessions: [{ ...request, title: 'Waiting', agent: 'claude', root: 'work', status: 'working',
+            updatedAt: new Date().toISOString(),
+            pending: { kind: 'approval', count: 1, answerable: true, since: new Date().toISOString() } }] }
+      },
+      screen: async () => null,
+    })
+    const config = normalizeCodingSessionsConfig({
+      codingSessions: { roots: [{ name: 'work', path: process.cwd() }], agents: {} },
+    })
+    const state = {
+      apiBaseUrl: `http://127.0.0.1:${address.port}`, executorId: randomUUID(), connectionEpoch: '1',
+      machinePrivateKey: privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url'),
+      descriptor: { codingSessions: codingSessionsFacts(config, 'sha256:' + 'b'.repeat(64)) },
+    }
+    assert.equal(relay.hot(), false)
+    await relay(state)
+    assert.equal(relay.hot(), true, 'a view request keeps the one-second pace')
+    assert.equal(bodies[0]?.sessions?.[0]?.pending?.kind, 'approval', 'the list row says what the session waits on')
+    offers = { requests: [] }
+    await relay(state)
+    assert.equal(relay.hot(), false)
+    assert.equal(bodies[1]?.sessions, undefined, 'the inventory keeps its 15 s pace')
+    relay.forceInventory()
+    await relay(state)
+    assert.equal(bodies[2]?.sessions?.length, 1, 'a change reports at once')
+    assert.deepEqual(cursors, [undefined, undefined], 'from its first page')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+})

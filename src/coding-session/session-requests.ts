@@ -72,7 +72,8 @@ const validRequest = (value: unknown): value is CodingSessionRequest => {
   if (!value || typeof value !== 'object') return false
   const request = value as Record<string, unknown>
   return typeof request.id === 'string' && typeof request.at === 'string'
-    && ['start', 'send', 'interrupt', 'close', 'retire'].includes(request.kind as string)
+    && ['start', 'send', 'interrupt', 'close', 'retire', 'answer'].includes(request.kind as string)
+    && (request.kind !== 'answer' || (!!request.answer && typeof request.answer === 'object'))
     && (request.text === undefined || typeof request.text === 'string')
     && (request.reason === undefined || typeof request.reason === 'string')
 }

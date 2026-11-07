@@ -1,4 +1,6 @@
-import { ExecutorSessionActionSchema, type ExecutorSessionActionReceipt } from '@nessie/executor-protocol'
+import {
+  EXISTING_CODING_SESSION_OWNER_KEY, ExecutorSessionActionSchema, type ExecutorSessionActionReceipt,
+} from '@nessie/executor-protocol'
 import { argumentsFor, CodingBridgeError } from './coding-session/bridge-tools.js'
 import type { CodingBridge } from './coding-session/managed-bridge.js'
 import { assertPersonalHostExecution } from './personal-host-execution.js'
@@ -11,10 +13,27 @@ export const sessionUserAction = async (
     => Promise<Record<string, unknown>>,
 ): Promise<ExecutorSessionActionReceipt> => {
   const action = ExecutorSessionActionSchema.parse(argumentsFor(value,
-    ['id', 'kind', 'message', 'ownerKey', 'sessionId', 'expiresAt']))
+    ['id', 'kind', 'message', 'answer', 'ownerKey', 'sessionId', 'expiresAt']))
   const receipt = (state: ExecutorSessionActionReceipt['state'], code: string): ExecutorSessionActionReceipt =>
     ({ id: action.id, state, code })
   if (Date.parse(action.expiresAt) <= Date.now()) return receipt('failed', 'input_expired')
+  if (action.kind === 'answer') {
+    // A session found open on the computer belongs to its own client, which answers its own prompts.
+    if (action.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) return receipt('failed', 'request_not_answerable')
+    try {
+      await assertPersonalHostExecution()
+      // Each request is claimed once (`session-answer.ts`), so a retried action reads its first outcome.
+      const outcome = await managed.call('session_answer', { sessionId: action.sessionId, answer: action.answer },
+        { daemonControl: true, ownerKey: action.ownerKey, commandId: action.id })
+      return outcome.state === 'accepted' || outcome.state === 'failed'
+        ? receipt(outcome.state, typeof outcome.code === 'string' ? outcome.code : 'delivery_unknown')
+        : receipt('outcome_unknown', 'delivery_unknown')
+    } catch (error) {
+      // No value, path or provider text ever leaves in a receipt.
+      return error instanceof CodingBridgeError && /^[a-z0-9_]{1,100}$/u.test(error.code)
+        ? receipt('failed', error.code) : receipt('outcome_unknown', 'delivery_unknown')
+    }
+  }
   try {
     let result: Record<string, unknown>
     if (action.kind === 'queue' || action.kind === 'push') {
