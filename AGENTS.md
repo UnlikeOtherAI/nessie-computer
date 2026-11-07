@@ -47,3 +47,5 @@ Computer telemetry, Claude/Codex account probes, native history and human input 
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
+Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
+[session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.

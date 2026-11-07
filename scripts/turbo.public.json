@@ -49,6 +49,10 @@
       ],
       "cache": false
     },
+    "//#test:session-engine-source": {
+      "dependsOn": [],
+      "cache": false
+    },
     "//#test:updates": {
       "dependsOn": [
         "^build"

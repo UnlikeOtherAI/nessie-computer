@@ -4,6 +4,11 @@ Computer resource sampling, native account/quota windows and saved-history
 behavior were informed by [T3 Code](https://github.com/pingdotgg/t3code/tree/6577c6b6185167c0e502fa01f9e8e8f2dee6ff25).
 The executor uses its own protocol, lifecycle, custody and authorization code.
 
+Pinned session-engine source preparation also references T3 Code revision
+`25bf84ab07f53f141c20239c63e383823a9d5ea0`; see `docs/session-engine.md`.
+Its offline source capsule retains the original MIT LICENSE. This preparation
+does not yet ship or start the T3 session runtime.
+
 MIT License
 
 Copyright (c) 2026 T3 Tools Inc.
