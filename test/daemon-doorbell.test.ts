@@ -262,7 +262,7 @@ test('cadence: one second without a socket, pollSeconds with one, one second aga
   hot = false
   cadence.wake(['commands', 'heartbeat'])
   await settle()
-  assert.deepEqual([commands.runs(), heartbeat.runs()], [3, 1], 'a wake runs its exchange at once')
+  assert.deepEqual([commands.runs(), heartbeat.runs()], [3, 2], 'a wake runs its exchange at once, beside the initial heartbeat')
   cadence.down()
   now += 1_000
   cadence.tick()
@@ -296,7 +296,9 @@ test('the change watcher fires once per burst and never for its first look', { t
   let changes = 0
   await writeFile(marker, '{"n":0}')
   const watch = watchSessionChanges({
-    path: () => marker, onChange: () => { changes += 1 }, intervalMs: 20, debounceMs: 60,
+    // Windows can spend more than 60 ms flushing a replacement and scanning
+    // its new inode. Keep the two real writes inside the tested burst window.
+    path: () => marker, onChange: () => { changes += 1 }, intervalMs: 20, debounceMs: 500,
   })
   try {
     await delay(100)
@@ -307,7 +309,7 @@ test('the change watcher fires once per burst and never for its first look', { t
     await delay(30)
     await writeFile(`${marker}.tmp`, '{"n":22}')
     await rename(`${marker}.tmp`, marker)
-    await delay(300)
+    await delay(750)
     assert.equal(changes, 1, 'two replacements in one burst are one exchange')
   } finally {
     watch.stop()

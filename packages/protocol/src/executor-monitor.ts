@@ -4,6 +4,14 @@ const percent = z.number().finite().min(0).max(100)
 const bytes = z.number().finite().nonnegative()
 const time = z.string().datetime()
 
+export const EXECUTOR_MONITOR_VIEW_TTL_MS = 15_000
+export const EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS = 5_000
+export const EXECUTOR_MONITOR_HISTORY_MS = 60_000
+
+/** A short renewable viewing lease; it authorizes no commands or credentials. */
+export const ExecutorMonitorRequestSchema = z.object({ expiresAt: time }).strict()
+export type ExecutorMonitorRequest = z.infer<typeof ExecutorMonitorRequestSchema>
+
 export const ExecutorUsageWindowSchema = z.object({
   id: z.string().min(1).max(100),
   kind: z.enum(['session', 'weekly', 'monthly', 'other']),

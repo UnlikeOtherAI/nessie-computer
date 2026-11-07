@@ -1,6 +1,8 @@
 import {
   FolderSyncHeartbeatSummarySchema,
   ExecutorMonitorSnapshotSchema,
+  ExecutorMonitorRequestSchema,
+  type ExecutorMonitorRequest,
   type ExecutorMonitorSnapshot,
   type ExecutorDaemonHeartbeatWithFolderSyncRequest,
   type ExecutorLocalMcpReport,
@@ -72,6 +74,7 @@ export const heartbeatExecutor = async (
   updates?: { status: ExecutorSoftwareStatus;
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void },
   monitor?: ExecutorMonitorSnapshot,
+  onMonitorRequest?: (request: ExecutorMonitorRequest | null) => void,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
     throw new Error('Executor has not claimed a live daemon connection.')
@@ -89,12 +92,17 @@ export const heartbeatExecutor = async (
     ...(updates === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
     observedAt,
     ...(monitor === undefined ? {} : { monitor: ExecutorMonitorSnapshotSchema.parse(monitor) }),
+    ...(onMonitorRequest ? { monitorVersion: 1 as const } : {}),
   }
   const signature = signExecutorDaemonPayload(state.machinePrivateKey, 'heartbeat', signed)
   type HeartbeatBody = Omit<ExecutorDaemonHeartbeatWithFolderSyncRequest, 'executorId'> & { executorId: string }
   const body: HeartbeatBody = { ...signed, signature }
   const response = await api.heartbeat(state.apiBaseUrl, body)
   onExistingSessionAccess?.(response.existingSessionsAllowed === true)
+  if (onMonitorRequest) {
+    const request = ExecutorMonitorRequestSchema.safeParse(response.monitorRequest)
+    onMonitorRequest(request.success ? request.data : null)
+  }
   if (response.softwareUpdateRequest && updates) {
     const request = ExecutorSoftwareUpdateRequestSchema.safeParse(response.softwareUpdateRequest)
     if (request.success) {

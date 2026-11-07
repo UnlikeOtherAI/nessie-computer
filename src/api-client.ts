@@ -55,10 +55,10 @@ export type ExecutorApiClient = {
   heartbeat: (
     baseUrl: string,
     input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string;
-      software?: ExecutorSoftwareStatus },
+      software?: ExecutorSoftwareStatus; monitorVersion?: 1 },
   ) => Promise<{
     connectionEpoch: string; status: string; codingSessionClose?: unknown; existingSessionsAllowed?: boolean;
-    softwareUpdateRequest?: ExecutorSoftwareUpdateRequest
+    softwareUpdateRequest?: ExecutorSoftwareUpdateRequest; monitorRequest?: unknown
   }>
   pollCommand: (
     baseUrl: string,
