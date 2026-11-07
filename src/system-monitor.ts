@@ -1,6 +1,6 @@
 import { readFile, readdir, statfs } from 'node:fs/promises'
 import { cpus, freemem, homedir, platform, totalmem, uptime } from 'node:os'
-import type { ExecutorMonitorSnapshot } from '@nessie/executor-protocol'
+import { EXECUTOR_MONITOR_HISTORY_MS, type ExecutorMonitorSnapshot } from '@nessie/executor-protocol'
 
 import { runCommand } from './coding-session/agent-env.js'
 
@@ -108,6 +108,12 @@ const gpu = async (): Promise<number | null> => {
   return measured.length ? Math.max(...measured) : null
 }
 
+/** Retain measured points by time as well as count, including gaps after sleep. */
+export const appendMonitorHistory = (
+  history: ExecutorMonitorSnapshot['history'], point: ExecutorMonitorSnapshot['history'][number],
+): ExecutorMonitorSnapshot['history'] => [...history.filter((sample) =>
+  Date.parse(sample.at) > Date.parse(point.at) - EXECUTOR_MONITOR_HISTORY_MS), point].slice(-24)
+
 /** One real host sampler; missing counters stay null rather than becoming invented zeroes. */
 export const createSystemMonitor = () => {
   let previous = cpuTimes()
@@ -120,8 +126,7 @@ export const createSystemMonitor = () => {
     previous = next
     const now = Date.now()
     const capturedAt = new Date(now).toISOString()
-    history = [...history.filter((sample) => Date.parse(sample.at) > now - 60_000),
-      { at: capturedAt, cpu, gpu: graphics }].slice(-24)
+    history = appendMonitorHistory(history, { at: capturedAt, cpu, gpu: graphics })
     const total = totalmem()
     return {
       capturedAt, os: platform() === 'win32' ? 'windows' : platform() === 'darwin' ? 'macos' : 'linux',

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
-import { ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
+import { ExecutorMonitorRequestSchema, ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
 
 import {
@@ -713,6 +713,7 @@ export type ExecutorDaemonClaimRequest = z.infer<typeof ExecutorDaemonClaimReque
 
 export const ExecutorDaemonHeartbeatRequestSchema = z.object({
   monitor: ExecutorMonitorSnapshotSchema.optional(),
+  monitorVersion: z.literal(1).optional(),
   connectionEpoch: z.string().regex(/^\d+$/),
   executorId: ExecutorIdSchema,
   /**
@@ -770,6 +771,7 @@ export type ExecutorDaemonConnectionResponse = z.infer<typeof ExecutorDaemonConn
  * field it does not know yet never fails its heartbeat.
  */
 export const ExecutorDaemonHeartbeatResponseSchema = ExecutorDaemonConnectionResponseSchema.extend({
+  monitorRequest: ExecutorMonitorRequestSchema.nullable().optional(),
   codingSessionClose: ExecutorCodingSessionCloseListSchema.optional(),
   existingSessionsAllowed: z.boolean().optional(),
   softwareUpdateRequest: ExecutorSoftwareUpdateRequestSchema.optional(),

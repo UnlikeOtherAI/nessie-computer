@@ -1,4 +1,4 @@
-import type { ExecutorDaemonWakeTopic } from '@nessie/executor-protocol'
+import { EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS, type ExecutorDaemonWakeTopic } from '@nessie/executor-protocol'
 
 /**
  * When the daemon runs its signed exchanges.
@@ -40,6 +40,8 @@ export const createDaemonCadence = (input: {
   heartbeat: CadenceTask
   /** The session exchange's last answer named view requests or actions. */
   sessionsHot: () => boolean
+  /** Host readings only travel while a short-lived monitor request is active. */
+  monitorHot?: () => boolean
   now?: () => number
 }): DaemonCadence => {
   const now = input.now ?? Date.now
@@ -65,6 +67,8 @@ export const createDaemonCadence = (input: {
       if (due(input.commands, slowMs ?? FAST_MS)) launch(input.commands, false)
       const sessionsMs = slowMs === undefined || input.sessionsHot() ? FAST_MS : slowMs
       if (due(input.sessions, sessionsMs)) launch(input.sessions, false)
+      const heartbeatMs = input.monitorHot?.() ? EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS : 20_000
+      if (due(input.heartbeat, heartbeatMs)) launch(input.heartbeat, false)
     },
     ready: (pollSeconds) => { slowMs = pollSeconds * 1_000 },
     down: () => { slowMs = undefined },

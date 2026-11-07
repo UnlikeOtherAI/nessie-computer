@@ -143,7 +143,10 @@ export const serveExecutor = async (
             monitor.connected(true)
           }, folderSync.summary(), executorApi, { status: software, onRequest: async request => {
             await requestSoftwareUpdate(request)
-          } }, monitor.current(),
+          } }, monitor.current(), (request) => {
+            // The first upload carries the already sampled minute, without waiting for a new one.
+            if (monitor.request(request)) cadence.wake(['heartbeat'])
+          },
         )
         void codingBridge.close(close).catch(() => undefined)
       } catch (error) {
@@ -192,7 +195,8 @@ export const serveExecutor = async (
     // The command poll and the session exchange: once a second, or the doorbell's slower
     // pace while it is open, and at once when it rings or a session changes here.
     const cadence = createDaemonCadence({
-      commands: commandPoll, sessions: screenPoll, heartbeat, sessionsHot: relayScreens.hot,
+      commands: commandPoll, sessions: screenPoll, heartbeat,
+      sessionsHot: relayScreens.hot, monitorHot: monitor.watching,
     })
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live,
@@ -214,10 +218,9 @@ export const serveExecutor = async (
       if (await codingBridge.refreshExisting().catch(() => false)) sessionChanged()
     })
     const commandInterval = setInterval(() => { void pollTick.run().catch(() => undefined) }, 250)
-    const interval = setInterval(() => { void heartbeat.run() }, 20_000)
     const existingInterval = setInterval(() => { void existingRefresh.run() }, EXISTING_STATUS_REFRESH_MS)
     existingInterval.unref()
-    void heartbeat.run()
+    cadence.wake(['heartbeat'])
     doorbell.start()
     try {
       await waitForExecutorDaemonShutdown(options.parentLiveness, updateReady)
@@ -226,7 +229,6 @@ export const serveExecutor = async (
       localMcp.stop()
       doorbell.stop()
       changes.stop()
-      clearInterval(interval)
       clearInterval(commandInterval)
       clearInterval(existingInterval)
       executorApi.cancelPending()

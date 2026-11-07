@@ -7,6 +7,28 @@ readings until upgraded through the normal signed package workflow.
 
 ## Measurement and quota sources
 
+The executor keeps a timestamped rolling minute locally, sampling every three
+seconds without sending that history to Nessie. An entitled person opening the
+computer monitor renews one aggregate 15-second viewing request. A database
+notification wakes the computer's existing authenticated doorbell immediately;
+without a doorbell, the next normal heartbeat discovers the request.
+
+The signed heartbeat opts in with `monitorVersion: 1` and receives a bounded
+`monitorRequest` deadline. The first requested upload uses the already sampled
+minute, followed by snapshots every five seconds while demand remains live.
+Renewals do not restart sampling or create another stream. Without a request,
+heartbeats keep their normal 20-second presence cadence and omit statistics.
+The executor bounds deadlines locally and clears demand on connection failure.
+Closing, covering or hiding the browser monitor stops renewals; no explicit
+disconnect message is needed for an abandoned view to expire.
+
+Nessie discards unsolicited or expired monitor uploads before encrypting or
+storing them, including reports from older installed executors. Older heartbeat
+clients keep their original response shape. Deploy the API/migration before the
+new executor packages; old servers do not accept the new signed opt-in field.
+An executor that started less than a minute ago sends only readings it has
+actually collected. Sleep and failed counters never produce fabricated points.
+
 The daemon samples host CPU deltas, available RAM, home-volume capacity, uptime,
 top process names/usage and available GPU counters independently of heartbeats.
 Missing counters remain null. The history contains actual timestamps over the
@@ -17,7 +39,8 @@ CODEX_HOME and CLAUDE_CONFIG_DIR. We do not search unrelated users' profiles or
 copy credentials. Codex account/read and account/rateLimits/read return account,
 plan and quota windows. Claude's stream-JSON initialize and get_usage control
 requests return account and quota data, with skip_behaviors enabled and no user
-prompt. Probes run at most once per minute, independently from host sampling.
+prompt. Probes run at most once per minute while somebody is watching,
+independently from host sampling and heartbeat delivery.
 The existing local coding-session discovery switch also disables account probes.
 
 Remaining percentages come from provider utilization or remaining-percent fields;
