@@ -21,8 +21,8 @@ export const knownCapabilities = (model: ObservedOllamaModel): ObservedLocalMode
   if (model.capabilities.includes('tools')) capabilities.add('tools')
   if (model.capabilities.includes('structured_output')) capabilities.add('json_schema')
   if (model.capabilities.includes('thinking')) capabilities.add('thinking')
-  // Ollama's transport remains text-only; owner-configured OpenAI endpoints implement inline images.
-  if (model.identitySource === 'owner_configuration' && model.capabilities.includes('vision')) capabilities.add('vision')
+  // Both transports deliver admitted inline images to a model that reports it can see them.
+  if (model.capabilities.includes('vision')) capabilities.add('vision')
   return [...capabilities]
 }
 

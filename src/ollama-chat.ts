@@ -49,20 +49,39 @@ const nonNegativeInteger = (value: unknown): number | undefined => (
   typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : undefined
 )
 
-const contentForOllama = (content: Exclude<ProviderMessage['content'], null>): string => {
-  if (typeof content === 'string') return content
+const IMAGE_DATA_URI = /^data:image\/(?:png|jpeg|webp|gif);base64,([A-Za-z0-9+/]+={0,2})$/
+
+/**
+ * Ollama takes a message's images as bare base64 beside its text. Only admitted
+ * inline bytes are relayed, never a URL the model server would fetch itself.
+ */
+const contentForOllama = (content: Exclude<ProviderMessage['content'], null>):
+  { content: string; images: string[] } => {
+  if (typeof content === 'string') return { content, images: [] }
   let text = ''
+  const images: string[] = []
   for (const part of content) {
-    if (part.type !== 'text') throw new OllamaChatError('unsupported_capability')
-    text += part.text
+    if (part.type === 'text') {
+      text += part.text
+      continue
+    }
+    const image = IMAGE_DATA_URI.exec(part.imageUrl)
+    if (!image) throw new OllamaChatError('unsupported_capability')
+    images.push(image[1]!)
   }
+  return { content: text, images }
+}
+
+const textForOllama = (content: Exclude<ProviderMessage['content'], null>): string => {
+  const { content: text, images } = contentForOllama(content)
+  if (images.length > 0) throw new OllamaChatError('unsupported_capability')
   return text
 }
 
 const messageForOllama = (message: ProviderMessage): Record<string, unknown> => {
   if (message.role === 'assistant') {
     return {
-      content: message.content === null ? '' : contentForOllama(message.content),
+      content: message.content === null ? '' : textForOllama(message.content),
       role: message.role,
       // Ollama's assistant message carries the turn's thinking under the same
       // name it streams it, so a thinking model keeps its own context across
@@ -79,7 +98,10 @@ const messageForOllama = (message: ProviderMessage): Record<string, unknown> => 
     return { content: message.content, role: message.role, tool_name: message.toolCallId }
   }
   if (message.content === null) throw new OllamaChatError('protocol_error')
-  return { content: contentForOllama(message.content), role: message.role }
+  // Images belong to what a person sent; a system prompt is text only.
+  if (message.role !== 'user') return { content: textForOllama(message.content), role: message.role }
+  const { content, images } = contentForOllama(message.content)
+  return { content, role: message.role, ...(images.length > 0 ? { images } : {}) }
 }
 
 const toolDefinitionsForOllama = (attempt: LocalInferenceAttemptRequest): Record<string, unknown>[] => (
@@ -239,12 +261,14 @@ export const streamOllamaChat = async function* (input: {
   const base = assertLoopbackOrigin(input.origin)
   const fetchImpl = input.fetchImpl ?? defaultOllamaFetch
   const allowedToolNames = new Set(input.attempt.tools.map((tool) => tool.toolName))
+  // Built before the request, so content Ollama cannot take is refused as such, never as unreachable.
+  const messages = input.attempt.messages.map(messageForOllama)
   let response: Response
   try {
     response = await fetchImpl(`${base}/api/chat`, {
       body: JSON.stringify({
         keep_alive: '5m',
-        messages: input.attempt.messages.map(messageForOllama),
+        messages,
         model: input.attempt.modelName,
         options: {
           ...(input.useModelDefaultContext ? {} : { num_ctx: input.attempt.numCtx }),

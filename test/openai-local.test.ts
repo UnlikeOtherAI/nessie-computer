@@ -115,7 +115,8 @@ test('image bytes require an explicit vision declaration, survive the host, and 
     new Response(JSON.stringify({ data: [{ id: 'local:latest' }] }))))[0]!
   assert(knownCapabilities(observed).includes('vision'))
   assert(capabilityFor(attempt(), observed, new Date()).supportsVision)
-  assert(!knownCapabilities({ ...observed, identitySource: undefined }).includes('vision'))
+  // An observed Ollama model that reports vision is published with it too; its transport carries images.
+  assert(knownCapabilities({ ...observed, identitySource: undefined }).includes('vision'))
   const request = attempt()
   request.modelDigest = localOpenAiManifestDigest(c, c.models[0]!)
   request.messages = [{ role: 'user', content: [
