@@ -65,6 +65,16 @@ test('an address where something else answers is read as an OpenAI-compatible se
   assert.equal(await localModelServerKind(at('http://127.0.0.1:8080'), notOllama([])), 'openai')
 })
 
+test('an HTTPS address is never asked for Ollama, which serves plain HTTP only', async () => {
+  const requests: string[] = []
+  const backend = createLocalModelServerBackend(async () => at('https://127.0.0.1:8443/v1'), {
+    ollamaFetch: ollama(requests), openAiFetch: strata(requests),
+  })
+  assert.equal((await backend.observe())[0]?.numCtxCap, 262144)
+  assert.deepEqual(requests, ['https://127.0.0.1:8443/v1/models', 'https://127.0.0.1:8443/props'])
+  assert.equal(await localModelServerKind(at('https://127.0.0.1:8443/v1'), ollama([])), 'openai')
+})
+
 test('no saved address means Ollama on its own port, without asking what it is', async () => {
   const requests: string[] = []
   const backend = createLocalModelServerBackend(async () => null, {
