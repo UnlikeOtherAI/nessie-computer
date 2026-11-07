@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "repository": "https://github.com/pingdotgg/t3code",
+  "commit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "tree": "b0ba4dad62fa11e0a1fd21f5d351d75926d7559e",
+  "archiveSha256": "384e1dad4b99825a1cc48b8f7e832a50126993fe256232c0920d9e6a96f9e581",
+  "archiveBytes": 52111360,
+  "roots": [
+    "LICENSE",
+    "package.json",
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "tsconfig.base.json",
+    "tsconfig.effect.json",
+    ".pnpmfile.cjs",
+    "apps/server/package.json",
+    "apps/server/src",
+    "packages"
+  ],
+  "files": {
+    "LICENSE": "935d8f2af0c703f9c39517ee57cc4930b19d02d533be930b63f0e82f93614b43",
+    "package.json": "d48cbb840a6dd173b11b6c503e9620f87edd0068a13520d0fa31a8e1b0c2221b",
+    "pnpm-lock.yaml": "2c5eeb472d27000fb125fe04dd0f313beb69652753c67d57f5d09b440b7d2a99",
+    "pnpm-workspace.yaml": "20071b9da1fc9cfca9d5193182bb28757975c42cbcc84207370c0287e2b34e9d",
+    "apps/server/package.json": "57653c19d043385889c2a0f47ab7ad95db23e381ebd7646c32c16d511290e406"
+  }
+}

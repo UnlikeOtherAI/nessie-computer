@@ -1,0 +1,108 @@
+import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import test from 'node:test'
+
+import { prepareSessionEngineSource, T3_SESSION_ENGINE_SOURCE, verifySessionEngineSource } from './source.mjs'
+
+const artifacts = resolve(dirname(fileURLToPath(import.meta.url)), '../../.artifacts')
+const hash = bytes => createHash('sha256').update(bytes).digest('hex')
+const environment = { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' }
+
+const fixture = async context => {
+  await mkdir(artifacts, { recursive: true })
+  const root = await mkdtemp(join(artifacts, 'session-engine-source-test-'))
+  context.after(async () => {
+    assert.equal(dirname(resolve(root)), artifacts)
+    await rm(root, { recursive: true, force: true })
+  })
+  const git = (...args) => execFileSync('git', ['--no-replace-objects', '-C', root, ...args], {
+    encoding: 'buffer', env: environment, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+  })
+  git('init', '--initial-branch=fixture')
+  await mkdir(join(root, 'engine'))
+  const contents = { LICENSE: 'MIT fixture\n', 'engine/index.ts': 'export const protocol = 2\n', 'pnpm-lock.yaml': 'lockfileVersion: 9\n' }
+  for (const [file, bytes] of Object.entries(contents)) await writeFile(join(root, file), bytes)
+  await writeFile(join(root, '.gitattributes'), '* -text\n')
+  git('add', '.')
+  const commit = () => {
+    git('-c', 'commit.gpgsign=false', '-c', 'user.name=Executor test', '-c', 'user.email=executor-test@example.invalid',
+      'commit', '-m', 'Fixture source')
+    return git('rev-parse', 'HEAD').toString('utf8').trim()
+  }
+  const revision = commit()
+  const roots = ['LICENSE', 'engine', 'pnpm-lock.yaml']
+  const archive = git('archive', '--format=tar', revision, '--', ...roots)
+  const spec = {
+    format: 1, repository: 'fixture', commit: revision, tree: git('rev-parse', `${revision}^{tree}`).toString('utf8').trim(),
+    archiveSha256: hash(archive), archiveBytes: archive.length, roots,
+    files: Object.fromEntries(Object.entries(contents).map(([file, bytes]) => [file, hash(bytes)])),
+  }
+  return { root, git, commit, spec, archive, archivePath: join(root, 'output', 'source.tar') }
+}
+
+test('the source capsule pins the intended revision, dependency lock and MIT attribution', () => {
+  assert.equal(T3_SESSION_ENGINE_SOURCE.commit, '25bf84ab07f53f141c20239c63e383823a9d5ea0')
+  assert.equal(T3_SESSION_ENGINE_SOURCE.archiveBytes, 52111360)
+  assert.ok(T3_SESSION_ENGINE_SOURCE.files['pnpm-lock.yaml'])
+  assert.ok(T3_SESSION_ENGINE_SOURCE.files.LICENSE)
+  assert.ok(!T3_SESSION_ENGINE_SOURCE.roots.some(root => /^apps\/(mobile|web|marketing)(?:\/|$)/u.test(root)))
+  assert.throws(() => { T3_SESSION_ENGINE_SOURCE.roots.push('apps/mobile') }, TypeError)
+})
+
+test('preparation uses committed objects despite dirty, deleted and untracked working files', async context => {
+  const input = await fixture(context)
+  await writeFile(join(input.root, 'engine/index.ts'), 'changed working source\n')
+  await writeFile(join(input.root, 'engine/local-only.txt'), 'untracked fixture\n')
+  await rm(join(input.root, 'pnpm-lock.yaml'))
+  const result = await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  assert.deepEqual(await readFile(input.archivePath), input.archive)
+  assert.equal(result.commit, input.spec.commit)
+  assert.equal(result.sourceFiles, 3)
+  assert.equal(result.reused, false)
+})
+
+test('an intact output is reusable and an altered output is never overwritten', async context => {
+  const input = await fixture(context)
+  const options = { sourceRepository: input.root, archivePath: input.archivePath }
+  await prepareSessionEngineSource(options, input.spec)
+  assert.equal((await prepareSessionEngineSource(options, input.spec)).reused, true)
+  await writeFile(input.archivePath, 'different artifact')
+  await assert.rejects(prepareSessionEngineSource(options, input.spec), { code: 'SESSION_ENGINE_SOURCE_OUTPUT_CONFLICT' })
+  assert.equal(await readFile(input.archivePath, 'utf8'), 'different artifact')
+})
+
+test('source tree, individual inputs and archive digests each fail closed', async context => {
+  const input = await fixture(context)
+  const options = { sourceRepository: input.root, archivePath: input.archivePath }
+  await assert.rejects(verifySessionEngineSource(input.root, { ...input.spec, tree: '0'.repeat(40) }),
+    { code: 'SESSION_ENGINE_SOURCE_IDENTITY_MISMATCH' })
+  await assert.rejects(verifySessionEngineSource(input.root, {
+    ...input.spec, files: { ...input.spec.files, LICENSE: '0'.repeat(64) },
+  }), { code: 'SESSION_ENGINE_SOURCE_FILE_MISMATCH' })
+  await assert.rejects(prepareSessionEngineSource(options, { ...input.spec, archiveSha256: '0'.repeat(64) }),
+    { code: 'SESSION_ENGINE_SOURCE_ARCHIVE_MISMATCH' })
+  await assert.rejects(readFile(input.archivePath), { code: 'ENOENT' })
+})
+
+test('a symlink in the committed input is refused before archiving', async context => {
+  const input = await fixture(context)
+  const blob = input.git('rev-parse', `${input.spec.commit}:LICENSE`).toString('utf8').trim()
+  input.git('update-index', '--add', '--cacheinfo', `120000,${blob},engine/link`)
+  const revision = input.commit()
+  const spec = { ...input.spec, commit: revision, tree: input.git('rev-parse', `${revision}^{tree}`).toString('utf8').trim() }
+  await assert.rejects(verifySessionEngineSource(input.root, spec), { code: 'SESSION_ENGINE_SOURCE_ENTRY_REFUSED' })
+})
+
+test('unknown objects and unsafe source roots do not reach preparation', async context => {
+  const input = await fixture(context)
+  await assert.rejects(verifySessionEngineSource(input.root, { ...input.spec, commit: '0'.repeat(40) }),
+    { code: 'SESSION_ENGINE_SOURCE_UNREADABLE' })
+  for (const root of ['../other', '/absolute', '.git/config', ':pathspec', '--output=somewhere']) {
+    await assert.rejects(verifySessionEngineSource(input.root, { ...input.spec, roots: [root] }),
+      { code: 'SESSION_ENGINE_SOURCE_LOCK_INVALID' })
+  }
+})
