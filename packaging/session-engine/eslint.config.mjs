@@ -1,11 +1,13 @@
 import parser from '@typescript-eslint/parser'
 import plugin from '@typescript-eslint/eslint-plugin'
+import { fileURLToPath } from 'node:url'
 
 // Same strict first-party rules as the executor. Pinned third-party source stays
 // in the verified capsule, rather than becoming oversized first-party files.
 export default [{
+  basePath: fileURLToPath(new URL('../../', import.meta.url)),
   files: ['**/*.mjs', '**/*.ts'],
-  ignores: ['node_modules/**', '.artifacts/**'],
+  ignores: ['**/node_modules/**', '**/.artifacts/**'],
   languageOptions: { parser, parserOptions: { ecmaVersion: 'latest', sourceType: 'module' } },
   plugins: { '@typescript-eslint': plugin },
   rules: {

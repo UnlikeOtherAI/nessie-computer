@@ -85,6 +85,14 @@ export const sessionEngineSourcePlugin = ({ snapshot, dependencyDirectory, depen
         return build.resolve(selected.path, { kind: args.kind, resolveDir: dependencyDirectory, namespace: 'file' })
       }
       build.onResolve({ filter: /^t3-source:/ }, resolveSource)
+      build.onResolve({ filter: /^@t3tools\// }, resolveSource)
+      build.onResolve({ filter: /^effect-/ }, resolveSource)
+      // Authored contract and engine entries resolve the same Effect instance as upstream source.
+      build.onResolve({ filter: /^(?:effect(?:\/|$)|@effect\/)/, namespace: 'file' }, async args => {
+        if (args.pluginData?.sessionDependency) return undefined
+        return build.resolve(args.path, { kind: args.kind, resolveDir: dependencyDirectory,
+          namespace: 'file', pluginData: { sessionDependency: true } })
+      })
       build.onResolve({ filter: /.*/, namespace }, resolveSource)
       build.onLoad({ filter: /.*/, namespace }, args => ({
         contents: resolver.load(args.path), loader: args.pluginData.loader,
