@@ -11,12 +11,13 @@ import {
 import {
   claudeArguments,
   claudeControlLine,
-  claudeDenyLine,
+  claudeUnsupportedLine,
   claudeUserLine,
   createClaudeStreamState,
   type ClaudeSignals,
   type ClaudeStreamState,
 } from './claude-adapter.js'
+import { planClaudeRequest } from './claude-requests.js'
 import { AGENT_SESSION_ID_PATTERN, type CodingSessionResult } from './types.js'
 
 /**
@@ -78,12 +79,42 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       context.update({ agentSessionId: sessionId, agentSessionStarted: true })
     }
     if (signals.active) beginTurn()
-    if (signals.answerControlRequest) {
-      agent?.write(claudeDenyLine(signals.answerControlRequest.requestId, signals.answerControlRequest.supported))
+    if (signals.unsupportedControlRequest) agent?.write(claudeUnsupportedLine(signals.unsupportedControlRequest))
+    if (signals.prompt) ask(signals.prompt)
+    if (signals.cancelledControlRequest) {
+      const id = asked.get(signals.cancelledControlRequest)
+      if (id) context.requests.withdraw(id, 'cancelled', 'provider_cancelled')
     }
     if (signals.test) context.update({ lastTest: signals.test })
     if (signals.backgroundTasks !== undefined) context.update({ backgroundTasks: signals.backgroundTasks })
     if (signals.turnFinished) finishTurn(signals.turnFinished)
+  }
+
+  /** Claude's control request id → the owner's request id, while the prompt waits. */
+  const asked = new Map<string, string>()
+
+  /** A permission prompt or question: the owner's to answer, unless it is the session's own secret tool. */
+  const ask = (prompt: NonNullable<ClaudeSignals['prompt']>): void => {
+    const asker = agent
+    const plan = planClaudeRequest(prompt, context.projector, context.folder)
+    if (plan.kind === 'allow') {
+      asker?.write(plan.line)
+      return
+    }
+    const opened = context.requests.open(plan.draft, {
+      answer: (answer) => {
+        asked.delete(prompt.requestId)
+        const reply = plan.answer(answer)
+        // A cancel stops the turn: Claude interrupts itself, and the turn ends as interrupted.
+        if (reply.stopsTurn) interruptRequested = true
+        if (asker?.alive()) asker.write(reply.line)
+      },
+      withdraw: (_status, reason) => {
+        asked.delete(prompt.requestId)
+        if (asker?.alive() && reason !== 'provider_cancelled') asker.write(plan.withdraw(reason))
+      },
+    })
+    asked.set(prompt.requestId, opened.id)
   }
 
   const start = async (): Promise<AgentProcess> => {
@@ -105,6 +136,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       context.agent.command[0]!,
       ...claudeArguments(context.agent, {
         sessionId, resume, ...(context.maxBudgetUsd === undefined ? {} : { maxBudgetUsd: context.maxBudgetUsd }),
+        ...(context.secretServer ? { mcpServer: context.secretServer } : {}),
       }),
     ], (line) => handle(current.accept(line), readyHooks))
     agent = spawned
@@ -113,6 +145,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       if (!spawned.confirmHostExecutionStopped && agent === spawned) agent = undefined
       const reason = agentFailureReason(spawned.stderrTail())
       rejectReady(new AgentStartError(reason))
+      // Nothing is left to answer what this process asked.
+      for (const id of asked.values()) context.requests.withdraw(id, 'expired', 'provider_exited')
+      asked.clear()
       // An agent we are stopping, or one whose session is already closed, exited as asked.
       if (ending || context.state().status === 'closed') return
       context.log(`claude exited with code ${code}`)

@@ -5,8 +5,10 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 
 import type { AgentDriver, AgentDriverContext } from '../src/coding-session/agent-process.js'
-import { codexArguments, createCodexTurnState } from '../src/coding-session/codex-adapter.js'
+import { codexPolicy, createCodexTurnState as createCodexAppTurnState } from '../src/coding-session/codex-adapter.js'
 import { createCodexDriver } from '../src/coding-session/codex-driver.js'
+import { createCodexExecTurnState as createCodexTurnState } from '../src/coding-session/codex-exec-events.js'
+import { SessionRequestBook } from '../src/coding-session/session-request-book.js'
 import { createPathRewriter } from '../src/coding-session/path-rewrite.js'
 import { createCodingProcessControl } from '../src/coding-session/process-control.js'
 import { createProjector } from '../src/coding-session/projection.js'
@@ -15,27 +17,57 @@ import { initialCodingSessionState, type CodingSessionState } from '../src/codin
 import { SCRIPTED_AGENT, waitUntil } from './coding-session-harness.js'
 
 /**
- * Codex's `exec --json` protocol. The failure transcript is the one
- * codex-cli 0.155.1 printed on this machine with its ChatGPT quota spent;
- * the item shapes are those in its binary.
+ * Codex's `exec --json` protocol (DeepTest inference still reads it): the
+ * failure transcript is the one codex-cli 0.155.1 printed on this machine
+ * with its ChatGPT quota spent. Managed sessions speak `app-server`, whose
+ * shapes below are those codex-cli 0.166.0 sent on this machine.
  */
 const projector = createProjector(createPathRewriter([{ name: 'work', paths: ['/home/ondre/work'] }], 'linux'))
 const line = (value: unknown): string => JSON.stringify(value)
 
-test('a first turn and a resumed turn put the reviewed args where exec itself parses them', () => {
-  const agent = {
-    command: ['node', '/opt/codex/bin/codex.js'], args: ['--dangerously-bypass-approvals-and-sandbox'],
-    allowedTools: [], disallowedTools: [], model: 'gpt-5.5',
-  }
-  assert.deepEqual(codexArguments(agent, { folder: '/home/ondre/work' }), [
-    '/opt/codex/bin/codex.js', 'exec', '--dangerously-bypass-approvals-and-sandbox', '-m', 'gpt-5.5',
-    '-C', '/home/ondre/work', '--json', '-',
-  ])
-  // 0.155.1 refuses `exec resume … --sandbox`, so options must precede `resume`.
-  assert.deepEqual(codexArguments(agent, { folder: '/home/ondre/work', threadId: 'th-1' }), [
-    '/opt/codex/bin/codex.js', 'exec', '--dangerously-bypass-approvals-and-sandbox', '-m', 'gpt-5.5',
-    '-C', '/home/ondre/work', 'resume', 'th-1', '--json', '-',
-  ])
+test('the reviewed stance becomes the thread\'s sandbox and approval policy, and nothing else runs', () => {
+  assert.deepEqual(codexPolicy([]), { sandbox: 'read-only', approvalPolicy: 'on-request' })
+  assert.deepEqual(codexPolicy(['--sandbox', 'workspace-write', '--skip-git-repo-check']),
+    { sandbox: 'workspace-write', approvalPolicy: 'on-request' })
+  assert.deepEqual(codexPolicy(['-sworkspace-write']), { sandbox: 'workspace-write', approvalPolicy: 'on-request' })
+  assert.deepEqual(codexPolicy(['--sandbox=danger-full-access']), { sandbox: 'danger-full-access', approvalPolicy: 'on-request' })
+  assert.deepEqual(codexPolicy(['--full-auto']), { sandbox: 'workspace-write', approvalPolicy: 'on-request' })
+  assert.deepEqual(codexPolicy(['--dangerously-bypass-approvals-and-sandbox']),
+    { sandbox: 'danger-full-access', approvalPolicy: 'never' })
+  assert.deepEqual(codexPolicy(['--approve-for-me']),
+    { sandbox: 'workspace-write', approvalPolicy: 'on-request', approvalsReviewer: 'auto_review' })
+  // What a person reviewed must be what runs: an argument the app-server cannot carry refuses the start.
+  assert.deepEqual(codexPolicy(['--oss']), { unsupported: '--oss' })
+  assert.deepEqual(codexPolicy(['--sandbox', 'everything']), { unsupported: '--sandbox' })
+})
+
+test('app-server notifications become the same events, and a turn ends with its own status', () => {
+  const turn = createCodexAppTurnState(projector)
+  const notify = (method: string, params: Record<string, unknown>) => turn.accept({ method, params })
+  assert.equal(notify('turn/started', { turn: { id: 't-1', status: 'inProgress' } }).turnId, 't-1')
+  assert.deepEqual(notify('item/started', { item: { type: 'commandExecution', id: 'e1',
+    command: 'pnpm test in /home/ondre/work', status: 'inProgress' } }).events,
+  [{ kind: 'tool', name: 'shell', summary: 'pnpm test in <work>' }])
+  const done = notify('item/completed', { item: { type: 'commandExecution', id: 'e1', command: 'pnpm test',
+    aggregatedOutput: '1 failed', exitCode: 1, status: 'failed' } })
+  assert.deepEqual(done.events, [{ kind: 'tool_result', name: 'shell', summary: '1 failed', isError: true, exitCode: 1 }])
+  assert.deepEqual(done.test, { command: 'pnpm test', exitCode: 1 })
+  assert.deepEqual(notify('item/completed', { item: { type: 'commandExecution', id: 'e2', command: 'git push --force',
+    status: 'declined' } }).events, [{ kind: 'system', subtype: 'permission_denied', tool: 'shell' }])
+  assert.deepEqual(notify('item/completed', { item: { type: 'fileChange', id: 'f1', status: 'completed',
+    changes: [{ path: '/home/ondre/work/a.ts', kind: { type: 'update' }, diff: '' }] } }).events,
+  [{ kind: 'tool', name: 'edit', summary: 'update <work>/a.ts' }])
+  assert.deepEqual(notify('item/completed', { item: { type: 'agentMessage', id: 'm1', text: 'All done.' } }).events,
+    [{ kind: 'assistant', text: 'All done.' }])
+  assert.equal(notify('serverRequest/resolved', { requestId: 7 }).resolvedRequest, 7)
+  const ended = notify('turn/completed', { turn: { id: 't-1', status: 'completed' } }).turnEnded
+  assert.deepEqual([ended?.status, ended?.isError, ended?.subtype, ended?.text], ['completed', false, 'success', 'All done.'])
+  assert.deepEqual(ended?.permissionDenials, [{ tool: 'shell', summary: 'git push --force' }])
+  turn.begin()
+  const failed = notify('turn/completed', { turn: { id: 't-2', status: 'failed', error: { message: 'usage limit' } } }).turnEnded
+  assert.deepEqual([failed?.status, failed?.isError, failed?.subtype, failed?.text], ['failed', true, 'error', 'usage limit'])
+  turn.begin()
+  assert.equal(notify('turn/completed', { turn: { id: 't-3', status: 'interrupted' } }).turnEnded?.subtype, 'interrupted')
 })
 
 test('the captured usage-limit failure becomes an error result, not a silent success', () => {
@@ -101,7 +133,7 @@ test('a process that exits without ending its turn, or is killed, says which', (
 
 const SESSION = '0f0e0d0c-0b0a-4908-8706-050403020100'
 
-test('a message sent while one turn exits and the next is starting waits its turn: one codex at a time', { timeout: 60_000 }, async () => {
+test('a message sent while one turn ends and the next is starting waits its turn, all on one app-server', { timeout: 60_000 }, async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nessie-codex-driver-'))
   try {
     const paths = codingSessionPaths(dir, SESSION)
@@ -120,7 +152,7 @@ test('a message sent while one turn exits and the next is starting waits its tur
       emit: () => undefined,
       update: (patch) => {
         Object.assign(state, patch)
-        // The exit handler clears the queue and starts the next turn in one go. Right after that,
+        // The turn's end clears the queue and starts the next turn in one go. Right after that,
         // in the very gap the race lived in, the driver must not look idle and a send must queue.
         if (patch.queued === 0 && patch.status === undefined && driver && !probed) {
           probed = true
@@ -132,6 +164,7 @@ test('a message sent while one turn exits and the next is starting waits its tur
       },
       state: () => state,
       log: () => undefined,
+      requests: new SessionRequestBook(() => undefined),
     }
     driver = createCodexDriver(context)
     await driver.send('#sleep=800 first', 'u-1')
@@ -140,12 +173,10 @@ test('a message sent while one turn exits and the next is starting waits its tur
     assert.deepEqual(observed, [{ running: true, busy: true }])
     const lines = (await readFile(join(dir, 'agents.jsonl'), 'utf8')).split('\n').filter(Boolean)
       .map((line) => JSON.parse(line) as { event: string; pid: number })
-    let live = 0
-    for (const entry of lines) {
-      live += entry.event === 'start' ? 1 : -1
-      assert.ok(live <= 1, 'two codex processes never run at once')
-    }
-    assert.equal(lines.filter((entry) => entry.event === 'start').length, 3)
+    assert.equal(lines.filter((entry) => entry.event === 'start').length, 1, 'one app-server serves every turn')
+    assert.deepEqual(lines.filter((entry) => entry.event === 'message').map((entry) => (entry as { text?: string }).text),
+      ['#sleep=800 first', 'second', 'third'])
+    await driver.close('person')
   } finally {
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }

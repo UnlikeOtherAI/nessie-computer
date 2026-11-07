@@ -5,7 +5,7 @@ import {
   CLAUDE_APPENDED_SYSTEM_PROMPT,
   claudeArguments,
   claudeControlLine,
-  claudeDenyLine,
+  claudeUnsupportedLine,
   claudeUserLine,
   createClaudeStreamState,
 } from '../src/coding-session/claude-adapter.js'
@@ -16,7 +16,8 @@ import { createProjector } from '../src/coding-session/projection.js'
 /**
  * Claude Code's stream-json protocol, fed the event shapes claude 2.1.280
  * printed in the probe transcripts (one-shot, multi-turn, mid-turn follow-up,
- * interrupt, background task, `--permission-prompts none`).
+ * interrupt, background task), and the permission prompts 2.1.319 sends
+ * with `--permission-prompt-tool stdio`.
  */
 
 const windowsProjector = () => createProjector(createPathRewriter([
@@ -37,12 +38,17 @@ const agent: CodingAgentConfig = {
 }
 
 test('the argv is the verified stream-json invocation, with the reviewed power passed through', () => {
-  const argv = claudeArguments(agent, { sessionId: 'uuid-1', resume: false, maxBudgetUsd: 20 })
+  const mcpServer = { name: 'nessie_session', command: '/opt/nessie-executor', args: ['serve-session-secrets'] }
+  const argv = claudeArguments(agent, { sessionId: 'uuid-1', resume: false, maxBudgetUsd: 20, mcpServer })
   assert.deepEqual(argv, [
     '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
-    '--session-id', 'uuid-1', '--permission-prompts', 'none', '--permission-mode', 'acceptEdits',
+    '--session-id', 'uuid-1', '--permission-prompts', 'host', '--permission-prompt-tool', 'stdio',
+    '--permission-mode', 'acceptEdits',
     '--allowedTools', 'Bash(git *)', 'Bash(pnpm *)', '--disallowedTools', 'WebFetch', '--model', 'opus',
-    '--max-budget-usd', '20', '--effort', 'high', '--append-system-prompt', CLAUDE_APPENDED_SYSTEM_PROMPT,
+    '--max-budget-usd', '20', '--effort', 'high',
+    '--mcp-config', JSON.stringify({ mcpServers: { nessie_session: { type: 'stdio', command: '/opt/nessie-executor',
+      args: ['serve-session-secrets'] } } }),
+    '--append-system-prompt', CLAUDE_APPENDED_SYSTEM_PROMPT,
   ])
   const resumed = claudeArguments({ command: ['node', 'cli.js'], args: [], allowedTools: [], disallowedTools: [] }, {
     sessionId: 'uuid-1', resume: true,
@@ -50,6 +56,8 @@ test('the argv is the verified stream-json invocation, with the reviewed power p
   assert.deepEqual(resumed.slice(0, 1), ['cli.js'])
   assert.ok(resumed.includes('--resume') && !resumed.includes('--session-id') && !resumed.includes('--permission-mode'))
   assert.match(CLAUDE_APPENDED_SYSTEM_PROMPT, /no person at this terminal/u)
+  assert.doesNotMatch(CLAUDE_APPENDED_SYSTEM_PROMPT, /is denied/u, 'prompts reach the owner now')
+  assert.match(CLAUDE_APPENDED_SYSTEM_PROMPT, /request_secret/u)
   assert.match(CLAUDE_APPENDED_SYSTEM_PROMPT, /own git worktree/u)
 })
 
@@ -59,8 +67,7 @@ test('stdin lines carry our uuid, and control requests are named ours', () => {
     parent_tool_use_id: null, session_id: '',
   })
   assert.equal(JSON.parse(claudeControlLine('interrupt')).request.subtype, 'interrupt')
-  assert.deepEqual(JSON.parse(claudeDenyLine('r-1', true)).response.response.behavior, 'deny')
-  assert.equal(JSON.parse(claudeDenyLine('r-2', false)).response.subtype, 'error')
+  assert.equal(JSON.parse(claudeUnsupportedLine('r-2')).response.subtype, 'error')
 })
 
 test('init keeps only model and permission mode; the initialize account only ever becomes a redaction', () => {
@@ -189,7 +196,7 @@ test('an interrupt cancels the messages that had not started, except those it sa
   assert.equal(dropped.busy(), false)
 })
 
-test('tool calls, results, denials and test runs are projected; permission prompts are answered deny', () => {
+test('tool calls, results, denials and test runs are projected; permission prompts go to the owner', () => {
   const state = createClaudeStreamState(projector)
   state.noteSent('u-1')
   // No lifecycle event this time: the echoed message alone shows the CLI took it.
@@ -207,8 +214,11 @@ test('tool calls, results, denials and test runs are projected; permission promp
   const prompt = state.accept(line({
     type: 'control_request', request_id: 'r-9', request: { subtype: 'can_use_tool', tool_name: 'Write', input: { file_path: 'C:\\x' } },
   }))
-  assert.deepEqual(prompt.answerControlRequest, { requestId: 'r-9', supported: true })
-  assert.deepEqual(prompt.events, [{ kind: 'system', subtype: 'permission_denied', tool: 'Write' }])
+  assert.deepEqual(prompt.prompt, { requestId: 'r-9', toolName: 'Write', input: { file_path: 'C:\\x' } })
+  assert.deepEqual(prompt.events, [{ kind: 'system', subtype: 'permission_request', tool: 'Write' }])
+  assert.equal(state.accept(line({ type: 'control_request', request_id: 'r-10', request: { subtype: 'hook_callback' } }))
+    .unsupportedControlRequest, 'r-10')
+  assert.equal(state.accept(line({ type: 'control_cancel_request', request_id: 'r-9' })).cancelledControlRequest, 'r-9')
   const final = state.accept(result({
     permission_denials: [{ tool_name: 'Bash', tool_use_id: 't2', tool_input: { command: 'git push --force' } }],
   }))

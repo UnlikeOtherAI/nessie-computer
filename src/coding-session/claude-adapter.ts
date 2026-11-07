@@ -1,5 +1,6 @@
 import type { CodingAgentConfig } from './config.js'
 import { CODING_EVENT_LIMITS, exitCodeFromToolResult, looksLikeTestCommand, type Projector } from './projection.js'
+import { claudePromptOf, type ClaudePrompt } from './claude-requests.js'
 import type { CodingEventBody, CodingSessionResult } from './types.js'
 
 /**
@@ -14,8 +15,10 @@ import type { CodingEventBody, CodingSessionResult } from './types.js'
 /** Appended to Claude's system prompt: who is driving and what a turn should end with. */
 export const CLAUDE_APPENDED_SYSTEM_PROMPT = [
   'A Nessie agent is driving this session on behalf of the machine\'s owner.',
-  'There is no person at this terminal, so nobody can answer a question or a permission prompt here;',
-  'anything that would need approval is denied.',
+  'There is no person at this terminal: the owner answers questions and permission prompts from Nessie,',
+  'sometimes after a while, and may decline them.',
+  'When you need a secret such as an API key or a token, ask for it with the request_secret tool,',
+  'which saves it to a file you name; never ask for one in chat.',
   'Work in your own git worktree rather than on the checked-out branch, and commit and push as your instructions say.',
   'End each turn with a short summary of what you did and what you need.',
 ].join(' ')
@@ -24,23 +27,36 @@ const INITIALIZE_ID = 'nessie-initialize'
 const INTERRUPT_ID = 'nessie-interrupt'
 const END_ID = 'nessie-end-session'
 
+/**
+ * The option the Agent SDK passes to have permission prompts sent over stdio.
+ * Claude Code's `--help` does not list it (`--permission-prompts host`, which
+ * it does list, names it), so the capability check requires the latter.
+ */
+export const CLAUDE_PROMPT_TOOL_ARGUMENTS = ['--permission-prompt-tool', 'stdio'] as const
+
 export const claudeArguments = (
   agent: CodingAgentConfig,
-  input: { sessionId: string; resume: boolean; maxBudgetUsd?: number },
+  input: {
+    sessionId: string; resume: boolean; maxBudgetUsd?: number
+    mcpServer?: { name: string; command: string; args: string[] }
+  },
 ): string[] => [
   ...agent.command.slice(1),
   '-p', '--input-format', 'stream-json', '--output-format', 'stream-json', '--verbose', '--replay-user-messages',
   input.resume ? '--resume' : '--session-id', input.sessionId,
-  // Verified on 2.1.280: anything that would prompt is denied without a
-  // control request, and the denial is carried in the result's
-  // `permission_denials`. The driving model never answers a prompt.
-  '--permission-prompts', 'none',
+  // Verified on 2.1.319: a prompt arrives as a `can_use_tool` control request,
+  // which the host turns into a request for the owner (`claude-requests.ts`).
+  '--permission-prompts', 'host', ...CLAUDE_PROMPT_TOOL_ARGUMENTS,
   ...(agent.permissionMode === undefined ? [] : ['--permission-mode', agent.permissionMode]),
   ...(agent.allowedTools.length === 0 ? [] : ['--allowedTools', ...agent.allowedTools]),
   ...(agent.disallowedTools.length === 0 ? [] : ['--disallowedTools', ...agent.disallowedTools]),
   ...(agent.model === undefined ? [] : ['--model', agent.model]),
   ...(input.maxBudgetUsd === undefined ? [] : ['--max-budget-usd', String(input.maxBudgetUsd)]),
   ...agent.args,
+  // Variadic, so it goes right before another option: the session's `request_secret` server, beside the owner's own.
+  ...(input.mcpServer === undefined ? [] : ['--mcp-config', JSON.stringify({ mcpServers: {
+    [input.mcpServer.name]: { type: 'stdio', command: input.mcpServer.command, args: input.mcpServer.args },
+  } })]),
   '--append-system-prompt', CLAUDE_APPENDED_SYSTEM_PROMPT,
 ]
 
@@ -56,16 +72,10 @@ export const claudeControlLine = (subtype: 'initialize' | 'interrupt' | 'end_ses
   request: { subtype },
 })
 
-/** The answer to a permission prompt if one arrives anyway: always deny, never updated permissions. */
-export const claudeDenyLine = (requestId: string, supported: boolean): string => line(supported
-  ? {
-    type: 'control_response',
-    response: {
-      subtype: 'success', request_id: requestId,
-      response: { behavior: 'deny', message: 'No person is at this terminal to approve this, so it was denied.' },
-    },
-  }
-  : { type: 'control_response', response: { subtype: 'error', request_id: requestId, error: 'unsupported' } })
+/** The answer to a control request this host does not serve. */
+export const claudeUnsupportedLine = (requestId: string): string => line(
+  { type: 'control_response', response: { subtype: 'error', request_id: requestId, error: 'unsupported' } },
+)
 
 export type ClaudeSignals = {
   events: CodingEventBody[]
@@ -79,7 +89,12 @@ export type ClaudeSignals = {
   /** The agent is working on a turn, whether or not we asked it to. */
   active?: true
   turnFinished?: CodingSessionResult
-  answerControlRequest?: { requestId: string; supported: boolean }
+  /** A permission prompt or question, for the owner. */
+  prompt?: ClaudePrompt
+  /** A control request this host does not serve. */
+  unsupportedControlRequest?: string
+  /** The CLI withdrew a prompt it had sent. */
+  cancelledControlRequest?: string
   test?: { command: string; exitCode: number | null }
 }
 
@@ -294,15 +309,17 @@ export const createClaudeStreamState = (projector: Projector): ClaudeStreamState
           break
         }
         case 'control_request': {
-          const request = record(event.request) ? event.request : {}
           if (typeof event.request_id !== 'string') break
-          const supported = request.subtype === 'can_use_tool'
-          signals.answerControlRequest = { requestId: event.request_id, supported }
-          if (supported) {
-            signals.events.push({ kind: 'system', subtype: 'permission_denied', tool: projector.line(request.tool_name, 80) })
-          }
+          const prompt = claudePromptOf(event)
+          if (prompt) {
+            signals.prompt = prompt
+            signals.events.push({ kind: 'system', subtype: 'permission_request', tool: projector.line(prompt.toolName, 80) })
+          } else signals.unsupportedControlRequest = event.request_id
           break
         }
+        case 'control_cancel_request':
+          if (typeof event.request_id === 'string') signals.cancelledControlRequest = event.request_id
+          break
         case 'system':
           acceptSystem(event, signals)
           break

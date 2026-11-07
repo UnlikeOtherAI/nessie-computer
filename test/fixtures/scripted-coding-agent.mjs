@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
  * A scripted coding agent that speaks Claude Code's `-p` stream-json protocol
- * and Codex's `exec --json` protocol, so the coding-sessions bridge is proved
- * against real processes rather than stubs. The shapes mirror the transcripts
- * captured from claude 2.1.280 and codex-cli 0.155.1.
+ * and Codex's `app-server` JSON-RPC protocol, so the coding-sessions bridge is
+ * proved against real processes rather than stubs. The shapes mirror the
+ * transcripts captured from claude 2.1.280/2.1.319 and codex-cli 0.166.0.
  *
  * Which protocol it speaks follows from its argv, exactly as the real CLIs are
  * invoked: `--version`, `--help` (the help texts captured from those versions,
@@ -31,7 +31,11 @@
  *   #stubborn     acknowledges an interrupt and carries on regardless (with #sleep)
  *   #secret       prints a GitHub token and a value the configuration set, as `gh auth token` and `printenv` would
  *   #identity     prints the OS user and host names, as git, npm and a shell prompt do
- *   #codexfail    (Codex) the usage-limit failure codex-cli 0.155.1 prints
+ *   #codexfail    (Codex) the usage-limit failure, as a failed turn
+ *   #permit       asks permission to run `git push --force` (Claude: a `can_use_tool` control request;
+ *                 Codex: `item/commandExecution/requestApproval`) and records the answer
+ *   #question     asks a question (Claude: AskUserQuestion; Codex: `item/tool/requestUserInput`)
+ *   #secret-tool  calls the session's `request_secret` MCP server it was given and records the result
  *
  * NESSIE_SCRIPTED_RECORD_DIR, when set, receives `agents.jsonl` (one line per
  * process start and exit, and per message a Claude process receives),
@@ -53,6 +57,8 @@ const record = (entry) => {
 }
 const send = (event) => { process.stdout.write(`${JSON.stringify(event)}\n`) }
 const delay = (ms) => new Promise((settle) => { setTimeout(settle, ms) })
+// The turn under way, in whichever protocol this process speaks.
+let turn
 // Resolves once the test releases the hold, or stops looking when the turn
 // holding it ends another way (an interrupt).
 const released = async (name, holder) => {
@@ -62,6 +68,30 @@ const option = (name) => {
   const index = argv.indexOf(name)
   return index >= 0 ? argv[index + 1] : undefined
 }
+
+/** Calls the session's `request_secret` server exactly as an agent's MCP client would, over its stdio. */
+const callSecretTool = (server, args) => new Promise((resolve) => {
+  const child = spawn(server.command, server.args, { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
+  const answers = new Map()
+  createInterface({ input: child.stdout }).on('line', (line) => {
+    try {
+      const message = JSON.parse(line)
+      answers.get(message.id)?.(message)
+    } catch { /* not ours */ }
+  })
+  const call = (id, method, params) => new Promise((settle) => {
+    answers.set(id, settle)
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id, method, params })}\n`)
+  })
+  void (async () => {
+    await call(1, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'scripted', version: '1' } })
+    child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`)
+    const answer = await call(2, 'tools/call', { name: 'request_secret', arguments: args })
+    child.kill()
+    resolve(answer.result ?? { isError: true, content: [{ type: 'text', text: JSON.stringify(answer.error) }] })
+  })()
+})
+const SECRET_ARGS = { name: 'Stripe test key', reason: 'The checkout tests call Stripe.', destination: '.env.local', envName: 'STRIPE_KEY' }
 
 const fork = () => {
   const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 600000)'], {
@@ -83,7 +113,7 @@ if (argv[0] === '--version') {
   process.exit(0)
 }
 if (argv.at(-1) === '--help') {
-  const help = argv[0] !== 'exec'
+  const help = argv[0] === 'app-server' ? 'codex-0.166.0-app-server.txt' : argv[0] !== 'exec'
     ? process.env.NESSIE_SCRIPTED_HELP === 'older' ? 'claude-older.txt' : 'claude-2.1.280.txt'
     : argv[1] === 'resume' ? 'codex-0.155.1-exec-resume.txt' : 'codex-0.155.1-exec.txt'
   process.stdout.write(readFileSync(new URL(`./agent-help/${help}`, import.meta.url), 'utf8'))
@@ -100,49 +130,128 @@ if (argv[0] === 'login' && argv[1] === 'status') {
   process.exit(loggedIn ? 0 : 1)
 }
 
-if (argv.includes('exec')) {
-  // ---- Codex: one process per turn, the prompt on stdin. ----
-  const resumeIndex = argv.indexOf('resume')
-  const threadId = resumeIndex >= 0 ? argv[resumeIndex + 1] : randomUUID()
-  record({ agent: 'codex', event: 'start', threadId, resume: resumeIndex >= 0, cwd: process.cwd() })
+if (argv.includes('app-server')) {
+  // ---- Codex: one app-server per session, JSON-RPC over stdio. ----
+  record({ agent: 'codex', event: 'start', cwd: process.cwd() })
   process.on('exit', () => record({ agent: 'codex', event: 'exit' }))
-  let prompt = ''
-  process.stdin.setEncoding('utf8')
-  for await (const chunk of process.stdin) prompt += chunk
-  send({ type: 'thread.started', thread_id: threadId })
-  send({ type: 'turn.started' })
-  if (prompt.includes('#codexfail')) {
-    const message = 'You’ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.'
-    send({ type: 'error', message })
-    send({ type: 'turn.failed', error: { message } })
-    process.exit(1)
-  }
-  if (prompt.includes('#fork')) fork()
-  send({ type: 'item.started', item: { id: 'item_0', type: 'command_execution', command: `ls ${process.cwd()}`, status: 'in_progress' } })
-  const sleep = /#sleep=(\d+)/u.exec(prompt)
-  if (sleep) await delay(Number(sleep[1]))
-  send({
-    type: 'item.completed',
-    item: {
-      id: 'item_0', type: 'command_execution', command: `ls ${process.cwd()}`, aggregated_output: `listed ${process.cwd()}`,
-      exit_code: 0, status: 'completed',
-    },
+  let threadId
+  let config = {}
+  let nextId = 1000
+  const waiting = new Map()
+  const reply = (id, result) => send({ id, result })
+  const notify = (method, params) => send({ method, params })
+  const ask = (method, params) => new Promise((resolve) => {
+    const id = nextId++
+    waiting.set(id, resolve)
+    send({ id, method, params })
   })
-  send({ type: 'item.completed', item: { id: 'item_1', type: 'reasoning', text: 'thinking' } })
-  send({ type: 'item.completed', item: { id: 'item_2', type: 'agent_message', text: `Codex done: ${prompt.trim()}` } })
-  send({ type: 'turn.completed', usage: { input_tokens: 10, cached_input_tokens: 0, output_tokens: 5 } })
-  process.exit(0)
-}
-
+  const runTurn = async (current, prompt) => {
+    turn = current
+    const { id } = current
+    notify('turn/started', { threadId, turn: { id, status: 'inProgress', items: [] } })
+    const finish = (status, extra = {}) => {
+      notify('turn/completed', { threadId, turn: { id, status, items: [], ...extra } })
+      turn = undefined
+    }
+    if (prompt.includes('#codexfail')) {
+      const message = 'You’ve hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.'
+      notify('error', { threadId, turnId: id, willRetry: false, error: { message } })
+      return finish('failed', { error: { message } })
+    }
+    if (prompt.includes('#fork')) fork()
+    const command = `ls ${process.cwd()}`
+    notify('item/started', { threadId, turnId: id, item: { id: 'item_0', type: 'commandExecution', command, status: 'inProgress' } })
+    if (prompt.includes('#permit')) {
+      notify('item/started', { threadId, turnId: id, item: { id: 'exec-1', type: 'commandExecution', command: 'git push --force',
+        status: 'inProgress' } })
+      const answer = await ask('item/commandExecution/requestApproval', { threadId, turnId: id, itemId: 'exec-1',
+        command: "/bin/zsh -lc 'git push --force'", cwd: process.cwd(), reason: 'Publish the branch.',
+        commandActions: [{ type: 'unknown', command: 'git push --force' }], startedAtMs: Date.now(),
+        availableDecisions: ['accept', 'acceptForSession', 'decline', 'cancel'] })
+      record({ agent: 'codex', event: 'permission', answer })
+      if (answer.decision === 'cancel' || current.interrupted) return finish('interrupted')
+    }
+    if (prompt.includes('#question')) {
+      const answer = await ask('item/tool/requestUserInput', { threadId, turnId: id, itemId: 'ask-1', isBlocking: true,
+        questions: [{ id: 'db', header: 'Database', question: 'Which database?', isOther: true,
+          options: [{ label: 'Postgres', description: 'Relational' }, { label: 'SQLite', description: 'One file' }] }] })
+      record({ agent: 'codex', event: 'question', answer })
+      if (current.interrupted) return finish('interrupted')
+    }
+    if (prompt.includes('#secret-tool')) {
+      const prefix = 'mcp_servers.nessie_session.'
+      const result = await callSecretTool({ command: config[`${prefix}command`], args: config[`${prefix}args`] }, SECRET_ARGS)
+      record({ agent: 'codex', event: 'secret', result, timeout: config[`${prefix}tool_timeout_sec`] })
+    }
+    const sleep = /#sleep=(\d+)/u.exec(prompt)
+    const hold = /#hold=([\w-]+)/u.exec(prompt)
+    if (sleep || hold) {
+      const finished = sleep ? delay(Number(sleep[1])) : released(hold[1], current)
+      await Promise.race([finished, new Promise((settle) => { current.wake = settle })])
+    }
+    if (current.interrupted) return finish('interrupted')
+    notify('item/completed', { threadId, turnId: id, item: { id: 'item_0', type: 'commandExecution', command,
+      aggregatedOutput: `listed ${process.cwd()}`, exitCode: 0, status: 'completed' } })
+    notify('item/completed', { threadId, turnId: id, item: { id: 'item_1', type: 'reasoning', summary: ['thinking'] } })
+    notify('item/completed', { threadId, turnId: id, item: { id: 'item_2', type: 'agentMessage', text: `Codex done: ${prompt.trim()}` } })
+    return finish('completed')
+  }
+  createInterface({ input: process.stdin }).on('line', (line) => {
+    let message
+    try { message = JSON.parse(line) } catch { return }
+    if (message.method === undefined) {
+      waiting.get(message.id)?.(message.result ?? { error: message.error })
+      waiting.delete(message.id)
+      return
+    }
+    const { id, method, params = {} } = message
+    if (method === 'initialize') reply(id, { userAgent: 'scripted' })
+    else if (method === 'thread/start' || method === 'thread/resume') {
+      threadId = method === 'thread/resume' ? params.threadId : randomUUID()
+      config = params.config ?? {}
+      record({ agent: 'codex', event: 'thread', threadId, resume: method === 'thread/resume', sandbox: params.sandbox,
+        approvalPolicy: params.approvalPolicy, configKeys: Object.keys(config) })
+      reply(id, { thread: { id: threadId }, approvalPolicy: params.approvalPolicy, sandbox: { type: 'readOnly' } })
+    } else if (method === 'turn/start') {
+      const prompt = params.input?.map((part) => part.text ?? '').join('') ?? ''
+      record({ agent: 'codex', event: 'message', text: prompt })
+      const current = { id: randomUUID(), interrupted: false, wake: undefined }
+      reply(id, { turn: { id: current.id, status: 'inProgress', items: [] } })
+      void runTurn(current, prompt)
+    } else if (method === 'turn/interrupt') {
+      if (turn && turn.id === params.turnId) {
+        turn.interrupted = true
+        turn.wake?.()
+        // Pending prompts are withdrawn with the turn.
+        for (const [requestId, resolve] of waiting) {
+          notify('serverRequest/resolved', { threadId, requestId })
+          resolve({ decision: 'cancel', answers: {} })
+          waiting.delete(requestId)
+        }
+      }
+      reply(id, {})
+    } else if (method === 'turn/steer') {
+      record({ agent: 'codex', event: 'steer', text: params.input?.map((part) => part.text).join('') })
+      reply(id, { turnId: params.expectedTurnId })
+    } else if (id !== undefined) send({ id, error: { code: -32601, message: 'unknown method' } })
+  }).on('close', () => process.exit(0))
+} else {
 // ---- Claude Code: one long-lived process, stream-json over stdio. ----
 const sessionId = option('--resume') ?? option('--session-id') ?? randomUUID()
 record({ agent: 'claude', event: 'start', sessionId, resume: argv.includes('--resume'), cwd: process.cwd(), argv })
 process.on('exit', () => record({ agent: 'claude', event: 'exit' }))
 
 let totalCost = 0
-let turn
 const queued = []
 let inputEnded = false
+const mcpServers = (() => { try { return JSON.parse(option('--mcp-config') ?? '{}').mcpServers ?? {} } catch { return {} } })()
+const controlWaiters = new Map()
+/** A control request to the host (a permission prompt), answered by its `control_response`. */
+const askHost = (request) => new Promise((resolve) => {
+  const requestId = randomUUID()
+  controlWaiters.set(requestId, resolve)
+  send({ type: 'control_request', request_id: requestId, request })
+})
 
 const lifecycle = (uuid, state) => send({
   type: 'command_lifecycle', command_uuid: uuid, state, uuid: randomUUID(), session_id: sessionId,
@@ -181,6 +290,37 @@ const runTurn = async (first) => {
   replay(first)
   const text = () => messages.map((message) => message.text).join(' ')
   const extra = {}
+  const endInterrupted = () => {
+    send({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, terminal_reason: 'aborted_tools', session_id: sessionId, total_cost_usd: totalCost, permission_denials: [] })
+    for (const message of messages) lifecycle(message.uuid, 'completed')
+    turn = undefined
+    return drain()
+  }
+  if (text().includes('#permit')) {
+    const response = await askHost({ subtype: 'can_use_tool', tool_name: 'Bash', display_name: 'Bash',
+      input: { command: 'git push --force', description: 'Publish the branch' }, description: 'Publish the branch',
+      permission_suggestions: [{ type: 'addRules', rules: [{ toolName: 'Bash', ruleContent: 'git push --force' }],
+        behavior: 'allow', destination: 'localSettings' }],
+      decision_reason: 'This command requires approval', tool_use_id: 'toolu_permit' })
+    record({ agent: 'claude', event: 'permission', response })
+    if (response.behavior === 'deny' && response.interrupt) return endInterrupted()
+  }
+  if (text().includes('#question')) {
+    const response = await askHost({ subtype: 'can_use_tool', tool_name: 'AskUserQuestion', tool_use_id: 'toolu_question',
+      input: { questions: [{ question: 'Which database?', header: 'Database', multiSelect: false,
+        options: [{ label: 'Postgres', description: 'Relational' }, { label: 'SQLite', description: 'One file' }] }] },
+      requires_user_interaction: true })
+    record({ agent: 'claude', event: 'question', response })
+    if (response.behavior === 'deny' && response.interrupt) return endInterrupted()
+  }
+  if (text().includes('#secret-tool')) {
+    const permission = await askHost({ subtype: 'can_use_tool', tool_name: 'mcp__nessie_session__request_secret',
+      input: SECRET_ARGS, tool_use_id: 'toolu_secret' })
+    const server = mcpServers.nessie_session
+    const result = permission.behavior === 'allow' && server ? await callSecretTool(server, SECRET_ARGS) : undefined
+    record({ agent: 'claude', event: 'secret', permission: permission.behavior, result, server: Boolean(server) })
+  }
+  if (current.interrupted) return endInterrupted()
   if (text().includes('#fork')) fork()
   if (text().includes('#path')) {
     send({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: `Working in ${process.cwd()}; home is ${homedir()}; memory under ~/.claude/projects.` }] } })
@@ -259,6 +399,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   } catch {
     return
   }
+  if (message.type === 'control_response') {
+    const requestId = message.response?.request_id
+    controlWaiters.get(requestId)?.(message.response?.response ?? message.response ?? {})
+    controlWaiters.delete(requestId)
+    return
+  }
   if (message.type === 'control_request') {
     const subtype = message.request?.subtype
     if (subtype === 'initialize') {
@@ -290,3 +436,4 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   inputEnded = true
   if (!turn && queued.length === 0) process.exit(0)
 })
+}

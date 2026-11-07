@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
@@ -9,7 +8,7 @@ import type { ExecutorCodingSessionsFacts } from '@nessie/executor-protocol'
 
 import { CODING_SESSIONS_CONFIG_DIGEST_ENV } from '../src/coding-session/config.js'
 import { createCodingSessionsDaemon } from '../src/coding-sessions-daemon.js'
-import { createCodingHarness, OWNER_A, OWNER_B, waitUntil } from './coding-session-harness.js'
+import { createCodingHarness, OWNER_A, OWNER_B } from './coding-session-harness.js'
 
 /**
  * Who may reach a session, and what a replayed command does. The owner key and
@@ -74,7 +73,7 @@ test('the daemon\'s close reason is the session\'s own, in its status and in the
   try {
     const refused = await harness.call('session_close_all', { reason: 'Because the lease ended.' }, { daemon: true, owner: '' })
     assert.equal(refused.code, 'coding_session_invalid_arguments', 'a reason is categorical, never free text')
-    // A live Claude process, a Codex turn still running, and a Codex session whose host has already gone.
+    // A live Claude process, a Codex turn still running, and a Codex session waiting for its next message.
     const claude = await harness.call('session_start', { agent: 'claude', root: 'work', prompt: 'claude task' })
     const running = await harness.call('session_start', { agent: 'codex', root: 'work', prompt: '#sleep=60000 codex task' })
     const idle = await harness.call('session_start', { agent: 'codex', root: 'work', prompt: 'short codex task' })
@@ -82,8 +81,6 @@ test('the daemon\'s close reason is the session\'s own, in its status and in the
     await harness.waitForStatus(sessions[0]!, (body) => body.status === 'waiting_for_input')
     await harness.waitForStatus(sessions[1]!, (body) => body.status === 'working')
     await harness.waitForStatus(sessions[2]!, (body) => body.status === 'waiting_for_input')
-    const lock = join(harness.stateDir, 'sessions', sessions[2]!, 'host.lock')
-    await waitUntil(async () => (existsSync(lock) ? undefined : true), 30_000, 'the idle Codex session\'s host to exit')
     const closed = await harness.call('session_close_all', { ownerKey: OWNER_A, reason: 'access_revoked' }, { daemon: true, owner: '' })
     assert.equal(closed.body.closing, 3)
     for (const sessionId of sessions) {
