@@ -79,7 +79,7 @@ export const serveExecutor = async (
       facts: live.descriptor.codingSessions,
       servers: namedMcpServers,
       sessions: mcpSessions,
-      ownerRequests: ownerRequestsGate.understood,
+      serverReadsRequests: ownerRequestsGate.understood,
     })
     const localMcp = createLocalMcpReporter(namedMcpServers, mcpSessions, { codingSessions: codingBridge.report })
     const monitor = startComputerMonitor(stateDir)

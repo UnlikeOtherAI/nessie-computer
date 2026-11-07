@@ -167,11 +167,11 @@ export const createCodingSessionsDaemon = (input: {
   servers: readonly ExecutorLocalMcpServer[]
   sessions: ExecutorMcpSessionManager
   /**
-   * Whether session hosts may put provider prompts to the owner: Nessie has
-   * shown it reads requests on this connection (`owner-requests-gate.ts`).
-   * Absent, they never may.
+   * Nessie has shown it reads requests on this connection
+   * (`owner-requests-gate.ts`). Session hosts put provider prompts to the
+   * owner only while it has and the reviewed facts say the owner answers them.
    */
-  ownerRequests?: () => boolean
+  serverReadsRequests?: () => boolean
   log?: (message: string) => void
   now?: () => number
 }): CodingSessionsDaemon => {
@@ -182,7 +182,7 @@ export const createCodingSessionsDaemon = (input: {
   const writeAuthority = bridgeConfig && input.facts?.existingSessions
     ? existingAuthorityWriter(dirname(bridgeConfig)) : async () => undefined
   const writeOwnerRequests = bridgeStateDir ? ownerRequestsLeaseWriter(bridgeStateDir) : async () => undefined
-  const ownerRequests = (): boolean => input.ownerRequests?.() === true
+  const ownerRequests = (): boolean => input.facts?.ownerAnswers === true && input.serverReadsRequests?.() === true
   const tellHosts = (live: boolean): void => { void writeOwnerRequests(live).catch(() => undefined) }
   // An earlier daemon's lease says nothing about the Nessie this one will meet.
   if (bridgeStateDir) tellHosts(false)

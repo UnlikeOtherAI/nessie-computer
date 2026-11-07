@@ -140,12 +140,28 @@ export const ExecutorCodingSessionsFactsSchema = z
      * the terminal tools are offered only when this is present.
      */
     terminalCommands: z.literal('commandRules').optional(),
+    /**
+     * The owner answers the coding agents' own prompts from Nessie: a Claude
+     * Code permission prompt or question, a Codex approval, question or
+     * permissions request, and the session's `request_secret`. Under Codex's
+     * `on-request` approval policy, the owner's approval of one command lets
+     * that command run outside the reviewed sandbox; nothing else leaves it,
+     * and no approval widens the session's standing permissions beyond the
+     * named folders. Absent, every such prompt is turned down at once, as
+     * before the owner could be asked — which is also what a descriptor an
+     * older daemon signed means. A person states it by applying the
+     * coding-sessions configuration again; the daemon's own upgrade at start
+     * never adds it.
+     */
+    ownerAnswers: z.literal(true).optional(),
   })
   .strict()
   .refine((facts) => facts.existingSessions || (facts.agents.length > 0 && facts.rootNames.length > 0),
     'Managed coding sessions need an agent and a root.')
   .refine((facts) => facts.terminalCommands === undefined || facts.agents.includes('terminal'),
     'Terminal commands are stated only when terminal sessions are offered.')
+  .refine((facts) => facts.ownerAnswers === undefined || facts.agents.some((agent) => agent !== 'terminal'),
+    'Owner answers are stated only when Claude Code or Codex is offered.')
   .refine(
     (facts) => sameMembers(Object.keys(facts.permissionMode), facts.agents),
     'Every offered coding agent states its permission mode, and only those do.',
