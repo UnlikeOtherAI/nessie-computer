@@ -99,11 +99,10 @@ export const rc6Utilization = (previous: IdleReading | undefined, next: IdleRead
 
 const gpu = async (idle: Map<string, IdleReading>): Promise<GpuReading> => {
   const nvidia = await run('nvidia-smi', ['--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'])
-  if (nvidia !== null) {
-    const reading = nvidiaGpuReading(nvidia)
-    if (reading.utilization !== null || reading.total !== null) return reading
-  }
-  const simple = (utilization: number | null): GpuReading => ({ utilization, used: null, total: null })
+  const reading = nvidia !== null ? nvidiaGpuReading(nvidia) : { utilization: null, used: null, total: null }
+  if (reading.utilization !== null) return reading
+  // VRAM availability is independent of utilization. Preserve it through OS counter fallback.
+  const simple = (utilization: number | null): GpuReading => ({ ...reading, utilization })
   if (platform() === 'win32') {
     const text = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       '$c=Get-Counter "\GPU Engine(*)\Utilization Percentage" -ErrorAction Stop; '

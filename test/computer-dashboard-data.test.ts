@@ -21,6 +21,9 @@ test('multi-GPU utilization uses the busiest card while memory sums readable car
   assert.equal(reading.utilization, 80)
   assert.equal(reading.used, 3584 * 1024 ** 2)
   assert.equal(reading.total, 13312 * 1024 ** 2)
+  assert.deepEqual(nvidiaGpuReading('N/A, 1024, 8192'), {
+    utilization: null, used: 1024 * 1024 ** 2, total: 8192 * 1024 ** 2,
+  })
   assert.deepEqual(nvidiaGpuReading('N/A, N/A, N/A'), { utilization: null, used: null, total: null })
   assert.equal(rc6Utilization(undefined, { at: 1000, ms: 200 }), null)
   assert.equal(rc6Utilization({ at: 1000, ms: 200 }, { at: 2000, ms: 700 }), 50)
