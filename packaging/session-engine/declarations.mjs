@@ -20,7 +20,8 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver }) => {
   }
   const modulePath = (specifier, source, declaration) => {
     let target
-    if (specifier.startsWith('t3-source:') || specifier.startsWith('@t3tools/') || specifier.startsWith('effect-')) {
+    if (specifier.startsWith('t3-source:') || specifier.startsWith('@t3tools/') || specifier.startsWith('effect-')
+      || specifier.startsWith('@nessie/t3-session-source/contracts')) {
       const resolved = resolver.resolve(specifier)
       if (resolved.kind !== 'source') throw new Error('Workspace declaration did not resolve to pinned source.')
       target = `source/${resolved.path.replace(/\.tsx?$/u, '.js')}`
@@ -59,7 +60,7 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver }) => {
     const entry = location(entryPoint).replace(/\.d\.ts$/u, '.js')
     files.set('index.d.ts', `export * from './${entry}'\n`)
     const identities = {}
-    for (const [path, content] of [...files].sort(([left], [right]) => left.localeCompare(right))) {
+    for (const [path, content] of [...files].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
       const destination = resolve(directory, path)
       await mkdir(dirname(destination), { recursive: true })
       const existing = await readFile(destination).catch(error => {

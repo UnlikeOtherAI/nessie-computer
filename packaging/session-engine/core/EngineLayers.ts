@@ -3,7 +3,7 @@ import * as IdAllocator from 't3-source:packages/provider-core/src/server/IdAllo
 import * as ContinuationRequests from 't3-source:packages/provider-core/src/server/ProviderContinuationRequests.ts'
 import * as ThreadCommandExecutor from 't3-source:apps/server/src/orchestration-v2/ThreadCommandExecutor.ts'
 import * as Orchestrator from 't3-source:apps/server/src/orchestration-v2/Orchestrator.ts'
-import * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementService.ts'
+import * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 import * as Launch from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchService.ts'
 import * as LegacyImporter from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import * as Policy from 't3-source:apps/server/src/orchestration-v2/RuntimePolicy.ts'
@@ -49,7 +49,7 @@ export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator,
   Policy, CommandPolicy, Forks, Handoffs, Adapters, Switches, Output, Recovery, Continuations, Worker }
 export * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementService.session-api.ts'
 export { layerWithLegacyImporter as threadManagementLayer }
-  from 't3-source:apps/server/src/orchestration-v2/ThreadManagementService.ts'
+  from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 export * as ThreadMessageIntake from 't3-source:apps/server/src/orchestration-v2/ThreadMessageIntake.ts'
 export * as AttachmentClaims from 't3-source:apps/server/src/orchestration-v2/AttachmentClaims.ts'
 export * as ProviderSessions from 't3-source:apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts'

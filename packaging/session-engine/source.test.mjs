@@ -10,6 +10,7 @@ import { prepareSessionEngineSource, T3_SESSION_ENGINE_SOURCE, verifySessionEngi
 import { readSessionEngineSnapshot } from './snapshot.mjs'
 import { createSessionEngineSourceResolver } from './resolver.mjs'
 import { applySessionEngineBoundaryPatches, composeSessionEnginePatchManifests } from './patches.mjs'
+import { assertSessionEngineSourceGraph } from './graph.mjs'
 
 const artifacts = resolve(dirname(fileURLToPath(import.meta.url)), '../../.artifacts')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -219,4 +220,40 @@ test('derived source binds exact original ranges and never replaces an existing 
   patch.file = 'engine/index.ts'
   assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
     { code: 'SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED' })
+})
+
+test('the engine graph rejects product, provider, vault and exporter implementations', () => {
+  for (const file of ['server.ts', 'ws.ts', 'auth/ServerSecretStore.ts', 'preview/Manager.ts',
+    'telemetry/ProviderUsageAnalytics.ts', 'provider/Drivers/CodexDriver.ts', 'provider/ProviderCredentialStore.ts',
+    'provider/ProviderRegistry.ts', 'provider/builtInProviderCatalog.ts', 'orchestration-v2/runtimeLayer.ts',
+    'serverSettings.ts', 'config.ts', 'cloud/config.ts', 'provider/ProviderUsageService.ts',
+    'orchestration-v2/ThreadManagementService.ts']) {
+    assert.throws(() => assertSessionEngineSourceGraph([`apps/server/src/${file}`]),
+      { code: 'SESSION_ENGINE_AGGREGATE_REFUSED' })
+  }
+  assert.doesNotThrow(() => assertSessionEngineSourceGraph([
+    'apps/server/src/orchestration-v2/Orchestrator.ts', 'apps/server/src/config.session-port.ts',
+    'apps/server/src/provider/ProviderInstanceRegistry.session-port.ts',
+    'apps/server/src/orchestration-v2/UsageLimitRecoveryWorker.ts',
+    'packages/contracts/src/provider.ts',
+  ]))
+})
+
+test('a derivation after a source refactor binds that exact source version', async context => {
+  const input = await fixture(context)
+  await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  const snapshot = await readSessionEngineSnapshot(input.archivePath, input.spec)
+  const before = snapshot.read('engine/index.ts')
+  const after = Buffer.from('export const protocol = 3\n')
+  const create = { id: 'derive-current', file: 'apps/server/src/current.ts', beforeSha256: null,
+    afterSha256: hash(after), create: [{ sourceFile: 'engine/index.ts', sourceStage: 'current',
+      sourceSha256: hash(after), start: 0, end: after.length, sha256: hash(after) }] }
+  const manifest = () => Buffer.from(JSON.stringify({ format: 1, sourceCommit: input.spec.commit, patches: [{
+    id: 'change-source', file: 'engine/index.ts', from: 'protocol = 2', to: 'protocol = 3',
+    beforeSha256: hash(before), afterSha256: hash(after),
+  }, create] }))
+  assert.deepEqual(applySessionEngineBoundaryPatches(snapshot, manifest()).read(create.file), after)
+  create.create[0].sourceSha256 = hash(before)
+  assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH' })
 })

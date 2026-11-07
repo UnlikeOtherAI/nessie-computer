@@ -2,10 +2,13 @@
 
 Status: pinned persistence, original read/history/sync extraction and higher
 composition over required host ports are implemented as build candidates.
-The lower-state synthetic SQLite proof is qualified; the higher history proof
-and ordinary TypeScript declaration consumer are being qualified separately.
+Both the lower-state proof and the higher synthetic SQLite history proof pass;
+the generated type boundary passes an ordinary strict TypeScript consumer.
 The engine is not an installed executor capability. Lifecycle readiness,
 provider execution, the T3 gateway and mobile compatibility remain incomplete.
+Final qualification with the corrected request-privacy patch family is pending.
+The selected `db4bd597` family has known correlation, nested-metadata and traversal
+defects; its earlier co-build evidence does not establish comprehensive privacy.
 
 This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;
@@ -174,9 +177,10 @@ native manifest, grant personal credentials or bypass native release admission.
 
 ### Higher source extraction
 
-`patches/t3-session/extraction/generate.mjs` reproduces 116 exact boundary
+`patches/t3-session/extraction/generate.mjs` reproduces 124 exact boundary
 operations from the verified capsule. Generated modules retain original source
-ranges by filename, byte offsets and SHA-256; every changed original file and
+ranges by filename, byte offsets and SHA-256. A range taken after an earlier
+refactor also binds the complete preceding patched file hash. Every changed file and
 every derived module also has complete before/after hashes. Source implementations
 remain immutable capsule inputs. No 15,000-line first-party orchestrator or
 replacement history reducer is introduced.
@@ -205,8 +209,12 @@ history through the real event sink. It does not execute imported work.
 
 `core/EngineLayers.ts` exports `createSessionEngineLayers(state?)` and the actual
 Orchestrator, `threadManagementLayer` (`layerWithLegacyImporter`), ThreadLaunch,
-recovery, continuation and effect-worker constructors. The plain no-op-importer
-ThreadManagement layer is not exported through the library's `Threads` namespace.
+recovery, continuation and effect-worker constructors. `ThreadManagementLive.ts`
+contains the original real factory and `layerWithLegacyImporter`; the application
+reuses them. Its separate default composition supplies a no-op importer, so the
+engine graph refuses the entire original `ThreadManagementService.ts` module.
+`Threads` exports declarations only. Import smoke checks the actual bundle for
+the excluded initializer and imports every usable export without process startup.
 Building higher layers starts original scoped orchestration reactions; it is not
 the passive read mode. Worker and continuation consumers are explicit returned
 layers, not started by the default higher composition. Keep the returned shared
@@ -281,15 +289,24 @@ Effect imports use the same source resolver and isolated dependency root. Effect
 platform-node and platform-node-shared are pinned to 4.1.2. Do not dynamically
 combine independently bundled candidates.
 
+The producer and T01 alias plugin share `pluginData.nessieSharedEffect === true`
+as the dependency-resolution recursion marker. The producer preserves existing
+metadata, adds `nessieSharedEffectRoot` for the selected absolute dependency root,
+and refuses a conflicting root. Both plugins must receive the same directory.
+`plugin-proof.mjs` loads the exact committed T01 helper and runs real esbuild in
+both plugin orders. First-party and virtual original imports must share the
+actual Schema namespace and codec objects, with one dependency-root module graph.
+
 The engine build emits `.mjs`, provenance/licenses, the original capsule, one
 `.patches.json` and `.declarations/index.d.ts`. Large upstream inferred schemas
 exceed TypeScript 5.9.3 declaration serialization (`TS7056` in `environmentHttp`,
 `guestStream`, `orchestrationV2` and `rpc`). Authored declarations therefore refer
 to a hash-bound upstream **type-source** tree with ordinary relative imports.
 It has no runtime loader and retains exact types rather than flattened schemas.
-All source modules still receive strict semantic checks. A normal strict `tsc`
-consumer with the declared dependencies must pass before this type artifact is
-qualified; a producer-only compiler host is insufficient.
+All source modules still receive strict semantic checks. The ordinary strict
+`tsc` consumer passes with the declared dependencies, no path aliases/custom
+compiler host/runtime loader, and library checking enabled. It verifies source
+command/secret negatives and required SQL/provider/cleanup port types.
 
 Keep type artifacts beneath the intended dependency root during qualification:
 
@@ -298,7 +315,18 @@ node packaging/session-engine/build.mjs --source <pinned-read-only-Git-repositor
 node packaging/session-engine/consumer.mjs packaging/session-engine/.artifacts/engine.mjs
 node packaging/session-engine/build.mjs --source <pinned-read-only-Git-repository> --output packaging/session-engine/.artifacts/history-proof.mjs --engine --proof
 node packaging/session-engine/history-proof.mjs packaging/session-engine/.artifacts/history-proof.mjs
+node packaging/session-engine/plugin-proof.mjs .artifacts/session-engine/source.tar
+node packaging/session-engine/co-build.mjs <pinned-read-only-Git-repository> packaging/session-engine/.artifacts/co-build.mjs <contracts-commit> <privacy-commit> <privacy-manifest-sha256>
+node packaging/session-engine/smoke.mjs packaging/session-engine/.artifacts/co-build.mjs
+node packaging/session-engine/consumer.mjs packaging/session-engine/.artifacts/co-build.mjs
+node packaging/session-engine/history-proof.mjs packaging/session-engine/.artifacts/co-build.mjs --patch-family request-privacy packaging/session-engine/.artifacts/co-build.mjs.request-privacy.json
 ```
+
+The co-build command requires explicit committed contract and privacy identities;
+it has no default privacy checkpoint. It records the committed T01 source-entry
+helper hash and verifies the selected privacy manifest before one application of
+state, client, extraction and privacy patches. Changed family bytes require a new
+combined digest and qualification artifact.
 
 The history fixture uses actual file-backed SQLite migrations, original importer,
 reads, fork planner, event sink, codecs and thread subscription. It creates only
@@ -394,6 +422,75 @@ sequence was 2. This exercises shared-outbox wakeups, atomic commit/publication,
 receipt replay and event cursors. It is not a provider simulation or complete
 session synchronization implementation.
 
-No native build, installation, provider process, personal credential access,
-retained-session access, file-backed recovery, high-level history/lineage,
-original-client compatibility, full lifecycle or mobile flow was tested.
+That earlier lower-state proof did not cover native builds/installations,
+providers/credentials, retained sessions, file-backed recovery, higher history,
+original clients, lifecycle or mobile flows. The following proof adds the
+bounded synthetic history/read/sync evidence.
+
+### Higher source qualification on Maxis
+
+The new source gate has 13 passing checks, no failures/skips. It covers ordered
+family composition/digest identity, derived range integrity, immutable outputs
+and explicit rejection of product/auth/preview/telemetry/provider/vault/usage
+implementation paths. The engine candidate passes strict TypeScript 5.9.3
+(929 files for the co-build proof) and bundles 347 pinned source modules. The runtime dependency closure
+contains one Effect 4.1.2 instance and Node builtins only as external imports.
+Original `ws.ts` adapts the application's full thread service to the extracted
+read-only subscription tag; the engine never imports that websocket application.
+
+The actual supported `history-proof.mjs` entry passed on Windows Maxis with
+Node 24.19.0, pnpm 10.22.0 and esbuild 0.25.12. Jobs ran sequentially under
+`--max-old-space-size=1536`, after a fresh 10 GiB free-memory guard, with package
+lifecycle scripts disabled. The proof uses file-backed source SQLite including
+its reader/checkpoint workers, and runs all 80 original migrations.
+
+Observed results:
+
+- 160 synthetic legacy threads from January 2025 plus a fork and child: 162
+  catalog rows, 10 archived and 60 settled rows with tied times, retrieved through
+  the original 17-row keyset pagination past the shell's newest 25.
+- 360 retained messages beyond the initial 200-row window, read across nine
+  history pages, a full transcript, original Markdown search, and schema/wire
+  encode/decode. Initial project listing exceeded 100 rows.
+- The original fork planner/projection retained all 360 source item IDs and its
+  separate synthetic fork marker; the family read contained parent, fork and child.
+- Real thread subscription replay returned one prior event, a synchronized
+  marker, then one commit made during the high-water/live handoff, with no duplicate.
+  Future and synthetically pruned cursors returned authoritative snapshots and
+  synchronized markers.
+- Reopening the same SQLite file preserved all 360 history rows after pruning.
+  A second lazy import wrote zero messages. A real dormant outbox row remained
+  byte-for-byte unchanged; passive reads added no command receipts. No provider
+  service or effect/continuation consumer was started.
+
+The import smoke, ordinary strict consumer and history proof exercised one
+co-build artifact with 347 source modules, 929 checked files and 378 portable
+declaration/type-source files. It uses actual stores, source constructors/helpers/codecs and synthetic rows/events,
+without a replay harness, no-op importer, provider fake or replacement reducer.
+The `sqlite` probe observed `setAuthorizer` and boolean `isTransaction` on this
+Node 24 runtime. Packaged Node 22, provider execution/custody, canonical vault
+save/delivery, shell enrichment streaming, actual installed history handoff,
+full startup/shutdown and original-client/mobile journeys remain unqualified.
+No broad workspace, server, browser, native, installer or release build ran.
+
+That co-build selected committed T01 `0f53775b804df5558e5a3be6b8a6d6c6f830f638`
+and the now-rejected C05 `db4bd5972777bcfae2df4f00f0292581bc17fb97` privacy family.
+Its historical 177-operation combined digest is
+`1fc7883b9e4d6665a146cee109a38cbf8d39309d9cabf2fa8b12c72d6e8f5c47`,
+bundle SHA-256 is
+`da87ebf6bf343e110cbdc5e369dd0e0ccde2a9c578a200fb4ea94e74fb7ff1a5`,
+and declaration closure digest is
+`ba5c1d5c83b173048011f200d27effe4aa65782062c564a05192c30183f29017`.
+The extraction manifest SHA-256 is
+`d24f1709b6d7c1211d9987179d3fc727ef51e9c54d7c6900a1fceb8f900f1908`;
+the isolated lock SHA-256 is
+`5929234e78b262af69280bf3ed1c21187665c3acccaab22ee53072f36ab9c97d`.
+This establishes source/read/sync and import/type evidence for those selected
+bytes. It is not final privacy integration: corrected committed C05 input must
+replace that family and pass the same co-build, import, consumer and history gates.
+
+The independent combined-plugin regression uses the exact committed T01 helper
+SHA-256 `763ec6d19901614479f8a0d710255dd6cae6c58dde971b29a71c2d53296fe1ed`.
+Both plugin orders produce the same bundle SHA-256
+`ddbdb025c1de1977621b093a179fec2d0e388ca2bf0e249af8bf0c83aabe3975`,
+with 306 Effect source modules and actual shared Schema/codec identity.

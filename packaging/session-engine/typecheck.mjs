@@ -58,7 +58,8 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
       return ts.resolveModuleName(name, resolve(tools, 'source-entry.ts'), options, host).resolvedModule
     }
     const importer = sourcePath(containingFile)
-    if (name.startsWith('t3-source:') || name.startsWith('@t3tools/') || importer !== undefined) {
+    if (name.startsWith('t3-source:') || name.startsWith('@t3tools/')
+      || name.startsWith('@nessie/t3-session-source/contracts') || importer !== undefined) {
       const selected = resolver.resolve(name, importer)
       if (selected.kind === 'source') return { resolvedFileName: `${virtualRoot}${selected.path}`, isExternalLibraryImport: false }
       return ts.resolveModuleName(name, resolve(tools, 'source-entry.ts'), options, host).resolvedModule

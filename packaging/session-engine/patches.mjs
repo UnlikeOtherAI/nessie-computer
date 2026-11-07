@@ -43,7 +43,14 @@ export const applySessionEngineBoundaryPatches = (snapshot, manifestBytes = defa
       }
       const after = Buffer.concat(patch.create.map(part => {
         if (typeof part.text === 'string' && Object.keys(part).length === 1) return Buffer.from(part.text)
-        const original = snapshot.read(part.sourceFile)
+        if (part.sourceStage !== undefined && part.sourceStage !== 'current') {
+          throw new SessionEngineSourceError('SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH')
+        }
+        const original = part.sourceStage === 'current'
+          ? modified.get(part.sourceFile) ?? snapshot.read(part.sourceFile) : snapshot.read(part.sourceFile)
+        if (part.sourceStage === 'current' && hash(original) !== part.sourceSha256) {
+          throw new SessionEngineSourceError('SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH')
+        }
         if (!Number.isSafeInteger(part.start) || !Number.isSafeInteger(part.end)
           || part.start < 0 || part.end <= part.start || part.end > original.length) {
           throw new SessionEngineSourceError('SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH')

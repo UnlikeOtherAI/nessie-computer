@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { builtinModules } from 'node:module'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -11,18 +11,11 @@ import { typecheckSessionState } from './typecheck.mjs'
 import { applySessionEngineBoundaryPatches } from './patches.mjs'
 import { prepareSessionEngineSnapshot } from './engine-snapshot.mjs'
 import { lintSessionEngineSources } from './lint.mjs'
+import { assertSessionEngineSourceGraph } from './graph.mjs'
 
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]))
-const excluded = [
-  /^apps\/server\/src\/(?:server\.ts|ws\.ts|bin[^/]*\.ts|auth\/|telemetry\/|preview\/|device\/)/u,
-  /^apps\/server\/src\/provider\/(?:Drivers\/|ProviderHostLive\.ts|ProviderCredentialStore\.ts)/u,
-  /^packages\/source-control-[^/]+\/src\/server\//u,
-  /^apps\/server\/src\/(?:config|serverSettings|serverRuntime[^/]*|runtimeLayer)\.ts$/u,
-  /^apps\/server\/src\/provider\/(?:builtInProviderCatalog|Provider(?:Registry|HostLive|CredentialStore))\.ts$/u,
-  /^apps\/server\/src\/(?:cloud\/|usage\/|observability\/exporters\/)/u,
-]
 
 const writeImmutable = async (path, bytes) => {
   const existing = await readFile(path).catch(error => {
@@ -38,12 +31,19 @@ const writeImmutable = async (path, bytes) => {
 
 const dependencyNotices = async inputs => {
   const packages = new Map()
+  let effectRoot
   for (const input of inputs) {
     if (!input.includes('node_modules/')) continue
     let directory = dirname(resolve(tools, input))
     while (directory !== dirname(directory)) {
       const manifest = await readFile(resolve(directory, 'package.json'), 'utf8').then(JSON.parse).catch(() => undefined)
       if (manifest?.name) {
+        if (manifest.name === 'effect') {
+          if (manifest.version !== '4.1.2' || effectRoot && effectRoot !== directory) {
+            throw new SessionEngineSourceError('SESSION_ENGINE_EFFECT_SINGLETON_REFUSED')
+          }
+          effectRoot = directory
+        }
         if (!packages.has(manifest.name)) {
           let notice
           for (const name of ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'LICENSE-MIT', 'LICENCE']) {
@@ -60,7 +60,7 @@ const dependencyNotices = async inputs => {
       directory = dirname(directory)
     }
   }
-  return [...packages.values()].sort((left, right) => left.name.localeCompare(right.name))
+  return [...packages.values()].sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)
 }
 
 /** Offline after a frozen dependency install; emits a dependency-closed library, not an installed runtime. */
@@ -94,9 +94,7 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
   const inputs = Object.keys(result.metafile.inputs)
   const sourceInputs = inputs.filter(input => input.startsWith('nessie-t3-source:'))
     .map(input => input.slice('nessie-t3-source:'.length)).sort()
-  if (sourceInputs.some(input => excluded.some(pattern => pattern.test(input)))) {
-    throw new SessionEngineSourceError('SESSION_ENGINE_AGGREGATE_REFUSED')
-  }
+  assertSessionEngineSourceGraph(sourceInputs)
   for (const input of inputs.filter(input => !input.startsWith('nessie-t3-source:'))) {
     const path = relative(tools, resolve(tools, input)).replaceAll('\\', '/')
     const authored = relative(resolve(tools, '../..'), resolve(tools, input)).replaceAll('\\', '/')
@@ -132,6 +130,8 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
     dependencyInputs: Object.fromEntries(await Promise.all(inputs.filter(input => input.startsWith('node_modules/'))
       .map(async file => [file, hash(await readFile(resolve(tools, file)))]))),
     dependencies: notices.dependencies.map(({ name, version, license }) => ({ name, version, license })),
+    producerInputs: Object.fromEntries(await Promise.all((await readdir(tools)).filter(file => file.endsWith('.mjs'))
+      .map(async file => [`packaging/session-engine/${file}`, hash(await readFile(resolve(tools, file)))]))),
   }
   if (preparedEngine) await writeImmutable(`${output}.patches.json`, preparedEngine.manifestBytes)
   await writeImmutable(`${output}.licenses.json`, `${JSON.stringify(notices, null, 2)}\n`)

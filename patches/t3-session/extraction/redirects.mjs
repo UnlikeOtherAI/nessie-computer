@@ -2,7 +2,7 @@ import { posix } from 'node:path'
 import { createSessionEngineSourceResolver } from '../../../packaging/session-engine/resolver.mjs'
 
 const roots = [
-  'Orchestrator', 'ThreadManagementService', 'ThreadLaunchService', 'EffectWorker', 'ProviderRuntimeRecoveryService',
+  'Orchestrator', 'ThreadManagementLive', 'ThreadLaunchService', 'EffectWorker', 'ProviderRuntimeRecoveryService',
   'ProviderContinuationService', 'ThreadMessageIntake', 'ThreadSearch', 'ThreadFind', 'ThreadStream',
 ].map(name => `apps/server/src/orchestration-v2/${name}.ts`)
 

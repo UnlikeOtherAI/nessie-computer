@@ -9,6 +9,7 @@ import { extractHostPorts } from './ports.mjs'
 import { extractReadServices } from './reads.mjs'
 import { extractSync } from './sync.mjs'
 import { redirectPortImports } from './redirects.mjs'
+import { extractThreadLive } from './thread-live.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -31,6 +32,7 @@ export const generateExtractionManifest = snapshot => {
     'share-clone-admission')
   exports.get(clone).add('rejectCommandsDuringClone')
   const reads = extractReadServices(author, redirects)
+  extractThreadLive(author, redirects, exports)
   for (const [relative, symbols] of [
     ['Orchestrator', [['const', 'isOrchestratorProjectionError'], ['function', 'runtimePolicyCeilingCause']]],
     ['CheckpointRollbackService', [['const', 'isCheckpointRollbackExecutionError']]],

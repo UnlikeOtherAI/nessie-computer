@@ -33,17 +33,19 @@ export const createPatchAuthor = snapshot => {
   const derive = (file, parts, id) => {
     if (snapshot.files.includes(file) || files.has(file)) throw new Error(`Existing derived file: ${file}`)
     const encoded = parts.map(part => typeof part === 'string' ? { text: part } : part)
-    const text = encoded.map(part => part.text ?? snapshot.read(part.sourceFile)
+    const text = encoded.map(part => part.text ?? (part.sourceStage === 'current'
+      ? Buffer.from(read(part.sourceFile)) : snapshot.read(part.sourceFile))
       .subarray(part.start, part.end).toString('utf8')).join('')
     patches.push({ id, file, create: encoded, beforeSha256: null, afterSha256: sha256(text) })
     files.set(file, text)
   }
-  const sourcePart = (file, text) => {
-    const bytes = snapshot.read(file)
+  const sourcePart = (file, text, { current = false } = {}) => {
+    const bytes = current ? Buffer.from(read(file)) : snapshot.read(file)
     const selected = Buffer.from(text)
     const start = bytes.indexOf(selected)
     if (start < 0 || bytes.indexOf(selected, start + 1) >= 0) throw new Error(`Nonunique original fragment: ${file}`)
-    return { sourceFile: file, start, end: start + selected.length, sha256: sha256(selected) }
+    return { sourceFile: file, start, end: start + selected.length, sha256: sha256(selected),
+      ...(current ? { sourceStage: 'current', sourceSha256: sha256(bytes) } : {}) }
   }
   return { read, replace, between, add, derive, sourcePart, patches, files }
 }

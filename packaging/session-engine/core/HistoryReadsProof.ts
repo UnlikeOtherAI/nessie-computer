@@ -55,9 +55,12 @@ export const qualifyRetainedReads = Effect.gen(function* () {
   assert.equal(transcript.items.length, historyMessageCount)
 
   const inherited = yield* reads.getThreadSnapshot(ThreadId.make('history:fork'))
-  const inheritedIds = new Set(inherited.projection.visibleTurnItems.map(item => item.sourceItemId))
+  const inheritedItems = inherited.projection.visibleTurnItems.filter(item => item.visibility === 'inherited')
+  const inheritedIds = new Set(inheritedItems.map(item => item.sourceItemId))
   assert.equal(inheritedIds.size, historyMessageCount)
-  assert.ok(inherited.projection.visibleTurnItems.every(item => item.sourceThreadId === historyThreadId))
+  assert.deepEqual(inheritedIds, new Set(full.projection.visibleTurnItems.map(item => item.sourceItemId)))
+  assert.equal(inherited.projection.visibleTurnItems.length, historyMessageCount + 1)
+  assert.ok(inherited.projection.visibleTurnItems.some(item => item.visibility === 'synthetic' && item.item.type === 'fork'))
   const decodeFamily = yield* reads.readShellSnapshot({ familyOf: historyThreadId })
   const family = yield* decodeFamily
   assert.deepEqual(new Set(family.threads.map(thread => thread.id)),
