@@ -9,7 +9,8 @@ import test from 'node:test'
 import { prepareSessionEngineSource, T3_SESSION_ENGINE_SOURCE, verifySessionEngineSource } from './source.mjs'
 import { readSessionEngineSnapshot } from './snapshot.mjs'
 import { createSessionEngineSourceResolver } from './resolver.mjs'
-import { applySessionEngineBoundaryPatches } from './patches.mjs'
+import { applySessionEngineBoundaryPatches, composeSessionEnginePatchManifests } from './patches.mjs'
+import { assertSessionEngineSourceGraph } from './graph.mjs'
 
 const artifacts = resolve(dirname(fileURLToPath(import.meta.url)), '../../.artifacts')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
@@ -172,4 +173,87 @@ test('ordered boundary patches bind original bytes and results without changing 
   manifest.patches[0].afterSha256 = '0'.repeat(64)
   assert.throws(() => applySessionEngineBoundaryPatches(snapshot, Buffer.from(JSON.stringify(manifest))),
     { code: 'SESSION_ENGINE_BOUNDARY_PATCH_RESULT_MISMATCH' })
+})
+
+test('one composition binds ordered families and refuses a previously patched input', async context => {
+  const input = await fixture(context)
+  await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  const snapshot = await readSessionEngineSnapshot(input.archivePath, input.spec)
+  const family = (id, before, after) => ({ id, bytes: Buffer.from(JSON.stringify({ format: 1,
+    sourceCommit: input.spec.commit, patches: [{ id, file: 'engine/index.ts',
+      from: before, to: after, beforeSha256: hash(`export const ${before}\n`),
+      afterSha256: hash(`export const ${after}\n`) }] })) })
+  const families = [family('state', 'protocol = 2', 'protocol = 3'),
+    family('client', 'protocol = 3', 'protocol = 4')]
+  const manifest = composeSessionEnginePatchManifests(snapshot, families)
+  assert.deepEqual(manifest, composeSessionEnginePatchManifests(snapshot, families))
+  const applied = applySessionEngineBoundaryPatches(snapshot, manifest)
+  assert.equal(applied.read('engine/index.ts').toString(), 'export const protocol = 4\n')
+  assert.equal(applied.identity.orderedPatchesSha256, hash(manifest))
+  assert.notEqual(hash(manifest), hash(composeSessionEnginePatchManifests(snapshot, [...families].reverse())))
+  assert.throws(() => composeSessionEnginePatchManifests(applied, families),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_COMPOSITION_REFUSED' })
+  assert.throws(() => composeSessionEnginePatchManifests(snapshot, [families[0], families[0]]),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_MANIFEST_REFUSED' })
+})
+
+test('derived source binds exact original ranges and never replaces an existing file', async context => {
+  const input = await fixture(context)
+  await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  const snapshot = await readSessionEngineSnapshot(input.archivePath, input.spec)
+  const original = snapshot.read('engine/index.ts')
+  const file = 'apps/server/src/fixture-port.ts'
+  const derived = Buffer.concat([Buffer.from('// derived fixture\n'), original])
+  const patch = { id: 'fixture-derivation', file, beforeSha256: null, afterSha256: hash(derived),
+    create: [{ text: '// derived fixture\n' }, { sourceFile: 'engine/index.ts', start: 0,
+      end: original.length, sha256: hash(original) }] }
+  const manifest = () => Buffer.from(JSON.stringify({ format: 1, sourceCommit: input.spec.commit, patches: [patch] }))
+  const applied = applySessionEngineBoundaryPatches(snapshot, manifest())
+  assert.deepEqual(applied.read(file), derived)
+  assert.ok(applied.files.includes(file))
+  const bytes = applied.read(file)
+  bytes.fill(0)
+  assert.deepEqual(applied.read(file), derived)
+  patch.create[1].sha256 = '0'.repeat(64)
+  assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH' })
+  patch.file = 'engine/index.ts'
+  assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED' })
+})
+
+test('the engine graph rejects product, provider, vault and exporter implementations', () => {
+  for (const file of ['server.ts', 'ws.ts', 'auth/ServerSecretStore.ts', 'preview/Manager.ts',
+    'telemetry/ProviderUsageAnalytics.ts', 'provider/Drivers/CodexDriver.ts', 'provider/ProviderCredentialStore.ts',
+    'provider/ProviderRegistry.ts', 'provider/builtInProviderCatalog.ts', 'orchestration-v2/runtimeLayer.ts',
+    'serverSettings.ts', 'config.ts', 'cloud/config.ts', 'provider/ProviderUsageService.ts',
+    'orchestration-v2/ThreadManagementService.ts']) {
+    assert.throws(() => assertSessionEngineSourceGraph([`apps/server/src/${file}`]),
+      { code: 'SESSION_ENGINE_AGGREGATE_REFUSED' })
+  }
+  assert.doesNotThrow(() => assertSessionEngineSourceGraph([
+    'apps/server/src/orchestration-v2/Orchestrator.ts', 'apps/server/src/config.session-port.ts',
+    'apps/server/src/provider/ProviderInstanceRegistry.session-port.ts',
+    'apps/server/src/orchestration-v2/UsageLimitRecoveryWorker.ts',
+    'packages/contracts/src/provider.ts',
+  ]))
+})
+
+test('a derivation after a source refactor binds that exact source version', async context => {
+  const input = await fixture(context)
+  await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  const snapshot = await readSessionEngineSnapshot(input.archivePath, input.spec)
+  const before = snapshot.read('engine/index.ts')
+  const after = Buffer.from('export const protocol = 3\n')
+  const create = { id: 'derive-current', file: 'apps/server/src/current.ts', beforeSha256: null,
+    afterSha256: hash(after), create: [{ sourceFile: 'engine/index.ts', sourceStage: 'current',
+      sourceSha256: hash(after), start: 0, end: after.length, sha256: hash(after) }] }
+  const manifest = () => Buffer.from(JSON.stringify({ format: 1, sourceCommit: input.spec.commit, patches: [{
+    id: 'change-source', file: 'engine/index.ts', from: 'protocol = 2', to: 'protocol = 3',
+    beforeSha256: hash(before), afterSha256: hash(after),
+  }, create] }))
+  assert.deepEqual(applySessionEngineBoundaryPatches(snapshot, manifest()).read(create.file), after)
+  create.create[0].sourceSha256 = hash(before)
+  assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH' })
 })

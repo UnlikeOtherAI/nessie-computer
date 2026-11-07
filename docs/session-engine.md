@@ -22,10 +22,15 @@ The method ledger classifies all original operations and leaves implementation
 slots unbound. Contract availability does not establish lifecycle, custody,
 provider, resource, import, Node 22 or mobile eligibility.
 
-Status: pinned source preparation and a real lower-state library are implemented
-and qualified with synthetic SQLite. The session engine is not yet an installed
-or available executor capability. No lifecycle, provider execution, T3 gateway,
-session import or full mobile compatibility is claimed here.
+Status: pinned persistence, original read/history/sync extraction and higher
+composition over required host ports are implemented as build candidates.
+Both the lower-state proof and the higher synthetic SQLite history proof pass;
+the generated type boundary passes an ordinary strict TypeScript consumer.
+The engine is not an installed executor capability. Lifecycle readiness,
+provider execution, the T3 gateway and mobile compatibility remain incomplete.
+Final qualification with the corrected request-privacy patch family is pending.
+The selected `db4bd597` family has known correlation, nested-metadata and traversal
+defects; its earlier co-build evidence does not establish comprehensive privacy.
 
 This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;
@@ -192,6 +197,170 @@ native manifest, grant personal credentials or bypass native release admission.
 
 ## Runtime composition boundary
 
+### Higher source extraction
+
+`patches/t3-session/extraction/generate.mjs` reproduces 124 exact boundary
+operations from the verified capsule. Generated modules retain original source
+ranges by filename, byte offsets and SHA-256. A range taken after an earlier
+refactor also binds the complete preceding patched file hash. Every changed file and
+every derived module also has complete before/after hashes. Source implementations
+remain immutable capsule inputs. No 15,000-line first-party orchestrator or
+replacement history reducer is introduced.
+
+The extraction moves original service declarations into `*.session-port.ts` and
+`*.session-api.ts` modules, then makes original application implementations
+import/re-export those declarations. Original Context identifier strings and
+schema objects remain authoritative. Tag-only consumers no longer import
+application settings, native credential stores or provider catalogs.
+
+Original `Orchestrator` read operations move into `OrchestratorReads.ts`;
+`ThreadManagementService` read operations move into `ThreadReads.ts`. The full
+original services reuse those same functions. This preserves lazy V1 transcript
+hydration, inherited history, archived/settled/family selection, search Markdown
+parsing, wire projections and history cursors. The extracted `sessionSync.ts`
+contains the original websocket module's thread and shell subscriptions,
+including pruning/size decisions, replay high-water, coalescing, compact bodies,
+synchronized markers and the snapshot/live handoff. It imports no websocket
+application or authentication service.
+
+`core/ReadLayers.ts` exports `createSessionReadLayers(state?)`, the actual legacy
+importer, narrowed `ThreadReadService`, and source read/sync namespaces. Its layer
+requires the owner's SQL service. It starts no effect/continuation consumer,
+provider, recovery or mutation admission. Lazy hydration can write imported
+history through the real event sink. It does not execute imported work.
+
+`core/EngineLayers.ts` exports `createSessionEngineLayers(state?)` and the actual
+Orchestrator, `threadManagementLayer` (`layerWithLegacyImporter`), ThreadLaunch,
+recovery, continuation and effect-worker constructors. `ThreadManagementLive.ts`
+contains the original real factory and `layerWithLegacyImporter`; the application
+reuses them. Its separate default composition supplies a no-op importer, so the
+engine graph refuses the entire original `ThreadManagementService.ts` module.
+`Threads` exports declarations only. Import smoke checks the actual bundle for
+the excluded initializer and imports every usable export without process startup.
+Building higher layers starts original scoped orchestration reactions; it is not
+the passive read mode. Worker and continuation consumers are explicit returned
+layers, not started by the default higher composition. Keep the returned shared
+layers: one SQL client, outbox, command executor, continuation queue and allocator
+must serve every consumer in one Layer graph.
+
+The project-store runtime-policy resolver and authenticated provider-instance
+adapter registry are retained. No provider driver implementation is supplied.
+Original `ThreadMessageIntake` and attachment-claim functions are exported for the
+future admitted operation adapter; public mutations must use them. A transport
+must stamp trusted creation provenance and route preparation retry through the
+real launch service. Raw Orchestrator dispatch is an internal service, not an
+alternative public admission path.
+
+Resource cleanup and finalization observers become required source Context
+services, removing their successful empty defaults. The effect executor's type
+includes its required cleanup owner. Missing host services fail layer composition;
+they do not establish unsupported operations as available.
+
+### Remaining host ports and lifecycle
+
+The following exact original `Service` types are exported as required ports;
+there are no dummy implementations in this tranche:
+
+| Port namespace | Required source service and responsibility |
+| --- | --- |
+| `Settings` | `ServerSettingsService`: `start`, `ready`, serialized settings snapshots/writes and buffered subscriptions; executor-owned durable settings still need implementation. |
+| `Config`, `EnvironmentIdentity` | Source paths/configuration and stable `ServerEnvironmentIdentity.getEnvironmentId`; neither selects an installed T3 home. |
+| `ProviderDirectory`, `ProviderSessions` | `ProviderInstanceRegistry` and `ProviderSessionManagerV2`: real instance metadata/access and provider session open/control/release/shutdown, with native admission/custody. |
+| `Projects`, project/terminal/text source ports | Actual project/workspace, clone/setup, Git, terminal, enrichment and title-generation owners used by `ThreadLaunchService`; shell subscriptions additionally require real project enrichment. |
+| `Checkpoints`, `Rollback`, `TurnStart`, `TurnControl`, `RuntimeRequests` | Exact checkpoint and provider execution/control/request service methods consumed by the original effect executor. Their live implementation closure is not substituted or claimed here. |
+| `ResourceOwners`, `Finalization`, `Titles` | Cleanup of actual terminal/preview/attachment/scheduled resources, checkpoint finalization/workspace refresh and source title regeneration. All methods require real owners. |
+| `SecretRequests` | Exact source `answer`, `savedRef`, `consume`, `saveToFile`, `savePasted` contract. T13 must bind authorized idempotent canonical Nessie vault save and scoped use/delivery, including reference answers and pasted `request_secret(value)`. No `ServerSecretStore`, copied vault or successful storage stub is included. |
+
+The source secret implementation is excluded. Session persistence keeps scoped
+references/metadata, never secret values. Vault save and provider delivery have
+separate outcomes. Erasing one-use delivery material must not delete the saved
+vault entry. The required canonical broker is not implemented by the existing
+low-level vault write primitive, and no private service is imported here.
+
+No lifecycle API reports success or readiness. The remaining runtime owner must:
+
+1. Acquire the state writer/custody lease, open the owned database, and await
+   real settings startup/readiness and legacy shell reconciliation.
+2. Bind real provider, credential, child-process, MCP, workspace and resource
+   owners; recover provider runtime state and original delegated work.
+3. Start the shared outbox/effect and continuation consumers in scope, resume
+   source queues under their original locks, then open mutation admission.
+4. On stop, close admission, interrupt consumers, run recovery
+   `prepareForShutdown`, prepare and shut down real provider sessions, reconcile
+   shutdown state and retain durable failures/unknown descendant custody.
+
+Actual provider-session preparation/shutdown, callback and native stop methods
+remain the exact exported source port signatures. A closed transport or child
+exit is not stop proof. T05/provider/native bindings and T13's canonical secret
+broker are prerequisites for executing those operations, not for passive reads.
+
+### Co-build and portable types
+
+`prepareSessionEngineSnapshot(original, {additionalPatchFamilies?})` applies one
+ordered manifest: C02 state, the unchanged T19 capsule client patch family, then
+extraction. Additional committed families, including request privacy, append
+only when their complete hashes match that preceding source version. Duplicate
+family IDs and composition over an already patched snapshot are refused. The
+separate web family targets omitted source and is never selected implicitly.
+
+`buildSessionEngineModule({sourceRepository, outputPath, entryPoint?, proof?,
+additionalPatchFamilies?})` is additive to `buildSessionStateModule`. T01 may supply
+its source-only co-build entry under `packages/t3-session-source/src`; every
+authored input is hashed. Engine, contracts, workspace aliases and all first-party
+Effect imports use the same source resolver and isolated dependency root. Effect,
+platform-node and platform-node-shared are pinned to 4.1.2. Do not dynamically
+combine independently bundled candidates.
+
+The producer and T01 alias plugin share `pluginData.nessieSharedEffect === true`
+as the dependency-resolution recursion marker. The producer preserves existing
+metadata, adds `nessieSharedEffectRoot` for the selected absolute dependency root,
+and refuses a conflicting root. A T01 boolean marker without root metadata still
+passes through producer resolution once so the selected root is enforced.
+Both plugins must receive the same directory.
+`plugin-proof.mjs` loads the exact committed T01 helper and runs real esbuild in
+both plugin orders. First-party and virtual original imports must share the
+actual Schema namespace and codec objects, with one dependency-root module graph.
+
+The engine build emits `.mjs`, provenance/licenses, the original capsule, one
+`.patches.json` and `.declarations/index.d.ts`. Large upstream inferred schemas
+exceed TypeScript 5.9.3 declaration serialization (`TS7056` in `environmentHttp`,
+`guestStream`, `orchestrationV2` and `rpc`). Authored declarations therefore refer
+to a hash-bound upstream **type-source** tree with ordinary relative imports.
+It has no runtime loader and retains exact types rather than flattened schemas.
+All source modules still receive strict semantic checks. The ordinary strict
+`tsc` consumer passes with the declared dependencies, no path aliases/custom
+compiler host/runtime loader, and library checking enabled. It verifies source
+command/secret negatives and required SQL/provider/cleanup port types.
+
+Keep type artifacts beneath the intended dependency root during qualification:
+
+```powershell
+node packaging/session-engine/build.mjs --source <pinned-read-only-Git-repository> --output packaging/session-engine/.artifacts/engine.mjs --engine
+node packaging/session-engine/consumer.mjs packaging/session-engine/.artifacts/engine.mjs
+node packaging/session-engine/build.mjs --source <pinned-read-only-Git-repository> --output packaging/session-engine/.artifacts/history-proof.mjs --engine --proof
+node packaging/session-engine/history-proof.mjs packaging/session-engine/.artifacts/history-proof.mjs
+node packaging/session-engine/plugin-proof.mjs .artifacts/session-engine/source.tar
+node packaging/session-engine/co-build.mjs <pinned-read-only-Git-repository> packaging/session-engine/.artifacts/co-build.mjs <contracts-commit> <privacy-commit> <privacy-manifest-sha256>
+node packaging/session-engine/smoke.mjs packaging/session-engine/.artifacts/co-build.mjs
+node packaging/session-engine/consumer.mjs packaging/session-engine/.artifacts/co-build.mjs
+node packaging/session-engine/history-proof.mjs packaging/session-engine/.artifacts/co-build.mjs --patch-family request-privacy packaging/session-engine/.artifacts/co-build.mjs.request-privacy.json
+```
+
+The co-build command requires explicit committed contract and privacy identities;
+it has no default privacy checkpoint. It records the committed T01 source-entry
+helper hash and verifies the selected privacy manifest before one application of
+state, client, extraction and privacy patches. Changed family bytes require a new
+combined digest and qualification artifact.
+
+The history fixture uses actual file-backed SQLite migrations, original importer,
+reads, fork planner, event sink, codecs and thread subscription. It creates only
+synthetic state, including dormant outbox work whose unchanged row is inspected
+before/after reads and reopening. It never uses an installed provider, credential
+or retained database. This source includes the fixture; actual pass evidence is
+recorded separately below. Node 24 qualification does not establish packaged
+Node 22 compatibility: the reader path additionally checks `isTransaction` and
+`setAuthorizer`, and the source uses SQLite worker/backup APIs.
+
 There is no published standalone session library at this revision. The lack of
 an export is a refactoring task, not a reason to substitute a transcript adapter.
 The real lower engine seams are:
@@ -277,6 +446,97 @@ sequence was 2. This exercises shared-outbox wakeups, atomic commit/publication,
 receipt replay and event cursors. It is not a provider simulation or complete
 session synchronization implementation.
 
-No native build, installation, provider process, personal credential access,
-retained-session access, file-backed recovery, high-level history/lineage,
-original-client compatibility, full lifecycle or mobile flow was tested.
+That earlier lower-state proof did not cover native builds/installations,
+providers/credentials, retained sessions, file-backed recovery, higher history,
+original clients, lifecycle or mobile flows. The following proof adds the
+bounded synthetic history/read/sync evidence.
+
+### Higher source qualification on Maxis
+
+The new source gate has 13 passing checks, no failures/skips. It covers ordered
+family composition/digest identity, derived range integrity, immutable outputs
+and explicit rejection of product/auth/preview/telemetry/provider/vault/usage
+implementation paths. The engine candidate passes strict TypeScript 5.9.3
+(929 files for the co-build proof) and bundles 347 pinned source modules. The runtime dependency closure
+contains one Effect 4.1.2 instance and Node builtins only as external imports.
+Original `ws.ts` adapts the application's full thread service to the extracted
+read-only subscription tag; the engine never imports that websocket application.
+
+The actual supported `history-proof.mjs` entry passed on Windows Maxis with
+Node 24.19.0, pnpm 10.22.0 and esbuild 0.25.12. Jobs ran sequentially under
+`--max-old-space-size=1536`, after a fresh 10 GiB free-memory guard, with package
+lifecycle scripts disabled. The proof uses file-backed source SQLite including
+its reader/checkpoint workers, and runs all 80 original migrations.
+
+Observed results:
+
+- 160 synthetic legacy threads from January 2025 plus a fork and child: 162
+  catalog rows, 10 archived and 60 settled rows with tied times, retrieved through
+  the original 17-row keyset pagination past the shell's newest 25.
+- 360 retained messages beyond the initial 200-row window, read across nine
+  history pages, a full transcript, original Markdown search, and schema/wire
+  encode/decode. Initial project listing exceeded 100 rows.
+- The original fork planner/projection retained all 360 source item IDs and its
+  separate synthetic fork marker; the family read contained parent, fork and child.
+- Real thread subscription replay returned one prior event, a synchronized
+  marker, then one commit made during the high-water/live handoff, with no duplicate.
+  Future and synthetically pruned cursors returned authoritative snapshots and
+  synchronized markers.
+- Reopening the same SQLite file preserved all 360 history rows after pruning.
+  A second lazy import wrote zero messages. A real dormant outbox row remained
+  byte-for-byte unchanged; passive reads added no command receipts. No provider
+  service or effect/continuation consumer was started.
+
+The import smoke, ordinary strict consumer and history proof exercised one
+co-build artifact with 347 source modules, 929 checked files and 378 portable
+declaration/type-source files. It uses actual stores, source constructors/helpers/codecs and synthetic rows/events,
+without a replay harness, no-op importer, provider fake or replacement reducer.
+The `sqlite` probe observed `setAuthorizer` and boolean `isTransaction` on this
+Node 24 runtime. Packaged Node 22, provider execution/custody, canonical vault
+save/delivery, shell enrichment streaming, actual installed history handoff,
+full startup/shutdown and original-client/mobile journeys remain unqualified.
+No broad workspace, server, browser, native, installer or release build ran.
+
+That co-build selected committed T01 `0f53775b804df5558e5a3be6b8a6d6c6f830f638`
+and the now-rejected C05 `db4bd5972777bcfae2df4f00f0292581bc17fb97` privacy family.
+Its historical 177-operation combined digest is
+`1fc7883b9e4d6665a146cee109a38cbf8d39309d9cabf2fa8b12c72d6e8f5c47`,
+bundle SHA-256 is
+`da87ebf6bf343e110cbdc5e369dd0e0ccde2a9c578a200fb4ea94e74fb7ff1a5`,
+and declaration closure digest is
+`ba5c1d5c83b173048011f200d27effe4aa65782062c564a05192c30183f29017`.
+The extraction manifest SHA-256 is
+`d24f1709b6d7c1211d9987179d3fc727ef51e9c54d7c6900a1fceb8f900f1908`;
+the isolated lock SHA-256 is
+`5929234e78b262af69280bf3ed1c21187665c3acccaab22ee53072f36ab9c97d`.
+This establishes source/read/sync and import/type evidence for those selected
+bytes. It is not final privacy integration: corrected committed C05 input must
+replace that family and pass the same co-build, import, consumer and history gates.
+
+The independent combined-plugin regression uses the exact committed T01 helper
+SHA-256 `763ec6d19901614479f8a0d710255dd6cae6c58dde971b29a71c2d53296fe1ed`.
+Both plugin orders produce the same bundle SHA-256
+`ddbdb025c1de1977621b093a179fec2d0e388ca2bf0e249af8bf0c83aabe3975`,
+with 306 Effect source modules and actual shared Schema/codec identity.
+
+The independent default engine at producer checkpoint
+`e10c35f3173bad03b31d6b3355a189695dc1c7e0` selects state, client and extraction
+only: 151 operations, combined digest
+`8787aa945472cda3c4530c7b57f0c191d44a1829ddaf0ebcdccca2e39007383b`.
+Its 4,388,954-byte bundle SHA-256 is
+`0082ff6f8fb03d074aca3df6bb7cc440dfe04901f706bdad6830b0bf5032faf2`.
+Strict checking covers 922 files and 347 runtime source modules. The 373-file
+portable declaration closure has digest
+`8a69a6412ef9986d45156241485e9578b890d149e17215afb369e001261ab7b6`.
+Actual import smoke passes, and ordinary strict Bundler and NodeNext consumers
+both pass with library checking enabled. NodeNext was checked with the same
+generated consumer using `--module NodeNext --moduleResolution NodeNext`.
+
+The fresh independent history candidate at that checkpoint has bundle SHA-256
+`06568f446cff55fea0a07d7567f807234dab21ea3c39a176e113eee74261e6b1`,
+3,566,433 bytes, 284 runtime source modules and 854 checked files. It reruns all
+80 migrations and the history/replay/reopen outcomes above. It selects no
+request-privacy family and therefore makes no privacy qualification claim.
+The subsequent producer root-marker enforcement passes the combined-plugin
+regression with unchanged emitted proof bytes; its resolver SHA-256 is
+`6b1b1f3d61b5fbbe8fe85eed786cf841e7245e4ac7ff36aee58d7246402394b1`.

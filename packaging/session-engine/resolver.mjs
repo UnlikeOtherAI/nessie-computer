@@ -1,9 +1,14 @@
 import { builtinModules } from 'node:module'
-import { posix } from 'node:path'
+import { isAbsolute, posix, resolve } from 'node:path'
 
 import { SessionEngineSourceError } from './source.mjs'
 
 const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]))
+const contractAliases = new Map([
+  ['@nessie/t3-session-source/contracts', 'packages/contracts/src/index.ts'],
+  ['@nessie/t3-session-source/contracts/settings', 'packages/contracts/src/settings.ts'],
+  ['@nessie/t3-session-source/contracts/relay', 'packages/contracts/src/relay.ts'],
+])
 const refuse = code => { throw new SessionEngineSourceError(code) }
 const target = value => {
   if (typeof value === 'string') return value
@@ -35,6 +40,7 @@ export const createSessionEngineSourceResolver = snapshot => {
   return Object.freeze({
     resolve: (specifier, importer) => {
       if (builtins.has(specifier)) return { kind: 'builtin', path: specifier }
+      if (contractAliases.has(specifier)) return source(contractAliases.get(specifier))
       if (specifier.startsWith('t3-source:')) return source(specifier.slice('t3-source:'.length))
       if (specifier.startsWith('.')) {
         if (!importer || !files.has(importer)) refuse('SESSION_ENGINE_SOURCE_IMPORTER_REFUSED')
@@ -69,6 +75,9 @@ export const createSessionEngineSourceResolver = snapshot => {
 
 /** esbuild is injected by the build tool; the resolver itself needs only Node. */
 export const sessionEngineSourcePlugin = ({ snapshot, dependencyDirectory, dependencies }) => {
+  if (typeof dependencyDirectory !== 'string' || !isAbsolute(dependencyDirectory)) {
+    refuse('SESSION_ENGINE_DEPENDENCY_DIRECTORY_REQUIRED')
+  }
   const resolver = createSessionEngineSourceResolver(snapshot)
   const admitted = new Set(dependencies)
   const namespace = 'nessie-t3-source'
@@ -78,13 +87,33 @@ export const sessionEngineSourcePlugin = ({ snapshot, dependencyDirectory, depen
       const resolveSource = async args => {
         const selected = resolver.resolve(args.path, args.namespace === namespace ? args.importer : undefined)
         if (selected.kind === 'builtin') return { path: selected.path, external: true }
-        if (selected.kind === 'source') return { path: selected.path, namespace, pluginData: selected }
+        if (selected.kind === 'source') return { path: selected.path, namespace,
+          pluginData: { ...args.pluginData, ...selected } }
         const name = selected.path.startsWith('@')
           ? selected.path.split('/').slice(0, 2).join('/') : selected.path.split('/')[0]
         if (!admitted.has(name)) refuse('SESSION_ENGINE_RUNTIME_DEPENDENCY_NOT_ADMITTED')
-        return build.resolve(selected.path, { kind: args.kind, resolveDir: dependencyDirectory, namespace: 'file' })
+        return build.resolve(selected.path, { kind: args.kind, resolveDir: dependencyDirectory,
+          namespace: 'file', pluginData: args.pluginData })
       }
       build.onResolve({ filter: /^t3-source:/ }, resolveSource)
+      build.onResolve({ filter: /^@t3tools\// }, resolveSource)
+      build.onResolve({ filter: /^@nessie\/t3-session-source\/contracts(?:\/(?:settings|relay))?$/ }, resolveSource)
+      build.onResolve({ filter: /^effect-/ }, resolveSource)
+      // Authored contract and engine entries resolve the same Effect instance as upstream source.
+      build.onResolve({ filter: /^(?:effect(?:\/|$)|@effect\/)/, namespace: 'file' }, async args => {
+        const selectedRoot = resolve(dependencyDirectory)
+        if (args.pluginData?.nessieSharedEffectRoot && args.pluginData.nessieSharedEffectRoot !== selectedRoot) {
+          refuse('SESSION_ENGINE_EFFECT_DEPENDENCY_ROOT_MISMATCH')
+        }
+        // T01's marker stops its hook; our root marker also proves the selected root was enforced.
+        if (args.pluginData?.nessieSharedEffect === true
+          && args.pluginData.nessieSharedEffectRoot === selectedRoot) return undefined
+        const name = args.path.startsWith('@') ? args.path.split('/').slice(0, 2).join('/') : 'effect'
+        if (!admitted.has(name)) refuse('SESSION_ENGINE_RUNTIME_DEPENDENCY_NOT_ADMITTED')
+        return build.resolve(args.path, { kind: args.kind, resolveDir: dependencyDirectory,
+          namespace: 'file', pluginData: { ...args.pluginData,
+            nessieSharedEffect: true, nessieSharedEffectRoot: selectedRoot } })
+      })
       build.onResolve({ filter: /.*/, namespace }, resolveSource)
       build.onLoad({ filter: /.*/, namespace }, args => ({
         contents: resolver.load(args.path), loader: args.pluginData.loader,
