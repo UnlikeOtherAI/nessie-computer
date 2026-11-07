@@ -4,6 +4,9 @@ import { buildAgentEnvironment } from './coding-session/agent-env.js'
 import { findProviderProgram } from './existing-session/programs.js'
 import { probeClaudeAccount } from './provider-process/claude-account.js'
 import { CodexRpc } from './provider-process/codex-rpc.js'
+import { providerAccountIdentity, readClaudeOrganization } from './provider-account-identity.js'
+import { readKimiQuota } from './provider-process/kimi-quota.js'
+import { readGrokQuota } from './provider-process/grok-quota.js'
 
 const object = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -45,6 +48,7 @@ export const codexSubscription = (
         ? duration >= 30 * 24 * 60 ? 'monthly' : duration >= 7 * 24 * 60 ? 'weekly' : 'session'
         : name === 'secondary' ? 'weekly' : plan === 'free' || plan === 'go' ? 'monthly' : 'session'
       windows.push({ id: `${bucketId}:${name}`.slice(0, 100), kind, remainingPercent: left,
+        ...(bucketId !== 'codex' ? { label: bucketId.slice(0, 100) } : {}),
         resetsAt: time(window.resetsAt), ...(duration ? { durationMinutes: duration } : {}) })
     }
     const individual = object(snapshot.individualLimit)
@@ -54,13 +58,15 @@ export const codexSubscription = (
         remainingPercent: left, resetsAt: time(individual.resetsAt) })
     }
   }
-  return { ...base('codex', checkedAt), account: text(account.email, 254), plan,
+  const email = text(account.email, 254)
+  return { ...base('codex', checkedAt), account: email, plan,
+    ...providerAccountIdentity('codex', email, limits.accountId),
     status: windows.length ? 'ready' : account.type === 'apiKey' ? 'unsupported' : 'unavailable',
     windows: windows.slice(0, 16) }
 }
 
 export const claudeSubscription = (
-  initValue: unknown, usageValue: unknown, checkedAt: string,
+  initValue: unknown, usageValue: unknown, checkedAt: string, organization?: string,
 ): ExecutorSubscription => {
   const account = object(object(initValue).account)
   const usage = object(usageValue)
@@ -77,34 +83,46 @@ export const claudeSubscription = (
     const window = object(raw)
     const left = remaining(window.utilization)
     const id = text(window.display_name, 80)
-    if (id && left !== null) windows.push({ id: `model:${id}`, kind: 'other',
+    if (id && left !== null) windows.push({ id: `model:${id}`, kind: 'other', label: id,
       remainingPercent: left, resetsAt: time(window.resets_at) })
   }
   const extra = object(limits.extra_usage)
+  const spend = object(limits.spend)
+  const spent = object(spend.used)
+  const budget = object(spend.limit)
+  const spendRatio = spend.enabled === true && typeof spent.amount_minor === 'number'
+    && Number.isFinite(spent.amount_minor) && spent.amount_minor >= 0
+    && typeof budget.amount_minor === 'number' && budget.amount_minor > 0
+    && Number.isFinite(budget.amount_minor) && typeof spent.exponent === 'number'
+    && Number.isInteger(spent.exponent) && spent.exponent >= 0
+    && typeof spent.currency === 'string' && spent.currency.trim().length > 0
+    && spent.currency === budget.currency && spent.exponent === budget.exponent
+    ? spent.amount_minor / budget.amount_minor * 100 : null
   const used = typeof extra.used_credits === 'number' && typeof extra.monthly_limit === 'number'
     && extra.monthly_limit > 0 ? extra.used_credits / extra.monthly_limit * 100 : extra.utilization
-  const spendLeft = remaining(used)
-  if (extra.is_enabled === true && spendLeft !== null) windows.push({
+  const spendLeft = remaining(spendRatio ?? used)
+  if ((extra.is_enabled === true || spendRatio !== null) && spendLeft !== null) windows.push({
     id: 'monthly_spend', kind: 'monthly', remainingPercent: spendLeft, resetsAt: null,
   })
   const plan = text(account.subscriptionType, 100)
   const email = text(account.email, 254)
   return { ...base('claude', checkedAt), account: email, plan, windows: windows.slice(0, 16),
+    ...providerAccountIdentity('claude', email, organization),
     status: windows.length ? 'ready' : !email && !account.apiKeySource && !account.tokenSource ? 'signed_out'
       : usage.rate_limits_available === false ? 'unsupported' : 'unavailable' }
 }
 
-/** Uses only the local CLIs' control protocols. No token file is read or uploaded. */
+/** Claude/Codex use the CLIs' control protocols; additional read-only sources never upload credentials. */
 export const readProviderSubscriptions = async (): Promise<ExecutorSubscription[]> => {
   const env = await buildAgentEnvironment({ config: { inheritUserSession: true, pass: [], set: {} } })
-  return Promise.all((['claude', 'codex'] as const).map(async (provider) => {
+  const native = Promise.all((['claude', 'codex'] as const).map(async (provider) => {
     const checkedAt = new Date().toISOString()
     try {
       const program = await findProviderProgram(provider, env)
       if (!program) return { ...base(provider, checkedAt), status: 'not_installed' as const }
       if (provider === 'claude') {
         const value = await probeClaudeAccount(program.path, env)
-        return claudeSubscription(value.initialization, value.usage, checkedAt)
+        return claudeSubscription(value.initialization, value.usage, checkedAt, await readClaudeOrganization(env))
       }
       const rpc = new CodexRpc(program.path, env)
       try {
@@ -114,4 +132,6 @@ export const readProviderSubscriptions = async (): Promise<ExecutorSubscription[
       } finally { rpc.close() }
     } catch { return base(provider, checkedAt) }
   }))
+  const [accounts, kimi, grok] = await Promise.all([native, readKimiQuota(env), readGrokQuota(env)])
+  return [...accounts, ...(kimi ? [kimi] : []), ...(grok ? [grok] : [])]
 }

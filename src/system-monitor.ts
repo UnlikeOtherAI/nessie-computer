@@ -1,5 +1,5 @@
 import { readFile, readdir, statfs } from 'node:fs/promises'
-import { cpus, freemem, homedir, platform, totalmem, uptime } from 'node:os'
+import { cpus, freemem, homedir, hostname, loadavg, networkInterfaces, platform, totalmem, uptime } from 'node:os'
 import { EXECUTOR_MONITOR_HISTORY_MS, type ExecutorMonitorSnapshot } from '@nessie/executor-protocol'
 
 import { runCommand } from './coding-session/agent-env.js'
@@ -79,33 +79,61 @@ const processes = async (): Promise<Processes> => {
   }).sort((a, b) => b.cpu - a.cpu).slice(0, 10)
 }
 
-const gpu = async (): Promise<number | null> => {
-  const nvidia = await run('nvidia-smi', ['--query-gpu=utilization.gpu', '--format=csv,noheader,nounits'])
+type GpuReading = { utilization: number | null; used: number | null; total: number | null }
+export const nvidiaGpuReading = (output: string): GpuReading => {
+  const values = output.trim().split('\n').map(line => line.split(',').map(part => part.trim())).map(parts => ({
+    utilization: parts[0] ? percent(Number(parts[0])) : null,
+    used: parts[1] ? Number(parts[1]) : NaN, total: parts[2] ? Number(parts[2]) : NaN,
+  }))
+  const utilizations = values.flatMap(value => value.utilization === null ? [] : [value.utilization])
+  const memory = values.filter(value => Number.isFinite(value.used) && Number.isFinite(value.total)
+    && value.total > 0 && value.used >= 0 && value.used <= value.total)
+  return { utilization: utilizations.length ? Math.max(...utilizations) : null,
+    used: memory.length ? memory.reduce((sum, value) => sum + value.used * 1024 ** 2, 0) : null,
+    total: memory.length ? memory.reduce((sum, value) => sum + value.total * 1024 ** 2, 0) : null }
+}
+type IdleReading = { at: number; ms: number }
+export const rc6Utilization = (previous: IdleReading | undefined, next: IdleReading): number | null =>
+  previous && next.at > previous.at && next.ms >= previous.ms
+    ? Math.max(0, Math.min(100, 100 * (1 - (next.ms - previous.ms) / (next.at - previous.at)))) : null
+
+const gpu = async (idle: Map<string, IdleReading>): Promise<GpuReading> => {
+  const nvidia = await run('nvidia-smi', ['--query-gpu=utilization.gpu,memory.used,memory.total', '--format=csv,noheader,nounits'])
   if (nvidia !== null) {
-    const values = nvidia.trim().split('\n').filter((line) => line.trim().length > 0)
-      .map((line) => percent(Number(line.trim())))
-      .filter((value): value is number => value !== null)
-    if (values.length) return Math.max(...values)
+    const reading = nvidiaGpuReading(nvidia)
+    if (reading.utilization !== null || reading.total !== null) return reading
   }
+  const simple = (utilization: number | null): GpuReading => ({ utilization, used: null, total: null })
   if (platform() === 'win32') {
     const text = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       '$c=Get-Counter "\GPU Engine(*)\Utilization Percentage" -ErrorAction Stop; '
       + '($c.CounterSamples|Measure-Object CookedValue -Maximum).Maximum'])
-    return text?.trim() ? percent(Number(text.trim())) : null
+    return simple(text?.trim() ? percent(Number(text.trim())) : null)
   }
   if (platform() === 'darwin') {
     const text = await run('/usr/sbin/ioreg', ['-r', '-c', 'IOAccelerator', '-d', '1'])
     const values = [...(text ?? '').matchAll(/"Device Utilization %"\s*=\s*(\d+)/gu)]
       .map((match) => Number(match[1]))
-    return values.length ? percent(Math.max(...values)) : null
+    return simple(values.length ? percent(Math.max(...values)) : null)
   }
   const cards = await readdir('/sys/class/drm').catch(() => [])
   const values = await Promise.all(cards.filter((name) => /^card\d+$/u.test(name)).map(async (name) => {
     const value = await readFile(`/sys/class/drm/${name}/device/gpu_busy_percent`, 'utf8').catch(() => '')
-    return value.trim() ? percent(Number(value.trim())) : null
+    const busy = value.trim() ? percent(Number(value.trim())) : null
+    if (busy !== null) return busy
+    for (const suffix of ['gt/gt0/rc6_residency_ms', 'power/rc6_residency_ms']) {
+      const path = `/sys/class/drm/${name}/${suffix}`
+      const text = await readFile(path, 'utf8').catch(() => '')
+      if (!text.trim() || !Number.isFinite(Number(text)) || Number(text) < 0) continue
+      const next = { at: Date.now(), ms: Number(text) }
+      const measured = rc6Utilization(idle.get(path), next)
+      idle.set(path, next)
+      return measured
+    }
+    return null
   }))
   const measured = values.filter((value): value is number => value !== null)
-  return measured.length ? Math.max(...measured) : null
+  return simple(measured.length ? Math.max(...measured) : null)
 }
 
 /** Retain measured points by time as well as count, including gaps after sleep. */
@@ -118,19 +146,24 @@ export const appendMonitorHistory = (
 export const createSystemMonitor = () => {
   let previous = cpuTimes()
   let history: ExecutorMonitorSnapshot['history'] = []
+  const idle = new Map<string, IdleReading>()
   return async (): Promise<Omit<ExecutorMonitorSnapshot, 'subscriptions'>> => {
-    const [memory, storage, top, graphics] = await Promise.all([availableMemory(), disk(), processes(), gpu()])
+    const [memory, storage, top, graphics] = await Promise.all([availableMemory(), disk(), processes(), gpu(idle)])
     const next = cpuTimes()
     const elapsed = next.total - previous.total
     const cpu = elapsed > 0 ? percent(100 * (1 - (next.idle - previous.idle) / elapsed)) : null
     previous = next
     const now = Date.now()
     const capturedAt = new Date(now).toISOString()
-    history = appendMonitorHistory(history, { at: capturedAt, cpu, gpu: graphics })
+    history = appendMonitorHistory(history, { at: capturedAt, cpu, gpu: graphics.utilization })
     const total = totalmem()
     return {
       capturedAt, os: platform() === 'win32' ? 'windows' : platform() === 'darwin' ? 'macos' : 'linux',
-      processor: `${cpus()[0]?.model ?? ''} · ${cpus().length}`, cpu, gpu: graphics, history,
+      processor: `${cpus()[0]?.model ?? ''} · ${cpus().length}`, cpu, gpu: graphics.utilization, history,
+      hostname: hostname().slice(0, 200), cores: Math.max(1, cpus().length),
+      address: Object.values(networkInterfaces()).flat().find(value => value && !value.internal && value.family === 'IPv4')?.address ?? null,
+      load: platform() === 'win32' ? null : loadavg()[0] ?? null,
+      gpuMemoryUsedBytes: graphics.used, gpuMemoryTotalBytes: graphics.total,
       memoryTotalBytes: total, memoryUsedBytes: Math.max(0, total - Math.min(total, memory)),
       diskUsedBytes: storage?.used ?? null, diskTotalBytes: storage?.total ?? null,
       uptimeSeconds: uptime(), processes: top,
