@@ -1,6 +1,17 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "test:t3-session-contracts": { "dependsOn": ["build"], "cache": false },
+    "//#test:t3-session-client-connection": { "dependsOn": [], "cache": false,
+      "env": ["T3_CLIENT_CONNECTION_SOURCE_REPOSITORY", "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE"] },
+    "//#test:t3-session-client-http-auth": { "dependsOn": [], "cache": false,
+      "env": ["T3_CLIENT_CONNECTION_SOURCE_REPOSITORY", "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE",
+        "T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY"] },
+    "@nessie/t3-session-source#build": {
+      "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/source.mjs", "../../packaging/session-engine/source-lock.json",
+        "../../packaging/session-engine/snapshot.mjs", "../../packaging/session-engine/resolver.mjs"],
+      "outputs": ["dist/**"]
+    },
     "build": {
       "dependsOn": [
         "^build"

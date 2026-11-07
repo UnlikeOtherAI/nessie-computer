@@ -32,7 +32,9 @@
     "verify": "turbo run build lint typecheck test --root-turbo-json=scripts/turbo.public.json --concurrency=2",
     "test:computer-data": "node --test --test-concurrency=1 --import tsx test/computer-data.test.ts test/computer-monitor-demand.test.ts test/daemon-doorbell.test.ts test/existing-coding-sessions.test.ts test/session-view-relay.test.ts",
     "test:conversation-control": "node scripts/run-tests.mjs --test-concurrency=1 test/session-conversation-control.test.ts test/coding-session-daemon.test.ts",
-    "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/owner-requests-gate.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-request-scope.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts"
+    "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/owner-requests-gate.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-request-scope.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts",
+    "test:t3-session-client-connection": "node --test --test-concurrency=1 test/t3-session-client-connection/urls.test.mjs",
+    "test:t3-session-client-http-auth": "node --max-old-space-size=1536 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/http-auth.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -56,7 +58,8 @@
     "@typescript-eslint/eslint-plugin": "^8.58.0",
     "esbuild": "^0.25.12",
     "sharp": "^0.35.3",
-    "playwright-core": "^1.62.1"
+    "playwright-core": "^1.62.1",
+    "effect": "4.1.2"
   },
   "packageManager": "pnpm@10.22.0",
   "license": "FSL-1.1-ALv2",

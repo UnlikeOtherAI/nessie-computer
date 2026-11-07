@@ -1,0 +1,36 @@
+{
+  "name": "@nessie/t3-session-source",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "exports": {
+    "./contracts": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/contracts.js"
+    },
+    "./provenance": "./dist/provenance.json",
+    "./build": "./input.mjs",
+    "./contracts/settings": {
+      "types": "./dist/types/settings.d.ts",
+      "default": "./dist/settings.js"
+    },
+    "./contracts/relay": {
+      "types": "./dist/types/relay.d.ts",
+      "default": "./dist/relay.js"
+    },
+    "./routes": "./dist/routes.json"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "node build.mjs --check",
+    "lint": "node --check build.mjs && node --check input.mjs && node --check routes.mjs"
+  },
+  "dependencies": {
+    "effect": "4.1.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3"
+  }
+}
