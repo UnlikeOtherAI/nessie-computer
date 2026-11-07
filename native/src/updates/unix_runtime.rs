@@ -47,11 +47,18 @@ pub(super) fn hash(path: &Path) -> UpdateResult<String> {
     }
     Ok(format!("{:x}", hasher.finalize()))
 }
-pub(super) fn pin_worker(path: &Path) -> UpdateResult<File> {
+fn worker_directory() -> UpdateResult<PathBuf> {
+    #[cfg(target_os = "linux")]
+    { Ok(PathBuf::from("/usr/libexec/nessie-executor-updater")) }
+    #[cfg(target_os = "macos")]
+    { Ok(root()?.join("bin")) }
+}
+
+fn pin_worker_at(path: &Path, bin: &Path) -> UpdateResult<File> {
     let directory = path.parent().ok_or(ERROR)?;
     let digest = directory.file_name().and_then(|name| name.to_str()).ok_or(ERROR)?;
     if digest.len() != 64 || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || directory.parent() != Some(root()?.join("bin").as_path())
+        || directory.parent() != Some(bin)
         || path.file_name().and_then(|name| name.to_str()) != Some("nessie-computer-updater") { return Err(ERROR); }
     admission_unix::directory(directory)?;
     let entry = fs::symlink_metadata(path).map_err(|_| ERROR)?;
@@ -65,24 +72,16 @@ pub(super) fn pin_worker(path: &Path) -> UpdateResult<File> {
     crate::macos_provenance::require_file(path).map_err(|_| ERROR)?;
     Ok(file)
 }
-pub(super) fn worker_image() -> UpdateResult<PathBuf> {
-    privileged()?;
-    // Repair starts with the surviving protected reference when current files
-    // are partial. A new coherent runtime advances that reference atomically.
-    let store = Store::new(root()?);
-    let release = match crate::managed_release::installed() {
-        Ok(release) => release,
-        Err(_) => {
-            let path = root()?.join("bin").join(store.worker_reference()?).join("nessie-computer-updater");
-            let _pin = pin_worker(&path)?;
-            return Ok(path);
-        },
-    };
-    let source = release.directory.join("nessie-executor-native");
-    let digest = hash(&source)?;
-    let bin = root()?.join("bin");
+
+pub(super) fn pin_worker(path: &Path) -> UpdateResult<File> {
+    pin_worker_at(path, &worker_directory()?)
+}
+
+/// Keep executable images outside mutable state and independent of package removal.
+fn retain_worker(source: &Path, digest: &str) -> UpdateResult<PathBuf> {
+    let bin = worker_directory()?;
     directory(&bin)?;
-    let folder = bin.join(&digest);
+    let folder = bin.join(digest);
     directory(&folder)?;
     let output = folder.join("nessie-computer-updater");
     if !output.exists() {
@@ -90,7 +89,7 @@ pub(super) fn worker_image() -> UpdateResult<PathBuf> {
         let draft = folder.join(format!(".worker-{}-{nonce}.draft", std::process::id()));
         let mut file = OpenOptions::new().write(true).create_new(true).mode(0o500)
             .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&draft).map_err(|_| ERROR)?;
-        let mut input = File::open(&source).map_err(|_| ERROR)?;
+        let mut input = File::open(source).map_err(|_| ERROR)?;
         std::io::copy(&mut input, &mut file).map_err(|_| ERROR)?;
         file.set_permissions(fs::Permissions::from_mode(0o555)).map_err(|_| ERROR)?;
         file.flush().and_then(|()| file.sync_all()).map_err(|_| ERROR)?;
@@ -98,7 +97,35 @@ pub(super) fn worker_image() -> UpdateResult<PathBuf> {
         fs::rename(&draft, &output).map_err(|_| ERROR)?;
         File::open(&folder).and_then(|file| file.sync_all()).map_err(|_| ERROR)?;
     }
+    #[cfg(target_os = "linux")]
+    super::unix_setup::label_worker(&output)?;
     let _pin = pin_worker(&output)?;
+    Ok(output)
+}
+
+pub(super) fn worker_image() -> UpdateResult<PathBuf> {
+    privileged()?;
+    let store = Store::new(root()?);
+    let release = match crate::managed_release::installed() {
+        Ok(release) => release,
+        Err(_) => {
+            let digest = store.worker_reference()?;
+            let path = worker_directory()?.join(&digest).join("nessie-computer-updater");
+            if path.try_exists().map_err(|_| ERROR)? {
+                let _pin = pin_worker(&path)?;
+                return Ok(path);
+            }
+            // A transition installation may need its last protected image while
+            // current package files are partial. Verify it before moving its bytes.
+            let legacy_bin = root()?.join("bin");
+            let legacy = legacy_bin.join(&digest).join("nessie-computer-updater");
+            let _pin = pin_worker_at(&legacy, &legacy_bin)?;
+            return retain_worker(&legacy, &digest);
+        },
+    };
+    let source = release.directory.join("nessie-executor-native");
+    let digest = hash(&source)?;
+    let output = retain_worker(&source, &digest)?;
     store.save_worker_reference(&digest)?;
     Ok(output)
 }

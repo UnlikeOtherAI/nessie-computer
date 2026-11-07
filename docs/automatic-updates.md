@@ -315,3 +315,21 @@ wrong publishers, wrong architecture and incompatible protocols through the
 same real interface. Browser journeys and matching screenshot evidence apply
 when the console changes. No installed flow is claimed by the current unit
 tests or native compilation.
+
+## Fedora service execution
+
+Protected Linux updater images live at
+`/usr/libexec/nessie-executor-updater/<sha256>/nessie-computer-updater`.
+They remain root-owned, readonly and hash-verified, outside the package contents
+being replaced. Journals, preferences and the custody barrier stay under
+`/var/lib/nessie-executor`. On SELinux hosts the native producer restores the
+image's standard executable context before systemd starts it; packages depend
+on `policycoreutils`. No custom permissive policy or disabled enforcement is needed.
+A surviving legacy protected image is verified before copying it to libexec when
+current package files are incomplete; accepted transactions and old bytes remain.
+
+The installed Fedora 1.0.0 candidate at `65f0cca` exposed systemd exit 203/EXEC:
+its protected copy inherited `var_lib_t` under the state directory. Its package
+signatures and CLI version passed, but the updater was unreachable. That candidate
+is retained for failure evidence and is not a published release or accepted
+A-to-B baseline. Verify recovery through a corrected package with SELinux enforcing.

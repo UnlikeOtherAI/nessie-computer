@@ -26,6 +26,15 @@ fn run(executable: &str, arguments: &[&str]) -> UpdateResult<()> {
     Ok(())
 }
 
+/// The standard libexec label lets systemd execute this root-owned copy under enforcing SELinux.
+#[cfg(target_os = "linux")]
+pub(super) fn label_worker(image: &Path) -> UpdateResult<()> {
+    if Path::new("/sys/fs/selinux/enforce").exists() {
+        run("/usr/sbin/restorecon", &["-F", "--", image.to_str().ok_or(ERROR)?])?;
+    }
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 pub(super) fn configure(image: &Path) -> UpdateResult<()> {
     let _pin = unix_runtime::pin_worker(image)?;
