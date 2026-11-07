@@ -333,3 +333,13 @@ its protected copy inherited `var_lib_t` under the state directory. Its package
 signatures and CLI version passed, but the updater was unreachable. That candidate
 is retained for failure evidence and is not a published release or accepted
 A-to-B baseline. Verify recovery through a corrected package with SELinux enforcing.
+
+Installed correction verified on FedoraMaxis at `f0a6085`: signed RPM 1.0.2
+replaced the failed 1.0.0 candidate through DNF. The existing systemd service
+recovered without journal edits or a manual service restart. Its libexec image
+has `bin_t`. After a full VM reboot, the updater returned active with zero
+restarts; the ordinary installed CLI reported 1.0.2, `canInstall: true` and
+automatic/stable defaults with SELinux still enforcing. The root-owned legacy
+image remains. Packaging-plan tests and all 37 native Rust tests passed.
+This verifies service setup and restart recovery, not catalogue-driven A-to-B
+installation, notification, interrupted-transaction recovery or GNOME controls.
