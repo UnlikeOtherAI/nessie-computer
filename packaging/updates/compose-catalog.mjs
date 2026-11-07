@@ -1,32 +1,53 @@
-// Machine-only release interface. Builds an unsigned update manifest from the
-// assets already attached to an immutable executor-v<version> release, hashing
-// the downloaded bytes rather than trusting supplied digests.
+// Machine-only release interface. Hash packages attached to an immutable release.
 import { createHash } from 'node:crypto'
-import { readdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { releaseVersion } from '../cli/release-plan.mjs'
 
 const RELEASES = 'https://github.com/UnlikeOtherAI/nessie-executor/releases/download'
+const packagesFor = version => [
+  { name: `NessieExecutor_${version}_x64.msi`, target: 'windows-x64-msi' },
+  { name: `NessieExecutor_${version}_arm64.dmg`, target: 'darwin-arm64-dmg' },
+  { name: `nessie-executor_${version}_amd64.deb`, target: 'linux-x64-deb', signature: true },
+  { name: `nessie-executor_${version}_x86_64.rpm`, target: 'linux-x64-rpm', signature: true },
+]
 
-// Only targets whose package shape the native installer accepts are mapped.
-// Any other attached file stops composition rather than being silently left out.
+// These names and companion signatures match the installed native adapters.
 export const targetFor = (name, version) => {
-  if (name === `NessieExecutor_${version}_arm64.dmg`) return 'darwin-arm64-dmg'
-  throw new Error(`${name} is not a supported update package for ${version}.`)
+  releaseVersion(version)
+  const entry = packagesFor(version).find(entry => name === entry.name
+    || entry.signature && name === `${entry.name}.asc`)
+  if (!entry) throw new Error(`${name} is not a supported update package for ${version}.`)
+  return entry.target
 }
 
 export async function composeManifest({ directory, channel, sequence, version, sourceCommit, now, days }) {
+  releaseVersion(version)
   if (!['stable', 'preview'].includes(channel)) throw new Error('Channel is stable or preview.')
   if (!/^[a-f0-9]{40}$/u.test(sourceCommit)) throw new Error('The source commit is a full revision.')
   if (!Number.isSafeInteger(sequence) || sequence < 1) throw new Error('The sequence is a positive integer.')
   if (!Number.isSafeInteger(days) || days < 1 || days > 90) throw new Error('Validity is 1 to 90 days.')
   const targets = {}
-  for (const name of (await readdir(directory)).sort()) {
-    const path = join(directory, name)
+  for (const entry of (await readdir(directory, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+    const { name } = entry
     const target = targetFor(name, version)
-    const bytes = await readFile(path)
+    if (!entry.isFile()) throw new Error(`${name} must be a regular release asset.`)
+    const bytes = await readFile(join(directory, name))
+    if (bytes.length === 0) throw new Error(`${name} is empty.`)
     ;(targets[target] ??= []).push({ name, url: `${RELEASES}/executor-v${version}/${name}`,
-      sha256: createHash('sha256').update(bytes).digest('hex'), size: (await stat(path)).size })
+      sha256: createHash('sha256').update(bytes).digest('hex'), size: bytes.length })
+  }
+  for (const entry of packagesFor(version)) {
+    const assets = targets[entry.target]
+    if (!assets) {
+      if (channel === 'stable') throw new Error(`Stable releases require ${entry.target}.`)
+      continue
+    }
+    const names = new Set(assets.map(asset => asset.name))
+    if (!names.has(entry.name) || entry.signature && !names.has(`${entry.name}.asc`)) {
+      throw new Error(`${entry.target} requires its package and detached signature.`)
+    }
   }
   if (Object.keys(targets).length === 0) throw new Error('The release has no update packages.')
   return { format: 1, channel, sequence, version, sourceCommit,

@@ -3,7 +3,9 @@
 Status: **not released**. The Windows native installer coordinator and shared
 local controls are implemented in source. No signed installed upgrade has been
 verified, and macOS/Linux installer adapters and the transition release remain
-unfinished. No public update channel is enabled.
+unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
+catalogs contain only the Apple-silicon DMG. They do not provide a complete
+stable distribution or establish installed upgrade acceptance.
 
 The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
@@ -85,13 +87,22 @@ a new file and refuses to overwrite an existing catalogue. This command does
 not validate installed software or authorize publication.
 `packaging/updates/compose-catalog.mjs` builds the unsigned manifest from the
 packages already attached to `executor-v<version>`, hashing the downloaded bytes;
-it maps only package shapes the native installer accepts (currently the Apple
-Silicon DMG) and refuses any other file. The manual `Publish Update Catalogue`
+it maps the versioned Windows x64 MSI, Apple-silicon DMG, Linux x64 DEB and RPM
+and each Linux package’s detached `.asc` signature. Linux packages and signatures
+are inseparable. Stable composition requires all four targets; preview can select
+a complete subset. Unknown files, foreign versions and empty assets are
+rejected. The manual `Publish Update Catalogue`
 workflow runs both commands in the `executor-updates` environment on main and
-replaces `catalog.json` on the channel's `update-catalog-<channel>` release. Candidate attestations,
+checks that the release tag resolves to the supplied source revision, and
+replaces `catalog.json` on the channel's `update-catalog-<channel>` release. It
+downloads the Linux detached signatures with their packages. Candidate attestations,
 platform signing and actual upgrade verification remain release prerequisites.
 
-No catalogue is published until all supported official packages are ready.
+A new stable catalogue must not be published until all supported official
+packages are ready.
+The existing Mac-only sequence-1 catalogue is incomplete; the composer now
+rejects that shape for stable publication. Preview retains single-platform
+composition for bounded installed verification.
 Versions advance independently of repository history: the transition release
 starts at 1.0.0, above existing 0.0.* Windows builds. Maintain a sequence per
 channel in durable local state. A signing-key rotation must first ship a
@@ -189,7 +200,8 @@ generation, consent, encrypted credentials and unsettled receipt keys remain
 intact; a disconnect or revocation prevents resumption.
 
 macOS and Linux installer adapters are being connected in source; they have
-not passed installed acceptance and no catalogue is published. The macOS controls
+not passed installed acceptance. The existing Mac-only catalogue does not
+establish their acceptance. The macOS controls
 passed a native Swift typecheck at `489c3c3`; app exercise remains unverified.
 The macOS menu bar and Desktop now select the fixed installed `current` factory
 rather than the executor digest embedded in their app bundle. A sealed Developer
