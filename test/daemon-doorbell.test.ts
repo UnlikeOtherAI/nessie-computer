@@ -178,6 +178,49 @@ test('a new connection epoch reconnects at once under the new proof', () => {
     'each socket signs its own connect when it opens, and a replaced socket sends nothing')
 })
 
+test('a socket that carries no frame for three beats is half-open: dropped, one second, reconnected', async () => {
+  type Handlers = Parameters<DoorbellSocketLike['listen']>[0]
+  const sockets: { handlers: Handlers; closed: number[] }[] = []
+  const events: string[] = []
+  const doorbell = new ExecutorDaemonDoorbell({
+    state: () => ({ apiBaseUrl: 'https://api.example.invalid', executorId: randomUUID(),
+      machinePrivateKey: keys().machinePrivateKey, connectionEpoch: '3' }),
+    onReady: (seconds, epoch) => events.push(`ready:${seconds}:${epoch}`), onWake: () => events.push('wake'),
+    onDown: () => events.push('down'), random: () => 0, silenceMs: 120,
+    open: (): DoorbellSocketLike => {
+      const entry = { handlers: undefined as unknown as Handlers, closed: [] as number[] }
+      sockets.push(entry)
+      return {
+        close: (code) => { entry.closed.push(code) }, send: () => undefined,
+        listen: (handlers) => { entry.handlers = handlers },
+      }
+    },
+  })
+  try {
+    doorbell.start()
+    sockets[0]!.handlers.open()
+    sockets[0]!.handlers.message(JSON.stringify({ type: 'ready', pollSeconds: 20 }))
+    assert.deepEqual(events, ['ready:20:3'], 'ready names the epoch its connect proof was signed under')
+    // Beats keep a quiet socket alive well past the silence limit.
+    for (let beat = 0; beat < 4; beat += 1) {
+      await delay(60)
+      sockets[0]!.handlers.message(JSON.stringify({ type: 'beat' }))
+    }
+    assert.deepEqual(events, ['ready:20:3'])
+    assert.equal(doorbell.ready, true)
+    await delay(250)
+    assert.deepEqual(events, ['ready:20:3', 'down'], 'silence for three beats returns the daemon to one-second polls')
+    assert.equal(doorbell.ready, false)
+    assert.deepEqual(sockets[0]!.closed, [4000])
+    sockets[0]!.handlers.close()
+    assert.deepEqual(events, ['ready:20:3', 'down'], 'the late close of a dropped socket changes nothing')
+    for (let waited = 0; sockets.length < 2 && waited < 3_000; waited += 25) await delay(25)
+    assert.equal(sockets.length, 2, 'and it reconnects after the first backoff')
+  } finally {
+    doorbell.stop()
+  }
+})
+
 const fakeTask = () => {
   let running: { promise: Promise<void>; finish: () => void } | null = null
   let runs = 0
