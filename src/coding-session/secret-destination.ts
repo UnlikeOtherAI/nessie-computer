@@ -1,13 +1,29 @@
 import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, open, readFile, realpath, rename, unlink } from 'node:fs/promises'
-import { isAbsolute, join, posix, relative, sep, win32 } from 'node:path'
+import { constants } from 'node:fs'
+import { lstat, open, realpath, rename, unlink, type FileHandle } from 'node:fs/promises'
+import { isAbsolute, join, posix, win32 } from 'node:path'
+
+import {
+  assertOwnerOnlyStatePath, secureOwnerOnlyStateFile, type StateSecurityDeps,
+} from '../state-security.js'
 
 /**
- * Where a secret the owner supplies is written: one file inside the session's
- * named folder, created owner-only (0600), never through a symbolic link or
- * a hard link, never outside the folder. The value is written once and goes
- * nowhere else — no log, receipt, conversation or error carries it, and
- * every refusal here names a category, never the path's contents or the value.
+ * Where a secret the owner supplies is written: one file directly in the
+ * session's named folder — never a subdirectory, never through a symbolic or
+ * hard link, never outside the folder — created owner-only. The value is
+ * written once and goes nowhere else: no log, receipt, conversation or error
+ * carries it, and every refusal names a category, never the path's contents
+ * or the value.
+ *
+ * The executor writes it unsandboxed while the agent, which can write in the
+ * folder, may be racing it, so nothing is trusted between a check and a use:
+ * an existing file is read through a handle opened without following a link
+ * and proved on that handle to be one ordinary file with one name; the new
+ * file is created exclusively, made owner-only before the value is in it
+ * (on Windows through the state-security helper, whose DACL Node's mode bits
+ * cannot set) and proved so; and the folder is the same directory (device
+ * and inode) before the read, before the rename and after it, with the
+ * renamed file the one this write created. Any difference refuses the write.
  *
  * With an `envName` the file is a dotenv file: one `NAME=value` line is set
  * or replaced and every other line is kept as it was. Without one, the file
@@ -18,16 +34,18 @@ export class SecretDestinationError extends Error {
   override readonly name = 'SecretDestinationError'
   constructor(readonly code: 'secret_destination_invalid' | 'secret_destination_refused') {
     super(code === 'secret_destination_invalid'
-      ? 'The destination must be a file path relative to the session folder, without .. or a drive.'
+      ? 'The destination must be a file name in the session folder itself, such as .env.local: no folders, .. or drive.'
       : 'The destination cannot be written: it leaves the session folder, or is a link or not a file.')
   }
 }
 
 export const ENV_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/u
 const MAX_DESTINATION = 1_000
+/** Room for the temporary sibling's prefix and suffix inside a 255-byte file name. */
+const MAX_NAME = 200
 const MAX_DOTENV_BYTES = 1024 * 1024
 
-/** The destination as path segments, or a refusal: relative, no `..`, no drive, no empty or control characters. */
+/** The destination's one segment, or a refusal: a file name in the folder itself, not a path into it. */
 export const secretDestinationSegments = (destination: unknown): string[] => {
   if (typeof destination !== 'string' || !destination.trim() || destination.length > MAX_DESTINATION
     || /[\u0000-\u001f\u007f]/u.test(destination)
@@ -36,7 +54,8 @@ export const secretDestinationSegments = (destination: unknown): string[] => {
     throw new SecretDestinationError('secret_destination_invalid')
   }
   const segments = destination.split(/[\\/]+/u).filter((segment) => segment !== '' && segment !== '.')
-  if (segments.length === 0 || segments.some((segment) => segment === '..')) {
+  // A Windows stream (`name:stream`) or a name Windows trims (`name.`) is another file than the one shown.
+  if (segments.length !== 1 || segments[0] === '..' || segments[0]!.length > MAX_NAME || /[:]|[. ]$/u.test(segments[0]!)) {
     throw new SecretDestinationError('secret_destination_invalid')
   }
   return segments
@@ -68,63 +87,97 @@ export const setDotenvLine = (content: string, name: string, value: string): str
   return `${next.join('\n')}\n`
 }
 
-const within = (root: string, candidate: string): boolean => {
-  const path = relative(root, candidate)
-  return path === '' || (!path.startsWith(`..${sep}`) && path !== '..' && !isAbsolute(path))
+type Identity = { dev: number; ino: number }
+const sameFile = (left: Identity, right: Identity): boolean => left.dev === right.dev && left.ino === right.ino
+
+const refuse = (): never => { throw new SecretDestinationError('secret_destination_refused') }
+
+/** The folder, still the very directory it was: not replaced, not a link. */
+const folderUnchanged = async (root: string, identity: Identity): Promise<void> => {
+  const now = await lstat(root).catch(refuse)
+  if (now.isSymbolicLink() || !now.isDirectory() || !sameFile(now, identity)) refuse()
+}
+
+/** `O_NOFOLLOW` where the platform has it; Windows has none, so the handle and the name are compared instead. */
+const READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
+
+/** The existing file's text, read through a handle proved to be the one ordinary, singly linked file there. */
+const readExisting = async (target: string, readText: boolean): Promise<{ found: boolean; text: string }> => {
+  let handle: FileHandle
+  try {
+    handle = await open(target, READ_FLAGS)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      // Nothing there now, and nothing that is a link either.
+      if (await lstat(target).then(() => true, () => false)) refuse()
+      return { found: false, text: '' }
+    }
+    return refuse()
+  }
+  try {
+    const info = await handle.stat()
+    if (!info.isFile() || info.nlink !== 1 || (readText && info.size > MAX_DOTENV_BYTES)) refuse()
+    const text = readText ? await handle.readFile('utf8') : ''
+    const named = await lstat(target).catch(refuse)
+    if (named.isSymbolicLink() || !sameFile(named, info)) refuse()
+    return { found: true, text }
+  } finally {
+    await handle.close()
+  }
 }
 
 /**
- * Writes the secret. Every directory on the way is checked as it is reached
- * and created owner-only when missing; a link anywhere refuses the write, and
- * the file is replaced by a rename from a fresh 0600 file beside it, which
- * never follows a link a racing writer might put in its place.
+ * Writes the secret into the one file the destination names, directly in the
+ * folder. `security` reaches the state-security module (its tests use it to
+ * stand in for the Windows helper); `seams` lets a test move things between
+ * the steps, as a racing agent would.
  */
 export const writeSecretToFolder = async (input: {
   folder: string; destination: string; value: string; envName?: string
+  security?: StateSecurityDeps
+  seams?: { afterRead?: () => Promise<void>; beforeRename?: () => Promise<void> }
 }): Promise<{ destination: string }> => {
-  const segments = secretDestinationSegments(input.destination)
+  const [name] = secretDestinationSegments(input.destination) as [string]
   if (input.envName !== undefined && !ENV_NAME_PATTERN.test(input.envName)) {
     throw new SecretDestinationError('secret_destination_invalid')
   }
-  const root = await realpath(input.folder)
-    .catch(() => { throw new SecretDestinationError('secret_destination_refused') })
-  let directory = root
-  for (const segment of segments.slice(0, -1)) {
-    directory = join(directory, segment)
-    const info = await lstat(directory).catch(() => undefined)
-    if (!info) {
-      await mkdir(directory, { mode: 0o700 }).catch(() => { throw new SecretDestinationError('secret_destination_refused') })
-    } else if (info.isSymbolicLink() || !info.isDirectory()) throw new SecretDestinationError('secret_destination_refused')
-  }
-  if (!within(root, await realpath(directory).catch(() => ''))) {
-    throw new SecretDestinationError('secret_destination_refused')
-  }
-  const target = join(directory, segments.at(-1)!)
-  const existing = await lstat(target).catch(() => undefined)
-  if (existing && (existing.isSymbolicLink() || !existing.isFile() || existing.nlink > 1)) {
-    throw new SecretDestinationError('secret_destination_refused')
-  }
-  let content = input.value
-  if (input.envName !== undefined) {
-    if (existing && existing.size > MAX_DOTENV_BYTES) throw new SecretDestinationError('secret_destination_refused')
-    const previous = existing
-      ? await readFile(target, 'utf8').catch(() => { throw new SecretDestinationError('secret_destination_refused') }) : ''
-    content = setDotenvLine(previous, input.envName, input.value)
-  }
-  const temporary = join(directory, `.${segments.at(-1)!}.${randomUUID()}.tmp`)
-  const refused = (): never => { throw new SecretDestinationError('secret_destination_refused') }
-  const handle = await open(temporary, 'wx', 0o600).catch(refused)
+  const root = await realpath(input.folder).catch(refuse)
+  const folder = await lstat(root).catch(refuse)
+  if (folder.isSymbolicLink() || !folder.isDirectory()) refuse()
+  const target = join(root, name)
+  const existing = await readExisting(target, input.envName !== undefined)
+  await folderUnchanged(root, folder)
+  await input.seams?.afterRead?.()
+  const content = input.envName === undefined ? input.value : setDotenvLine(existing.text, input.envName, input.value)
+  const temporary = join(root, `.${name}.${randomUUID()}.tmp`)
+  // Exclusive: a name a racing writer put there, link or not, fails the open rather than being followed.
+  const handle = await open(temporary, 'wx', 0o600).catch(refuse)
+  let created: Identity | undefined
   try {
     try {
-      await handle.writeFile(content, 'utf8')
+      created = await handle.stat()
       await handle.chmod(0o600).catch(() => undefined)
+      // Owner-only before the value is in it, and proved so on the file this write created.
+      await secureOwnerOnlyStateFile(temporary, input.security)
+      await assertOwnerOnlyStatePath(temporary, 'file', input.security)
+      if (!sameFile(await lstat(temporary), created)) refuse()
+      await handle.writeFile(content, 'utf8')
+      await handle.sync()
     } finally {
       await handle.close()
     }
+    await input.seams?.beforeRename?.()
+    await folderUnchanged(root, folder)
+    const staged = await lstat(temporary)
+    if (staged.isSymbolicLink() || !sameFile(staged, created)) refuse()
     await rename(temporary, target)
   } catch {
     await unlink(temporary).catch(() => undefined)
-    refused()
+    refuse()
   }
-  return { destination: segments.join('/') }
+  // The rename landed in the same folder, as the file this write created.
+  await folderUnchanged(root, folder)
+  const placed = await lstat(target).catch(refuse)
+  if (placed.isSymbolicLink() || placed.nlink !== 1 || !sameFile(placed, created!)) refuse()
+  return { destination: name }
 }
