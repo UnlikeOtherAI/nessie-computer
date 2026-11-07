@@ -96,7 +96,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   /** A permission prompt or question: the owner's to answer, unless it is the session's own secret tool. */
   const ask = (prompt: NonNullable<ClaudeSignals['prompt']>): void => {
     const asker = agent
-    const plan = planClaudeRequest(prompt, context.projector, context.folder)
+    const plan = planClaudeRequest(prompt, context.projector, context.folder, context.roots)
     if (plan.kind === 'allow') {
       asker?.write(plan.line)
       return

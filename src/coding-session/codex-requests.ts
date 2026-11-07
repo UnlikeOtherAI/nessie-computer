@@ -1,8 +1,11 @@
 import type { ExecutorSessionDecision } from '@nessie/executor-protocol'
 
+import { codexPermissionsWithinRoots, codexTurnGrant } from './approval-scope.js'
 import type { CodexServerRequest } from './codex-app-connection.js'
 import type { Projector } from './projection.js'
-import { commandDraft, fileChangeDraft, permissionDraft, questionDraft, type FileChange } from './request-drafts.js'
+import {
+  asShown, commandDraft, fileChangeDraft, filesDiff, folderPath, permissionDraft, questionDraft, type FileChange,
+} from './request-drafts.js'
 import { orderedDecisions, type HostAnswer, type SessionRequestDraft } from './session-request-book.js'
 import { SESSION_SECRET_SERVER_NAME } from './session-secret-mcp.js'
 
@@ -20,6 +23,13 @@ import { SESSION_SECRET_SERVER_NAME } from './session-secret-mcp.js'
  * is declined without asking, because it cannot be shown. The session's own
  * `request_secret` server is answered `accept`: its secret request is the
  * owner's gate.
+ *
+ * The owner reads the exact command Codex will run (a `sh -lc '…'` wrapper
+ * unwrapped, never Codex's own display parse of it) and every changed file's
+ * diff. Nothing widens the sandbox for the session: a permissions request is
+ * granted for its turn only, and only when every path it names is inside a
+ * reviewed folder, and a file change that would grant a write root for the
+ * session (`grantRoot`) is approved once only (`approval-scope.ts`).
  */
 
 export type CodexRequestPlan =
@@ -63,6 +73,17 @@ const decided = (table: Record<ExecutorSessionDecision, unknown>) => (answer: Ho
 
 const textOf = (value: unknown): string => (typeof value === 'string' ? value : '')
 
+/** `/bin/zsh -lc 'git push'` → `git push`: only one exact single-quoted script is unwrapped; anything else is as is. */
+const SHELL_WRAPPED = /^(?:\S*\/)?(?:ba|z|da)?sh\s+-l?c\s+'((?:[^']|'\\'')*)'$/u
+export const shownCommand = (command: string): string => {
+  const wrapped = SHELL_WRAPPED.exec(command.trim())
+  return wrapped ? wrapped[1]!.replaceAll(`'\\''`, `'`) : command
+}
+
+/** An argv as one line, each argument that a shell would split quoted, so it reads as what runs. */
+const argvLine = (argv: unknown[]): string => argv.map(textOf)
+  .map((arg) => (/^[\w@%+=:,./-]+$/u.test(arg) ? arg : `'${arg.replaceAll(`'`, `'\\''`)}'`)).join(' ')
+
 /** A form field Nessie can ask as a question, or undefined. */
 const formQuestion = (id: string, value: unknown) => {
   if (!record(value)) return undefined
@@ -75,17 +96,31 @@ const formQuestion = (id: string, value: unknown) => {
   return undefined
 }
 
+/** A legacy `applyPatchApproval` change, with the content it writes as the owner reads it. */
+const legacyChange = (path: string, change: unknown): FileChange => {
+  const entry = record(change) ? change : {}
+  if (entry.type === 'add') {
+    return { path, change: 'add', ...(typeof entry.content === 'string'
+      ? { diff: `+ ${entry.content.split('\n').join('\n+ ')}` } : {}) }
+  }
+  if (entry.type === 'delete') return { path, change: 'delete' }
+  const moved = typeof entry.move_path === 'string' && entry.move_path ? entry.move_path : undefined
+  return { path, change: moved ? 'move' : 'update',
+    ...(typeof entry.unified_diff === 'string' ? { diff: `${moved ? `moved to ${moved}\n` : ''}${entry.unified_diff}` } : {}) }
+}
+
 export const planCodexRequest = (
   request: CodexServerRequest,
-  input: { projector: Projector; folder: string; fileChanges: (itemId: string) => FileChange[] },
+  input: {
+    projector: Projector; folder: string; roots?: readonly string[]; fileChanges: (itemId: string) => FileChange[]
+  },
 ): CodexRequestPlan => {
   const { method, params } = request
   const { projector, folder } = input
+  const label = (path: string): string => folderPath(folder, path, projector)
   if (method === 'item/commandExecution/requestApproval' || method === 'execCommandApproval') {
     const modern = method !== 'execCommandApproval'
-    const actions = Array.isArray(params.commandActions) ? params.commandActions.filter(record) : []
-    const command = actions.length === 1 && typeof actions[0]!.command === 'string' ? actions[0]!.command
-      : Array.isArray(params.command) ? params.command.map(textOf).join(' ') : textOf(params.command)
+    const command = shownCommand(Array.isArray(params.command) ? argvLine(params.command) : textOf(params.command))
     return {
       kind: 'ask',
       draft: commandDraft({ projector, folder, command, cwd: params.cwd, justification: params.reason,
@@ -98,26 +133,27 @@ export const planCodexRequest = (
     const modern = method !== 'applyPatchApproval'
     const changes = record(params.fileChanges) ? params.fileChanges : {}
     const files: FileChange[] = modern ? input.fileChanges(textOf(params.itemId))
-      : Object.entries(changes).map(([path, change]) => ({ path, change: (record(change) && change.type === 'add' ? 'add'
-        : record(change) && change.type === 'delete' ? 'delete' : 'update') as FileChange['change'] }))
-    const diff = modern ? undefined : Object.values(changes).filter(record).map((change) => textOf(change.unified_diff)).join('\n')
+      : Object.entries(changes).map(([path, change]) => legacyChange(path, change))
+    // For the session, Codex would also let the agent write under `grantRoot` unasked: that is never offered.
+    const forSession = typeof params.grantRoot === 'string' && params.grantRoot ? [] : ['accept_for_session' as const]
     return {
       kind: 'ask',
-      draft: fileChangeDraft({ projector, folder, files, diff, justification: params.reason,
-        decisions: ['accept', 'accept_for_session', 'decline', 'cancel'] }),
+      draft: fileChangeDraft({ projector, folder, files, diff: filesDiff(files, label), justification: params.reason,
+        decisions: ['accept', ...forSession, 'decline', 'cancel'] }),
       answer: decided(modern ? MODERN_ANSWER : LEGACY_ANSWER),
       withdraw: () => ({ decision: modern ? 'cancel' : 'abort' }),
     }
   }
   if (method === 'item/permissions/requestApproval') {
+    const within = codexPermissionsWithinRoots(params.permissions, textOf(params.cwd) || folder, input.roots ?? [])
     return {
       kind: 'ask',
       draft: permissionDraft({ projector, tool: 'Wider permissions', input: params.permissions, justification: params.reason,
-        title: 'Allow wider file or network access', decisions: ['accept', 'accept_for_session', 'decline', 'cancel'] }),
+        title: within ? 'Allow wider file or network access for this turn'
+          : 'Wider access outside the reviewed folders, so it can only be declined',
+        decisions: within ? ['accept', 'decline', 'cancel'] : ['decline', 'cancel'] }),
       answer: (answer) => ({
-        result: answer.decision === 'accept' || answer.decision === 'accept_for_session'
-          ? { permissions: params.permissions, scope: answer.decision === 'accept_for_session' ? 'session' : 'turn' }
-          : { permissions: {}, scope: 'turn' },
+        result: answer.decision === 'accept' && within ? codexTurnGrant(params.permissions) : { permissions: {}, scope: 'turn' },
         stopsTurn: answer.decision === 'cancel',
       }),
       withdraw: () => ({ permissions: {}, scope: 'turn' }),
@@ -152,9 +188,11 @@ export const planCodexRequest = (
     if (params.mode === 'url' || fields.some((field) => field === undefined)) return { kind: 'reply', result: { action: 'decline' } }
     const known = fields as NonNullable<ReturnType<typeof formQuestion>>[]
     const server = projector.line(params.serverName, 80)
+    // With no fields, what is accepted is the message itself, so all of it must have been shown.
     const ask = known.length === 0
-      ? permissionDraft({ projector, tool: server, input: undefined, title: textOf(params.message) || `Allow ${server}`,
-        justification: params.message, decisions: ['accept', 'decline', 'cancel'] })
+      ? asShown(permissionDraft({ projector, tool: server, input: undefined, title: textOf(params.message) || `Allow ${server}`,
+        justification: params.message, decisions: ['accept', 'decline', 'cancel'] }),
+      projector.text(params.message, Number.MAX_SAFE_INTEGER).length <= 4_000)
       : questionDraft({ projector, title: textOf(params.message) || undefined, decisions: ['decline', 'cancel'],
         questions: known.map((field) => ({ id: field.id, question: field.question, header: server,
           options: field.options.map((label) => ({ label })),

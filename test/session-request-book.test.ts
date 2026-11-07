@@ -190,10 +190,8 @@ test('Claude prompts become requests by tool; the session\'s own secret tool is 
     interrupt: true })
   const fetch = planClaudeRequest({ requestId: 'r2', toolName: 'WebFetch', input: { url: 'https://example.com' } }, projector, folder)
   assert.equal(fetch.kind === 'ask' && fetch.draft.kind, 'permission')
-  const accepted = fetch.kind === 'ask' && JSON.parse(fetch.answer({ requestId: 'x', decision: 'accept_for_session' }).line)
-  assert.deepEqual(accepted.response.response.updatedPermissions,
-    [{ type: 'addRules', rules: [{ toolName: 'WebFetch' }], behavior: 'allow', destination: 'session' }],
-    'without suggestions, the tool itself, for this session only')
+  assert.deepEqual(fetch.kind === 'ask' && fetch.draft.decisions, ['accept', 'decline', 'cancel'],
+    'without a concrete rule, nothing is offered for the session: a bare tool would allow every later use')
   const own = planClaudeRequest({ requestId: 'r3', toolName: 'mcp__nessie_session__request_secret', input: { name: 'k' } },
     projector, folder)
   assert.equal(own.kind, 'allow')

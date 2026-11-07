@@ -118,7 +118,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     const connection = rpc
     if (!connection) return
     const plan = planCodexRequest(request, {
-      projector: context.projector, folder: context.folder, fileChanges: (itemId) => fileChanges.get(itemId) ?? [],
+      projector: context.projector, folder: context.folder, roots: context.roots,
+      fileChanges: (itemId) => fileChanges.get(itemId) ?? [],
     })
     if (plan.kind === 'reply') return connection.respond(request.id, plan.result)
     if (plan.kind === 'unsupported') return connection.respondError(request.id, 'This client does not serve that request.')
@@ -161,10 +162,12 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     const started = notification.method === 'item/started' && record(item) && item.type === 'fileChange'
     if (started && typeof item.id === 'string') {
       const changes = Array.isArray(item.changes) ? item.changes : []
-      fileChanges.set(item.id, changes.filter(record).slice(0, 64).map((change) => ({
+      // Every change, even past what a request can list, so a request knows when it could not show them all.
+      fileChanges.set(item.id, changes.filter(record).map((change) => ({
         path: typeof change.path === 'string' ? change.path : '',
         change: record(change.kind) && (change.kind.type === 'add' || change.kind.type === 'delete') ? change.kind.type
           : record(change.kind) && typeof change.kind.move_path === 'string' ? 'move' : 'update',
+        ...(typeof change.diff === 'string' ? { diff: change.diff } : {}),
       })))
       if (fileChanges.size > 64) fileChanges.delete(fileChanges.keys().next().value!)
     }

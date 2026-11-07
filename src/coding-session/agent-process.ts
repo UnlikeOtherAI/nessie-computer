@@ -25,6 +25,8 @@ export type AgentDriverContext = {
   control: CodingProcessControl
   env: NodeJS.ProcessEnv
   folder: string
+  /** The reviewed named folders, as declared and as resolved: no approval reaches past them. */
+  roots: readonly string[]
   maxBudgetUsd?: number
   paths: CodingSessionPaths
   projector: Projector

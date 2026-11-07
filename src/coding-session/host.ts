@@ -242,6 +242,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     }
     const driverContext = {
       requests: book, secretServer: sessionSecretServer(paths),
+      roots: context.roots.roots.flatMap((root) => [root.declared, ...(root.canonical ? [root.canonical] : [])]),
       personalAuthority: meta.personalAuthority,
       agent, control, env, folder, paths, projector: context.projector, log, emit, update, state: () => state,
       stillOwner: lock.stillOurs,

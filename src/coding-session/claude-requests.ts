@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path'
 
 import type { ExecutorSessionDecision } from '@nessie/executor-protocol'
 
+import { claudeSessionRules } from './approval-scope.js'
 import type { Projector } from './projection.js'
 import { commandDraft, fileChangeDraft, permissionDraft, questionDraft } from './request-drafts.js'
 import type { HostAnswer, SessionRequestDraft } from './session-request-book.js'
@@ -21,9 +22,11 @@ import { SESSION_SECRET_CLAUDE_TOOL } from './session-secret-mcp.js'
  * The session's own `request_secret` tool is allowed without asking: the
  * secret request it opens is the owner's gate. Every other tool is a
  * `command` (Bash), a `file_change` (Write, Edit, MultiEdit, NotebookEdit) or
- * a `permission`; accepting one for the session adds Claude's own suggested
- * rules (or a rule for the tool) for this session only, never to a settings
- * file.
+ * a `permission`. Accepting one for the session adds, for this session only
+ * and never to a settings file, Claude's own concrete suggested rules or the
+ * exact command, and extra directories only inside the reviewed folders
+ * (`approval-scope.ts`); a prompt with nothing concrete to add does not offer
+ * it.
  */
 
 export type ClaudePrompt = {
@@ -80,12 +83,18 @@ const deny = (requestId: string, message: string, interrupt = false): string => 
   behavior: 'deny', message, ...(interrupt ? { interrupt: true } : {}),
 })
 
-/** Claude's suggested rules for this session only, or a rule allowing the tool when it suggested none. */
-const sessionRules = (prompt: ClaudePrompt): unknown[] => {
-  const suggested = (prompt.suggestions ?? []).filter(record).filter((suggestion) => suggestion.type !== 'setMode')
-    .map((suggestion) => ({ ...suggestion, destination: 'session' }))
-  return suggested.length ? suggested : [{ type: 'addRules', rules: [{ toolName: prompt.toolName }], behavior: 'allow',
-    destination: 'session' }]
+const lines = (prefix: string, text: string): string => `${prefix}${text.split('\n').join(`\n${prefix}`)}`
+
+/** What a file tool writes, as the owner reads it: every edit's old and new text, or the whole new content. */
+const fileDiff = (input: Record<string, unknown>): string | undefined => {
+  const edits = Array.isArray(input.edits) ? input.edits.filter(record) : [input]
+  if (edits.length && edits.every((edit) => typeof edit.old_string === 'string' && typeof edit.new_string === 'string')) {
+    return edits.map((edit) => `${lines('- ', edit.old_string as string)}\n${lines('+ ', edit.new_string as string)}`)
+      .join('\n')
+  }
+  if (typeof input.content === 'string') return lines('+ ', input.content)
+  if (typeof input.new_source === 'string') return lines('+ ', input.new_source)
+  return undefined
 }
 
 const questionsOf = (input: Record<string, unknown>) => (Array.isArray(input.questions) ? input.questions : [])
@@ -96,7 +105,9 @@ const questionsOf = (input: Record<string, unknown>) => (Array.isArray(input.que
       .map((option) => ({ label: option.label, description: option.description })),
   }))
 
-export const planClaudeRequest = (prompt: ClaudePrompt, projector: Projector, folder: string): ClaudeRequestPlan => {
+export const planClaudeRequest = (
+  prompt: ClaudePrompt, projector: Projector, folder: string, roots: readonly string[] = [],
+): ClaudeRequestPlan => {
   const { requestId, toolName, input } = prompt
   if (toolName === SESSION_SECRET_CLAUDE_TOOL) {
     return { kind: 'allow', line: claudeControlResponse(requestId, { behavior: 'allow', updatedInput: input }) }
@@ -127,18 +138,18 @@ export const planClaudeRequest = (prompt: ClaudePrompt, projector: Projector, fo
     }
   }
   const justification = prompt.description ?? prompt.decisionReason
+  const rules = claudeSessionRules(prompt, folder, roots)
+  const decisions = rules ? APPROVAL : APPROVAL.filter((decision) => decision !== 'accept_for_session')
   const draft = toolName === 'Bash' && typeof input.command === 'string'
-    ? commandDraft({ projector, folder, command: input.command, justification, decisions: APPROVAL })
+    ? commandDraft({ projector, folder, command: input.command, justification, decisions })
     : FILE_TOOLS.has(toolName)
       ? fileChangeDraft({
-        projector, folder, justification, decisions: APPROVAL,
+        projector, folder, justification, decisions,
         files: [{ path: input.file_path ?? input.notebook_path, change: toolName === 'Write' && !(
           typeof input.file_path === 'string' && isAbsolute(input.file_path) && existsSync(input.file_path)) ? 'add' : 'update' }],
-        diff: typeof input.old_string === 'string' && typeof input.new_string === 'string'
-          ? `- ${input.old_string.split('\n').join('\n- ')}\n+ ${input.new_string.split('\n').join('\n+ ')}`
-          : typeof input.content === 'string' ? `+ ${input.content.split('\n').join('\n+ ')}` : undefined,
+        diff: fileDiff(input),
       })
-      : permissionDraft({ projector, tool: toolName, input, justification, decisions: APPROVAL })
+      : permissionDraft({ projector, tool: toolName, input, justification, decisions })
   return {
     kind: 'ask',
     draft,
@@ -146,7 +157,7 @@ export const planClaudeRequest = (prompt: ClaudePrompt, projector: Projector, fo
       if (answer.decision !== 'accept' && answer.decision !== 'accept_for_session') return declined(answer)
       return {
         line: claudeControlResponse(requestId, { behavior: 'allow', updatedInput: input,
-          ...(answer.decision === 'accept_for_session' ? { updatedPermissions: sessionRules(prompt) } : {}) }),
+          ...(answer.decision === 'accept_for_session' && rules ? { updatedPermissions: rules } : {}) }),
         stopsTurn: false,
       }
     },
