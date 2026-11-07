@@ -81,8 +81,10 @@ export const buildRequestPrivacyManifest = snapshot => {
   patch('claude-private-approval-reason', claude,
     '              prompt,\n              callbackOptions,\n            }),',
     '              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n' +
-    '                matchedAskRule: callbackOptions.matchedAskRule,\n' +
-    '                suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule,\n' +
+    '                ...(callbackOptions.matchedAskRule === undefined ? {}\n' +
+    '                  : { matchedAskRule: callbackOptions.matchedAskRule }),\n' +
+    '                ...(callbackOptions.suppressAlwaysAllowRule === undefined ? {}\n' +
+    '                  : { suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule }),\n' +
     '              } : callbackOptions,\n            }),')
   patch('claude-private-preview-refusal', claude,
     '              !toolCall.toolName.startsWith("mcp__") ||',

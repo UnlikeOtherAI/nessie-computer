@@ -16,7 +16,7 @@ Git objects, including when the reference working tree is dirty.
 
 `patches/t3-session/requests/boundary-patches.json` contains 26 ordered patches.
 Its SHA-256 is
-`82e946ecbf4a74a7d2dc809f25506ea6814498565e4e63c4e7e7ba4fb2120251`.
+`8f11f629fb93f3234f4e5ffff8bc49f1bdfa5f0ff773af9c65c16ba5fcf040d3`.
 Every entry binds the source revision, unique seam and complete before/after
 file hashes; sequential entries on the same file bind intermediate hashes.
 `tool-privacy.ts` is the authored insertion fragment. It is inserted into the
@@ -39,12 +39,21 @@ in `C:\Users\ondre\.t3\worktrees\Nessie\t3-c54598ec\executor`, branch
 `ab004ac6bba15a4f85fd9feabe53dc568632a337`, branch
 `t3/t3-session-request-privacy`. No private pin is changed here.
 
-T02's committed extraction family was not available in this checkout. C05 tests
-compose C02 → T19 → C05 and prove those checked-in families apply together.
-They do not claim the final four-family co-build. If T02 changes one of the five
-files below, its owner must provide the committed preceding manifest/file hashes
-before C05 can be regenerated against that intermediate source. Dirty sibling
-source and ad hoc intermediate hashes are not inputs.
+The ordinary C05 tests compose C02 → T19 → C05. The separate
+`verify-combined.mjs` proof reads only committed T02 Git objects at
+`6dbf5e39ef1289e8fab76d09ca4052efbd855274`, without merging or materializing a
+sibling checkout. It verifies the extraction manifest SHA-256
+`49f5dad346bc6bacb1134df0da0ee301071bb4c171b5fb3d765fecc52c671bb6`
+and executes that commit's unchanged composer/patch application helper (SHA-256
+`7eba3b2c2b3a710a28e09d9e13d1c5b74f44a4018c22b2871a6b53f63f35be10`).
+The four families apply once as **169 operations** with combined manifest SHA-256
+`8558b2b6d864b1a8f4427692c72cd20c1b6377fedd5875894d7115edb0a8a84f`.
+Family IDs are `state`, `client-connection`, `extraction`, `request-privacy`.
+All five final C05 files equal the independent patch output; T02 has zero overlap.
+This proves manifest/source compatibility, not a co-build, typecheck or runtime
+integration. Root's T02 review/integration remains separate. If a later T02
+revision changes one of these paths, regenerate only against its committed
+preceding manifest/file hashes. Dirty sibling bytes are never inputs.
 
 ## Exact upstream inventory
 
@@ -58,7 +67,7 @@ producer, first-party shared export or native code changes.
 | `packages/shared/src/t3McpToolPresentation.ts` | 494 → 658 | 1 | Pure structural privacy projections next to the registered tool namespace aliases. |
 | `packages/contracts/src/secretRequest.ts` | 69 → 71 | 2 | Preserve nonempty secret strings in the dedicated wire codec; remove unused trim-schema import. |
 | `packages/client-runtime/src/secretRequest.ts` | 183 → 183 | 1 | Preserve the dedicated answer helper's value exactly. |
-| `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` | 12,403 → 12,424 | 14 | Tool factory/publication, protocol logs, approval summaries/reasons, preview refusal and masked-question refusal. |
+| `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` | 12,403 → 12,426 | 14 | Tool factory/publication, protocol logs, approval summaries/reasons, preview refusal and masked-question refusal. |
 | `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts` | 8,059 → 8,068 | 8 | MCP/dynamic factory/publication, protocol logs, preview refusal and synchronous/asynchronous masked-question refusal. |
 
 Complete initial/final hashes:
@@ -68,7 +77,7 @@ Complete initial/final hashes:
 | shared registry | `3215e846e75e9d095a858cc5b1dc70bbd097e82531ba8445f0ec387d0ed21eee` | `ff53108a049c819ecc39b932cc7840336ab176826e6b75aa9245ee4b0b8d6b73` |
 | dedicated codec | `13117ebc9a34854bbf146aff24c748898ac2fec952525a769084e95c9b6392f9` | `8cc1a8a1b485dbdce28aa2e29a87bac63c1679e5f062634a03fc9660f273488b` |
 | dedicated helper | `795884d84e57355ca838da10bb7217f0b75ed0d8bdd6a9035e44afc875aedda4` | `122ffc23a5f431633e4326d55776ad2e581698d2d812aba0a2f613a1d4b7b6f1` |
-| Claude adapter | `7e212d616f62538bc0297973fd272ae20cf306abb46a56519f7959e2b7e1f86b` | `92bb27a526c8b1f7126d697a13a1bf7e92f9818a03621e32f04b916feea21695` |
+| Claude adapter | `7e212d616f62538bc0297973fd272ae20cf306abb46a56519f7959e2b7e1f86b` | `dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d` |
 | Codex adapter | `5913ec92bde020cbb23f5cbe3714b314fc9466406a22cc9721cf432418977c74` | `fa7a12d764d9cb6b46dfff59aaf034c81a72667317871f0d91b336e17d92bbcd` |
 
 ## Data flow and compatibility
@@ -141,6 +150,8 @@ session-port module. Its current methods are `answer(input)`,
 `savePasted({threadId, requestNamespace, requestKey, value})`. C05 neither copies
 that interface nor supplies an implementation. In particular,
 `consume({ref, projectId})` alone is not an admitted canonical use contract.
+The combined-manifest proof also verifies the derived session-port SHA-256
+`4d81dc85b97e1c1e9032a63b2275e39b74c9df293cabbd8608b361ba2a149c15`.
 
 The integrated broker must bind fresh owner/UOA team authority, computer,
 session/request and field/answer ordinals, provider session, destination,
@@ -181,7 +192,7 @@ refusal, not UOA admission or a vault save. The tests do not launch a provider.
 
 On Windows Maxis with Node 24.19.0 and pnpm 10.22.0, all **18 tests passed**, zero
 skips, in about 1.2 seconds, with a 512 MiB heap. Before the final run Maxis had
-15.63 GiB free and 5% CPU load. The isolated Effect-only install used the exact
+14.79 GiB free and 26% CPU load. The isolated Effect-only install used the exact
 integrity from C02's frozen lock, its own ignored dependency/store paths,
 `--ignore-workspace --ignore-scripts --ignore-pnpmfile`, and child/network
 concurrency 1. Jobs waited for at least 10 GiB headroom; no shared resource was
@@ -199,7 +210,12 @@ node --experimental-vm-modules --test --experimental-test-isolation=none test/t3
 
 `T3_REQUEST_PRIVACY_SOURCE_ARCHIVE` can select an already prepared verified
 capsule. `build-manifest.mjs <verified-source.tar>` reproduces the manifest; it
-does not edit vendor source. The five complete patched files also pass Node's
+does not edit vendor source. With T02's exact committed objects fetched in this
+owned executor repository, `node --experimental-vm-modules
+test/t3-session-requests/verify-combined.mjs` repeats the separate 169-operation
+compatibility proof. That proof ran with 14.24 GiB free and 42% CPU load at its
+fresh headroom check, also under 512 MiB. The fixture lane was released after
+the final scoped rerun exited. The five complete patched files also pass Node's
 TypeScript syntax stripping. Strict engine typecheck/lint/bundle, the combined
 T02 co-build, Turbo task registration, Node 22, real vault/provider/UOA, browser,
 mobile, native ACL/file cleanup and installed admission were not run here.

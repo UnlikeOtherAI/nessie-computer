@@ -142,15 +142,15 @@
       "id": "claude-private-approval-reason",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
       "beforeSha256": "212f76dae2f23daffa902faa0859da7ab25b0ed59130509cc0cda477af94074c",
-      "afterSha256": "a22ec4679b0a8a92d6bd55a24f15314c604340a8bed779c981c1f61b20e93edc",
+      "afterSha256": "0846be329170e4d9192ef6eabb8f0f0878f20926cf6c130d7fb90820d853b784",
       "from": "              prompt,\n              callbackOptions,\n            }),",
-      "to": "              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n                matchedAskRule: callbackOptions.matchedAskRule,\n                suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule,\n              } : callbackOptions,\n            }),"
+      "to": "              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n                ...(callbackOptions.matchedAskRule === undefined ? {}\n                  : { matchedAskRule: callbackOptions.matchedAskRule }),\n                ...(callbackOptions.suppressAlwaysAllowRule === undefined ? {}\n                  : { suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule }),\n              } : callbackOptions,\n            }),"
     },
     {
       "id": "claude-private-preview-refusal",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "a22ec4679b0a8a92d6bd55a24f15314c604340a8bed779c981c1f61b20e93edc",
-      "afterSha256": "379497eebc1ae8b0a172e9dc8cb523fbbd043a8aec0983436994f84e83c1f37a",
+      "beforeSha256": "0846be329170e4d9192ef6eabb8f0f0878f20926cf6c130d7fb90820d853b784",
+      "afterSha256": "79e71d179d17f31a3f60b21018b29c575ad9656d1a42f73500ecc3cfaad7b696",
       "from": "              !toolCall.toolName.startsWith(\"mcp__\") ||",
       "to": "              isSecretRequestTool(toolCall.toolName) ||\n              !toolCall.toolName.startsWith(\"mcp__\") ||"
     },
@@ -165,8 +165,8 @@
     {
       "id": "claude-masked-question-admission",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "379497eebc1ae8b0a172e9dc8cb523fbbd043a8aec0983436994f84e83c1f37a",
-      "afterSha256": "59c18bec65688116b3029f0094940455195fd5deb956a6f83730d2e5e1845c96",
+      "beforeSha256": "79e71d179d17f31a3f60b21018b29c575ad9656d1a42f73500ecc3cfaad7b696",
+      "afterSha256": "ae88a140d1bb8ad7139972ec66c311b4e3df2bf0820fba996a36b073d85dca2d",
       "from": "  if (!Array.isArray(questions)) return [];\n  return questions.flatMap",
       "to": "  if (!Array.isArray(questions)) return [];\n  assertPublicUserInputQuestions(questions);\n  return questions.flatMap"
     },
@@ -197,8 +197,8 @@
     {
       "id": "claude-private-tool-before-publication",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "59c18bec65688116b3029f0094940455195fd5deb956a6f83730d2e5e1845c96",
-      "afterSha256": "92bb27a526c8b1f7126d697a13a1bf7e92f9818a03621e32f04b916feea21695",
+      "beforeSha256": "ae88a140d1bb8ad7139972ec66c311b4e3df2bf0820fba996a36b073d85dca2d",
+      "afterSha256": "dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d",
       "from": "          return Queue.offer(events, event).pipe(Effect.asVoid);",
       "to": "          return Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
     },
