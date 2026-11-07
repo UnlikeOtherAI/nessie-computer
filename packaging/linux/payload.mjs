@@ -104,8 +104,8 @@ const downloadPinned = async (url, destination, expected, label) => {
 }
 
 /**
- * Downloads and verifies the pinned Firecracker release, then lays its two
- * binaries down under their unversioned names. dpkg makes them root-owned;
+ * Downloads and verifies the pinned Firecracker release, then stages its binary
+ * and licence. The package assigns their installed root ownership;
  * 0755 keeps them readable and executable by the daemon's own user while only
  * an administrator can replace them, which is what makes the packaged copy a
  * trust root rather than a self-attestation.
@@ -116,7 +116,10 @@ const stageFirecracker = async (destination) => {
   await downloadPinned(FIRECRACKER_URL, archive, FIRECRACKER_ARCHIVE_SHA256, 'Firecracker release archive')
   const unpacked = join(destination, 'unpacked')
   await mkdir(unpacked, { mode: 0o755, recursive: true })
-  await run('tar', ['--extract', '--gzip', '--file', archive, '--directory', unpacked])
+  // Archive UIDs are build metadata; nFPM assigns installed root ownership.
+  await run('tar', [
+    '--extract', '--gzip', '--no-same-owner', '--file', archive, '--directory', unpacked,
+  ])
   const releaseDirectory = join(unpacked, `release-${FIRECRACKER_VERSION}-${FIRECRACKER_MACHINE}`)
   for (const binary of FIRECRACKER_BINARIES) {
     await copyFile(
