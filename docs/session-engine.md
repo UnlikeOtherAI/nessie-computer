@@ -1,5 +1,27 @@
 # Executor-owned T3 session engine
 
+The machine-only contract foundation lives in `packages/t3-session-source` and
+`packages/protocol/src/t3-session`. It preserves the original 78-file contract
+closure and all three upstream contract entries, with Effect 4.1.2 external and
+shared ESM chunks. `dist/provenance.json` binds the capsule, selected source,
+generated modules, declaration dependencies, transforms and public dependency lock.
+TypeScript 5.9.3 checks the original source; declaration barrels preserve source
+types with recorded module-suffix changes to avoid TS7056 expansion limits.
+Strict NodeNext and Bundler consumers resolve the actual export maps with full
+library checking and negative Type/Encoded fixtures. The protocol subpath exports
+its built declarations. Model preference fields, provider-refresh side effects,
+stored schedule targets and interactive MCP app targets have explicit ledger
+policies; no method prefix grants authority. Sensitive ingress remains withheld
+until canonical Security persistence and scoped use ports are implemented.
+
+For a final engine co-build, import `@nessie/t3-session-source/build` and use
+`sessionContractsAliasPlugin({dependencyDirectory})` with the committed `sessionEngineSourcePlugin`.
+Both consume one snapshot, source namespace and dependency root. Do not load an
+independently bundled lower-state proof beside a separate contracts candidate.
+The method ledger classifies all original operations and leaves implementation
+slots unbound. Contract availability does not establish lifecycle, custody,
+provider, resource, import, Node 22 or mobile eligibility.
+
 Status: pinned source preparation and a real lower-state library are implemented
 and qualified with synthetic SQLite. The session engine is not yet an installed
 or available executor capability. No lifecycle, provider execution, T3 gateway,
