@@ -49,7 +49,7 @@ export const createSecretAskWatcher = (input: {
           continue
         }
         const secretName = input.projector.line(ask.name, 200) || 'a secret'
-        input.requests.open({
+        const opened = input.requests.open({
           kind: 'secret', title: input.projector.line(`Provide ${secretName}`, 300),
           justification: input.projector.text(ask.reason, CODING_EVENT_LIMITS.result),
           secretName, destination: ask.destination, ...(ask.envName ? { envName: ask.envName } : {}),
@@ -65,6 +65,7 @@ export const createSecretAskWatcher = (input: {
           },
           withdraw: (status, reason) => { void reply(askId, { outcome: status, reason }) },
         })
+        if (!opened) await reply(askId, { outcome: 'refused', reason: 'invalid_request' })
       }
     },
   }

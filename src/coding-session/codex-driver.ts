@@ -142,7 +142,12 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
         if (reason !== 'provider_cancelled' && agent?.alive()) connection.respond(request.id, plan.withdraw())
       },
     })
-    asked.set(request.id, opened.id)
+    // A request the protocol cannot carry is turned down rather than left waiting on nobody.
+    if (opened) asked.set(request.id, opened.id)
+    else {
+      context.log('a Codex request could not be shown to the owner')
+      connection.respond(request.id, plan.withdraw())
+    }
   }
 
   const accept = (line: string): void => {

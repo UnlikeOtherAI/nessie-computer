@@ -128,8 +128,8 @@ export const planCodexRequest = (
     const ids = questions.map((question) => textOf(question.id)).filter(Boolean)
     return {
       kind: 'ask',
-      draft: questionDraft({ projector, decisions: ['decline', 'cancel'], questions: questions.map((question) => ({
-        id: textOf(question.id), header: question.header, question: question.question,
+      draft: questionDraft({ projector, decisions: ['decline', 'cancel'], questions: questions.map((question, index) => ({
+        id: textOf(question.id) || `q${index + 1}`, header: question.header, question: question.question,
         options: (Array.isArray(question.options) ? question.options : []).filter(record)
           .map((option) => ({ label: option.label, description: option.description })),
         multiSelect: false, allowCustomAnswer: question.isOther === true || !Array.isArray(question.options)

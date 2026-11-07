@@ -114,7 +114,12 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         if (asker?.alive() && reason !== 'provider_cancelled') asker.write(plan.withdraw(reason))
       },
     })
-    asked.set(prompt.requestId, opened.id)
+    // A prompt the protocol cannot carry is turned down rather than left waiting on nobody.
+    if (opened) asked.set(prompt.requestId, opened.id)
+    else {
+      context.log('a permission prompt could not be shown to the owner')
+      asker?.write(plan.withdraw('unreadable_request'))
+    }
   }
 
   const start = async (): Promise<AgentProcess> => {

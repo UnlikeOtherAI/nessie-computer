@@ -93,15 +93,20 @@ export class SessionRequestBook {
     if (previous.some((request) => request.status === 'pending')) this.publish()
   }
 
-  /** Opens a request; the draft's text must already be projected and within the protocol's bounds. */
-  open(draft: SessionRequestDraft, responder: SessionRequestResponder): ExecutorSessionRequest {
-    const request = ExecutorSessionRequestSchema.parse({
+  /**
+   * Opens a request; the draft's text must already be projected and within
+   * the protocol's bounds. A draft the protocol refuses opens nothing and
+   * answers undefined, so the caller turns the provider down instead.
+   */
+  open(draft: SessionRequestDraft, responder: SessionRequestResponder): ExecutorSessionRequest | undefined {
+    const parsed = ExecutorSessionRequestSchema.safeParse({
       ...draft, id: `req-${randomUUID()}`, status: 'pending', answerable: draft.answerable ?? true,
       openedAt: new Date().toISOString(),
     })
-    this.#entries.push({ request, responder, settled: 0 })
+    if (!parsed.success) return undefined
+    this.#entries.push({ request: parsed.data, responder, settled: 0 })
     this.publish()
-    return request
+    return parsed.data
   }
 
   get(id: string): ExecutorSessionRequest | undefined {

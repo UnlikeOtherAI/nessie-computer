@@ -30,10 +30,10 @@ const silent = { answer: () => undefined, withdraw: () => undefined }
 
 test('an answer must fit its request: pending, answerable, and of its own shape', () => {
   const book = new SessionRequestBook(() => undefined)
-  const command = book.open(approval, silent)
-  const asked = book.open(question, silent)
-  const secret = book.open({ kind: 'secret', title: 'Provide a key', secretName: 'key', destination: '.env', decisions: ['decline'] }, silent)
-  const unanswerable = book.open({ ...approval, answerable: false }, silent)
+  const command = book.open(approval, silent)!
+  const asked = book.open(question, silent)!
+  const secret = book.open({ kind: 'secret', title: 'Provide a key', secretName: 'key', destination: '.env', decisions: ['decline'] }, silent)!
+  const unanswerable = book.open({ ...approval, answerable: false }, silent)!
   assert.equal(answerProblem(command, { requestId: command.id, decision: 'accept' }), undefined)
   assert.equal(answerProblem(command, { requestId: command.id, decision: 'accept_for_session' }), 'answer_shape_mismatch',
     'only a decision the request offers')
@@ -59,7 +59,7 @@ test('the book lists pending first, keeps the most recent settled within the cap
   const published: ExecutorSessionRequest[][] = []
   const book = new SessionRequestBook((list) => published.push(list))
   const answered: string[] = []
-  const opened = Array.from({ length: 20 }, () => book.open(approval, silent))
+  const opened = Array.from({ length: 20 }, () => book.open(approval, silent)!)
   for (const request of opened.slice(0, 18)) {
     book.answer({ requestId: request.id, decision: 'decline' })
     answered.push(request.id)
@@ -81,13 +81,16 @@ test('a responder hears the answer or why the request ended, once', () => {
   const heard: string[] = []
   const book = new SessionRequestBook(() => undefined)
   const one = book.open(approval, { answer: (answer) => heard.push(`answer:${answer.decision}`),
-    withdraw: (status, reason) => heard.push(`${status}:${reason}`) })
-  const two = book.open(approval, { answer: () => heard.push('never'), withdraw: (status, reason) => heard.push(`${status}:${reason}`) })
+    withdraw: (status, reason) => heard.push(`${status}:${reason}`) })!
+  const two = book.open(approval, { answer: () => heard.push('never'), withdraw: (status, reason) => heard.push(`${status}:${reason}`) })!
   book.answer({ requestId: one.id, decision: 'accept' })
   book.withdraw(two.id, 'cancelled', 'provider_cancelled')
   book.withdraw(two.id, 'expired', 'provider_exited')
   book.withdrawAll('expired', 'provider_exited')
   assert.deepEqual(heard, ['answer:accept', 'cancelled:provider_cancelled'])
+  assert.equal(book.open({ ...approval, title: '' }, silent), undefined, 'a draft the protocol refuses opens nothing')
+  assert.equal(book.open({ ...approval, files: Array.from({ length: 65 }, () => ({ path: 'a', change: 'add' as const })) },
+    silent), undefined)
 })
 
 test('what an earlier host left pending reads expired, on disk and when no host is alive', async () => {
