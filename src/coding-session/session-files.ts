@@ -18,6 +18,11 @@ import { CODING_SESSION_ID_PATTERN } from './types.js'
  *   <stateDir>/sessions/<id>/host.lock     the live host's heartbeat
  *   <stateDir>/sessions/<id>/host.log      the host's stdout/stderr, bounded
  *   <stateDir>/sessions/<id>/agent-stderr.log
+ *   <stateDir>/sessions/<id>/requests.json  host-written: what the agent waits on its owner for
+ *   <stateDir>/sessions/<id>/answers/       one claim per answered request, so it is answered once
+ *   <stateDir>/sessions/<id>/secret-asks/   `request_secret` calls waiting for a host
+ *   <stateDir>/sessions/<id>/secret-answers/ the host's outcome for each, read by the waiting call
+ *   <stateDir>/session-changes.json        replaced by every host when a session changes
  */
 export type CodingSessionPaths = {
   dir: string
@@ -31,6 +36,10 @@ export type CodingSessionPaths = {
   agentStderr: string
   delivered: string
   spawnMarker: string
+  requests: string
+  answers: string
+  secretAsks: string
+  secretAnswers: string
 }
 
 export const codingCommandsDir = (stateDir: string): string => join(stateDir, 'commands')
@@ -53,6 +62,10 @@ export const codingSessionPaths = (stateDir: string, sessionId: string): CodingS
     agentStderr: join(dir, 'agent-stderr.log'),
     delivered: join(dir, 'delivered.json'),
     spawnMarker: join(dir, 'spawn.json'),
+    requests: join(dir, 'requests.json'),
+    answers: join(dir, 'answers'),
+    secretAsks: join(dir, 'secret-asks'),
+    secretAnswers: join(dir, 'secret-answers'),
   }
 }
 

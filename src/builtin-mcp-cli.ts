@@ -45,6 +45,13 @@ export const runBuiltinMcpCli = async (args: string[]): Promise<boolean> => {
     await serveCodingSessionMcp(configPath(args, CODING_SESSION_MCP_USAGE))
     return true
   }
+  if (args[0] === 'serve-session-secrets') {
+    if (args.length !== 3 || args[1] !== '--session-dir' || !args[2] || !isAbsolute(args[2])) {
+      throw new Error('Usage: nessie-executor serve-session-secrets --session-dir <absolute-session-directory>')
+    }
+    await (await import('./coding-session/session-secret-mcp.js')).serveSessionSecrets(args[2])
+    return true
+  }
   if (args[0] === 'coding-session-host') {
     const session = args[args.indexOf('--session') + 1]
     if (args.length !== 5 || !args.includes('--session') || !session) throw new Error(CODING_SESSION_HOST_USAGE)

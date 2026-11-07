@@ -68,6 +68,10 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       if (!session || session.ownerKey !== args.ownerKey) return { conversation: null }
       return { conversation: await readSessionConversation(paths, session) }
     }
+    if (tool === 'existing_session_refresh' && meta.daemonControl) {
+      argumentsFor(value, [])
+      return { changed: await existing.refreshStatuses().catch(() => false) }
+    }
     if (tool === 'existing_session_screen' && meta.daemonControl) {
       const args = argumentsFor(value, ['sessionId', 'ownerKey'])
       if (args.ownerKey !== EXISTING_CODING_SESSION_OWNER_KEY) return { screen: null }

@@ -45,3 +45,5 @@ verification limits.
 
 Computer telemetry, Claude/Codex account probes, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
+The daemon doorbell, live session requests, owner answers and `request_secret` follow
+[live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.

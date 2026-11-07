@@ -2,8 +2,8 @@ import { realpath, stat } from 'node:fs/promises'
 import { isAbsolute } from 'node:path'
 
 import type { CommandRunner } from './agent-env.js'
-import { claudeArguments } from './claude-adapter.js'
-import { codexArguments } from './codex-adapter.js'
+import { CLAUDE_PROMPT_TOOL_ARGUMENTS, claudeArguments } from './claude-adapter.js'
+import { codexAppServerArguments } from './codex-adapter.js'
 import type { CodingAgentConfig } from './config.js'
 import { resolveProgramPath } from './program-path.js'
 import { readJson, writeJsonAtomic } from './session-files.js'
@@ -17,13 +17,14 @@ import type { CodingAgentName } from './types.js'
  * The flags required are the adapter's own argv, fresh and resumed, so a flag
  * the adapter gains is required with it. For Claude Code that is `-p`,
  * `--input-format`, `--output-format`, `--verbose`, `--replay-user-messages`,
- * `--session-id`, `--resume`, `--permission-prompts` and
+ * `--session-id`, `--resume`, `--permission-prompts`, `--mcp-config` and
  * `--append-system-prompt`, then `--permission-mode`, `--allowedTools`,
  * `--disallowedTools`, `--model` and `--max-budget-usd` when the
- * configuration turns them on, and every flag in the owner's `args`. For Codex
- * it is the `exec` and `exec resume` subcommands (each help's `Usage:` line
- * must name it), `-C` and `--json` on `exec`, `--json` on `exec resume`, which
- * parses it there, `-m` with a model, and the owner's `args`. A configured
+ * configuration turns them on, and every flag in the owner's `args` (not
+ * `--permission-prompt-tool`, the Agent SDK's own option, which no help lists).
+ * For Codex it is the `app-server` subcommand, whose help's `Usage:` line must
+ * name it; the owner's reviewed `args` become that server's thread
+ * parameters, and one it cannot carry refuses the start. A configured
  * `permissionMode` must be one of the choices `--permission-mode` lists, and
  * a help that lists none refuses it too: commander prints `(choices: …)`
  * exactly when the CLI checks the value itself, so without one a mode it
@@ -72,7 +73,7 @@ const MAX_FLAGS = 400
 const HELP_COMMANDS: Record<CodingAgentName, { help: string; args: string[] }[]> = {
   terminal: [],
   claude: [{ help: '', args: ['--help'] }],
-  codex: [{ help: 'exec', args: ['exec', '--help'] }, { help: 'exec resume', args: ['exec', 'resume', '--help'] }],
+  codex: [{ help: 'app-server', args: ['app-server', '--help'] }],
 }
 
 /** An option line: commander indents by two, clap by two or six; descriptions sit further in. */
@@ -148,17 +149,19 @@ const requirements = (agent: CodingAgentName, config: CodingAgentConfig, maxBudg
   const own = (argv: string[]): string[] => argv.slice(config.command.length - 1)
   if (agent === 'claude') {
     const budget = maxBudgetUsd === undefined ? {} : { maxBudgetUsd }
-    return [false, true].map((resume) => ({ help: '', argv: own(claudeArguments(config, { sessionId: SAMPLE_ID, resume, ...budget })) }))
+    // The prompt tool is the Agent SDK's own option, which `--help` never lists; `--permission-prompts` names it.
+    const listed = (argv: string[]): string[] => {
+      const at = argv.indexOf(CLAUDE_PROMPT_TOOL_ARGUMENTS[0])
+      return at < 0 ? argv : [...argv.slice(0, at), ...argv.slice(at + CLAUDE_PROMPT_TOOL_ARGUMENTS.length)]
+    }
+    const mcpServer = { name: 'sample', command: 'sample', args: [] }
+    return [false, true].map((resume) => ({
+      help: '', argv: listed(own(claudeArguments(config, { sessionId: SAMPLE_ID, resume, mcpServer, ...budget }))),
+    }))
   }
-  const fresh = own(codexArguments(config, { folder: '.' }))
-  const resumed = own(codexArguments(config, { folder: '.', threadId: SAMPLE_ID }))
-  // The subcommand, not a model that happens to be called `resume`: only the thread id and `--json -` follow it.
-  const at = resumed.lastIndexOf('resume')
-  return [
-    { help: 'exec', argv: fresh },
-    { help: 'exec', argv: resumed.slice(0, at) },
-    { help: 'exec resume', argv: resumed.slice(at + 2) },
-  ]
+  // The reviewed stance becomes the thread's parameters, not flags; `codexPolicy` refuses one it cannot carry.
+  const argv = own(codexAppServerArguments(config))
+  return [{ help: 'app-server', argv: argv.slice(argv.lastIndexOf('app-server') + 1) }]
 }
 
 const namesCommand = (usage: string, help: string): boolean => (

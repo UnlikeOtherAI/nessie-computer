@@ -216,8 +216,7 @@ test('the self-check names each failure, reads only the login flag, and treats g
     agent: 'codex', config: { command: ['node', 'codex.js'], args: [], allowedTools: [], disallowedTools: [] }, cwd: '/w', env: {},
     platform: 'linux', run: runner({
       'gh auth': { missing: true },
-      'node codex.js exec resume --help': { stdout: helpText('codex-0.155.1-exec-resume.txt') },
-      'node codex.js exec --help': { stdout: helpText('codex-0.155.1-exec.txt') },
+      'node codex.js app-server --help': { stdout: helpText('codex-0.166.0-app-server.txt') },
       'node codex.js login status': { code: 1 },
     }),
   })

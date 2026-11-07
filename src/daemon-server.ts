@@ -31,12 +31,17 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { createExecutorMcpSessionManager } from './mcp-session-manager.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
+import { createDaemonCadence } from './daemon-cadence.js'
+import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
+import { watchSessionChanges } from './session-change-watch.js'
 import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
 import { reportedSoftwareStatus, requestSoftwareUpdate } from './updates/native-client.js'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
 const CODING_SESSION_SHUTDOWN_BUDGET_MS = 5_000
+// How often the Codex threads found open on this computer are asked whether they wait on their own client.
+const EXISTING_STATUS_REFRESH_MS = 5_000
 
 const withinShutdownBudget = (work: Promise<void>): Promise<void> => Promise.race([
   work.catch(() => undefined),
@@ -145,6 +150,8 @@ export const serveExecutor = async (
           try {
             live = await claimExecutor(stateDir, live)
             live = await localInference.supervisor.reconnect(live)
+            // The doorbell proved the old connection epoch; it rings again under the new one.
+            doorbell.restart()
           } catch (claimError) {
             await codingBridge.connectionFailed('claim_failed', claimError).catch(() => undefined)
             console.error('[nessie-executor] reconnect failed:', claimError instanceof Error ? claimError.message : String(claimError))
@@ -174,19 +181,44 @@ export const serveExecutor = async (
       }
       // Existing work, including its follow-up commands and Close actions,
       // continues while the update waits. No session is stopped to make it idle.
-      void commandPoll.run()
-      void screenPoll.run()
+      cadence.tick()
     })
-    const commandInterval = setInterval(() => { void pollTick.run().catch(() => undefined) }, 1_000)
+    // The command poll and the session exchange: once a second, or the doorbell's slower
+    // pace while it is open, and at once when it rings or a session changes here.
+    const cadence = createDaemonCadence({
+      commands: commandPoll, sessions: screenPoll, heartbeat, sessionsHot: relayScreens.hot,
+    })
+    const doorbell = new ExecutorDaemonDoorbell({
+      state: () => live,
+      onReady: (pollSeconds) => cadence.ready(pollSeconds),
+      onWake: (topics) => { if (!shuttingDown) cadence.wake(topics) },
+      onDown: () => cadence.down(),
+    })
+    const sessionChanged = (): void => {
+      if (shuttingDown) return
+      relayScreens.forceInventory()
+      cadence.sessionChanged()
+    }
+    const changes = watchSessionChanges({ path: codingBridge.changeMarker, onChange: sessionChanged })
+    const existingRefresh = createNonOverlappingExecutorTask(async () => {
+      if (await codingBridge.refreshExisting().catch(() => false)) sessionChanged()
+    })
+    const commandInterval = setInterval(() => { void pollTick.run().catch(() => undefined) }, 250)
     const interval = setInterval(() => { void heartbeat.run() }, 20_000)
+    const existingInterval = setInterval(() => { void existingRefresh.run() }, EXISTING_STATUS_REFRESH_MS)
+    existingInterval.unref()
     void heartbeat.run()
+    doorbell.start()
     try {
       await waitForExecutorDaemonShutdown(options.parentLiveness, updateReady)
     } finally {
       shuttingDown = true
       localMcp.stop()
+      doorbell.stop()
+      changes.stop()
       clearInterval(interval)
       clearInterval(commandInterval)
+      clearInterval(existingInterval)
       executorApi.cancelPending()
       // Its in-flight calls were just cancelled; whatever a transfer left is in its journal.
       await monitor.stop()

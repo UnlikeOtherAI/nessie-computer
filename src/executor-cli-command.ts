@@ -106,6 +106,7 @@ const usage = (): never => {
     + '       nessie-executor connect|heartbeat|serve --state-dir <owner-only-path>\n'
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
+    + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
     + '       nessie-executor coding-session-host --config <absolute-owner-only-file> --session <uuid>\n'
     + '       nessie-executor serve-direct-local-inference --config-stdin\n'
     + '       nessie-executor local-inference endpoint configure|status|remove --state-dir <path> [--config-stdin]\n'

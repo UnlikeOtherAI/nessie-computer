@@ -19,10 +19,19 @@ const statusOf = (value: unknown): ExistingSession['status'] => {
   return type === 'active' ? 'working' : type === 'idle' ? 'waiting_for_input' : 'unknown'
 }
 
+/** What an active thread's flags say it waits on: its client's approval, or its client's input. */
+const waitingOf = (value: unknown): 'approval' | 'question' | undefined => {
+  const status = objectOf(value)
+  const flags = status.type === 'active' && Array.isArray(status.activeFlags) ? status.activeFlags : []
+  return flags.includes('waitingOnUserInput') ? 'question' : flags.includes('waitingOnApproval') ? 'approval' : undefined
+}
+
 export class ExistingCodex {
   readonly profile: string
   private readonly rpc: Pick<CodexRpc, 'call' | 'close'>
   private queueSupported: boolean | undefined
+  /** When each thread was first seen waiting, so its summary's `since` holds still while it waits. */
+  private readonly waiting = new Map<string, { kind: 'approval' | 'question'; since: string }>()
   nextCursor: string | null = null
 
   constructor(readonly program: ProviderProgram, env: NodeJS.ProcessEnv, rpc?: Pick<CodexRpc, 'call' | 'close'>) {
@@ -35,6 +44,11 @@ export class ExistingCodex {
     if (!nativeIdIsValid(thread.id)) return undefined
     const observed = typeof thread.updatedAt === 'number' ? new Date(thread.updatedAt * 1_000) : new Date()
     if (!Number.isFinite(observed.getTime())) return undefined
+    const kind = waitingOf(thread.status)
+    const known = this.waiting.get(thread.id)
+    if (!kind) this.waiting.delete(thread.id)
+    else if (known?.kind !== kind) this.waiting.set(thread.id, { kind, since: new Date().toISOString() })
+    const waiting = this.waiting.get(thread.id)
     return {
       sessionId: existingSessionId('codex', this.profile, thread.id), nativeId: thread.id, provider: 'codex',
       title: textOf(thread.name || thread.preview) || 'Codex session', cwd: textOf(thread.cwd, 4_096),
@@ -42,7 +56,22 @@ export class ExistingCodex {
       capabilities: { queue: this.queueSupported === true && thread.canAcceptDirectInput !== false,
         push: false, steer: false, interrupt: false,
         reason: this.queueSupported ? QUEUE_BEHAVIOR : 'This Codex build does not expose the experimental native queue.' },
+      ...(waiting ? { pending: { kind: waiting.kind, count: 1, answerable: false, since: waiting.since } } : {}),
     }
+  }
+
+  /**
+   * The most recently updated threads' runtime status, flags included, from
+   * the state database alone: one bounded page, no history, no cursor kept. A
+   * thread waiting on its client was updated when it started waiting, so it
+   * is on this page.
+   */
+  async statuses(): Promise<ExistingSession[]> {
+    const result = objectOf(await this.rpc.call('thread/list', {
+      limit: 32, sortKey: 'updated_at', archived: false, useStateDbOnly: true, modelProviders: [],
+    }))
+    const threads = Array.isArray(result.data) ? result.data : []
+    return threads.flatMap((thread) => { const row = this.project(thread); return row ? [row] : [] })
   }
 
   async list(cursor?: string, search?: string): Promise<ExistingSession[]> {

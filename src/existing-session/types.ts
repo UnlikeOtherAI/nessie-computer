@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto'
 
+import type { ExecutorSessionPendingSummary } from '@nessie/executor-protocol'
+
 export type ExistingProvider = 'codex' | 'claude'
 export type ExistingSession = {
   sessionId: string
@@ -13,6 +15,11 @@ export type ExistingSession = {
   incarnation?: string
   turnId?: string
   capabilities: { queue: boolean; push: boolean; steer: false; interrupt: false; reason: string }
+  /**
+   * The thread waits on its own client's approval or input (Codex's active
+   * flags). Nessie can say so but cannot answer for that client.
+   */
+  pending?: ExecutorSessionPendingSummary
 }
 
 /** A native session is scoped to the provider profile, never selected by title, path or PID. */

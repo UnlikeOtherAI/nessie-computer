@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ExecutorSessionPendingSummarySchema } from './executor-session-requests.js'
 
 import { AgentIdSchema, UserIdSchema } from './ids.js'
 import { TimestampSchema } from './schema-primitives.js'
@@ -335,6 +336,8 @@ export const ExecutorCodingSessionSummarySchema = z
      * Absent from an older daemon's report, which infers nothing.
      */
     totalCostUsd: z.number().min(0).max(1_000_000).optional(),
+    /** Present while the session waits on its owner; absent infers nothing from an older daemon. */
+    pending: ExecutorSessionPendingSummarySchema.optional(),
   })
   .strict()
 export type ExecutorCodingSessionSummary = z.infer<typeof ExecutorCodingSessionSummarySchema>

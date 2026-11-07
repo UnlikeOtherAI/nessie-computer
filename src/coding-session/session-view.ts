@@ -10,6 +10,7 @@ import {
 import { readJson, type CodingSessionPaths } from './session-files.js'
 import type { CodingSessionMeta, CodingSessionState } from './types.js'
 import { codingConversation } from './conversation.js'
+import { readSessionRequests } from './session-request-file.js'
 import { deriveCodingStatus } from './status.js'
 
 /** A bounded text observation for the model; only the viewer receives ANSI. */
@@ -80,6 +81,8 @@ export const readSessionConversation = async (paths: CodingSessionPaths, meta: C
     if (start > 0) lines.shift()
     lines.pop()
     const events = lines.flatMap((line) => { try { return [JSON.parse(line)] } catch { return [] } })
-    return codingConversation({ events, status: derived.status, truncated: start > 0 })
+    const requests = await readSessionRequests(paths, derived.hostLive)
+    return { ...codingConversation({ events, status: derived.status, truncated: start > 0 }),
+      ...(requests.length ? { requests } : {}) }
   } finally { await file.close() }
 }

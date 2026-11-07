@@ -212,3 +212,44 @@ test('background inventory requires live private-machine authority and stops at 
     assert.deepEqual(await manager.inventory(), [])
   } finally { await manager.close(); await rm(directory, { recursive: true, force: true }) }
 })
+
+test('a Codex thread waiting on its own client reads as pending and unanswerable, refreshed without history',
+  async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'nessie-existing-waiting-'))
+    try {
+      await writeFile(join(directory, 'existing-coding-sessions.json'), JSON.stringify({ enabled: true }))
+      const { existingAuthorityWriter } = await import('../src/existing-session/authority.js')
+      await existingAuthorityWriter(directory)(true)
+      let status: Record<string, unknown> = { type: 'active', activeFlags: [] }
+      const methods: string[] = []
+      const codex = new ExistingCodex({ path: '/fake/codex', version: 'test' }, { CODEX_HOME: '/profile-a' }, {
+        close: () => undefined,
+        call: async (method) => {
+          methods.push(method)
+          return method === 'thread/list' ? { data: [{ ...nativeRow, status }] } : { data: [] }
+        },
+      })
+      const sessions = new ExistingSessions(directory, async () => ({ codex }))
+      const [first] = await sessions.inventory()
+      assert.equal(first?.status, 'working')
+      assert.equal('pending' in first!, false)
+      status = { type: 'active', activeFlags: ['waitingOnApproval'] }
+      assert.equal(await sessions.refreshStatuses(0), true)
+      const [waiting] = await sessions.inventory()
+      const pending = waiting?.pending as { kind: string; answerable: boolean; count: number; since: string }
+      assert.deepEqual([pending.kind, pending.answerable, pending.count], ['approval', false, 1])
+      assert.equal(await sessions.refreshStatuses(0), false, 'an unchanged wait is no change')
+      assert.equal(((await sessions.inventory())[0]?.pending as { since: string }).since, pending.since)
+      assert.equal(await sessions.refreshStatuses(60_000), false, 'refreshed at most on its cadence')
+      status = { type: 'active', activeFlags: ['waitingOnUserInput'] }
+      assert.equal(await sessions.refreshStatuses(0), true)
+      assert.equal(((await sessions.inventory())[0]?.pending as { kind: string }).kind, 'question')
+      status = { type: 'idle' }
+      assert.equal(await sessions.refreshStatuses(0), true)
+      const [idle] = await sessions.inventory()
+      assert.deepEqual([idle?.status, 'pending' in idle!], ['waiting_for_input', false])
+      assert.equal(methods.includes('thread/read'), false, 'status is refreshed without reading history')
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })

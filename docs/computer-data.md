@@ -58,7 +58,9 @@ existing maximum and command-journal contract.
 
 ## Human input
 
-The paired owner can send to a managed coding session or request an interrupt.
+The paired owner can send to a managed coding session, request an interrupt, or
+answer what the session waits on — an approval, a question or a secret — as
+[live coding sessions](live-coding-sessions.md) describes.
 Native Codex supports Queue only when its experimental queue is advertised.
 Native Claude supports Push only with the existing explicitly enabled channel.
 Saved history without an active input capability remains readable. No operation

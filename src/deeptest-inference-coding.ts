@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { buildAgentEnvironment, runCommand, type CommandRunner } from './coding-session/agent-env.js'
 import { createHostProcessControl } from './coding-session/agent-guard.js'
-import { createCodexTurnState } from './coding-session/codex-adapter.js'
+import { createCodexExecTurnState } from './coding-session/codex-exec-events.js'
 import { createClaudeStreamState } from './coding-session/claude-adapter.js'
 import { loadCodingSessionsConfig } from './coding-session/config.js'
 import { resolveProgramPath } from './coding-session/program-path.js'
@@ -196,7 +196,7 @@ export const createDeepTestCodingBackends = async (
           child = control.spawnAgent(selected.program, args, { cwd: folder, env })
           signal.addEventListener('abort', stop, { once: true })
           if (signal.aborted) stop()
-          const codex = createCodexTurnState(projector)
+          const codex = createCodexExecTurnState(projector)
           const claude = createClaudeStreamState(projector)
           let response = ''
           let complete = false

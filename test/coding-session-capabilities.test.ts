@@ -16,7 +16,8 @@ import type { CodingAgentConfig } from '../src/coding-session/config.js'
 
 /**
  * What an installed coding CLI offers, proved against the help texts captured
- * from claude 2.1.280 and codex-cli 0.155.1. `claude-older.txt` is the 2.1.280
+ * from claude 2.1.280, codex-cli 0.155.1 (`exec`) and codex-cli 0.166.0 (`app-server`).
+ * `claude-older.txt` is the 2.1.280
  * text with the `--permission-prompts` option taken out, standing in for a
  * CLI from before that flag existed.
  */
@@ -25,6 +26,7 @@ const helpText = (name: string): string => readFileSync(new URL(`./fixtures/agen
 const CLAUDE = parseHelpText(helpText('claude-2.1.280.txt'))
 const OLDER = parseHelpText(helpText('claude-older.txt'))
 const CODEX = { exec: parseHelpText(helpText('codex-0.155.1-exec.txt')), 'exec resume': parseHelpText(helpText('codex-0.155.1-exec-resume.txt')) }
+const APP_SERVER = { 'app-server': parseHelpText(helpText('codex-0.166.0-app-server.txt')) }
 
 const agent = (overrides: Partial<CodingAgentConfig> = {}): CodingAgentConfig => ({
   command: ['/opt/claude'], args: [], allowedTools: [], disallowedTools: [], ...overrides,
@@ -72,9 +74,9 @@ test('a flag the CLI does not list refuses the start as agent_outdated, naming w
   assert.deepEqual(checkAgentCapabilities({ agent: 'claude', config: agent(), capabilities: {} }), {
     ok: false, reason: 'agent_help_unreadable', missing: ['--help'],
   }, 'a help that could not be read is not an old CLI')
-  // A help that was read and lacks a flag still proves one, whatever else could not be read.
-  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: agent({ command: ['codex'], args: ['--full-auto'] }), capabilities: { exec: CODEX.exec } }), {
-    ok: false, reason: 'agent_outdated', missing: ['--full-auto'],
+  // A help that answered for another command proves a CLI without the subcommand.
+  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: agent({ command: ['codex'] }), capabilities: { 'app-server': CODEX.exec } }), {
+    ok: false, reason: 'agent_outdated', missing: ['app-server'],
   })
 })
 
@@ -86,10 +88,6 @@ test('an argv is read as the CLI reads it: combined short flags, and a value tha
   // `--effort <level>` takes a value, so what follows it is that value, even `-x`.
   assert.deepEqual(check(['--effort', '-x']), { ok: true })
   assert.deepEqual(check(['--effort=high', '-x']), { ok: false, reason: 'agent_outdated', missing: ['-x'] })
-  // A short flag's value may be attached, or be the next token.
-  const codex = (args: string[]) => checkAgentCapabilities({ agent: 'codex', config: agent({ command: ['codex'], args }), capabilities: CODEX })
-  assert.deepEqual(codex(['-s', '-weird-but-a-value']), { ok: true })
-  assert.deepEqual(codex(['-sworkspace-write']), { ok: true })
 })
 
 test('the permission mode is checked against the choices this CLI lists, not a list of our own', () => {
@@ -122,21 +120,15 @@ test('a list this parser cannot read leaves the mode unchecked, and no list at a
   assert.deepEqual(check('review', { '': CLAUDE }), { ok: false, reason: 'permission_mode_unsupported', missing: ['--permission-mode review'] })
 })
 
-test('Codex needs exec, exec resume, and each flag where the subcommand that parses it lists it', () => {
+test('Codex needs its app-server, and its reviewed stance is the thread\'s, not a flag it must list', () => {
+  assert.match(APP_SERVER['app-server'].usage, /^Usage: codex app-server/u)
   const codex = agent({ command: ['node', '/opt/codex.js'], args: ['--sandbox', 'workspace-write'], model: 'gpt-5' })
-  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: codex, capabilities: CODEX }), { ok: true })
-  // 0.155.1 lists no --full-auto on exec, so a configuration still passing it would fail on its first turn.
-  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: agent({ command: ['codex'], args: ['--full-auto'] }), capabilities: CODEX }), {
-    ok: false, reason: 'agent_outdated', missing: ['--full-auto'],
-  })
-  // A codex without `exec resume` answers `exec resume --help` with the exec help itself.
-  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: codex, capabilities: { exec: CODEX.exec, 'exec resume': CODEX.exec } }), {
-    ok: false, reason: 'agent_outdated', missing: ['exec resume'],
-  })
-  const noJson = { ...CODEX, 'exec resume': { ...CODEX['exec resume'], flags: CODEX['exec resume'].flags.filter((flag) => flag !== '--json') } }
-  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: codex, capabilities: noJson }), {
-    ok: false, reason: 'agent_outdated', missing: ['--json'],
-  })
+  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: codex, capabilities: APP_SERVER }), { ok: true })
+  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: agent({ command: ['codex'], args: ['--full-auto'] }),
+    capabilities: APP_SERVER }), { ok: true }, '--full-auto becomes the thread\'s policy (codexPolicy)')
+  assert.deepEqual(checkAgentCapabilities({ agent: 'codex', config: codex, capabilities: CODEX }), {
+    ok: false, reason: 'agent_help_unreadable', missing: ['app-server'],
+  }, 'a CLI that has not answered for its app-server has proved nothing')
 })
 
 test('help is read once per program path and modification time, and a failed read is not remembered', async () => {

@@ -68,7 +68,15 @@
       "cache": false
     },
     "//#test:updates-native": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:live-sessions": {
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     }
   }

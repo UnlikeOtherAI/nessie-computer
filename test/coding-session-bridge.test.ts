@@ -216,26 +216,49 @@ test('a start its host died holding, before its agent was ready, reaches the nex
   }
 })
 
-test('codex runs a process per turn, resumes its thread, and reports its failure shape', { timeout: 120_000 }, async () => {
-  const harness = await createCodingHarness()
+test('codex keeps one app-server per session, its turns share one thread, and a failed turn says why',
+  { timeout: 120_000 }, async () => {
+    const harness = await createCodingHarness()
+    try {
+      const sessionId = await started(harness, { agent: 'codex', prompt: 'first change' })
+      const first = await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input')
+      assert.match(lastResultText(first), /Codex done: first change/)
+      const sent = await harness.call('session_send', { sessionId, message: 'second change' })
+      // The turn it was sent at, so a caller that never read the session knows turn 2 is the answer.
+      assert.deepEqual([sent.body.status, sent.body.turn], ['waiting_for_input', 1])
+      const second = await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input' && body.turn === 2)
+      assert.match(lastResultText(second), /Codex done: second change/)
+      const codex = (await harness.agents()).filter((entry) => entry.agent === 'codex')
+      assert.equal(codex.filter((entry) => entry.event === 'start').length, 1, 'one app-server serves both turns')
+      const threads = codex.filter((entry) => entry.event === 'thread')
+      assert.deepEqual(threads.map((entry) => [entry.resume, entry.sandbox, entry.approvalPolicy]),
+        [[false, 'read-only', 'on-request']], 'the reviewed default stance: read-only, asking before leaving it')
+      assert.ok((threads[0]!.configKeys as string[]).includes('mcp_servers.nessie_session.command'),
+        'the session\'s request_secret server is added beside the owner\'s own')
+      const failing = await started(harness, { agent: 'codex', prompt: '#codexfail anything' })
+      const failed = await harness.waitForStatus(failing, (body) => body.status === 'waiting_for_input')
+      const result = failed.lastResult as { isError: boolean; subtype: string; text: string }
+      assert.equal(result.isError, true)
+      assert.equal(result.subtype, 'error')
+      assert.match(result.text, /usage limit/)
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
+test('an idle codex app-server is ended, and the next message resumes its thread', { timeout: 120_000 }, async () => {
+  const harness = await createCodingHarness({ codingSessions: { idleMinutes: 0.02 } })
   try {
     const sessionId = await started(harness, { agent: 'codex', prompt: 'first change' })
-    const first = await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input')
-    assert.match(lastResultText(first), /Codex done: first change/)
-    const sent = await harness.call('session_send', { sessionId, message: 'second change' })
-    // The turn it was sent at, so a caller that never read the session knows turn 2 is the answer.
-    assert.deepEqual([sent.body.status, sent.body.turn], ['waiting_for_input', 1])
+    await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input')
+    await waitUntil(async () => ((await harness.agents()).some((entry) => entry.agent === 'codex' && entry.event === 'exit')
+      ? true : undefined), 30_000, 'the idle app-server to end')
+    await harness.call('session_send', { sessionId, message: 'second change' })
     const second = await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input' && body.turn === 2)
     assert.match(lastResultText(second), /Codex done: second change/)
-    const starts = (await harness.agents()).filter((entry) => entry.agent === 'codex' && entry.event === 'start')
-    assert.deepEqual(starts.map((entry) => entry.resume), [false, true])
-    assert.equal(starts[1]!.threadId, starts[0]!.threadId)
-    const failing = await started(harness, { agent: 'codex', prompt: '#codexfail anything' })
-    const failed = await harness.waitForStatus(failing, (body) => body.status === 'waiting_for_input')
-    const result = failed.lastResult as { isError: boolean; subtype: string; text: string }
-    assert.equal(result.isError, true)
-    assert.equal(result.subtype, 'error')
-    assert.match(result.text, /usage limit/)
+    const threads = (await harness.agents()).filter((entry) => entry.agent === 'codex' && entry.event === 'thread')
+    assert.deepEqual(threads.map((entry) => entry.resume), [false, true])
+    assert.equal(threads[1]!.threadId, threads[0]!.threadId)
   } finally {
     await harness.cleanup()
   }

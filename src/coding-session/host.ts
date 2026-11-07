@@ -33,6 +33,11 @@ import {
 } from './session-files.js'
 import { acquireHostLock, HOST_HEARTBEAT_MS, type HeldHostLock } from './session-lock.js'
 import { inboxHasRequests, listRequests, readSessionMeta, removeRequest } from './session-requests.js'
+import { markCodingSessionChanged } from './session-change-marker.js'
+import { SessionRequestBook } from './session-request-book.js'
+import { readSessionRequests, writeSessionRequests } from './session-request-file.js'
+import { createSecretAskWatcher } from './session-secret-asks.js'
+import { sessionSecretServer } from './session-secret-server.js'
 import {
   initialCodingSessionState,
   type CodingEventBody,
@@ -144,10 +149,32 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     if (before === 'working' && state.status !== 'working') state.lastTurnEndedAt = state.updatedAt
     if (patch.status && patch.status !== before) {
       emit({ kind: 'system', subtype: 'status', status: patch.status, ...(state.reason ? { reason: state.reason } : {}) })
-    }
-    if (RECOVERY_FIELDS.some((key) => key in patch)) void writer.flush()
+      // On disk at once, then the daemon is told: it reports the change within a quarter second.
+      void writer.flush().then(() => markCodingSessionChanged(loaded.stateDir, meta.sessionId))
+    } else if (RECOVERY_FIELDS.some((key) => key in patch)) void writer.flush()
     else writer.schedule()
   }
+
+  // What the agent waits on its owner for. A change is written at once and announced like a status
+  // change; the time a turn spends waiting on its owner never counts against its turn limit.
+  let requestWrites: Promise<unknown> = Promise.resolve()
+  let waitingSince: number | undefined
+  const book = new SessionRequestBook((list) => {
+    requestWrites = requestWrites.then(async () => {
+      if (await lock.stillOurs()) await writeSessionRequests(paths, list)
+      await markCodingSessionChanged(loaded.stateDir, meta.sessionId)
+    }).catch((error: unknown) => log(`requests write failed: ${String(error)}`))
+    const waiting = list.some((request) => request.status === 'pending')
+    if (waiting) waitingSince ??= Date.now()
+    else if (waitingSince !== undefined) {
+      const waited = Date.now() - waitingSince
+      waitingSince = undefined
+      const startedAt = state.turnStartedAt
+      if (startedAt) update({ turnStartedAt: new Date(Date.parse(startedAt) + waited).toISOString() })
+    }
+    // The session changed, so it leads the next inventory page.
+    if (waiting) update({})
+  }, await readSessionRequests(paths, true))
 
   // A previous host died mid-turn: say so, and stop its agent before anything else runs.
   if (previous && (state.status === 'working' || state.status === 'starting') && state.turn > 0) {
@@ -210,6 +237,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
       update(await gitStartSnapshot(folder))
     }
     const driverContext = {
+      requests: book, secretServer: sessionSecretServer(paths),
       personalAuthority: meta.personalAuthority,
       agent, control, env, folder, paths, projector: context.projector, log, emit, update, state: () => state,
       stillOwner: lock.stillOurs,
@@ -252,11 +280,16 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   const handle = async (request: CodingSessionRequest): Promise<void> => {
     if (request.kind === 'retire') {
       retiring = true
+    } else if (request.kind === 'answer') {
+      const problem = request.answer ? book.answer(request.answer) : 'answer_shape_mismatch'
+      if (problem) log(`an answer was not delivered: ${problem}`)
     } else if (request.kind === 'close') {
+      book.withdrawAll('cancelled', 'session_closed')
       // The daemon's close carries its categorical reason; an owner's carries none.
       if (driver) await driver.close(request.reason)
       else update({ status: 'closed', reason: request.reason, turnStartedAt: undefined })
     } else if (request.kind === 'interrupt') {
+      book.withdrawAll('cancelled', 'turn_interrupted')
       await driver?.interrupt()
       // Ctrl-C is a key the terminal's program handles as it likes: a shell stays open, so it never ends one.
       if (driver?.busy() && meta.agent !== 'terminal') pendingInterrupt ??= { at: Date.now(), turn: state.turn }
@@ -264,10 +297,17 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
       emit({ kind: 'system', subtype: 'ignored', reason: state.status })
     } else if (request.kind === 'start' && state.turn > 0) {
       // A start this session already acted on (a replay the bridge let through); nothing to do.
-    } else {
+    } else if (request.kind === 'start' || request.kind === 'send') {
       await deliver(request.text ?? '', request.kind)
     }
   }
+
+  // `request_secret` calls the agent made, turned into requests for the owner.
+  const secretAsks = meta.agent === 'terminal' ? undefined : createSecretAskWatcher({
+    paths, requests: book, projector: context.projector, log,
+    interrupt: () => { void driver?.interrupt() },
+  })
+  await secretAsks?.prepare()
 
   const heartbeat = setInterval(() => {
     void (async () => {
@@ -303,7 +343,8 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
       }
       return
     }
-    if (driver?.busy() && state.turnStartedAt && now - Date.parse(state.turnStartedAt) > limitMs) {
+    if (driver?.busy() && state.turnStartedAt && waitingSince === undefined
+      && now - Date.parse(state.turnStartedAt) > limitMs) {
       emit({ kind: 'system', subtype: 'limit', reason: 'max_turn_minutes' })
       update({ turnStartedAt: undefined })
       pendingInterrupt = { at: now, turn: state.turn, reason: 'max_turn_minutes' }
@@ -329,6 +370,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
         await writer.flush()
         await removeRequest(paths, request.id)
       }
+      await secretAsks?.poll()
       if (!served) {
         // This host has served, so the bridge's count of hosts that died before serving starts again.
         served = true
@@ -347,6 +389,9 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   } finally {
     clearInterval(heartbeat)
     await events.close()
+    // Nothing is left to answer what is still pending once this host stops serving.
+    if (!superseded) book.withdrawAll('expired', 'provider_exited')
+    await requestWrites
     if (!superseded) await writer.flush()
   }
   return superseded ? 'superseded' : retiring ? 'retired' : 'finished'
