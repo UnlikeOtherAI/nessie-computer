@@ -1,27 +1,27 @@
-import { createHash } from 'node:crypto'
 import { lstat, readFile } from 'node:fs/promises'
 import { isAbsolute, join } from 'node:path'
-
-import { canonicalExecutorJson } from '@nessie/executor-protocol'
 
 import { replaceOwnerOnlyJson } from './owner-only-json.js'
 import { assertOwnerOnlyStatePath } from './state-security.js'
 
 export const OPENAI_ENDPOINT_FILE = 'local-openai-endpoint.json'
+
+/**
+ * Where the owner's model server listens. The server describes its own models;
+ * the owner names only the address and confirms it is served on this computer.
+ */
 export type LocalOpenAiConfig = {
   baseUrl: string
   apiKey?: string
   localServiceConfirmed: true
-  models: Array<{
-    id: string
-    revision: string
-    contextLength: number
-    maxOutputTokens: number
-    tools: boolean
-    thinking: boolean
-    vision?: boolean
-  }>
 }
+
+/**
+ * Earlier releases asked the owner to describe each model by hand. The server's
+ * own report replaced that list, so a saved one is read past rather than refused:
+ * an update must not take a working endpoint offline.
+ */
+const SUPERSEDED_KEYS = ['models']
 
 export class LocalOpenAiError extends Error {
   override readonly name = 'LocalOpenAiError'
@@ -45,41 +45,22 @@ export const localOpenAiBaseUrl = (input: string): string => {
   return url.toString().replace(/\/$/, '')
 }
 
+/** The OpenAI API root: the owner's path, or `/v1` when they named only the server's port. */
+export const localOpenAiApiBase = (config: LocalOpenAiConfig): string =>
+  new URL(config.baseUrl).pathname === '/' ? `${config.baseUrl}/v1` : config.baseUrl
+
+/** The server itself, where llama.cpp-family servers describe the loaded model and Ollama its version. */
+export const localModelServerOrigin = (config: LocalOpenAiConfig): string => new URL(config.baseUrl).origin
+
 export const parseLocalOpenAiConfig = (input: unknown): LocalOpenAiConfig => {
   if (!record(input) || Object.keys(input).some((key) =>
-    !['baseUrl', 'apiKey', 'localServiceConfirmed', 'models'].includes(key))
+    !['baseUrl', 'apiKey', 'localServiceConfirmed', ...SUPERSEDED_KEYS].includes(key))
     || typeof input.baseUrl !== 'string' || input.baseUrl.length > 512 || input.localServiceConfirmed !== true
     || input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 4096
-      || /[\r\n]/.test(input.apiKey))
-    || !Array.isArray(input.models) || input.models.length < 1 || input.models.length > 100) return invalid()
-  const models = input.models.map((model: unknown) => {
-    if (!record(model) || Object.keys(model).some((key) =>
-      !['id', 'revision', 'contextLength', 'maxOutputTokens', 'tools', 'thinking', 'vision'].includes(key))
-      || typeof model.id !== 'string' || !model.id.trim() || model.id.length > 200
-      || typeof model.revision !== 'string' || !model.revision.trim() || model.revision.length > 256
-      || !Number.isInteger(model.contextLength) || Number(model.contextLength) < 1
-      || Number(model.contextLength) > 1_000_000 || !Number.isInteger(model.maxOutputTokens)
-      || Number(model.maxOutputTokens) < 1 || Number(model.maxOutputTokens) >= Number(model.contextLength)
-      || Number(model.maxOutputTokens) > 100_000 || typeof model.tools !== 'boolean'
-      || typeof model.thinking !== 'boolean'
-      || model.vision !== undefined && typeof model.vision !== 'boolean') return invalid()
-    return { id: model.id, revision: model.revision, contextLength: Number(model.contextLength),
-      maxOutputTokens: Number(model.maxOutputTokens),
-      tools: model.tools, thinking: model.thinking,
-      ...(model.vision === undefined ? {} : { vision: model.vision }) }
-  })
-  if (new Set(models.map((model) => model.id)).size !== models.length) return invalid()
-  return { baseUrl: localOpenAiBaseUrl(input.baseUrl), localServiceConfirmed: true, models,
+      || /[\r\n]/.test(input.apiKey))) return invalid()
+  return { baseUrl: localOpenAiBaseUrl(input.baseUrl as string), localServiceConfirmed: true,
     ...(typeof input.apiKey === 'string' && input.apiKey ? { apiKey: input.apiKey } : {}) }
 }
-
-/** An owner-authored endpoint/model manifest pin, explicitly not a verified weights digest. */
-export const localOpenAiManifestDigest = (
-  config: LocalOpenAiConfig, model: LocalOpenAiConfig['models'][number],
-): string => createHash('sha256').update(canonicalExecutorJson({
-  protocol: 'openai-chat-completions-v1', baseUrl: config.baseUrl, model,
-  localServiceConfirmed: config.localServiceConfirmed,
-})).digest('hex')
 
 export const readLocalOpenAiConfig = async (stateDir: string): Promise<LocalOpenAiConfig | null> => {
   if (!isAbsolute(stateDir)) return invalid()

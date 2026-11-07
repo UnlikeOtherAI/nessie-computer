@@ -1,8 +1,14 @@
+import { createHash } from 'node:crypto'
+
+import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { fetch as undiciFetch, type RequestInit as UndiciRequestInit } from 'undici'
 
 import type { LocalInferenceBackend, ObservedInferenceModel } from './local-inference-backend.js'
-import { LocalOpenAiError, localOpenAiManifestDigest, type LocalOpenAiConfig } from './openai-local-config.js'
+import {
+  LocalOpenAiError, localModelServerOrigin, localOpenAiApiBase, type LocalOpenAiConfig,
+} from './openai-local-config.js'
 import { streamLocalOpenAiChat } from './openai-local-chat.js'
+import { reportedModelFrom, serverPropsFrom, type ReportedModel, type ServerProps } from './openai-local-report.js'
 
 export type LocalOpenAiFetch = (url: string, init: RequestInit) => Promise<Response>
 
@@ -35,49 +41,68 @@ export const boundedOpenAiJson = async (response: Response, maximum = 256 * 1024
   } finally { reader.releaseLock() }
 }
 
-export const observeLocalOpenAiModels = async (
+const request = (config: LocalOpenAiConfig) => ({
+  headers: localOpenAiHeaders(config), signal: AbortSignal.timeout(3_000), redirect: 'error' as const,
+})
+
+/** `/props` is llama.cpp's; any other server answering otherwise simply has no props to add. */
+const readServerProps = async (config: LocalOpenAiConfig, fetchImpl: LocalOpenAiFetch): Promise<ServerProps | null> => {
+  let response: Response
+  try { response = await fetchImpl(`${localModelServerOrigin(config)}/props`, request(config)) } catch { return null }
+  if (!response.ok) { await response.body?.cancel().catch(() => undefined); return null }
+  try { return serverPropsFrom(await boundedOpenAiJson(response, 1024 * 1024)) } catch { return null }
+}
+
+/** A changed address, context, capability or set of weights is a different model to consent to. */
+export const reportedModelDigest = (config: LocalOpenAiConfig, model: ReportedModel): string =>
+  createHash('sha256').update(canonicalExecutorJson({
+    protocol: 'openai-chat-completions-v1', baseUrl: localOpenAiApiBase(config), id: model.id,
+    numCtxCap: model.numCtxCap, maxOutputTokens: model.maxOutputTokens,
+    thinking: model.thinking, tools: model.tools, vision: model.vision, weights: model.weights,
+  })).digest('hex')
+
+export const readReportedModels = async (
   config: LocalOpenAiConfig, fetchImpl: LocalOpenAiFetch = localOpenAiFetch,
-): Promise<ObservedInferenceModel[]> => {
+): Promise<ReportedModel[]> => {
   let body: unknown
   try {
-    body = await boundedOpenAiJson(await fetchImpl(`${config.baseUrl}/models`, {
-      headers: localOpenAiHeaders(config), signal: AbortSignal.timeout(3_000), redirect: 'error',
-    }))
+    body = await boundedOpenAiJson(await fetchImpl(`${localOpenAiApiBase(config)}/models`, request(config)))
   } catch (error) {
     if (error instanceof LocalOpenAiError) throw error
     throw new LocalOpenAiError('endpoint_unavailable')
   }
   const data = (body as { data?: unknown } | null)?.data
   if (!Array.isArray(data) || data.length > 100) throw new LocalOpenAiError('endpoint_response_invalid')
-  const servedLimits = new Map<string, number | undefined>()
-  const ids = new Set(data.map((entry: unknown) => {
+  const entries = data.map((entry: unknown) => {
     const id = (entry as { id?: unknown } | null)?.id
     if (typeof id !== 'string' || !id || id.length > 200) throw new LocalOpenAiError('endpoint_response_invalid')
-    if (servedLimits.has(id)) throw new LocalOpenAiError('endpoint_response_invalid')
-    const meta = (entry as { meta?: { n_ctx?: unknown } }).meta
-    const limit = meta?.n_ctx
-    if (limit !== undefined && (typeof limit !== 'number' || !Number.isSafeInteger(limit)
-      || limit < 1 || limit > 1_000_000)) throw new LocalOpenAiError('endpoint_response_invalid')
-    servedLimits.set(id, typeof limit === 'number' ? limit : undefined)
-    return id
-  }))
-  for (const model of config.models) {
-    const limit = servedLimits.get(model.id)
-    if (limit !== undefined && model.contextLength > limit) {
-      throw new LocalOpenAiError('endpoint_context_exceeds_served')
-    }
-  }
-  return config.models.filter((model) => ids.has(model.id)).map((model) => ({
-    name: model.id, manifestDigest: localOpenAiManifestDigest(config, model),
-    identitySource: 'owner_configuration', modelRevision: model.revision,
-    capabilities: ['completion', ...(model.tools ? ['tools'] : []), ...(model.thinking ? ['thinking'] : []),
-      ...(model.vision ? ['vision'] : [])],
-    numCtxCap: model.contextLength, maxOutputTokens: model.maxOutputTokens,
-    remoteHost: null, remoteModel: null, sizeBytes: null,
-  }))
+    return { entry: entry as Record<string, unknown>, id }
+  })
+  if (new Set(entries.map(({ id }) => id)).size !== entries.length) throw new LocalOpenAiError('endpoint_response_invalid')
+  const props = await readServerProps(config, fetchImpl)
+  // Props describe the one loaded model: the one they name, or the only one listed.
+  const propsFor = (id: string) => props && (props.alias === id || entries.length === 1) ? props : null
+  return entries.flatMap(({ entry, id }) => reportedModelFrom(entry, id, propsFor(id)) ?? [])
 }
 
-/** Re-read protected configuration on every observation and invocation, so edits fence old model pins. */
+const observedFrom = (config: LocalOpenAiConfig, model: ReportedModel): ObservedInferenceModel => ({
+  name: model.id, manifestDigest: reportedModelDigest(config, model),
+  identitySource: 'owner_configuration',
+  capabilities: ['completion', ...(model.tools ? ['tools'] : []), ...(model.thinking ? ['thinking'] : []),
+    ...(model.vision ? ['vision'] : [])],
+  numCtxCap: model.numCtxCap, ...(model.maxOutputTokens === null ? {} : { maxOutputTokens: model.maxOutputTokens }),
+  remoteHost: null, remoteModel: null, sizeBytes: null,
+})
+
+export const observeLocalOpenAiModels = async (
+  config: LocalOpenAiConfig, fetchImpl: LocalOpenAiFetch = localOpenAiFetch,
+): Promise<ObservedInferenceModel[]> =>
+  (await readReportedModels(config, fetchImpl)).map((model) => observedFrom(config, model))
+
+/**
+ * Ask the server again on every observation and invocation, so a model it no
+ * longer serves as consented fences the old pin before anything is sent.
+ */
 export const createLocalOpenAiBackend = (
   readConfig: () => Promise<LocalOpenAiConfig | null>, fetchImpl: LocalOpenAiFetch = localOpenAiFetch,
 ): LocalInferenceBackend => ({
@@ -88,17 +113,20 @@ export const createLocalOpenAiBackend = (
   },
   stream: async function* (input) {
     const config = await readConfig()
-    const selected = config?.models.find((model) => model.id === input.attempt.modelName)
-    if (!config || !selected || localOpenAiManifestDigest(config, selected) !== input.attempt.modelDigest) {
-      throw new LocalOpenAiError('endpoint_model_changed')
-    }
-    if (input.attempt.numCtx > selected.contextLength
+    if (!config) throw new LocalOpenAiError('endpoint_model_changed')
+    const selected = (await readReportedModels(config, fetchImpl)).find((model) =>
+      model.id === input.attempt.modelName && reportedModelDigest(config, model) === input.attempt.modelDigest)
+    if (!selected) throw new LocalOpenAiError('endpoint_model_changed')
+    if (selected.numCtxCap !== null && input.attempt.numCtx > selected.numCtxCap
       || input.attempt.tools.length && !selected.tools
-      || input.attempt.maxOutputTokens !== undefined && input.attempt.maxOutputTokens > selected.maxOutputTokens) {
+      || input.attempt.maxOutputTokens !== undefined && selected.maxOutputTokens !== null
+        && input.attempt.maxOutputTokens > selected.maxOutputTokens) {
       throw new LocalOpenAiError('unsupported_capability')
     }
+    const maxOutputTokens = input.attempt.maxOutputTokens ?? selected.maxOutputTokens ?? undefined
     yield* streamLocalOpenAiChat({ ...input,
-      attempt: { ...input.attempt, maxOutputTokens: input.attempt.maxOutputTokens ?? selected.maxOutputTokens },
-      config, fetchImpl, thinkingModel: selected.thinking, visionModel: selected.vision === true })
+      attempt: { ...input.attempt, ...(maxOutputTokens === undefined ? {} : { maxOutputTokens }) },
+      config: { ...config, baseUrl: localOpenAiApiBase(config) }, fetchImpl,
+      thinkingModel: selected.thinking, visionModel: selected.vision })
   },
 })

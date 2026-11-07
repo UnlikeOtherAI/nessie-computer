@@ -73,7 +73,7 @@ export const capabilityFor = (
     : { maxOutputTokens: model.maxOutputTokens ?? attempt.maxOutputTokens }),
   model: attempt.modelName,
   provider: attempt.inferenceSource?.kind === 'chatgpt' ? 'executor/chatgpt' : 'local_device',
-  source: model.identitySource === 'owner_configuration' ? 'manual' as const : 'live' as const,
+  source: 'live' as const,
   structuredOutputMode: knownCapabilities(model).includes('json_schema') ? 'native-json' as const : 'text-only' as const,
   supportsChat: true,
   supportsEmbeddings: false,

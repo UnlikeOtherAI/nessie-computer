@@ -5,11 +5,16 @@ import {
   OPENAI_ENDPOINT_FILE, LocalOpenAiError, parseLocalOpenAiConfig,
   readLocalOpenAiConfig, saveLocalOpenAiConfig,
 } from './openai-local-config.js'
-import { observeLocalOpenAiModels } from './openai-local-observed.js'
+import { createLocalModelServerBackend, localModelServerKind } from './local-model-server.js'
+import { DEFAULT_OLLAMA_ORIGIN } from './ollama-client.js'
 
 const USAGE = 'Usage: nessie-executor local-inference endpoint configure|status|remove --state-dir <owner-only-path> [--config-stdin]'
 
-/** Local command only: the hosted server never supplies an endpoint or its credentials. */
+/**
+ * Local command only: the hosted server never supplies an endpoint or its credentials.
+ * `configure` reads {"baseUrl", "apiKey"?, "localServiceConfirmed": true} from stdin; the
+ * server at that address describes its own models, and `status` shows what it reported.
+ */
 export const runLocalOpenAiCli = async (args: string[]): Promise<boolean> => {
   if (args[0] !== 'local-inference' || args[1] !== 'endpoint') return false
   const action = args[2]
@@ -40,19 +45,17 @@ export const runLocalOpenAiCli = async (args: string[]): Promise<boolean> => {
     await unlink(join(stateDir, OPENAI_ENDPOINT_FILE)).catch((error: unknown) => {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     })
-    process.stdout.write('Endpoint configuration removed. Restart this executor connection to use Ollama.\n')
+    process.stdout.write('Endpoint configuration removed. Restart this executor connection to use Ollama on its own port.\n')
     return true
   }
   const config = await readLocalOpenAiConfig(stateDir)
-  if (!config) {
-    process.stdout.write(`${JSON.stringify({ backend: 'ollama', status: 'unconfigured' })}\n`)
-    return true
-  }
+  const backend = await localModelServerKind(config)
+  const address = config?.baseUrl ?? DEFAULT_OLLAMA_ORIGIN
   try {
-    const models = await observeLocalOpenAiModels(config)
-    process.stdout.write(`${JSON.stringify({ backend: 'openai', status: 'online', models })}\n`)
+    const models = await createLocalModelServerBackend(async () => config).observe()
+    process.stdout.write(`${JSON.stringify({ backend, address, status: 'online', models })}\n`)
   } catch {
-    process.stdout.write(`${JSON.stringify({ backend: 'openai', status: 'offline', models: [] })}\n`)
+    process.stdout.write(`${JSON.stringify({ backend, address, status: 'offline', models: [] })}\n`)
   }
   return true
 }

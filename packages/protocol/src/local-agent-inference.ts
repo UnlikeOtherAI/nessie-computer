@@ -126,7 +126,10 @@ export const ObservedLocalModelSchema = z.object({
   // `thinking` is Ollama's own advertised capability, read from `/api/show`;
   // it is the only per-model reasoning discovery any provider offers.
   capabilities: z.array(z.enum(['text', 'tools', 'json_schema', 'thinking', 'vision'])).max(16),
-  /** Owner-authored endpoint manifest; absent identifies an observed Ollama weights manifest. */
+  /**
+   * A model an OpenAI-compatible server at the owner's address describes, identified by that
+   * report rather than a weights manifest; absent identifies an observed Ollama weights manifest.
+   */
   identitySource: z.literal('owner_configuration').optional(),
   modelRevision: NonEmptyStringSchema.max(256).optional(),
   manifestDigest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -151,10 +154,10 @@ export const ObservedLocalModelSchema = z.object({
       || model.providerModelId === undefined || model.remoteHost !== null || model.remoteModel !== null)) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'ChatGPT needs verified capacities and an explicit cloud source' })
   }
-  if (model.identitySource === 'owner_configuration'
-    && (!model.modelRevision || model.numCtxCap === null || model.maxOutputTokens === undefined
-      || model.maxOutputTokens >= model.numCtxCap)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Owner-configured model needs revision, context and output limits' })
+  // A server that does not report a limit leaves it unknown; Nessie asks the owner for a missing context.
+  if (model.identitySource === 'owner_configuration' && model.numCtxCap !== null
+    && model.maxOutputTokens !== undefined && model.maxOutputTokens >= model.numCtxCap) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'A model cannot produce more than its context holds' })
   }
 })
 export type ObservedLocalModel = z.infer<typeof ObservedLocalModelSchema>
