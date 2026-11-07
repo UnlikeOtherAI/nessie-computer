@@ -31,3 +31,15 @@ export const ExecutorDaemonSocketServerFrameSchema = z.discriminatedUnion('type'
 export type ExecutorDaemonSocketServerFrame = z.infer<typeof ExecutorDaemonSocketServerFrameSchema>
 
 export const EXECUTOR_DAEMON_SOCKET_PATH = '/api/executor-daemon/socket'
+
+/**
+ * The upgrade request carries the command poll's own signed proof, as headers
+ * because a WebSocket handshake has no body: the poll's payload
+ * `{connectionEpoch, executorId, observedAt}` as JSON in
+ * `x-nessie-executor-poll`, and its `poll`-domain signature
+ * (`nessie.executor.daemon.poll.v1`) in `x-nessie-executor-signature`. The
+ * server verifies them exactly as it verifies a poll, including the
+ * `observedAt` freshness window, before it accepts the upgrade.
+ */
+export const EXECUTOR_DAEMON_SOCKET_POLL_HEADER = 'x-nessie-executor-poll'
+export const EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER = 'x-nessie-executor-signature'
