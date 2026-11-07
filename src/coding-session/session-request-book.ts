@@ -55,6 +55,8 @@ export class SessionRequestBook {
   constructor(
     private readonly changed: (requests: ExecutorSessionRequest[]) => void,
     previous: readonly ExecutorSessionRequest[] = [],
+    /** Whether the owner can be asked at all now (`owner-requests-lease.ts`); a request opens only while true. */
+    private readonly reachable: () => boolean = () => true,
   ) {
     // An earlier host's provider went with it, so nothing it left pending can be answered.
     for (const request of previous) {
@@ -65,12 +67,17 @@ export class SessionRequestBook {
     if (previous.some((request) => request.status === 'pending')) this.publish()
   }
 
+  /** Whether a request may be put to the owner now; when not, a provider's prompt is turned down at once. */
+  ownerReachable(): boolean { return this.reachable() }
+
   /**
    * Opens a request; the draft's text must already be projected and within
-   * the protocol's bounds. A draft the protocol refuses opens nothing and
-   * answers undefined, so the caller turns the provider down instead.
+   * the protocol's bounds. A draft the protocol refuses, or any draft while
+   * the owner cannot be reached, opens nothing and answers undefined, so the
+   * caller turns the provider down instead.
    */
   open(draft: SessionRequestDraft, responder: SessionRequestResponder): ExecutorSessionRequest | undefined {
+    if (!this.reachable()) return undefined
     const parsed = ExecutorSessionRequestSchema.safeParse({
       ...draft, id: `req-${randomUUID()}`, status: 'pending', answerable: draft.answerable ?? true,
       openedAt: new Date().toISOString(),

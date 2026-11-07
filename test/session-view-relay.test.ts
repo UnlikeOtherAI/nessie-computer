@@ -3,7 +3,11 @@ import { generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import { createServer } from 'node:http'
 import test from 'node:test'
 
-import { canonicalExecutorPayload, ExecutorSessionViewExchangeSchema } from '@nessie/executor-protocol'
+import {
+  canonicalExecutorPayload, ExecutorCodingSessionSummarySchema, ExecutorSessionConversationSchema,
+  ExecutorSessionViewExchangeSchema, ExecutorSessionViewRequestSchema,
+} from '@nessie/executor-protocol'
+import { z } from 'zod'
 import { createSessionViewRelay } from '../src/session-view-relay.js'
 import { codingSessionsFacts } from '../src/coding-sessions-policy.js'
 import { normalizeCodingSessionsConfig } from '../src/coding-session/config.js'
@@ -49,7 +53,7 @@ test('terminal relay signs HTTP exchanges, uploads only demanded screens and dro
         reads += 1
         return { ansi: 'real screen contract', cols: 120, rows: 36, kind: 'terminal', capturedAt: new Date().toISOString() }
       },
-    })
+    }, () => true)
     const config = normalizeCodingSessionsConfig({
       codingSessions: { roots: [{ name: 'work', path: process.cwd() }], agents: {} },
     })
@@ -105,7 +109,7 @@ test('a watched session keeps the relay hot, and a session change forces a fresh
             pending: { kind: 'approval', count: 1, answerable: true, since: new Date().toISOString() } }] }
       },
       screen: async () => null,
-    })
+    }, () => true)
     const config = normalizeCodingSessionsConfig({
       codingSessions: { roots: [{ name: 'work', path: process.cwd() }], agents: {} },
     })
@@ -126,6 +130,68 @@ test('a watched session keeps the relay hot, and a session change forces a fresh
     await relay(state)
     assert.equal(bodies[2]?.sessions?.length, 1, 'a change reports at once')
     assert.deepEqual(cursors, [undefined, undefined], 'from its first page')
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()))
+    await new Promise<void>((resolve) => setImmediate(resolve))
+  }
+})
+
+test('a Nessie that has not shown it reads requests gets neither pending nor requests', async () => {
+  const { privateKey } = generateKeyPairSync('ed25519')
+  const request = { sessionId: randomUUID(), ownerKey: 'sha256:' + 'a'.repeat(64) }
+  const bodies: unknown[] = []
+  // An older Nessie: the exchange schema as it was before requests, strict all the way down.
+  const OlderSummary = ExecutorCodingSessionSummarySchema.omit({ pending: true }).strict()
+  const OlderConversation = ExecutorSessionConversationSchema.omit({ requests: true }).strict()
+  const OlderExchange = ExecutorSessionViewExchangeSchema.extend({
+    sessions: z.array(OlderSummary).optional(),
+    frames: z.array(ExecutorSessionViewRequestSchema.extend({
+      screen: z.unknown(), conversation: OlderConversation.nullable().optional(),
+    }).strict()),
+  }).strict()
+  let refused = 0
+  const server = createServer(async (incoming, response) => {
+    const chunks = []
+    for await (const chunk of incoming) chunks.push(Buffer.from(chunk))
+    const parsed = OlderExchange.safeParse(JSON.parse(Buffer.concat(chunks).toString()))
+    if (!parsed.success) refused += 1
+    else bodies.push(parsed.data)
+    response.writeHead(parsed.success ? 200 : 400, { 'content-type': 'application/json', connection: 'close' })
+    response.end(JSON.stringify(parsed.success ? { data: { requests: [request] } }
+      : { error: { code: 'VALIDATION_ERROR', message: 'Unrecognized key' } }))
+  })
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  try {
+    const address = server.address()
+    assert(address && typeof address === 'object')
+    const now = new Date().toISOString()
+    const waiting = { kind: 'approval' as const, count: 1, answerable: false, since: now }
+    let understood = false
+    const relay = createSessionViewRelay({
+      inventory: async () => ({ inventory: { id: randomUUID(), observedAt: now, complete: true }, nextCursor: null,
+        sessions: [{ ...request, origin: 'external', title: 'Codex thread', agent: 'codex', root: 'work',
+          status: 'working', updatedAt: now, pending: waiting }] }),
+      screen: async () => null,
+      conversation: async () => ({ messages: [], truncated: false, capturedAt: now, sendMode: null, canInterrupt: false,
+        requests: [{ id: 'req-1', kind: 'command', status: 'pending', answerable: true, openedAt: now, title: 'Run ls',
+          command: 'ls', decisions: ['accept', 'decline'] }] }),
+    }, () => understood)
+    const config = normalizeCodingSessionsConfig({
+      codingSessions: { roots: [{ name: 'work', path: process.cwd() }], agents: {} },
+    })
+    const state = {
+      apiBaseUrl: `http://127.0.0.1:${address.port}`, executorId: randomUUID(), connectionEpoch: '1',
+      machinePrivateKey: privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url'),
+      descriptor: { codingSessions: codingSessionsFacts(config, 'sha256:' + 'b'.repeat(64)) },
+    }
+    await relay(state)
+    await relay(state)
+    assert.equal(refused, 0, 'an older Nessie accepts every exchange while something waits')
+    assert.equal(bodies.length, 2)
+    understood = true
+    relay.forceInventory()
+    await assert.rejects(relay(state), /Unrecognized key/u)
+    assert.equal(refused, 1, 'the same exchange with the new fields is what an older Nessie refuses')
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()))
     await new Promise<void>((resolve) => setImmediate(resolve))

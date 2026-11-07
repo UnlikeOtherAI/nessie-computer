@@ -25,6 +25,7 @@ import {
 import type { LocalCommandPolicy } from './command-policy.js'
 import { loadCodingSessionsConfig } from './coding-session/config.js'
 import { codingSessionChangeMarker } from './coding-session/session-change-marker.js'
+import { ownerRequestsLeaseWriter } from './coding-session/owner-requests-lease.js'
 import { codingSessionPaths } from './coding-session/session-files.js'
 import { readSessionMeta } from './coding-session/session-requests.js'
 import { readSessionScreen } from './coding-session/session-view.js'
@@ -124,6 +125,8 @@ export type CodingSessionsDaemon = {
   connectionFailed: (reason: string, error: unknown) => Promise<void>
   /** A heartbeat the API accepted. */
   connectionHealthy: (existingSessionsAllowed?: boolean) => void
+  /** Nessie's reading of requests may have changed (the doorbell said `ready`): tells the hosts at once. */
+  ownerRequestsChanged: () => void
   /**
    * The control plane's instructions from a heartbeat response, plus any an
    * earlier heartbeat could not carry out; anything malformed is ignored.
@@ -163,14 +166,26 @@ export const createCodingSessionsDaemon = (input: {
   facts: ExecutorCodingSessionsFacts | undefined
   servers: readonly ExecutorLocalMcpServer[]
   sessions: ExecutorMcpSessionManager
+  /**
+   * Whether session hosts may put provider prompts to the owner: Nessie has
+   * shown it reads requests on this connection (`owner-requests-gate.ts`).
+   * Absent, they never may.
+   */
+  ownerRequests?: () => boolean
   log?: (message: string) => void
   now?: () => number
 }): CodingSessionsDaemon => {
   const bridge = codingSessionsPolicyOf(input.facts, input.servers)?.server
   const bridgeConfig = bridge ? codingSessionsServerConfigPath(bridge) : undefined
-  const changeMarker = bridgeConfig ? codingSessionChangeMarker(join(dirname(bridgeConfig), 'coding-sessions')) : undefined
+  const bridgeStateDir = bridgeConfig ? join(dirname(bridgeConfig), 'coding-sessions') : undefined
+  const changeMarker = bridgeStateDir ? codingSessionChangeMarker(bridgeStateDir) : undefined
   const writeAuthority = bridgeConfig && input.facts?.existingSessions
     ? existingAuthorityWriter(dirname(bridgeConfig)) : async () => undefined
+  const writeOwnerRequests = bridgeStateDir ? ownerRequestsLeaseWriter(bridgeStateDir) : async () => undefined
+  const ownerRequests = (): boolean => input.ownerRequests?.() === true
+  const tellHosts = (live: boolean): void => { void writeOwnerRequests(live).catch(() => undefined) }
+  // An earlier daemon's lease says nothing about the Nessie this one will meet.
+  if (bridgeStateDir) tellHosts(false)
   const log = input.log ?? ((message: string) => { console.error(`[nessie-executor] ${message}`) })
   const owners = new Set<string>()
   let earlierSessionsMayExist = bridge !== undefined
@@ -268,6 +283,8 @@ export const createCodingSessionsDaemon = (input: {
     connectionFailed: async (reason, error) => {
       const code = (error as { code?: unknown } | undefined)?.code
       failingSince ??= now()
+      // A reconnect may meet a different Nessie; until it says `ready`, prompts are turned down.
+      tellHosts(false)
       if (typeof code === 'string' && DEFINITIVE_FAILURES.has(code)) {
         await writeAuthority(false)
         await closeAll(reason)
@@ -278,7 +295,9 @@ export const createCodingSessionsDaemon = (input: {
     connectionHealthy: (existingSessionsAllowed = false) => {
       failingSince = undefined
       void writeAuthority(existingSessionsAllowed).catch(() => undefined)
+      tellHosts(ownerRequests())
     },
+    ownerRequestsChanged: () => tellHosts(ownerRequests()),
     close: (instructions) => serially(async () => {
       if (!bridge) return
       // The heartbeat lists every close the API still has open, and absent
@@ -310,6 +329,7 @@ export const createCodingSessionsDaemon = (input: {
     }),
     shutdown: async () => {
       await writeAuthority(false)
+      await writeOwnerRequests(false).catch(() => undefined)
       if (!bridge) return
       const configPath = codingSessionsServerConfigPath(bridge)
       const loaded = configPath ? await loadCodingSessionsConfig(configPath).catch(() => undefined) : undefined

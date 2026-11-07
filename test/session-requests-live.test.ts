@@ -12,6 +12,8 @@ import {
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { createCodingHarness, waitUntil, type CodingHarness } from './coding-session-harness.js'
 
+const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
+
 /**
  * Live questions, approvals and secrets, through the real bridge and host,
  * with the scripted agent speaking Claude Code's permission prompts and
@@ -67,7 +69,7 @@ const reportedPending = async (harness: CodingHarness, sessionId: string) => {
 
 test('a Claude permission prompt waits for the owner, is answered once, and stale answers say why', { timeout: 120_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'claude', '#permit publish it')
       const request = await pendingOf(harness, sessionId, 'command')
@@ -106,7 +108,7 @@ test('a Claude permission prompt waits for the owner, is answered once, and stal
 
 test('a Claude question is answered by its options, and a decline carries the owner\'s feedback', { timeout: 120_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       // The scripted agent asks its permission first, then its question.
       const sessionId = await startSession(harness, 'claude', '#question #permit pick one')
@@ -137,7 +139,7 @@ test('a Claude question is answered by its options, and a decline carries the ow
   })
 
 test('an interrupt cancels what is pending, and a provider that exits expires it', { timeout: 150_000 }, async () => {
-  const harness = await createCodingHarness({ reviewedDigest: true })
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
   try {
     const sessionId = await startSession(harness, 'claude', '#permit stop me')
     const request = await pendingOf(harness, sessionId)
@@ -169,7 +171,7 @@ test('an interrupt cancels what is pending, and a provider that exits expires it
 
 test('Codex approvals and questions reach the owner; a decline steers the turn and a cancel stops it', { timeout: 150_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'codex', '#permit #question build it')
       const approval = await pendingOf(harness, sessionId, 'command')
@@ -198,7 +200,7 @@ test('Codex approvals and questions reach the owner; a decline steers the turn a
 const SECRET = 'sk_test_51NessieNeverEchoesThisValue9876543210'
 
 test('a secret reaches only its file: owner-only, one dotenv line, never echoed anywhere', { timeout: 150_000 }, async () => {
-  const harness = await createCodingHarness({ reviewedDigest: true })
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
   try {
     await writeFile(join(harness.root, '.env.local'), 'OTHER=1\nSTRIPE_KEY=old-value\n')
     const sessionId = await startSession(harness, 'claude', '#secret-tool connect stripe')
@@ -241,7 +243,7 @@ test('a secret reaches only its file: owner-only, one dotenv line, never echoed 
 
 test('a Codex secret request the owner declines tells the agent so; an external session cannot be answered', { timeout: 150_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'codex', '#secret-tool connect stripe')
       const request = await pendingOf(harness, sessionId, 'secret')
@@ -255,6 +257,40 @@ test('a Codex secret request the owner declines tells the agent so; an external 
         sessionId: randomUUID(), kind: 'answer', answer: { requestId: 'req-x', decision: 'accept' },
         expiresAt: new Date(Date.now() + 60_000).toISOString() }, { daemon: true })
       assert.deepEqual((external.body.receipt as Receipt).code, 'request_not_answerable')
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
+test('until Nessie shows it reads requests, every prompt is turned down at once, as before', { timeout: 150_000 },
+  async () => {
+    const harness = await createCodingHarness({ reviewedDigest: true })
+    try {
+      const claude = await startSession(harness, 'claude', '#permit publish it')
+      const permission = await recorded(harness, 'claude', 'permission')
+      assert.deepEqual(permission.response, {
+        behavior: 'deny', message: 'No person is at this terminal to approve this, so it was denied.',
+      }, 'denied with the words a prompt got before it could reach the owner, and the turn goes on')
+      await harness.waitForStatus(claude, (body) => body.status === 'waiting_for_input', OWNER)
+      assert.equal((await conversation(harness, claude)).requests, undefined, 'nothing was put to the owner')
+      assert.equal(await reportedPending(harness, claude), undefined)
+
+      const codex = await startSession(harness, 'codex', '#permit build it')
+      assert.deepEqual((await recorded(harness, 'codex', 'permission')).answer, { decision: 'decline' })
+      await harness.waitForStatus(codex, (body) => body.status === 'waiting_for_input', OWNER)
+      assert.equal((await harness.agents()).some((entry) => entry.event === 'steer'), false, 'no feedback is invented')
+
+      const secret = await startSession(harness, 'claude', '#secret-tool connect stripe')
+      const used = await recorded(harness, 'claude', 'secret')
+      assert.match(JSON.stringify(used.result), /refused: owner_unreachable/u)
+      await harness.waitForStatus(secret, (body) => body.status === 'waiting_for_input', OWNER)
+
+      // Once the daemon says Nessie reads requests, the next prompt waits for the owner.
+      await harness.ownerRequests(true)
+      await delay(1_200)
+      await harness.call('session_send', { sessionId: claude, message: '#permit again' }, { owner: OWNER })
+      const waiting = await pendingOf(harness, claude, 'command')
+      assert.equal(waiting.answerable, true)
     } finally {
       await harness.cleanup()
     }

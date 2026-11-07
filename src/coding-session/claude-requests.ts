@@ -35,6 +35,9 @@ export type ClaudePrompt = {
   decisionReason?: string
 }
 
+/** Why a prompt is denied while Nessie cannot put it to the owner: the words every prompt got before it could. */
+export const CLAUDE_NO_OWNER_MESSAGE = 'No person is at this terminal to approve this, so it was denied.'
+
 const APPROVAL: ExecutorSessionDecision[] = ['accept', 'accept_for_session', 'decline', 'cancel']
 const TURN_DOWN: ExecutorSessionDecision[] = ['decline', 'cancel']
 const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit'])

@@ -47,6 +47,8 @@ export type CodingHarness = {
   call: (tool: string, args: Record<string, unknown>, options?: CallOptions) => Promise<BridgeAnswer>
   /** Kills the bridge process; the next call starts a fresh one. */
   restartBridge: () => Promise<void>
+  /** Grants or ends the daemon's lease that lets hosts put prompts to the owner (`owner-requests-lease.ts`). */
+  ownerRequests: (live: boolean) => Promise<void>
   /** Ends a turn the scripted agent is holding with `#hold=<name>`. */
   release: (name: string) => Promise<void>
   agents: () => Promise<Record<string, unknown>[]>
@@ -138,6 +140,8 @@ export const createCodingHarness = async (options: {
   /** Passes the written config's own digest, as a daemon passes the reviewed one. */
   reviewedDigest?: true
   rootsInsideState?: true
+  /** The daemon says Nessie reads requests, so hosts put prompts to the owner. */
+  ownerRequests?: true
 } = {}): Promise<CodingHarness> => {
   const dir = await realpath(await mkdtemp(join(tmpdir(), 'nessie-coding-')))
   const root = join(dir, 'work')
@@ -215,8 +219,14 @@ export const createCodingHarness = async (options: {
     return text.split('\n').filter(Boolean).map((line) => JSON.parse(line) as Record<string, unknown>)
   }
   const stateDir = join(configDir, 'coding-sessions')
+  // As the daemon writes it, but for the length of a suite rather than a minute.
+  const ownerRequests = async (live: boolean): Promise<void> => {
+    await mkdir(stateDir, { recursive: true, mode: 0o700 })
+    await writeFile(join(stateDir, 'owner-requests.json'), JSON.stringify({ expiresAt: live ? Date.now() + 3_600_000 : 0 }))
+  }
+  if (options.ownerRequests) await ownerRequests(true)
   return {
-    dir, root, configPath, stateDir, recordDir, outputs, manager, server, call, agents,
+    dir, root, configPath, stateDir, recordDir, outputs, manager, server, call, agents, ownerRequests,
     restartBridge: () => manager.stopAll(),
     release: (name) => writeFile(join(recordDir, `release-${name}`), ''),
     waitForStatus: async (sessionId, accept, owner = OWNER_A, timeoutMs = 30_000) => {

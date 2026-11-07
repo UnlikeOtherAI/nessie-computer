@@ -65,7 +65,10 @@ export const createSecretAskWatcher = (input: {
           },
           withdraw: (status, reason) => { void reply(askId, { outcome: status, reason }) },
         })
-        if (!opened) await reply(askId, { outcome: 'refused', reason: 'invalid_request' })
+        if (!opened) {
+          await reply(askId, { outcome: 'refused',
+            reason: input.requests.ownerReachable() ? 'invalid_request' : 'owner_unreachable' })
+        }
       }
     },
   }

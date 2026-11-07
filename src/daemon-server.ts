@@ -33,6 +33,7 @@ import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
 import { createDaemonCadence } from './daemon-cadence.js'
 import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
+import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.js'
 import { watchSessionChanges } from './session-change-watch.js'
 import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
@@ -68,6 +69,8 @@ export const serveExecutor = async (
     const codingSessions = createExecutorCodingSessionManager(stateDir, live)
     const namedMcpServers = withDaemonSupervisor(withBridgeOnRuntime(live.mcpServers ?? [], options.runtime))
     const mcpSessions = createExecutorMcpSessionManager(namedMcpServers, live.descriptor.limits)
+    // Whether this connection's Nessie reads what sessions wait on their owner for: its doorbell said ready.
+    const ownerRequestsGate = createOwnerRequestsGate(() => live.connectionEpoch)
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const codingBridge = createCodingSessionsDaemon({
@@ -76,10 +79,11 @@ export const serveExecutor = async (
       facts: live.descriptor.codingSessions,
       servers: namedMcpServers,
       sessions: mcpSessions,
+      ownerRequests: ownerRequestsGate.understood,
     })
     const localMcp = createLocalMcpReporter(namedMcpServers, mcpSessions, { codingSessions: codingBridge.report })
     const monitor = startComputerMonitor(stateDir)
-    const relayScreens = createSessionViewRelay(codingBridge)
+    const relayScreens = createSessionViewRelay(codingBridge, ownerRequestsGate.understood)
     const screenPoll = createNonOverlappingExecutorTask(() => relayScreens(live).catch(() => undefined))
     void localMcp.refresh().catch(() => undefined)
     let shuttingDown = false
@@ -132,7 +136,7 @@ export const serveExecutor = async (
         // Closing never delays the next heartbeat: it runs beside it, serialised on its own,
         // and every heartbeat retries whatever an earlier one could not carry out.
         const close = await heartbeatExecutor(
-          live, localMcp.current(), (allowed) => {
+          live, reportForServer(localMcp.current(), ownerRequestsGate.understood()), (allowed) => {
             codingBridge.connectionHealthy(allowed)
             monitor.connected(true)
           }, folderSync.summary(), executorApi, { status: software, onRequest: async request => {
@@ -190,7 +194,11 @@ export const serveExecutor = async (
     })
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live,
-      onReady: (pollSeconds) => cadence.ready(pollSeconds),
+      onReady: (pollSeconds, connectionEpoch) => {
+        ownerRequestsGate.ready(connectionEpoch)
+        codingBridge.ownerRequestsChanged()
+        cadence.ready(pollSeconds)
+      },
       onWake: (topics) => { if (!shuttingDown) cadence.wake(topics) },
       onDown: () => cadence.down(),
     })

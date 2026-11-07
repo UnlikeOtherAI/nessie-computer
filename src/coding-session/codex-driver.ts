@@ -144,7 +144,10 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     })
     // A request the protocol cannot carry is turned down rather than left waiting on nobody.
     if (opened) asked.set(request.id, opened.id)
-    else {
+    else if (!context.requests.ownerReachable()) {
+      // Nessie has not shown it can ask the owner: declined, and the turn goes on, as under `exec`.
+      connection.respond(request.id, plan.answer({ requestId: '', decision: 'decline' }).result)
+    } else {
       context.log('a Codex request could not be shown to the owner')
       connection.respond(request.id, plan.withdraw())
     }

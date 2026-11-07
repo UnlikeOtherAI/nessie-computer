@@ -17,7 +17,7 @@ import {
   type ClaudeSignals,
   type ClaudeStreamState,
 } from './claude-adapter.js'
-import { planClaudeRequest } from './claude-requests.js'
+import { CLAUDE_NO_OWNER_MESSAGE, planClaudeRequest } from './claude-requests.js'
 import { AGENT_SESSION_ID_PATTERN, type CodingSessionResult } from './types.js'
 
 /**
@@ -116,7 +116,10 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     })
     // A prompt the protocol cannot carry is turned down rather than left waiting on nobody.
     if (opened) asked.set(prompt.requestId, opened.id)
-    else {
+    else if (!context.requests.ownerReachable()) {
+      // Nessie has not shown it can ask the owner: denied as every prompt was before it could.
+      asker?.write(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
+    } else {
       context.log('a permission prompt could not be shown to the owner')
       asker?.write(plan.withdraw('unreadable_request'))
     }

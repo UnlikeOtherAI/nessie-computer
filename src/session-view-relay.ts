@@ -4,6 +4,7 @@ import { ExecutorSessionViewOffersSchema, type ExecutorSessionViewRequest,
 import { executorApi } from './api-client.js'
 import type { CodingSessionsDaemon } from './coding-sessions-daemon.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
+import { conversationForServer, summaryForServer } from './owner-requests-gate.js'
 import type { ExecutorLocalState } from './state-store.js'
 
 type RelayState = Pick<ExecutorLocalState, 'apiBaseUrl' | 'executorId' | 'machinePrivateKey' | 'connectionEpoch'> & {
@@ -25,9 +26,14 @@ export type SessionViewRelay = ((state: RelayState) => Promise<void>) & {
  * ended, a request opened or settled, a session exited. A changed session is
  * the newest, so it leads the first page, with its `pending` summary, whether
  * or not anybody is viewing it.
+ *
+ * A row's `pending` and a conversation's `requests` go only to a Nessie that
+ * has shown it reads them (`owner-requests-gate.ts`): an older one refuses the
+ * whole exchange over a field it does not know.
  */
 export const createSessionViewRelay = (
   bridge: Pick<CodingSessionsDaemon, 'screen' | 'inventory' | 'conversation' | 'action'>,
+  serverReadsRequests: () => boolean,
 ): SessionViewRelay => {
   let requests: ExecutorSessionViewRequest[] = []
   let hot = false
@@ -46,9 +52,12 @@ export const createSessionViewRelay = (
       requests = []
       lastReport = 0
     }
+    const understood = serverReadsRequests()
     const frames = await Promise.all(requests.map(async (request) => ({
       ...request, screen: await bridge.screen(request).catch(() => null),
-      ...(bridge.conversation ? { conversation: await bridge.conversation(request).catch(() => null) } : {}),
+      ...(bridge.conversation ? {
+        conversation: conversationForServer(await bridge.conversation(request).catch(() => null), understood),
+      } : {}),
     })))
     if (forced && !pendingInventory) {
       forced = false
@@ -61,7 +70,10 @@ export const createSessionViewRelay = (
       executorId: state.executorId, connectionEpoch: state.connectionEpoch,
       observedAt: new Date().toISOString(), frames, conversationVersion: 1 as const,
       ...(receipts.length ? { receipts } : {}),
-      ...(pendingInventory ? { sessions: pendingInventory.sessions, inventory: pendingInventory.inventory } : {}),
+      ...(pendingInventory ? {
+        sessions: pendingInventory.sessions.map((summary) => summaryForServer(summary, understood)),
+        inventory: pendingInventory.inventory,
+      } : {}),
     }
     // Clear demand on failure; a reconnected daemon obtains fresh offers before uploading.
     requests = []

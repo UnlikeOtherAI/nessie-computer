@@ -34,6 +34,7 @@ import {
 import { acquireHostLock, HOST_HEARTBEAT_MS, type HeldHostLock } from './session-lock.js'
 import { inboxHasRequests, listRequests, readSessionMeta, removeRequest } from './session-requests.js'
 import { markCodingSessionChanged } from './session-change-marker.js'
+import { ownerRequestsLeaseIsLive } from './owner-requests-lease.js'
 import { SessionRequestBook } from './session-request-book.js'
 import { readSessionRequests, writeSessionRequests } from './session-request-file.js'
 import { createSecretAskWatcher } from './session-secret-asks.js'
@@ -159,6 +160,9 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   // change; the time a turn spends waiting on its owner never counts against its turn limit.
   let requestWrites: Promise<unknown> = Promise.resolve()
   let waitingSince: number | undefined
+  // Whether the daemon says Nessie can put a prompt to the owner now; re-read every second.
+  let ownerReachable = await ownerRequestsLeaseIsLive(loaded.stateDir)
+  let reachableReadAt = Date.now()
   const book = new SessionRequestBook((list) => {
     requestWrites = requestWrites.then(async () => {
       if (await lock.stillOurs()) await writeSessionRequests(paths, list)
@@ -174,7 +178,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     }
     // The session changed, so it leads the next inventory page.
     if (waiting) update({})
-  }, await readSessionRequests(paths, true))
+  }, await readSessionRequests(paths, true), () => ownerReachable)
 
   // A previous host died mid-turn: say so, and stop its agent before anything else runs.
   if (previous && (state.status === 'working' || state.status === 'starting') && state.turn > 0) {
@@ -369,6 +373,10 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
         // for the answer.
         await writer.flush()
         await removeRequest(paths, request.id)
+      }
+      if (Date.now() - reachableReadAt >= 1_000) {
+        ownerReachable = await ownerRequestsLeaseIsLive(loaded.stateDir)
+        reachableReadAt = Date.now()
       }
       await secretAsks?.poll()
       if (!served) {
