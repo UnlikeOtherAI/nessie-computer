@@ -7,6 +7,9 @@ readings until upgraded through the normal signed package workflow.
 
 ## Measurement and quota sources
 
+The [provider quota catalogue](provider-quotas.md) lists all supported T3 readers,
+additional SysMon sources, local configuration, identity rules and hard bounds.
+
 The executor keeps a timestamped rolling minute locally, sampling every three
 seconds without sending that history to Nessie. An entitled person opening the
 computer monitor renews one aggregate 15-second viewing request. A database

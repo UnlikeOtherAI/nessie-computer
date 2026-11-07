@@ -3,6 +3,8 @@
 Computer resource sampling, native account/quota windows and saved-history
 behavior were informed by [T3 Code](https://github.com/pingdotgg/t3code/tree/6577c6b6185167c0e502fa01f9e8e8f2dee6ff25).
 The executor uses its own protocol, lifecycle, custody and authorization code.
+Additional provider quota contracts follow [T3 Code commit 25bf84ab](https://github.com/pingdotgg/t3code/tree/25bf84ab07f53f141c20239c63e383823a9d5ea0),
+as catalogued in [provider quota sources](docs/provider-quotas.md).
 
 MIT License
 

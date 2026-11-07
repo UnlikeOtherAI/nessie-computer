@@ -21,6 +21,7 @@ export const startComputerMonitor = (stateDir: string, dependencies: {
   const now = dependencies.now ?? Date.now
   let snapshot: Omit<ExecutorMonitorSnapshot, 'subscriptions'> | null = null
   let subscriptions: ExecutorSubscription[] = []
+  let subscriptionsIncomplete = false
   let ci: ExecutorMonitorSnapshot['ci']
   let connected = false
   let stopped = false
@@ -40,13 +41,15 @@ export const startComputerMonitor = (stateDir: string, dependencies: {
     if (!probing && watching() && (lastProbe === 0 || now() - lastProbe >= 60_000)) {
       lastProbe = now()
       probing = (async () => {
-        if (!await enabled()) { subscriptions = []; ci = undefined; return }
+        if (!await enabled()) { subscriptions = []; subscriptionsIncomplete = false; ci = undefined; return }
         if (!watching()) return
-        const [values, checks] = await Promise.all([probe(), probeCi()])
-        if (!await enabled()) { subscriptions = []; ci = undefined; return }
+        const [readings, checks] = await Promise.all([probe(), probeCi()])
+        if (!await enabled()) { subscriptions = []; subscriptionsIncomplete = false; ci = undefined; return }
         if (watching()) {
-          subscriptions = values.map(value => {
-            const previous = subscriptions.find(old => old.provider === value.provider)
+          subscriptionsIncomplete = readings.incomplete
+          subscriptions = readings.accounts.map(value => {
+            const previous = subscriptions.find(old => old.provider === value.provider
+              && (value.sourceKey ? old.sourceKey === value.sourceKey : !old.sourceKey))
             const sameAccount = !value.account || !previous?.account
               || value.account.trim().toLowerCase() === previous.account.trim().toLowerCase()
             const sameKey = !value.accountKey || !previous?.accountKey || value.accountKey === previous.accountKey
@@ -65,7 +68,9 @@ export const startComputerMonitor = (stateDir: string, dependencies: {
   refresh()
   return {
     current: (): ExecutorMonitorSnapshot | undefined => watching() && snapshot
-      ? { ...snapshot, subscriptions, ...(ci ? { ci } : {}) } : undefined,
+      ? { ...snapshot, subscriptions: subscriptions.slice(0, 64), ...(ci ? { ci } : {}),
+        ...(subscriptionsIncomplete || subscriptions.length > 64
+          ? { subscriptionsIncomplete: true } : {}) } : undefined,
     watching,
     request: (request: ExecutorMonitorRequest | null): boolean => {
       const active = watching()
@@ -75,7 +80,9 @@ export const startComputerMonitor = (stateDir: string, dependencies: {
     },
     connected: (allowed: boolean): void => {
       connected = allowed
-      if (!allowed) { subscriptions = []; ci = undefined; requestedUntil = 0; lastProbe = 0 }
+      if (!allowed) {
+        subscriptions = []; subscriptionsIncomplete = false; ci = undefined; requestedUntil = 0; lastProbe = 0
+      }
       else refresh()
     },
     stop: async (): Promise<void> => {

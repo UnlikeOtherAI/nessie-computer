@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { claudeSubscription, codexSubscription } from '../src/provider-subscriptions.js'
+import { claudeSubscription, codexSubscription } from '../src/provider-process/cli-quota-projection.js'
 import { providerAccountIdentity, readClaudeOrganization } from '../src/provider-account-identity.js'
 import { kimiUsageWindows, readKimiQuota } from '../src/provider-process/kimi-quota.js'
 import { sysmonGrokSubscription } from '../src/provider-process/grok-quota.js'
@@ -46,7 +46,7 @@ test('transient failures retain a marked last reading but cannot carry an old al
     sample: async () => ({ capturedAt: at, os: 'windows', processor: 'Test', cpu: null, gpu: null, history: [],
       memoryUsedBytes: 1, memoryTotalBytes: 2, diskUsedBytes: null, diskTotalBytes: null,
       uptimeSeconds: 1, processes: [] }),
-    probe: async () => [current], ci: async () => ({ status: 'ready', checkedAt: at, truncated: false, pullRequests: [] }),
+    probe: async () => ({ accounts: [current], incomplete: false }), ci: async () => ({ status: 'ready', checkedAt: at, truncated: false, pullRequests: [] }),
   })
   const refresh = async () => {
     monitor.request({ expiresAt: new Date(now + 15_000).toISOString() })

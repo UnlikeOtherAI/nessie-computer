@@ -45,5 +45,6 @@ verification limits.
 
 Computer telemetry, provider quotas, owner-only CI, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
+All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.

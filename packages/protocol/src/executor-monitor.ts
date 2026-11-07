@@ -23,13 +23,19 @@ export const ExecutorUsageWindowSchema = z.object({
 
 /** Derived provider facts only. Tokens, credential paths and raw provider responses never travel. */
 export const ExecutorSubscriptionSchema = z.object({
-  provider: z.enum(['claude', 'codex', 'kimi', 'grok']),
+  provider: z.enum([
+    'claude', 'codex', 'kimi', 'grok', 'grok_build', 'cursor', 'antigravity', 'opencode',
+  ]),
   status: z.enum(['ready', 'not_installed', 'signed_out', 'unavailable', 'unsupported']),
   account: z.string().max(254).nullable(),
   /** Opaque identity or credential fingerprint; unknown accounts must never merge by plan or quota. */
   accountKey: z.string().max(100).optional(),
   workspaceKey: z.string().max(100).optional(),
-  source: z.enum(['cli', 'kimi_api', 'sysmon']).optional(),
+  sourceKey: z.string().max(100).optional(),
+  source: z.enum(['cli', 'kimi_api', 'sysmon', 'provider_api', 'cliproxy']).optional(),
+  resetCredits: z.object({
+    availableCount: z.number().int().nonnegative(), nextExpiresAt: time.optional(),
+  }).strict().optional(),
   plan: z.string().max(100).nullable(),
   checkedAt: time,
   windows: z.array(ExecutorUsageWindowSchema).max(16),
@@ -68,7 +74,8 @@ export const ExecutorMonitorSnapshotSchema = z.object({
     pid: z.number().int().nonnegative(), name: z.string().max(200),
     cpu: z.number().finite().nonnegative().nullable(), memoryBytes: bytes.nullable(),
   }).strict()).max(10),
-  subscriptions: z.array(ExecutorSubscriptionSchema).max(16),
+  subscriptions: z.array(ExecutorSubscriptionSchema).max(64),
+  subscriptionsIncomplete: z.boolean().optional(),
   ci: ExecutorMonitorCiSchema.optional(),
 }).strict()
 

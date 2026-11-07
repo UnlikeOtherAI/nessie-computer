@@ -44,7 +44,7 @@ test('idle local sampling sends nothing; first demand returns cached history, ex
       history = appendMonitorHistory(history, { at: current.capturedAt, cpu: 23, gpu: 10 })
       return { ...current, history }
     },
-    probe: async () => { probes += 1; return [] },
+    probe: async () => { probes += 1; return { accounts: [], incomplete: false } },
   })
   const advance = async (ms: number) => { now += ms; t.mock.timers.tick(ms); await setImmediate() }
   try {
@@ -87,7 +87,7 @@ test('an expired request cannot start a provider probe after the local setting r
   const monitor = startComputerMonitor('unused', {
     now: () => now, sample: async () => sampleAt(now), enabled: () => setting,
     ci: async () => ({ status: 'ready', checkedAt: new Date(now).toISOString(), truncated: false, pullRequests: [] }),
-    probe: async () => { probes += 1; return [] },
+    probe: async () => { probes += 1; return { accounts: [], incomplete: false } },
   })
   try {
     monitor.connected(true)
