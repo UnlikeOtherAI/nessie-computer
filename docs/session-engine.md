@@ -1,8 +1,9 @@
 # Executor-owned T3 session engine
 
-Status: pinned source preparation is implemented. The session engine is not yet
-an installed or available executor capability. No lifecycle, provider execution,
-T3 gateway, session import or full mobile compatibility is claimed here.
+Status: pinned source preparation and a real lower-state library are implemented
+and qualified with synthetic SQLite. The session engine is not yet an installed
+or available executor capability. No lifecycle, provider execution, T3 gateway,
+session import or full mobile compatibility is claimed here.
 
 This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;
@@ -29,8 +30,11 @@ the executor's implementation.
 `packaging/session-engine/source-lock.json` binds the exact Git commit/tree,
 selected source archive's SHA-256 and size, and independent SHA-256 hashes of
 LICENSE, both package manifests, the workspace file and dependency lockfile.
-The source archive is 52,111,360 bytes with SHA-256
-`384e1dad4b99825a1cc48b8f7e832a50126993fe256232c0920d9e6a96f9e581`.
+The source archive has 2,859 files, is 52,121,600 bytes, and has SHA-256
+`6ec4dc60aa5b92dabbf69c55b408b1db87d77d0a132cbc1fbca61daa0b4f7096`.
+It includes the three applicable upstream Markdown dependency patches:
+`micromark@4.0.2`, `mdast-util-to-hast@13.2.1`, and
+`micromark-extension-gfm-table@2.1.1`. Their independent hashes are in the lock.
 
 The capsule contains server source, shared packages and build metadata. It omits
 the mobile, web and marketing applications and all retained local T3 userdata.
@@ -45,7 +49,10 @@ pnpm 10.22.0 toolchain; do not change that toolchain to prepare a source capsule
 
 ## Source preparation API
 
-`packaging/session-engine/source.mjs` exports:
+The following helper files are directly importable Node ESM build modules under
+`packaging/session-engine/`. They execute no upstream source when imported.
+
+`source.mjs` exports:
 
 - `T3_SESSION_ENGINE_SOURCE`: frozen source provenance and selected roots.
 - `SessionEngineSourceError`: categorical `code`, with no Git stderr or local
@@ -70,6 +77,92 @@ replacement objects. Dirty/deleted working files therefore cannot substitute
 for the source. Source symlinks and submodules are refused. It runs no install
 scripts, providers, T3 executables or source files, and performs no network
 access. It does not open a database or inspect personal session contents.
+
+`snapshot.mjs` exports `readSessionEngineSnapshot(archivePath, spec?)`. It verifies
+the complete capsule and parses the Git tar in memory without extracting files.
+The frozen result has `identity: {commit, tree, archiveSha256}`, a sorted frozen
+`files` array, and `read(path)` returning a fresh Buffer. Source bytes cannot be
+changed by mutating a previously returned buffer.
+
+`patches.mjs` exports `applySessionEngineBoundaryPatches(snapshot, manifestBytes?)`.
+It binds every ordered patch's complete before/after SHA-256 and unique text
+seam; the result preserves the original capsule identity and adds
+`orderedPatchesSha256`. `boundary-patches.json` currently redirects one import
+in `sourceControl/threadPullRequests.ts` to the same pure
+`builtInSourceControlDefinitions` registry. The original application export also
+imports all server drivers. This cut preserves normalization behavior without
+initializing that driver graph. No domain service is replaced.
+
+`resolver.mjs` exports:
+
+- `createSessionEngineSourceResolver(snapshot)`, with `resolve(specifier, importer?)`
+  returning a source/builtin/dependency descriptor and `load(path)` returning
+  committed source bytes. Workspace imports use the real package export maps.
+- `sessionEngineSourcePlugin({snapshot, dependencyDirectory, dependencies})`, an
+  esbuild plugin using the same resolver and an explicit direct-dependency
+  allowlist. `t3-source:<committed-path>` selects an exact source entry.
+
+Use a single resolver namespace and dependency root for the eventual contracts
+and engine co-build. In particular, use one Effect 4.1.2 singleton. Do not load
+two independently bundled candidates into the final runtime as interchangeable
+Effect/Context implementations. The isolated library is a qualified dependency
+candidate; first-party contract exports and final payload wiring are separate.
+
+## Lower state library and build entry
+
+`core/StateLayers.ts` exports `createSessionStateLayers()` and the source type
+`SessionStateServices`. The factory returns `{infrastructure, stores, eventSink,
+outbox, layer}`; `layer` requires the real `SqlClient` and supplies the real
+application events/receipts, event and command receipt stores, projections,
+projects, effect outbox, turn-position store and event sink. Keep those layer
+references when adding the worker and orchestration services.
+
+The generated module also exports the original namespaces `ApplicationEvents`,
+`ApplicationReceipts`, `EventStore`, `CommandReceipts`, `ProjectionStore`,
+`ProjectStore`, `Outbox`, `TurnPositions`, `EventSink`, and the original
+`ORCHESTRATION_PROTOCOL_VERSION` (`2`). The Context tags come from the actual
+pinned sources. There are no duplicate store implementations or testkit services
+in this composition. It opens no SQL database until supplied and built by its
+owner, and starts no worker or provider.
+
+The isolated build-only `package.json` and `pnpm-lock.yaml` pin Effect 4.1.2,
+the actual shared Markdown pipeline, esbuild 0.25.12, TypeScript 5.9.3, ESLint
+10.2.0 and Node 24.12.4 declarations. They do not change executor workspace
+dependencies or its runtime/toolchain. Node 22 declarations cannot describe the
+source SQLite adapter's newer APIs; the proof ran on Node 24.19.0. The bundle's
+Node 22.16 language target does not establish Node 22 runtime compatibility.
+
+From the executor checkout, with the build resource slot reserved:
+
+```powershell
+$env:NODE_OPTIONS = '--max-old-space-size=1536'
+node packaging/session-engine/prepare-dependencies.mjs <read-only-pinned-Git-repository>
+pnpm --dir packaging/session-engine install --ignore-workspace --frozen-lockfile --ignore-scripts
+node packaging/session-engine/build.mjs --source <read-only-pinned-Git-repository> --output .artifacts/session-engine/state-core.mjs
+node packaging/session-engine/build.mjs --source <read-only-pinned-Git-repository> --output .artifacts/session-engine/state-proof.mjs --proof
+node packaging/session-engine/proof.mjs .artifacts/session-engine/state-proof.mjs
+```
+
+`prepare-dependencies.mjs` materializes only hash-verified upstream dependency
+patches under ignored build artifacts. Installs run no package lifecycle script.
+`build.mjs` exports `buildSessionStateModule({sourceRepository, outputPath, proof?})`.
+It runs strict first-party lint and a strict TypeScript check over the real source
+closure before bundling. It rejects server/auth/preview/device/telemetry/provider
+driver/credential-store aggregate inputs, unrelated first-party inputs, and all
+external runtime imports except Node builtins. Original source remains in the
+capsule; no oversized upstream file becomes first-party code or gets a blanket
+lint exemption.
+
+The build writes the immutable module, `.provenance.json`, `.licenses.json` and
+verified `.source.tar`. Provenance includes original and patched source-file
+hashes, authored and bundled dependency-file hashes, ordered patch digest,
+dependency lock/build manifest digests, tool versions, bundle size/hash and
+whether the entry is the state library or synthetic proof. Original MIT and
+bundled dependency notices accompany the module. The proof runner rechecks
+artifact/source/lock/patch identity before executing the synthetic entry.
+
+These outputs are build candidates. They do not modify the executor's existing
+native manifest, grant personal credentials or bypass native release admission.
 
 ## Runtime composition boundary
 
@@ -134,9 +227,30 @@ the public graph:
 pnpm exec turbo run test:session-engine-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
 ```
 
-On Maxis, six focused source tests passed with a 1.5 GiB heap limit. The real
-CLI reproduced the pinned capsule and reused its verified output. These checks
-cover committed versus dirty working inputs, byte integrity, output conflicts,
-symlink refusal and invalid identity/path inputs. They establish source
-preparation only. No engine bundle, native build, installation, personal
-credential use, retained-session access or client/provider parity was tested.
+On Windows Maxis, nine focused source tests passed with a 1.5 GiB heap limit.
+The real CLI reproduced the pinned capsule. Checks cover committed versus dirty
+working inputs, byte integrity, output conflicts, symlink refusal, malformed
+capsules, export resolution, immutable buffers, and ordered patch rejection.
+
+The lower-state library passed lint and the strict TypeScript 5.9.3 check
+(693 files) and bundled 154 pinned source modules into 3,141,429 bytes with
+SHA-256 `99a59090d9bfbadacf0b646dcea132464330942aae1d387f9aad7f5a6d53e9cd`.
+The synthetic proof passed lint/typecheck (810 files), bundled 259 source modules
+into 3,348,048 bytes, and had SHA-256
+`12d752848ef9882df07cccabce78e2b22ee31717e5309928d17a038ba29999ff`.
+Tools were Node 24.19.0, pnpm 10.22.0 and esbuild 0.25.12. Each step ran
+sequentially after a fresh headroom check, with at least 6 GiB free and
+`--max-old-space-size=1536`.
+
+The proof ran the original SQLite migrations in an isolated in-memory database
+and used actual services. Two commands committed two events and two effect rows;
+same-ID replay produced no duplicate effect or second wakeup. A failed provider
+batch left no receipt, event, projection, effect or live publication. Live
+delivery and sequence resume each returned one committed event; the final
+sequence was 2. This exercises shared-outbox wakeups, atomic commit/publication,
+receipt replay and event cursors. It is not a provider simulation or complete
+session synchronization implementation.
+
+No native build, installation, provider process, personal credential access,
+retained-session access, file-backed recovery, high-level history/lineage,
+original-client compatibility, full lifecycle or mobile flow was tested.

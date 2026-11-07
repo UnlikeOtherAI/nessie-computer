@@ -6,8 +6,9 @@ The executor uses its own protocol, lifecycle, custody and authorization code.
 
 Pinned session-engine source preparation also references T3 Code revision
 `25bf84ab07f53f141c20239c63e383823a9d5ea0`; see `docs/session-engine.md`.
-Its offline source capsule retains the original MIT LICENSE. This preparation
-does not yet ship or start the T3 session runtime.
+Its offline source capsule and derived lower-state library candidates retain
+the original MIT LICENSE, with notices for bundled runtime dependencies. This
+work does not yet ship or start the T3 session runtime in an installed executor.
 
 MIT License
 

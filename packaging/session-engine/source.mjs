@@ -25,7 +25,7 @@ export class SessionEngineSourceError extends Error {
 
 const refuse = code => { throw new SessionEngineSourceError(code) }
 const regularPath = value => typeof value === 'string' && value.split('/').every(
-  part => /^[a-zA-Z0-9_.-]+$/u.test(part) && part !== '.' && part !== '..' && part !== '.git',
+  part => /^[a-zA-Z0-9_@%+.-]+$/u.test(part) && part !== '.' && part !== '..' && part !== '.git',
 )
 
 const validateLock = spec => {
@@ -93,7 +93,9 @@ export const verifySessionEngineSource = async (sourceRepository, spec = T3_SESS
  * lifecycle script, provider, T3 executable or source file is executed. No user
  * state is read. The capsule is a build input, not a runnable executor payload.
  */
-export const prepareSessionEngineSource = async ({ sourceRepository, archivePath }, spec = T3_SESSION_ENGINE_SOURCE) => {
+export const prepareSessionEngineSource = async (
+  { sourceRepository, archivePath }, spec = T3_SESSION_ENGINE_SOURCE,
+) => {
   const identity = await verifySessionEngineSource(sourceRepository, spec)
   const archive = await git(sourceRepository, ['archive', '--format=tar', spec.commit, '--', ...spec.roots])
   if (archive.length !== spec.archiveBytes || sha256(archive) !== spec.archiveSha256) {
