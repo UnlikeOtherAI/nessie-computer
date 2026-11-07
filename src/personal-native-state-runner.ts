@@ -68,6 +68,10 @@ export const runPersonalNativeState = async (
       })
       let tracking: Promise<void>
       child.once('close', (code) => {
+        // The close is the stop proof the kill wait stands in for. Releasing
+        // the claim takes file I/O of its own, which on a busy machine can
+        // outlast the wait; the observed close decides from here.
+        if (killWait) { clearTimeout(killWait); killWait = undefined }
         void (async () => {
           try { await tracking; await release?.() }
           catch { finish('personal_state_writer_unknown'); return }

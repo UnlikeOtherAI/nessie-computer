@@ -84,9 +84,17 @@ test('stdin failure requests stop and keeps a claim when actual child exit is un
 test('a cancellation with an observed child close releases its claim, never on kill request alone', async () => {
   const fixture = await writerFixture()
   fixture.child.kill = () => { queueMicrotask(fixture.close); return true }
+  // Releasing the claim outlasts the stop wait, as its file I/O can on a busy
+  // machine: the observed close decides, not the clock.
+  const journal = fixture.journal()
+  const execute = journal.execute.bind(journal)
+  journal.execute = (work) => execute((track) => work(async (child) => {
+    const release = await track(child)
+    return async () => { await new Promise((settle) => { setTimeout(settle, 40) }); await release() }
+  }))
   try {
-    const mutation = runPersonalNativeState('fixture', ['replace'], Buffer.from('fixture-bytes'), fixture.journal(),
-      { spawn: () => fixture.child, timeoutMs: 2_000, stopWaitMs: 50 })
+    const mutation = runPersonalNativeState('fixture', ['replace'], Buffer.from('fixture-bytes'), journal,
+      { spawn: () => fixture.child, timeoutMs: 2_000, stopWaitMs: 5 })
     await assert.rejects(mutation, /mutation_unknown/u)
     await fixture.journal().execute(async () => undefined)
     const claims = await readdir(join(fixture.root, 'native-writers'))
