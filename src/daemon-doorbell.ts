@@ -1,7 +1,7 @@
 import { WebSocket } from 'undici'
 import {
-  EXECUTOR_DAEMON_SOCKET_PATH, EXECUTOR_DAEMON_SOCKET_POLL_HEADER, EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER,
-  ExecutorDaemonSocketServerFrameSchema, type ExecutorDaemonWakeTopic,
+  EXECUTOR_DAEMON_SOCKET_PATH, ExecutorDaemonSocketServerFrameSchema, type ExecutorDaemonSocketConnect,
+  type ExecutorDaemonWakeTopic,
 } from '@nessie/executor-protocol'
 
 import { signExecutorDaemonPayload } from './daemon-signature.js'
@@ -13,8 +13,8 @@ import type { ExecutorLocalState } from './state-store.js'
  * Every payload keeps its signed HTTP path; the socket only changes when the
  * daemon asks.
  *
- * The upgrade carries the command poll's own proof, so the server admits it
- * exactly as it admits a poll. Anything but a `ready` frame leaves the daemon
+ * Its first message is the command poll's own signed proof, so the server
+ * admits it exactly as it admits a poll. Anything but a `ready` frame leaves the daemon
  * on its one-second cadence: an older Nessie without the route refuses the
  * upgrade, the socket closes, and the daemon behaves as it always has. A
  * dropped socket reconnects with jittered, capped backoff; one that has never
@@ -30,16 +30,19 @@ const NEVER_READY_RETRY_MS = 5 * 60_000
 
 export type DoorbellSocketLike = {
   close: (code: number, reason: string) => void
-  listen: (handlers: { message: (data: unknown) => void; close: () => void }) => void
+  send: (data: string) => void
+  listen: (handlers: { open: () => void; message: (data: unknown) => void; close: () => void }) => void
 }
 
 export type DoorbellState = Pick<ExecutorLocalState, 'apiBaseUrl' | 'executorId' | 'machinePrivateKey' | 'connectionEpoch'>
 
-const openWebSocket = (url: string, headers: Record<string, string>): DoorbellSocketLike => {
-  const socket = new WebSocket(url, { headers })
+const openWebSocket = (url: string): DoorbellSocketLike => {
+  const socket = new WebSocket(url)
   return {
     close: (code, reason) => { socket.close(code, reason) },
+    send: (data) => { socket.send(data) },
     listen: (handlers) => {
+      socket.addEventListener('open', () => handlers.open())
       socket.addEventListener('message', (event) => handlers.message(event.data))
       socket.addEventListener('close', () => handlers.close())
       // A refused upgrade or a network error is followed by `close`, which is where it is handled.
@@ -50,16 +53,13 @@ const openWebSocket = (url: string, headers: Record<string, string>): DoorbellSo
 
 const parseJson = (data: string): unknown => { try { return JSON.parse(data) } catch { return undefined } }
 
-/** The poll's own signed proof, as the upgrade's headers. */
-export const doorbellHeaders = (
+/** The poll's own signed proof, sent as the socket's first message. */
+export const doorbellConnect = (
   state: DoorbellState, observedAt = new Date().toISOString(),
-): Record<string, string> => {
+): ExecutorDaemonSocketConnect => {
   if (!state.connectionEpoch) throw new Error('The executor has not claimed a live daemon connection.')
   const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt }
-  return {
-    [EXECUTOR_DAEMON_SOCKET_POLL_HEADER]: JSON.stringify(payload),
-    [EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER]: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload),
-  }
+  return { type: 'connect', ...payload, signature: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload) }
 }
 
 export const doorbellUrl = (apiBaseUrl: string): string => {
@@ -94,7 +94,7 @@ export class ExecutorDaemonDoorbell {
     onWake: (topics: ExecutorDaemonWakeTopic[]) => void
     /** The socket closed or never opened: poll at the one-second cadence again. */
     onDown: () => void
-    open?: (url: string, headers: Record<string, string>) => DoorbellSocketLike
+    open?: (url: string) => DoorbellSocketLike
     /** Jitter in [0, 1); fixed in tests. */
     random?: () => number
   }) {}
@@ -137,15 +137,21 @@ export class ExecutorDaemonDoorbell {
   private connect(): void {
     if (this.#stopped) return
     const state = this.options.state()
+    if (!state.connectionEpoch) { this.scheduleRetry(); return }
     let socket: DoorbellSocketLike
     try {
-      socket = (this.options.open ?? openWebSocket)(doorbellUrl(state.apiBaseUrl), doorbellHeaders(state))
+      socket = (this.options.open ?? openWebSocket)(doorbellUrl(state.apiBaseUrl))
     } catch {
       this.scheduleRetry()
       return
     }
     this.#socket = socket
     socket.listen({
+      // Signed when the socket opens, so its observedAt is fresh however long the handshake took.
+      open: () => {
+        if (socket !== this.#socket) return
+        try { socket.send(JSON.stringify(doorbellConnect(this.options.state()))) } catch { socket.close(1000, 'No live connection.') }
+      },
       message: (data) => this.receive(socket, data),
       close: () => this.closed(socket),
     })

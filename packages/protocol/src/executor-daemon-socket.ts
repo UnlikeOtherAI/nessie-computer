@@ -33,13 +33,18 @@ export type ExecutorDaemonSocketServerFrame = z.infer<typeof ExecutorDaemonSocke
 export const EXECUTOR_DAEMON_SOCKET_PATH = '/api/executor-daemon/socket'
 
 /**
- * The upgrade request carries the command poll's own signed proof, as headers
- * because a WebSocket handshake has no body: the poll's payload
- * `{connectionEpoch, executorId, observedAt}` as JSON in
- * `x-nessie-executor-poll`, and its `poll`-domain signature
- * (`nessie.executor.daemon.poll.v1`) in `x-nessie-executor-signature`. The
- * server verifies them exactly as it verifies a poll, including the
- * `observedAt` freshness window, before it accepts the upgrade.
+ * The daemon's first and only message, sent as soon as the socket opens: the
+ * body of its `POST /api/executor-daemon/commands/poll` and that body's
+ * `poll`-domain signature (`nessie.executor.daemon.poll.v1`), so the server
+ * admits it exactly as it admits a poll, freshness window included. The local
+ * inference host socket opens the same way. The server answers `ready` or
+ * closes with 4401; any later message from the daemon closes the socket.
  */
-export const EXECUTOR_DAEMON_SOCKET_POLL_HEADER = 'x-nessie-executor-poll'
-export const EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER = 'x-nessie-executor-signature'
+export const ExecutorDaemonSocketConnectSchema = z.object({
+  type: z.literal('connect'),
+  executorId: z.string().uuid(),
+  connectionEpoch: z.string().regex(/^\d{1,20}$/u),
+  observedAt: z.string().datetime(),
+  signature: z.string().min(1).max(256),
+}).strict()
+export type ExecutorDaemonSocketConnect = z.infer<typeof ExecutorDaemonSocketConnectSchema>

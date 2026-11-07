@@ -9,8 +9,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import {
-  canonicalExecutorPayload, EXECUTOR_DAEMON_SOCKET_POLL_HEADER, EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER,
-  type ExecutorDaemonWakeTopic,
+  canonicalExecutorPayload, ExecutorDaemonSocketConnectSchema, type ExecutorDaemonWakeTopic,
 } from '@nessie/executor-protocol'
 
 import { createDaemonCadence, type CadenceTask } from '../src/daemon-cadence.js'
@@ -33,6 +32,25 @@ const frame = (text: string): Buffer => {
   return Buffer.concat([header, payload])
 }
 
+/** The first client-to-server text frame: masked, one fragment, under 64 KiB. */
+const firstClientText = (socket: Socket): Promise<string> => new Promise((settle) => {
+  let buffered = Buffer.alloc(0)
+  const read = (chunk: Buffer): void => {
+    buffered = Buffer.concat([buffered, chunk])
+    if (buffered.length < 2) return
+    let length = buffered[1]! & 0x7f
+    let offset = 2
+    if (length === 126) { if (buffered.length < 4) return; length = buffered.readUInt16BE(2); offset = 4 }
+    if (buffered.length < offset + 4 + length) return
+    const mask = buffered.subarray(offset, offset + 4)
+    const masked = buffered.subarray(offset + 4, offset + 4 + length)
+    const payload = Buffer.from(masked.map((byte, index) => byte ^ mask[index % 4]!))
+    socket.off('data', read)
+    settle(payload.toString('utf8'))
+  }
+  socket.on('data', read)
+})
+
 const accept = (request: IncomingMessage, socket: Socket): void => {
   const key = createHash('sha1').update(`${request.headers['sec-websocket-key']}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`)
     .digest('base64')
@@ -40,7 +58,7 @@ const accept = (request: IncomingMessage, socket: Socket): void => {
     `Sec-WebSocket-Accept: ${key}`, '', ''].join('\r\n'))
 }
 
-test('the upgrade carries the poll proof, ready slows the polls, wake names topics', { timeout: 30_000 }, async () => {
+test('the first message is the poll proof, ready slows the polls, wake names topics', { timeout: 30_000 }, async () => {
   const { publicKey, machinePrivateKey } = keys()
   const executorId = randomUUID()
   const sockets: Socket[] = []
@@ -49,17 +67,20 @@ test('the upgrade carries the poll proof, ready slows the polls, wake names topi
   server.on('upgrade', (request: IncomingMessage, socket: Socket) => {
     sockets.push(socket)
     assert.equal(request.url, '/api/executor-daemon/socket')
-    const payload = JSON.parse(String(request.headers[EXECUTOR_DAEMON_SOCKET_POLL_HEADER])) as Record<string, unknown>
-    const signature = String(request.headers[EXECUTOR_DAEMON_SOCKET_SIGNATURE_HEADER])
-    assert.deepEqual(Object.keys(payload).sort(), ['connectionEpoch', 'executorId', 'observedAt'])
-    assert.equal(payload.executorId, executorId)
-    verified = verify(null, Buffer.from(canonicalExecutorPayload('nessie.executor.daemon.poll.v1', payload)),
-      publicKey, Buffer.from(signature, 'base64url'))
     accept(request, socket)
-    socket.write(frame(JSON.stringify({ type: 'ready', pollSeconds: 15 })))
-    socket.write(frame('not json'))
-    socket.write(frame(JSON.stringify({ type: 'wake', topics: ['commands', 'session_views'], payload: 'never' })))
-    socket.write(frame(JSON.stringify({ type: 'wake', topics: ['session_views', 'session_views'] })))
+    void firstClientText(socket).then((text) => {
+      const connect = ExecutorDaemonSocketConnectSchema.parse(JSON.parse(text))
+      assert.equal(connect.executorId, executorId)
+      assert.equal(connect.connectionEpoch, '7')
+      const { connectionEpoch, observedAt } = connect
+      const payload = { connectionEpoch, executorId: connect.executorId, observedAt }
+      verified = verify(null, Buffer.from(canonicalExecutorPayload('nessie.executor.daemon.poll.v1', payload)),
+        publicKey, Buffer.from(connect.signature, 'base64url'))
+      socket.write(frame(JSON.stringify({ type: 'ready', pollSeconds: 15 })))
+      socket.write(frame('not json'))
+      socket.write(frame(JSON.stringify({ type: 'wake', topics: ['commands', 'session_views'], payload: 'never' })))
+      socket.write(frame(JSON.stringify({ type: 'wake', topics: ['session_views', 'session_views'] })))
+    })
   })
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
@@ -135,22 +156,26 @@ test('reconnects back off with jitter, and further when the server never once sa
 })
 
 test('a new connection epoch reconnects at once under the new proof', () => {
-  const opened: Record<string, string>[] = []
+  const sent: string[] = []
+  const opens: Array<() => void> = []
   let epoch = '1'
   const doorbell = new ExecutorDaemonDoorbell({
     state: () => ({ apiBaseUrl: 'https://api.example.invalid', executorId: randomUUID(),
       machinePrivateKey: keys().machinePrivateKey, connectionEpoch: epoch }),
     onReady: () => undefined, onWake: () => undefined, onDown: () => undefined,
-    open: (_url, headers): DoorbellSocketLike => {
-      opened.push(headers)
-      return { close: () => undefined, listen: () => undefined }
-    },
+    open: (): DoorbellSocketLike => ({
+      close: () => undefined, send: (data) => { sent.push(data) }, listen: (handlers) => { opens.push(handlers.open) },
+    }),
   })
   doorbell.start()
+  opens[0]!()
   epoch = '2'
   doorbell.restart()
+  opens[1]!()
+  opens[0]!()
   doorbell.stop()
-  assert.deepEqual(opened.map((headers) => JSON.parse(headers[EXECUTOR_DAEMON_SOCKET_POLL_HEADER]!).connectionEpoch), ['1', '2'])
+  assert.deepEqual(sent.map((text) => ExecutorDaemonSocketConnectSchema.parse(JSON.parse(text)).connectionEpoch), ['1', '2'],
+    'each socket signs its own connect when it opens, and a replaced socket sends nothing')
 })
 
 const fakeTask = () => {

@@ -10,11 +10,12 @@ the executor implements it.
 ## The doorbell
 
 The daemon holds one WebSocket to `/api/executor-daemon/socket`
-(`src/daemon-doorbell.ts`). The upgrade carries the command poll's own proof:
-`x-nessie-executor-poll` is the poll payload `{connectionEpoch, executorId,
-observedAt}` as JSON, and `x-nessie-executor-signature` its `poll`-domain
-signature (`nessie.executor.daemon.poll.v1`). A new connection epoch reconnects
-at once under the new proof.
+(`src/daemon-doorbell.ts`). Its first and only message, sent when the socket
+opens, is the command poll's own proof — `{type: 'connect', connectionEpoch,
+executorId, observedAt, signature}`, the signature in the `poll` domain
+(`nessie.executor.daemon.poll.v1`) — as the local inference host socket opens.
+Nessie answers `ready` or closes with 4401. A new connection epoch reconnects at
+once under the new proof.
 
 | Doorbell | Command poll | Session exchange |
 | --- | --- | --- |
