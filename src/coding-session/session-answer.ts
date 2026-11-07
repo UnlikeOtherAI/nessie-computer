@@ -60,8 +60,10 @@ const BRIDGE_LIFE = randomUUID()
 const DELIVERY_MS = 60_000
 
 const writerGone = (claim: Claim, now = Date.now()): boolean => {
+  // However it was written, a delivery this old did not finish: even this process's own failed one.
+  if (!(now - Date.parse(claim.at) < DELIVERY_MS)) return true
   if (claim.life === BRIDGE_LIFE) return false
-  if (!(now - Date.parse(claim.at) < DELIVERY_MS) || typeof claim.pid !== 'number') return true
+  if (typeof claim.pid !== 'number') return true
   try {
     process.kill(claim.pid, 0)
     return false

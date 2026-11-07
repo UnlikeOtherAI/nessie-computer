@@ -59,10 +59,12 @@ const setup = async (answerKey?: string) => {
 /** A pid that has certainly exited. */
 const deadPid = (): number => spawnSync(process.execPath, ['-e', '']).pid
 
-const strandedClaim = async (paths: CodingSessionPaths, requestId: string, commandId: string, pid = deadPid()) => {
+const strandedClaim = async (
+  paths: CodingSessionPaths, requestId: string, commandId: string, pid = deadPid(), at = now(),
+) => {
   await ensurePrivateDir(paths.answers)
   await writeFile(join(paths.answers, `${requestId}.json`), JSON.stringify({
-    commandId, at: now(), outcome: { state: 'accepted', code: 'answer_delivered' }, stage: 'delivering',
+    commandId, at, outcome: { state: 'accepted', code: 'answer_delivered' }, stage: 'delivering',
     life: randomUUID(), pid,
   }))
 }
@@ -134,6 +136,10 @@ test('a delivery still in flight in a live bridge is left alone', async () => {
     assert.deepEqual(await answer({ requestId: command.id, decision: 'accept' }, flying),
       { state: 'outcome_unknown', code: 'answer_in_progress' })
     assert.equal((await listRequests(paths)).length, 0)
+    // A delivery takes moments: one a minute old did not finish, whoever is still running.
+    await strandedClaim(paths, command.id, flying, process.pid, new Date(Date.now() - 61_000).toISOString())
+    assert.deepEqual(await answer({ requestId: command.id, decision: 'accept' }, flying),
+      { state: 'accepted', code: 'answer_delivered' })
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
