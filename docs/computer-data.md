@@ -1,11 +1,14 @@
 # Computer readings and conversations
 
-The paired computer reports real host readings and locally discovered Claude Code
-and Codex accounts. Nessie's Computers page owns their display; its sidebar opens
+The paired computer reports real host readings and locally discovered provider
+accounts. Nessie's Computers dashboard owns their display; its sidebar opens
 each computer and its individual sessions. Older installed executors report no
 readings until upgraded through the normal signed package workflow.
 
 ## Measurement and quota sources
+
+The [provider quota catalogue](provider-quotas.md) lists all supported T3 readers,
+additional SysMon sources, local configuration, identity rules and hard bounds.
 
 The executor keeps a timestamped rolling minute locally, sampling every three
 seconds without sending that history to Nessie. An entitled person opening the
@@ -42,6 +45,55 @@ requests return account and quota data, with skip_behaviors enabled and no user
 prompt. Probes run at most once per minute while somebody is watching,
 independently from host sampling and heartbeat delivery.
 The existing local coding-session discovery switch also disables account probes.
+
+Host metadata includes hostname, first external IPv4, logical core count and
+POSIX load where available. NVIDIA memory sums all readable cards while GPU
+utilization uses the busiest card; missing counters remain null. These optional
+fields keep older collectors readable. Never infer GPU usage from an allocation.
+Linux Intel hardware can report utilization through measured RC6 idle-counter
+deltas when a direct busy counter is absent. Counter resets remain unknown.
+
+### Account identity and additional SysMon sources
+
+Claude and Codex follow T3 Code's read-only control requests:
+[Claude](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/provider/claudeUsageLimits.ts),
+[Codex](https://github.com/pingdotgg/t3code/blob/main/apps/server/src/provider/codexUsageLimits.ts).
+Codex's workspace is the rate-limit response's `accountId`. Claude's is
+`oauthAccount.organizationUuid` in the CLI-owned `.claude.json`, respecting
+`CLAUDE_CONFIG_DIR`. Only that metadata field is projected from the bounded file;
+no raw file, credentials or provider workspace identifier travels. Domain-separated
+SHA-256 keys allow client-side pooling by provider/account/workspace. Missing
+identity never means all accounts of a provider are the same account. Claude's
+spend amounts are compared only with matching currency and decimal scale.
+
+Kimi reads an existing local coding OAuth credential, configured official API key
+or native configuration, then GETs only `https://api.kimi.com/coding/v1/usages`.
+It never refreshes or writes credentials. Expired/unauthorized credentials remain
+signed out. Native weekly `usage` is authoritative; detailed windows and legacy
+short-window readings retain the stricter limit. Missing values never become
+zero usage. An opaque subject or credential fingerprint supports deduplication
+when no email is reported; rotating an unidentified credential can therefore
+produce a separate account, rather than an unsafe guessed merge.
+
+Grok uses an existing SysMon installation's authenticated read-only `get_accounts`
+MCP call at the fixed local `127.0.0.1:7738/mcp` endpoint. Only Grok's derived
+windows are projected; no cookies, browser profile, token or other SysMon machine
+rows travel. SysMon owns browser sign-in. Without its local token there is no
+fabricated Grok card. SysMon currently reports no stable Grok account identity,
+so separate unknown installations cannot be safely merged. Kimi/Grok parsing
+follows [SysMon](https://github.com/rafiki270/SysMon)'s native sources.
+
+Provider HTTP reads have an eight-second deadline, a 256 KiB body bound and no
+redirects. Kimi uses the pinned public transport; SysMon admits only its literal
+loopback endpoint. Local credential/metadata reads have explicit size bounds.
+
+The local GitHub CLI reports at most 30 open authored pull requests with failing
+checks, using its existing sign-in. Incomplete/malformed searches never mean all
+checks passed. Account and CI probes run at most once per minute while viewed;
+transient failures retain the last valid values marked unavailable/stale. CI
+summaries are pairing-owner only, just like provider quotas, because private
+repository names and titles must not leak through ordinary computer access.
+Deploy the updated API before collectors that send these additive signed fields.
 
 Remaining percentages come from provider utilization or remaining-percent fields;
 missing, unsupported and signed-out states never become a guessed allowance.

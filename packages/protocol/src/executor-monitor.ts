@@ -15,6 +15,7 @@ export type ExecutorMonitorRequest = z.infer<typeof ExecutorMonitorRequestSchema
 export const ExecutorUsageWindowSchema = z.object({
   id: z.string().min(1).max(100),
   kind: z.enum(['session', 'weekly', 'monthly', 'other']),
+  label: z.string().min(1).max(100).optional(),
   remainingPercent: percent,
   durationMinutes: z.number().positive().optional(),
   resetsAt: time.nullable(),
@@ -22,20 +23,47 @@ export const ExecutorUsageWindowSchema = z.object({
 
 /** Derived provider facts only. Tokens, credential paths and raw provider responses never travel. */
 export const ExecutorSubscriptionSchema = z.object({
-  provider: z.enum(['claude', 'codex']),
+  provider: z.enum([
+    'claude', 'codex', 'kimi', 'grok', 'grok_build', 'cursor', 'antigravity', 'opencode',
+  ]),
   status: z.enum(['ready', 'not_installed', 'signed_out', 'unavailable', 'unsupported']),
   account: z.string().max(254).nullable(),
+  /** Opaque identity or credential fingerprint; unknown accounts must never merge by plan or quota. */
+  accountKey: z.string().max(100).optional(),
+  workspaceKey: z.string().max(100).optional(),
+  sourceKey: z.string().max(100).optional(),
+  source: z.enum(['cli', 'kimi_api', 'sysmon', 'provider_api', 'cliproxy']).optional(),
+  resetCredits: z.object({
+    availableCount: z.number().int().nonnegative(), nextExpiresAt: time.optional(),
+  }).strict().optional(),
   plan: z.string().max(100).nullable(),
   checkedAt: time,
   windows: z.array(ExecutorUsageWindowSchema).max(16),
+}).strict()
+
+/** Only derived, owner-visible GitHub facts; no repository contents or credentials. */
+export const ExecutorMonitorCiSchema = z.object({
+  status: z.enum(['ready', 'signed_out', 'not_installed', 'unavailable']),
+  checkedAt: time,
+  truncated: z.boolean(),
+  pullRequests: z.array(z.object({
+    repository: z.string().min(1).max(200), number: z.number().int().positive(),
+    title: z.string().max(300), url: z.string().url().startsWith('https://github.com/'),
+  }).strict()).max(30),
 }).strict()
 
 export const ExecutorMonitorSnapshotSchema = z.object({
   capturedAt: time,
   os: z.enum(['windows', 'macos', 'linux']),
   processor: z.string().max(200),
+  hostname: z.string().max(200).optional(),
+  address: z.string().max(100).nullable().optional(),
+  cores: z.number().int().positive().optional(),
+  load: z.number().finite().nonnegative().nullable().optional(),
   cpu: percent.nullable(),
   gpu: percent.nullable(),
+  gpuMemoryUsedBytes: bytes.nullable().optional(),
+  gpuMemoryTotalBytes: bytes.positive().nullable().optional(),
   history: z.array(z.object({ at: time, cpu: percent.nullable(), gpu: percent.nullable() }).strict()).max(24),
   memoryUsedBytes: bytes,
   memoryTotalBytes: bytes.positive(),
@@ -46,7 +74,9 @@ export const ExecutorMonitorSnapshotSchema = z.object({
     pid: z.number().int().nonnegative(), name: z.string().max(200),
     cpu: z.number().finite().nonnegative().nullable(), memoryBytes: bytes.nullable(),
   }).strict()).max(10),
-  subscriptions: z.array(ExecutorSubscriptionSchema).max(16),
+  subscriptions: z.array(ExecutorSubscriptionSchema).max(64),
+  subscriptionsIncomplete: z.boolean().optional(),
+  ci: ExecutorMonitorCiSchema.optional(),
 }).strict()
 
 export const ExecutorMonitorViewSchema = z.object({
