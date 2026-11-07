@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash, generateKeyPairSync } from 'node:crypto'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -20,6 +20,7 @@ import {
   DISCONNECT_CLOSE_MS,
   withDaemonSupervisor,
 } from '../src/coding-sessions-daemon.js'
+import { ownerRequestsLeaseIsLive } from '../src/coding-session/owner-requests-lease.js'
 import { executeExecutorCommand, heartbeatExecutor } from '../src/daemon.js'
 import { createLocalMcpReporter } from '../src/local-mcp-report.js'
 import type { ExecutorLocalMcpServer } from '../src/mcp-servers.js'
@@ -385,4 +386,38 @@ test('a close the heartbeat no longer lists is dropped, not retried into the own
   recover()
   await daemon.close(undefined)
   assert.equal(calls.length, 1, 'a withdrawn close would end the session the relaunch starts')
+})
+
+test('hosts may ask the owner only while the reviewed facts say so and this connection\'s Nessie reads requests', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'nessie-owner-lease-'))
+  try {
+    const configPath = join(dir, 'coding-sessions.json')
+    const stateDir = join(dir, 'coding-sessions')
+    await mkdir(stateDir)
+    let reads = true
+    type Daemon = ReturnType<typeof createCodingSessionsDaemon>
+    const lease = async (ownerAnswers: boolean, act: (daemon: Daemon) => void) => {
+      const daemon = createCodingSessionsDaemon({
+        executorId, commandRules, servers: [bridgeSpec(configPath)], sessions: recording().sessions,
+        log: () => undefined,
+        facts: ownerAnswers ? { ...facts, ownerAnswers: true } : facts, serverReadsRequests: () => reads,
+      })
+      act(daemon)
+      await new Promise((settle) => { setTimeout(settle, 100) })
+      return ownerRequestsLeaseIsLive(stateDir)
+    }
+    assert.equal(await lease(false, (daemon) => daemon.connectionHealthy()), false,
+      'facts reviewed before owners could answer keep prompts turned down')
+    assert.equal(await lease(true, (daemon) => daemon.connectionHealthy()), true)
+    reads = false
+    assert.equal(await lease(true, (daemon) => daemon.connectionHealthy()), false, 'an older Nessie, as far as anyone knows')
+    reads = true
+    assert.equal(await lease(true, (daemon) => daemon.ownerRequestsChanged()), true, 'a ready tells the hosts at once')
+    assert.equal(await lease(true, (daemon) => {
+      daemon.connectionHealthy()
+      void daemon.connectionFailed('heartbeat_failed', new Error('offline'))
+    }), false, 'a failed heartbeat ends it: the reconnect may meet a different Nessie')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
 })

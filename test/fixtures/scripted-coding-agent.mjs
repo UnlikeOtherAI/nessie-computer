@@ -36,6 +36,7 @@
  *                 Codex: `item/commandExecution/requestApproval`) and records the answer
  *   #question     asks a question (Claude: AskUserQuestion; Codex: `item/tool/requestUserInput`)
  *   #secret-tool  calls the session's `request_secret` MCP server it was given and records the result
+ *   #cat=<file>   (Claude) prints a file in its working folder, as `cat` would, and repeats it in prose
  *
  * NESSIE_SCRIPTED_RECORD_DIR, when set, receives `agents.jsonl` (one line per
  * process start and exit, and per message a Claude process receives),
@@ -325,6 +326,12 @@ const runTurn = async (first) => {
   if (text().includes('#path')) {
     send({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: `Working in ${process.cwd()}; home is ${homedir()}; memory under ~/.claude/projects.` }] } })
     await tool('Read', { file_path: join(process.cwd(), 'README.md') }, `1\tread from ${join(process.cwd(), 'README.md')}`)
+  }
+  const cat = /#cat=([\w.-]+)/u.exec(text())
+  if (cat) {
+    const content = existsSync(join(process.cwd(), cat[1])) ? readFileSync(join(process.cwd(), cat[1]), 'utf8') : ''
+    await tool('Bash', { command: `cat ${cat[1]}` }, content)
+    send({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: `The file says: ${content}` }] } })
   }
   if (text().includes('#env')) send({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: environmentReport() }] } })
   if (text().includes('#test')) await tool('Bash', { command: 'pnpm test' }, 'Exit code 3\nFAIL src/app.test.ts', true)

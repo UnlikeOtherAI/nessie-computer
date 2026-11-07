@@ -31,7 +31,7 @@
     "verify": "turbo run build lint typecheck test --root-turbo-json=scripts/turbo.public.json --concurrency=2",
     "test:computer-data": "node --test --import tsx test/computer-data.test.ts test/existing-coding-sessions.test.ts test/session-view-relay.test.ts",
     "test:conversation-control": "node scripts/run-tests.mjs --test-concurrency=1 test/session-conversation-control.test.ts test/coding-session-daemon.test.ts",
-    "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts"
+    "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/owner-requests-gate.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-request-scope.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

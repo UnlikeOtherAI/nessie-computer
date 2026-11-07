@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { link, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -10,7 +10,7 @@ import { planClaudeRequest } from '../src/coding-session/claude-requests.js'
 import { planCodexRequest } from '../src/coding-session/codex-requests.js'
 import { createPathRewriter } from '../src/coding-session/path-rewrite.js'
 import { createProjector } from '../src/coding-session/projection.js'
-import { SecretDestinationError, setDotenvLine, writeSecretToFolder } from '../src/coding-session/secret-destination.js'
+import { SecretDestinationError, setDotenvLine } from '../src/coding-session/secret-destination.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { answerProblem, SessionRequestBook, type SessionRequestDraft } from '../src/coding-session/session-request-book.js'
 import { readSessionRequests, writeSessionRequests } from '../src/coding-session/session-request-file.js'
@@ -116,46 +116,6 @@ test('what an earlier host left pending reads expired, on disk and when no host 
   }
 })
 
-test('a secret is written only inside the session folder, owner-only, never through a link', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'nessie-secret-'))
-  try {
-    const folder = join(dir, 'work')
-    const outside = join(dir, 'outside')
-    await mkdir(folder)
-    await mkdir(outside)
-    const refused = async (destination: string, code = 'secret_destination_refused'): Promise<void> => {
-      await assert.rejects(writeSecretToFolder({ folder, destination, value: 'v4lue-v4lue' }), (error: unknown) => (
-        error instanceof SecretDestinationError && error.code === code && !error.message.includes('v4lue')))
-    }
-    for (const destination of ['../escape', 'a/../../escape', '/etc/passwd', 'C:\\x', '', '.', 'bad\u0000name']) {
-      await refused(destination, 'secret_destination_invalid')
-    }
-    await symlink(outside, join(folder, 'linked'))
-    await refused('linked/token')
-    await symlink(join(outside, 'target'), join(folder, 'token-link'))
-    await refused('token-link')
-    await writeFile(join(outside, 'shared'), 'x')
-    await link(join(outside, 'shared'), join(folder, 'hard'))
-    await refused('hard')
-    await mkdir(join(folder, 'dir'))
-    await refused('dir')
-    assert.deepEqual(await writeSecretToFolder({ folder, destination: 'config/keys/token.txt', value: 's3cret' }),
-      { destination: 'config/keys/token.txt' })
-    assert.equal(await readFile(join(folder, 'config/keys/token.txt'), 'utf8'), 's3cret')
-    if (process.platform !== 'win32') {
-      assert.equal((await stat(join(folder, 'config/keys/token.txt'))).mode & 0o777, 0o600)
-      assert.equal((await stat(join(folder, 'config'))).mode & 0o777, 0o700)
-    }
-    await writeFile(join(folder, '.env'), 'A=1\nexport TOKEN=old\n# keep me\nTOKEN=dup\n', { mode: 0o644 })
-    await writeSecretToFolder({ folder, destination: '.env', value: 'new value "quoted"', envName: 'TOKEN' })
-    assert.equal(await readFile(join(folder, '.env'), 'utf8'), 'A=1\nTOKEN="new value \\"quoted\\""\n# keep me\n')
-    if (process.platform !== 'win32') assert.equal((await stat(join(folder, '.env'))).mode & 0o777, 0o600)
-    assert.equal(await readFile(join(outside, 'shared'), 'utf8'), 'x', 'nothing outside the folder changed')
-  } finally {
-    await rm(dir, { recursive: true, force: true })
-  }
-})
-
 test('a dotenv line is set or appended, and every other line is kept', () => {
   assert.equal(setDotenvLine('', 'KEY', 'abc'), 'KEY=abc\n')
   assert.equal(setDotenvLine('A=1', 'KEY', 'abc'), 'A=1\nKEY=abc\n')
@@ -170,10 +130,12 @@ test('request_secret refuses what it cannot write and says only where a value we
   assert.deepEqual(secretAskOf({ name: 'Key', reason: 'Why', destination: '.env', envName: 'BAD-NAME' }),
     { refused: 'envName must be a variable name such as STRIPE_SECRET_KEY.' })
   assert.deepEqual(secretAskOf({ name: '', reason: 'Why', destination: '.env' }), { refused: 'name and reason are required text.' })
-  const ask = secretAskOf({ name: 'Key', reason: 'Why', destination: './config//.env', envName: 'KEY' })
+  assert.deepEqual(secretAskOf({ name: 'Key', reason: 'Why', destination: 'config/.env' }),
+    { refused: new SecretDestinationError('secret_destination_invalid').message }, 'a file in the folder itself, no subfolder')
+  const ask = secretAskOf({ name: 'Key', reason: 'Why', destination: './.env', envName: 'KEY' })
   assert.ok(!('refused' in ask))
-  assert.equal(ask.destination, 'config/.env')
-  assert.match(secretOutcomeText(ask, { outcome: 'saved', destination: 'config/.env' }), /saved to config\/\.env/u)
+  assert.equal(ask.destination, '.env')
+  assert.match(secretOutcomeText(ask, { outcome: 'saved', destination: '.env' }), /saved to \.env/u)
   assert.match(secretOutcomeText(ask, { outcome: 'declined', reason: 'owner_declined' }), /did not provide Key/u)
 })
 
@@ -190,10 +152,8 @@ test('Claude prompts become requests by tool; the session\'s own secret tool is 
     interrupt: true })
   const fetch = planClaudeRequest({ requestId: 'r2', toolName: 'WebFetch', input: { url: 'https://example.com' } }, projector, folder)
   assert.equal(fetch.kind === 'ask' && fetch.draft.kind, 'permission')
-  const accepted = fetch.kind === 'ask' && JSON.parse(fetch.answer({ requestId: 'x', decision: 'accept_for_session' }).line)
-  assert.deepEqual(accepted.response.response.updatedPermissions,
-    [{ type: 'addRules', rules: [{ toolName: 'WebFetch' }], behavior: 'allow', destination: 'session' }],
-    'without suggestions, the tool itself, for this session only')
+  assert.deepEqual(fetch.kind === 'ask' && fetch.draft.decisions, ['accept', 'decline', 'cancel'],
+    'without a concrete rule, nothing is offered for the session: a bare tool would allow every later use')
   const own = planClaudeRequest({ requestId: 'r3', toolName: 'mcp__nessie_session__request_secret', input: { name: 'k' } },
     projector, folder)
   assert.equal(own.kind, 'allow')

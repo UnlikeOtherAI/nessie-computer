@@ -44,8 +44,12 @@ export type Projector = {
   denials: (value: unknown) => CodingPermissionDenial[]
   /** Values every later string spells `<account>`; anything but a string of four or more characters is ignored. */
   redact: (values: readonly unknown[]) => void
-  /** Values every later string spells `<secret>`; anything shorter than eight characters is ignored. */
-  redactSecrets: (values: readonly unknown[]) => void
+  /**
+   * Values every later string spells `<secret>`; anything shorter than
+   * `minLength` (eight characters unless said) is ignored, since a short value
+   * would garble ordinary text.
+   */
+  redactSecrets: (values: readonly unknown[], minLength?: number) => void
 }
 
 const MIN_REDACTION_LENGTH = 4
@@ -158,9 +162,9 @@ export const createProjector = (rewriter: PathRewriter): Projector => {
       // Longest first, so an organisation named after the e-mail is redacted whole.
       redactions = valuePattern(redacted)
     },
-    redactSecrets: (values) => {
+    redactSecrets: (values, minLength = MIN_SECRET_LENGTH) => {
       for (const value of values) {
-        if (typeof value === 'string' && value.trim().length >= MIN_SECRET_LENGTH) secrets.add(value.trim())
+        if (typeof value === 'string' && value.trim().length >= minLength) secrets.add(value.trim())
       }
       secretValues = valuePattern(secrets)
     },

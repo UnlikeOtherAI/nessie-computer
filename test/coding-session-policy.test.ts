@@ -104,6 +104,8 @@ test('configure generates the bridge entry itself and states its power facts', a
       // Only the commands those rules name run unasked: a narrower grant than "run any command".
       unaskedCommands: 'listed',
       terminalCommands: 'commandRules',
+      // The person applying this reviews that the agents' own prompts come to them from Nessie.
+      ownerAnswers: true,
     })
     assert.deepEqual(written, [], 'nothing is written before the whole policy is accepted')
     await assert.rejects(plan.persist(['file.read']), /enable both to offer them/u)
@@ -397,6 +399,7 @@ test('older Codex pairings gain existing sessions and terminal commands without 
     const facts = legacy.descriptor.codingSessions!
     delete facts.existingSessions
     delete facts.terminalCommands
+    delete facts.ownerAnswers
     facts.agents = ['codex']
     delete facts.permissionMode.terminal
     delete facts.maxBudgetUsd!.terminal
@@ -409,6 +412,8 @@ test('older Codex pairings gain existing sessions and terminal commands without 
     assert.equal(upgraded.descriptor.codingSessions?.terminalCommands, 'commandRules')
     assert.deepEqual(upgraded.descriptor.codingSessions?.agents, ['codex', 'terminal'])
     assert.equal(upgraded.descriptor.codingSessions?.permissionMode.terminal, 'hostUser')
+    assert.equal(upgraded.descriptor.codingSessions?.ownerAnswers, undefined,
+      'the daemon\'s own upgrade never adds owner answers: a person states that by applying the configuration')
     assert.equal(upgraded.descriptor.revision, configured.descriptor.revision + 1)
     assert.deepEqual(after.config, before.config)
     assert.equal(after.digest, before.digest)
@@ -430,6 +435,7 @@ test('a pairing without the bridge gains it, terminal included, with no roots', 
     assert.deepEqual(upgraded.descriptor.codingSessions?.agents, ['terminal'])
     assert.deepEqual(upgraded.descriptor.codingSessions?.rootNames, [])
     assert.equal(upgraded.descriptor.codingSessions?.terminalCommands, 'commandRules')
+    assert.equal(upgraded.descriptor.codingSessions?.ownerAnswers, undefined, 'a terminal has no prompts to answer')
     assert.equal(await enableLocalSessionBridge(s.stateDir, upgraded, runtime), upgraded)
   } finally {
     await rm(s.dir, { recursive: true, force: true })

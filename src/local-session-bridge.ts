@@ -25,6 +25,7 @@ export const enableLocalSessionBridge = async (
     undefined, undefined, undefined, undefined, undefined,
     {
       requested: loaded ? codingSessionsConfigInput(loaded.config) : { roots: [], agents: {}, existingSessions: true },
+      upgrade: true,
       runtime,
     })
 }

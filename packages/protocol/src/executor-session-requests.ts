@@ -150,3 +150,49 @@ export const summarizePendingRequests = (
     since: first.openedAt,
   }
 }
+
+export type ExecutorSessionAnswerProblem = 'request_not_pending' | 'request_not_answerable' | 'answer_shape_mismatch'
+
+/**
+ * What an answer carries, as both sides see it: the executor knows only that
+ * a secret was supplied (its value already written), Nessie holds the value.
+ */
+export type ExecutorSessionAnswerShape = Pick<ExecutorSessionAnswer, 'decision' | 'answers'> & { secret: boolean }
+
+const APPROVAL_KINDS: ReadonlySet<ExecutorSessionRequestKind> = new Set(['command', 'file_change', 'permission'])
+
+/**
+ * Why an answer cannot settle a request, or undefined when it can — the one
+ * rule Nessie applies when the owner answers and the executor applies when the
+ * answer arrives. The request must be pending and answerable, and the answer
+ * must have the request's own shape: a decision the request offers (a question
+ * or a secret may be turned down too, when it offers that), every question
+ * answered once with values it accepts, or a secret for a secret.
+ */
+export const executorSessionAnswerProblem = (
+  request: ExecutorSessionRequest | undefined, answer: ExecutorSessionAnswerShape,
+): ExecutorSessionAnswerProblem | undefined => {
+  if (!request || request.status !== 'pending') return 'request_not_pending'
+  if (!request.answerable) return 'request_not_answerable'
+  const offered = request.decisions ?? []
+  if (APPROVAL_KINDS.has(request.kind)) {
+    if (answer.decision === undefined || answer.answers !== undefined || answer.secret) return 'answer_shape_mismatch'
+    return offered.includes(answer.decision) ? undefined : 'answer_shape_mismatch'
+  }
+  if (answer.decision !== undefined) {
+    return answer.answers === undefined && !answer.secret && offered.includes(answer.decision)
+      ? undefined : 'answer_shape_mismatch'
+  }
+  if (request.kind === 'secret') return answer.secret && answer.answers === undefined ? undefined : 'answer_shape_mismatch'
+  if (!answer.answers || answer.secret) return 'answer_shape_mismatch'
+  const questions = request.questions ?? []
+  const given = new Map(answer.answers.map((entry) => [entry.questionId, entry.values]))
+  if (given.size !== answer.answers.length || given.size !== questions.length) return 'answer_shape_mismatch'
+  for (const question of questions) {
+    const values = given.get(question.id)
+    if (!values || (!question.multiSelect && values.length !== 1)) return 'answer_shape_mismatch'
+    const labels = new Set(question.options.map((option) => option.label))
+    if (!question.allowCustomAnswer && values.some((value) => !labels.has(value))) return 'answer_shape_mismatch'
+  }
+  return undefined
+}

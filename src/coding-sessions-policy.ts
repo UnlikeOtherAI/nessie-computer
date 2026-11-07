@@ -83,9 +83,10 @@ const codexStance = (args: readonly string[]): string => {
  * `terminalCommands` states. Those rules stay on the machine.
  */
 export const codingSessionsFacts = (
-  config: CodingSessionsConfig, configDigest: string,
+  config: CodingSessionsConfig, configDigest: string, ownerAnswers = true,
 ): ExecutorCodingSessionsFacts => {
   const agents = offeredCodingAgents(config)
+  const prompting = agents.some((agent) => agent !== 'terminal')
   return ExecutorCodingSessionsFactsSchema.parse({
     serverName: EXECUTOR_CODING_SESSIONS_MCP_SERVER_NAME,
     existingSessions: true,
@@ -107,6 +108,8 @@ export const codingSessionsFacts = (
     // Standing machine access needs its author's "run any command" tick for `any`.
     unaskedCommands: claudeUnaskedCommands(config.agents.claude),
     terminalCommands: 'commandRules',
+    // The coding agents' own prompts go to the owner; a terminal has none.
+    ...(ownerAnswers && prompting ? { ownerAnswers: true } : {}),
   })
 }
 
@@ -213,6 +216,12 @@ export type CodingSessionsPolicy = { facts: ExecutorCodingSessionsFacts; server:
 export type CodingSessionsRequest = {
   /** An object configures the bridge, `null` withdraws it, absent keeps it. */
   requested?: unknown
+  /**
+   * The daemon's own upgrade at start (`local-session-bridge.ts`), which may
+   * add only what existing authority covers: whether the owner answers the
+   * agents' prompts is carried over as reviewed, never added.
+   */
+  upgrade?: true
   runtime?: ExecutorRuntime
   writeConfig?: (path: string, value: unknown) => Promise<void>
 }
@@ -252,7 +261,7 @@ const chosenPolicy = async (
   const digest = codingSessionsConfigDigest(config)
   return {
     policy: {
-      facts: codingSessionsFacts(config, digest),
+      facts: codingSessionsFacts(config, digest, input.upgrade ? previous?.facts.ownerAnswers === true : true),
       server: codingSessionsServer(configPath, digest, input.runtime),
     },
     write: () => (input.writeConfig ?? replaceOwnerOnlyJson)(configPath, file),

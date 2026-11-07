@@ -27,10 +27,17 @@ export const ExecutorDaemonSocketServerFrameSchema = z.discriminatedUnion('type'
     type: z.literal('wake'),
     topics: z.array(ExecutorDaemonWakeTopicSchema).min(1).max(3),
   }).strict(),
+  /**
+   * Sent every `EXECUTOR_DAEMON_SOCKET_BEAT_SECONDS` while nothing else is, so
+   * a daemon that hears nothing for three beats knows the socket is half-open
+   * (a silent NAT drop) and reconnects instead of waiting for TCP to notice.
+   */
+  z.object({ type: z.literal('beat') }).strict(),
 ])
 export type ExecutorDaemonSocketServerFrame = z.infer<typeof ExecutorDaemonSocketServerFrameSchema>
 
 export const EXECUTOR_DAEMON_SOCKET_PATH = '/api/executor-daemon/socket'
+export const EXECUTOR_DAEMON_SOCKET_BEAT_SECONDS = 20
 
 /**
  * The daemon's first and only message, sent as soon as the socket opens: the

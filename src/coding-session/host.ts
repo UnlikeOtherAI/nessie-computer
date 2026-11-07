@@ -34,6 +34,9 @@ import {
 import { acquireHostLock, HOST_HEARTBEAT_MS, type HeldHostLock } from './session-lock.js'
 import { inboxHasRequests, listRequests, readSessionMeta, removeRequest } from './session-requests.js'
 import { markCodingSessionChanged } from './session-change-marker.js'
+import { ownerRequestsLeaseIsLive } from './owner-requests-lease.js'
+import { createAnswerKey } from './answer-seal.js'
+import { restoreSecretRedactions, unsealHostAnswer } from './secret-redactions.js'
 import { SessionRequestBook } from './session-request-book.js'
 import { readSessionRequests, writeSessionRequests } from './session-request-file.js'
 import { createSecretAskWatcher } from './session-secret-asks.js'
@@ -159,9 +162,14 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   // change; the time a turn spends waiting on its owner never counts against its turn limit.
   let requestWrites: Promise<unknown> = Promise.resolve()
   let waitingSince: number | undefined
+  // Whether the daemon says Nessie can put a prompt to the owner now; re-read every second.
+  let ownerReachable = await ownerRequestsLeaseIsLive(loaded.stateDir)
+  let reachableReadAt = Date.now()
+  // What the owner types in secret reaches this host sealed to a key only it holds (`answer-seal.ts`).
+  const answerKey = createAnswerKey()
   const book = new SessionRequestBook((list) => {
     requestWrites = requestWrites.then(async () => {
-      if (await lock.stillOurs()) await writeSessionRequests(paths, list)
+      if (await lock.stillOurs()) await writeSessionRequests(paths, list, answerKey.publicKey)
       await markCodingSessionChanged(loaded.stateDir, meta.sessionId)
     }).catch((error: unknown) => log(`requests write failed: ${String(error)}`))
     const waiting = list.some((request) => request.status === 'pending')
@@ -174,7 +182,13 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     }
     // The session changed, so it leads the next inventory page.
     if (waiting) update({})
-  }, await readSessionRequests(paths, true))
+  }, await readSessionRequests(paths, true), () => ownerReachable)
+  // Values the owner supplied earlier stay `<secret>` in whatever this host's agent says.
+  if (meta.agent !== 'terminal' && context.mayRunAgent) {
+    const folder = await resolveCodingFolder(findCodingRoot(context.roots, meta.rootName), meta.path)
+      .catch(() => undefined)
+    if (folder) await restoreSecretRedactions(paths, folder, context.projector, log)
+  }
 
   // A previous host died mid-turn: say so, and stop its agent before anything else runs.
   if (previous && (state.status === 'working' || state.status === 'starting') && state.turn > 0) {
@@ -238,6 +252,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     }
     const driverContext = {
       requests: book, secretServer: sessionSecretServer(paths),
+      roots: context.roots.roots.flatMap((root) => [root.declared, ...(root.canonical ? [root.canonical] : [])]),
       personalAuthority: meta.personalAuthority,
       agent, control, env, folder, paths, projector: context.projector, log, emit, update, state: () => state,
       stillOwner: lock.stillOurs,
@@ -281,7 +296,10 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     if (request.kind === 'retire') {
       retiring = true
     } else if (request.kind === 'answer') {
-      const problem = request.answer ? book.answer(request.answer) : 'answer_shape_mismatch'
+      const answer = request.answer && unsealHostAnswer(request.answer, answerKey, context.projector)
+      // Sealed for a key this host does not hold: nothing can deliver it, so the request ends rather than waits.
+      if (request.answer && !answer) book.withdraw(request.answer.requestId, 'expired', 'answer_unreadable')
+      const problem = answer ? book.answer(answer) : 'answer_shape_mismatch'
       if (problem) log(`an answer was not delivered: ${problem}`)
     } else if (request.kind === 'close') {
       book.withdrawAll('cancelled', 'session_closed')
@@ -369,6 +387,10 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
         // for the answer.
         await writer.flush()
         await removeRequest(paths, request.id)
+      }
+      if (Date.now() - reachableReadAt >= 1_000) {
+        ownerReachable = await ownerRequestsLeaseIsLive(loaded.stateDir)
+        reachableReadAt = Date.now()
       }
       await secretAsks?.poll()
       if (!served) {

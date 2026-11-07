@@ -47,7 +47,7 @@ const tool = {
       reason: { type: 'string', minLength: 1, maxLength: 4_000, description: 'Why you need it, for the person.' },
       destination: {
         type: 'string', minLength: 1, maxLength: 1_000,
-        description: 'A file path relative to your working folder, e.g. ".env.local".',
+        description: 'A file name in your working folder itself, e.g. ".env.local"; not a path into a subfolder.',
       },
       envName: { type: 'string', pattern: ENV_NAME_PATTERN.source, description: 'The variable name in a .env file.' },
     },

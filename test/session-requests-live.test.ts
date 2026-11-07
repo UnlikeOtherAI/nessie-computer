@@ -10,7 +10,9 @@ import {
 } from '@nessie/executor-protocol'
 
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
-import { createCodingHarness, waitUntil, type CodingHarness } from './coding-session-harness.js'
+import { alive, createCodingHarness, waitUntil, type CodingHarness } from './coding-session-harness.js'
+
+const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
 
 /**
  * Live questions, approvals and secrets, through the real bridge and host,
@@ -67,7 +69,7 @@ const reportedPending = async (harness: CodingHarness, sessionId: string) => {
 
 test('a Claude permission prompt waits for the owner, is answered once, and stale answers say why', { timeout: 120_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'claude', '#permit publish it')
       const request = await pendingOf(harness, sessionId, 'command')
@@ -106,7 +108,7 @@ test('a Claude permission prompt waits for the owner, is answered once, and stal
 
 test('a Claude question is answered by its options, and a decline carries the owner\'s feedback', { timeout: 120_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       // The scripted agent asks its permission first, then its question.
       const sessionId = await startSession(harness, 'claude', '#question #permit pick one')
@@ -137,7 +139,7 @@ test('a Claude question is answered by its options, and a decline carries the ow
   })
 
 test('an interrupt cancels what is pending, and a provider that exits expires it', { timeout: 150_000 }, async () => {
-  const harness = await createCodingHarness({ reviewedDigest: true })
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
   try {
     const sessionId = await startSession(harness, 'claude', '#permit stop me')
     const request = await pendingOf(harness, sessionId)
@@ -169,7 +171,7 @@ test('an interrupt cancels what is pending, and a provider that exits expires it
 
 test('Codex approvals and questions reach the owner; a decline steers the turn and a cancel stops it', { timeout: 150_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'codex', '#permit #question build it')
       const approval = await pendingOf(harness, sessionId, 'command')
@@ -198,7 +200,7 @@ test('Codex approvals and questions reach the owner; a decline steers the turn a
 const SECRET = 'sk_test_51NessieNeverEchoesThisValue9876543210'
 
 test('a secret reaches only its file: owner-only, one dotenv line, never echoed anywhere', { timeout: 150_000 }, async () => {
-  const harness = await createCodingHarness({ reviewedDigest: true })
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
   try {
     await writeFile(join(harness.root, '.env.local'), 'OTHER=1\nSTRIPE_KEY=old-value\n')
     const sessionId = await startSession(harness, 'claude', '#secret-tool connect stripe')
@@ -241,7 +243,7 @@ test('a secret reaches only its file: owner-only, one dotenv line, never echoed 
 
 test('a Codex secret request the owner declines tells the agent so; an external session cannot be answered', { timeout: 150_000 },
   async () => {
-    const harness = await createCodingHarness({ reviewedDigest: true })
+    const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
     try {
       const sessionId = await startSession(harness, 'codex', '#secret-tool connect stripe')
       const request = await pendingOf(harness, sessionId, 'secret')
@@ -259,3 +261,74 @@ test('a Codex secret request the owner declines tells the agent so; an external 
       await harness.cleanup()
     }
   })
+
+test('until Nessie shows it reads requests, every prompt is turned down at once, as before', { timeout: 150_000 },
+  async () => {
+    const harness = await createCodingHarness({ reviewedDigest: true })
+    try {
+      const claude = await startSession(harness, 'claude', '#permit publish it')
+      const permission = await recorded(harness, 'claude', 'permission')
+      assert.deepEqual(permission.response, {
+        behavior: 'deny', message: 'No person is at this terminal to approve this, so it was denied.',
+      }, 'denied with the words a prompt got before it could reach the owner, and the turn goes on')
+      await harness.waitForStatus(claude, (body) => body.status === 'waiting_for_input', OWNER)
+      assert.equal((await conversation(harness, claude)).requests, undefined, 'nothing was put to the owner')
+      assert.equal(await reportedPending(harness, claude), undefined)
+
+      const codex = await startSession(harness, 'codex', '#permit build it')
+      assert.deepEqual((await recorded(harness, 'codex', 'permission')).answer, { decision: 'decline' })
+      await harness.waitForStatus(codex, (body) => body.status === 'waiting_for_input', OWNER)
+      assert.equal((await harness.agents()).some((entry) => entry.event === 'steer'), false, 'no feedback is invented')
+
+      const secret = await startSession(harness, 'claude', '#secret-tool connect stripe')
+      const used = await recorded(harness, 'claude', 'secret')
+      assert.match(JSON.stringify(used.result), /refused: owner_unreachable/u)
+      await harness.waitForStatus(secret, (body) => body.status === 'waiting_for_input', OWNER)
+
+      // Once the daemon says Nessie reads requests, the next prompt waits for the owner.
+      await harness.ownerRequests(true)
+      await delay(1_200)
+      await harness.call('session_send', { sessionId: claude, message: '#permit again' }, { owner: OWNER })
+      const waiting = await pendingOf(harness, claude, 'command')
+      assert.equal(waiting.answerable, true)
+    } finally {
+      await harness.cleanup()
+    }
+  })
+
+test('a supplied secret stays <secret> in what the agent prints, across a host restart', { timeout: 150_000 }, async () => {
+  const harness = await createCodingHarness({ reviewedDigest: true, ownerRequests: true })
+  try {
+    const sessionId = await startSession(harness, 'claude', '#secret-tool connect stripe')
+    const request = await pendingOf(harness, sessionId, 'secret')
+    assert.equal((await reply(harness, sessionId, { requestId: request.id, secret: SECRET })).state, 'accepted')
+    await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input', OWNER)
+    const printed = async (message: string): Promise<string> => {
+      const before = (await conversation(harness, sessionId)).messages.length
+      await harness.call('session_send', { sessionId, message }, { owner: OWNER })
+      const grew = async (): Promise<true | undefined> => (
+        (await conversation(harness, sessionId)).messages.length > before ? true : undefined)
+      await waitUntil(grew, 30_000, 'the agent to print the file')
+      await harness.waitForStatus(sessionId, (body) => body.status === 'waiting_for_input', OWNER)
+      return JSON.stringify((await conversation(harness, sessionId)).messages)
+    }
+    const first = await printed('#cat=.env.local show me')
+    assert.equal(first.includes(SECRET), false, 'neither the tool output nor the prose carries the value')
+    assert.match(first, /STRIPE_KEY=<secret>/u)
+    const session = codingSessionPaths(harness.stateDir, sessionId)
+    assert.equal((await readFile(session.events, 'utf8')).includes(SECRET), false)
+    const records = await readdir(join(session.dir, 'secret-destinations'))
+    assert.deepEqual(JSON.parse(await readFile(join(session.dir, 'secret-destinations', records[0]!), 'utf8')),
+      { destination: '.env.local', envName: 'STRIPE_KEY' }, 'which file holds it, never the value')
+
+    // A new host starts with an empty projector, and reads the value back from its file.
+    const lock = JSON.parse(await readFile(join(session.dir, 'host.lock'), 'utf8')) as { pid: number }
+    process.kill(lock.pid, 'SIGKILL')
+    await waitUntil(async () => (alive(lock.pid) ? undefined : true), 10_000, 'the host to be gone')
+    const second = await printed('#cat=.env.local once more')
+    assert.equal(second.includes(SECRET), false, 'still redacted after the host restarted')
+    assert.equal((await readFile(session.events, 'utf8')).includes(SECRET), false)
+  } finally {
+    await harness.cleanup()
+  }
+})

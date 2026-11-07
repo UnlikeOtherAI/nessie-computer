@@ -154,8 +154,12 @@ export type CodingSessionRequest = {
   kind: 'start' | 'send' | 'interrupt' | 'close' | 'retire' | 'answer'
   text?: string
   reason?: string
-  /** `answer`: the owner's answer, a secret's value replaced by the fact that it was saved. */
-  answer?: Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true }
+  /**
+   * `answer`: the owner's answer, a secret's value replaced by the fact that
+   * it was saved, and whatever was typed in secret sealed to the host's key
+   * (`answer-seal.ts`) rather than written here readable.
+   */
+  answer?: Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true; sealed?: unknown }
   at: string
 }
 
