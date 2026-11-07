@@ -1,0 +1,214 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "file": "packages/shared/src/advertisedEndpoint.ts",
+      "beforeSha256": "98b36f6269806efbbe2d880fa7aad2fe7f4717d9fca0b0b639999018c96fc0e0",
+      "afterSha256": "392ca3af073666d91880d7bb44262b9439a9fdde76fabcd234b3a7972843f072",
+      "from": "export function normalizeHttpBaseUrl(rawValue: string): string {\n  const url = new URL(rawValue);\n  if (url.protocol === \"ws:\") {\n    url.protocol = \"http:\";\n  } else if (url.protocol === \"wss:\") {\n    url.protocol = \"https:\";\n  }\n\n  if (url.protocol !== \"http:\" && url.protocol !== \"https:\") {\n    throw new Error(`Endpoint must use HTTP or HTTPS. Received ${url.protocol}`);\n  }\n\n  url.pathname = \"/\";\n  url.search = \"\";\n  url.hash = \"\";\n  return url.toString();\n}\n\nexport function deriveWsBaseUrl(httpBaseUrl: string): string {\n  const url = new URL(normalizeHttpBaseUrl(httpBaseUrl));\n  url.protocol = url.protocol === \"https:\" ? \"wss:\" : \"ws:\";\n  return url.toString();\n}\n\n",
+      "to": "/** Reject URL spellings a URL parser or a downstream router could reinterpret. */\nfunction parseEnvironmentUrl(rawValue: string): URL {\n  if (!/^[a-z][a-z\\d+.-]*:\\/\\/[^/?#]+/i.test(rawValue)\n    || rawValue !== rawValue.trim() || /[\\u0000-\\u001f\\u007f\\\\]/.test(rawValue)) {\n    throw new Error(\"Invalid environment URL.\");\n  }\n  const url = new URL(rawValue);\n  if (![\"http:\", \"https:\", \"ws:\", \"wss:\"].includes(url.protocol) || url.username || url.password) {\n    throw new Error(\"Environment URL must use HTTP(S) or WS(S) without user information.\");\n  }\n  const rawPath = rawValue.replace(/^[a-z][a-z\\d+.-]*:\\/\\/[^/?#]*/i, \"\").split(/[?#]/, 1)[0]!;\n  validateEnvironmentPath(rawPath);\n  return url;\n}\n\nfunction validateEnvironmentPath(path: string): void {\n  if (/[\\u0000-\\u001f\\u007f\\\\]/.test(path) || /%(?![\\da-f]{2})/i.test(path)\n    || /%(?:0[\\da-f]|1[\\da-f]|7f|5c)/i.test(path)) {\n    throw new Error(\"Invalid environment path.\");\n  }\n  for (const segment of path.split(\"/\")) {\n    const dots = segment.replace(/%2e/ig, \".\");\n    if (dots === \".\" || dots === \"..\") throw new Error(\"Environment path cannot traverse directories.\");\n  }\n  if (path.replace(/\\/+$/, \"\").includes(\"//\")) throw new Error(\"Invalid empty environment path segment.\");\n}\n\n/** Canonical environment directory, retaining encoded opaque path components. */\nexport function normalizeHttpBaseUrl(rawValue: string): string {\n  const url = parseEnvironmentUrl(rawValue);\n  if (url.protocol === \"ws:\") url.protocol = \"http:\";\n  else if (url.protocol === \"wss:\") url.protocol = \"https:\";\n  url.pathname = url.pathname.replace(/\\/+$/, \"\") + \"/\";\n  url.search = \"\";\n  url.hash = \"\";\n  return url.toString();\n}\n\nexport function deriveWsBaseUrl(httpBaseUrl: string): string {\n  const url = new URL(normalizeHttpBaseUrl(httpBaseUrl));\n  url.protocol = url.protocol === \"https:\" ? \"wss:\" : \"ws:\";\n  return url.toString();\n}\n\n/** A ws-only connection setting may already name the original /ws socket. */\nexport function httpBaseUrlFromWebSocket(wsBaseUrl: string): string {\n  const url = parseEnvironmentUrl(wsBaseUrl);\n  url.pathname = url.pathname.replace(/^\\/ws\\/$/, \"/\").replace(/\\/ws$/, \"/\");\n  return normalizeHttpBaseUrl(url.toString());\n}\n\n/** Resolve logical /api, /oauth and /ws paths inside one environment, exactly once. */\nexport function environmentEndpointUrl(httpBaseUrl: string, reference: string): string {\n  const base = new URL(normalizeHttpBaseUrl(httpBaseUrl));\n  if (reference !== reference.trim()) throw new Error(\"Invalid endpoint URL whitespace.\");\n  let url: URL;\n  if (/^[a-z][a-z\\d+.-]*:/i.test(reference)) {\n    url = parseEnvironmentUrl(reference);\n    if (url.pathname === base.pathname.slice(0, -1)) url.pathname = base.pathname;\n    if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) {\n      throw new Error(\"Endpoint URL is outside its environment.\");\n    }\n  } else {\n    if (reference.startsWith(\"//\")) throw new Error(\"Endpoint authority is not a logical path.\");\n    const path = reference.split(/[?#]/, 1)[0]!;\n    validateEnvironmentPath(path);\n    const rooted = path.startsWith(\"/\") ? path : \"/\" + path;\n    const parent = base.pathname.slice(0, base.pathname.slice(0, -1).lastIndexOf(\"/\") + 1);\n    if (base.pathname !== \"/\" && parent !== \"/\" && rooted.startsWith(parent)\n      && rooted !== base.pathname.slice(0, -1) && !rooted.startsWith(base.pathname)) {\n      throw new Error(\"Endpoint path names another environment.\");\n    }\n    const suffix = reference.slice(path.length);\n    const mounted = rooted === base.pathname.slice(0, -1) ? base.pathname\n      : rooted.startsWith(base.pathname) ? rooted : base.pathname + rooted.slice(1);\n    url = new URL(mounted + suffix, base);\n  }\n  const relative = url.pathname.slice(base.pathname.length);\n  if (base.pathname !== \"/\" && relative.startsWith(base.pathname.slice(1))) {\n    throw new Error(\"Endpoint path repeats its environment prefix.\");\n  }\n  return url.toString();\n}\n\n/** Socket base or explicit socket path; credentials never leave the HTTP environment. */\nexport function environmentWebSocketUrl(httpBaseUrl: string, wsBaseUrl: string): string {\n  const base = new URL(normalizeHttpBaseUrl(httpBaseUrl));\n  const socket = parseEnvironmentUrl(wsBaseUrl);\n  if (socket.protocol === \"ws:\") socket.protocol = \"http:\";\n  else if (socket.protocol === \"wss:\") socket.protocol = \"https:\";\n  if (socket.origin !== base.origin) throw new Error(\"Socket origin differs from its environment.\");\n  const isBase = socket.pathname.replace(/\\/+$/, \"\") === base.pathname.slice(0, -1);\n  const url = new URL(environmentEndpointUrl(base.href, isBase ? \"/ws\" : socket.href));\n  url.search = socket.search;\n  url.hash = \"\";\n  url.protocol = url.protocol === \"https:\" ? \"wss:\" : \"ws:\";\n  return url.toString();\n}\n\n/** Absolute minted HTTP resources support the existing local-media fallback. No auth is added. */\nexport function environmentResourceUrl(httpBaseUrl: string, reference: string): string {\n  if (/^https?:\\/\\//i.test(reference)) {\n    normalizeHttpBaseUrl(httpBaseUrl);\n    const url = parseEnvironmentUrl(reference);\n    return url.toString();\n  }\n  return environmentEndpointUrl(httpBaseUrl, reference);\n}\n\n",
+      "semantics": "One shared mount-preserving HTTP/resource/socket URL boundary; reject authority and path ambiguity."
+    },
+    {
+      "file": "packages/shared/src/remote.ts",
+      "beforeSha256": "de815ac7f3e17e217d4ca6345d9d0715892d669a660a3707dcd1b99c75f4fdfb",
+      "afterSha256": "4cbcddaa441587f08c33f8d2b616c4826df37b699779ecdf674ad21778d43bf4",
+      "from": "import * as Schema from \"effect/Schema\";\n",
+      "to": "import * as Schema from \"effect/Schema\";\nimport { deriveWsBaseUrl, normalizeHttpBaseUrl } from \"./advertisedEndpoint.ts\";\n",
+      "semantics": "Reuse the canonical base helper for pairing instead of independently clearing pathname."
+    },
+    {
+      "file": "packages/shared/src/remote.ts",
+      "beforeSha256": "4cbcddaa441587f08c33f8d2b616c4826df37b699779ecdf674ad21778d43bf4",
+      "afterSha256": "8c30156393b48d317a3c1b27cf46b77c0a47c45deb385e6e171e74c0aba1f8a2",
+      "from": "  url.pathname = \"/\";\n  url.search = \"\";\n  url.hash = \"\";\n  return url;\n",
+      "to": "  try {\n    return new URL(normalizeHttpBaseUrl(normalizedInput));\n  } catch (cause) {\n    throw new RemoteBackendUrlInvalidError({ source, cause });\n  }\n",
+      "semantics": "Preserve mounted direct/hosted host input and structured invalid-host errors."
+    },
+    {
+      "file": "packages/shared/src/remote.ts",
+      "beforeSha256": "8c30156393b48d317a3c1b27cf46b77c0a47c45deb385e6e171e74c0aba1f8a2",
+      "afterSha256": "216e53a81525d217fe954972ed78cb29a96f14d756073295abf58e60ae6f1ba3",
+      "from": "const toHttpBaseUrl = (url: URL): string => {\n  const next = new URL(url.toString());\n  if (next.protocol === \"ws:\") {\n    next.protocol = \"http:\";\n  } else if (next.protocol === \"wss:\") {\n    next.protocol = \"https:\";\n  }\n  next.pathname = \"/\";\n  next.search = \"\";\n  next.hash = \"\";\n  return next.toString();\n};\n\nconst toWsBaseUrl = (url: URL): string => {\n  const next = new URL(url.toString());\n  if (next.protocol === \"http:\") {\n    next.protocol = \"ws:\";\n  } else if (next.protocol === \"https:\") {\n    next.protocol = \"wss:\";\n  }\n  next.pathname = \"/\";\n  next.search = \"\";\n  next.hash = \"\";\n  return next.toString();\n};\n\n",
+      "to": "const toHttpBaseUrl = (url: URL): string => normalizeHttpBaseUrl(url.toString());\n\nconst toWsBaseUrl = (url: URL): string => deriveWsBaseUrl(toHttpBaseUrl(url));\n\n",
+      "semantics": "Retain legacy /pair root behavior and mounted /pair links; preserve token extraction."
+    },
+    {
+      "file": "packages/shared/src/remote.ts",
+      "beforeSha256": "216e53a81525d217fe954972ed78cb29a96f14d756073295abf58e60ae6f1ba3",
+      "afterSha256": "0f4c091b632e3cd9ee880e5ae578f52d6415ce5e58ae9f9634038630e04c01d3",
+      "from": "    return {\n      credential,\n      httpBaseUrl: toHttpBaseUrl(url),\n      wsBaseUrl: toWsBaseUrl(url),\n    };",
+      "to": "    // Only the pairing-page input names a doorway; host inputs already name a base.\n    const backendUrl = new URL(url.toString());\n    backendUrl.pathname = backendUrl.pathname.replace(/\\/pair\\/?$/, \"/\");\n    return {\n      credential,\n      httpBaseUrl: toHttpBaseUrl(backendUrl),\n      wsBaseUrl: toWsBaseUrl(backendUrl),\n    };",
+      "semantics": "Strip the /pair page only for pairing-page inputs, never from an opaque host base ending in pair."
+    },
+    {
+      "file": "packages/shared/src/remote.ts",
+      "beforeSha256": "0f4c091b632e3cd9ee880e5ae578f52d6415ce5e58ae9f9634038630e04c01d3",
+      "afterSha256": "3ff351324dfde23debce5829e26c24d77a80c1ea953e009b799db27ff8623793",
+      "from": "    const hostedPairingRequest = readHostedPairingRequest(url);",
+      "to": "    try {\n      normalizeHttpBaseUrl(pairingUrl);\n    } catch (cause) {\n      throw new RemotePairingUrlInvalidError({ cause });\n    }\n    const hostedPairingRequest = readHostedPairingRequest(url);",
+      "semantics": "Validate the original spelling before URL parsing could erase traversal or malformed paths."
+    },
+    {
+      "file": "packages/client-runtime/src/environment/endpoint.ts",
+      "beforeSha256": "f87003b4275659d5be7f9647284cc4ba8f95350d2570c1591f9bf5469f9d04c9",
+      "afterSha256": "cb7eb94fe4ab09df70467b7cc142b128256e804cfa05c42ffb0d9f77a70eb898",
+      "from": "export * from \"@t3tools/shared/advertisedEndpoint\";\n\nexport const environmentEndpointUrl = (httpBaseUrl: string, pathname: string): string => {\n  const url = new URL(httpBaseUrl);\n  url.pathname = pathname;\n  url.search = \"\";\n  url.hash = \"\";\n  return url.toString();\n};\n",
+      "to": "export * from \"@t3tools/shared/advertisedEndpoint\";\n",
+      "semantics": "Re-export the shared endpoint implementation; remove the pathname overwrite."
+    },
+    {
+      "file": "packages/client-runtime/src/rpc/http.ts",
+      "beforeSha256": "732b54511b86d4fa2491b50f0cb0dacd03f91414daed29569b923921af86974c",
+      "afterSha256": "e2117cc0f2f6c270754b646b3c484acfa52cab53212d7b90744907735a9f2c07",
+      "from": "import * as HttpObservability from \"@t3tools/shared/httpObservability\";",
+      "to": "import { normalizeHttpBaseUrl } from \"@t3tools/shared/advertisedEndpoint\";\nimport * as HttpObservability from \"@t3tools/shared/httpObservability\";",
+      "semantics": "Use the shared normalized base for actual Effect HTTP clients and their URL builder."
+    },
+    {
+      "file": "packages/client-runtime/src/rpc/http.ts",
+      "beforeSha256": "e2117cc0f2f6c270754b646b3c484acfa52cab53212d7b90744907735a9f2c07",
+      "afterSha256": "8bd7c9d782d3447d0b9ff838d7f3ee9b80d870c7fe1e90ff4567526191e987c8",
+      "from": "const remoteApiBaseUrl = (httpBaseUrl: string): string => {\n  const url = new URL(httpBaseUrl);\n  url.pathname = \"/\";\n  url.search = \"\";\n  url.hash = \"\";\n  return url.toString();\n};\n\n",
+      "to": "const remoteApiBaseUrl = normalizeHttpBaseUrl;\n\n",
+      "semantics": "Keep the environment mount when Effect appends the original absolute-looking contract paths."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "567c094a83faa4856e127397cb9495f9726e110c44f17dcd31d2329083d2a419",
+      "afterSha256": "bb91593f09d4f46183efa53c82d3f576e830cc91bbc7a207cfc192bde7fc11df",
+      "from": "import { environmentEndpointUrl } from \"../environment/endpoint.ts\";",
+      "to": "import { environmentEndpointUrl, environmentWebSocketUrl } from \"../environment/endpoint.ts\";",
+      "semantics": "Use the same HTTP/WS boundary for socket admission and public-URL proof generation."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "bb91593f09d4f46183efa53c82d3f576e830cc91bbc7a207cfc192bde7fc11df",
+      "afterSha256": "f3f0e723c64e581371c0c142195ee7e87195fa1732b518b56e0d992239c17f46",
+      "from": "function rpcSocketUrl(wsBaseUrl: string): URL {\n  const url = new URL(wsBaseUrl);\n  if (url.pathname === \"\" || url.pathname === \"/\") {\n    url.pathname = \"/ws\";\n  }\n  return url;\n}",
+      "to": "function rpcSocketUrl(httpBaseUrl: string, wsBaseUrl: string): URL {\n  return new URL(environmentWebSocketUrl(httpBaseUrl, wsBaseUrl));\n}",
+      "semantics": "Preserve an explicit socket path or append /ws to the canonical environment base."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "f3f0e723c64e581371c0c142195ee7e87195fa1732b518b56e0d992239c17f46",
+      "afterSha256": "1c3eb009b43d5943a0dd36a06a1be24117ebadf179aee22810f028dc82f4da7c",
+      "from": "  const url = rpcSocketUrl(input.wsBaseUrl);\n  url.searchParams.set(\"wsTicket\",",
+      "to": "  const url = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  url.searchParams.set(\"wsTicket\",",
+      "semantics": "Bearer socket tickets stay in the selected environment."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "1c3eb009b43d5943a0dd36a06a1be24117ebadf179aee22810f028dc82f4da7c",
+      "afterSha256": "5453dbeacc8364034e7695ef4f7933684ef8023f6897294d81b03b2d7690e87c",
+      "from": "  const url = rpcSocketUrl(input.wsBaseUrl);\n  const upgradeProof =",
+      "to": "  const url = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  const upgradeProof =",
+      "semantics": "DPoP upgrade proof names the actual mounted HTTP-equivalent public socket path."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "5453dbeacc8364034e7695ef4f7933684ef8023f6897294d81b03b2d7690e87c",
+      "afterSha256": "931bf8df85d51b4d89eb57874b4978a6035356da1f3c51d80016b37ae5bbee48",
+      "from": "  const issued = yield* issueRemoteWebSocketTicket({",
+      "to": "  const socketUrl = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  const issued = yield* issueRemoteWebSocketTicket({",
+      "semantics": "Validate bearer socket authority before requesting a ticket."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "931bf8df85d51b4d89eb57874b4978a6035356da1f3c51d80016b37ae5bbee48",
+      "afterSha256": "d7fef02dbd4fc7bc766568bcab40225bc8ed045d554a29cd5086e823f797ba05",
+      "from": "  const url = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  url.searchParams.set(\"wsTicket\",",
+      "to": "  const url = socketUrl;\n  url.searchParams.set(\"wsTicket\",",
+      "semantics": "Use the already validated bearer socket target."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "d7fef02dbd4fc7bc766568bcab40225bc8ed045d554a29cd5086e823f797ba05",
+      "afterSha256": "2db8348117b796335aa581d9124b21264c9f3b5dd633bfa8418c7313c9913894",
+      "from": "  const ticketProof = yield* input.createProof({",
+      "to": "  const socketUrl = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  const ticketProof = yield* input.createProof({",
+      "semantics": "Validate DPoP socket authority before creating a proof or requesting a ticket."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/remote.ts",
+      "beforeSha256": "2db8348117b796335aa581d9124b21264c9f3b5dd633bfa8418c7313c9913894",
+      "afterSha256": "7b7859d85ef01eac4ca8959e21f27fd1fe1d46af596b3c2b8bcdd45e7bf06609",
+      "from": "  const url = rpcSocketUrl(input.httpBaseUrl, input.wsBaseUrl);\n  const upgradeProof =",
+      "to": "  const url = socketUrl;\n  const upgradeProof =",
+      "semantics": "Use the already validated DPoP socket target."
+    },
+    {
+      "file": "packages/client-runtime/src/state/assets.ts",
+      "beforeSha256": "2e3ea8c9abf68bc1af1ac9eb95eb43287ecfe2ab96d0aa216ea0e92600e3ed13",
+      "afterSha256": "44c5df042d3a0568928febdc46a13bb7f56c91f08f67eda2c7e40f2d809ea5b4",
+      "from": "import { mediaMimeTypeFromExtension }",
+      "to": "import { environmentResourceUrl } from \"@t3tools/shared/advertisedEndpoint\";\nimport { mediaMimeTypeFromExtension }",
+      "semantics": "Reuse the shared boundary for minted downloads, images, resources and uploads."
+    },
+    {
+      "file": "packages/client-runtime/src/state/assets.ts",
+      "beforeSha256": "44c5df042d3a0568928febdc46a13bb7f56c91f08f67eda2c7e40f2d809ea5b4",
+      "afterSha256": "8b1d82799e5e16fba4b95bda3fd7a149a789bb96cd5cb46c493cdf47f2cc3962",
+      "from": "    return new URL(relativeUrl, httpBaseUrl).toString();",
+      "to": "    return environmentResourceUrl(httpBaseUrl, relativeUrl);",
+      "semantics": "Root-looking resource paths are relative to the environment; absolute minted HTTP resources retain their origin."
+    },
+    {
+      "file": "packages/client-runtime/src/state/assets.ts",
+      "beforeSha256": "8b1d82799e5e16fba4b95bda3fd7a149a789bb96cd5cb46c493cdf47f2cc3962",
+      "afterSha256": "4fafea53d5a20614416ba637df708a1ec4c77dc6cb3cddc0a597ac590edb1e56",
+      "from": "    return { ...asset, relativeUrl: new URL(asset.relativeUrl, local.httpBaseUrl).href };",
+      "to": "    return { ...asset, relativeUrl: environmentResourceUrl(local.httpBaseUrl, asset.relativeUrl) };",
+      "semantics": "Keep the existing explicit local-media fallback while retaining the local environment mount."
+    },
+    {
+      "file": "packages/client-runtime/src/connection/resolver.ts",
+      "beforeSha256": "24304f3ef8174a6988ace75d3bd55df97cb57002e0f6b67c748adef8f9dfff11",
+      "afterSha256": "84af3bb43485d13c2c539e1390f93c1e6e68e3ce88ce64f5ea2175b3cca53803",
+      "from": "import { fetchRemoteEnvironmentDescriptor } from \"../environment/descriptor.ts\";",
+      "to": "import { fetchRemoteEnvironmentDescriptor } from \"../environment/descriptor.ts\";\nimport { environmentWebSocketUrl } from \"../environment/endpoint.ts\";",
+      "semantics": "Cookie-based primary connections also use the shared socket boundary."
+    },
+    {
+      "file": "packages/client-runtime/src/connection/resolver.ts",
+      "beforeSha256": "84af3bb43485d13c2c539e1390f93c1e6e68e3ce88ce64f5ea2175b3cca53803",
+      "afterSha256": "e2bb3f6c184a3e784ba64abe0a1d03f3517b2c28c27363b785222b50cf5ec2a8",
+      "from": "  const url = new URL(target.wsBaseUrl);\n  if (url.pathname === \"\" || url.pathname === \"/\") {\n    url.pathname = \"/ws\";\n  }",
+      "to": "  const url = new URL(environmentWebSocketUrl(target.httpBaseUrl, target.wsBaseUrl));",
+      "semantics": "Append /ws beneath mounted primary bases; preserve explicit paths and connection metadata."
+    },
+    {
+      "file": "packages/client-runtime/src/voice-input/environment.ts",
+      "beforeSha256": "982356dec48a33eb4ffbdf64b114dd949233e97c8eb0c8613c3ddd3b9854ce29",
+      "afterSha256": "63a3bea61abd8f17fd573563e634ac3f0381416c2a8bdb7020612d6c795cde3c",
+      "from": "import { encodeSpeechPcmRequest }",
+      "to": "import { environmentEndpointUrl } from \"../environment/endpoint.ts\";\nimport { encodeSpeechPcmRequest }",
+      "semantics": "Reuse the environment boundary at the existing session speech socket connection."
+    },
+    {
+      "file": "packages/client-runtime/src/voice-input/environment.ts",
+      "beforeSha256": "63a3bea61abd8f17fd573563e634ac3f0381416c2a8bdb7020612d6c795cde3c",
+      "afterSha256": "2909577fcd5bc50921829b530af0abae33acc81ef95596b542d8aab50ea5c8cb",
+      "from": "  let endpoint = prepared.httpBaseUrl;\n",
+      "to": "",
+      "semantics": "Use the environment base rather than the ticket endpoint as the speech stream base."
+    },
+    {
+      "file": "packages/client-runtime/src/voice-input/environment.ts",
+      "beforeSha256": "2909577fcd5bc50921829b530af0abae33acc81ef95596b542d8aab50ea5c8cb",
+      "afterSha256": "c00363113362acbc7886b7f09c72e18d0e72ec0aab652340007c551837361115",
+      "from": "    path: (urls) => {\n      endpoint = urls.webSocketTicketFor({ params: { use: \"media\" } });\n      return endpoint;\n    },",
+      "to": "    path: (urls) => urls.webSocketTicketFor({ params: { use: \"media\" } }),",
+      "semantics": "Keep the existing media ticket proof target unchanged."
+    },
+    {
+      "file": "packages/client-runtime/src/voice-input/environment.ts",
+      "beforeSha256": "c00363113362acbc7886b7f09c72e18d0e72ec0aab652340007c551837361115",
+      "afterSha256": "1a8a88184117444e752d3c7f7306fb69d63a7d94dc8dfb6fa7a7a4cd7d60bef6",
+      "from": "      const url = new URL(SPEECH_STREAM_PATH, endpoint);",
+      "to": "      const url = new URL(environmentEndpointUrl(prepared.httpBaseUrl, SPEECH_STREAM_PATH));",
+      "semantics": "Prevent an absolute-looking session speech path from discarding the environment mount."
+    }
+  ]
+}
