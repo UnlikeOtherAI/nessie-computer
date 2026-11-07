@@ -168,7 +168,7 @@ export class ExecutorDaemonDoorbell {
       this.#everReady = true
       this.#failures = 0
       this.options.onReady(frame.pollSeconds)
-    } else if (this.#ready) {
+    } else if (frame.type === 'wake' && this.#ready) {
       this.options.onWake([...new Set(frame.topics)])
     }
   }

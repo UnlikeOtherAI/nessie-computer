@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 
 import {
   EXECUTOR_SESSION_REQUEST_MAXIMUM, ExecutorSessionRequestSchema,
-  type ExecutorSessionAnswer, type ExecutorSessionDecision, type ExecutorSessionRequest,
+  executorSessionAnswerProblem, type ExecutorSessionAnswer, type ExecutorSessionAnswerProblem,
+  type ExecutorSessionDecision, type ExecutorSessionRequest,
 } from '@nessie/executor-protocol'
 
 /**
@@ -35,44 +36,15 @@ export type SessionRequestResponder = {
   withdraw: (status: 'cancelled' | 'expired', reason: string) => void
 }
 
-export type AnswerProblem = 'request_not_pending' | 'request_not_answerable' | 'answer_shape_mismatch'
+export type AnswerProblem = ExecutorSessionAnswerProblem
 
-const APPROVAL_KINDS = new Set(['command', 'file_change', 'permission'])
-
-/**
- * Why an answer cannot settle a request, or undefined when it can: the
- * request must be pending and answerable, and the answer must have the
- * request's own shape — a decision the request offers, every question
- * answered once with values it accepts, or a secret for a secret.
- */
+/** The protocol's one answer rule, for an answer as the host holds it. */
 export const answerProblem = (
   request: ExecutorSessionRequest | undefined, answer: ExecutorSessionAnswer | HostAnswer,
-): AnswerProblem | undefined => {
-  if (!request || request.status !== 'pending') return 'request_not_pending'
-  if (!request.answerable) return 'request_not_answerable'
-  const secret = 'secret' in answer && answer.secret !== undefined || 'secretSaved' in answer && answer.secretSaved
-  if (APPROVAL_KINDS.has(request.kind)) {
-    if (answer.decision === undefined || answer.answers !== undefined || secret) return 'answer_shape_mismatch'
-    return (request.decisions ?? []).includes(answer.decision) ? undefined : 'answer_shape_mismatch'
-  }
-  // A question or a secret may also be turned down, when it offers that decision.
-  if (answer.decision !== undefined) {
-    return answer.answers === undefined && !secret && (request.decisions ?? []).includes(answer.decision)
-      ? undefined : 'answer_shape_mismatch'
-  }
-  if (request.kind === 'secret') return secret && answer.answers === undefined ? undefined : 'answer_shape_mismatch'
-  if (!answer.answers || secret) return 'answer_shape_mismatch'
-  const questions = request.questions ?? []
-  const given = new Map(answer.answers.map((entry) => [entry.questionId, entry.values]))
-  if (given.size !== answer.answers.length || given.size !== questions.length) return 'answer_shape_mismatch'
-  for (const question of questions) {
-    const values = given.get(question.id)
-    if (!values || (!question.multiSelect && values.length !== 1)) return 'answer_shape_mismatch'
-    const labels = new Set(question.options.map((option) => option.label))
-    if (!question.allowCustomAnswer && values.some((value) => !labels.has(value))) return 'answer_shape_mismatch'
-  }
-  return undefined
-}
+): AnswerProblem | undefined => executorSessionAnswerProblem(request, {
+  answers: answer.answers, decision: answer.decision,
+  secret: 'secret' in answer && answer.secret !== undefined || 'secretSaved' in answer && answer.secretSaved === true,
+})
 
 type Entry = { request: ExecutorSessionRequest; responder?: SessionRequestResponder; settled: number }
 
