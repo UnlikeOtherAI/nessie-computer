@@ -21,6 +21,10 @@ pub struct Failure {
     stage: &'static str,
     os_error: Option<i32>,
     broker_error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sent_bytes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    received_bytes: Option<usize>,
 }
 impl Failure {
     fn at(stage: &'static str) -> Self {
@@ -29,6 +33,8 @@ impl Failure {
             stage,
             os_error: None,
             broker_error: None,
+            sent_bytes: None,
+            received_bytes: None,
         }
     }
     fn os(stage: &'static str, error: i32) -> Self {
@@ -95,7 +101,15 @@ fn exchange(request: &serde_json::Value, eku: Option<&str>) -> Result<serde_json
     let mut response = Vec::new();
     loop {
         if Instant::now() >= deadline {
-            return Err(Failure::at("response_deadline"));
+            return Err(Failure {
+                sent_bytes: Some(sent),
+                received_bytes: Some(response.len()),
+                ..Failure::at(if sent < bytes.len() {
+                    "write_deadline"
+                } else {
+                    "response_deadline"
+                })
+            });
         }
         if sent < bytes.len() {
             match stream.write(&bytes[sent..]) {
