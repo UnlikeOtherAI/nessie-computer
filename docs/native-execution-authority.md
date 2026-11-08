@@ -134,3 +134,23 @@ approval/handle commands. Root's serial window must compile these sources and
 exercise enrollment, denied ordinary-process injection, expiry/revoke/late
 delivery, exact provider association, backpressure, crash and positive clearance
 through the signed disposable installed journey. No production-working claim.
+# Nonexecuting inspection delivery
+
+The canonical daemon session lane carries bounded `inspections` and exact
+`inspectionReceipts`, with explicit acknowledgements. Only an executing runtime
+implements `T3SessionLaneRuntime.inspect`; retained runtimes omit it. Inspection
+and `open` must reach the same held, native-registered graph process. Inspection
+never calls `open` or allocates a provider session, and its fixed deadline joins
+source finalizers before the slot is released.
+
+The backend separately admits the original command after an enrolled graph
+receipt. Its normal offer carries `executionGraph` with the unchanged original
+request/HMAC/provenance. The service receipt freshness window bounds acceptance;
+the command's current parent authority and relay expiry bound subsequent use.
+Graph evidence is not a native launch grant. Each native effect still consumes
+the appropriate signed phase and actual protected custody.
+
+These transport changes and negative fixtures are source-only. Installed
+inspection, graph acceptance, original preparation and native execution remain
+unqualified until the canonical authority producers and managed graph are
+integrated and exercised through the real user flow.
