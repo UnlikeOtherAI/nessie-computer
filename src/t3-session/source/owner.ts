@@ -9,6 +9,7 @@ import type { CaptureDatabase } from '../state/sqlite.js'
 import { parseT3Homes } from './configuration.js'
 import { heldSourceDatabase } from './database.js'
 import { openNativeT3Source } from './native.js'
+import { consumeRetainedConsent, type RetainedImportConsentLease } from './consent-consumer.js'
 
 export interface LivePhysicalT3Binding {
   readonly source: ProvenT3Source
@@ -20,6 +21,10 @@ export interface LivePhysicalT3Binding {
 }
 export interface MachineT3SourceOwner extends AdmittedT3SourcePort {
   manifest(): Promise<T3SourceManifest>
+  consumeRetainedImportApproval(input: {
+    readonly challenge: unknown; readonly receipt: unknown; readonly physicalSourceRecheck: () => Promise<void>
+    readonly verification: unknown
+  }): Promise<RetainedImportConsentLease>
   /** Canonical historical-human admission must use this exact daemon owner.
    * Returns only a currently live, issued binding, never a historical human. */
   recognize(recheck: () => Promise<void>): Promise<LivePhysicalT3Binding>
@@ -45,6 +50,13 @@ export function registerMachineT3Sources(stateDirectory: string, executorId: str
   }
   const owner: MachineT3SourceOwner = Object.freeze({
     manifest,
+    async consumeRetainedImportApproval(input: {
+      readonly challenge: unknown; readonly receipt: unknown; readonly physicalSourceRecheck: () => Promise<void>
+      readonly verification: unknown
+    }) {
+      requireCapture(active, 't3_source_owner_closed')
+      return consumeRetainedConsent(executorId, input)
+    },
     async recognize(recheck: () => Promise<void>) {
       requireCapture(active && leases.has(recheck), 't3_source_lease_not_issued_here')
       const lease = leases.get(recheck)

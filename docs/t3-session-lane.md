@@ -35,3 +35,22 @@ native association producer, runtime graph adapter and T03C effect receiver.
 No installed runtime, human consent, source recognition or provider outcome is
 qualified by this source checkpoint. Focused tests and real native/user/tool
 journeys remain pending the coordinator's integrated qualification window.
+
+`open(request, signal, { requestDigest })` receives the broker's HMAC separately
+from the original envelope. `describe()` reports only actual held runtime/source
+incarnations; the lane signs those reports. A raw request, captured database UUID
+or process-local random value cannot invent a ready runtime descriptor.
+
+`createT3CatalogPublicationTransport` sends bounded metadata pages and completion
+through the same paired API client and `t3_catalog` signature domain. It checks
+receipts and epoch changes. It does not enumerate a local source: the concrete
+ordered held-capture producer must still bind `T3CatalogPublicationPort`. No
+filesystem reference is dereferenced by the backend and no UUID sort is supplied
+as an alternative to original source order.
+
+Authored, unrun unit fixtures cover exact signed-frame retries, credit gating,
+epoch cancellation, actual grant signature verification, changed targets and
+JSON/constructor forgery. After integration, run `pnpm exec turbo run
+test:t3-session-broker --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
+This normal build-dependent gate needs the coordinator's serial qualification
+window; builtin syntax checks do not qualify it.

@@ -96,6 +96,10 @@ fn service_main(_arguments: Vec<OsString>) {
     // JavaScript/native payload being fully installed after an interruption.
     let outcome = host::verify_worker();
     if outcome.is_ok() {
+        // A separate typed source-consent listener. Failure disables import;
+        // it must not stop unrelated update recovery or broaden update-control.
+        let issuer_stopped = stopped.clone();
+        std::thread::spawn(move || { let _ = crate::t3_source::issuer_service::serve(issuer_stopped); });
         let _ = handle.set_service_status(status(ServiceState::Running));
         if serve(stopped).is_err() {
             let mut failure = status(ServiceState::Stopped);

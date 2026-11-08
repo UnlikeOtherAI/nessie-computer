@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
+import type { RetainedImportAuthorityPort } from '../ownership/import-scope.js'
 import type { T3CaptureJournal } from '../state/journal.js'
 import type { CaptureAttempt } from '../state/capture-attempts.js'
 import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort } from '../catalog/selection.js'
@@ -14,9 +15,15 @@ export interface RetainedCapturePorts {
   readonly originalOwner?: RetainedOriginalOwnerPort
   readonly catalogAuthority?: RetainedCatalogAuthorityPort
   readonly catalogPublicationAuthority?: RetainedCatalogPublicationAuthorityPort
+  readonly importRead?: RetainedImportAuthorityPort
   readonly workspace: OwnedCaptureWorkspacePort
   readonly journal: T3CaptureJournal
   readonly nativeHomes?: NativeHistoryHomePort
+}
+
+export function retainedCaptureAuthority(ports: RetainedCapturePorts) {
+  requireCapture(!(ports.originalOwner && ports.importRead), 'retained_read_authority_ambiguous')
+  return ports.importRead ?? ports.originalOwner
 }
 
 /** Machine-only passive capture. Local readiness is NOT a server claim, a human
@@ -24,11 +31,11 @@ export interface RetainedCapturePorts {
  */
 export async function captureRetainedT3(ports: RetainedCapturePorts,
   manifest: T3SourceManifest, admittedRootKey: string) {
-  const generation = randomUUID()
+  const generation = ports.importRead?.captureGeneration ?? randomUUID()
   const attempt = ports.journal.attempts.observe(admittedRootKey)
   let result: Awaited<ReturnType<typeof finishStage>> | undefined
   try {
-    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, ports.originalOwner, generation,
+    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, retainedCaptureAuthority(ports), generation,
       async (snapshot, reads) => {
       const stage = await ports.workspace.createGeneration(generation)
       const priorGeneration = ports.journal.root(snapshot.source.physicalRootKey)?.last_ready_generation
@@ -64,7 +71,7 @@ export async function resumeRetainedT3(ports: RetainedCapturePorts,
   let result: Awaited<ReturnType<typeof finishStage>> | undefined
   const attempt = ports.journal.attempts.observe(admittedRootKey, generation)
   try {
-    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, ports.originalOwner, generation,
+    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, retainedCaptureAuthority(ports), generation,
       async snapshot => {
       const source = snapshot.source
       const job = ports.journal.generation(generation)

@@ -110,6 +110,7 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runServiceRestartCli(args)) return
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
+  if (await (await import('./t3-session/source/management-cli.js')).runRetainedManagementCli(args)) return
   if (await runLocalSettingsCli(args)) return
   const command = parseCommand(args)
   if (command.kind === 'pair') {

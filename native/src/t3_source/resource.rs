@@ -33,6 +33,20 @@ fn present(path: &Path) -> Result<bool, NativeError> {
 }
 
 impl Resource {
+    /// Local management resolves this directory from the authenticated OS token,
+    /// not from a server path. The normal open independently rechecks the file.
+    pub fn configured_request(state: &Path, executor: &str, root_key: &str) -> Result<Value, NativeError> {
+        let held = chain(state)?;
+        let path = held.last().ok_or_else(fail)?.path()?.join("executor-state.json");
+        let mut file = Held::open(&path, false, false, true)?;
+        let configuration: Value = serde_json::from_slice(&configuration_bytes(&mut file)?).map_err(|_| fail())?;
+        if configuration["executorId"] != executor { return Err(fail()); }
+        let homes = configuration["t3SourceHomes"].as_array().ok_or_else(fail)?;
+        let revision = configuration["descriptor"]["revision"].as_u64().ok_or_else(fail)?.to_string();
+        Ok(json!({"stateDirectory":state,"executorId":executor,"admittedRootKey":root_key,
+            "manifest":{"revision":revision,"homes":homes.iter().map(|home|
+                json!({"admittedRootKey":home["admittedRootKey"],"kind":home["kind"]})).collect::<Vec<_>>()}}))
+    }
     #[cfg(test)]
     pub(super) fn expire_for_test(&self) { self.clock.expire(); }
     #[cfg(test)]
