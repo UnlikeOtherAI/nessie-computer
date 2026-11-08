@@ -8,6 +8,7 @@ import type { CodingSessionRequest } from './types.js'
 export const claimHostEffect = async (
   paths: CodingSessionPaths, request: CodingSessionRequest, effect: SessionEffectAuthority,
 ): Promise<string> => {
+  if ('kind' in effect.scope) throw new SessionEffectRefused()
   const directory = join(paths.dir, 'effect-intents')
   await ensurePrivateDir(directory)
   const path = join(directory, `${request.id}.json`)

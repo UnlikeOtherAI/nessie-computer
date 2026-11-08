@@ -1,10 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import type { Duplex } from 'node:stream'
 import { SessionEffectAuthority, SessionEffectRefused } from './session-effect-authority.js'
-import type { ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
+import { exactHttpsOrigin, isT3EffectScope, parseSessionEffectScope, retainEffectSession, sameT3EffectTarget,
+  type SessionEffectScope } from './session-effect-scope.js'
 
 export type EffectKind = 'launch' | 'input' | 'reply' | 'terminal_reply' | 'end'
-export type EffectWire = { kind: EffectKind; data: string; scope: ExecutorCodingSessionAuthority | null }
+export type EffectWire = { kind: EffectKind; data: string; scope: SessionEffectScope | null; issuerOrigin?: string }
 export const effectDigest = (wire: string): string => createHash('sha256').update(wire).digest('hex')
 const LIMIT = 512 * 1024
 const TIMEOUT = 10_000
@@ -21,8 +22,11 @@ export const automaticProviderReply = (data: string): boolean => {
 }
 
 export const sameEffectSession = (
-  first: ExecutorCodingSessionAuthority, next: ExecutorCodingSessionAuthority,
+  first: SessionEffectScope, next: SessionEffectScope,
 ): boolean => {
+  if (isT3EffectScope(first) || isT3EffectScope(next)) {
+    return isT3EffectScope(first) && isT3EffectScope(next) && sameT3EffectTarget(first, next)
+  }
   const original = first.admissions[0]?.startCommandId ?? first.commandId
   const selected = next.admissions[0]?.startCommandId ?? next.commandId
   return first.executorId === next.executorId && first.originalOwnerGeneration === next.originalOwnerGeneration
@@ -95,7 +99,8 @@ export class EffectPipe {
 export class EffectBroker {
   #sequence = 0
   #queue: Promise<unknown> = Promise.resolve()
-  constructor(private readonly pipe: EffectPipe, private original: ExecutorCodingSessionAuthority) {}
+  constructor(private readonly pipe: EffectPipe, private original: SessionEffectScope,
+    private readonly issuerOrigin?: string) {}
   send(kind: EffectKind, data: string, effect?: SessionEffectAuthority): Promise<void> {
     const task = this.#queue.then(() => this.exchange(kind, data, effect))
     this.#queue = task.catch(() => undefined)
@@ -103,12 +108,15 @@ export class EffectBroker {
   }
   private async exchange(kind: EffectKind, data: string, effect?: SessionEffectAuthority): Promise<void> {
     if (effect && !sameEffectSession(this.original, effect.scope)) throw new SessionEffectRefused()
+    if (effect && effect.issuerOrigin !== this.issuerOrigin) throw new SessionEffectRefused()
+    if (isT3EffectScope(this.original) && !exactHttpsOrigin(this.issuerOrigin)) throw new SessionEffectRefused()
     if (!effect && kind !== 'end' && !(kind === 'reply' && automaticProviderReply(data))
       && !(kind === 'terminal_reply' && automaticTerminalReply(data))) throw new SessionEffectRefused()
     effect?.assertLive()
-    if (effect?.scope.admissions.length && !this.original.admissions.length) this.original = effect.scope
+    if (effect) this.original = retainEffectSession(this.original, effect.scope)
     const seq = ++this.#sequence
-    const wire = JSON.stringify({ kind, data, scope: effect?.scope ?? null } satisfies EffectWire)
+    const wire = JSON.stringify({ kind, data, scope: effect?.scope ?? null,
+      ...(this.issuerOrigin ? { issuerOrigin: this.issuerOrigin } : {}) } satisfies EffectWire)
     const digest = effectDigest(wire)
     const nonces = new Set<string>()
     this.pipe.send({ type: 'offer', seq, wire })
@@ -139,7 +147,8 @@ export class EffectBroker {
 /** Receiver requires a fresh challenge response immediately before each effect, including after local awaits. */
 export class EffectReceiver {
   #sequence = 0
-  #original?: ExecutorCodingSessionAuthority
+  #original?: SessionEffectScope
+  #issuerOrigin?: string
   constructor(private readonly pipe: EffectPipe) {}
   async next(): Promise<{ frame: EffectWire; consume: () => Promise<void>; outcome: (status: string) => void }> {
     const offered = await this.pipe.read(this.#sequence === 0 ? TIMEOUT : 0)
@@ -153,15 +162,20 @@ export class EffectReceiver {
     }
     if (frame.scope) {
       // Schema validation, but no local fabricated authority. Only the broker can consume the signed owning route.
-      const checked = SessionEffectAuthority.fromReference({ directory: '', authority: frame.scope })!
-      checked.assertLive()
-      if (this.#original && !sameEffectSession(this.#original, checked.scope)) throw new SessionEffectRefused()
-      if (!this.#original || !this.#original.admissions.length && checked.scope.admissions.length) {
-        this.#original = checked.scope
+      const checked = parseSessionEffectScope(frame.scope)
+      if (isT3EffectScope(checked) && !exactHttpsOrigin(frame.issuerOrigin)) throw new SessionEffectRefused()
+      if (!isT3EffectScope(checked) && frame.issuerOrigin !== undefined) throw new SessionEffectRefused()
+      if (Date.parse(checked.expiresAt) <= Date.now() || Date.parse(checked.issuedAt) > Date.now() + 2_000) {
+        throw new SessionEffectRefused()
       }
+      if (this.#original && !sameEffectSession(this.#original, checked)) throw new SessionEffectRefused()
+      if (this.#original && this.#issuerOrigin !== frame.issuerOrigin) throw new SessionEffectRefused()
+      this.#issuerOrigin = frame.issuerOrigin
+      this.#original = retainEffectSession(this.#original, checked)
     } else if (!this.#original || frame.kind !== 'end' && !(frame.kind === 'reply' && automaticProviderReply(frame.data))) {
       throw new SessionEffectRefused()
     }
+    if (this.#issuerOrigin !== frame.issuerOrigin) throw new SessionEffectRefused()
     return { frame, consume: async () => {
       const nonce = randomUUID(), started = performance.now()
       this.pipe.send({ type: 'consume', seq, digest, nonce })

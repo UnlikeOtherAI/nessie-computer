@@ -180,3 +180,57 @@ The focused `test:executor-private-assignments` gate includes
 `test:live-sessions` covers the changed async withdrawal consumers. These new
 cases are authored, not run in the source-only continuation. Protected signed
 launch, revocation and crash journeys remain separately required.
+
+## Original T3 finite effects
+
+`requestT3EffectAuthority(directory, grant, signal?)` in
+`src/coding-session/session-effect-authority.ts` accepts only the broker's
+`VerifiedT3EffectGrant`. Its private issuance token and WeakSet are checked;
+JSON, a matching method shape, and caller-supplied callbacks cannot mint one.
+The carrier reconsumes through `createT3EffectAuthorityClient` and the dedicated
+`POST /api/executor-daemon/t3/effect-authority` route. The enrolled state is
+loaded from the protected directory before and after that exchange. The grant's
+`issuerOrigin` must equal that enrolled HTTPS origin, and executor ID, epoch,
+machine key and API URL must remain unchanged. Aborted, expired, changed or
+revoked authority refuses before the effect. This does not reuse the native
+`session_authority` endpoint.
+
+The strict `T3EffectGrantReference` retains executor, environment, original
+thread, original provider session, connection epoch, runtime generation,
+correlation and command IDs, the signed backend offer's HMAC request digest,
+and the explicit native association. Native driver, native ID, continuation-home
+key and history-home key remain separate fields. A new operation may target
+the same process, but must carry its own verified grant; renewal cannot change
+the original operation. The original request/digest binds its provider-instance
+selection; the native session ID never substitutes for any original T3 ID.
+
+`session-effect-scope.ts` owns that equality contract. `EffectBroker`,
+`EffectReceiver` and native `session_effect_scope.rs` reject cross-kind,
+cross-target and cross-association frames. The wire digest also binds issuer
+origin, including automatic reply frames. The native receiver's private managed
+host performs the protected-enrollment comparison and actual signed consumption
+for each fresh challenge. No signing key, authority endpoint or credential is
+passed to the provider.
+
+Inherited references retain the directory and issuer origin. Parsing such a
+reference is only preparation: the same signed route must recreate verified
+authority before any effect. `requestT3EffectAuthority` does not accept that raw
+reference as an in-process grant. Managed request inboxes and their effect
+intent writer reject T3 carriers; original T3 request receipts remain owned by
+the original admitted lane. Streams never become finite provider input grants.
+
+The broker/authentication workers own the issuer and per-target admission.
+Their prerequisite exports are composed by the parent; this source continuation
+does not import their commits or claim a successful bound route. Tests in
+`test/t3-session-effect.test.ts` cover forged grants, exact target separation,
+issuer substitution, expiry and refusal followed by a late permit. Native
+target-matching fixtures are in `session_effect_scope.rs`. They remain authored
+and unrun until the serial qualification window.
+
+There is no authoritative mapping from the provisional
+`ProviderCredentialReferences.resolve(namespace, bindingId)` seam to a native
+association. The pinned source uses its host credential seam for Cursor;
+Codex ChatGPT token storage is T3-owned and excluded. Neither original native
+Codex nor Claude transport calls that seam. It stays unbound: do not fabricate
+a grouping key, equate a provider-instance ID to a native ID, or persist a
+second credential/identity authority.
