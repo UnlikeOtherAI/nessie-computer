@@ -81,7 +81,8 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
     const options = parseCliOptions(args)
     json = options.json
     if (options.words.length === 0 || options.words[0] === 'help') {
-      context.out(`${helpText(options.words.slice(1))}\n`)
+      const asked = options.words.slice(1)
+      context.out(`${helpText(asked.length === 0 && options.help && options.words.length ? ['help'] : asked)}\n`)
       return EXIT.ok
     }
     const command = commandOf(options.words)

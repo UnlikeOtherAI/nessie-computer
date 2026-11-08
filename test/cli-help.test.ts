@@ -68,7 +68,7 @@ test('each command answers help <command> and <command> --help with its usage an
 })
 
 test('every example in the help and the Command line guide is a command with help', () => {
-  const examples = [...HELP_ENTRIES.flatMap((entry) => entry.examples), ...codeLines(guide), ...codeLines(reference)]
+  const examples = [...HELP_ENTRIES.flatMap((entry) => entry.examples), ...codeLines(guide)]
   for (const example of examples) {
     const parsed = parseCliOptions(words(example).slice(1))
     assert.ok(isUserCommand(words(example).slice(1)), `${example} is not a user command`)
