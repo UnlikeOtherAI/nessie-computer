@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
+import { executorLocalMcpServerNames, type ExecutorLocalMcpServer } from '../src/mcp-servers.js'
 import { allProgramTrust } from '../src/program-trust.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import { loadExecutorState, saveExecutorState } from '../src/state-store.js'
@@ -37,15 +38,18 @@ const failure = (result: ReturnType<typeof cli>): { code: string; message: strin
   return parsed.error
 }
 
-const team = async () => {
+const team = async (mcpServers?: ExecutorLocalMcpServer[]) => {
   const stateDir = await ensureOwnerOnlyStateDirectory(await mkdtemp(join(tmpdir(), 'nessie-owner-verbs-')))
   const keys = generateKeyPairSync('ed25519')
   await saveExecutorState(stateDir, {
+    ...(mcpServers ? { mcpServers } : {}),
     apiBaseUrl: 'https://api.example.test',
     commandPolicy: { mode: 'allowlist', allowlist: [], denylist: [], trusted: allProgramTrust() },
     descriptor: {
       limits: { maxCommandRuntimeSeconds: 30, maxResultBytes: 65_536, maxSessions: 1 },
-      operationKeys: ['file.list', 'file.read'], profiles: ['workspace_sandbox'], revision: 1, workspaceFolders: ['workspace'],
+      operationKeys: ['file.list', 'file.read', ...(mcpServers ? ['mcp.tools', 'mcp.call'] : [])],
+      profiles: ['workspace_sandbox'], revision: 1, workspaceFolders: ['workspace'],
+      ...(mcpServers ? { mcpServers: executorLocalMcpServerNames(mcpServers) } : {}),
     },
     executorId: '00000000-0000-4000-8000-000000000f01',
     machinePrivateKey: keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64url'),
@@ -97,6 +101,34 @@ test('configure passes websites through and keeps the built-in programs a propos
       proposal({ trusted: off })).status, 0)
     state = await loadExecutorState(stateDir)
     assert.deepEqual(state.commandPolicy?.trusted, off)
+  } finally {
+    await rm(stateDir, { force: true, recursive: true })
+  }
+})
+
+test('removing one local app keeps the others' environment; a resend that would strip it is refused', {
+  skip, timeout: 120_000,
+}, async () => {
+  const servers: ExecutorLocalMcpServer[] = [
+    { name: 'alpha', command: [process.execPath, 'alpha.mjs'], env: { ALPHA_TOKEN: 'secret-a' } },
+    { name: 'beta', command: [process.execPath, 'beta.mjs'], env: { BETA_TOKEN: 'secret-b' } },
+  ]
+  const stateDir = await team(servers)
+  try {
+    const base = { operationKeys: ['file.list', 'file.read', 'mcp.tools', 'mcp.call'],
+      workspaceFolders: [{ name: 'workspace', path: stateDir }] }
+    const removed = cli(['configure', '--configuration-input-stdin', '--state-dir', stateDir],
+      JSON.stringify({ ...base, mcpServerRemovals: ['alpha'] }))
+    assert.equal(removed.status, 0, removed.stderr)
+    let state = await loadExecutorState(stateDir)
+    assert.deepEqual(state.mcpServers, [servers[1]])
+    // The list as describe shows it, sent back: beta has no env there, so the save is refused.
+    const copied = cli(['configure', '--configuration-input-stdin', '--state-dir', stateDir],
+      JSON.stringify({ ...base, mcpServers: [{ name: 'beta', command: servers[1]!.command }] }))
+    assert.equal(copied.status, 1)
+    assert.match(copied.stderr, /beta without its environment/u)
+    state = await loadExecutorState(stateDir)
+    assert.deepEqual(state.mcpServers, [servers[1]])
   } finally {
     await rm(stateDir, { force: true, recursive: true })
   }

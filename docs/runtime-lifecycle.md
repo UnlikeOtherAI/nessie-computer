@@ -68,7 +68,12 @@ every two minutes after (`refreshLocalApps` in `src/local-mcp-apps.ts`). A local
 or switched off is saved as the next revision and applied live.
 
 `configure --configuration-input-stdin` passes `mcpPolicy` and `allowedOrigins`
-to the writer with the rest of the input. A key the input leaves out keeps what
+to the writer with the rest of the input. `mcpServerRemovals: [name, …]` removes
+owner-added local MCP servers by name and keeps every other server exactly as
+stored, environment included (`src/mcp-server-changes.ts`). `describe` never
+shows a server's `env`, so a resent `mcpServers` entry without `env`, for a name
+stored with one, is refused rather than read as "clear it" (send `env: {}` to
+clear it). Absent `mcpServers` keeps the stored list. A key the input leaves out keeps what
 is saved. That includes `commandPolicy.trusted`: a proposal without it keeps the
 saved built-in programs.
 

@@ -148,7 +148,9 @@ macOS bridge (`menubar-macos/README.md`), plus these shapes the window relies on
   draws the Programs built-ins from `programDefaults` (`{ id, verifiedBy,
   program?, available }`) and `commandPolicy.trusted`; a local app's `source`
   is `unlikeotherai`, `claude-code`, `codex` or `configured` (owner-named,
-  removed through `executor_configure { mcpServers }` rather than switched).
+  removed through `executor_configure { mcpServerRemovals: [name] }` rather
+  than switched; `describe` omits each server's `env`, so the page never sends
+  the server list back).
 
 ## Verification
 

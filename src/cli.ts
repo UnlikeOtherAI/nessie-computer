@@ -46,6 +46,7 @@ import {
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 import { parseCommand, type ParsedCommand } from './cli-arguments.js'
+import { requestedMcpServers } from './mcp-server-changes.js'
 import { describeFolderSync } from './folder-sync/console-state.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -321,7 +322,8 @@ export const run = async (args: string[]): Promise<void> => {
       undefined,
       input.workspaceFolders,
       input.commandAllowlist,
-      input.mcpServers,
+      // Removals by name, and no resent list that would strip a stored server's environment.
+      requestedMcpServers(state.mcpServers, input),
       'codingSessions' in input ? { requested: input.codingSessions } : {},
       withSavedTrust(state, input.commandPolicy),
       // Local apps and websites ride on the input; a key it leaves out keeps what is saved.

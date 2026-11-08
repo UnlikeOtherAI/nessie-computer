@@ -29,6 +29,11 @@ export type ExecutorConfigurationInput = ExecutorConfigurationSettings & {
   codingSessions?: unknown
   commandAllowlist?: string[]
   mcpServers?: ExecutorLocalMcpServer[]
+  /**
+   * Owner-added local MCP servers to remove, by name; every other server stays
+   * exactly as stored (`mcp-server-changes.ts`). Never sent with `mcpServers`.
+   */
+  mcpServerRemovals?: string[]
   operationKeys: string[]
   workspaceFolders: ExecutorWorkspaceFolder[]
 }
@@ -91,6 +96,7 @@ export const parseConfigurationInput = (text: string): ExecutorConfigurationInpu
   const servers = input.mcpServers
   const codingSessions = input.codingSessions
   const origins = input.allowedOrigins
+  const removals = input.mcpServerRemovals
   if (
     (input.existingCodingSessionsEnabled !== undefined && typeof input.existingCodingSessionsEnabled !== 'boolean')
     || !Array.isArray(input.operationKeys)
@@ -118,6 +124,7 @@ export const parseConfigurationInput = (text: string): ExecutorConfigurationInpu
       typeof codingSessions !== 'object' || Array.isArray(codingSessions)
     ))
     || (origins !== undefined && (!Array.isArray(origins) || !origins.every((origin) => typeof origin === 'string')))
+    || (removals !== undefined && (!Array.isArray(removals) || !removals.every((name) => typeof name === 'string')))
   ) {
     return malformed()
   }
@@ -128,6 +135,7 @@ export const parseConfigurationInput = (text: string): ExecutorConfigurationInpu
     ...(codingSessions === undefined ? {} : { codingSessions }),
     ...(allowlist === undefined ? {} : { commandAllowlist: allowlist as string[] }),
     ...(servers === undefined ? {} : { mcpServers: servers as ExecutorLocalMcpServer[] }),
+    ...(removals === undefined ? {} : { mcpServerRemovals: removals as string[] }),
     ...(input.mcpPolicy === undefined ? {} : { mcpPolicy: parseLocalMcpPolicy(input.mcpPolicy) }),
     ...(origins === undefined ? {} : { allowedOrigins: configuredAllowedOrigins(origins as string[]) }),
     operationKeys: input.operationKeys as string[],
