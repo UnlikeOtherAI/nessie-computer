@@ -42,8 +42,8 @@ const needsYou = async (team: LabelledTeam): Promise<NeedsYou[]> => {
 
 const sentence = (teams: readonly LabelledTeam[]): string => {
   if (teams.length === 0) return 'no teams connected'
-  const working = teams.filter((team) => team.status === 'working' || team.status === 'needs_you').length
-  const paused = teams.filter((team) => team.status === 'paused').length
+  const working = teams.filter((team) => team.running && !team.paused).length
+  const paused = teams.filter((team) => team.paused).length
   if (paused === teams.length) return 'paused'
   if (working === 0 && paused === 0) return `not connected — ${REASON_NOT_RUNNING.replace('this team', 'any team')}`
   return [working ? `working for ${counted(working, 'team', 'teams')}` : '', paused ? `${paused} paused` : '']

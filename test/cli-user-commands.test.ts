@@ -157,6 +157,8 @@ test('requests list every team\'s waiting programs and answer one by a short id'
     assert.match(table.out, new RegExp(`${id.slice(0, 8)}\\s+Sales · Acme\\s+An agent\\s+docker build \\.`, 'u'))
     const status = await run(home, ['status', '--json'])
     assert.equal((status.json() as { teams: Array<{ status: string }> }).teams.find(Boolean)?.status, 'needs_you')
+    // Waiting for an answer is not the same as running: no daemon runs these teams.
+    assert.match((await run(home, ['status'])).out, /^Nessie Computer \S+ — not connected/u)
     const denied = await run(home, ['requests', 'deny', id.slice(0, 8)])
     assert.equal(denied.exit, 0, denied.err)
     assert.equal(denied.out, 'docker was not allowed.\n')
