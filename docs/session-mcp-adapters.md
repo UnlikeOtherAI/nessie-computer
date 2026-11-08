@@ -14,6 +14,19 @@ retains opaque IDs and command IDs, and refuses caller-supplied broker fences.
 Codec errors never echo supplied values. Parsing is not source or execution
 admission; the canonical gateway owns that boundary.
 
+`executorT3RpcOperationPolicy(method)` is the shared input-policy descriptor.
+`executorT3RpcInputPolicy(decodedRequest)` accepts the correlated original
+`{method, input}` and resolves the current call's policy. Neither helper grants
+access. They carry the gateway policy from private `c614d8e635`: `vcs.listRefs`
+retains owner authority and advertises `receipt: conditional-refresh`, the exact
+`refresh === true` input policy and `annotations.readOnlyHint: false`. False or
+omitted refresh resolves to read admission and no receipt; only true resolves to
+mutation admission with a durable-command-or-delivery receipt. The original
+codec rejects string booleans. Tool schema and decoding require `commandId` for
+that mutation without requiring it for reads. Retry retains the same original ID.
+Gateway and browser owners consume these exports after parent integration;
+they must not maintain independent versions of the condition.
+
 `executorT3HistoryTools()` preserves the five original HTTP history descriptors
 separately. Authentication/protocol headers belong to the gateway. These are
 schema inventories, not history implementations or replacement session DTOs.
