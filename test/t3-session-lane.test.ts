@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict'
-import { generateKeyPairSync, randomUUID, verify } from 'node:crypto'
+import { createHash, generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
-import { canonicalExecutorPayload } from '@nessie/executor-protocol'
+import { canonicalExecutorPayload, RetainedImportLeaseSchema } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, decodeExecutorT3LaneReply, T3_SOURCE_COMMIT,
   type T3LaneExchange, type T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
 import { createT3SessionLane } from '../src/t3-session-lane.js'
+import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from '../src/t3-session-delivery.js'
 
 const fixture = () => {
   const keys = generateKeyPairSync('ed25519')
@@ -106,6 +107,72 @@ test('authenticated offer carries original provenance separately and refuses cha
   await lane.exchangeT3SessionOperations(f.state)
   assert.equal(calls, 1)
   offer = { ...offer, provenance: { createdBy: 'user', creationSource: 'web' } }
+  await assert.rejects(lane.exchangeT3SessionOperations(f.state), /T3_LANE_CORRELATION/u)
+  assert.equal(calls, 1)
+})
+
+function catalogDelivery(f: ReturnType<typeof fixture>) {
+  const requestDigest = `hmac-sha256:${'a'.repeat(64)}`
+  const lease = RetainedImportLeaseSchema.parse({ executorId: f.state.executorId,
+    environmentId: f.request.environmentId, physicalRootKey: 'physical:root', admittedRootKey: 'admitted:root',
+    databaseIdentity: 'database:one', environmentIdentity: 'environment:one', captureGeneration: 'capture:one',
+    leaseId: randomUUID(), token: 'b'.repeat(43), grantId: randomUUID(), generation: randomUUID(),
+    sourceOwnerGeneration: 'c'.repeat(64), localApprovalId: 'd'.repeat(64),
+    selection: { kind: 'threads', threadIds: ['original:thread'], projectIds: [] }, purpose: 'catalog',
+    expiresAt: new Date(Date.now() + 20_000).toISOString(), basis: 'prospective_import',
+    legacyCopyProvenance: 'not_attested_by_original_source', selectionKey: 'e'.repeat(64),
+    operationBinding: { requestDigest: createHash('sha256').update(JSON.stringify(f.wire)).digest('hex'),
+      relayRequestDigest: requestDigest, correlationId: f.request.correlationId,
+      scope: { kind: 'thread', threadId: 'original:thread' } } })
+  return { requestDigest, catalogLeases: [lease] }
+}
+
+test('catalog descriptors are copied, deeply frozen and never extended by lane credits', () => {
+  const f = fixture()
+  const raw = catalogDelivery(f)
+  const delivery = snapshotT3LaneDelivery(raw, f.request)
+  assert.deepEqual(delivery, raw)
+  assert.notEqual(delivery.catalogLeases![0], raw.catalogLeases[0])
+  assert.equal(Object.isFrozen(delivery.catalogLeases![0]!.operationBinding), true)
+  assert.equal(Object.isFrozen(delivery.catalogLeases![0]!.selection), true)
+  assert.throws(() => { delivery.catalogLeases![0]!.token = 'f'.repeat(43) }, TypeError)
+  const expiry = Date.parse(raw.catalogLeases[0]!.expiresAt)
+  assert.equal(t3LaneDeliveryExpiry(delivery, expiry + 10_000), expiry)
+  assert.equal(t3LaneDeliveryExpiry(delivery, expiry - 1000), expiry - 1000)
+})
+
+test('expired, substituted, bootstrap and duplicate catalog descriptors fail before runtime demand', () => {
+  const f = fixture()
+  const raw = catalogDelivery(f)
+  const lease = raw.catalogLeases[0]!
+  const reject = (patch: Partial<typeof lease>) => assert.throws(() =>
+    snapshotT3LaneDelivery({ ...raw, catalogLeases: [{ ...lease, ...patch }] }, f.request))
+  reject({ expiresAt: new Date(Date.now() - 1).toISOString() })
+  reject({ expiresAt: new Date(Date.now() + 120_000).toISOString() })
+  reject({ purpose: 'publish' })
+  reject({ operationBinding: undefined })
+  reject({ environmentId: 'other:environment' })
+  reject({ operationBinding: { ...lease.operationBinding!, relayRequestDigest: `hmac-sha256:${'f'.repeat(64)}` } })
+  assert.throws(() => snapshotT3LaneDelivery({ ...raw, catalogLeases: [lease, lease] }, f.request))
+  assert.throws(() => snapshotT3LaneDelivery({ ...raw, catalogLeases: [] }, f.request))
+})
+
+test('same active offer retains catalog descriptor; replacement token cannot restart demand', async t => {
+  const f = fixture()
+  const delivery = catalogDelivery(f)
+  let offer = { ...delivery, request: f.wire, expiresAt: new Date(Date.now() + 30_000).toISOString() }
+  let calls = 0
+  const lane = createT3SessionLane({ describe: async () => [], async *open(_request, _signal, actual) {
+    calls++
+    assert.deepEqual(actual, delivery)
+    yield f.reply
+  } }, { exchangeT3SessionOperations: async () => ({ acknowledged: [], controls: [], offers: [offer] }) })
+  t.after(() => { lane.close() })
+  await lane.exchangeT3SessionOperations(f.state)
+  await setImmediate()
+  await lane.exchangeT3SessionOperations(f.state)
+  assert.equal(calls, 1)
+  offer = { ...offer, catalogLeases: [{ ...delivery.catalogLeases[0]!, token: 'f'.repeat(43) }] }
   await assert.rejects(lane.exchangeT3SessionOperations(f.state), /T3_LANE_CORRELATION/u)
   assert.equal(calls, 1)
 })
