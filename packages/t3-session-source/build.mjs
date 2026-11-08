@@ -11,6 +11,7 @@ import { buildSessionPackage, prepareLibrarySnapshot } from '../../packaging/ses
 import { sessionContractsAliasPlugin } from './input.mjs'
 import { extractT3RawHttp } from './routes.mjs'
 import { ensurePinnedSourceObject } from './cache.mjs'
+import { writeContractDeclarationEntries } from '../../packaging/session-engine/declarations.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const output = resolve(root, '.artifacts/package-builds', randomUUID())
@@ -77,30 +78,15 @@ if (process.argv.includes('--check')) {
   process.exit(0)
 }
 await mkdir(output, { recursive: true })
-// Upstream exports source types. Preserve that authority: expanding its huge
-// inferred RPC/stream types into .d.ts exceeds TS7056. This declaration entry
-// refers to the checked source with module-suffix changes, never a DTO rewrite.
-await mkdir(resolve(output, 'types'), { recursive: true })
-for (const entry of ['index', 'settings', 'relay']) await writeFile(resolve(output, `types/${entry}.d.ts`),
-  `/// <reference lib="es2023.array" />\nexport * from "../source/${entry}.js";\n`)
+// The engine compiler emits the same original contracts into one shared .d.ts
+// tree. Consumers never recompile capsule implementations under their rootDir.
+const declarations = await writeContractDeclarationEntries(output)
 await writeFile(resolve(output, 'LICENSE'), snapshot.read('LICENSE'))
 await writeFile(resolve(output, 'FIRST_PARTY_LICENSE'), await readFile(resolve(root, '../../LICENSE')))
 await writeFile(resolve(output, 'routes.json'), `${JSON.stringify(rawHttpRoutes, null, 2)}\n`)
-const declarations = []
-for (const { path } of selection) {
-  const name = path.replace('packages/contracts/src/', '')
-  const original = await readFile(resolve(source, path), 'utf8')
-  // Declaration consumers use NodeNext without importing TypeScript at runtime.
-  // Only relative module suffixes change; schema expressions remain original.
-  const bytes = original.replace(/(from\s+["']\.[^"']*)\.ts(["'])/gu, '$1.js$2')
-  await mkdir(dirname(resolve(output, 'source', name)), { recursive: true })
-  await writeFile(resolve(output, 'source', name), bytes)
-  declarations.push({ path: `source/${name}`, sha256: digest(bytes) })
-}
-for (const entry of ['index', 'settings', 'relay']) declarations.push({ path: `types/${entry}.d.ts`,
-  sha256: digest(await readFile(resolve(output, `types/${entry}.d.ts`))) })
 const { result, provenance: engine } = await buildSessionPackage({ original, prepared,
   outputDirectory: output, contractsAliasPlugin: sessionContractsAliasPlugin })
+for (const [path, sha256] of Object.entries(engine.sharedContractTypes)) declarations.push({ path, sha256 })
 const modules = []
 for (const path of Object.keys(result.metafile.outputs).sort()) modules.push({
   path: relative(output, resolve(root, '../../packaging/session-engine', path)).replaceAll('\\', '/'),
@@ -118,10 +104,12 @@ for (const file of ['input.mjs', 'resolver.mjs', 'snapshot.mjs', 'source.mjs', '
 }
 const provenance = {
   format: 1, source: T3_SESSION_ENGINE_SOURCE, effect: '4.1.2', patches: [{
-    kind: 'declaration-module-suffix', algorithm: 'relative from .ts to .js',
+    kind: 'compiler-declarations', algorithm: 'exact original constructor naming and portable module paths',
     sha256: digest(JSON.stringify(declarations)),
   }],
   sourceIdentity: snapshot.identity,
+  declarationCompiler: engine.typecheck.compiler,
+  contractNaming: engine.typecheck.contractNaming,
   engineModulesSha256: engine.modulesSha256,
   buildHelperFiles,
   selectionSha256: digest(JSON.stringify(selection)), files: selection,

@@ -128,8 +128,8 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
       .map(path => [path, hash(original.read(path))])),
     authoredInputs: await hashes(authored, root), dependencyInputs: await hashes(dependencies, tools),
     producerInputs: await hashes(producer, tools),
-    sharedContractTypes: await hashes((await readdir(resolve(outputDirectory, 'source'))).sort()
-      .map(path => `source/${path}`), outputDirectory),
+    sharedContractTypes: await hashes((await readdir(resolve(outputDirectory, 'types/source'))).sort()
+      .map(path => `types/source/${path}`), outputDirectory),
     externalDependencies: notices.dependencies.filter(({ name }) => externalPackages.includes(name)),
     modules, modulesSha256: hash(JSON.stringify(modules)),
     licensesSha256: hash(`${JSON.stringify(notices, null, 2)}\n`),

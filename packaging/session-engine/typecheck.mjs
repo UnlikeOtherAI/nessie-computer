@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto'
 
 import { createSessionEngineSourceResolver } from './resolver.mjs'
 import { declarationWriter } from './declarations.mjs'
+import { nameContractTypes } from './contract-names.mjs'
 
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const slash = path => path.replaceAll('\\', '/')
@@ -30,10 +31,12 @@ export const typecheckSessionState = async (snapshot, entryPoint,
     types: ['node'], typeRoots: [resolve(tools, 'node_modules/@types')],
   }
   const host = ts.createCompilerHost(options)
+  let contractSources = new Map()
   const diskRead = host.readFile.bind(host)
   const diskExists = host.fileExists.bind(host)
   const diskDirectoryExists = host.directoryExists?.bind(host)
   host.readFile = path => {
+    if (contractSources.has(path)) return contractSources.get(path)
     const source = sourcePath(path)
     return source === undefined ? diskRead(path) : paths.has(source) ? snapshot.read(source).toString('utf8') : undefined
   }
@@ -73,31 +76,41 @@ export const typecheckSessionState = async (snapshot, entryPoint,
       resolveModule: (specifier, source) => ts.resolveModuleName(specifier, source, options, host)
         .resolvedModule?.resolvedFileName }) : undefined
   if (declarations) host.writeFile = declarations.writeFile
-  const entries = { index: resolve(entryPoint), ...Object.fromEntries(Object.entries(additionalEntries)
-    .map(([name, path]) => [name, resolve(path)])) }
-  const program = ts.createProgram(Object.values(entries), options, host)
+  const resolveEntry = path => path.startsWith('t3-source:')
+    ? `${virtualRoot}${resolver.resolve(path).path}` : resolve(path)
+  const entries = { index: resolveEntry(entryPoint), ...Object.fromEntries(Object.entries(additionalEntries)
+    .map(([name, path]) => [name, resolveEntry(path)])) }
+  let program = ts.createProgram(Object.values(entries), options, host)
   const authoredInputs = Object.fromEntries(program.getSourceFiles()
     .filter(source => sourcePath(source.fileName) === undefined && !slash(source.fileName).includes('/node_modules/'))
     .map(source => [slash(relative(resolve(tools, '../..'), source.fileName)),
       createHash('sha256').update(source.text).digest('hex')]).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
   // Erased imports and authored declarations are inputs before emit or bundler tree shaking.
   assertAuthoredInputs?.(Object.keys(authoredInputs))
-  // The contract schemas retain their shared, checked source-type export. Engine
-  // implementations emit real declarations so consumer settings never recompile them.
-  const diagnostics = [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(),
-    ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
-  if (diagnostics.length > 0) {
-    // Paths refer only to committed code and public dependencies, never user state.
-    throw new Error(ts.formatDiagnosticsWithColorAndContext(diagnostics, {
+  const check = () => {
+    const diagnostics = [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(),
+      ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
+    // Plain diagnostics keep generated type annotations out of diagnostic excerpts.
+    if (diagnostics.length) throw new Error(ts.formatDiagnostics(diagnostics, {
       getCurrentDirectory: () => tools, getCanonicalFileName: name => name, getNewLine: () => '\n',
     }))
+  }
+  check()
+  const named = nameContractTypes(ts, program, sourcePath)
+  if (named.sources.size) {
+    // Check invariant equality against original inference before adding annotations.
+    // Neither these assertions nor the annotations enter the runtime source snapshot.
+    contractSources = named.checks
+    program = ts.createProgram(Object.values(entries), options, host, program)
+    check()
+    contractSources = named.sources
+    program = ts.createProgram(Object.values(entries), options, host, program)
+    check()
   }
   if (declarations) {
     const emitDiagnostics = []
     for (const source of program.getSourceFiles()) {
-      if (sourcePath(source.fileName)?.startsWith('packages/contracts/src/')) {
-        declarations.addSourceTypes(source)
-      } else if (!source.isDeclarationFile && !slash(source.fileName).includes('/node_modules/')) {
+      if (!source.isDeclarationFile && !slash(source.fileName).includes('/node_modules/')) {
         const result = program.emit(source, declarations.writeFile, undefined, true)
         if (result.emitSkipped && !result.diagnostics.length) throw new Error('Session declaration emit was skipped.')
         emitDiagnostics.push(...result.diagnostics)
@@ -108,6 +121,6 @@ export const typecheckSessionState = async (snapshot, entryPoint,
     }))
   }
   return { compiler: ts.version, sourceFiles: program.getSourceFiles().length, libraryChecks: true,
-    authoredInputs,
+    authoredInputs, contractNaming: named.records,
     ...(declarations ? { declarations: await declarations.save(declarationDirectory, entries) } : {}) }
 }

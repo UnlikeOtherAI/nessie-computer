@@ -1,6 +1,12 @@
 # Generated session-engine package
 
-## Combined integration build
+The current [contract declaration producer](session-contract-declarations.md)
+emits shared `.d.ts` files instead of contract implementations. Its focused
+original-contract composite gate passes; the full package build on approved
+parent `f0753613` remains blocked by request-privacy source composition. The
+qualification records below describe their historical revisions.
+
+## Historical combined integration build
 
 The 8 November coordinator build on Maxis now passes for the integrated ten
 patch families, using Node 24.19.0, pnpm 10.22.0 and TypeScript 5.9.3. The normal
@@ -133,8 +139,9 @@ internals. The engine entry declares the same `es2023.array` library requirement
 as the contract barrels; no executor compiler option changes. Compiler-synthesized
 relative imports resolve through the same checked TypeScript host before path
 relocation, including directory imports of the contract index. The contract barrels retain
-`dist/types/{index,settings,relay}.d.ts` and share their checked, patched
-`dist/source/*.ts` with the engine's type-source closure. The generated build
+`dist/types/{index,settings,relay}.d.ts` and share compiler-emitted
+`dist/types/source/*.d.ts` with the engine. Contract implementations do not
+enter the published declaration closure. The generated build
 helper at `dist/build/input.mjs` retains the existing `/build` API in a packed
 consumer. Its source helper remains unchanged and hash-checkable.
 
@@ -165,7 +172,7 @@ cache and performs only the isolated producer's frozen, script/workspace/
 pnpmfile-disabled install. The ordinary `build` task emits one split graph;
 Effect and Node platform packages stay external and pinned at 4.1.2. Markdown
 runtime dependencies remain bundled from the frozen patched producer. Their
-declared public packages also satisfy the portable upstream type-source imports.
+declared public packages also satisfy portable upstream declaration imports.
 The package includes the complete original MIT notice, dependency notices and
 unchanged first-party FSL licence. Previous generated output generations are
 retained under the owning package's ignored build directory.

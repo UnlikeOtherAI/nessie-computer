@@ -42,6 +42,7 @@
     "test:t3-session-engine": "node --test --test-concurrency=1 test/engine/*.test.mjs",
     "test:t3-session-engine-browser": "node test/engine/browser.mjs",
     "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:t3-session-declarations": "node --max-old-space-size=512 test/declarations/reproduce.mjs",
     "test:t3-session-client": "node --max-old-space-size=512 --test --test-concurrency=1 test/client/*.test.mjs"
   },
   "dependencies": {
