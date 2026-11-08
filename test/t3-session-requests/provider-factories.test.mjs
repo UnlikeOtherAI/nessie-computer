@@ -14,7 +14,7 @@ const toolOutput = await loader.load('packages/shared/src/toolOutput.ts')
 const claude = 'apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts'
 const codex = 'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts'
 const canary = ['synthetic', 'C05', 'private', 'č', '🧭'].join('-')
-const value = ` \r\n${canary}\n `
+const value = ` \r\n${canary}\u0000\t\n `
 const noCanary = item => assert.equal(JSON.stringify(item).includes(canary), false)
 const nativeInput = sourceFunctions(snapshot, claude, 'function claudeNativeToolInputFromUnknown(',
   '// background_tasks_changed can include subagents already counted by their lifecycle.', ['claudeNativeToolInputFromRecord', 'claudeNativeToolInputValue',

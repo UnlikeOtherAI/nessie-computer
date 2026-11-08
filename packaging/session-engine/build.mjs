@@ -65,7 +65,7 @@ const dependencyNotices = async inputs => {
 
 /** Offline after a frozen dependency install; emits a dependency-closed library, not an installed runtime. */
 const buildSessionModule = async ({ sourceRepository, outputPath, proof = false, engine = false,
-  entryPoint, additionalPatchFamilies }) => {
+  entryPoint, additionalPatchFamilies, contractsAliasPlugin }) => {
   await lintSessionEngineSources()
   const output = resolve(outputPath)
   await mkdir(dirname(output), { recursive: true })
@@ -87,7 +87,8 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
   const result = await build({
     absWorkingDir: tools, entryPoints: [entry], outfile: output, write: false,
     bundle: true, format: 'esm', platform: 'node', target: 'node22.16', metafile: true,
-    plugins: [sessionEngineSourcePlugin({
+    plugins: [...(contractsAliasPlugin ? [contractsAliasPlugin({ dependencyDirectory: tools })] : []),
+      sessionEngineSourcePlugin({
       snapshot, dependencyDirectory: tools, dependencies: Object.keys(manifest.dependencies),
     })],
   })
@@ -118,6 +119,9 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
     dependencyLockSha256: hash(await readFile(resolve(tools, 'pnpm-lock.yaml'))),
     buildManifestSha256: hash(await readFile(resolve(tools, 'package.json'))),
     node: process.versions.node, typecheck, bundler,
+    qualification: { entryPoint: relative(resolve(tools, '../..'), entry).replaceAll('\\', '/'),
+      distributable: false, includesSyntheticHistoryProof: entry === resolve(tools, 'core/CoBuildProof.ts')
+        || engine && proof },
     sourceInputs: Object.fromEntries(sourceInputs.map(file => [file, hash(snapshot.read(file))])),
     originalSourceInputs: Object.fromEntries(sourceInputs.filter(file => original.files.includes(file))
       .map(file => [file, hash(original.read(file))])),

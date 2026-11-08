@@ -28,9 +28,12 @@ Both the lower-state proof and the higher synthetic SQLite history proof pass;
 the generated type boundary passes an ordinary strict TypeScript consumer.
 The engine is not an installed executor capability. Lifecycle readiness,
 provider execution, the T3 gateway and mobile compatibility remain incomplete.
-Final qualification with the corrected request-privacy patch family is pending.
-The selected `db4bd597` family has known correlation, nested-metadata and traversal
-defects; its earlier co-build evidence does not establish comprehensive privacy.
+Corrected qualification uses contracts `4dbabb20` and privacy `fdfdfed2`, with
+177 combined operations and manifest SHA-256
+`39ce53a11d6b526e1b154fa54fd2e0e50777c3c916b996bb178a26b15ba69a7a`.
+The [qualification record](session-engine-qualification.md) distinguishes fresh
+gates from the historical `db4bd597` artifacts, which remain rejected as final
+privacy evidence. Installed runtime, provider and lifecycle acceptance remain open.
 
 This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;
@@ -242,6 +245,10 @@ the passive read mode. Worker and continuation consumers are explicit returned
 layers, not started by the default higher composition. Keep the returned shared
 layers: one SQL client, outbox, command executor, continuation queue and allocator
 must serve every consumer in one Layer graph.
+The shared composition provides its retained state layer to CommandOutputHub;
+merging those layers beside each other leaves internal event-sink/projection
+requirements unresolved. The synthetic history entry builds this actual shared
+composition with passive reads over one SQL client, without higher reactions.
 
 The project-store runtime-policy resolver and authenticated provider-instance
 adapter registry are retained. No provider driver implementation is supplied.
@@ -349,7 +356,8 @@ exceed TypeScript 5.9.3 declaration serialization (`TS7056` in `environmentHttp`
 `guestStream`, `orchestrationV2` and `rpc`). Authored declarations therefore refer
 to a hash-bound upstream **type-source** tree with ordinary relative imports.
 It has no runtime loader and retains exact types rather than flattened schemas.
-All source modules still receive strict semantic checks. The ordinary strict
+All source modules receive strict semantic checks with library checking enabled.
+The ordinary strict
 `tsc` consumer passes with the declared dependencies, no path aliases/custom
 compiler host/runtime loader, and library checking enabled. It verifies source
 command/secret negatives and required SQL/provider/cleanup port types.
@@ -367,6 +375,13 @@ node packaging/session-engine/smoke.mjs packaging/session-engine/.artifacts/co-b
 node packaging/session-engine/consumer.mjs packaging/session-engine/.artifacts/co-build.mjs
 node packaging/session-engine/history-proof.mjs packaging/session-engine/.artifacts/co-build.mjs --patch-family request-privacy packaging/session-engine/.artifacts/co-build.mjs.request-privacy.json
 ```
+
+The co-build command executes the current contract alias hook only after its
+bytes match the selected committed helper. The consumer runs both Bundler and
+NodeNext sequentially with library checking enabled. CoBuildProof is a synthetic
+qualification entry exporting the real engine alongside its history/privacy
+probes; provenance labels it non-distributable. Use Engine.ts for the eventual
+library boundary, subject to its remaining runtime and release qualification.
 
 The co-build command requires explicit committed contract and privacy identities;
 it has no default privacy checkpoint. It records the committed T01 source-entry

@@ -76,4 +76,5 @@ for (const order of ['contracts-first', 'producer-first']) {
 process.stdout.write(`${JSON.stringify({ contractsCommit: commit, contractsHelperSha256: hash(input),
   producerResolverSha256: hash(await readFile(new URL('./resolver.mjs', import.meta.url))),
   probeSourceBeforeSha256: hash(before), probeSourceAfterSha256: hash(after),
-  dependencyRoot: 'packaging/session-engine', effect: '4.1.2', results })}\n`)
+  dependencyRoot: 'packaging/session-engine', selectedAbsoluteDependencyDirectory: tools,
+  effectRealRoot: effectRoot, effect: '4.1.2', results })}\n`)
