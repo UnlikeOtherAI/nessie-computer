@@ -75,19 +75,17 @@ fn recheck_source(
     key: &Key,
     binding: &Binding,
 ) -> Result<(), String> {
-    let context=execution_context::authenticate_graph(root,caller,release,state,&binding.executor_id)?;
-    recheck_held_source(caller,&context,key,binding)
+    let context =
+        execution_context::authenticate_graph(root, caller, release, state, &binding.executor_id)?;
+    recheck_held_source(caller, &context, key, binding)
 }
-pub(crate) fn recheck_held_source(caller:&Process,context:&execution_context::DescriptorContext,
-    key:&Key,binding:&Binding)->Result<(),String>{
-    let evidence = binding.source_evidence_digest.as_deref().ok_or(REJECTED)?;
-    let record = key.read("graph", evidence.strip_prefix("sha256:").ok_or(REJECTED)?)?;
-    let graph: Graph = serde_json::from_value(record["graph"].clone()).map_err(|_| REJECTED)?;
-    let mut original = binding.clone();
-    original.source_evidence_digest = None;
-    if graph.binding != original {
-        return Err(REJECTED.into());
-    }
+pub(crate) fn recheck_held_source(
+    caller: &Process,
+    context: &execution_context::DescriptorContext,
+    key: &Key,
+    binding: &Binding,
+) -> Result<(), String> {
+    let (graph, record) = source_graph(key, binding)?;
     if record["custody"] != value(&context.custody)? {
         return Err(REJECTED.into());
     }
@@ -97,6 +95,17 @@ pub(crate) fn recheck_held_source(caller:&Process,context:&execution_context::De
         context,
         &graph,
     )
+}
+pub(crate) fn source_graph(key: &Key, binding: &Binding) -> Result<(Graph, Value), String> {
+    let evidence = binding.source_evidence_digest.as_deref().ok_or(REJECTED)?;
+    let record = key.read("graph", evidence.strip_prefix("sha256:").ok_or(REJECTED)?)?;
+    let graph: Graph = serde_json::from_value(record["graph"].clone()).map_err(|_| REJECTED)?;
+    let mut original = binding.clone();
+    original.source_evidence_digest = None;
+    if graph.binding != original {
+        return Err(REJECTED.into());
+    }
+    Ok((graph, record))
 }
 fn reservation(key: &Key, id: &str, descriptor: &Descriptor) -> Result<Value, String> {
     let original = key.read("reserve", id)?;
@@ -242,7 +251,7 @@ pub fn handle(
             executor_id,
             reservation_id,
             provider_session_id,
-            launch,
+            mut launch,
         } => {
             let (descriptor, key) =
                 execution_context::descriptor(root, caller, release, state, &executor_id, false)?;
@@ -253,12 +262,22 @@ pub fn handle(
             // Reserve TTL bounds acceptance only. This receipt grants no execution;
             // the backend rechecks current parent authority before fresh launch admission.
             launch.validate()?;
-            let held = crate::execution_preparation::hold(&reservation_id, &descriptor, release, launch)?;
+            let context =
+                execution_context::authenticate_graph(root, caller, release, state, &executor_id)?;
+            let homes =
+                crate::execution_launch_homes::hold(caller, &context, &key, &binding, &mut launch)?;
+            let held = crate::execution_preparation::hold(
+                &reservation_id,
+                &descriptor,
+                release,
+                launch,
+                homes,
+            )?;
             // Scoped environment remains in held service memory, never the replay journal.
             payload["launchDigest"] = held["launchDigest"].clone();
             payload["providerSessionId"] = json!(provider_session_id);
             payload["processPurpose"] = held["processPurpose"].clone();
-            let issued=now_ms()?;
+            let issued = now_ms()?;
             payload["issuedAtMs"] = json!(issued);
             payload["expiresAtMs"] = json!(issued.checked_add(5000).ok_or(REJECTED)?);
             key.claim(

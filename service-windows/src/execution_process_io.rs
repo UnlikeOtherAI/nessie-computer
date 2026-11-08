@@ -30,7 +30,7 @@ use windows_sys::Win32::{
     },
 };
 enum Input {
-    Bytes(Vec<u8>, mpsc::SyncSender<Result<(), String>>),
+    Bytes(Vec<u8>, u64, mpsc::SyncSender<Result<(), String>>),
     End(mpsc::SyncSender<Result<(), String>>),
 }
 pub(crate) struct Observation {
@@ -38,7 +38,7 @@ pub(crate) struct Observation {
     pub child: Generation,
     pub frame: Option<Value>,
     pub failed: bool,
-    pub pending: BTreeMap<String, Value>,
+    pub pending: BTreeMap<String, (Value, u64)>,
     pub used_ids: std::collections::BTreeSet<String>,
     pub initialization_written: bool,
     eof: bool,
@@ -152,11 +152,17 @@ pub fn attach(
     std::thread::spawn(move || {
         while let Ok(message) = receiver.recv() {
             match message {
-                Input::Bytes(bytes, reply) => {
-                    let result = input
-                        .write_all(&bytes)
-                        .and_then(|()| input.flush())
-                        .map_err(|_| REJECTED.into());
+                Input::Bytes(mut bytes, deadline, reply) => {
+                    let result = (|| -> Result<(), String> {
+                        for part in bytes.chunks(16384) {
+                            if now_ms()? >= deadline {
+                                return Err(REJECTED.into());
+                            }
+                            input.write_all(part).map_err(|_| REJECTED)?;
+                        }
+                        input.flush().map_err(|_| REJECTED.into())
+                    })();
+                    bytes.fill(0);
                     let failed = result.is_err();
                     let _ = reply.send(result);
                     if failed {
@@ -184,71 +190,77 @@ pub fn attach(
                 }
                 hash.update(&bytes[..n]);
                 size += n as u64;
-                let mut held = observation.lock().map_err(|_| REJECTED)?;
-                if held.record.admission.process_purpose != Some(ProcessPurpose::Provider)
-                    && size > 1_048_576
-                {
-                    return Err(REJECTED.into());
-                }
-                if held.record.admission.process_purpose == Some(ProcessPurpose::Provider) {
-                    for byte in &bytes[..n] {
-                        partial.push(*byte);
-                        if partial.len() > 131072 {
-                            return Err(REJECTED.into());
-                        }
-                        if *byte == b'\n' {
-                            let value: Value =
-                                serde_json::from_slice(&partial).map_err(|_| REJECTED)?;
-                            let correlated = if held.record.admission.binding.driver == "codex" {
-                                serde_json::to_string(&value["id"])
-                                    .is_ok_and(|id| held.used_ids.contains(&id))
-                            } else {
-                                held.initialization_written
-                            };
-                            if let Some(frame) = crate::execution_observation::native_identity(
-                                &held.record.admission.binding.driver,
-                                &partial,
-                            )
-                            .filter(|_| correlated)
-                            {
-                                if held
-                                    .frame
-                                    .as_ref()
-                                    .is_some_and(|old| old["nativeId"] != frame["nativeId"])
-                                {
-                                    return Err(REJECTED.into());
-                                }
-                                held.frame = Some(frame);
+                let inspection = (|| -> Result<(), String> {
+                    let mut held = observation.lock().map_err(|_| REJECTED)?;
+                    if held.record.admission.process_purpose != Some(ProcessPurpose::Provider)
+                        && size > 1_048_576
+                    {
+                        return Err(REJECTED.into());
+                    }
+                    if held.record.admission.process_purpose == Some(ProcessPurpose::Provider) {
+                        for byte in &bytes[..n] {
+                            partial.push(*byte);
+                            if partial.len() > 131072 {
+                                return Err(REJECTED.into());
                             }
-                            let id = if held.record.admission.binding.driver == "codex"
-                                && value["method"].is_string()
-                            {
-                                value.get("id")
-                            } else if value["type"] == "control_request" {
-                                value.get("request_id")
-                            } else {
-                                None
-                            };
-                            if let Some(id) = id {
-                                if !id.is_string() && !id.is_i64() {
-                                    return Err(REJECTED.into());
-                                }
-                                let key = serde_json::to_string(id).map_err(|_| REJECTED)?;
-                                if held.pending.len() >= 256
-                                    || held.pending.insert(key, id.clone()).is_some()
+                            if *byte == b'\n' {
+                                let value = nessie_windows_common::execution_json::parse(&partial)?;
+                                let correlated = if held.record.admission.binding.driver == "codex"
                                 {
-                                    return Err(REJECTED.into());
+                                    serde_json::to_string(&value["id"])
+                                        .is_ok_and(|id| held.used_ids.contains(&id))
+                                } else {
+                                    held.initialization_written
+                                };
+                                if let Some(frame) = crate::execution_observation::native_identity(
+                                    &held.record.admission.binding.driver,
+                                    &partial,
+                                )
+                                .filter(|_| correlated)
+                                {
+                                    if held
+                                        .frame
+                                        .as_ref()
+                                        .is_some_and(|old| old["nativeId"] != frame["nativeId"])
+                                    {
+                                        return Err(REJECTED.into());
+                                    }
+                                    held.frame = Some(frame);
                                 }
+                                let id = if held.record.admission.binding.driver == "codex"
+                                    && value["method"].is_string()
+                                {
+                                    value.get("id")
+                                } else if value["type"] == "control_request" {
+                                    value.get("request_id")
+                                } else {
+                                    None
+                                };
+                                if let Some(id) = id {
+                                    if !nessie_windows_common::execution_frame::protocol_id(id) {
+                                        return Err(REJECTED.into());
+                                    }
+                                    let key = serde_json::to_string(id).map_err(|_| REJECTED)?;
+                                    if held.pending.len() >= 256
+                                        || held
+                                            .pending
+                                            .insert(key, (id.clone(), now_ms()?))
+                                            .is_some()
+                                    {
+                                        return Err(REJECTED.into());
+                                    }
+                                }
+                                partial.clear();
                             }
-                            partial.clear();
                         }
                     }
-                }
-                drop(held);
+                    Ok(())
+                })();
                 writer
                     .write_all(&bytes[..n])
                     .and_then(|()| writer.flush())
                     .map_err(|_| REJECTED)?;
+                inspection?;
             }
             Ok(())
         })();
@@ -264,7 +276,7 @@ pub fn attach(
     });
     Ok(())
 }
-pub(crate) fn write(nonce: &str, bytes: Vec<u8>) -> Result<(), String> {
+pub(crate) fn write(nonce: &str, bytes: Vec<u8>, deadline: u64) -> Result<(), String> {
     let held = get(nonce)?;
     let (sender, record) = {
         let held = held.lock().map_err(|_| REJECTED)?;
@@ -275,7 +287,7 @@ pub(crate) fn write(nonce: &str, bytes: Vec<u8>) -> Result<(), String> {
     };
     let (send, receive) = mpsc::sync_channel(1);
     sender
-        .try_send(Input::Bytes(bytes, send))
+        .try_send(Input::Bytes(bytes, deadline, send))
         .map_err(|_| REJECTED)?;
     match receive.recv_timeout(Duration::from_secs(4)) {
         Ok(Ok(())) => Ok(()),
@@ -386,6 +398,66 @@ pub fn resume(nonce: &str) -> Result<(), String> {
     Ok(())
 }
 pub fn release(nonce: &str) -> Result<(), String> {
+    crate::execution_frames::release(nonce)?;
     OBSERVED.lock().map_err(|_| REJECTED)?.remove(nonce);
     Ok(())
+}
+pub(crate) fn expect(
+    nonce: &str,
+    frame: &nessie_windows_common::execution_frame::Frame,
+) -> Result<(), String> {
+    let held = get(nonce)?;
+    let mut held = held.lock().map_err(|_| REJECTED)?;
+    if held.failed {
+        return Err(REJECTED.into());
+    }
+    if frame.driver == "codex"
+        && matches!(
+            frame.method.as_deref(),
+            Some("thread/start" | "thread/resume")
+        )
+    {
+        let id = frame.protocol_id.as_ref().ok_or(REJECTED)?;
+        if !held
+            .used_ids
+            .insert(serde_json::to_string(id).map_err(|_| REJECTED)?)
+        {
+            return Err(REJECTED.into());
+        }
+    }
+    if frame.driver == "claude"
+        && frame.kind == "request"
+        && frame.method.as_deref() == Some("initialize")
+    {
+        if held.initialization_written {
+            return Err(REJECTED.into());
+        }
+        held.initialization_written = true;
+    }
+    Ok(())
+}
+pub(crate) fn automatic_reply(nonce: &str, id: &Value) -> Result<(), String> {
+    let held = get(nonce)?;
+    let (driver, deadline) = {
+        let mut held = held.lock().map_err(|_| REJECTED)?;
+        if held.failed {
+            return Err(REJECTED.into());
+        }
+        let encoded = serde_json::to_string(id).map_err(|_| REJECTED)?;
+        let (_, observed) = held.pending.remove(&encoded).ok_or(REJECTED)?;
+        let deadline = observed.checked_add(5000).ok_or(REJECTED)?;
+        if now_ms()? >= deadline {
+            return Err(REJECTED.into());
+        }
+        (held.record.admission.binding.driver.clone(), deadline)
+    };
+    let response = if driver == "codex" {
+        json!({"jsonrpc":"2.0","id":id,"error":{"code":-32601,"message":"Unsupported provider request"}})
+    } else {
+        json!({"type":"control_response","response":{"subtype":"error","request_id":id,
+        "error":"Unsupported provider request"}})
+    };
+    let mut bytes = serde_json::to_vec(&response).map_err(|_| REJECTED)?;
+    bytes.push(b'\n');
+    write(nonce, bytes, deadline)
 }

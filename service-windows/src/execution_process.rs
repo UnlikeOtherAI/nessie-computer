@@ -49,6 +49,9 @@ pub fn handle(
 ) -> Result<Value, String> {
     request.validate()?;
     match request {
+        Request::Frame { nonce, request } => {
+            crate::execution_frames::handle(root, caller, release, state, &nonce, request)
+        }
         Request::Authorize {
             graph_pid,
             nonce,
@@ -304,7 +307,7 @@ pub fn handle(
         }
     }
 }
-fn recheck(
+pub(crate) fn recheck_live(
     root: &Path,
     caller: &Process,
     release: &Release,
@@ -348,5 +351,15 @@ fn recheck(
         &descriptor,
         record.admission.launch_digest.as_deref().ok_or(REJECTED)?,
     )?;
+    Ok(())
+}
+fn recheck(
+    root: &Path,
+    caller: &Process,
+    release: &Release,
+    state: &State,
+    record: &Record,
+) -> Result<(), String> {
+    recheck_live(root, caller, release, state, record)?;
     record.admission.validate(now_ms()?)
 }

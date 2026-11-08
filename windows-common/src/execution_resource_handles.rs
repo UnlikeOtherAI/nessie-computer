@@ -1,13 +1,17 @@
 //! Duplicate the authenticated native peer's real handles; never reopen a path.
 use crate::{custody::REJECTED, execution_resource::{Object, SETTINGS_LIMIT}, process::{Owned, Process}};
-use std::{fs::File, os::windows::{fs::FileExt, io::{AsRawHandle, FromRawHandle}}};
+use std::{fs::File, os::windows::{fs::FileExt, io::{AsRawHandle, FromRawHandle}}, path::PathBuf};
+#[path = "execution_resource_paths.rs"]
+mod paths;
+pub use paths::HeldCandidateDirectory;
 use windows_sys::Win32::{
     Foundation::{DuplicateHandle, LocalFree, DUPLICATE_SAME_ACCESS, HANDLE, WAIT_TIMEOUT},
     Security::{Authorization::{ConvertStringSidToSidW, GetSecurityInfo, SE_FILE_OBJECT},
         GetAce, EqualSid, IsValidSid, ACCESS_ALLOWED_ACE, ACL, PSID,
         OWNER_SECURITY_INFORMATION, DACL_SECURITY_INFORMATION},
     Storage::FileSystem::{GetFileType, FILE_TYPE_DISK, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
-        GetFileInformationByHandleEx, FileIdInfo, FILE_ID_INFO, FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT},
+        GetFileInformationByHandleEx, GetFinalPathNameByHandleW, FileIdInfo, FILE_ID_INFO,
+        FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_REPARSE_POINT},
     System::Threading::{OpenProcess, GetCurrentProcess, WaitForSingleObject, PROCESS_DUP_HANDLE},
 };
 
@@ -44,6 +48,32 @@ impl Duplicator {
 }
 pub struct HeldObject { pub file: File, pub description: Object }
 impl HeldObject {
+    pub(super) fn directory(file: File, private: bool, owner: &str) -> Result<Self, String> {
+        let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
+        if unsafe { GetFileInformationByHandleEx(file.as_raw_handle(), FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
+            std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0 { return Err(REJECTED.into()); }
+        let identity = format!("{:016x}:{}", id.VolumeSerialNumber,
+            id.FileId.Identifier.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let held = Self { file, description: Object { handle: 0, identity,
+            kind: if private { "provider-home" } else { "directory" }.into(), private } };
+        held.recheck(owner)?;
+        Ok(held)
+    }
+    /// Kernel-resolved volume GUID namespace, never a normalized caller path.
+    pub fn directory_path(&self, owner: &str) -> Result<PathBuf, String> {
+        self.recheck(owner)?;
+        if !["directory", "source-root", "provider-home"].contains(&self.description.kind.as_str()) {
+            return Err(REJECTED.into());
+        }
+        let mut buffer = vec![0u16; 32768];
+        let length = unsafe { GetFinalPathNameByHandleW(self.file.as_raw_handle(), buffer.as_mut_ptr(),
+            buffer.len() as u32, 1) } as usize;
+        if length == 0 || length >= buffer.len() { return Err(REJECTED.into()); }
+        let path = String::from_utf16(&buffer[..length]).map_err(|_| REJECTED)?;
+        if !path.starts_with(r"\\?\Volume{") || path.contains('\0') { return Err(REJECTED.into()); }
+        self.recheck(owner)?;
+        Ok(path.into())
+    }
     pub fn recheck(&self, owner: &str) -> Result<(), String> {
         let handle = self.file.as_raw_handle();
         let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
