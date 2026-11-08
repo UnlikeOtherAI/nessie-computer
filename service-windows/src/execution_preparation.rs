@@ -24,7 +24,23 @@ pub fn hold(
     launch: Launch,
 ) -> Result<Value, String> {
     launch.validate()?;
+    let mut environment_names = std::collections::BTreeSet::new();
+    if launch
+        .environment
+        .keys()
+        .any(|name| !environment_names.insert(name.to_uppercase()))
+    {
+        return Err(REJECTED.into());
+    }
     if launch.process_purpose != ProcessPurpose::Provider {
+        // A fixed immutable history entry cannot acquire an alternate Node
+        // loader through the original environment.
+        if launch.environment.iter().any(|(name, value)| {
+            matches!(name.to_uppercase().as_str(), "NODE_OPTIONS" | "NODE_PATH")
+                && !value.is_empty()
+        }) {
+            return Err(REJECTED.into());
+        }
         let history = launch.history.as_ref().ok_or(REJECTED)?;
         let bundle = release
             .runtime

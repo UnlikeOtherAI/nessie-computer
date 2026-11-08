@@ -70,6 +70,10 @@ pub struct Record {
     deny_unknown_fields
 )]
 pub enum Request {
+    Frame {
+        nonce: String,
+        request: crate::execution_frame::Request,
+    },
     Authorize {
         graph_pid: u32,
         nonce: String,
@@ -96,6 +100,10 @@ pub enum Request {
 impl Request {
     pub fn validate(&self) -> Result<(), String> {
         let nonce = match self {
+            Self::Frame { nonce, request } => {
+                request.validate()?;
+                nonce
+            }
             Self::Authorize {
                 graph_pid,
                 nonce,

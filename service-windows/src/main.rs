@@ -52,6 +52,10 @@ mod execution_process;
 #[cfg(windows)]
 mod execution_process_io;
 #[cfg(windows)]
+mod execution_frames;
+#[cfg(windows)]
+mod execution_effect;
+#[cfg(windows)]
 mod execution_session_host;
 #[cfg(windows)]
 mod execution_creator_owner;

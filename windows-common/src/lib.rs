@@ -17,6 +17,10 @@ pub mod custody;
 pub mod execution;
 pub mod execution_creator;
 pub mod execution_process;
+pub mod execution_frame;
+pub mod execution_effect;
+pub mod execution_frame_bytes;
+pub mod execution_json;
 pub mod execution_resource;
 #[cfg(windows)]
 pub mod execution_resource_handles;

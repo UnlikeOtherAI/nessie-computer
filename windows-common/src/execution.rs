@@ -63,7 +63,7 @@ pub fn canonical(value: &serde_json::Value) -> Result<String, String> {
                 .collect::<Result<Vec<_>, _>>()?
                 .join(",")
         ),
-        Value::Number(n) if n.as_u64().is_none_or(|n| n > 9_007_199_254_740_991) => {
+        Value::Number(n) if n.as_i64().is_none_or(|n| !(-9_007_199_254_740_991..=9_007_199_254_740_991).contains(&n)) => {
             return Err(REJECTED.into())
         }
         _ => serde_json::to_string(value).map_err(|_| REJECTED)?,

@@ -39,8 +39,11 @@ export class ProtectedT3Process extends EventEmitter {
   #readyResolve!: () => void
   #readyReject!: (error: Error) => void
   #verifyReady: (frame: Frame) => number
+  #control?: { sequence: number; resolve(value: unknown): void; reject(error: Error): void;
+    timer: ReturnType<typeof setTimeout> }
 
-  constructor(wire: ProtectedWire, verifyReady: (frame: Frame) => number, inputMode: 'companion' | 'finite' = 'companion') {
+  constructor(wire: ProtectedWire, verifyReady: (frame: Frame) => number,
+    inputMode: 'companion' | 'finite' = 'companion') {
     super()
     this.#wire = wire
     this.#verifyReady = verifyReady
@@ -87,6 +90,19 @@ export class ProtectedT3Process extends EventEmitter {
     try { await this.ready } finally { clearTimeout(timer) }
   }
 
+  /** Service validates each typed finite operation; this method carries no grant. */
+  requestFrame(request: Frame): Promise<unknown> {
+    if (this.#control || this.#pending || !this.#admitted || this.#stopping || this.#settled) {
+      return Promise.reject(protectedDeliveryUnknown())
+    }
+    const sequence = ++this.#sequence
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => this.#fail(), 6000)
+      this.#control = { sequence, resolve, reject, timer }
+      void this.#send({ kind: 'frame', sequence, request }).catch(() => this.#fail())
+    })
+  }
+
   #send(frame: Frame): Promise<void> {
     if (this.#settled) return Promise.reject(protectedDeliveryUnknown())
     return new Promise((resolve, reject) => {
@@ -97,11 +113,12 @@ export class ProtectedT3Process extends EventEmitter {
     if (!this.#admitted || this.#stopping) throw protectedDeliveryUnknown()
     for (let offset = 0; offset < bytes.length; offset += 16_384) {
       const sequence = ++this.#sequence
-      await this.#ack(sequence, { kind: 'stdin', sequence, data: bytes.subarray(offset, offset + 16_384).toString('base64') })
+      await this.#ack(sequence, { kind: 'stdin', sequence,
+        data: bytes.subarray(offset, offset + 16_384).toString('base64') })
     }
   }
   #ack(sequence: number | 'end', frame: Frame): Promise<void> {
-    if (this.#pending || !this.#admitted || this.#stopping || this.#settled) {
+    if (this.#pending || this.#control || !this.#admitted || this.#stopping || this.#settled) {
       return Promise.reject(protectedDeliveryUnknown())
     }
     return new Promise((resolve, reject) => {
@@ -133,6 +150,14 @@ export class ProtectedT3Process extends EventEmitter {
       return
     }
     switch (frame.kind) {
+      case 'frameResult': {
+        const pending = this.#control
+        if (!pending || pending.sequence !== frame.sequence) throw protectedDeliveryUnknown()
+        clearTimeout(pending.timer)
+        this.#control = undefined
+        pending.resolve(frame.result)
+        return
+      }
       case 'stdout': case 'stderr': {
         if (typeof frame.data !== 'string' || frame.data.length > 24_000) throw protectedDeliveryUnknown()
         const bytes = Buffer.from(frame.data, 'base64')
@@ -158,7 +183,7 @@ export class ProtectedT3Process extends EventEmitter {
         this.emit('exit', this.exitCode, null)
         return
       case 'closed':
-        if (frame.cleared !== true || (this.#pending && this.#pending.sequence !== 'end')) {
+        if (frame.cleared !== true || this.#control || (this.#pending && this.#pending.sequence !== 'end')) {
           throw protectedDeliveryUnknown()
         }
         // Positive stop may race EOF after every byte was acknowledged. EOF
@@ -180,6 +205,7 @@ export class ProtectedT3Process extends EventEmitter {
       case 'error': {
         if (frame.code !== 'T3_NATIVE_DELIVERY_UNKNOWN') throw protectedDeliveryUnknown()
         const error = protectedDeliveryUnknown()
+        if (this.#control) { clearTimeout(this.#control.timer); this.#control.reject(error); this.#control = undefined }
         if (this.#pending) { clearTimeout(this.#pending.timer); this.#pending.reject(error); this.#pending = undefined }
         this.stdin.destroy(error)
         if (this.listenerCount('error')) this.emit('error', error)
@@ -192,6 +218,7 @@ export class ProtectedT3Process extends EventEmitter {
     if (this.#settled) return
     this.#settled = true
     const error = protectedDeliveryUnknown()
+    if (this.#control) { clearTimeout(this.#control.timer); this.#control.reject(error); this.#control = undefined }
     clearTimeout(this.#stopTimer)
     if (this.#pending) { clearTimeout(this.#pending.timer); this.#pending.reject(error); this.#pending = undefined }
     this.#readyReject(error)

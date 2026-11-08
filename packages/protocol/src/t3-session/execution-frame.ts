@@ -7,6 +7,12 @@ const id = z.string().min(1).max(512)
 const hex = z.string().regex(/^[a-f0-9]{64}$/u)
 const sha = z.string().regex(/^sha256:[a-f0-9]{64}$/u)
 const millis = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
+/** Captured at the original invocation before its SDK queue. A context is a
+ * correlation assertion until the service compares it to independent admission. */
+export const T3ExecutionFrameContextSchema = z.object({ correlationId: id, commandId: id,
+  requestDigest: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/u), providerSessionId: id,
+}).strict()
+export type T3ExecutionFrameContext = z.infer<typeof T3ExecutionFrameContextSchema>
 export const T3ExecutionSerializedFrameSchema = z.object({
   driver: z.enum(['codex', 'claude']),
   kind: z.enum(['request', 'notification', 'response', 'cancel', 'message']),

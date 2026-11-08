@@ -133,6 +133,29 @@ fn run_inner(
             }
             if let Some(value) = reader.poll(&mut file).map_err(|_| REJECTED)? {
                 match value["kind"].as_str() {
+                    Some("frame") => {
+                        if !provider
+                            || value.as_object().is_none_or(|v| v.len() != 3)
+                            || value["sequence"].as_u64() != Some(sequence + 1)
+                        {
+                            return Err(REJECTED.into());
+                        }
+                        let request = serde_json::from_value(value["request"].clone())
+                            .map_err(|_| REJECTED)?;
+                        writing.store(started.elapsed().as_millis() as u64 + 1, Ordering::Release);
+                        let response = crate::execution_provider::service(
+                            nessie_windows_common::execution_process::Request::Frame {
+                                nonce: nonce.clone(),
+                                request,
+                            },
+                        )?;
+                        writing.store(0, Ordering::Release);
+                        sequence += 1;
+                        send(
+                            &output,
+                            &json!({"kind":"frameResult","sequence":sequence,"result":response}),
+                        )?;
+                    }
                     Some("stdin") => {
                         if provider {
                             return Err(REJECTED.into());

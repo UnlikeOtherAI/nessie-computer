@@ -105,6 +105,7 @@ impl Key {
             PREPARATION_DOMAIN,
             ASSOCIATION_DOMAIN,
             HISTORY_RESULT_DOMAIN,
+            nessie_windows_common::execution_frame::PREPARATION_DOMAIN,
         ]
         .contains(&domain)
         {
@@ -127,7 +128,11 @@ impl Key {
                 "associate",
                 "enroll",
                 "graph",
-                "process-creation", "process-resumed", "process-cleared",
+                "process-creation",
+                "process-resumed",
+                "process-cleared",
+                "frame-consumed",
+                "effect-consumed",
             ]
             .contains(&kind)
         {
@@ -171,10 +176,25 @@ impl Key {
         }
         serde_json::from_slice(&bytes).map_err(|_| REJECTED.into())
     }
-    pub fn cleared_process(&self,id:&str)->Result<Option<Value>,String>{
-        if !nessie_windows_common::custody::valid_nonce(id){return Err(REJECTED.into());}
-        let path=self.directory.join(format!("process-cleared-{id}.json"));
-        if !path.try_exists().map_err(|_|REJECTED)? {return Ok(None);}
-        self.read("process-cleared",id).map(Some)
+    pub fn cleared_process(&self, id: &str) -> Result<Option<Value>, String> {
+        if !nessie_windows_common::custody::valid_nonce(id) {
+            return Err(REJECTED.into());
+        }
+        let path = self.directory.join(format!("process-cleared-{id}.json"));
+        if !path.try_exists().map_err(|_| REJECTED)? {
+            return Ok(None);
+        }
+        self.read("process-cleared", id).map(Some)
+    }
+    pub fn associated(&self, id: &str) -> Result<bool, String> {
+        if !nessie_windows_common::custody::valid_nonce(id) {
+            return Err(REJECTED.into());
+        }
+        let path = self.directory.join(format!("associate-{id}.json"));
+        if !path.try_exists().map_err(|_| REJECTED)? {
+            return Ok(false);
+        }
+        self.read("associate", id)?;
+        Ok(true)
     }
 }
