@@ -67,6 +67,19 @@ pub fn owns(id: &str) -> bool {
     })
 }
 
+/// The teams the poll starts: paired under this account, never started or
+/// refused by this app, not paused, and not run by another app or CLI. The
+/// command line's `add` pairs a team while this app runs, and nothing else
+/// would start it. Service-owned teams never live in this account's folder.
+fn teams_to_start(
+    ids: Vec<String>,
+    known: impl Fn(&str) -> bool,
+    paused: impl Fn(&str) -> bool,
+    elsewhere: impl Fn(&str) -> bool,
+) -> Vec<String> {
+    ids.into_iter().filter(|id| !known(id) && !paused(id) && !elsewhere(id)).collect()
+}
+
 fn ids() -> Result<Vec<String>, String> {
     let entries = match fs::read_dir(root()?) {
         Ok(entries) => entries,
@@ -137,6 +150,25 @@ impl Connections {
         self.failures.remove(id);
         self.restart_at.remove(id);
         Ok(())
+    }
+
+    /// Starts each team paired since this app last looked. A start that fails
+    /// is kept as the team's failure, shown with its remedy, and not retried
+    /// on every poll.
+    fn start_new(&mut self) {
+        let state = |id: &str| directory(id).ok();
+        let new = teams_to_start(
+            ids().unwrap_or_default(),
+            |id| self.daemons.contains_key(id) || self.failures.contains_key(id),
+            |id| state(id).is_some_and(|path| read_paused(&path)),
+            |id| state(id).is_none_or(|path| unowned_daemon_is_stopping(&path)),
+        );
+        for id in new {
+            if let Err(reason) = self.start(&id) {
+                eprintln!("Nessie Computer could not start team {id}: {reason}");
+                self.failures.insert(id, classify(&reason));
+            }
+        }
     }
 
     /// Starts again each connection this app started that stopped without
@@ -326,19 +358,29 @@ pub fn start_paired() {
     });
 }
 
-/// Called on every tray poll. A setting that cannot be read counts as on: it
-/// is on unless the person turned it off.
-pub fn restart_stopped() {
+/// Called on every tray poll: starts teams paired elsewhere since the last
+/// poll, then restarts the ones that stopped. A restart setting that cannot be
+/// read counts as on: it is on unless the person turned it off.
+pub fn supervise() {
     let enabled = crate::restart_setting::enabled().unwrap_or(true);
     if let Ok(mut connections) = CONNECTIONS.get_or_init(|| Mutex::new(Connections::default())).lock() {
+        connections.start_new();
         connections.restart_stopped(enabled, Instant::now());
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{restart_waits, RESTART_INITIAL, RESTART_MAX};
+    use super::{restart_waits, teams_to_start, RESTART_INITIAL, RESTART_MAX};
     use std::time::Duration;
+
+    #[test]
+    fn a_team_paired_elsewhere_starts_unless_known_paused_or_run_by_another_app() {
+        let ids = ["added", "running", "refused", "paused", "elsewhere"].map(String::from).to_vec();
+        let started = teams_to_start(ids, |id| matches!(id, "running" | "refused"),
+            |id| id == "paused", |id| id == "elsewhere");
+        assert_eq!(started, ["added"]);
+    }
 
     #[test]
     fn a_connection_that_keeps_stopping_waits_longer_each_time_up_to_five_minutes() {

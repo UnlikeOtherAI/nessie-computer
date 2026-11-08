@@ -124,7 +124,7 @@ fn start_polling(app: AppHandle) {
         // deletion and complete process/job observations decide recovery.
         custody_cleanup::attempt();
         loop {
-            user_connections::restart_stopped();
+            user_connections::supervise();
             let view = commands::view();
             if let ServiceView::Reachable { executors } = &view {
                 let executors = executors.clone();
