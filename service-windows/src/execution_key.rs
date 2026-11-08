@@ -4,9 +4,7 @@ use base64::{
     Engine,
 };
 use ed25519_dalek::{pkcs8::EncodePublicKey, Signer, SigningKey};
-use nessie_windows_common::{
-    custody::REJECTED, execution::signing_bytes, release::pin_service_private,
-};
+use nessie_windows_common::{custody::REJECTED, release::pin_service_private};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::{
