@@ -27,7 +27,10 @@ const KeySchema = z.string().regex(/^(?:claude-code|codex)(?::[0-9a-f-]{36})?$/u
 export const parseLocalCliEngineKey = (value: string): LocalCliEngineKey => {
   const parsed = KeySchema.parse(value)
   const [engine, profileId] = parsed.split(/:(.*)/su)
-  return { engine: LocalCliEngineSchema.parse(engine), profileId: profileId ? z.string().uuid().parse(profileId) : null }
+  return {
+    engine: LocalCliEngineSchema.parse(engine),
+    profileId: profileId ? z.string().uuid().parse(profileId) : null,
+  }
 }
 
 const Settings = z.object({ version: z.literal(1), available: z.array(KeySchema).max(MAX_KEYS) }).strict()

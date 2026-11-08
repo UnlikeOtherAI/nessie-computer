@@ -88,7 +88,8 @@ export const cliEngineArguments = (engine: CliProgram, folder: string, options: 
 /** A CLI whose help lacks one of these could run its own tools or keep history; it is refused. */
 export const cliEngineRequiredFlags = (engine: CliProgram): string[] => engine === 'codex'
   ? ['--strict-config', '--ephemeral', '--ignore-user-config', '--ignore-rules', '--sandbox', '--json']
-  : ['--tools', '--strict-mcp-config', '--safe-mode', '--restricted', '--no-session-persistence', '--permission-prompts']
+  : ['--tools', '--strict-mcp-config', '--safe-mode', '--restricted', '--no-session-persistence',
+    '--permission-prompts']
 
 /** Help and version, read once per turn; the version is part of the engine's identity. */
 export const inspectCliEngine = async (

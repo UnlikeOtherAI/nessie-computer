@@ -38,9 +38,8 @@ export const localCliAccountEnvironment = (
   const next = { ...env }
   const name = engine === 'claude-code' ? 'CLAUDE_CONFIG_DIR' : 'CODEX_HOME'
   for (const key of Object.keys(next)) {
-    if (key.toUpperCase() === name || engine === 'claude-code' && key.toUpperCase() === 'CLAUDE_SECURESTORAGE_CONFIG_DIR') {
-      delete next[key]
-    }
+    const upper = key.toUpperCase()
+    if (upper === name || engine === 'claude-code' && upper === 'CLAUDE_SECURESTORAGE_CONFIG_DIR') delete next[key]
   }
   next[name] = directory
   return next

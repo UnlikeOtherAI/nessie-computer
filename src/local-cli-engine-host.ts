@@ -29,7 +29,8 @@ const FOLDER = 'local-cli-engines'
 
 export const registerLocalCliHost = async (
   state: ExecutorLocalState, engine: LocalCliEngine, profileId: string | null, available: boolean,
-  api: Pick<LocalInferenceDaemonApi, 'registerCliHost'> = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl }),
+  api: Pick<LocalInferenceDaemonApi, 'registerCliHost'>
+    = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl }),
   now: () => Date = () => new Date(),
 ): Promise<LocalCliRegistration> => {
   if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')

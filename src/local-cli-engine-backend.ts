@@ -44,8 +44,8 @@ const observed = async (target: LocalCliEngineTarget, found: LocalCliDetection, 
   if (!found.installed || !found.program) return undefined
   const cli = program(target.engine)
   const inspected = await inspectCliEngine(cli, found.program.path, found.env, run).catch(() => undefined)
-  const account = found.signedIn ? providerAccountIdentity(target.engine, found.account ?? null, null).accountKey ?? 'unnamed'
-    : null
+  const account = found.signedIn
+    ? providerAccountIdentity(target.engine, found.account ?? null, null).accountKey ?? 'unnamed' : null
   const model: ObservedInferenceModel = {
     name: localCliModelName(target.engine, target.profileId),
     displayName: target.name ? `${LABEL[target.engine]} · ${target.name}` : LABEL[target.engine],
@@ -86,7 +86,9 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
       if (attempt.inferenceSource !== undefined || attempt.maxOutputTokens !== undefined) {
         throw new LocalCliEngineError('unsupported_capability')
       }
-      if (attempt.sessionId && options.sessions?.refused(attempt.sessionId)) throw new LocalCliEngineError('session_stopped')
+      if (attempt.sessionId && options.sessions?.refused(attempt.sessionId)) {
+        throw new LocalCliEngineError('session_stopped')
+      }
       const prompt = cliEnginePrompt(attempt)
       const current = await fresh()
       cached = undefined

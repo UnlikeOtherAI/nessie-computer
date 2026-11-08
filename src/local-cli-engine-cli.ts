@@ -78,7 +78,8 @@ export const applyLocalCliEngineOperation = async (
   }
   const detectOne = async (engine: LocalCliEngine, profileId: string | null) => (await detectLocalCliEngines({
     accounts: [], accountsRoot, only: { engine, profileId },
-    ...(dependencies.env ? { env: dependencies.env } : {}), ...(dependencies.probes ? { probes: dependencies.probes } : {}),
+    ...(dependencies.env ? { env: dependencies.env } : {}),
+    ...(dependencies.probes ? { probes: dependencies.probes } : {}),
   }))[0]
   const programOf = async (engine: LocalCliEngine, profileId: string | null) => {
     const found = await detectOne(engine, profileId)
@@ -110,7 +111,8 @@ export const applyLocalCliEngineOperation = async (
   } else if (action.operation === 'remove') {
     const account = await accountOf(action.profileId)
     const found = await detectOne(account.engine, account.id)
-    // Sign the profile out first, so its keychain or credential file goes with it; a missing CLI leaves only the folder.
+    // Sign the profile out first, so its keychain or credential file goes with it;
+    // a missing CLI leaves only the folder.
     if (found?.program) {
       await (dependencies.signOut ?? signOut)(account.engine, found.program.path, found.env,
         localCliAccountDirectory(accountsRoot, account.id)).catch(() => false)

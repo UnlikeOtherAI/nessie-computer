@@ -20,7 +20,11 @@ import {
  * Nessie. Changes to the switches or the account list apply within a second
  * or two, without restarting the team.
  */
-type Entry = { key: LocalCliEngineKey; session?: LocalInferenceHostSession; stopRuns?: (runIds: readonly string[]) => void }
+type Entry = {
+  key: LocalCliEngineKey
+  session?: LocalInferenceHostSession
+  stopRuns?: (runIds: readonly string[]) => void
+}
 
 export type LocalCliEngineManager = {
   reconcile: (state?: ExecutorLocalState) => Promise<void>
@@ -77,8 +81,9 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
     }, { sessions: { refused: (sessionId) => gate?.refused(sessionId) ?? false } })
     const session = await connect({ stateDir, state, engine: key.engine, profileId: key.profileId,
       host: registration, backend, isPaused: () => draining })
-    entries.set(localCliEngineKey(key), { key, session, stopRuns: backend.stopRuns })
-    void session.refused.then(() => { if (entries.get(localCliEngineKey(key))?.session === session) void close(localCliEngineKey(key)) })
+    entries.set(name, { key, session, stopRuns: backend.stopRuns })
+    const name = localCliEngineKey(key)
+    void session.refused.then(() => { if (entries.get(name)?.session === session) void close(name) })
     return 'yes'
   }
 
@@ -87,7 +92,9 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
     const wanted = new Map<string, LocalCliEngineKey>()
     for (const name of await readLocalCliAvailability(stateDir).catch(() => new Set<string>())) {
       const key = parseLocalCliEngineKey(name)
-      if (key.profileId === null || accounts.some((account) => account.id === key.profileId && account.engine === key.engine)) {
+      const known = key.profileId === null
+        || accounts.some((account) => account.id === key.profileId && account.engine === key.engine)
+      if (known) {
         wanted.set(name, key)
       }
     }

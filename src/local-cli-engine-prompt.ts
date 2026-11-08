@@ -35,8 +35,8 @@ export const cliEnginePrompt = (attempt: LocalInferenceAttemptRequest): string =
     ? { role: 'tool', toolCallId: message.toolCallId, content: message.content }
     : message.role === 'assistant'
       ? { role: 'assistant', content: plain(message.content),
-        ...(message.toolCalls?.length ? { toolCalls: message.toolCalls.map(({ toolCallId, toolName, arguments: args }) =>
-          ({ toolCallId, toolName, arguments: args })) } : {}) }
+        ...(message.toolCalls?.length ? { toolCalls: message.toolCalls.map(
+          ({ toolCallId, toolName, arguments: args }) => ({ toolCallId, toolName, arguments: args })) } : {}) }
       : { role: message.role, content: plain(message.content) })
   const tools = attempt.tools.map(({ toolName, description, inputSchema }) => ({ toolName, description, inputSchema }))
   return [

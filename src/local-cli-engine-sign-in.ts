@@ -23,14 +23,15 @@ const variable = (engine: LocalCliEngine): string => engine === 'claude-code' ? 
 const shellQuote = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`
 
 /** Runs the sign-in here, in this terminal. */
-export const signInHere = (engine: LocalCliEngine, program: string, env: NodeJS.ProcessEnv, directory: string): Promise<number> =>
-  new Promise((resolve, reject) => {
-    const child = spawn(program, signInArguments(engine), {
-      env: localCliAccountEnvironment(engine, env, directory), stdio: 'inherit', windowsHide: false,
-    })
-    child.once('error', reject)
-    child.once('close', (code) => resolve(code ?? 1))
+export const signInHere = (
+  engine: LocalCliEngine, program: string, env: NodeJS.ProcessEnv, directory: string,
+): Promise<number> => new Promise((resolve, reject) => {
+  const child = spawn(program, signInArguments(engine), {
+    env: localCliAccountEnvironment(engine, env, directory), stdio: 'inherit', windowsHide: false,
   })
+  child.once('error', reject)
+  child.once('close', (code) => resolve(code ?? 1))
+})
 
 /** Opens a terminal window that runs the sign-in, for the apps; answers once the window is asked for. */
 export const signInInTerminal = async (
