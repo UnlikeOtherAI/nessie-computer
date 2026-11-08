@@ -109,7 +109,8 @@ the existing projection; ordinary unmasked initial answers remain ordinary data.
 This does not recover mask markers removed before a caller invokes the projector.
 The retained-capture caller collects classification before decoding and has a
 separate [unknown-history representation](historical-question-privacy.md),
-awaiting runtime qualification. It does not change this shared live projector.
+qualified through the synthetic original-engine capture gate. It does not
+change this shared live projector or establish historical admission.
 
 ## Remaining admission boundaries
 

@@ -1,8 +1,10 @@
 # Historical question privacy
 
-Status: source correction awaiting original-engine qualification. No physical
-source, original-human authority, gateway or UI is enabled. Do not treat the
-previous capture's passing tests as evidence for these bytes.
+Status: synthetically qualified on Maxis with owned Node 22.23.1 and pnpm
+10.22.0. Code/test revision `e6807fca397168348b630dea27b0e2d60b81dbf7` passed
+normal build/typecheck, 15 source cases and 32 original-engine importer cases,
+with zero failures/skips. No physical source, original-human authority, gateway
+or UI is enabled; this is not live retained-session admission or full fidelity.
 
 ## What the pinned source retains
 
@@ -122,8 +124,8 @@ producer evidence or a separately specified representation for such data.
 The registered `test:t3-session-import` task includes original-codec-normalized
 questions, destination SQLite/raw bytes, original replay/export/cache reads,
 resume/refresh, and scoped message/tool/attachment copies. The source gate adds
-metadata, repeated-ID, conflict and bounded-correlation cases. All new cases are
-unrun pending a PRIMARY window; parser checks do not qualify privacy.
+metadata, repeated-ID, conflict and bounded-correlation cases. All 15 source and 32 original-engine cases passed in the subsequent PRIMARY
+window below. Parser checks alone do not qualify privacy.
 
 ## Qualification attempt and resource release
 
@@ -135,3 +137,30 @@ there were no further heavy starts or memory polls. Producer preparation,
 normal build/typecheck and both registered runtime/source gates remain unrun.
 Bounded parser checks now cover three TypeScript and five fixture modules;
 these are syntax evidence only. Preserve the owned worktree and failure logs.
+
+## Completed synthetic qualification
+
+After a new explicit PRIMARY handoff, normal frozen producer preparation and
+build/typecheck passed all 11 tasks, with zero cache hits in that build. The
+registered source gate passed 15/15 cases; the original-engine importer gate
+passed 32/32, zero failures/skips, against that owned build. It reused five
+unchanged build prerequisites through this worktree's local Turbo cache and ran
+both preparation and the test task. No code or fixture repair was needed.
+
+The first retry failed before Turbo because Windows backslashes in the local
+NODE_OPTIONS preload path were consumed. Changing that untracked runner path to
+forward slashes fixed invocation; the failure is preserved. No compiler option,
+diagnostic, schema or test was bypassed. Each job checked >=12 GiB free; compiler
+entry guards recorded a minimum 16.57 GiB. Tests used 512 MiB heaps, compilers
+5120 MiB and concurrency one. The private receipt binds exact commands, inputs,
+built output hashes and logs. The earlier memory refusal remains historical.
+
+The original supported capture/read interfaces exercised actual SQLite stores,
+legacy hydration, replay, cached reads, bounded exports, resume/refresh,
+complete catalog/item ordering, permitted Claude descriptors/textual IDs, value
+canary absence and provenance refusals. Currentness/fingerprint/frozen-legacy
+regressions also passed. This did not read personal histories, bind physical or
+human authority, run providers, install native apps or qualify a gateway.
+
+The terminal importer result ended at 2026-11-08T11:52:28Z. PRIMARY was released
+immediately before hash/documentation closure; no further heavy jobs ran.

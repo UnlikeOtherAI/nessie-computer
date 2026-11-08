@@ -85,7 +85,7 @@ mask flags. Answer values retain their original shape when public. Masked and un
 and ordering with names/MIME/source metadata withheld; no delivery is inferred. Each capture uses fresh classification;
 reusing a preflight object is refused. Resume reads only the already projected
 generation, and refresh reclassifies source data. Unknown classification is explicitly withheld, never permission to omit a
-session or claim full-fidelity parity. This correction awaits runtime qualification.
+session or claim full-fidelity parity. This correction passed the synthetic original-engine gate described below.
 
 Original codecs validate stored entities/events and strip unsupported fields.
 Typed runtime-request references become `not_resumable`, with no native callback
@@ -153,8 +153,9 @@ assignment or omission is used. These are separate source-layout contracts.
 Historical original question codecs may erase `isSecret` everywhere in a
 snapshot. The source correction now preserves these sessions with explicit
 unknown-classification redactions; see [its evidence and limits](historical-question-privacy.md).
-Its original-engine qualification is still an **ALL-session acceptance blocker**;
-older synthetic marker fixtures do not discharge it.
+Its original-engine gate now passes both marker-bearing and actual codec-erased
+question cases. ALL-session live acceptance still requires the unbound physical
+and original-human producers and complete real-machine coverage.
 
 Each refresh allocates a new staging generation and resets destination legacy
 completion markers. Fresh original read/import services invalidate process
@@ -168,6 +169,13 @@ absence never resurrects or deletes one. Native alias candidate sets preserve
 every app history, separate homes and weak references, without electing a writer.
 
 ## Gates and evidence
+
+Historical-question code/test revision `e6807fca397168348b630dea27b0e2d60b81dbf7`
+passed normal build/typecheck, 15 source cases and all 32 original-engine importer
+cases on Maxis/Node 22.23.1, zero failures/skips. This supersedes missing-mask
+refusal and masked-attachment refusal for the documented safe representation.
+See [the exact value/descriptor contract](historical-question-privacy.md).
+Original physical/human authority and live all-machine parity remain unclaimed.
 
 The currentness correction passed ordinary executor build/typecheck and the
 registered importer gate on Maxis with owned Node 22.23.1: **27 passed, zero
