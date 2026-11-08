@@ -93,6 +93,21 @@ IDs inside the SDK. A process-wide latest-grant field or AsyncLocalStorage
 around a query method does not establish correlation with later serialization.
 The launch grant must never authorize arbitrary later SDK input.
 
+Concrete serialization locations are now audited. Codex's original
+`protocol.ts` `offerOutgoing(message)` encodes and enqueues a string; capture
+the finite operation's association before that queue, and consume it at the
+protected write. In verified Claude SDK `0.3.316`, the six
+`this.transport.write` call sites are in `handleControlRequest` (reply),
+`request` (request and cancellation), `writeAfterInitialize` (immediate and
+deferred), and `streamInput` (prompt). `request` generates `request_id`
+internally. Deferred writes wait for initialization; prompt writes consume the
+asynchronous input iterator. The exported `Transport` type has a
+`write(string): void | Promise<void>` method, but the public
+`query({ prompt, options })` interface exposes no injected transport or
+serialization hook. A narrow reviewed hook at those serialization boundaries
+is required; accessing private Query fields or relying on ambient invocation
+context is not an admitted producer.
+
 The protected byte producer takes explicit fresh `SessionEffectAuthority` for
 each admitted logical write and awaits its native outcome. The runtime adapter
 must associate that operation with the exact protocol request/message IDs at
