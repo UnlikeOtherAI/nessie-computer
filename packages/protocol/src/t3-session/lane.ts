@@ -9,6 +9,7 @@ import { ExecutorT3TransportError, type T3_SOURCE_COMMIT } from './routing.js'
 import { ExecutorT3Descriptors } from './methods.js'
 import type { RetainedImportLease } from '../retained-import.js'
 import type { T3ExecutionReceipt, T3ExecutionSignedAdmission } from './native-execution.js'
+import type { T3FiniteFragment } from './finite-fragments.js'
 
 /** One daemon lane carries the original envelopes, without native conversation DTOs. */
 export const ExecutorT3LaneOperation = Schema.Union([ExecutorT3Request, ExecutorT3HttpRequest])
@@ -65,6 +66,8 @@ export const T3_LANE_LIMITS = Object.freeze({
 export type T3LaneFrame = {
   environmentId: string; correlationId: string; runtimeGeneration: string;
   ordinal: number; final: boolean; reply?: ExecutorT3LaneReplyEncoded;
+  /** Mutually exclusive with reply; finite retained results only. */
+  fragment?: T3FiniteFragment;
 }
 /** Signed runtime readiness, not source consent or execution authority. */
 export type T3RuntimeAnnouncement = {
