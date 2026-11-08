@@ -1,5 +1,6 @@
-export const installRendererHost = async (context, host, { paired = false } = {}) => {
-await context.addInitScript(({ host, paired }) => {
+export const installRendererHost = async (context, host, { paired = false, ownerConfirmationRequired = false } = {}) => {
+await context.addInitScript(({ host, paired, ownerConfirmationRequired }) => {
+  window.ownerConfirmationRequired = ownerConfirmationRequired
   window.calls = []
   window.pairStatus = 'idle'
   window.paired = []
@@ -42,7 +43,14 @@ await context.addInitScript(({ host, paired }) => {
       const operation = args.operation
       window.chatgptProfile ??= { profileId: 'b83e9273-6e74-4a75-bada-9c3d5b80b493',
         phase: 'disconnected', planEnabled: false, reason: null, operationId: null, backgroundConsentRevision: null }
-      const profile = window.chatgptProfile
+      window.chatgptProfiles ??= [window.chatgptProfile]
+      if (operation.newProfileId && !window.chatgptProfiles.some(p => p.profileId === operation.newProfileId)) {
+        window.chatgptProfiles.push({ ...window.chatgptProfile, profileId: operation.newProfileId,
+          label: operation.label, phase: 'disconnected', planEnabled: false, backgroundConsentRevision: null })
+      }
+      const profile = window.chatgptProfiles.find(p => p.profileId === (operation.newProfileId ?? operation.profileId))
+        ?? window.chatgptProfile
+      if (operation.operation === 'rename') profile.label = operation.label
       if (operation.operation === 'start') { profile.phase = 'ready'; profile.planEnabled = true }
       if (operation.operation === 'background-consent') {
         assertBackgroundRevision(operation, profile)
@@ -51,8 +59,20 @@ await context.addInitScript(({ host, paired }) => {
       if (['disconnect', 'cancel'].includes(operation.operation)) {
         profile.phase = 'disconnected'; profile.planEnabled = false; profile.backgroundConsentRevision = null
       }
-      return { version: 1, profiles: [{ ...profile }], reason: null,
+      return { version: 1, profiles: window.chatgptProfiles.map(profile => ({ ...profile })), reason: null,
         restriction: 'unisolated_terminal_coding_and_custom_stdio_blocked' }
+    }
+    if (command === 'executor_inference_connections') {
+      if (window.endpointOffline) throw new Error('offline')
+      window.endpoints ??= []
+      const operation = args.operation
+      if (operation.operation === 'save') {
+        window.endpoints = window.endpoints.filter(endpoint => endpoint.id !== operation.id)
+        window.endpoints.push({ id: operation.id, name: operation.name, baseUrl: operation.baseUrl,
+          scope: operation.scope, hasApiKey: Boolean(operation.apiKey), status: 'online', models: ['qwen'] })
+      }
+      if (operation.operation === 'remove') window.endpoints = window.endpoints.filter(endpoint => endpoint.id !== operation.id)
+      return { endpoints: window.endpoints.map(endpoint => ({ ...endpoint })) }
     }
     if (command === 'executor_view') return { kind: 'reachable', executors: window.paired }
     if (command === 'executor_set_running') {
@@ -74,6 +94,9 @@ await context.addInitScript(({ host, paired }) => {
       window.pairStatus = 'waiting'
     }
     if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
+    if (command === 'executor_pairing_status' && id && window.ownerConfirmationRequired) {
+      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
+    }
     if (command.startsWith('executor_pairing_')) {
       const executorId = id ?? `team-${window.paired.length - 1}`
       return {
@@ -131,5 +154,5 @@ await context.addInitScript(({ host, paired }) => {
     window.emitTray = (event, payload) => window.dispatchEvent(new CustomEvent(event, { detail: payload }))
   }
   if (paired) window.claimInNessie()
-}, { host, paired })
+}, { host, paired, ownerConfirmationRequired })
 }

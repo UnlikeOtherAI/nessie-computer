@@ -65,7 +65,7 @@ const sameObservation = (left: Observation, right: Observation): boolean =>
  */
 const acquireStateLock = async (
   directory: string, lockName: 'admission.lock' | 'mutation.lock' | 'native-writer-admission.lock' | 'credential.lock'
-    | 'profile-runtime.lock' | 'profile-start.lock',
+    | 'profile-runtime.lock' | 'profile-start.lock' | 'inference-endpoints.lock',
   options: PersonalAdmissionLockOptions = {}, legacyPhysical = false,
 ): Promise<{ release: () => Promise<void> }> => {
   await assertOwnerOnlyStatePath(directory, 'directory', options.security)
@@ -207,7 +207,7 @@ const acquireStateLock = async (
 
 export const acquireOwnerStateLock = (
   directory: string, lockName: 'admission.lock' | 'mutation.lock' | 'native-writer-admission.lock' | 'credential.lock'
-    | 'profile-runtime.lock' | 'profile-start.lock',
+    | 'profile-runtime.lock' | 'profile-start.lock' | 'inference-endpoints.lock',
   options: PersonalAdmissionLockOptions = {},
 ): Promise<{ release: () => Promise<void> }> => acquireStateLock(directory, lockName, options)
 

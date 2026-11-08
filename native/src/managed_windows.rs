@@ -217,7 +217,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                         0,
                         Some(
                             "pair" | "pairing-start" | "pairing-status" | "pairing-confirm"
-                            | "pairing-cancel" | "configure" | "connect" | "describe" | "unpair",
+                            | "pairing-cancel" | "configure" | "connect" | "describe" | "unpair" | "local-inference",
                         ),
                     ) => RuntimeKind::ServiceControl,
                     (_, Some("serve" | "serve-direct-local-inference")) => RuntimeKind::UserDaemon,

@@ -133,6 +133,12 @@ impl Control {
                 },
                 Err(reason) => Response::error(reason),
             },
+            Command::InferenceConnections { executor_id, operation } => {
+                match supervisor.inference_connections(&executor_id, operation, client_sid) {
+                    Ok(connections) => Response::InferenceConnections { connections },
+                    Err(reason) => Response::error(reason),
+                }
+            }
             Command::Describe { executor_id } => match supervisor.describe(&executor_id) {
                 Ok(description) => Response::DescribeOk { description },
                 Err(reason) => Response::error(reason),

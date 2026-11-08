@@ -135,6 +135,16 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         // Never create even public login state from a retired pairing.
         await matchingChatgptPairing(stateDirectory, operation.intent)
       }
+      if (operation.operation === 'start' && operation.newProfileId) {
+        const requested = await store.read(operation.newProfileId)
+        if (operation.intent.profileId && operation.intent.profileId !== operation.newProfileId
+          || requested && (requested.apiOrigin !== operation.intent.apiOrigin
+            || requested.executorId !== operation.intent.executorId
+            || requested.organizationId !== operation.intent.organizationId
+            || requested.teamId !== operation.intent.teamId)) {
+          throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
+        }
+      }
       const scoped = await store.scoped(operation.intent)
       if (operation.intent.profileId && scoped.length !== 1) {
         throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
@@ -161,6 +171,12 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         }
         if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
         else await preflight(stateDirectory, operation.intent)
+      } else if (operation.operation === 'rename') {
+        const next = await store.update(operation.intent.profileId, prior => {
+          if (!prior) throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
+          return { ...prior, revision: prior.revision + 1, label: operation.label }
+        })
+        profiles = [publicChatgptProfileStatus(next)]
       } else if (operation.operation === 'background-consent') {
         await setChatgptBackgroundConsent(stateDirectory, operation.intent,
           operation.enabled, operation.expectedRevision)
@@ -185,8 +201,9 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         if (operation.acknowledgeHostRestriction !== true) reason = 'host_restriction_acknowledgement_required'
         else if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
         else {
-          const active = operation.intent.profileId ? scoped[0]
-            : scoped.find(item => item.phase !== 'disconnected' && item.phase !== 'unavailable')
+          const active = operation.newProfileId ? scoped.find(item => item.profileId === operation.newProfileId)
+            : operation.intent.profileId ? scoped[0]
+              : scoped.find(item => item.phase !== 'disconnected' && item.phase !== 'unavailable')
           const existing = active ? await reconcile(store, active) : undefined
           if (existing?.operationId && !['disconnected', 'unavailable'].includes(existing.phase)) {
             profiles = [publicChatgptProfileStatus(existing)]
@@ -203,14 +220,15 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
             if (existing?.phase === 'disconnected' && existing.registration.clientId) {
               throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
             }
-            const profileId = existing?.profileId ?? randomUUID()
-            const registrations = scoped.filter(item => item.registration.clientId)
+            const profileId = existing?.profileId ?? operation.newProfileId ?? randomUUID()
+            const registrations = operation.newProfileId ? [] : scoped.filter(item => item.registration.clientId)
             if (new Set(registrations.map(item => JSON.stringify(item.registration))).size > 1) {
               throw new PersonalInferenceProtectionError('chatgpt_registration_scope_ambiguous')
             }
             const extAgentHostId = await store.hostId()
             await store.update(profileId, prior => prior ? { ...prior, revision: prior.revision + 1 }
               : ChatgptProfileRecordSchema.parse({ format: 1, revision: 0, profileId,
+                ...(operation.label ? { label: operation.label } : {}),
                 apiOrigin: operation.intent.apiOrigin, executorId: operation.intent.executorId,
                 organizationId: operation.intent.organizationId, teamId: operation.intent.teamId,
                 phase: 'disconnected', reason: null, planEnabled: false, hostExecutionRestricted: false,
@@ -227,6 +245,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
                 operationId: randomUUID(), principal: prior?.principal ?? null,
                 accountGeneration: prior?.accountGeneration ?? 1, consentRevision: prior?.consentRevision ?? 1,
                 publicKey: prior?.publicKey ?? null, credentialProcess: prior?.credentialProcess ?? null,
+                ...(prior?.label ? { label: prior.label } : {}),
                 registration: prior?.registration.clientId ? prior.registration
                   : registrations[0]?.registration
                     ?? { clientId: null, extAgentHostId, issuer: CHATGPT_ISSUER, subject: null },

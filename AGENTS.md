@@ -56,3 +56,7 @@ The daemon doorbell, live session requests, owner answers and `request_secret` f
 Linux updater images use root-owned immutable libexec paths with the standard SELinux executable label; retain journals and legacy protected images during recovery. See [Fedora service execution](docs/automatic-updates.md#fedora-service-execution).
 
 Windows runtime admission uses its own fixed local pipe; keep pairing-control ACLs and kernel custody proofs separate. See [runtime admission](docs/automatic-updates.md#runtime-admission-and-pairing-control).
+
+The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
+[local AI connections](docs/local-ai-connections.md); use the public Turbo
+`test:ai-connections` gate and local `renderer-harness.mjs --ai-only` journey.

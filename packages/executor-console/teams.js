@@ -56,16 +56,22 @@ const renderConnections = () => keepFocus(byId('executors-list'), () => {
       reason.textContent = connection.detail
       name.append(reason)
     }
+    if (ownerConfirmationRequired.has(connection.executorId)) {
+      const recovery = document.createElement('small')
+      recovery.className = 'connection-detail'
+      recovery.textContent = window.aiConsoleWords.restoreNames
+      name.append(recovery)
+    }
     const remove = document.createElement('button')
     remove.textContent = 'Remove'
     remove.setAttribute('aria-label', `Remove ${label} from this computer`)
     remove.dataset.key = connection.executorId
     remove.onclick = () => openRemove(connection.executorId)
     const chatgpt = document.createElement('button')
-    chatgpt.textContent = 'ChatGPT'
+    chatgpt.textContent = 'AI'
     chatgpt.className = 'chatgpt-doorway'
-    chatgpt.setAttribute('aria-label', `ChatGPT · ${label}`)
-    chatgpt.onclick = () => openChatgpt(connection.executorId)
+    chatgpt.setAttribute('aria-label', `AI · ${label}`)
+    chatgpt.onclick = () => attempt(() => openSection('ai', { executorId: connection.executorId }))
     row.append(name, chatgpt, remove)
     list.append(row)
   }
@@ -89,7 +95,7 @@ const applyView = (view, asked = 0) => {
   if (view.kind !== 'reachable') throw new Error(view.reason)
   connections = view.executors
   const signature = JSON.stringify([connections, connections.map((connection) => [
-    teamLabel(connection.executorId), serverHost(connection.executorId),
+    teamLabel(connection.executorId), serverHost(connection.executorId), ownerConfirmationRequired.has(connection.executorId),
   ]), currentExecutorId, switchPending])
   clearRecoveredConnections(asked)
   if (signature === renderedView) return
@@ -112,8 +118,12 @@ const lookUpNames = async (executors) => {
       try {
         connectionNames.set(executorId, await invoke('executor_pairing_status', { executorId }))
         lookupFailed.delete(executorId)
+        ownerConfirmationRequired.delete(executorId)
         nameRetryAt.delete(executorId)
-      } catch {
+      } catch (error) {
+        if (String(error?.message ?? error).includes('PAIRING_OWNER_CONFIRMATION_REQUIRED')) {
+          ownerConfirmationRequired.add(executorId)
+        }
         lookupFailed.add(executorId)
         nameRetryAt.set(executorId, Date.now() + NAME_RETRY_MS)
       }

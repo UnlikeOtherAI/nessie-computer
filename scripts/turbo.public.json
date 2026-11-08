@@ -84,6 +84,12 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:ai-connections": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

@@ -65,5 +65,5 @@ export const publicChatgptProfileStatus = (record: ChatgptProfileRecord): Person
     profileId: record.profileId, apiOrigin: record.apiOrigin, executorId: record.executorId,
     organizationId: record.organizationId, teamId: record.teamId, phase: record.phase, reason: record.reason,
     planEnabled: record.planEnabled, hostExecutionRestricted: record.hostExecutionRestricted,
-    operationId: record.operationId,
+    operationId: record.operationId, ...(record.label ? { label: record.label } : {}),
   })
