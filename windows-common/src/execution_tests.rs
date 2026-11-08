@@ -16,6 +16,23 @@ fn admission() -> serde_json::Value {
         "issuedAtMs":1000,"expiresAtMs":6000})
 }
 #[test]
+fn secret_attempt_identity_is_accepted_graph_and_original_index() {
+    use crate::execution_secret_read::slot_claim;
+    let original: Binding = serde_json::from_value(binding()).unwrap();
+    let nonce = "f".repeat(64);
+    let claim = slot_claim(&original, &nonce, 1).unwrap();
+    assert_eq!(claim, slot_claim(&original, &nonce, 1).unwrap());
+    assert_ne!(claim, slot_claim(&original, &nonce, 3).unwrap());
+    assert_ne!(claim, slot_claim(&original, &"e".repeat(64), 1).unwrap());
+    let mut other_graph = original.clone();
+    other_graph.source_evidence_digest = Some(format!("sha256:{}", "b".repeat(64)));
+    assert_ne!(claim, slot_claim(&other_graph, &nonce, 1).unwrap());
+    assert!(slot_claim(&original, &nonce, 256).is_err());
+    assert!(slot_claim(&original, "caller", 1).is_err());
+    other_graph.source_evidence_digest = None;
+    assert!(slot_claim(&other_graph, &nonce, 1).is_err());
+}
+#[test]
 fn admission_expiry_and_phase_cannot_be_reinterpreted() {
     let value: Admission = serde_json::from_value(admission()).unwrap();
     assert!(value.validate(5999).is_ok());

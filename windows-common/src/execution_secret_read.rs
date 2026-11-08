@@ -11,6 +11,44 @@ pub const MAX_VALUE_BYTES: u32 = 65536;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Observe {
+    pub binding: Binding,
+    pub accepted_graph_nonce: String,
+    pub candidate: Candidate,
+    pub environment_index: u32,
+    pub recipient_slot_id: String,
+}
+impl Observe {
+    pub fn validate(&self) -> Result<(), String> {
+        self.binding.validate(false)?;
+        if !valid_nonce(&self.accepted_graph_nonce)
+            || !valid_nonce(&self.recipient_slot_id)
+            || !valid_nonce(&self.candidate.evidence.resource_id)
+            || self.environment_index > 255
+            || !self.candidate.selection.config.is_empty()
+            || self.candidate.selection.environment.len() > 256
+            || self.candidate.selection.references.len() > 256
+        {
+            return Err(REJECTED.into());
+        }
+        Ok(())
+    }
+}
+
+pub fn slot_claim(binding: &Binding, graph_nonce: &str, index: u32) -> Result<String, String> {
+    binding.validate(false)?;
+    if !valid_nonce(graph_nonce) || index > 255 {
+        return Err(REJECTED.into());
+    }
+    let digest = crate::execution::value_digest(&serde_json::json!({
+        "executorId":binding.executor_id,"sourceEvidenceDigest":binding.source_evidence_digest,
+        "acceptedGraphNonce":graph_nonce,"environmentIndex":index
+    }))?;
+    Ok(digest.strip_prefix("sha256:").ok_or(REJECTED)?.into())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Evidence {
     pub resource_id: String,
     pub resource_generation: String,
@@ -139,11 +177,7 @@ impl Read {
     }
     /// Permanent logical read identity: changing plan/read/recipient never renews it.
     pub fn slot_claim(&self) -> Result<String, String> {
-        let digest = crate::execution::value_digest(&serde_json::json!({
-            "executorId":self.binding.executor_id,"sourceEvidenceDigest":self.binding.source_evidence_digest,
-            "acceptedGraphNonce":self.accepted_graph_nonce,"environmentIndex":self.slot.index
-        }))?;
-        Ok(digest.strip_prefix("sha256:").ok_or(REJECTED)?.into())
+        slot_claim(&self.binding, &self.accepted_graph_nonce, self.slot.index)
     }
     pub fn matches_preparation(&self, original: &Read) -> bool {
         let mut selected = self.clone();

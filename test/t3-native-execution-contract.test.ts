@@ -7,9 +7,20 @@ import { executionAdmissionBytes, executionReceiptBytes, T3_EXECUTION_ADMISSION_
   T3ExecutionPreparationPayloadSchema } from '../packages/protocol/src/t3-session/native-execution.js'
 import { verifyT3ExecutionReceiptSignature } from '../src/t3-execution-native-client.js'
 import { T3ExecutionSecretPlanSelectionSchema, T3ExecutionSecretDeliveryHeaderSchema,
+  T3ExecutionSecretObservationUnavailableSchema,
   executionSecretReadAdmissionBytes, T3_EXECUTION_SECRET_READ_DOMAIN,
 } from '../packages/protocol/src/t3-session/execution-secret-read.js'
 import { protectedT3SecretInstalledFrame, type VerifiedT3SecretDelivery } from '../src/t3-protected-process.js'
+
+test('secret observation cannot promote its negative result to a receipt or value', () => {
+  const unavailable = { status: 'unavailable', reason: 'T3_SECRET_READ_NONINTERACTIVE_UNQUALIFIED',
+    attemptId: 'a'.repeat(64) }
+  assert.ok(T3ExecutionSecretObservationUnavailableSchema.safeParse(unavailable).success)
+  for (const patch of [{ status: 'ready' }, { value: 'secret' }, { payload: '{}' },
+    { signature: 'caller' }, { retryAfterMs: 1 }]) {
+    assert.equal(T3ExecutionSecretObservationUnavailableSchema.safeParse({ ...unavailable, ...patch }).success, false)
+  }
+})
 
 test('secret plans preserve original indices and forbid synthetic config slots', () => {
   const reference = { provider: 'vault', reference: 'op://vault/item/field' }

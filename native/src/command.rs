@@ -124,7 +124,8 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
             && executor.len() <= 512 && !executor.contains('\0') =>
             Ok(Command::T3ExecutionStart(executor.clone())),
         [command, mode] if command == "t3-execution"
-            && ["offer", "enroll", "graph", "reserve", "prepare", "associate", "launch"].contains(&mode.as_str()) =>
+            && ["offer", "enroll", "graph", "reserve", "prepare", "associate", "launch", "secret-observe"]
+                .contains(&mode.as_str()) =>
             Ok(Command::T3Execution(mode.clone())),
         [command] if command == "t3-source-read" => Ok(Command::T3SourceRead),
         [command] if command == "t3-execution-resource" => Ok(Command::T3ExecutionResource),

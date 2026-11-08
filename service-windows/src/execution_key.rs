@@ -133,6 +133,7 @@ impl Key {
                 "process-cleared",
                 "frame-consumed",
                 "effect-consumed",
+                "secret-slot-observed",
             ]
             .contains(&kind)
         {

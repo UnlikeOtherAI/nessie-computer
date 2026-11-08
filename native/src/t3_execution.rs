@@ -87,6 +87,9 @@ pub fn run(mode: &str) -> Result<(), NativeError> {
         "associate" => call(Request::Associate {
             admission: input()?,
         })?,
+        "secret-observe" => service_channel::call(&Operation::ExecutionSecretObservation {
+            request: Box::new(input()?),
+        }, PIN).map_err(|_| refused())?,
         _ => return Err(refused()),
     };
     let mut output = std::io::stdout().lock();

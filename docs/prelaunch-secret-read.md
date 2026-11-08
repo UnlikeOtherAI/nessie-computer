@@ -17,8 +17,9 @@ nonce/digest. `resolve_launch_homes` requires that accepted graph and resolves i
 selected provider's credential reference to a held directory. That reference
 proves a HOME object, not the contents of a credential store.
 
-The service does not currently decode original secret-reference annotations,
-observe resolver cache state, invoke OnePassword, or release a secret. Existing
+The service reconstructs the original environment references; pinned Codex and
+Claude settings have no annotated config secret slots. It does not observe
+resolver cache state, invoke OnePassword, or release a secret. Existing
 `pin_execution_image` prevents replacement while held but explicitly confers no
 image trust. Existing provider/history creation requires a reservation and must
 not be reused to invent a pre-session provider identity.
@@ -114,6 +115,42 @@ index, not planId/readId/slotId. Exact retries can return unchanged evidence or
 refuse; substitutions and timeout cannot mint a fresh read window. Duplicate
 reference strings at different indices remain distinct slots.
 
+## Native first-observation journal
+
+`createT3ExecutionNativeClient(executorId).observeSecretRead(input, signal?)`
+accepts the strict `T3ExecutionSecretObservationInputSchema`: full binding,
+acceptedGraphNonce, candidate, original environmentIndex and recipientSlotId.
+It uses only the fixed SYSTEM-created `execution-secret-observe` companion,
+whose arguments are `t3-execution secret-observe`. This machine-only operation
+has no user-facing success surface and cannot invoke a secret provider.
+
+The service requires that exact creator-journal role and authenticates the
+current graph. It checks the already accepted Graph nonce/digest, current held
+source/link/settings/generations and independently reconstructs the complete
+candidate from its duplicated settings handle. The requested original index
+must identify a real selected reference. It records the verified slot/account,
+plan digest, actual recipient generation and native read/plan IDs using an
+append-only `secret-slot-observed` claim before checking tool eligibility.
+The claim key depends only on executor, accepted Graph payload digest/nonce
+and original environment index. It excludes plan/read/recipient IDs.
+
+The sole result is `{status:'unavailable',
+reason:'T3_SECRET_READ_NONINTERACTIVE_UNQUALIFIED',attemptId}`. It is unsigned
+negative metadata, not a PREPARATION receipt or read permission. Repeating a
+claimed slot fails, including after a lost response, a crash, or no backend
+admission. There is no release, reset or renewal operation. A failed write leaves
+the create-new journal file terminal. No empty-plan observation is needed.
+
+Journal timestamps start at handler entry and are capped at five seconds and
+the held source deadline. They are diagnostic only: even an expired negative
+result cannot become evidence. A future positive producer must additionally
+enforce every current operation/graph/relay/issuer bound and the total execution
+and delivery deadline. This checkpoint does not enable that producer.
+
+Fixed-role, index-identity and negative-response fixtures are authored but unrun.
+Only source parsing, formatting and diff checks have been performed here;
+root owns combined builds and installed verification.
+
 `execution-secret-read.ts` exports T3ExecutionSecretPlanCandidateSchema,
 T3ExecutionSecretReadPreparationPayloadSchema and T3ExecutionSecretReadAdmissionSchema.
 Domains are nessie.t3.execution.secret-read-preparation.v1 and
@@ -145,6 +182,16 @@ The runtime's private sink owns the dedicated connection and buffering. It does
 not use ProtectedT3Provider stdout, JSON/base64 values or a callback registered
 by a grant. The existing SYSTEM-created graph key authenticates this private
 channel; it never enters the runtime descriptor or the daemon lane.
+
+Delivery requires two independent one-way channels: service-to-graph value
+output and graph-to-service ACK input. After the exact header/value/MAC frame,
+the service closes its sole value-channel writer while retaining the ACK reader.
+No helper or child may retain a duplicate writer that delays EOF. Runtime waits
+for that EOF and rejects trailing bytes before verification and installation.
+EOF proves frame completion only; child clearance comes from the authenticated
+service observation. Windows duplex named-pipe half-close is not assumed, and
+`allowHalfOpen` alone does not establish these native semantics. The actual
+channel producer still needs implementation and installed qualification.
 
 After service-observed zero exit, EOF and empty child Job, native emits exactly:
 u32le headerByteLength, strict UTF8 JSON header, u32le valueByteLength, raw value,

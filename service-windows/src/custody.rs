@@ -179,6 +179,10 @@ pub fn handle(
                 nessie_windows_common::execution_creator::CompanionRole::Resource)?;
             crate::execution_resource::handle(root,&caller,&release,&state,*request)?
         }
+        Operation::ExecutionSecretObservation { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution_secret_attempt::observe(root,&caller,&release,&state,*request)?
+        }
         Operation::Execution { request } => {
             machine.admit_daemon(&release.digest)?;
             crate::execution::handle(root, &caller, &release, &state, request)?
