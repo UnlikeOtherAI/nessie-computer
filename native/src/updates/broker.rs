@@ -13,14 +13,14 @@ pub fn run() -> Result<(), String> {
         super::broker_unix::run()
     }
 }
-pub fn install() -> Result<(), String> {
+pub fn install() -> nessie_executor_updater::catalog::UpdateResult<()> {
     #[cfg(windows)]
     {
-        super::host::initialize().map_err(str::to_owned)
+        super::host::initialize()
     }
     #[cfg(unix)]
     {
-        super::host::platform::initialize().map_err(str::to_owned)
+        super::host::platform::initialize()
     }
 }
 pub fn worker() -> Result<(), String> {
