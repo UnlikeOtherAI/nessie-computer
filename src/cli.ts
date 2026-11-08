@@ -376,13 +376,13 @@ export const run = async (args: string[]): Promise<void> => {
         await ownerPauseReport(command.stateDir))
     }
     await connectExecutorLocalInference(command.stateDir, live)
-    process.stdout.write('Executor and local inference daemon connections established.\n')
+    process.stdout.write('Connected to Nessie.\n')
     return
   }
   if (command.kind === 'heartbeat') {
     await heartbeatExecutor(state, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
       await ownerPauseReport(command.stateDir))
-    process.stdout.write('Executor heartbeat accepted.\n')
+    process.stdout.write('Nessie heard from this computer.\n')
     return
   }
   // A packaged daemon proves its release integrity before it serves anything;

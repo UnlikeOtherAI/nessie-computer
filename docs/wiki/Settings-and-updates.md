@@ -30,6 +30,7 @@ that tool; Settings says so.
 ## On the command line
 
 ```sh
+nessie-computer settings login on               # open Nessie Computer when I log in
 nessie-computer settings auto-restart on
 nessie-computer settings updates            # version and update status
 nessie-computer settings updates check
@@ -37,6 +38,6 @@ nessie-computer settings updates automatic off
 nessie-computer settings logs               # where the logs are
 ```
 
-`auto-restart` covers the teams the command line runs as services. Teams the
-app runs follow **Restart a team if it stops** here in Settings, and **Open
-Nessie Computer when I log in** is set here too.
+`login` and `auto-restart` change the same two switches as this tab. On Linux,
+and on a Mac without the app, `auto-restart` sets each team's command-line
+service instead.

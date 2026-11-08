@@ -23,7 +23,8 @@ notification area. **Quit** closes it.
 **Does it run when I'm logged out?**
 On Linux, yes: a connected team runs at boot. On a Mac, it runs while you're
 logged in. On Windows, teams the background service runs keep going; teams
-connected in the app run while you're logged in.
+connected under your account run while you're logged in. See
+[Who runs your teams](Command-line#who-runs-your-teams).
 
 **Can one computer work for several teams?**
 Yes. Connect each team. Each has its own access, documents and AI. See

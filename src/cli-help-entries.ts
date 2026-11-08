@@ -50,8 +50,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     notes: [
       '--server  Your organisation\'s own Nessie (default https://api.nessie.works).',
       '--no-wait  Print the code and return; status shows when it\'s done.',
-      'On Linux, a connected team starts at boot and keeps running after you log out.',
-      'On Windows, connect a team in the Nessie Computer app.',
+      'Where the Nessie Computer app is installed (Windows, and Macs with the app), the app runs the new team.',
+      'On a Mac without the app it runs in the background and starts when you log in.',
+      'On Linux it starts at boot and keeps running after you log out.',
     ],
     examples: ['nessie-computer connect', 'nessie-computer connect --server https://nessie.example.com'],
   },
@@ -191,7 +192,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     notes: [
       'add and sign-in open ChatGPT\'s sign-in in your browser.',
       'While a ChatGPT plan is signed in, agents can\'t open terminals or coding tools under your account.',
-      '--yes accepts that without asking. On Windows, manage ChatGPT plans in the Nessie Computer app.',
+      '--yes accepts that without asking.',
+      'On Windows the Nessie Computer service keeps ChatGPT plans. A team without one gets a ChatGPT plan',
+      'connection first: Windows asks you to allow it, then Nessie shows one more pairing code.',
     ],
     examples: ['nessie-computer ai plans add "Work plan" --team "Sales · Acme"'],
   },
@@ -210,6 +213,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     command: 'settings', summary: 'Computer-wide settings.',
     usage: [
       'nessie-computer settings',
+      'nessie-computer settings login [on|off]',
       'nessie-computer settings auto-restart [on|off]',
       'nessie-computer settings updates',
       'nessie-computer settings updates check',
@@ -218,11 +222,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'nessie-computer settings logs',
     ],
     notes: [
-      'auto-restart restarts a team if it stops. It covers the teams this command line runs as services;',
-      'teams the app runs follow Settings in the app. "Open Nessie Computer when I log in" is set in the app.',
+      'login is "Open Nessie Computer when I log in", the same switch as in the app\'s Settings.',
+      'auto-restart is "Restart a team if it stops". Where the app runs the teams it is the app\'s switch;',
+      'otherwise it covers the teams this command line runs as services.',
       'logs prints where the logs are.',
     ],
-    examples: ['nessie-computer settings updates check', 'nessie-computer settings auto-restart off'],
+    examples: ['nessie-computer settings login on', 'nessie-computer settings updates check',
+      'nessie-computer settings auto-restart off'],
   },
   {
     command: 'help', summary: 'Help for every command, or for one.',

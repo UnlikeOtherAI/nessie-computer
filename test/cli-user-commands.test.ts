@@ -62,8 +62,10 @@ const run = async (home: string, args: string[], platform: NodeJS.Platform = pro
   let err = ''
   const context: CliContext = { out: (text) => { out += text }, err: (text) => { err += text },
     stdin: Readable.from([]),
-    interactive: false, ask: async () => '', platform, home, now: () => new Date(), sleep: async () => undefined }
-  const exit = await runUserCli(args, { context, unpair, nameLookup: async (stateDir) => NAMES[stateDir] ?? {} })
+    interactive: false, ask: async () => '', platform, home, now: () => new Date(), sleep: async () => undefined,
+    run: async () => ({ code: null, stdout: '', stderr: '' }) }
+  const exit = await runUserCli(args, { context, unpair,
+    nameLookup: async (found) => (found.route === 'local' ? NAMES[found.stateDir] ?? {} : {}) })
   return { exit, out, err, json: () => JSON.parse(out) as unknown }
 }
 

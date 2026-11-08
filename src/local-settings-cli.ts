@@ -34,7 +34,8 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
     if (args.includes('--json')) process.stdout.write(`${JSON.stringify(rows)}\n`)
     else if (!rows.length) process.stdout.write('No teams are connected. Run nessie-computer connect to connect one.\n')
     else for (const row of rows) process.stdout.write(
-      `${row.organizationName ?? 'Server unavailable'} / ${row.teamName ?? 'Team unavailable'}\n  ${row.executorId} · ${row.apiBaseUrl}\n`,
+      `${[row.teamName, row.organizationName].filter(Boolean).join(' · ') || 'Team name not available yet'}\n`
+        + `  ${row.executorId} · ${new URL(row.apiBaseUrl).host}\n`,
     )
     return true
   }

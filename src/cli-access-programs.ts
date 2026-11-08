@@ -1,12 +1,10 @@
 import { formatExecutorCommandPattern, parseExecutorCommandPattern } from '@nessie/executor-protocol'
 
-import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
-import { saveAccess } from './cli-describe.js'
+import type { LocalCommandPolicy } from './command-policy.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
 import type { CliRun } from './cli-user.js'
 import type { ProgramTrust, ProgramTrustKey } from './program-trust.js'
-import { loadExecutorState } from './state-store.js'
 
 /**
  * `access programs`: the Programs section of the Access tab. Every change is
@@ -100,14 +98,15 @@ export const runAccessPrograms = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access programs')
   const [action = 'show', ...words] = operands(run.options, 2, 3, 'access programs')
   const team = await run.team()
-  const before = localCommandPolicyOf(await loadExecutorState(team.stateDir))
+  const ops = run.ops(team)
+  const before = (await ops.describe()).commandPolicy
   if (action === 'show') {
     if (words.length) throw new CliUsageError('access programs show takes nothing after it.', 'access programs')
     showPolicy(run, team.label, before)
     return
   }
   const after = changed(before, action, words)
-  const saved = localCommandPolicyOf(await saveAccess(team.stateDir, { commandPolicy: after }))
+  const saved = (await ops.save({ commandPolicy: after })).commandPolicy
   if (run.options.json) {
     printJson(run.context, saved)
     return

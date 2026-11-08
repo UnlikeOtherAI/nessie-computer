@@ -1,4 +1,4 @@
-import { describeTeamAt, saveAccess, type TeamDescription } from './cli-describe.js'
+import type { TeamDescription } from './cli-describe.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
 import type { CliRun } from './cli-user.js'
@@ -55,7 +55,8 @@ export const runAccessLocalApps = async (run: CliRun): Promise<void> => {
   const [action = 'list', name, extra] = operands(run.options, 2, 3, 'access local-apps')
   if (extra !== undefined) throw new CliUsageError('Name one local app at a time.', 'access local-apps')
   const team = await run.team()
-  const description = await describeTeamAt(team.stateDir)
+  const ops = run.ops(team)
+  const description = await ops.describe()
   if (action === 'list') {
     if (run.options.json) printJson(run.context, description.localApps)
     else run.context.out(description.localApps.length
@@ -68,13 +69,12 @@ export const runAccessLocalApps = async (run: CliRun): Promise<void> => {
     if (name === undefined || !app || app.source !== 'configured') {
       throw new CliRefusal('LOCAL_APP_NOT_ADDED', `${name ?? 'That app'} isn't a local app you added. Switch a found app off instead.`)
     }
-    await saveAccess(team.stateDir, { mcpServerRemovals: [name] })
-  } else if (action === 'on' || action === 'off' || action === 'all') {
-    await saveAccess(team.stateDir, { settings: { mcpPolicy: nextPolicy(description, action, name) } })
-  } else {
+  }
+  if (action !== 'remove' && action !== 'on' && action !== 'off' && action !== 'all') {
     throw new CliUsageError(`access local-apps has no "${action}". Use list, on, off, all or remove.`, 'access local-apps')
   }
-  const after = await describeTeamAt(team.stateDir)
+  const after = await ops.save(action === 'remove' ? { mcpServerRemovals: [name!] }
+    : { settings: { mcpPolicy: nextPolicy(description, action, name) } })
   if (run.options.json) printJson(run.context, after.localApps)
   else run.context.out(`Local apps on for ${team.label}: ${localAppsSummary(after)}.\n`)
 }

@@ -20,6 +20,11 @@ for them.
 
 Add as many plans as you have. Each one has its own name and sign-in.
 
+On Windows the Nessie Computer background service keeps a plan's sign-in. The
+first plan for a team therefore adds a **ChatGPT plan connection** for that
+team: Windows asks you to allow it, then Nessie shows one more pairing code to
+enter under **Computers → Add a computer**.
+
 ### Before you sign in
 
 While a ChatGPT plan is signed in, agents can't open terminals or coding tools

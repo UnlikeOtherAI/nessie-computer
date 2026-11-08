@@ -3,7 +3,7 @@
 `nessie-computer` does everything the Nessie Computer window does, with the
 same words. Use it on Linux, over SSH, or in scripts. On a Mac or PC it is
 installed with the app; the app and the command line control the same teams
-and settings.
+and settings, including the teams the Windows background service runs.
 
 `nessie-executor` is the same command under its older name. Scripts that use it
 keep working.
@@ -55,10 +55,21 @@ Sales · Acme can use:
   Coding assistants  can read and message Claude Code and Codex conversations
 ```
 
-## Tutorial: connect a Linux server
+## Who runs your teams
 
-On Windows, connect a team in the Nessie Computer app. Teams its background
-service runs can't be changed from the command line yet; use the app for them.
+Each team is run by one thing, so a team never runs twice:
+
+| Computer | Runs the teams |
+|---|---|
+| Windows | The Nessie Computer app runs teams connected under your account; the background service runs its own. |
+| Mac with the Nessie Computer app | The app, including teams you connect with `nessie-computer connect`. |
+| Mac without the app | A background service per team, which starts when you log in. |
+| Linux | A service per team, which starts at boot. |
+
+If you connected teams on a Mac from the command line before installing the
+app, the next `nessie-computer connect` moves them to the app.
+
+## Tutorial: connect a Linux server
 
 On the server (as the user the agents should run as):
 

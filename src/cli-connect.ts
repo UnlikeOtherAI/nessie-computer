@@ -2,6 +2,7 @@ import { approveExecutorPairingOrigin } from '@nessie/executor-protocol'
 
 import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, CliTimeout, CliUsageError, printJson, type CliContext } from './cli-output.js'
+import { retireMacLaunchAgent, startNewTeam } from './cli-team-runner.js'
 import { findPendingConnections, labelFor, selectTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { defaultExecutorWorkspaceFolders } from './default-workspace-folders.js'
@@ -11,13 +12,13 @@ import { localDevelopmentApiOrigin } from './pairing-origin.js'
 import { acquireExecutorProcessLease } from './process-lease.js'
 import { createExecutorServiceEnvironment, executorServiceStateRoot } from './service-environment.js'
 import { ensureOwnerOnlyStateDirectory } from './state-security.js'
-import { disableExecutorServiceIfPresent, enableExecutorService } from './service-linux.js'
-import { createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService } from './service-macos.js'
+import { disableExecutorServiceIfPresent } from './service-linux.js'
 
 /**
  * Connect a team and Disconnect, on the operations `login` and `unpair` use:
- * the pairing code client, the default pairing folder, and the Linux and
- * macOS services that run a command-line team in the background.
+ * the pairing code client and the default pairing folder. The new team is
+ * handed to whoever runs this computer's teams (`cli-team-runner.ts`): the
+ * app where it is installed, otherwise the command line's own service.
  */
 
 const POLL_MS = 3_000
@@ -36,24 +37,10 @@ const label = (view: PairingCodeView): string => labelFor(
   view.apiBaseUrl ? new URL(view.apiBaseUrl).host : '', [],
 )
 
-/** What runs a newly connected team: the user's systemd or launchd service, as `login` sets up. */
-const startService = async (context: CliContext, executorId: string): Promise<string> => {
-  if (context.platform === 'linux') {
-    await enableExecutorService({ executorId, assumeYes: true },
-      { ...createExecutorServiceEnvironment(), write: () => undefined })
-    return 'It starts at boot and keeps running after you log out.'
-  }
-  if (context.platform === 'darwin') {
-    await enableMacExecutorService({ executorId }, { ...createMacServiceEnvironment(), write: () => undefined })
-    return 'It runs in the background and starts when you log in.'
-  }
-  return ''
-}
-
 /** A pairing Nessie confirmed: moved to its own folder and started. */
 const finish = async (context: CliContext, directory: string, view: PairingCodeView): Promise<string> => {
   await promoteDefaultPairing(directory, view.executorId!)
-  return startService(context, view.executorId!)
+  return startNewTeam(context, view.executorId!)
 }
 
 export type PendingConnection = { code: string | null; expiresAt: string | null }
@@ -86,9 +73,6 @@ const connect = async (run: CliRun): Promise<void> => {
   const { context, options } = run
   acceptOnly(options, 'connect', ['--server', '--no-wait'])
   operands(options, 1, 0, 'connect')
-  if (context.platform === 'win32') {
-    throw new CliRefusal('CONNECT_IN_APP', 'On Windows, connect a team in the Nessie Computer app: open it and choose Connect a team.')
-  }
   const approved = approveExecutorPairingOrigin(options.values.get('--server') ?? 'nessie', {
     allowLocalDevelopment: process.env.NESSIE_EXECUTOR_ALLOW_LOCAL_API === '1',
     localDevelopmentOrigin: localDevelopmentApiOrigin(),
@@ -140,16 +124,15 @@ const disconnect = async (run: CliRun): Promise<void> => {
       + 'here are deleted. Your own files stay. Type yes to continue: ')
     if (answer.trim().toLowerCase() !== 'yes') throw new CliRefusal('NOT_CONFIRMED', 'Nothing was changed.')
   }
-  const lease = team.cliService ? await pairingLease(context.home) : null
+  const cliService = team.route === 'local' && team.cliService
+  const lease = cliService ? await pairingLease(context.home) : null
   try {
-    if (team.cliService && context.platform === 'darwin') {
-      await disableMacExecutorService({ executorId: team.executorId }, createMacServiceEnvironment())
-    }
-    if (team.cliService && context.platform === 'linux') {
+    if (cliService && context.platform === 'darwin') await retireMacLaunchAgent(context, team.executorId)
+    if (cliService && context.platform === 'linux') {
       await disableExecutorServiceIfPresent({ executorId: team.executorId },
         { ...createExecutorServiceEnvironment(), write: () => undefined })
     }
-    const result = await run.unpair(team.stateDir).catch((error: unknown) => {
+    const result = await run.ops(team).remove().catch((error: unknown) => {
       if (error instanceof Error && error.message.startsWith('This connection is running.')) {
         throw new CliRefusal('TEAM_RUNNING', `Nessie Computer is running ${team.label}. `
           + 'Disconnect it in the app, or quit the app and try again.')

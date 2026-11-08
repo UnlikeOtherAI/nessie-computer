@@ -43,15 +43,16 @@ In the Connect a team dialog choose **Use your organisation's own Nessie
 server**, enter the address your administrator gave you (for example
 `https://nessie.example.com`) and choose **Get code**. Then continue from step 3.
 
-## On a Linux computer or over SSH
+## From the command line
 
 ```sh
 nessie-computer connect
 ```
 
 The command prints the code and waits. Enter the code in Nessie as above. When
-Nessie accepts it, the command prints the team it connected to and starts it.
-See [Command line](Command-line#connect-a-linux-server).
+Nessie accepts it, the command prints the team it connected to and starts it:
+in the Nessie Computer app where it is installed, otherwise as a background
+service. See [Command line](Command-line#connect-a-linux-server).
 
 ## If you didn't expect a team
 
