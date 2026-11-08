@@ -10,6 +10,8 @@ import type {
   ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
+import type { T3LaneExchange, T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
+import type { T3EffectAuthorityCheck, T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
 
@@ -41,6 +43,10 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
+  t3EffectIssuerKeys: (baseUrl: string, options?: ExecutorSyncRequestOptions) => Promise<unknown>
+  checkT3EffectAuthority: (baseUrl: string, input: T3EffectAuthorityCheck,
+    options?: ExecutorSyncRequestOptions) => Promise<T3EffectAuthorityChecked>
+  exchangeT3SessionOperations: (baseUrl: string, input: T3LaneExchange) => Promise<T3LaneExchangeResult>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -210,6 +216,26 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
+    t3EffectIssuerKeys: (baseUrl, options) => request(normalizeUrl(baseUrl, '/.well-known/jwks.json'),
+      { method: 'GET', redirect: 'error' }, options?.timeoutMs ?? requestTimeoutMs, async response => {
+        if (!response.ok || !response.body) throw new ExecutorApiError('T3 issuer keys unavailable.')
+        const reader = response.body.getReader()
+        const chunks: Uint8Array[] = []
+        let length = 0
+        try {
+          for (;;) {
+            const chunk = await reader.read()
+            if (chunk.done) break
+            length += chunk.value.byteLength
+            if (length > 65_536) throw new ExecutorApiError('T3 issuer keys exceed their bound.')
+            chunks.push(chunk.value)
+          }
+          return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+        } finally { await reader.cancel().catch(() => undefined) }
+      }, options?.signal),
+    checkT3EffectAuthority: (baseUrl, input, options) =>
+      post(baseUrl, '/api/executor-daemon/t3/effect-authority', input, options?.timeoutMs, options?.signal),
+    exchangeT3SessionOperations: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/t3/operations', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,
