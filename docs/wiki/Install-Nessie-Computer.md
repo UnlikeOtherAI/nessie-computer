@@ -7,7 +7,7 @@ Downloads are on the [Releases page](https://github.com/UnlikeOtherAI/nessie-exe
 Each release lists its files with checksums in `PACKAGE-SHA256SUMS`.
 
 If you use **Nessie Desktop** on a Mac or PC, Nessie Computer is already
-included. Skip to [Connect a team](Connect-a-team).
+included. Skip to [Add this computer](Add-this-computer).
 
 ## Mac
 
@@ -63,4 +63,4 @@ fingerprint is `C2CDA17E5C87A0F3A22D0A511EEA727FD300D4B9`.
 
 ## Next
 
-[Connect a team](Connect-a-team).
+[Add this computer](Add-this-computer).

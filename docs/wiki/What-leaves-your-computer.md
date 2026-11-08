@@ -7,7 +7,7 @@ on the internet can connect in. This page lists what it sends, and what stays.
 
 | What | When | Why |
 |---|---|---|
-| The computer's name, system (for example macOS 26 on Apple silicon) and a public key | When you connect a team | So Nessie can show which computer it is and recognise it later |
+| The computer's name, system (for example macOS 26 on Apple silicon) and a public key | When you add this computer | So Nessie can show which computer it is and recognise it later |
 | A short "still here" signal, including **Paused** when you paused it | About every 20 seconds while running | So Nessie knows it is online |
 | The *names* of shared folders, local apps and the kinds of work the team allows | When you change access | So Nessie only sends work the computer accepts |
 | Readings such as CPU, memory, disk and the busiest program names | Only while someone with access has the computer's monitor open in Nessie | The computer monitor |

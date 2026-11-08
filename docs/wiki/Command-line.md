@@ -16,7 +16,7 @@ Commands follow the window:
 |---|---|
 | Overview | `nessie-computer status`, `teams`, `who` |
 | Settings → Help | `nessie-computer help`, `--version` |
-| Connect a team / Disconnect | `nessie-computer connect`, `disconnect` |
+| Add this computer / Disconnect | `nessie-computer add`, `disconnect` |
 | Pause / Resume | `nessie-computer pause`, `resume` |
 | Access tab | `nessie-computer access …` (`folders`, `programs`, `websites`, `local-apps`, `coding-assistants`) |
 | Documents tab | `nessie-computer documents …` |
@@ -55,16 +55,16 @@ Sales · Acme can use:
   Coding assistants  can read and message Claude Code and Codex conversations
 ```
 
-## Tutorial: connect a Linux server
+## Tutorial: add a Linux server
 
-On Windows, connect a team in the Nessie Computer app. Teams its background
+On Windows, add this computer in the Nessie Computer app. Teams its background
 service runs can't be changed from the command line yet; use the app for them.
 
 On the server (as the user the agents should run as):
 
 ```sh
-$ nessie-computer connect
-Pairing code: 4821 9037   (valid for 10 minutes)
+$ nessie-computer add
+Pairing code: 4821 9037   (valid for 5 minutes)
 In Nessie, open Computers and choose Add a computer, then enter the code.
 Waiting for Nessie…
 Connected to Sales · Acme.
@@ -74,7 +74,7 @@ It starts at boot and keeps running after you log out.
 For your organisation's own Nessie server:
 
 ```sh
-nessie-computer connect --server https://nessie.example.com
+nessie-computer add --server https://nessie.example.com
 ```
 
 Then decide what it may use:

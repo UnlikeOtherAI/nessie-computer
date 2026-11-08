@@ -52,14 +52,14 @@ nessie-computer who [--team <team>] [--json]
 Get a pairing code for a new team and wait until it's entered in Nessie.
 
 ```sh
-nessie-computer connect [--server <https://address>] [--no-wait] [--json]
+nessie-computer add [--server <https://address>] [--no-wait] [--json]
 ```
 - `--server` — your organisation's own Nessie (default `https://api.nessie.works`).
 - `--no-wait` — print the code and return; `status` shows when it's done.
 
 On Linux, a connected team starts at boot and keeps running after you log out.
 On a Mac it runs in the background and starts when you log in. On Windows,
-connect a team in the Nessie Computer app.
+add this computer in the Nessie Computer app.
 
 ### `disconnect`
 End a team's connection to this computer and delete its settings here. Your
@@ -269,7 +269,7 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 |---|---|
 | `describe --state-dir <dir>` | One team's full settings as JSON |
 | `configure --configuration-input-stdin --state-dir <dir>` | Save a team's settings from JSON |
-| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Connect a team dialog |
+| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Add this computer dialog |
 | `serve`, `connect`, `heartbeat --state-dir <dir>` | Running a team (services and the apps) |
 | `pause`, `resume --state-dir <dir>` | The app's Pause |
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
