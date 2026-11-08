@@ -41,7 +41,8 @@
     "test:t3-session-client-connection": "node --test --test-concurrency=1 test/t3-session-client-connection/urls.test.mjs",
     "test:t3-session-client-http-auth": "node --max-old-space-size=1536 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/http-auth.test.mjs",
     "test:t3-session-import-source": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/source.test.mjs test/t3-session-import/questions.test.mjs",
-    "test:t3-session-import": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/engine.test.mjs test/t3-session-import/privacy-destination.test.mjs test/t3-session-import/historical-questions.test.mjs test/t3-session-import/currentness.test.mjs"
+    "test:t3-session-import": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/engine.test.mjs test/t3-session-import/privacy-destination.test.mjs test/t3-session-import/historical-questions.test.mjs test/t3-session-import/currentness.test.mjs",
+    "test:t3-session-catalog": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-catalog/catalog.test.mjs test/t3-session-catalog/authority.test.mjs test/t3-session-catalog/history.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

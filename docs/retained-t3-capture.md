@@ -1,5 +1,10 @@
 # Retained T3 capture
 
+The source-only [catalog read composition](retained-t3-catalog.md) extends these
+guarded wrappers with original shell/archive/family/history operations. Physical,
+human, publication and actual transport bindings remain required; it grants no
+new authority and changes no historical privacy classification.
+
 This is a machine-only, unbound passive importer. It adds no daemon capability,
 bridge adoption, provider, lifecycle, transport, native payload or UI. It does not
 make retained sessions reachable in Nessie. Local data completion does not mean
