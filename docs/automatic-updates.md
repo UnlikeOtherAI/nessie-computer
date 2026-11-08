@@ -501,6 +501,19 @@ Major upgrades remove the old product inside the MSI transaction, after
 the original signed MSI. A transform may inject a failure only in a separate
 rollback test, and that result is not an ordinary installation pass.
 
+The setup custom actions (`--secure-state-root`, `--secure-updater-root`,
+`--disable-updater-for-removal`) keep only an exit code in the MSI log, so a
+refusal is also written to the Windows Application event log under the source
+`Nessie Computer Setup`, as one line led by a stable code: for example
+`updater_setup.helper_refused helper=update.installed_tray_unverified exit=1`.
+`helper=` is the native helper's own code. `update.installed_tray_unverified`
+and `update.installed_service_unverified` mean that file in the release folder
+is not the one the new manifest names. A Windows app still running from the
+previous install causes the first: Windows Installer replaces a file in use only
+at the next restart. Read it with Event Viewer, or in Windows PowerShell:
+`Get-WinEvent -LogName Application -FilterXPath "*[System[Provider[@Name='Nessie Computer Setup']]]" -MaxEvents 5`.
+The line carries codes only, never a path, key or child-process output.
+
 The native protected-image pin requests READ_CONTROL for its retained handle.
 Creator-owner inheritance-only ACEs do not grant access to the parent; actual
 files remain independently checked. SYSTEM installer setup may run in the active
