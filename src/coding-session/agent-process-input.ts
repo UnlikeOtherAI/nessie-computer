@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process'
 import { automaticProviderReply } from './effect-channel.js'
 import { effectTransport } from './effect-transport.js'
 import { SessionEffectRefused, type SessionEffectAuthority } from './session-effect-authority.js'
+import { isT3EffectScope } from './session-effect-scope.js'
 
 /** A write callback acknowledges the pipe, never provider consumption. No late callback revives a failed write. */
 export const writeAgentPipe = (child: ChildProcess, text: string): Promise<void> => new Promise((resolve, reject) => {
@@ -41,6 +42,7 @@ export const createAgentProcessInput = (child: ChildProcess) => {
   }
   const send = (text: string, protocol: boolean, effect?: SessionEffectAuthority): Promise<void> => (
     enqueue(async () => {
+      if (effect && isT3EffectScope(effect.scope)) throw new SessionEffectRefused()
       if (protocol && !automaticProviderReply(text)) throw new SessionEffectRefused()
       const transport = effectTransport(child)
       if (transport) return transport.broker.send(protocol ? 'reply' : 'input', text, effect)
@@ -53,6 +55,7 @@ export const createAgentProcessInput = (child: ChildProcess) => {
     write: (text: string, effect?: SessionEffectAuthority) => send(text, false, effect),
     writeProtocol: (text: string) => send(text, true),
     endInput: (end: () => void, effect?: SessionEffectAuthority): Promise<void> => enqueue(async () => {
+      if (effect && isT3EffectScope(effect.scope)) throw new SessionEffectRefused()
       const transport = effectTransport(child)
       if (transport) await transport.broker.send('end', '', effect)
       else { await effect?.consume(); effect?.assertLive() }
