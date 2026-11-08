@@ -51,6 +51,12 @@ initiation. Runtime control slots require admitted provenance. Neither this
 metadata nor a read/import grant authorizes native launch; the verified native
 association producer remains a separate prerequisite.
 
+The shared `requestTargets` accepts the original correlated method/input union
+before routing is attached. Tool ingress can therefore admit every decoded
+target before resolving the signed lane, without inventing an epoch or runtime
+generation. An optional original source-thread hint still has to match a target;
+it never replaces the full target set.
+
 `createT3CatalogPublicationTransport` sends bounded metadata pages and completion
 through the same paired API client and `t3_catalog` signature domain. It checks
 receipts and epoch changes. It does not enumerate a local source: the concrete
