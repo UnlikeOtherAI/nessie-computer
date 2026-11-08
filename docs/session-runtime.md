@@ -146,8 +146,8 @@ These are concrete runtime composition work, including for an empty secret plan:
 | `ProviderInstanceRegistry.buildEntry` / `registryView` | Shared single-entry construction is authored below. Bind it inside the same recognized engine owner; global reconciliation remains excluded. Nonempty plans still require the safe native read producer. |
 | `CodexDriver.create` / `makeCodexAdapterV2` | Selected construction and the protected client factory are authored below. Real `ManagedServerProvider`, `ProviderTextGeneration`, installation compatibility, environment and original FileSystem/config/MCP services remain required. No synthetic snapshot, text generator or ambient executable lookup is supplied. |
 | `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
-| `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. Persisted `effect.commandId` must survive `EffectWorker` dispatch and reach the original adapter. |
-| `ThreadLaunchService` initial-message dispatch | Capture and scoped recorders are implemented below. Use the same source context during activation; carry persisted `effect.commandId` separately through TurnStart. |
+| `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. The original executor supplies persisted effect identity in fiber context; bind it to admitted TurnStart and the writer. |
+| `ThreadLaunchService` initial-message/preparation dispatch | Initial-message, accepted-run and release capture are implemented below. Use the same source context during activation and consume separate real admission before claim. |
 | `SessionEngineLifecycle` | Bind recovery and worker execution to live original admission before running imported pending effects. Use the existing graph scope/memo, and drain providers before state revocation. |
 
 These ports remain runtime-owned. The missing native secret channel producer and
@@ -250,10 +250,11 @@ to start a provider for some later command. Retired original parent IDs cannot
 register again in that source owner. Source abort closes every recorder; one
 reservation's normal closure leaves other registered commands independent.
 
-This records original command creation only. It derives no child ID from a
+This records original command/run relationships. It derives no child ID from a
 suffix, changes no internal run-event command, and supplies no admission or
-effect/process grant. The persisted outbox `effect.commandId`, preclaim admission,
-TurnStart and post-association writer still require their actual composition.
+effect/process grant. Persisted outbox identity is carried separately below;
+preclaim admission, TurnStart and the post-association writer still require their
+actual composition.
 Production `open` continues to refuse. No recovery or imported-outbox claim is
 enabled by this change.
 
@@ -300,7 +301,7 @@ run. Neither the initial-message suffix nor the generated run-event command can
 stand in for that relationship. The current metadata preserves the actual outbox
 command without inventing this missing admission binding.
 
-The current ten-family manifest has 280 extraction and 36 privacy operations,
+The effect-command checkpoint's ten-family manifest has 280 extraction and 36 privacy operations,
 SHA-256 `5fe4759931981dfcce7b7475647ff639b730f2032b2d457f6f0cfcbb059fdabc`.
 Maxis/Node 24.19.0 passed the six-task strict producer/protocol/CLI build,
 15 producer checks, 14 privacy checks, 37 source fixtures, 13 engine cases and
@@ -310,6 +311,45 @@ and nested contexts, failure and interrupted cleanup. They start no worker and
 claim no outbox rows. The composite consumer still reached 77 contract
 declarations and zero dependency implementations. Native and installed flows
 remain unqualified.
+
+## Accepted preparation predecessor
+
+After the original initial dispatch returns its durable `run.created` event,
+`recordInitialMessageRun` records that exact run with the already captured parent,
+message command, thread and message. A missing durable run follows the original
+launch error path. It never creates a run ID or treats creation as acceptance.
+
+At the original `prepared-run.release` creation point, the source records the
+actual release command and its parent/thread/run before dispatch. Only a
+successful original dispatch calls `recordPreparedRunReleased`. The existing
+uninterruptible SQL dispatch and `runReleased` cleanup marker are unchanged;
+the accepted-release observation happens afterward. Ordinary original launch
+keeps its behavior without the protected recorder.
+
+The reservation recorder requires that same accepted initial run. Exact replay
+retains the original edges; a different run, message, release command or parent
+permanently closes the recorder. The shared registry indexes the actual release
+command after observing creation, but exposes recognition only after dispatch
+success. A worker lookup in the commit-to-observation interval refuses without
+closing the still-preparing reservation. A release command cannot be retargeted
+to another registered parent.
+
+`recognizeProviderTurnStart` matches the actual outbox command, thread and
+`provider-turn.start` run against that accepted release. It returns the same
+scoped recorder, not a grant or a claim callback. Source loss and reservation
+closure still revoke it. Current original admission and a fresh finite effect
+consumer remain required before any outbox claim; none is manufactured from
+these relationships. The production worker/open path remains unavailable.
+
+The current ten-family replay has 283 extraction and 36 privacy operations,
+SHA-256 `89878462d70635375fd17d557cd4b6f660ce17a0c2ebcf292573e2777f5b92c3`.
+On Maxis/Node 24.19.0, the strict six-task producer/protocol/CLI build passed;
+15 producer checks, 14 privacy checks, 40 actual-source fixtures, 13 engine and
+94 runtime cases passed with zero skips. Added fixtures execute the verified
+original accepted-run/release fragments and cover substituted predecessors,
+unobserved release success, exact replay, concurrent lookup and scope loss.
+The composite consumer still reached 77 contract declarations and zero
+dependency implementations. No native executor binary or provider was launched.
 
 ## Composition and ownership
 

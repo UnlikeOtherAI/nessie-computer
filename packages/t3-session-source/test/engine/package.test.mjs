@@ -95,12 +95,14 @@ test('runtime/type/notices provenance binds generated package files and excludes
   const dist = resolve(root, 'dist')
   const provenance = JSON.parse(await readFile(resolve(dist, 'engine.provenance.json'), 'utf8'))
   const hash = bytes => createHash('sha256').update(bytes).digest('hex')
+  const contractsProvenance = JSON.parse(await readFile(resolve(dist, 'provenance.json'), 'utf8'))
+  assert.equal(contractsProvenance.publicationAdapterSha256, hash(await readFile(resolve(root, 'publish.mjs'))))
   assert.equal(provenance.kind, 'session-engine-package')
   assert.equal(provenance.qualification.distributableLibrary, true)
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '5fe4759931981dfcce7b7475647ff639b730f2032b2d457f6f0cfcbb059fdabc')
+    '89878462d70635375fd17d557cd4b6f660ce17a0c2ebcf292573e2777f5b92c3')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   for (const file of provenance.modules) {
     const bytes = await readFile(resolve(dist, file.path))

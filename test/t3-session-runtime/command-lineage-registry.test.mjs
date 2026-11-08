@@ -54,3 +54,43 @@ test('reservation abort retires only its recorder while source abort revokes eve
   assert.throws(() => registry.register({ commandId: 'new', threadId: 'thread' },
     async () => {}, new AbortController().signal), /T3_SESSION_COMMAND_LINEAGE_REFUSED/u)
 })
+
+const releaseEdge = parentCommandId => ({ parentCommandId, commandId: `independent-release-${parentCommandId}`,
+  threadId: 'thread', runId: `run-${parentCommandId}` })
+const recordRun = async (registry, parent) => {
+  await Effect.runPromise(registry.service.recordInitialMessage(edge(parent)))
+  await Effect.runPromise(registry.service.recordInitialMessageRun({ ...edge(parent), runId: `run-${parent}` }))
+}
+
+test('release recognition waits for original dispatch success without closing a still-preparing reservation', async () => {
+  const registry = makeSessionCommandLineageRegistry(new AbortController().signal)
+  const owner = registry.register({ commandId: 'parent', threadId: 'thread' },
+    async () => {}, new AbortController().signal)
+  await recordRun(registry, 'parent')
+  const release = releaseEdge('parent')
+  const effect = { commandId: release.commandId, threadId: 'thread',
+    request: { type: 'provider-turn.start', runId: release.runId } }
+  await Effect.runPromise(registry.service.recordPreparedRunRelease(release))
+  await refused(registry.recognizeProviderTurnStart(effect))
+  await Effect.runPromise(owner.assertInitialMessage('thread'))
+  await Effect.runPromise(registry.service.recordPreparedRunReleased(release))
+  assert.equal(await Effect.runPromise(registry.recognizeProviderTurnStart(effect)), owner)
+  owner.close()
+  await refused(registry.recognizeProviderTurnStart(effect))
+  registry.close()
+})
+
+test('the same actual release command cannot be retargeted to a different accepted parent or run', async () => {
+  const registry = makeSessionCommandLineageRegistry(new AbortController().signal)
+  const first = registry.register({ commandId: 'first', threadId: 'thread' }, async () => {}, new AbortController().signal)
+  registry.register({ commandId: 'second', threadId: 'thread' }, async () => {}, new AbortController().signal)
+  await recordRun(registry, 'first')
+  await recordRun(registry, 'second')
+  const release = releaseEdge('first')
+  await Effect.runPromise(registry.service.recordPreparedRunRelease(release))
+  await refused(registry.service.recordPreparedRunRelease({ ...releaseEdge('second'), commandId: release.commandId }))
+  await Effect.runPromise(registry.service.recordPreparedRunReleased(release))
+  assert.equal(await Effect.runPromise(registry.recognizeProviderTurnStart({ commandId: release.commandId,
+    threadId: 'thread', request: { type: 'provider-turn.start', runId: release.runId } })), first)
+  registry.close()
+})

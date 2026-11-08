@@ -397,7 +397,7 @@ owners, installed custody, gateway and original-client/mobile parity remain open
 The combined request verifier preserves producer `15611588af2ffe71b426b3989a7cee0fd66a04d8`
 as historical evidence and separately binds the current producer and extraction
 bytes. It includes client registry and finite host patch families before extraction.
-The request-only fixture omits the later workspace family by design. The current
+The request-only fixture omits the later workspace family by design. The portable-declaration checkpoint's
 ten-family replay is `a374fe2b145222844305c7798f49f2688644f474335eef1e3ba937b8a3b975fa`;
 272 extraction and 36 privacy operations cover both Codex adapters, including
 the type-only export of the existing original Codex raw-client interface. The reviewed
@@ -422,3 +422,32 @@ former read of `dist/source/orchestrationV2.ts`. Its original source digest and
 metadata digest are part of package provenance; the protocol generator verifies
 both before its unchanged ledger classification. Source implementations remain
 absent from the consumer declaration tree.
+
+## Completed-generation publication
+
+The source producer writes and verifies a complete generation below
+`.artifacts/package-builds` before changing `dist`. Publication moves the old
+directory aside and promotes the completed generation; previous and failed
+generations are retained. On Windows, `EPERM`, `EACCES` and `EBUSY` can reflect a
+brief reader/scanner lock. The publisher retries the same directory rename for
+at most five seconds. Other errors and non-Windows permission failures propagate
+immediately. It never copies files over a live output or relaxes permissions.
+
+A failed promotion restores the previous complete output. If restoration also
+fails, both errors are reported and both directories remain available for
+recovery. Inputs outside the package generation directory refuse before any
+move. Package provenance binds the publication adapter's bytes; the focused
+`test:t3-session-source` gate exercises real directory transitions with injected
+OS error codes, including deadline exhaustion and rollback failure. This is a
+machine-only build boundary and supplies no installed/native trust evidence.
+
+Maxis/Node 24.19.0 passed all 11 package-source cases, including seven publication
+cases. A separate real Windows probe held `dist` with `FILE_LIST_DIRECTORY` and
+`FILE_SHARE_READ` only. Publication waited until the handle closed, finished in
+437 ms and retained both complete generation contents. The probe used publisher
+SHA-256 `e0c177c7fea7ea19b1140225f1fff0969fd2ad1104b531368c706c8a84d61808`;
+its synthetic files and evidence remain outside the checkout under
+`D:/BuildArtifacts/nessie/t3-7a4698a9-verification/package-publication-2df33b01-3a93-49e0-b526-fb910ec3b779`.
+The full six-task source/protocol/CLI build subsequently passed publication,
+followed by 13 engine and 94 runtime cases with zero skips. The failed earlier
+generation is preserved; no output was deleted to recover the build.

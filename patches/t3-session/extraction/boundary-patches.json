@@ -1743,11 +1743,11 @@
       "file": "apps/server/src/orchestration-v2/SessionCommandLineage.ts",
       "create": [
         {
-          "text": "import type { CommandId, MessageId, ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type * as Effect from \"effect/Effect\";\n\nexport interface InitialMessageCommandEdge {\n  readonly parentCommandId: CommandId;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly messageId: MessageId;\n}\nexport class SessionCommandLineageError extends Error {\n  constructor() { super(\"T3_SESSION_COMMAND_LINEAGE_REFUSED\"); this.name = \"SessionCommandLineageError\"; }\n}\n/** Required only by the protected session variant. Observing an edge grants no effects. */\nexport class SessionCommandLineage extends Context.Service<SessionCommandLineage, {\n  readonly recordInitialMessage: (edge: InitialMessageCommandEdge) => Effect.Effect<void, SessionCommandLineageError>;\n}>()(\"nessie/session-engine/SessionCommandLineage\") {}\n"
+          "text": "import type { CommandId, MessageId, RunId, ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type * as Effect from \"effect/Effect\";\n\nexport interface InitialMessageCommandEdge {\n  readonly parentCommandId: CommandId;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly messageId: MessageId;\n}\nexport interface InitialMessageRunEdge extends InitialMessageCommandEdge {\n  readonly runId: RunId;\n}\nexport interface PreparedRunReleaseCommandEdge {\n  readonly parentCommandId: CommandId;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly runId: RunId;\n}\nexport class SessionCommandLineageError extends Error {\n  constructor() { super(\"T3_SESSION_COMMAND_LINEAGE_REFUSED\"); this.name = \"SessionCommandLineageError\"; }\n}\n/** Required only by the protected session variant. Observing an edge grants no effects. */\nexport class SessionCommandLineage extends Context.Service<SessionCommandLineage, {\n  readonly recordInitialMessage: (edge: InitialMessageCommandEdge) => Effect.Effect<void, SessionCommandLineageError>;\n  readonly recordInitialMessageRun: (edge: InitialMessageRunEdge) => Effect.Effect<void, SessionCommandLineageError>;\n  readonly recordPreparedRunRelease: (edge: PreparedRunReleaseCommandEdge) => Effect.Effect<void, SessionCommandLineageError>;\n  readonly recordPreparedRunReleased: (edge: PreparedRunReleaseCommandEdge) => Effect.Effect<void, SessionCommandLineageError>;\n}>()(\"nessie/session-engine/SessionCommandLineage\") {}\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "4f3401aaff4853bd9d3bd31fbf885657045eab43785b30ccf449cd87131e3dbd"
+      "afterSha256": "f47a7a9e3bf548972ad1f4eb6511c01d1bb2290e7232d0c68f9dda65b47b4ad8"
     },
     {
       "id": "original-command-lineage-import",
@@ -1774,12 +1774,36 @@
       "afterSha256": "0daaf9c76de3d360c4f644fc28c735514114dc76b7c60370ffb40fc061eb4ece"
     },
     {
+      "id": "original-command-lineage-accepted-run",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "            )(\"Initial message was accepted without a durable run.\");\n          }",
+      "to": "            )(\"Initial message was accepted without a durable run.\");\n          }\n          if (lineage !== undefined) {\n            yield* lineage.recordInitialMessageRun({\n              parentCommandId: input.commandId, commandId: messageCommandId, threadId, messageId, runId,\n            }).pipe(Effect.mapError(mapError(input, \"dispatch-message\", threadId)));\n          }",
+      "beforeSha256": "0daaf9c76de3d360c4f644fc28c735514114dc76b7c60370ffb40fc061eb4ece",
+      "afterSha256": "12f4732b86481d5528c4d347ab175fc1af3261059d82b21cd6d8e59003f48320"
+    },
+    {
+      "id": "original-command-lineage-before-prepared-release",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "      if (runId !== null) {\n        yield* threads\n          .dispatch({\n            type: \"prepared-run.release\",\n            commandId: CommandId.make(`${input.commandId}:release`),",
+      "to": "      if (runId !== null) {\n        const releaseCommandId = CommandId.make(`${input.commandId}:release`);\n        if (lineage !== undefined) {\n          yield* lineage.recordPreparedRunRelease({\n            parentCommandId: input.commandId, commandId: releaseCommandId, threadId, runId,\n          }).pipe(Effect.mapError(mapError(input, \"release-run\", threadId)));\n        }\n        yield* threads\n          .dispatch({\n            type: \"prepared-run.release\",\n            commandId: releaseCommandId,",
+      "beforeSha256": "12f4732b86481d5528c4d347ab175fc1af3261059d82b21cd6d8e59003f48320",
+      "afterSha256": "568cd19e860dc9920977d3b04ef761d9f668b6716dd55b543f3dca6d2b6bfc3d"
+    },
+    {
+      "id": "original-command-lineage-accepted-release",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "            Effect.uninterruptible,\n          );\n      }\n      yield* setupTracker.stageStatus(threadId, \"agent\", \"done\");",
+      "to": "            Effect.uninterruptible,\n          );\n        if (lineage !== undefined) {\n          yield* lineage.recordPreparedRunReleased({\n            parentCommandId: input.commandId, commandId: releaseCommandId, threadId, runId,\n          }).pipe(Effect.mapError(mapError(input, \"release-run\", threadId)));\n        }\n      }\n      yield* setupTracker.stageStatus(threadId, \"agent\", \"done\");",
+      "beforeSha256": "568cd19e860dc9920977d3b04ef761d9f668b6716dd55b543f3dca6d2b6bfc3d",
+      "afterSha256": "57cb755a1476ae64e4169b3b5951358065afb696999894db6b28dfe668c1b5a2"
+    },
+    {
       "id": "original-command-lineage-required-session-layer",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "export const layer = Layer.effect(ThreadLaunchService, make);",
       "to": "export const layer = Layer.effect(ThreadLaunchService, makeWithCommandLineage());\n/** Same original constructor, with a real scoped lineage owner required. */\nexport const sessionLayer = Layer.effect(ThreadLaunchService, Effect.gen(function* () {\n  return yield* makeWithCommandLineage(yield* SessionCommandLineage);\n}));",
-      "beforeSha256": "0daaf9c76de3d360c4f644fc28c735514114dc76b7c60370ffb40fc061eb4ece",
-      "afterSha256": "07bc6624e3d0de3876a94e79e22cebf1237c1cdf537941608ae494639830b04b"
+      "beforeSha256": "57cb755a1476ae64e4169b3b5951358065afb696999894db6b28dfe668c1b5a2",
+      "afterSha256": "901af6cc3b003200a676d5a2dd5b647fee20d723204e81b94bf5107b3acb2b65"
     },
     {
       "id": "original-effect-command-context",
@@ -2998,80 +3022,80 @@
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.ts\";",
       "to": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.session-port.ts\";",
-      "beforeSha256": "07bc6624e3d0de3876a94e79e22cebf1237c1cdf537941608ae494639830b04b",
-      "afterSha256": "28fa8085ed30baa3d95531a3bcad63983e56f6c8c383cb1784a37a31203c3432"
+      "beforeSha256": "901af6cc3b003200a676d5a2dd5b647fee20d723204e81b94bf5107b3acb2b65",
+      "afterSha256": "db4f095fe6b43d33331d9d6aac1d063216d664f052dcebeb4a139020923dcd86"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/terminal/Manager.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as TerminalManager from \"../terminal/Manager.ts\";",
       "to": "import * as TerminalManager from \"../terminal/Manager.session-port.ts\";",
-      "beforeSha256": "28fa8085ed30baa3d95531a3bcad63983e56f6c8c383cb1784a37a31203c3432",
-      "afterSha256": "5a0f06a0548a4bfe867365ecaa31f62d7a659c354dde32d60eb2635bf7beb927"
+      "beforeSha256": "db4f095fe6b43d33331d9d6aac1d063216d664f052dcebeb4a139020923dcd86",
+      "afterSha256": "7078e5997dde268681e9414c308be55ed70efcc5b83eaafbaf13d15e10aa9cdd"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/git/GitWorkflowService.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as GitWorkflow from \"../git/GitWorkflowService.ts\";",
       "to": "import * as GitWorkflow from \"../git/GitWorkflowService.session-port.ts\";",
-      "beforeSha256": "5a0f06a0548a4bfe867365ecaa31f62d7a659c354dde32d60eb2635bf7beb927",
-      "afterSha256": "d36c4b745f4ed38011d510a24bd1b9fb7df476e09b54be43aa71631ee0b76709"
+      "beforeSha256": "7078e5997dde268681e9414c308be55ed70efcc5b83eaafbaf13d15e10aa9cdd",
+      "afterSha256": "abab0448f10089218664e6976eb063244b91d5bec8c2a75c638352a3da6d855e"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectService.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ProjectService from \"../project/ProjectService.ts\";",
       "to": "import * as ProjectService from \"../project/ProjectService.session-port.ts\";",
-      "beforeSha256": "d36c4b745f4ed38011d510a24bd1b9fb7df476e09b54be43aa71631ee0b76709",
-      "afterSha256": "ada66a9fc9d6358eac08848297661b49203dbf37c7d86271e838ad2a67cdb811"
+      "beforeSha256": "abab0448f10089218664e6976eb063244b91d5bec8c2a75c638352a3da6d855e",
+      "afterSha256": "739581c020a86367519e02c37e0514e45fd0b82f16dabc7f49a0c7d17fcd1c28"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectSetupScriptRunner.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.ts\";",
       "to": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.session-port.ts\";",
-      "beforeSha256": "ada66a9fc9d6358eac08848297661b49203dbf37c7d86271e838ad2a67cdb811",
-      "afterSha256": "eb8919d540a69dcc201656cc7a8c23f706d16021f5c4d5b4849b398b59027430"
+      "beforeSha256": "739581c020a86367519e02c37e0514e45fd0b82f16dabc7f49a0c7d17fcd1c28",
+      "afterSha256": "fe96bb0e96ae43ba590ff50ca1006474adf8f9c789ef3ec6d3ea603fb916c7bb"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ManagedProjectFolders.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.ts\";",
       "to": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.session-port.ts\";",
-      "beforeSha256": "eb8919d540a69dcc201656cc7a8c23f706d16021f5c4d5b4849b398b59027430",
-      "afterSha256": "110a2354f8561e900ddc2da472c946b2bf16bf7c201feb8ccb0367e55d950946"
+      "beforeSha256": "fe96bb0e96ae43ba590ff50ca1006474adf8f9c789ef3ec6d3ea603fb916c7bb",
+      "afterSha256": "2a043435429a73d61014a0ea664a783a7023c60b8d67acd8f2c82caca0eb2afa"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/provider/ProviderRegistry.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ProviderRegistry from \"../provider/ProviderRegistry.ts\";",
       "to": "import * as ProviderRegistry from \"../provider/ProviderRegistry.session-port.ts\";",
-      "beforeSha256": "110a2354f8561e900ddc2da472c946b2bf16bf7c201feb8ccb0367e55d950946",
-      "afterSha256": "0fb722b948d6723f99ee9fb15f84a3de64ff6f37292d794c99b7ad6096e6138f"
+      "beforeSha256": "2a043435429a73d61014a0ea664a783a7023c60b8d67acd8f2c82caca0eb2afa",
+      "afterSha256": "657088ae33c1836cfac86c026d92a925993e6e02cf1a5170553300a81d6ae496"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "0fb722b948d6723f99ee9fb15f84a3de64ff6f37292d794c99b7ad6096e6138f",
-      "afterSha256": "db211f20e00efe5f4b87d5c58e0b299022cb0ceb91c39de2d057e0a07a15e0ef"
+      "beforeSha256": "657088ae33c1836cfac86c026d92a925993e6e02cf1a5170553300a81d6ae496",
+      "afterSha256": "5c141ba4bf9f93a127aeca4e01fa01d1399a070a8a0930f7d6ee23201cc74ecb"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/textGeneration/TextGeneration.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as TextGeneration from \"../textGeneration/TextGeneration.ts\";",
       "to": "import * as TextGeneration from \"../textGeneration/TextGeneration.session-port.ts\";",
-      "beforeSha256": "db211f20e00efe5f4b87d5c58e0b299022cb0ceb91c39de2d057e0a07a15e0ef",
-      "afterSha256": "b65c62be1c8d4c055de4297cf011535a3809e4a791e06ceeba38d27caa050006"
+      "beforeSha256": "5c141ba4bf9f93a127aeca4e01fa01d1399a070a8a0930f7d6ee23201cc74ecb",
+      "afterSha256": "9dd981f01130c0260a7105f60cb3567b271e4e62da389a52f689d44e96bb50ed"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ThreadManagement from \"./ThreadManagementService.ts\";",
       "to": "import * as ThreadManagement from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "b65c62be1c8d4c055de4297cf011535a3809e4a791e06ceeba38d27caa050006",
-      "afterSha256": "56f6f42f23ab81a8d20c3d3d37419df7f8c7d5ed74dacf86837b06f8269717dc"
+      "beforeSha256": "9dd981f01130c0260a7105f60cb3567b271e4e62da389a52f689d44e96bb50ed",
+      "afterSha256": "9baec4be736b54657d32e62a6c4e33f9cacf8642b9f1d83671a3e6ecc4bdeb98"
     },
     {
       "id": "port-import:apps/server/src/background/BackgroundPolicy.ts:apps/server/src/serverSettings.ts",

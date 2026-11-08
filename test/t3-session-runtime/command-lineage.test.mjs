@@ -12,6 +12,17 @@ const fixture = recheck => {
   return { owner, stop, record: next => Effect.runPromise(owner.service.recordInitialMessage(next ?? edge)) }
 }
 const refused = async effect => assert.equal((await Effect.runPromise(Effect.result(effect)))._tag, 'Failure')
+const runEdge = Object.freeze({ ...edge, runId: 'original-run' })
+const release = Object.freeze({ parentCommandId: edge.parentCommandId, threadId: edge.threadId,
+  runId: runEdge.runId, commandId: 'unrelated-spelling-for-actual-release' })
+const startEffect = Object.freeze({ commandId: release.commandId, threadId: edge.threadId,
+  request: Object.freeze({ type: 'provider-turn.start', runId: runEdge.runId }) })
+const recordRelease = async f => {
+  await f.record()
+  await Effect.runPromise(f.owner.service.recordInitialMessageRun(runEdge))
+  await Effect.runPromise(f.owner.service.recordPreparedRunRelease(release))
+  await Effect.runPromise(f.owner.service.recordPreparedRunReleased(release))
+}
 
 test('original edge accepts exact replay without deriving child IDs from spelling', async () => {
   let checks = 0
@@ -76,4 +87,60 @@ test('Effect cancellation during a source check closes the owner before late com
   await finished.promise
   await refused(f.owner.service.recordInitialMessage(edge))
   await refused(f.owner.assertInitialMessage('thread'))
+})
+
+test('accepted initial run and release allow only the original start-effect metadata, with exact replay', async () => {
+  const f = fixture()
+  try {
+    await recordRelease(f)
+    await recordRelease(f)
+    await Effect.runPromise(f.owner.assertProviderTurnStart(startEffect))
+  } finally { f.owner.close() }
+})
+
+test('accepted-run substitution cannot replace the original message, command, thread or run', async () => {
+  for (const key of Object.keys(runEdge)) {
+    const f = fixture()
+    await f.record()
+    await Effect.runPromise(f.owner.service.recordInitialMessageRun(runEdge))
+    await refused(f.owner.service.recordInitialMessageRun({ ...runEdge, [key]: 'replacement' }))
+    await refused(f.owner.service.recordInitialMessageRun(runEdge))
+  }
+})
+
+test('release creation needs the accepted run and release success needs that exact creation', async () => {
+  for (const stage of ['missing-run', 'missing-release', 'wrong-run', 'wrong-release']) {
+    const f = fixture()
+    await f.record()
+    if (stage !== 'missing-run') await Effect.runPromise(f.owner.service.recordInitialMessageRun(runEdge))
+    if (stage === 'wrong-release') await Effect.runPromise(f.owner.service.recordPreparedRunRelease(release))
+    const operation = stage === 'missing-release' || stage === 'wrong-release'
+      ? f.owner.service.recordPreparedRunReleased({ ...release,
+        ...(stage === 'wrong-release' ? { commandId: 'replacement' } : {}) })
+      : f.owner.service.recordPreparedRunRelease({ ...release,
+        ...(stage === 'wrong-run' ? { runId: 'replacement' } : {}) })
+    await refused(operation)
+    await refused(f.owner.service.recordInitialMessageRun(runEdge))
+  }
+})
+
+test('a start-effect command, thread, run or type substitution is terminal for that reservation', async () => {
+  for (const replacement of [{ commandId: edge.commandId }, { threadId: 'other-thread' },
+    { request: { type: 'provider-turn.start', runId: 'other-run' } },
+    { request: { type: 'provider-turn.restart', runId: runEdge.runId } }]) {
+    const f = fixture()
+    await recordRelease(f)
+    await refused(f.owner.assertProviderTurnStart({ ...startEffect, ...replacement }))
+    await refused(f.owner.assertProviderTurnStart(startEffect))
+  }
+})
+
+test('accepted release metadata cannot survive original source loss or reservation closure', async () => {
+  for (const stop of ['source', 'close']) {
+    const f = fixture()
+    await recordRelease(f)
+    if (stop === 'source') f.stop.abort()
+    else f.owner.close()
+    await refused(f.owner.assertProviderTurnStart(startEffect))
+  }
 })

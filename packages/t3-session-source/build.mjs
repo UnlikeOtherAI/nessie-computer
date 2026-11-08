@@ -1,6 +1,6 @@
 // Build-time dependency extraction. Never imports or executes the T3 server.
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import ts from 'typescript'
@@ -13,6 +13,7 @@ import { extractT3RawHttp } from './routes.mjs'
 import { extractT3CommandInventory } from './inventory.mjs'
 import { ensurePinnedSourceObject } from './cache.mjs'
 import { writeContractDeclarationEntries } from '../../packaging/session-engine/declarations.mjs'
+import { publishSessionPackage } from './publish.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const output = resolve(root, '.artifacts/package-builds', randomUUID())
@@ -123,6 +124,7 @@ const provenance = {
   dependencyLockSha256: digest(await readFile(new URL('../../pnpm-lock.yaml', import.meta.url))),
   declarationsSha256: digest(JSON.stringify(declarations)), declarations,
   adapterSha256: digest(await readFile(fileURLToPath(import.meta.url))),
+  publicationAdapterSha256: digest(await readFile(new URL('./publish.mjs', import.meta.url))),
   coBuildAdapterSha256: digest(await readFile(resolve(root, 'input.mjs'))),
   cacheAdapterSha256: digest(await readFile(resolve(root, 'cache.mjs'))),
   rawHttpRoutesSha256: digest(JSON.stringify(rawHttpRoutes)),
@@ -134,9 +136,4 @@ const provenance = {
 await writeFile(resolve(output, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`)
 process.stdout.write(`Original T3 contracts: ${files.size} files; Effect external; ${provenance.moduleSha256}\n`)
 
-// Publish a complete generation after checks and metadata writes. Preserve previous outputs.
-const dist = resolve(root, 'dist')
-const previous = resolve(root, '.artifacts/package-builds', `previous-${randomUUID()}`)
-let hadPrevious = false
-try { await rename(dist, previous); hadPrevious = true } catch (error) { if (error.code !== 'ENOENT') throw error }
-try { await rename(output, dist) } catch (error) { if (hadPrevious) await rename(previous, dist); throw error }
+await publishSessionPackage(root, output)

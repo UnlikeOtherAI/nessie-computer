@@ -56,6 +56,7 @@ The daemon doorbell, live session requests, owner answers and `request_secret` f
 Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
 The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration, shared contract declarations and `prepare:engine`/`test:t3-session-declarations` Turbo gates follow [the package contract](docs/session-engine-package.md).
+Completed source generations retain previous outputs and recover bounded Windows rename locks under [package publication](docs/session-engine-package.md#completed-generation-publication); failed generations are preserved.
 Bounded source-producer and derived-adapter privacy gates follow [selected runtime construction](docs/session-runtime.md#selected-original-construction-and-codex-host).
 The finite browser detail host, original transport factories and account/cache retirement follow [client connection](docs/t3-session-client-connection.md#finite-browser-detail-host).
 Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
@@ -65,6 +66,7 @@ Runtime composition, opaque ProviderHost references, scoped operation slots and 
 The fixed `t3-session-runtime` entry and existing-daemon inspection channel follow [protected inspection](docs/session-runtime.md#protected-inspection-entry); source inspection never authorizes command/provider input.
 Original encoder capture, finite native phase relays and the unbound selected-secret preparation boundary follow [runtime serialization](docs/session-runtime.md#original-encoder-and-finite-native-composition); generic provider stdin remains denied.
 The protected launch layer requires the same reservation's [original command recorder](docs/session-runtime.md#original-launch-command-capture); observing creation grants no effect or process authority.
+Accepted initial runs and preparation-release predecessors use that same recorder under [preparation lineage](docs/session-runtime.md#accepted-preparation-predecessor); recognition never authorizes an outbox claim.
 The original executor's [persisted effect command context](docs/session-runtime.md#persisted-effect-command-context) preserves outbox identity; it never replaces admission before claim.
 The Windows tray's bounded inherited-pipe handoff, existing-daemon registry, whole-source capture/publication and drained retirement follow [retained runtime handoff](docs/retained-runtime-handoff.md); no local listener or native execution is added.
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).

@@ -35,7 +35,7 @@ export interface ReservedSessionLaunch {
   readonly binding: Readonly<T3ExecutionBinding>
   /** Replay refusal only; reserve does not authorize secret reads. */
   readonly secretReadAttempts: ScopedSessionSecretReadAttempts
-  /** Original command creation only; this is not effect or process authority. */
+  /** Original command/run relationships only; this is not effect or process authority. */
   readonly commandLineage: SessionLaunchCommandLineage
   /** Internal original-adapter seam, after separately authorized preparation.
    * Does not hydrate settings, allocate IDs, perform workspace effects or infer
