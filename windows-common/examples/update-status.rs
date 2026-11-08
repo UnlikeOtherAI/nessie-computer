@@ -1,12 +1,16 @@
 //! Read-only installed diagnostics; never grants authority or changes local policy.
 #[cfg(windows)]
 fn main() {
+    if std::env::args().any(|value| value == "--service-peer-facts") {
+        inspect_peer(true);
+        std::process::exit(1);
+    }
     if std::env::args().any(|value| value == "--installed-facts") {
         inspect_installation();
         return;
     }
     if std::env::args().any(|value| value == "--peer-facts") {
-        inspect_peer();
+        inspect_peer(false);
         std::process::exit(1);
     }
     let result = nessie_windows_common::update_channel::inspect_status(option_env!(
@@ -32,7 +36,7 @@ fn main() {
 
 // These independent read-only API probes never substitute for call() verification.
 #[cfg(windows)]
-fn inspect_peer() {
+fn inspect_peer(service: bool) {
     use std::{
         ffi::OsStr,
         os::windows::ffi::{OsStrExt, OsStringExt},
@@ -53,10 +57,12 @@ fn inspect_peer() {
             },
         },
     };
-    let name: Vec<u16> = OsStr::new(nessie_windows_common::update_channel::PIPE)
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
+    let endpoint = if service {
+        r"\\.\pipe\NessieExecutor"
+    } else {
+        nessie_windows_common::update_channel::PIPE
+    };
+    let name: Vec<u16> = OsStr::new(endpoint).encode_wide().chain(Some(0)).collect();
     unsafe {
         WaitNamedPipeW(name.as_ptr(), 5000);
     }
@@ -81,6 +87,12 @@ fn inspect_peer() {
     let mut pid = 0;
     let pid_ok = unsafe { GetNamedPipeServerProcessId(pipe, &mut pid) };
     let mut facts = serde_json::json!({"diagnosticOnly":true,"pipePidOk":pid_ok != 0,"pid":pid});
+    let pin = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
+    facts["peerVerification"] = serde_json::json!(if service {
+        nessie_windows_common::service_channel::verify(pipe, pin)
+    } else {
+        nessie_windows_common::service_channel::verify_updater(pipe, pin)
+    });
     let retained = unsafe {
         OpenProcess(
             PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
@@ -160,10 +172,12 @@ fn inspect_peer() {
                     pin,
                     nessie_windows_provenance::collect_signature_facts(&path)
                 ));
-            facts["protectedImage"] =
-                serde_json::json!(nessie_windows_common::update_runtime::pin_image(&path, pin)
-                    .map(|_| ())
-                    .map_err(|value| value.to_string()));
+            if !service {
+                facts["protectedImage"] =
+                    serde_json::json!(nessie_windows_common::update_runtime::pin_image(&path, pin)
+                        .map(|_| ())
+                        .map_err(|value| value.to_string()));
+            }
         }
         unsafe {
             CloseHandle(process);

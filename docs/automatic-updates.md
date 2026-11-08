@@ -559,3 +559,6 @@ handle. Admission now validates bounded marker bytes through the same locked
 handle; the real kernel regression proves the second handle is refused while
 the lock owner can read. The lease, owner/DACL checks and marker remain intact.
 Worker check progress and a fresh signed candidate remain acceptance work.
+The optional `--service-peer-facts` probe applies the same read-only peer queries
+to the fixed executor custody service. It sends no companion proof or command.
+This diagnoses an installed managed-CLI refusal independently of updater health.
