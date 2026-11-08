@@ -16,7 +16,7 @@ test('missing producers and wrong source identities deny before opening destinat
       const service = createRetainedCatalogService(f.ports, { ...f.selection, [field]: 'wrong:opaque-id' })
       await assert.rejects(Effect.runPromise(read(service)), /source_mismatch/u)
     }
-    for (const field of ['source', 'originalOwner']) {
+    for (const field of ['source', 'catalogAuthority']) {
       const service = createRetainedCatalogService({ ...f.ports, [field]: undefined }, f.selection)
       await assert.rejects(Effect.runPromise(read(service)), /required_retained_read_producers/u)
     }
@@ -31,7 +31,9 @@ for (const phase of ['entry', 'final']) {
       let opened = false
       const reopen = f.ports.workspace.reopenGeneration
       f.ports.workspace.reopenGeneration = async ref => { opened = true; return reopen(ref) }
-      f.ports.originalOwner = { withReadScope: async (_input, use) => use({
+      f.ports.catalogAuthority = { withCatalogReadScope: async (_input, use) => use({
+        selection: { basis: 'historical-continuity', revision: 'synthetic:selection', scope: 'environment-owner' },
+        recheckSelection: async () => {},
         recheckSource: async () => {},
         recheckThread: async id => {
           if (id === f.ids.at(-1) && (phase === 'entry' || opened)) throw new Error('synthetic-owner-revoked')

@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "id": "catalog-entitled-active-index-query",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "  readonly listActiveShellIndex: () => Effect.Effect<",
+      "to": "  readonly listActiveShellIndex: (threadIds?: ReadonlyArray<ThreadId>) => Effect.Effect<",
+      "beforeSha256": "a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd",
+      "afterSha256": "e145071796af06b49b984fa3598e069949e73b5845f16dd8e30a72dbb371ab6a"
+    },
+    {
+      "id": "catalog-entitled-active-index-input",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "    const listActiveShellIndex = Effect.fn(\"ProjectionStore.listActiveShellIndex\")(function* () {",
+      "to": "    const listActiveShellIndex = Effect.fn(\"ProjectionStore.listActiveShellIndex\")(function* (threadIds?: ReadonlyArray<ThreadId>) {",
+      "beforeSha256": "e145071796af06b49b984fa3598e069949e73b5845f16dd8e30a72dbb371ab6a",
+      "afterSha256": "8d5fc827558d1f26392ee51c73d65e1262787a9945dfc29a858170148d899e9c"
+    },
+    {
+      "id": "catalog-entitled-active-index-predicate",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "          AND json_extract(t.payload_json, '$.archivedAt') IS NULL\n        ORDER BY t.updated_at ASC, t.thread_id ASC",
+      "to": "          AND json_extract(t.payload_json, '$.archivedAt') IS NULL${\n            threadIds === undefined ? sql``\n              : sql` AND t.thread_id IN (SELECT value FROM json_each(${encodeIdList(threadIds)}))`\n          }\n        ORDER BY t.updated_at ASC, t.thread_id ASC",
+      "beforeSha256": "8d5fc827558d1f26392ee51c73d65e1262787a9945dfc29a858170148d899e9c",
+      "afterSha256": "0bfeaed6e658909cbdb6086a30c8f0aed0395840c098c902318f37cebb5d54eb"
+    },
+    {
+      "id": "catalog-entitled-thread-query",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "export interface OlderSettledThreadsQuery {",
+      "to": "export const RETAINED_CATALOG_THREAD_FILTER_VERSION = 1;\n\nexport interface OlderSettledThreadsQuery {\n  readonly threadIds?: ReadonlyArray<ThreadId> | undefined;",
+      "beforeSha256": "0bfeaed6e658909cbdb6086a30c8f0aed0395840c098c902318f37cebb5d54eb",
+      "afterSha256": "7fed3a4a1cd7b936266fc6ee12c0938a70c7f30271a3ad1f664f1a8b4b74a2c6"
+    },
+    {
+      "id": "catalog-entitled-thread-input",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "    )(function* ({ before, projectIds, limit }) {",
+      "to": "    )(function* ({ before, projectIds, threadIds, limit }) {",
+      "beforeSha256": "7fed3a4a1cd7b936266fc6ee12c0938a70c7f30271a3ad1f664f1a8b4b74a2c6",
+      "afterSha256": "6887e4438409928fc43e9e7a751dfb24eb3477f06528bd5aebfb873100cc5029"
+    },
+    {
+      "id": "catalog-entitled-thread-predicate-before-cursor-count-limit",
+      "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
+      "from": "          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL${",
+      "to": "          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL${\n            threadIds === undefined ? sql``\n              : sql` AND t.thread_id IN (SELECT value FROM json_each(${encodeIdList(threadIds)}))`\n          }${",
+      "beforeSha256": "6887e4438409928fc43e9e7a751dfb24eb3477f06528bd5aebfb873100cc5029",
+      "afterSha256": "8ba0b62967a4ba6a177c1e186d680e52f73f72bd3fa39e99d72c682deeadea50"
+    }
+  ]
+}

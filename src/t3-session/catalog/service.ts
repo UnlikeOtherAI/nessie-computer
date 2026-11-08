@@ -17,7 +17,8 @@ export type RetainedHttpInput<K extends keyof typeof ExecutorT3HttpEndpoints> = 
  * no writer, provider, server, stream or native process. Returned envelopes retain
  * capture provenance separately from original T3 values and their sequence numbers.
  */
-export function createRetainedCatalogService(ports: RetainedCapturePorts, source: RetainedCatalogSource) {
+export function createRetainedCatalogService(ports: RetainedCapturePorts, boundSource: RetainedCatalogSource) {
+  const source = { ...boundSource, authorization: 'catalog' as const }
   const shellError = () => new S.OrchestrationV2GetShellSnapshotError({ message: 'Retained shell read failed' })
   const projectionError = (threadId: S.ThreadId) =>
     new S.OrchestrationV2GetThreadProjectionError({ threadId, message: 'Retained thread read failed' })
@@ -25,18 +26,21 @@ export function createRetainedCatalogService(ports: RetainedCapturePorts, source
     'orchestration.getArchivedShellSnapshot': (
       _input: RetainedCatalogInput<'orchestration.getArchivedShellSnapshot'>,
     ) =>
-      readRetainedEffect(ports, source, 'catalog', reads => archivedSnapshot(reads).pipe(Effect.mapError(shellError))),
+      readRetainedEffect(ports, source, 'catalog', (reads, selection) => archivedSnapshot(reads, selection)
+        .pipe(Effect.mapError(shellError))),
     'orchestration.getThreadFamily': (input: RetainedCatalogInput<'orchestration.getThreadFamily'>) =>
-      readRetainedEffect(ports, source, 'catalog', reads => familyRows(reads, { familyOf: input.threadId })
+      readRetainedEffect(ports, source, 'catalog', (reads, selection) =>
+        familyRows(reads, { familyOf: input.threadId }, selection)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getOlderSettledThreads': (input: RetainedCatalogInput<'orchestration.getOlderSettledThreads'>) =>
-      readRetainedEffect(ports, source, 'catalog', reads => olderSettled(reads, input)
+      readRetainedEffect(ports, source, 'catalog', (reads, selection) => olderSettled(reads, input, selection)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getThreadTitles': (input: RetainedCatalogInput<'orchestration.getThreadTitles'>) =>
       readRetainedEffect(ports, source, input.threadIds, reads => reads.getThreadTitles(input.threadIds)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getWorktreeThreadIds': (input: RetainedCatalogInput<'orchestration.getWorktreeThreadIds'>) =>
-      readRetainedEffect(ports, source, 'catalog', reads => familyRows(reads, { worktreePath: input.worktreePath })
+      readRetainedEffect(ports, source, 'catalog', (reads, selection) =>
+        familyRows(reads, { worktreePath: input.worktreePath }, selection)
         .pipe(Effect.map(result => ({ threadIds: result.threads.map(thread => thread.id) })),
           Effect.mapError(shellError))),
     'orchestration.getThreadProjection': (input: RetainedCatalogInput<'orchestration.getThreadProjection'>) =>
@@ -55,10 +59,10 @@ export function createRetainedCatalogService(ports: RetainedCapturePorts, source
   }
   const http = {
     shellSnapshot: (input: RetainedHttpInput<'shellSnapshot'>) =>
-      readRetainedEffect(ports, source, 'catalog', reads => shellSnapshot(reads, {
+      readRetainedEffect(ports, source, 'catalog', (reads, selection) => shellSnapshot(reads, {
         omitIdleSubagents: input.query.omitIdleSubagents === '1',
         omitOlderSettled: input.query.omitOlderSettled === '1',
-      })),
+      }, selection)),
     threadSnapshot: (input: RetainedHttpInput<'threadSnapshot'>) =>
       readRetainedEffect(ports, source, [input.params.threadId], reads => reads.getThreadSnapshot(input.params.threadId)
         .pipe(Effect.map(snapshot => ({ snapshotSequence: snapshot.snapshotSequence,

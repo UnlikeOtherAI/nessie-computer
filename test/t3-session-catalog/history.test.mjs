@@ -7,7 +7,7 @@ import { SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3 } from '../../dist/t3-session/import/capture.js'
 import { createRetainedCatalogService } from '../../dist/t3-session/catalog/service.js'
 import { engineFixture } from '../t3-session-import/engine-fixture.mjs'
-import { catalogFixture } from './fixture.mjs'
+import { catalogFixture, grantCatalogFixture } from './fixture.mjs'
 
 test('bounded snapshot and original cursors reach all 360 items with generation-bound retry', async () => {
   const f = await catalogFixture({ messages: 360 })
@@ -41,6 +41,7 @@ test('bounded snapshot and original cursors reach all 360 items with generation-
 
 test('fresh legacy catalog reads preserve backdated and tied source message order', async () => {
   const f = await engineFixture({ legacy: true, messages: 4 })
+  grantCatalogFixture(f)
   try {
     for (const [id, at] of [['backdated', '2019-01-01T00:00:00.000Z'], ['aaa:tied', '2020-01-01T00:00:00.000Z']]) {
       f.writer.prepare(`INSERT INTO projection_thread_messages
@@ -61,6 +62,7 @@ test('fresh legacy catalog reads preserve backdated and tied source message orde
 
 test('family doorway recovers idle nested children and keeps orphan identity in full catalog', async () => {
   const f = await engineFixture({ messages: 0 })
+  grantCatalogFixture(f)
   try {
     const template = f.writer.prepare('SELECT * FROM orchestration_v2_projection_threads WHERE thread_id = ?').get(f.ids[0])
     const base = JSON.parse(template.payload_json)

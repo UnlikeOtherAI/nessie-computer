@@ -21,34 +21,50 @@ now use that boundary too. Capture/privacy classification is unchanged.
 Construction requires `RetainedCapturePorts` and a `RetainedCatalogSource` with
 the admitted manifest/root, physical root, exact environment ID and published
 capture generation. These are selected by the admitted host, not accepted as
-caller assertions. The real physical and original-human producers remain
-required. No adapter in this tranche constructs authority from IDs, paths,
-timestamps, callbacks or managed-start receipts.
+caller assertions. Catalog reads require the physical producer and the canonical
+`RetainedCatalogAuthorityPort` in `RetainedCapturePorts.catalogAuthority`.
+That producer owns the actual source/import grant and current team/share checks.
+Legacy exact-thread wrappers keep their separate original-continuity path.
+No adapter here constructs consent from IDs, paths, timestamps, callbacks or
+managed-start receipts, or relabels an import grant as historical ownership.
 
-Every read checks physical identity and original-owner authority at entry and
+Every read checks physical identity and its canonical read authority at entry and
 before return. The local journal must be available, nonconflicting, ready and
 published at the requested generation. It rechecks publication after source and
 owner callbacks finish. Refresh, revocation, replacement or abort rejects the
-result; it never returns an authorized prefix or an empty success. Effect
+result; a denied read never becomes an authorized prefix or an empty success. Effect
 cancellation reaches the original engine query and the surrounding lease checks.
 Original typed query failures remain failures; lease and workspace failures are
 transport defects, which the outer broker must classify without publishing raw
 diagnostics.
 
-Catalog reads currently require the original-human lease to authorize **every
-nondeleted retained identity**. This is deliberately incomplete for a viewer with
-access to only part of a source: the current continuity interface can deny a
-thread, but cannot select entitled rows or projects. A canonical selected-team
-row/project projection input is still required. Catching a rejection and dropping
-that row would hide outages/revocation and is not a valid implementation.
-Thread-specific reads retain their existing exact-thread authority behavior.
-Cross-environment linked resources still require independent gateway admission.
+The producer's `withCatalogReadScope` callback supplies `selection` and
+`recheckSelection()` alongside the existing source/thread rechecks. Its selection
+records `basis` (`historical-continuity` or `prospective-import-grant`), an opaque
+`revision`, and either explicit `environment-owner` scope or `threads` scope with
+exact `threadIds` and `projectIds`. The producer recognizes the physical callback,
+checks actual consent/publication and independent sharing, and rejects stale or
+revoked selections. The catalog pins that selection for the read and rechecks it
+before returning. Client parameters cannot create or widen it.
+
+Thread recipients query only selected journal identities, original shell rows
+and expressly permitted projects. They never enumerate the global journal to
+discover which IDs to request. Empty published selections return empty original
+results and no global counts. Hidden and unknown requested IDs receive the same
+denial before an identity lookup. Archive and family use the same selection;
+parent/child relationships never widen it. The original trims and count rules run
+over the selected rows. Whole-environment owners keep the original full query.
+Referenced/inherited content and cross-environment links still need the owning
+grant's actual scope and the gateway's independent resource admission; this
+source tranche does not certify those integrated authority producers.
 
 Each successful service effect returns `{source: 't3', physicalRootKey,
-environmentId, captureGeneration, sourceSequence, value}`. `value` is the original
+environmentId, captureGeneration, sourceSequence, selection, value}`. `value` is the original
 T3 result, including its unchanged snapshot sequence and cursor. `sourceSequence`
 is the captured original high-water; legacy hydration may produce a different
 destination sequence. Never substitute either for a broker relay ordinal.
+The selection revision also belongs in the dispatcher/cache binding. Reusing a
+cursor under changed entitlement requires restarting that selection's snapshot.
 
 ## Canonical operations
 
@@ -105,6 +121,26 @@ There is no 5,000-row scanner limit, 30-day cutoff, alternate reducer or local
 history cursor. The original newest-25 settled cutoff includes timestamp ties;
 older, archived and nested rows retain their original doorways.
 
+`patches/t3-session/catalog/boundary-patches.json` adds optional
+`threadIds` adapter inputs to the original `OlderSettledThreadsQuery` and
+`ProjectionStore.listActiveShellIndex`. Their SQL predicates run before the
+existing cursor/count/LIMIT and index ordering. No-filter behavior,
+timestamp ties and SQLite ID ordering stay original. `generate.mjs` reads the
+exact pinned Git object and verifies its tree against the source lock; every
+edit binds before/after SHA-256 bytes. The family exposes
+`ProjectionStore.RETAINED_CATALOG_THREAD_FILTER_VERSION = 1`, which the consumer
+requires so an old generated package cannot silently ignore the new predicate.
+No RPC input schema gains a caller-controlled authorization filter.
+
+The coordinator/runtime owner must add family `catalog` with
+`patches/t3-session/catalog/boundary-patches.json` to the one normal engine
+composition and regenerate its manifests/provenance. This tranche supplies that
+scoped family but does not rewrite competing shared manifests. Shared shell
+reads pass the selected original index and `readShellSnapshot({threadIds})` to
+the same `loadSubscriberShellSnapshot` as whole-environment reads. The original
+single trim-facts calculation must survive both idle-child and older-settled
+trims; independently invoking the two public trimming helpers loses that context.
+
 The actual mobile grouping/sorting helpers are pinned upstream
 `apps/mobile/src/features/home/homeThreadList.ts` and its
 `packages/client-runtime/src/state/project-grouping` / `thread-sort` imports.
@@ -120,9 +156,9 @@ build prerequisite. It uses the normal generated package and disposable original
 SQLite engine fixtures. The synthetic physical/owner producers are test-only;
 passing them would not qualify a real producer or the installed user journey.
 
-After the coordinator grants the serial Maxis window, prepare only this
-worktree's frozen dependencies, export the repository-required `DATABASE_URL`,
-then run:
+Qualification runs on the coordinator's combined integrated engine graph, after
+the serial Maxis window is granted. Do not prepare one dependency tree per worker.
+Export the repository-required `DATABASE_URL`, then run on that integrated revision:
 
 ```powershell
 $env:NODE_OPTIONS = '--max-old-space-size=5120'
@@ -137,8 +173,19 @@ cover 5,007 captured identities with a tombstone, old/tied settlements, archive,
 stable settled paging, 360 history rows and repeat cursors, backdated/tied legacy
 rows, nested family/orphans, original result codecs and output detail, missing
 producers, substituted source IDs, entry/final revocation, unavailable/advanced
-generation and cancellation. They have not been executed at this source-only
-checkpoint. Only bounded builtin syntax/static probes are permitted so far.
+generation and cancellation. Shared fixtures also cover noncontiguous selected
+IDs, Unicode tie ordering, count-only reads, hidden projects/children, empty
+initial publication, denied IDs, changed selection revisions and all four trim
+combinations compared with the unfiltered original path. The importer
+gate includes the review's exact eight outer-producer/opener regressions plus
+current-failure withdrawal, same-generation recovery, alias ABA and obsolete
+resume cases. They have not been executed at this source-only checkpoint.
+Only bounded builtin syntax/static probes are permitted so far. The follow-up
+passed Node syntax checks for 17 changed/new TS/MJS files, JSON parsing,
+`git diff --check`, and exact application/type erasure of all six selector patch
+edits without executing their module. The final patched `ProjectionStore.ts`
+SHA-256 is `8ba0b62967a4ba6a177c1e186d680e52f73f72bd3fa39e99d72c682deeadea50`.
+These checks do not resolve imports, typecheck or run engine queries.
 
 The pending manual journey is the entitled user's Dev → computer → T3 catalog,
 Archive, Show more, nested family, old exact link, history paging and output

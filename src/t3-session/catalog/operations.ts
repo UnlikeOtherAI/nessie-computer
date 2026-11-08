@@ -15,9 +15,9 @@ export type RetainedCatalogInput<M extends RetainedCatalogRpcMethod> = ExecutorT
 export type RetainedCatalogOutput<M extends RetainedCatalogRpcMethod> = ExecutorT3Descriptor<M>['successSchema']['Type']
 
 export const retainedCatalogReadPolicy = {
-  source: 't3', authority: 'current-original-human-and-selected-team-read',
+  source: 't3', authority: 'canonical-source-or-import-grant-and-selected-team-read',
   capture: 'exact-published-generation', receipt: 'none-read-only',
-  retry: 'same-source-generation-and-original-cursor-or-restart-after-generation-change',
+  retry: 'same-source-generation-selection-revision-and-original-cursor-or-restart',
   cancellation: 'abort-signal-no-result-after-cancellation',
   transport: 'required-unbound-admitted-executor-dispatcher',
 } as const

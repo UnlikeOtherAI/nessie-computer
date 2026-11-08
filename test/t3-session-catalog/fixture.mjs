@@ -6,9 +6,18 @@ import { engineFixture } from '../t3-session-import/engine-fixture.mjs'
 export async function catalogFixture(options) {
   const fixture = await engineFixture(options)
   try {
+    grantCatalogFixture(fixture)
     const capture = await captureRetainedT3(fixture.ports, fixture.manifest, fixture.source.admittedRootKey)
     const selection = { manifest: fixture.manifest, ...fixture.source, generation: capture.generation }
     const service = createRetainedCatalogService(fixture.ports, selection)
     return { ...fixture, capture, selection, service }
   } catch (error) { fixture.close(); throw error }
+}
+
+export function grantCatalogFixture(fixture, selection = {
+  basis: 'historical-continuity', revision: 'synthetic:selection:1', scope: 'environment-owner',
+}) {
+  fixture.ports.catalogAuthority = { withCatalogReadScope: async (_input, use) => use({
+    selection, recheckSelection: async () => {}, recheckSource: async () => {}, recheckThread: async () => {},
+  }) }
 }
