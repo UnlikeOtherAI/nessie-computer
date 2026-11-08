@@ -36,7 +36,9 @@ export const observeSessionCommand = (input: {
 /** Original finite wait, including pending delegated/background completions.
  * timedOut and resultRun are retained. Cancelling this wait never stops work.
  */
-export const waitForSessionWork = (input: Threads.ThreadManagementWaitInput) => Effect.gen(function* () {
+export const waitForSessionWork = (input: Threads.ThreadManagementWaitInput): Effect.Effect<
+  Threads.ThreadManagementWaitResult, Threads.ThreadManagementError, Threads.ThreadManagementService
+> => Effect.gen(function* () {
   const threads = yield* Threads.ThreadManagementService
   return yield* threads.waitForThread(input)
 })
