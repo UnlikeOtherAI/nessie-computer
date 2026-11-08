@@ -12,3 +12,4 @@ export * as RequestPrivacy from 't3-source:packages/shared/src/t3McpToolPresenta
 export * as RequestAnswers from 't3-source:packages/client-runtime/src/state/pendingUserInput.ts'
 export * from '../../../src/t3-session/requests/validate.ts'
 export * as Workspace from '../../../patches/t3-session/workspace/Engine.ts'
+export * as TerminalOutputProtocol from 't3-source:apps/server/src/terminal/OutputProtocol.ts'
