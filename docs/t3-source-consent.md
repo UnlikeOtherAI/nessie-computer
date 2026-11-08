@@ -40,8 +40,15 @@ approve-boolean operation. Both directions authenticate actual kernel pipe peers
 
 The broker launches the pinned source helper using the session's actual token,
 with explicit SYSTEM-owned process and thread security descriptors, no inherited
-handles, and a minimal environment. Ordinary user processes get query/synchronize
+handles, and a minimal environment. It also protects the duplicated primary token
+from duplication/default-DACL changes and installs an OWNER RIGHTS default DACL
+for later authentication/watchdog threads. Process, primary thread and token ACLs
+are read back before the suspended child resumes. Ordinary user processes get query/synchronize
 access, without memory-write, thread-creation, duplicate-handle or ACL-write rights.
+Creation-time extension-point disable and Microsoft-only DLL policies close the
+same-desktop hook-DLL route that process ACLs alone do not cover. These policies
+are read back before resume; unsupported policy/credential-provider combinations
+refuse and remain part of the required positive installed qualification.
 The broker retains the exact child process handle/generation and authenticates
 that child on its private bootstrap/signing pipe. Merely launching a signed helper
 or spoofing a parent PID cannot acquire that channel. Source acquisition uses the
@@ -170,6 +177,12 @@ Set `T3_CONSOLE_BROWSER_EXECUTABLE` to the lane's browser. Optional
 `T3_CONSOLE_CAPTURE_PATH` must be outside tracked source. Capture actual base/final
 Settings states separately before claiming visual verification.
 
+The source-only pass after merging the protocol/transport prerequisite parsed
+17 TypeScript files and three JSON files, checked five JavaScript files' syntax,
+matched all six locale keysets and checked whitespace/owned-code line limits.
+It executed no implementation modules and establishes no Rust, type, SQLite,
+native UI or OS-permission result.
+
 After a separately approved exact signed candidate and isolated installed setup,
 manually use the real tray/backend enrollment, cancel, wrong-owner authentication,
 accepted pending-human state, UOA approval, local import review, consume, changed
@@ -183,7 +196,8 @@ rights or sign without the secure ceremony. The additional real OS denial probe:
 $env:NESSIE_T3_TEST_CEREMONY_PID = '<fixture pid>'
 $env:NESSIE_T3_TEST_CEREMONY_STARTED_AT = '<kernel creation timestamp>'
 $env:NESSIE_T3_TEST_NATIVE_SHA256 = '<verified exact signed helper SHA256>'
-cargo test --manifest-path native/Cargo.toml --test retained_issuer_installed -- --test-threads=1
+$env:NESSIE_DESKTOP_WINDOWS_SIGNER_EKU = '<existing verified publisher profile EKU used for this candidate>'
+cargo test --manifest-path native/Cargo.toml --features retained-issuer-installed-qualification --test retained_issuer_installed -- --test-threads=1
 ```
 
 Run that probe as the ordinary source owner while the real fixture ceremony is
@@ -192,3 +206,6 @@ launch, credential-provider behavior, Windows process/thread ACL construction,
 WinSQLite, IPC replay, translations/rendering and the full enrollment/import
 journey all remain unqualified. T03C's tests and earlier importer passes do not
 cover these new bytes.
+The required Cargo feature selects only this installed test target; production
+admission has no feature, fixture or default-success branch. Ordinary native
+unit/CI runs do not execute the installed probe or a UI ceremony.
