@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { createConnection } from 'node:net'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { T3ProtectedGraphStartupSchema, T3ProtectedCompanionRoleSchema, T3ExecutionGenerationSchema,
@@ -9,12 +9,78 @@ import { T3ExecutionSignedAdmissionSchema, T3ExecutionAdmissionSchema,
 import { packagedNativeHelperPath } from './state-security.js'
 import { ProtectedT3Process, protectedDeliveryUnknown } from './t3-protected-stream.js'
 import { ProtectedT3Provider } from './t3-protected-provider.js'
+import { T3ExecutionSecretDeliveryHeaderSchema, T3ExecutionSecretReadAdmissionSchema,
+  T3_EXECUTION_SECRET_DELIVERY_DOMAIN, T3_EXECUTION_SECRET_INSTALLED_DOMAIN,
+  type T3ExecutionSecretReadAdmission } from '@nessie/executor-protocol/t3-session'
 
 const companionPipe = String.raw`\\.\pipe\NessieT3ExecutionCompanion`
 const readyDomain = 'nessie.t3.execution.creator-ready.v1'
 type Startup = Omit<T3ProtectedGraphStartup, 'creatorKey'>
 let binding: { startup: Startup; key: Buffer } | undefined
 let startupRead = false
+declare const secretDeliveryBrand: unique symbol
+export type VerifiedT3SecretDelivery = { readonly [secretDeliveryBrand]: true }
+const secretDeliveries = new WeakMap<VerifiedT3SecretDelivery, T3ExecutionSecretReadAdmission>()
+const deliveredSecretSlots = new Set<string>()
+
+/** Private sink verification only. Does not open a channel, return a value,
+ * enroll a callback or authorize a read. Native independently consumes admission. */
+export function verifyProtectedT3SecretDelivery(
+  headerBytes: Uint8Array, value: Uint8Array, proof: Uint8Array, expected: T3ExecutionSignedAdmission,
+): VerifiedT3SecretDelivery {
+  const current = binding
+  const envelope = T3ExecutionSignedAdmissionSchema.parse(expected)
+  const selected = T3ExecutionSecretReadAdmissionSchema.parse(JSON.parse(envelope.payload))
+  if (!current || headerBytes.length === 0 || headerBytes.length > 4096 || proof.length !== 32
+    || value.length > selected.maxValueBytes || Date.now() < selected.issuedAtMs
+    || Date.now() >= selected.expiresAtMs) throw protectedDeliveryUnknown()
+  const header = T3ExecutionSecretDeliveryHeaderSchema.parse(JSON.parse(
+    new TextDecoder('utf-8', { fatal: true }).decode(headerBytes)))
+  if (header.graphId !== current.startup.graphId || header.readId !== selected.readId
+    || header.slotId !== selected.recipient.slotId || header.nonce !== selected.nonce
+    || header.admissionDigest !== 'sha256:' + createHash('sha256').update(envelope.payload).digest('hex')
+    || header.expiresAtMs !== selected.expiresAtMs || header.byteLength !== value.length
+    || canonicalExecutorJson(header.recipient) !== canonicalExecutorJson(current.startup.custody.runtime)
+    || canonicalExecutorJson(header.recipient) !== canonicalExecutorJson(selected.recipient.generation)
+    || canonicalExecutorJson(selected.evidence.custody) !== canonicalExecutorJson(current.startup.custody)
+    || selected.binding.executorId !== current.startup.executorId) throw protectedDeliveryUnknown()
+  // Lengths are included in the MAC. No ambiguous concatenation or value hash
+  // escapes through metadata. Buffers remain owned by the private runtime sink.
+  const lengths = Buffer.alloc(8)
+  lengths.writeUInt32LE(headerBytes.length, 0)
+  lengths.writeUInt32LE(value.length, 4)
+  const mac = createHmac('sha256', current.key).update(T3_EXECUTION_SECRET_DELIVERY_DOMAIN + '\n')
+    .update(lengths.subarray(0, 4)).update(headerBytes).update(lengths.subarray(4)).update(value).digest()
+  if (!timingSafeEqual(mac, proof) || Date.now() >= selected.expiresAtMs) throw protectedDeliveryUnknown()
+  const slot = canonicalExecutorJson({ sourceEvidenceDigest: selected.binding.sourceEvidenceDigest,
+    acceptedGraphNonce: selected.acceptedGraphNonce, environmentIndex: selected.slot.index })
+  if (deliveredSecretSlots.has(slot) || deliveredSecretSlots.size >= 4096) throw protectedDeliveryUnknown()
+  deliveredSecretSlots.add(slot)
+  const delivery = Object.freeze({}) as VerifiedT3SecretDelivery
+  secretDeliveries.set(delivery, selected)
+  return delivery
+}
+
+/** Nonsecret acknowledgement, called only AFTER the private scoped installer.
+ * Service treats lost/late ACK as consumed unknown delivery, never a retry. */
+export function protectedT3SecretInstalledFrame(delivery: VerifiedT3SecretDelivery): Buffer {
+  const current = binding, selected = secretDeliveries.get(delivery)
+  secretDeliveries.delete(delivery)
+  if (!current || !selected || Date.now() >= selected.expiresAtMs
+    || selected.binding.executorId !== current.startup.executorId
+    || canonicalExecutorJson(selected.recipient.generation)
+      !== canonicalExecutorJson(current.startup.custody.runtime)) {
+    throw protectedDeliveryUnknown()
+  }
+  const header = Buffer.from(canonicalExecutorJson({ version: 1, type: 't3.secret.installed',
+    graphId: current.startup.graphId, readId: selected.readId, slotId: selected.recipient.slotId,
+    nonce: selected.nonce, expiresAtMs: selected.expiresAtMs }))
+  const length = Buffer.alloc(4)
+  length.writeUInt32LE(header.length)
+  const proof = createHmac('sha256', current.key).update(T3_EXECUTION_SECRET_INSTALLED_DOMAIN + '\n')
+    .update(length).update(header).digest()
+  return Buffer.concat([length, header, proof])
+}
 
 /** Own the first frame from SYSTEM-created stdin. There is no DTO setter.
  * Later runtime bytes are returned to stdin unchanged. The channel key never

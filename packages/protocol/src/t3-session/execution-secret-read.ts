@@ -79,3 +79,15 @@ export const T3ExecutionSecretReadAdmissionSchema = read.extend({
 export type T3ExecutionSecretReadAdmission = z.infer<typeof T3ExecutionSecretReadAdmissionSchema>
 export const executionSecretReadAdmissionBytes = (payload: string): Uint8Array =>
   executionReceiptBytes(T3_EXECUTION_SECRET_READ_DOMAIN, payload)
+
+/** Private authenticated graph channel only; never a daemon/backend receipt. */
+export const T3_EXECUTION_SECRET_DELIVERY_DOMAIN = 'nessie.t3.execution.secret-delivery.v1' as const
+export const T3_EXECUTION_SECRET_INSTALLED_DOMAIN = 'nessie.t3.execution.secret-installed.v1' as const
+export const T3ExecutionSecretDeliveryHeaderSchema = z.object({
+  version: z.literal(1), type: z.literal('t3.secret.value'), graphId: hex,
+  readId: hex, slotId: hex, nonce: hex, admissionDigest: sha, recipient: T3ExecutionGenerationSchema,
+  child: T3ExecutionGenerationSchema, expiresAtMs: millis,
+  byteLength: z.number().int().nonnegative().max(65536),
+  clearance: z.literal('service-observed-job-empty'),
+}).strict()
+export type T3ExecutionSecretDeliveryHeader = z.infer<typeof T3ExecutionSecretDeliveryHeaderSchema>

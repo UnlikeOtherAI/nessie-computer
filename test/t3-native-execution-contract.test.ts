@@ -6,6 +6,36 @@ import { executionAdmissionBytes, executionReceiptBytes, T3_EXECUTION_ADMISSION_
   T3ExecutionCustodySchema, T3ExecutionAdmissionSchema,
   T3ExecutionPreparationPayloadSchema } from '../packages/protocol/src/t3-session/native-execution.js'
 import { verifyT3ExecutionReceiptSignature } from '../src/t3-execution-native-client.js'
+import { T3ExecutionSecretPlanSelectionSchema, T3ExecutionSecretDeliveryHeaderSchema,
+  executionSecretReadAdmissionBytes, T3_EXECUTION_SECRET_READ_DOMAIN,
+} from '../packages/protocol/src/t3-session/execution-secret-read.js'
+import { protectedT3SecretInstalledFrame, type VerifiedT3SecretDelivery } from '../src/t3-protected-process.js'
+
+test('secret plans preserve original indices and forbid synthetic config slots', () => {
+  const reference = { provider: 'vault', reference: 'op://vault/item/field' }
+  const environment = [{ index: 1, name: 'FIRST', reference }, { index: 3, name: 'SECOND', reference }]
+  const selection = { environment, config: [], references: [reference, reference] }
+  assert.ok(T3ExecutionSecretPlanSelectionSchema.safeParse(selection).success)
+  for (const patch of [{ environment: [...environment].reverse() }, { references: [reference] },
+    { config: [{ field: 'invented', reference }] }, { environment: [environment[0], environment[0]] }]) {
+    assert.equal(T3ExecutionSecretPlanSelectionSchema.safeParse({ ...selection, ...patch }).success, false)
+  }
+})
+
+test('secret transport metadata cannot carry values or mint an installation ACK', () => {
+  const hex = 'a'.repeat(64), generation = { pid: 42, startedAt: '1', bootId: 'boot' }
+  const header = { version: 1, type: 't3.secret.value', graphId: hex, readId: hex, slotId: hex, nonce: hex,
+    admissionDigest: `sha256:${hex}`, recipient: generation, child: generation, expiresAtMs: 5000,
+    byteLength: 5, clearance: 'service-observed-job-empty' }
+  assert.ok(T3ExecutionSecretDeliveryHeaderSchema.safeParse(header).success)
+  for (const patch of [{ value: 'secret' }, { valueDigest: `sha256:${hex}` }, { byteLength: 65537 }]) {
+    assert.equal(T3ExecutionSecretDeliveryHeaderSchema.safeParse({ ...header, ...patch }).success, false)
+  }
+  assert.throws(() => protectedT3SecretInstalledFrame({} as VerifiedT3SecretDelivery))
+  const payload = '{"exact":"雪"}'
+  assert.equal(Buffer.from(executionSecretReadAdmissionBytes(payload)).toString(),
+    T3_EXECUTION_SECRET_READ_DOMAIN + String.fromCharCode(10) + payload)
+})
 
 test('execution signatures separate domain and exact payload with one U+000A', () => {
   const payload = '{"value":"雪"}'
