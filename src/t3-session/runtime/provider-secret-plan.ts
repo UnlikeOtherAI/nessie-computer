@@ -224,7 +224,8 @@ export const receiveSessionProviderSecretRead = (read: SessionProviderSecretRead
   const context = yield* Effect.context<EffectServices<SessionExecutionResourcesEffect>>()
   yield* joinedNativeEffect(async signal => {
     const { slot, record, signed, admission } = captured
-    const drained = Promise.withResolvers<void>()
+    let resolveDrained!: () => void
+    const drained = new Promise<void>(resolve => { resolveDrained = resolve })
     const deadline = AbortSignal.timeout(Math.max(0, admission.expiresAtMs - Date.now()))
     const active = AbortSignal.any([parent, signal, record.stop.signal, record.source.signal, deadline])
     const check = () => {
@@ -239,7 +240,7 @@ export const receiveSessionProviderSecretRead = (read: SessionProviderSecretRead
     active.addEventListener('abort', stop, { once: true })
     const ignoreError = () => undefined
     valueInput.on('error', ignoreError); ackOutput.on('error', ignoreError)
-    record.pending.add(drained.promise)
+    record.pending.add(drained)
     try {
       check()
       await Effect.runPromise(recheckSessionProviderSecretPlan(slot.plan).pipe(Effect.provide(context)),
@@ -311,7 +312,7 @@ export const receiveSessionProviderSecretRead = (read: SessionProviderSecretRead
       active.removeEventListener('abort', stop)
       stop()
       // Streams have fixed, nonsecret errors; retain error listeners through destroy.
-      record.pending.delete(drained.promise); drained.resolve()
+      record.pending.delete(drained); resolveDrained()
     }
   }, () => new SessionSecretPlanRefused())
 }).pipe(Effect.ensuring(Effect.sync(() => {
