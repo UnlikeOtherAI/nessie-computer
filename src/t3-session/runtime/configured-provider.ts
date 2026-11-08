@@ -26,9 +26,11 @@ export const readConfiguredSessionProvider = (projectId: ProjectId, instanceId: 
     // These are the exact configSchema/defaultConfig codecs used by the pinned
     // original CodexDriver and ClaudeDriver. No driver factory is evaluated.
     const config = entry.driver === 'codex'
-      ? yield* Schema.decodeUnknownEffect(CodexSettings)(entry.config ?? {})
+      ? yield* Schema.decodeUnknownEffect(CodexSettings)(entry.config ?? {}).pipe(
+        Effect.mapError(() => new ConfiguredSessionProviderRefused()))
       : entry.driver === 'claudeAgent'
-        ? yield* Schema.decodeUnknownEffect(ClaudeSettings)(entry.config ?? {})
+        ? yield* Schema.decodeUnknownEffect(ClaudeSettings)(entry.config ?? {}).pipe(
+          Effect.mapError(() => new ConfiguredSessionProviderRefused()))
         : yield* Effect.fail(new ConfiguredSessionProviderRefused())
     if (!config.enabled) return yield* Effect.fail(new ConfiguredSessionProviderRefused())
     return {

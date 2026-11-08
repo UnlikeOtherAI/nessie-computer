@@ -22,7 +22,10 @@ export const readSessionExecutionResources = (source: T3ExecutionResourceScope,
     try: () => JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(source.settingsBytes)) as unknown,
     catch: () => new SessionExecutionResourceRefused(),
   })
-  const held = yield* Schema.decodeUnknownEffect(ServerSettings)(raw)
+  // Original decoder diagnostics can contain the rejected configuration value.
+  // Keep them inside this protected resource callback; settings may hold secrets.
+  const held = yield* Schema.decodeUnknownEffect(ServerSettings)(raw).pipe(
+    Effect.mapError(() => new SessionExecutionResourceRefused()))
   const current = yield* (yield* Settings.ServerSettingsService).getSettings
   if (canonicalExecutorJson(Schema.encodeSync(ServerSettings)(held))
     !== canonicalExecutorJson(Schema.encodeSync(ServerSettings)(current))) {

@@ -530,6 +530,9 @@ the signed challenge deadline. It decodes the held settings bytes with original
 only the service-issued continuation/history/credential HOME references for the
 exact original instance and driver. It rechecks before and after dependent
 awaits. No home path or credential content is emitted.
+Original settings/provider decoder failures become fixed refusal errors; their
+diagnostic values cannot escape into a lane error. An authored refusal fixture
+checks that boundary; it has not run.
 
 The producer calls `createT3ExecutionNativeClient.graph` directly. The native
 service must authenticate its protected graph peer, current source resources,
