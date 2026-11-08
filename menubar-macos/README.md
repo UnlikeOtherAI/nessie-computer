@@ -40,8 +40,9 @@ selected. From the top:
   place (Overview with the team, or Documents for a documents problem);
 - **Pause** / **Resume**: one line for one team; with several, a submenu with
   "All teams" and then each team's label, checked while paused;
-- **Open Nessie Computer…** (the window, on Overview) and **Open Nessie** (the
-  paired server's Computers page);
+- **Open Nessie Computer…** (the window, on Overview), **Add this computer…**
+  (the window, straight onto a new pairing code, as Overview's **Add this
+  computer** does) and **Open Nessie** (the paired server's Computers page);
 - **Quit Nessie Computer**, which adds "— agents stop until you open it again"
   while any team is working.
 
@@ -102,7 +103,7 @@ The console calls these through `window.webkit.messageHandlers.executor`
 `executor_set_running`, `executor_hide_status`, `executor_reconnect` and
 `executor_notify` (saves never post notifications). Section events are
 `tray://section/<overview|access|documents|ai|settings>` with an optional
-`{ executorId }`, and `tray://connect` opens Connect a team.
+`{ executorId }`, and `tray://connect` opens Add this computer.
 
 ## Program requests
 

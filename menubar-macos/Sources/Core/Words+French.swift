@@ -41,6 +41,7 @@ enum FrenchWords {
         case .resume: return "Reprendre"
         case .allTeams: return "Toutes les équipes"
         case .openComputer: return "Ouvrir Nessie Computer…"
+        case .addThisComputer: return "Ajouter cet ordinateur…"
         case .openNessie: return "Ouvrir Nessie"
         case .quit: return "Quitter Nessie Computer"
         case .quitWhileWorking:
@@ -86,15 +87,16 @@ enum FrenchWords {
         case .addressMustBeHTTPS: return "L’adresse du serveur doit commencer par https://."
         case .pairingFailed: return "Nessie n’a pas pu terminer cette étape. Vérifiez votre connexion et réessayez."
         case .pairingCleanupRequired:
-            return "Supprimez tous les brouillons locaux et arrêtez tous les bacs à sable, puis reconnectez cette "
-                + "équipe."
+            return "Supprimez tous les brouillons locaux et arrêtez tous les bacs à sable, puis ajoutez de nouveau cet "
+                + "ordinateur à l’équipe."
         case .pairingCodeMissing: return "Nessie n’a pas pu fournir de code d’association. Réessayez."
         case .existingTeamsUnreadable:
             return "Nessie Computer n’a pas pu vérifier les équipes déjà présentes sur ce Mac."
         case .existingTeamNeedsAttention: return "Une équipe de ce Mac demande votre attention."
         case let .settingsStillOlder(attempts):
             return "Nessie considère toujours les réglages de ce Mac comme plus anciens après "
-                + "\(count(attempts, "essai", "essais")). Déconnectez cette équipe et reconnectez-la."
+                + "\(count(attempts, "essai", "essais")). Déconnectez cette équipe, "
+                + "puis ajoutez de nouveau cet ordinateur."
         case .settingsNotProposed: return "Nessie Computer n’a pas pu renvoyer ces réglages."
         case .planNameRequired: return "Donnez un nom à cette offre ChatGPT."
         case .planCheckFailed: return "Impossible de vérifier l’offre ChatGPT. Réessayez."

@@ -49,6 +49,7 @@ enum CzechWords {
         case .resume: return "Pokračovat"
         case .allTeams: return "Všechny týmy"
         case .openComputer: return "Otevřít Nessie Computer…"
+        case .addThisComputer: return "Přidat tento počítač…"
         case .openNessie: return "Otevřít Nessie"
         case .quit: return "Ukončit Nessie Computer"
         case .quitWhileWorking: return "Ukončit Nessie Computer — agenti se zastaví, dokud ho znovu neotevřete"
@@ -91,7 +92,8 @@ enum CzechWords {
         case .addressMustBeHTTPS: return "Adresa serveru musí začínat https://."
         case .pairingFailed: return "Nessie tento krok nedokončil. Zkontrolujte připojení a zkuste to znovu."
         case .pairingCleanupRequired:
-            return "Odstraňte všechny místní koncepty a zastavte všechny sandboxy, pak tým připojte znovu."
+            return "Odstraňte všechny místní koncepty a zastavte všechny sandboxy, pak tento počítač do týmu "
+                + "přidejte znovu."
         case .pairingCodeMissing: return "Nessie nedokázal vydat párovací kód. Zkuste to znovu."
         case .existingTeamsUnreadable:
             return "Nessie Computer nedokázal zkontrolovat týmy, které už na tomto Macu "
@@ -99,7 +101,8 @@ enum CzechWords {
         case .existingTeamNeedsAttention: return "Tým na tomto Macu vyžaduje pozornost."
         case let .settingsStillOlder(attempts):
             return "Nessie považuje nastavení tohoto Macu za starší i po \(attempts) "
-                + (attempts == 1 ? "pokusu" : "pokusech") + ". Odpojte tento tým a připojte ho znovu."
+                + (attempts == 1 ? "pokusu" : "pokusech") + ". Odpojte tento tým a pak do něj "
+                + "tento počítač přidejte znovu."
         case .settingsNotProposed: return "Nessie Computer nedokázal tato nastavení znovu odeslat."
         case .planNameRequired: return "Pojmenujte tento plán ChatGPT."
         case .planCheckFailed: return "Plán ChatGPT se nepodařilo zkontrolovat. Zkuste to znovu."

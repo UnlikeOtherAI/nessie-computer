@@ -10,7 +10,7 @@ import Foundation
 public enum DeepLink: Equatable, Sendable {
     /// `nessie-computer://open?section=<section>[&team=<executorId>]`
     case open(ConsoleTarget)
-    /// `nessie-computer://connect`: Connect a team.
+    /// `nessie-computer://connect`: Add this computer.
     case connect
 
     public static let scheme = "nessie-computer"

@@ -21,7 +21,7 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
         selectSection()
     }
 
-    /// Connect a team, over Overview.
+    /// Add this computer, over Overview: the page asks for a code at once.
     func showConnect() {
         show(ConsoleTarget(section: .overview))
         connect = true
