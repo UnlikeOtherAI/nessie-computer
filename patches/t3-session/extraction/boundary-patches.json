@@ -2423,6 +2423,14 @@
       "afterSha256": "bbc05bc10e68d7d99706e818134cd2621ff3c68773325edbf3ac1498ce26c7f4"
     },
     {
+      "id": "codex-name-original-raw-client-type",
+      "file": "packages/effect-codex-app-server/src/client.ts",
+      "from": "interface CodexAppServerClientRaw {",
+      "to": "export interface CodexAppServerClientRaw {",
+      "beforeSha256": "47454f9269105c78d525ebede696f2b91a61702f19b06cc47fb3ee78ae372c66",
+      "afterSha256": "1d40805fb717178e5ac286525dcd65e775750096c9d50b72c3a4178b11235754"
+    },
+    {
       "id": "codex-immutable-serialized-output",
       "file": "packages/effect-codex-app-server/src/protocol.ts",
       "from": "export interface CodexAppServerPatchedProtocolOptions {",
@@ -2475,16 +2483,16 @@
       "file": "packages/effect-codex-app-server/src/client.ts",
       "from": "export interface CodexAppServerClientOptions {",
       "to": "export interface CodexAppServerClientOptions {\n  readonly serializedOutput?: CodexProtocol.CodexSerializedOutput;",
-      "beforeSha256": "47454f9269105c78d525ebede696f2b91a61702f19b06cc47fb3ee78ae372c66",
-      "afterSha256": "b38e0933414f939e683105ad0233c701154ada5f8697bb338598afbbd617ac2b"
+      "beforeSha256": "1d40805fb717178e5ac286525dcd65e775750096c9d50b72c3a4178b11235754",
+      "afterSha256": "bc826a3a6798929456755612b4da4dcbc920bc95c0ae7f54f0413931078e8753"
     },
     {
       "id": "codex-client-forward-captured-output",
       "file": "packages/effect-codex-app-server/src/client.ts",
       "from": "    stdio,\n    ...(terminationError",
       "to": "    stdio,\n    ...(options.serializedOutput ? { serializedOutput: options.serializedOutput } : {}),\n    ...(terminationError",
-      "beforeSha256": "b38e0933414f939e683105ad0233c701154ada5f8697bb338598afbbd617ac2b",
-      "afterSha256": "61305458f4ff9ed038c7b504a525479aba86e8543978ee468a581d73e1eb537f"
+      "beforeSha256": "bc826a3a6798929456755612b4da4dcbc920bc95c0ae7f54f0413931078e8753",
+      "afterSha256": "5fc60e066414c0e2ad8e1cb28022c01eadc8d2b018f34458ac79a76d3a87fb74"
     },
     {
       "id": "share-error-guard:isOrchestratorProjectionError",

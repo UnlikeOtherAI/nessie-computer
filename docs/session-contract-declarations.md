@@ -29,6 +29,11 @@ TypeScript for a JSON data module. The engine fixture checks inferred JSON types
 and rejects an incompatible annotation, so excluding JSON from declaration emit
 does not exclude it from semantic checking or source provenance.
 
+The original Codex client's `Service.raw` interface is exported by name in the
+extraction. It was already part of that public service's type. This type-only
+export lets `revertCodexThread` name its existing client input during declaration
+emit; it adds no runtime entry point or capability.
+
 `typecheck.contractNaming` records original source and annotation hashes.
 `typecheck.declarations.files` and `sharedContractTypes` bind the shared `.d.ts`
 tree. Contract provenance records compiler declaration production instead of

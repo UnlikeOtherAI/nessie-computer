@@ -4,6 +4,10 @@
 export const extractCodexSerialization = author => {
   const file = 'packages/effect-codex-app-server/src/protocol.ts'
   const client = 'packages/effect-codex-app-server/src/client.ts'
+  // The original public Service.raw already uses this exact interface. Its
+  // consumers need an exported name for ordinary portable declaration emit.
+  author.replace(client, 'interface CodexAppServerClientRaw {',
+    'export interface CodexAppServerClientRaw {', 'codex-name-original-raw-client-type')
   const header = `export interface CodexCapturedWrite {
   readonly write: Effect.Effect<void, CodexError.CodexAppServerError>;
   readonly discard: Effect.Effect<void>;
