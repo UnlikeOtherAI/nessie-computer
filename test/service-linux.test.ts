@@ -113,7 +113,7 @@ test('enable names the pairing failure instead of leaking a bare filesystem erro
   })
   const message = await rejects(enableExecutorService({ assumeYes: true, executorId: 'gone' }, environment))
   assert.match(message, /^Team gone has no usable settings in/)
-  assert.match(message, /Pair this computer first/)
+  assert.match(message, /Add this computer to the team first/)
   assert.deepEqual(commands, [])
 })
 
