@@ -111,5 +111,6 @@ mod tests {
             .0
             .get_failure_actions_on_non_crash_failures()
             .unwrap());
+        fixture.0.delete().expect("remove the owned service fixture");
     }
 }
