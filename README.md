@@ -60,7 +60,7 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
   [Documents](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Documents)
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
   in with ChatGPT. Add as many plans as you have, personal or company.
-  [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI-ChatGPT-plans-and-model-servers)
+  [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
 - **Disconnect a team.** On **Overview**, choose **Disconnect…** on its card.
   [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
 

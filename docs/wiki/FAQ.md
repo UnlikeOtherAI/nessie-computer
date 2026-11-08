@@ -35,7 +35,7 @@ program. See [Programs](Programs#when-an-agent-asks-to-run-a-program).
 
 **Can I use a company ChatGPT plan?**
 Yes. Add as many ChatGPT plans as you have, personal or company. See
-[AI](AI-ChatGPT-plans-and-model-servers).
+[AI](AI).
 
 **Which documents does Documents sync?**
 All the documents you can read in that team. You only choose the folder. See

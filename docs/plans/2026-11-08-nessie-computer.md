@@ -444,3 +444,35 @@ commands beneath ("running `npm test`", "reading report.md", "waiting for you:
 `executor_sessions { executorId? }` → sessions with commands;
 `executor_stop_session { executorId, sessionId }`. CLI: `nessie-computer
 sessions [list|stop <id>]` (also in the wiki Command reference).
+
+## 12. AI already on this computer (A4 + D3)
+
+Ruling (Ondrej, 8 Nov): anything already installed and signed in on the
+computer is offered with one switch, **Make available**, per connection (the
+team in the dropdown). Whether the team or only the owner may use it is
+Nessie's setting, not the computer's.
+
+- **On this computer:** Claude Code and Codex, detected (installed, signed in,
+  which account — the existing account probes). Each row: name, account,
+  **Make available** switch. Not installed → row greyed out, "Not installed on
+  this computer"; installed but signed out → "Run `claude` (or `codex`) once to
+  sign in". Turning it on offers that engine to Nessie for this connection;
+  agents' AI then runs through the installed CLI with its own login, like T3
+  Code. Nessie Computer never reads, copies or refreshes those credentials.
+  Reuse the CLI inference backends that already serve DeepTest grants and the
+  local inference host contract; work runs inside sessions (§11).
+- **More accounts:** OAuth. ChatGPT plans (existing OAuth, any number). Claude:
+  use a provider OAuth only if Anthropic permits third-party use of Claude
+  plans; otherwise "Add another Claude account" runs Claude Code's own sign-in
+  in a separate profile (its own config directory), keeping the T3 model.
+- The ChatGPT-plan terminal restriction applies only to Nessie-held plan
+  grants, never to CLI-backed engines.
+- Bridge: `executor_local_ai { executorId }` → `[{ engine: 'claude-code'|'codex',
+  installed, signedIn, account?, available }]`;
+  `executor_set_local_ai { executorId, engine, available }`.
+  CLI: `nessie-computer ai local [list]`, `ai local on|off <claude-code|codex>`.
+- Nessie (D3): show "Claude Code on {computer}" / "Codex on {computer}" as
+  models wherever local computer models are offered, governed by the existing
+  local-model binding and sharing rules; inference routes to the computer;
+  funded by the owner's subscription, never Ledger credits; plain errors when
+  the computer is offline, paused, or the CLI signs out.
