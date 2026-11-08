@@ -29,6 +29,7 @@ mod control;
 mod inference_connections;
 mod helper;
 mod hyperv;
+mod install_modes;
 use nessie_windows_common::lease;
 mod log;
 use nessie_windows_common::runtime as manifest;
@@ -55,8 +56,9 @@ mod supervisor_public_json;
 mod supervisor_run;
 
 const USAGE: &str = "nessie-executor-service runs as the Nessie Computer Windows service. \
-                     Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal and --join-hyperv-administrators, \
-                     which the installer uses while registering the service, and --control, which nessie-computer uses.";
+                     Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal, \
+                     --join-hyperv-administrators, --close-for-install and --reopen-after-install, which the installer uses, \
+                     and --control, which nessie-computer uses.";
 
 #[derive(Debug, PartialEq, Eq)]
 enum Mode {
@@ -66,6 +68,8 @@ enum Mode {
     SecureStateRoot,
     SecureUpdaterRoot,
     DisableUpdaterForRemoval,
+    CloseForInstall,
+    ReopenAfterInstall,
 }
 
 fn parse_mode(arguments: &[String]) -> Result<Mode, String> {
@@ -76,6 +80,8 @@ fn parse_mode(arguments: &[String]) -> Result<Mode, String> {
         [only] if only == "--secure-state-root" => Ok(Mode::SecureStateRoot),
         [only] if only == "--secure-updater-root" => Ok(Mode::SecureUpdaterRoot),
         [only] if only == "--disable-updater-for-removal" => Ok(Mode::DisableUpdaterForRemoval),
+        [only] if only == "--close-for-install" => Ok(Mode::CloseForInstall),
+        [only] if only == "--reopen-after-install" => Ok(Mode::ReopenAfterInstall),
         _ => Err(USAGE.to_owned()),
     }
 }
@@ -157,6 +163,8 @@ fn main() {
         Ok(Mode::DisableUpdaterForRemoval) => {
             setup("--disable-updater-for-removal", configure_updater("update-uninstall"))
         }
+        Ok(Mode::CloseForInstall) => setup("--close-for-install", install_modes::close_for_install()),
+        Ok(Mode::ReopenAfterInstall) => setup("--reopen-after-install", install_modes::reopen_after_install()),
         Err(usage) => Err(usage),
     };
     if let Err(reason) = outcome {
@@ -203,6 +211,8 @@ mod tests {
             parse_mode(&["--disable-updater-for-removal".to_owned()]),
             Ok(Mode::DisableUpdaterForRemoval),
         );
+        assert_eq!(parse_mode(&["--close-for-install".to_owned()]), Ok(Mode::CloseForInstall));
+        assert_eq!(parse_mode(&["--reopen-after-install".to_owned()]), Ok(Mode::ReopenAfterInstall));
         for arguments in [
             vec!["--control".to_owned(), "status".to_owned()],
             vec!["--control=status".to_owned()],
@@ -216,6 +226,8 @@ mod tests {
             vec!["--secure-state-root".to_owned(), "extra".to_owned()],
             vec!["--secure-state-root=1".to_owned()],
             vec!["--secure-state-roots".to_owned()],
+            // The install folder is derived, never named by the installer.
+            vec!["--close-for-install".to_owned(), r"C:\Elsewhere".to_owned()],
         ] {
             assert_eq!(
                 parse_mode(&arguments),

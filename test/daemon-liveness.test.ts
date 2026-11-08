@@ -6,6 +6,7 @@ import test from 'node:test'
 
 import {
   createNonOverlappingExecutorTask,
+  SHUTDOWN_SIGNALS,
   waitForExecutorDaemonShutdown,
 } from '../src/daemon-tasks.js'
 
@@ -15,6 +16,18 @@ test('a desktop parent-liveness pipe stops the daemon when its parent closes', a
   parentLiveness.end()
   await stopped
   assert.equal(parentLiveness.readableEnded, true)
+})
+
+// The Windows installer asks a daemon it did not start (a scheduled task's, a
+// terminal's) to stop with Ctrl+Break before it replaces the files.
+test('Ctrl+Break stops the daemon as gracefully as a signal and leaves no listener behind', async () => {
+  const parentLiveness = new PassThrough()
+  const stopped = waitForExecutorDaemonShutdown(parentLiveness)
+  assert.ok(process.listenerCount('SIGBREAK') > 0)
+  process.emit('SIGBREAK', 'SIGBREAK')
+  await stopped
+  assert.equal(parentLiveness.destroyed, true)
+  for (const signal of SHUTDOWN_SIGNALS) assert.equal(process.listenerCount(signal), 0, signal)
 })
 
 // The menu bar app stops its daemon with SIGTERM and keeps the pipe's write end

@@ -61,6 +61,17 @@ pub struct Overview {
     pub teams: Vec<Team>,
 }
 
+impl Overview {
+    /// The icon's tooltip: the status sentence the menu opens with, and the one
+    /// thing that needs the owner. It changes whenever the status does.
+    pub fn tooltip(&self) -> String {
+        match &self.needs_you {
+            Some(needs) => format!("{}\n{}", self.status, needs.text),
+            None => self.status.clone(),
+        }
+    }
+}
+
 fn identity<'a>(names: &'a BTreeMap<String, Entry>, executor_id: &str) -> Option<&'a TeamIdentity> {
     match names.get(executor_id) {
         Some(Entry::Known(identity)) => Some(identity),
@@ -244,6 +255,20 @@ mod tests {
 
     fn reachable(executors: Vec<ExecutorStatus>) -> ServiceView {
         ServiceView::Reachable { executors }
+    }
+
+    #[test]
+    fn the_tooltip_follows_the_status_from_no_team_to_working() {
+        let none = english(&reachable(Vec::new()), &BTreeMap::new(), None);
+        assert_eq!(none.tooltip(), "No team connected");
+        let view = reachable(vec![executor("sales", "running", false), executor("ops", "running elsewhere", false)]);
+        let working = english(&view, &named(&[("sales", "Sales"), ("ops", "Ops")]), None);
+        assert_eq!(working.tooltip(), "Working for 2 teams");
+        let mut asking = executor("sales", "running", false);
+        asking.pending_program_requests = 1;
+        let needs = english(&reachable(vec![asking]), &named(&[("sales", "Sales")]), None);
+        assert!(needs.tooltip().starts_with("Working for 1 team\n"), "{}", needs.tooltip());
+        assert!(needs.tooltip().ends_with(&needs.needs_you.as_ref().unwrap().text));
     }
 
     #[test]
