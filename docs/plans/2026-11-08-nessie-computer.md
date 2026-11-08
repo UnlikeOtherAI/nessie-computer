@@ -481,3 +481,30 @@ Nessie's setting, not the computer's.
   local-model binding and sharing rules; inference routes to the computer;
   funded by the owner's subscription, never Ledger credits; plain errors when
   the computer is offline, paused, or the CLI signs out.
+
+## 13. Team names (rulings, 8 Nov) and less text
+
+**Team names never depend on a person.** A team ID → name is not a secret
+(the names are shown anyway). The old path — Nessie replaying the pairing
+person's frozen UOA identity to read `/org/me` — is removed.
+- **UOA:** public, unauthenticated, rate-limited batch lookup by team ID that
+  returns display fields only: `teamId, teamName, teamSlug, orgId, orgName,
+  orgSlug, avatarUrl?`. Unknown IDs are omitted. No membership, roles or
+  anything else. (Tranche U1 defines the route; recorded here when final.)
+- **Nessie:** `POST /api/executor-daemon/teams` (or the existing pairing
+  connection route, extended): body `{ entries: [{ executorId, observedAt,
+  signature }] }`, each signed with that team's key; answer per executor
+  `{ executorId, uoa: { orgId, teamId, baseUrl } }`, or for an install with no
+  UOA `{ executorId, local: { organizationName, teamName } }`. No person, no
+  UOA call needed. Nessie rings the doorbell topic `team` when a team is
+  renamed through Nessie.
+- **Computer:** stores the UOA IDs (display metadata, never an authority) from
+  the pairing claim or that answer; asks UOA for every team's names in one
+  call; keeps a display-only label in the team's folder; refreshes every 15
+  minutes and on the `team` wake; never shows a known name as blank.
+
+**Less text (ruling):** the app shows controls, short labels and status, not
+explanations. Every explanatory sentence moves into a **?** button beside the
+control it explains (tooltip on hover and keyboard focus, read by screen
+readers). Only consequence lines that change a decision stay visible in one
+short line (e.g. "Programs run as you"). All seven locales.
