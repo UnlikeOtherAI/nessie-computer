@@ -1,0 +1,30 @@
+# Prospective retained import authority
+
+`packages/protocol/src/retained-import{,-issuer}.ts` defines the finite canonical
+operations for explicit source issuer enrollment, import challenges and read
+leases. Pending offers and pending enrollment are not authority. The server pins
+an exact Ed25519 public key only after protected local possession proof and a
+current UOA person's action verification of that exact source/key delegation.
+This is prospective permission, not historical ownership, original-copy proof
+or remote attestation of the native binary.
+
+Key format is DER SPKI encoded as base64; fingerprint is lowercase SHA256 of
+those DER bytes. Signatures are base64. Signing uses recursively sorted canonical
+JSON with separate issuer-enrollment, approval and live domains. The source owner
+owns protected signing and online consume/recheck/revoke. The daemon transport
+signature alone cannot replace that proof. Native OS affirmation is not an agent
+tool. Tools may prepare a review or inspect status through the same canonical
+actions; affirmative UOA enrollment requires interactive step-up.
+
+Native live proofs use a server-issued one-use verification nonce. Import
+approval binds the exact challenge/receipt, source tuple, recipient, original
+selection IDs, capture generation and explicit acceptance of
+`not_attested_by_original_source`. V1 consent and grant expire within five
+minutes; read leases expire within 60 seconds and cannot slide their deadline.
+Whole-source capture remains whole-source; a partial grant cannot claim a
+complete capture or read ungranted inherited history.
+
+These contracts and dependent composition are source-only. No compiler, test,
+server or native qualification is claimed. Parent integration must exercise the
+actual protected enrollment ceremony, current UOA step-up, local online proof,
+revocation and selected-team denial before any positive import claim.
