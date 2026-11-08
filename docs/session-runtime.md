@@ -415,3 +415,78 @@ imports, compiler, SQL, tests, native processes or user-facing journey ran.
 No shared manifests or tool registrations changed. Combined qualification must
 exercise valid publication/read, multigrant refusal, expiry, epoch/source loss,
 replay and drained teardown through the actual signed lane and tool doorways.
+
+## Original launch inspection
+
+The extraction now gives the original `ThreadLaunchService` a scoped
+`prepareTarget` operation. `SessionControl.prepareLaunchTarget` shares the exact
+original wire-to-launch conversion with `launchThread`. Selection runs the
+original project/clone checks, provider enablement, receipt recovery and ID
+allocator. Inspection reads the original stored project shell without queuing
+repository enrichment. Scratch normalization remains in authorized launch:
+its original helper runs Git and cannot be invoked by inspection. Reusing an
+existing empty thread without an accepted receipt is explicitly refused during
+inspection because original validation can import its transcript. It stops before
+folder allocation, worktree preparation and command acceptance. The same original
+launch service retains at most 64 prepared command selections. Its actual launch
+reuses the held original ID; a different selection for that command refuses.
+Scope release removes only its own record. Original receipt replay still takes
+precedence over allocation. This is an internal finite selection, not command
+acceptance, native reserve or a signed execution graph.
+
+`runtime/launch-target.ts` holds that selection and the original request privately.
+Recheck verifies the exact canonical original request, current state writer,
+original target and current configured instance. Inspection decodes the exact
+original `CodexSettings` or `ClaudeSettings` through the held original settings
+service, retaining the app's `claudeAgent` identity separately from the native
+`claude` driver spelling. It neither constructs a provider instance nor resolves
+a secret. An unknown/unconfigured driver, disabled instance or changed settings
+refuses. Native homes and credential bindings must come from the protected held
+resource producer; no `continuationIdentity` is converted into a native home.
+
+The inspection challenge binds all original request targets and current human
+initiation. The protected graph receipt must bind the service-held resource,
+runtime generation and release. Neither this internal selection nor a retained
+read announcement replaces that receipt. `launchDigest` is deliberately absent:
+it belongs to the later native preparation receipt over the exact held process
+descriptor, after original authorized preparation and before spawning.
+
+Source extraction also selects the original provider session manager, instance
+registry and finalization implementation into separate live modules. The real
+manager, original event ingestor and checkpoint/finalization layers now share
+the same state, allocator, adapter registry and output hub in `EngineLayers`.
+Only metric decorators and completion analytics are omitted. The actual registry
+factory is exported for admitted construction; its eager startup must not run
+during inspection. Native driver, event/turn/resource ownership and per-operation
+SDK byte transport still need binding. No empty registry or successful callback
+is used as a substitute. Required service types retain the actual provider
+directory and native/resource ports; the manager itself is now supplied.
+
+The fixed protected `t3-session-runtime` entry, held execution resource producer,
+native graph signing, original adapter serialization and immutable Claude history
+entry are not yet composed at this checkpoint. Four config/refusal fixtures are
+authored and unrun; they cannot establish positive native authority. Source-only
+syntax parsing covered twelve modules at 256 MiB without linking/evaluation.
+No compiler, SQL, tests, provider/native launch, install or manual journey ran.
+Two additional original-launch fixtures trap accidental project/Scratch probing,
+verify selected-ID reuse and escaped-scope refusal, and refuse transcript-dependent
+reuse. They are unrun. A builtin source import inventory parsed 204 modules and
+found no excluded application/telemetry imports; this is not a typecheck or runtime
+qualification.
+
+The actual original `providerSessionId` exists before provider spawn:
+`Orchestrator.providerSessionIdFor` uses the original allocator/deriver, the
+projection retains it, and `ProviderTurnStartService` forwards it through
+`ProviderSessionManager.open` into the original adapter's `openSession`.
+Native preparation must bind this actual graph-owned ID alongside the exact
+process descriptor. Reserve still has no provider/native IDs. Provider stdout
+proves the separate native association; it never allocates the app session ID.
+
+The integrated original engine built successfully on Maxis with Node 24.19.0
+and strict declaration checks after replaying all patch families. The combined
+manifest digest is `8708c678a9a5f524e5cca8f02271b3f7318d3de957c68143eebbc0bef883afe8`.
+The shared provider manager declarations are selected from the same original
+source for its port and live implementation. This build does not qualify native
+custody, installed execution, or production availability. The earlier 20 client
+and 11 engine test passes precede these live-layer changes; this revision needs
+its own test run.
