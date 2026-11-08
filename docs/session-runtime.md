@@ -657,10 +657,42 @@ replay repeats neither work nor timer updates. Missing ACK, substituted metadata
 and changed deadlines cannot open a recognized command callback. Callback exit
 aborts and drains demand before releasing the engine and SQL resources.
 
-No command or provider authority is inferred from retaining the scope. The fixed
-CLI/daemon bridge and original admitted provider serializer remain unfinished;
-these internal methods are not yet reachable through the daemon. Six lease
+No command or provider authority is inferred from retaining the scope. Six lease
 fixtures are authored and unrun, including lost-ACK retention, shortening,
 metadata substitution and joined cleanup. Builtin parsing performs no application
 evaluation. No compiler, package tests, native launch or manual journey ran for
 this checkpoint.
+
+## Protected inspection entry
+
+The fixed `t3-session-runtime` CLI now reads SYSTEM's startup frame exactly once
+through `readProtectedT3GraphStartup`. Its later bounded NDJSON channel accepts
+only a configured admitted-root selector, inspect/accept/release/describe and
+close. It receives no source path, settings DTO, machine key or executable.
+Settings and the source snapshot come from `withT3ExecutionResources` inside
+that protected process. It imports once through `withSessionExecutionState` and
+holds the original graph until the channel, source or writer closes.
+
+Destination journals live under the actual process user's
+`.local/state/nessie-t3-graphs/<sha256-executor-id>`, checked outside checkouts and
+secured owner-only. This is new local execution state, never a replacement for
+the enrolled service directory or original source configuration. Source consent
+and registration linkage remain native-owned before any source read.
+
+`createProtectedSessionRuntime` now attaches those children to `serveExecutor`'s
+existing source registry and single signed lane. Configured roots select which
+children to start; only a returned actual held descriptor announces inspection.
+Each request fences executor, epoch, source and writer. Heartbeat replacement,
+source removal, shutdown and update draining withdraw announcements and join
+service-positive child clearance before daemon custody releases. A cleared child
+may be recreated after a bounded delay; unknown startup/clearance is retained as
+unavailable rather than retried as if no process existed.
+
+This is inspection only. The command `open` path still refuses: original admitted
+activation, per-operation SDK serialization and immutable history composition
+remain unfinished. It does not advertise retained readiness or claim a provider
+launch. The protected finite native phase transport will attach to the exact
+open operation's closure, never to a caller-selected operation or daemon key DTO.
+Four control-channel fixtures cover bounded framing, UTF8, field injection and
+write acknowledgements. They are authored and unrun. No installed/native journey
+or compiler qualification is claimed for this entry.
