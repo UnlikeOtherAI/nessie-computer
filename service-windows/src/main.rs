@@ -54,6 +54,8 @@ mod execution_process;
 #[cfg(windows)]
 mod execution_process_io;
 #[cfg(windows)]
+mod execution_input;
+#[cfg(windows)]
 mod execution_frames;
 #[cfg(windows)]
 mod execution_effect;
