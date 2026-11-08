@@ -81,7 +81,6 @@ export type ParsedCommand =
   | { executorId: string; kind: 'disable' }
   | { executorId?: string; kind: 'status'; stateRoot?: string }
   | SyncCliCommand
-  | SessionsCliCommand
 
 /**
  * A command line whose first word is no command at all, as opposed to a known
@@ -187,6 +186,9 @@ const pairingChallenge = (args: string[]): Pick<Extract<ParsedCommand, { kind: '
   if (standardInput === commandLine) return usage()
   return standardInput ? { challengeFromStandardInput: true } : { challenge: option(args, '--challenge') }
 }
+
+/** The apps' `sessions` and `session stop` (`session-cli.ts`), or `undefined` for any other line. */
+export const parseSessionsCommand = (args: string[]): SessionsCliCommand | undefined => parseSessionsArguments(args, usage)
 
 export const parseCommand = (args: string[]): ParsedCommand => {
   const [command] = args
@@ -363,7 +365,6 @@ export const parseCommand = (args: string[]): ParsedCommand => {
     }
   }
   if (command === 'sync') return parseSyncArguments(args, usage)
-  if (command === 'sessions' || command === 'session') return parseSessionsArguments(args, usage)!
   if (command === 'serve') {
     return {
       kind: 'serve',

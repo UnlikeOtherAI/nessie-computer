@@ -48,7 +48,7 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
+import { parseCommand, parseSessionsCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
 import { requestedMcpServers } from './mcp-server-changes.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -177,12 +177,10 @@ const readPairingInput = async (): Promise<{
 
 export const run = async (args: string[]): Promise<void> => {
   // The apps' Now working verbs (`session-cli.ts`); `nessie-computer sessions` without a state folder is a person's.
-  if ((args[0] === 'sessions' || args[0] === 'session') && args.includes('--state-dir')) {
-    const command = parseCommand(args)
-    if (command.kind === 'sessions' || command.kind === 'session-stop') {
-      process.exitCode = await runSessionsCommand(command, (text) => { process.stdout.write(text) })
-      return
-    }
+  const sessions = args.includes('--state-dir') ? parseSessionsCommand(args) : undefined
+  if (sessions) {
+    process.exitCode = await runSessionsCommand(sessions, (text) => { process.stdout.write(text) })
+    return
   }
   if (isUserCommand(args)) {
     offerUpdateAtLaunch(args)
