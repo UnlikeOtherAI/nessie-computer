@@ -1,4 +1,5 @@
-import { open, readdir, readFile, unlink } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { link, open, readdir, readFile, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { replaceOwnerOnlyJson } from './owner-only-json.js'
@@ -81,7 +82,8 @@ export const openProgramRequestStore = (stateDir: string) => ({
   sweep: async (): Promise<void> => {
     const directory = await ensureOwnerOnlyStateDirectory(directoryOf(stateDir))
     for (const name of await readdir(directory)) {
-      if (/\.json$/u.test(name)) await removeIfPresent(join(directory, name))
+      // `.new` is an answer an interrupted `program-request answer` never published.
+      if (/\.(?:json|new)$/u.test(name)) await removeIfPresent(join(directory, name))
     }
   },
   create: async (request: ProgramRequest): Promise<void> => {
@@ -144,25 +146,33 @@ export const waitingProgramRequest = async (
   return request
 }
 
-/** Writes the owner's answer once; a second answer to the same request is refused. */
+/**
+ * Writes the owner's answer once; a second answer to the same request is
+ * refused. The answer is written and secured under a temporary name first and
+ * then published by a hard link, which fails when an answer is already there:
+ * the daemon reads an answer the moment it appears and removes it with its
+ * request, so a file it could see half written, or before it was secured,
+ * would be lost to it.
+ */
 export const writeProgramRequestAnswer = async (
   stateDir: string, id: string, answer: ProgramRequestAnswer, now: Date = new Date(),
 ): Promise<void> => {
   const path = answerPath(stateDir, id)
-  let handle: Awaited<ReturnType<typeof open>>
+  const temporary = `${path}.${process.pid}.${randomUUID()}.new`
+  const handle = await open(temporary, 'wx', 0o600)
   try {
-    handle = await open(path, 'wx', 0o600)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      throw new ProgramRequestError('PROGRAM_REQUEST_ALREADY_ANSWERED', 'That program request was already answered.')
+    try {
+      await handle.writeFile(`${JSON.stringify({ id, answer, answeredAt: now.toISOString() })}\n`, 'utf8')
+      await handle.sync()
+    } finally {
+      await handle.close()
     }
-    throw error
-  }
-  try {
-    await handle.writeFile(`${JSON.stringify({ id, answer, answeredAt: now.toISOString() })}\n`, 'utf8')
-    await handle.sync()
+    await secureOwnerOnlyStateFile(temporary)
+    await link(temporary, path).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error
+      throw new ProgramRequestError('PROGRAM_REQUEST_ALREADY_ANSWERED', 'That program request was already answered.')
+    })
   } finally {
-    await handle.close()
+    await unlink(temporary).catch(() => undefined)
   }
-  await secureOwnerOnlyStateFile(path)
 }
