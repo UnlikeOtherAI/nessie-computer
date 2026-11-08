@@ -263,7 +263,8 @@ export const createCodingSessionsDaemon = (input: {
       const { codingSessionAuthority, ...args } = action
       const answer = answerOf(await callSessionSurface({ sessions: input.sessions, server: bridge.name,
         tool: 'session_user_action', arguments: args, commandId: action.id, ownerKey: action.ownerKey,
-        authority: codingSessionAuthority, source: () => input.pairingSource?.(), epoch: () => input.connectionEpoch?.(),
+        authority: codingSessionAuthority, source: () => input.pairingSource?.(),
+        epoch: () => input.connectionEpoch?.(),
         validate: input.validateSessionAuthority }))
       const parsed = ExecutorSessionActionReceiptSchema.safeParse(answer?.receipt)
       return parsed.success ? parsed.data : { id: action.id, state: 'outcome_unknown', code: 'delivery_unknown' }
@@ -279,7 +280,8 @@ export const createCodingSessionsDaemon = (input: {
       const result = await callSessionSurface({ sessions: input.sessions, server: bridge.name,
         tool: 'session_conversation', arguments: { sessionId: request.sessionId, ownerKey: request.ownerKey },
         commandId: scope?.commandId ?? `daemon-${randomUUID()}`, ownerKey: request.ownerKey, authority: scope,
-        source: () => input.pairingSource?.(), epoch: () => input.connectionEpoch?.(), validate: input.validateSessionAuthority })
+        source: () => input.pairingSource?.(), epoch: () => input.connectionEpoch?.(),
+        validate: input.validateSessionAuthority })
       await viewerScope(request, 'publish')
       const answer = answerOf(result)
       const parsed = ExecutorSessionConversationSchema.safeParse(answer?.conversation)

@@ -64,7 +64,8 @@ export const readManagedSessionAuthority = (
 }
 
 export const requireManagedSessionEvidence = (
-  authority: ExecutorCodingSessionAuthority, session: { sessionId: string; ownerKey: string; originalManagedStart?: ManagedStart },
+  authority: ExecutorCodingSessionAuthority,
+  session: { sessionId: string; ownerKey: string; originalManagedStart?: ManagedStart },
 ): ExecutorManagedSessionEvidence => {
   if (Date.parse(authority.expiresAt) <= Date.now()) throw unavailable()
   const selected = authority.admissions.find(row => row.sessionId === session.sessionId)
@@ -108,7 +109,9 @@ export const prepareManagedBridgeCall = async (
   const source = await readSessionPairingSource(directory, meta.sessionPairingSource)
   if (source.kind === 'unbound_local') return null
   const operation = tool === 'session_conversation' ? 'session_view' : tool
-  const authority = readManagedSessionAuthority(meta.codingSessionAuthority, operation, meta.commandId, source, meta.ownerKey)
+  const authority = readManagedSessionAuthority(
+    meta.codingSessionAuthority, operation, meta.commandId, source, meta.ownerKey,
+  )
   if (authority.connectionEpoch !== meta.connectionEpoch) throw unavailable()
   if (tool === 'session_list') {
     const input = args && typeof args === 'object' ? args as Record<string, unknown> : {}

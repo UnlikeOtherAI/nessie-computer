@@ -42,7 +42,8 @@ export const reconcileManagedStart = async (
   if (previous.found === 'unreadable') throw uncertain()
   if (previous.found === 'yes') return replay(previous.value)
   const legacy = await readJson<CommandRecord>(join(codingCommandsDir(stateDir), `${commandId}.json`))
-  if (legacy || (await listSessionMetas(stateDir)).some(meta => meta.originalManagedStart?.startCommandId === commandId)) {
+  const matching = (await listSessionMetas(stateDir)).some(meta => meta.originalManagedStart?.startCommandId === commandId)
+  if (legacy || matching) {
     throw uncertain()
   }
   return undefined
@@ -78,7 +79,8 @@ export const recordManagedStartOutcome = async (
   if (!proof || typeof proof !== 'object' || Array.isArray(proof)) throw uncertain()
   const evidence = proof as Record<string, unknown>
   if (evidence.startCommandId !== authority.commandId || evidence.executorId !== authority.executorId
-    || evidence.originalOwnerGeneration !== authority.originalOwnerGeneration || evidence.ownerKey !== authority.ownerKey) {
+    || evidence.originalOwnerGeneration !== authority.originalOwnerGeneration
+    || evidence.ownerKey !== authority.ownerKey) {
     throw uncertain()
   }
   const outcome = { phase: 'request_and_host_created', sessionId: evidence.sessionId,

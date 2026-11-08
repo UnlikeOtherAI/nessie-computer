@@ -183,7 +183,9 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   }
 
   /** `fresh` for a new request, which gets hosts of its own even after earlier ones failed to start. */
-  const ensureHost = (paths: CodingSessionPaths, sessionId: string, fresh = false, effect?: SessionEffectAuthority) => ensureCodingSessionHost({
+  const ensureHost = (
+    paths: CodingSessionPaths, sessionId: string, fresh = false, effect?: SessionEffectAuthority,
+  ) => ensureCodingSessionHost({
     configPath: loaded.configPath, entry, paths, sessionId,
   }, { fresh, effect })
 
@@ -285,7 +287,8 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       'The original host creation is unconfirmed. Reconcile the original command before starting again.')
     const result = { sessionId, status: 'starting', agent, ...(target.command ? {} : { root: rootName, path }), title,
       ...(authority ? { startPhase: 'request_and_host_created' } : {}),
-      ...(meta.originalManagedStart ? { startEvidence: managedSessionEvidence(meta.originalManagedStart, sessionId, ownerKey) } : {}) }
+      ...(meta.originalManagedStart
+        ? { startEvidence: managedSessionEvidence(meta.originalManagedStart, sessionId, ownerKey) } : {}) }
     if (authority) await recordManagedStartOutcome(stateDir, authority, result)
     return result
   }
@@ -337,7 +340,9 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     }
   }
 
-  const status = async (value: unknown, ownerKey: string, authority?: ExecutorCodingSessionAuthority): Promise<Record<string, unknown>> => {
+  const status = async (
+    value: unknown, ownerKey: string, authority?: ExecutorCodingSessionAuthority,
+  ): Promise<Record<string, unknown>> => {
     const args = argumentsFor(value, ['sessionId', 'detail', 'cursor'])
     const { paths, meta } = await owned(args.sessionId, ownerKey, authority)
     if (args.detail !== undefined && args.detail !== 'summary' && args.detail !== 'events') {
@@ -358,7 +363,9 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     })
   }
 
-  const review = async (value: unknown, ownerKey: string, authority?: ExecutorCodingSessionAuthority): Promise<Record<string, unknown>> => {
+  const review = async (
+    value: unknown, ownerKey: string, authority?: ExecutorCodingSessionAuthority,
+  ): Promise<Record<string, unknown>> => {
     const args = argumentsFor(value, ['sessionId', 'pullRequest'])
     const { paths, meta } = await owned(args.sessionId, ownerKey, authority)
     if (meta.agent === 'terminal') {

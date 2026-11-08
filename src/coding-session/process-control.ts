@@ -48,7 +48,9 @@ export type CodingProcessControl = {
   stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<'stopped' | 'unknown'>
   /** Set when this host cannot contain an agent; starting one fails with this reason. */
   refusal?: string
-  spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: SessionEffectAuthority }) => ChildProcess
+  spawnAgent: (command: string, args: string[], options: {
+    cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: SessionEffectAuthority
+  }) => ChildProcess
   identify: (pid: number) => Promise<CodingProcessIdentity | undefined>
   /**
    * The identity to record for what `spawnAgent` started, when that process
@@ -64,7 +66,8 @@ export type CodingProcessControl = {
    */
   descendants: (identity: CodingProcessIdentity) => Promise<CodingProcessIdentity[]>
   /** Kills the process and its tree while it is still the one recorded, and each snapshot member still its own. */
-  killTree: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[]) => Promise<void>
+  killTree: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[],
+    effect?: SessionEffectAuthority) => Promise<void>
   /**
    * Kills a process this one started and has not reaped, and its tree, with
    * its start time read in the same table as its descendants rather than by
@@ -263,7 +266,7 @@ const posixControl = (
     descendants: async (identity) => treeOf(identity, await table() ?? new Map(), true),
     killTree: async (identity, snapshot = [], effect) => {
       const before = await table()
-      if (before) await killFrom(before, identity, snapshot)
+      if (before) await killFrom(before, identity, snapshot, effect)
     },
     killChildTree: async (child) => {
       const before = await table()

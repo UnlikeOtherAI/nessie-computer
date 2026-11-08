@@ -11,7 +11,8 @@ const refused = () => new Error('Original session result authority is unavailabl
 export const validateScopedCodingResult = (
   raw: Record<string, unknown>, authority: ExecutorCodingSessionAuthority,
 ): Record<string, unknown> => {
-  if (Date.parse(authority.expiresAt) <= Date.now() || !Array.isArray(raw.content) || raw.content.length !== 1) throw refused()
+  if (Date.parse(authority.expiresAt) <= Date.now()
+    || !Array.isArray(raw.content) || raw.content.length !== 1) throw refused()
   const first = raw.content[0]
   if (!record(first) || first.type !== 'text' || typeof first.text !== 'string') throw refused()
   let body: unknown

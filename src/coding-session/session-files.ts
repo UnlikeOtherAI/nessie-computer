@@ -129,7 +129,9 @@ export const writeJsonAtomic = async (path: string, value: unknown): Promise<voi
 }
 
 /** Creates `path` only if it does not exist; `false` means somebody already did. */
-export const createJsonExclusive = async (path: string, value: unknown, effect?: SessionEffectAuthority): Promise<boolean> => {
+export const createJsonExclusive = async (
+  path: string, value: unknown, effect?: SessionEffectAuthority,
+): Promise<boolean> => {
   let handle
   try {
     await effect?.consume()

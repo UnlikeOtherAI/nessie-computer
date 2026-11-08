@@ -54,7 +54,8 @@ test('command projection excludes only validated lease dates and retains argumen
     codingSessionAuthority: authority }
   const projected = executorSessionCommandArgumentProjection(payload)
   assert.deepEqual(executorSessionCommandArgumentProjection({ ...payload, codingSessionAuthority: { ...authority,
-    issuedAt: new Date(Date.now() + 1_000).toISOString(), expiresAt: new Date(Date.now() + 26_000).toISOString() } }), projected)
+    issuedAt: new Date(Date.now() + 1_000).toISOString(),
+    expiresAt: new Date(Date.now() + 26_000).toISOString() } }), projected)
   for (const patch of [{ ownerKey: `sha256:${'b'.repeat(64)}` }, { originalOwnerGeneration: randomUUID() },
     { filter: { search: 'changed' } }, { nextCursor: 'changed' }, { authorizationRevision: 2 }, { connectionEpoch: '2' }]) {
     assert.notDeepEqual(executorSessionCommandArgumentProjection({ ...payload,

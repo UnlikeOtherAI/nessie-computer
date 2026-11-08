@@ -164,7 +164,21 @@ impl Channel {
             {
                 return Err(refused());
             }
-            if self.original.is_none() {
+            if let Some(first) = &self.original {
+                if first["admissions"].get(0).is_some()
+                    && scope["admissions"].get(0).is_some()
+                    && (first["admissions"][0]["sessionId"] != scope["admissions"][0]["sessionId"]
+                        || first["admissions"][0]["evidenceDigest"]
+                            != scope["admissions"][0]["evidenceDigest"])
+                {
+                    return Err(refused());
+                }
+            }
+            if self
+                .original
+                .as_ref()
+                .is_none_or(|first| first["admissions"].get(0).is_none())
+            {
                 self.original = Some(scope.clone());
             }
         }
@@ -326,6 +340,19 @@ mod tests {
             assert!(channel.next().is_ok());
             assert!(channel.next().is_err());
         }
+    }
+    #[test]
+    fn an_admitted_session_cannot_be_retargeted_with_the_same_start_reference() {
+        let mut first = scope("control-one");
+        first["admissions"] =
+            json!([{"startCommandId":"start","sessionId":"one","evidenceDigest":"digest"}]);
+        let mut second = first.clone();
+        second["commandId"] = json!("control-two");
+        second["admissions"][0]["sessionId"] = json!("two");
+        let input = offer(1, first, "launch", "{}") + &offer(2, second, "input", "text");
+        let mut channel = Channel::new(Cursor::new(input.into_bytes()), Vec::new());
+        assert!(channel.next().is_ok());
+        assert!(channel.next().is_err());
     }
     #[test]
     fn missing_authority_never_turns_input_into_a_system_reply() {

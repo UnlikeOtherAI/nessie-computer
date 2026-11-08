@@ -8,7 +8,8 @@ export type EffectWire = { kind: EffectKind; data: string; scope: ExecutorCoding
 export const effectDigest = (wire: string): string => createHash('sha256').update(wire).digest('hex')
 const LIMIT = 512 * 1024
 const TIMEOUT = 10_000
-export const automaticTerminalReply = (data: string): boolean => data.length <= 64 && /^\u001b\[[0-9;?]*[Rcn]$/u.test(data)
+export const automaticTerminalReply = (data: string): boolean =>
+  data.length <= 64 && /^\u001b\[[0-9;?]*[Rcn]$/u.test(data)
 
 /** Only provider responses, never new requests/notifications or human input, are independent of a new command. */
 export const automaticProviderReply = (data: string): boolean => {
@@ -19,12 +20,17 @@ export const automaticProviderReply = (data: string): boolean => {
   } catch { return false }
 }
 
-export const sameEffectSession = (first: ExecutorCodingSessionAuthority, next: ExecutorCodingSessionAuthority): boolean => {
+export const sameEffectSession = (
+  first: ExecutorCodingSessionAuthority, next: ExecutorCodingSessionAuthority,
+): boolean => {
   const original = first.admissions[0]?.startCommandId ?? first.commandId
   const selected = next.admissions[0]?.startCommandId ?? next.commandId
   return first.executorId === next.executorId && first.originalOwnerGeneration === next.originalOwnerGeneration
     && first.ownerKey === next.ownerKey && first.connectionEpoch === next.connectionEpoch
     && first.authorizationRevision === next.authorizationRevision && original === selected && next.purpose === 'control'
+    && (!first.admissions.length || !next.admissions.length
+      || first.admissions[0]!.sessionId === next.admissions[0]!.sessionId
+        && first.admissions[0]!.evidenceDigest === next.admissions[0]!.evidenceDigest)
 }
 
 /** Bounded framing on a private inherited pipe. It is never connected to provider stdio. */
@@ -89,7 +95,7 @@ export class EffectPipe {
 export class EffectBroker {
   #sequence = 0
   #queue: Promise<unknown> = Promise.resolve()
-  constructor(private readonly pipe: EffectPipe, private readonly original: ExecutorCodingSessionAuthority) {}
+  constructor(private readonly pipe: EffectPipe, private original: ExecutorCodingSessionAuthority) {}
   send(kind: EffectKind, data: string, effect?: SessionEffectAuthority): Promise<void> {
     const task = this.#queue.then(() => this.exchange(kind, data, effect))
     this.#queue = task.catch(() => undefined)
@@ -100,6 +106,7 @@ export class EffectBroker {
     if (!effect && kind !== 'end' && !(kind === 'reply' && automaticProviderReply(data))
       && !(kind === 'terminal_reply' && automaticTerminalReply(data))) throw new SessionEffectRefused()
     effect?.assertLive()
+    if (effect?.scope.admissions.length && !this.original.admissions.length) this.original = effect.scope
     const seq = ++this.#sequence
     const wire = JSON.stringify({ kind, data, scope: effect?.scope ?? null } satisfies EffectWire)
     const digest = effectDigest(wire)
@@ -149,7 +156,9 @@ export class EffectReceiver {
       const checked = SessionEffectAuthority.fromReference({ directory: '', authority: frame.scope })!
       checked.assertLive()
       if (this.#original && !sameEffectSession(this.#original, checked.scope)) throw new SessionEffectRefused()
-      this.#original ??= checked.scope
+      if (!this.#original || !this.#original.admissions.length && checked.scope.admissions.length) {
+        this.#original = checked.scope
+      }
     } else if (!this.#original || frame.kind !== 'end' && !(frame.kind === 'reply' && automaticProviderReply(frame.data))) {
       throw new SessionEffectRefused()
     }

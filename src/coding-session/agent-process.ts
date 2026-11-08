@@ -65,7 +65,9 @@ export class AgentStartError extends Error {
 }
 
 export type AgentProcess = {
-  confirmHostExecutionStopped?: (snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<boolean>
+  confirmHostExecutionStopped?: (
+    snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority,
+  ) => Promise<boolean>
   identity: CodingProcessIdentity
   write: (text: string, effect?: SessionEffectAuthority) => Promise<void>
   writeProtocol: (text: string) => void
@@ -171,7 +173,9 @@ export const startAgentProcess = async (
   try { await protectionLease?.bindExecution(identity) }
   catch (error) { await context.control.killTree(identity).catch(() => undefined); throw error }
   let released = false
-  const confirmHostExecutionStopped = async (snapshot: readonly CodingProcessIdentity[] = [], authority?: SessionEffectAuthority): Promise<boolean> => {
+  const confirmHostExecutionStopped = async (
+    snapshot: readonly CodingProcessIdentity[] = [], authority?: SessionEffectAuthority,
+  ): Promise<boolean> => {
     if (released) return true
     // The legacy killTree's void completion is deliberately never a release proof.
     if (!context.control.stopTree || await context.control.stopTree(identity, snapshot, authority) !== 'stopped') return false

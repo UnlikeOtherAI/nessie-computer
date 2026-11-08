@@ -72,7 +72,8 @@ const agentStart = (message: unknown): AgentStart | undefined => {
   const env = value?.env as unknown
   if (typeof value?.command !== 'string' || !strings(value.args) || typeof value.cwd !== 'string') return undefined
   if (!env || typeof env !== 'object' || !Object.values(env).every((item) => typeof item === 'string')) return undefined
-  return { sessionEffect: value.sessionEffect, command: value.command, args: value.args, cwd: value.cwd, env: env as Record<string, string> }
+  return { sessionEffect: value.sessionEffect, command: value.command, args: value.args,
+    cwd: value.cwd, env: env as Record<string, string> }
 }
 
 export type AgentGuardLaunch = {
@@ -98,7 +99,9 @@ export const guardedProcessControl = (
     })
     // A guard that dies before reading this exits on its own, and that exit is the failure the host sees.
     guard.send({ kind: 'start', sessionEffect: options.sessionEffect?.reference, command, args, cwd: options.cwd, env: options.env }, () => undefined)
-    if (options.sessionEffect) attachEffectTransport(guard, 4, options.sessionEffect, { command, args, cwd: options.cwd })
+    if (options.sessionEffect) {
+      attachEffectTransport(guard, 4, options.sessionEffect, { command, args, cwd: options.cwd })
+    }
     return guard
   },
   /**

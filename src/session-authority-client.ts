@@ -22,7 +22,8 @@ export const createSessionAuthorityClient = (
     : scope.operation === 'session_user_action' ? 'action' : 'command'
   const payload: Omit<ExecutorSessionAuthorityCheck, 'signature'> = {
     executorId: before.executorId, connectionEpoch: before.connectionEpoch,
-    commandId: scope.commandId, selectionDigest, kind, phase, observedAt: new Date().toISOString(), requestNonce: randomUUID() }
+    commandId: scope.commandId, selectionDigest, kind, phase,
+    observedAt: new Date().toISOString(), requestNonce: randomUUID() }
   const startedAt = Date.now()
   const answer = ExecutorSessionAuthorityCheckedSchema.parse(await api.checkSessionAuthority(before.apiBaseUrl, {
     ...payload, signature: signExecutorDaemonPayload(before.machinePrivateKey, 'session_authority', payload),
@@ -35,7 +36,8 @@ export const createSessionAuthorityClient = (
     || current.apiBaseUrl !== before.apiBaseUrl || current.machinePublicKey !== before.machinePublicKey
     || current.sessionPairingSource?.kind !== 'bound'
     || current.sessionPairingSource.originalOwnerGeneration !== scope.originalOwnerGeneration
-    || answer.connectionEpoch !== current.connectionEpoch || answer.authorizationRevision !== scope.authorizationRevision
+    || answer.connectionEpoch !== current.connectionEpoch
+    || answer.authorizationRevision !== scope.authorizationRevision
     || answer.purpose !== scope.purpose || Date.parse(answer.validUntil) <= Date.now()
     || Date.now() - startedAt >= 5_000 || Date.parse(answer.validUntil) > Date.now() + 5_000
     || canonicalExecutorJson(executorCodingSessionResultScope(answer.authority))
