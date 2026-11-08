@@ -29,6 +29,7 @@ export const isExecutorT3Stream = (request: ExecutorT3LaneOperation): boolean =>
 export const T3_LANE_LIMITS = Object.freeze({
   active: 64, exchangeFrames: 8, requestBytes: 1024 * 1024,
   frameBytes: 8 * 1024 * 1024, bufferedBytes: 32 * 1024 * 1024, leaseMs: 60_000, pollMs: 250,
+  controlBytes: 512 * 1024,
 })
 
 export type T3LaneFrame = {
