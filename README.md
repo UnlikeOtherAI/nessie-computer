@@ -12,7 +12,7 @@ changing native launch, credential custody or installation code.
 
 ## Build and check
 
-Use Node 22 and pnpm 10.22.0. No Nessie checkout, database, private Git package
+Use Node 24 and pnpm 10.22.0. No Nessie checkout, database, private Git package
 or production signing credential is required for source verification.
 
 ```sh

@@ -572,10 +572,11 @@ the destination captured. Captured is neither published nor executing readiness.
 The original engine must reconcile legacy shells inside its own shared graph.
 
 On restart, the same source fingerprint reopens the existing destination and
-preserves accepted engine writes. An interrupted copy, changed source, changed
-layout or divergent original-v2 frozen legacy refuses; no automatic recopy
-replaces execution history. An explicit source-reconciliation/recovery operation
-is still required for those cases. A fresh runtime incarnation is minted only
+preserves accepted engine writes. An interrupted `capturing` generation was never exposed to the original
+engine: retry allocates a fresh stage and preserves the failed journal/artifact.
+Once captured, changed source, changed layout or divergent original-v2 frozen
+legacy refuses; no automatic recopy replaces execution history. Explicit source
+reconciliation is still required for those cases. A fresh runtime incarnation is minted only
 after the destination writer lock is acquired. Callback exit invalidates access;
 the enclosing original graph must drain before SQL and the writer close.
 
@@ -586,3 +587,44 @@ Two additional fixtures cover source transaction ownership, full legacy baseline
 escaped views and forged-resource refusal; both are authored and unrun. Fixed
 entry, full inspect/open registration, admitted SDK serialization, immutable
 history child and installed recovery journeys remain unfinished.
+
+Cold inspection now consumes `Settings.ServerSettingsReadService` (the original
+`getSettings` type only) and `ProjectClones.ProjectCloneReadService` (the original
+`get` type only). The extracted `ProjectCloneState` owns the original Ref map;
+its live clone tracker and cold reader use that same layer, rather than a fake
+empty tracker. The original clone guard accepts exactly its consumed read shape.
+`sessionExecutionSettingsLayer` decodes only recognized held source bytes and
+rechecks before and after each original-codec read. It provides no start/update/
+subscription methods and never hydrates a provider or credential resolver.
+
+Authorized launch still requires the full original settings service and clone
+tracker; these read interfaces do not substitute for either. Existing compiler
+fixes from approved parent `ea74232e550657a57efc9169d0d198ef40e094e5` are preserved.
+Two added fixtures check the shared clone map and forged-settings refusal. They
+are unrun. All 149 patched modules parsed without evaluation; combined manifest
+SHA-256 is `345b17a5cbf8913815ac1b482393e72d7612994e0b905bea9d2c1fe14323b9be`.
+
+`makeSessionInspectionContext(source, heldState)` now builds the real cold
+original services over the existing destination SQL layer and protected settings
+reader. It captures one `makeSessionEngineGraph` owner, returning scoped inspect/
+recognize Effects plus that same owner for later admitted activation. It does not
+build another engine, clone the source connection or convert passive state into
+an executing graph. Inspection selections must retain their own caller Scope
+through normal admitted dispatch; a finite pipe call cannot close that Scope
+immediately after returning its graph receipt. No lane or CLI registration is
+claimed by this internal composition.
+
+Runtime helper declarations now name their exact original Effect results,
+errors and required services through exported types. The owned SQL stage names
+the error union of the original Sqlite layer instead of an unknown error port.
+Native/resource Promise failures become fixed graph/resource refusal errors;
+original launch/settings failures retain their typed unions. No service or error
+union is widened to make declarations compile.
+
+Root compiled the combined CLI, original engine, protocol and backend on Maxis
+with Node 24.19.0: all 15 prerequisite/build tasks passed. The composed original
+manifest is `345b17a5cbf8913815ac1b482393e72d7612994e0b905bea9d2c1fe14323b9be`.
+Catalog and file wrappers name their original codecs and Effect services; SQL
+transaction errors remain explicit. The retained wake uses the actual
+`session_views` cadence topic. These compiler results establish neither native
+execution nor installed readiness; focused runtime and provider tests continue.

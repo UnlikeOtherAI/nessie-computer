@@ -4,9 +4,10 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Option from 'effect/Option'
 import * as Schema from 'effect/Schema'
+import * as Ref from 'effect/Ref'
 import { LaunchSelection, ProjectStore, ProjectionStore, CommandReceipts, IdAllocator,
   Settings, ProjectClones, SourceContracts, SessionControl, Launch,
-  makeSessionEngineGraph, SessionEngineGraphClosed,
+  makeSessionEngineGraph, SessionEngineGraphClosed, CloneState,
 } from '@nessie/t3-session-source/engine'
 
 // Exercises the original extracted launch constructor against refusal traps.
@@ -19,8 +20,8 @@ const fixture = () => {
       id: 'project:inspect', workspaceRoot: 'C:/held/project', scripts: [],
     })) }),
     Layer.mock(ProjectionStore.ProjectionStoreV2)({ getThreadShell: forbidden }),
-    Layer.mock(ProjectClones.ProjectCloneTracker)({ get: () => Effect.succeed(null) }),
-    Layer.mock(Settings.ServerSettingsService)({ getSettings: Effect.succeed(
+    Layer.mock(ProjectClones.ProjectCloneReadService)({ get: () => Effect.succeed(null) }),
+    Layer.mock(Settings.ServerSettingsReadService)({ getSettings: Effect.succeed(
       Schema.decodeUnknownSync(SourceContracts.ServerSettings)({ providerInstances: { codex: { driver: 'codex' } } }),
     ) }),
     Layer.mock(CommandReceipts.CommandReceiptStoreV2)({ getByCommandId: () => Effect.succeed(Option.none()) }),
@@ -76,6 +77,20 @@ test('closed graph cannot construct inspection or activate host services', async
   for (const phase of [graph.inspection, graph.activate, graph.recovery, graph.continuationConsumer]) {
     await assert.rejects(Effect.runPromise(phase), SessionEngineGraphClosed)
   }
+})
+
+test('cold clone reader observes the same original map used by actual clone management', async () => {
+  await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+    const { clones } = yield* CloneState.ProjectCloneState
+    const read = yield* ProjectClones.ProjectCloneReadService
+    assert.equal(yield* read.get('project:clone'), null)
+    const snapshot = { projectId: 'project:clone', phase: 'running' }
+    yield* Ref.update(clones, current => new Map(current).set('project:clone', { snapshot }))
+    assert.equal(yield* read.get('project:clone'), snapshot)
+    const refused = yield* Effect.exit(ProjectClones.rejectCommandsDuringClone(read,
+      { type: 'thread.create', projectId: 'project:clone' }))
+    assert.equal(refused._tag, 'Failure')
+  }).pipe(Effect.provide(CloneState.readLayer))))
 })
 
 test('inspection invents no origin and admitted conversion keeps only authenticated provenance', async () => {

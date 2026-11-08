@@ -26,7 +26,7 @@ const masked = (value: Record<string, unknown>): boolean => Object.hasOwn(value,
 function projectRecord(value: unknown, offset: number, nativeId: string): ClaudeHistoryRecord {
   const row = objectOf(value)
   if (row.sessionId !== undefined && row.sessionId !== nativeId) throw new Error('claude_history_identity_mismatch')
-  const role = row.type === 'user' || row.type === 'assistant' ? row.type : null
+  const role: ClaudeHistoryRecord['role'] = row.type === 'user' || row.type === 'assistant' ? row.type : null
   const base = { offset, id: stringOrNull(row.uuid), parentId: stringOrNull(row.parentUuid), role }
   const message = objectOf(row.message)
   // Explicit native structural masks, including malformed mask values, never

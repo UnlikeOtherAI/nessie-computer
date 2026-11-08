@@ -87,8 +87,8 @@ type ProjectSelection = { readonly id: ProjectId; readonly workspaceRoot: string
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
   const ids = yield* IdAllocator.IdAllocatorV2;
-  const cloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
+  const cloneTracker = yield* ProjectCloneTracker.ProjectCloneReadService;
+  const serverSettings = yield* ServerSettings.ServerSettingsReadService;
 `
   const selected = selectedImports(before, coldOwners, file, target, redirects)
   const combinedImports = [...new Set((imports + selected).split('\n').filter(Boolean))].join('\n') + '\n'

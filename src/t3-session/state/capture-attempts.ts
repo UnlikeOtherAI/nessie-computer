@@ -77,6 +77,8 @@ export class CaptureAttempts {
     journalTransaction(this.database, () => {
       const row = this.database.prepare('SELECT * FROM t3_capture_attempts WHERE attempt_id = ?').get(attempt.id)
       requireCapture(row?.outcome === 'pending', 'capture_attempt_not_pending')
+      requireCapture(['physical_root', 'environment_id', 'generation', 'root_version', 'admitted_root',
+        'alias_version', 'requested_generation'].every(key => row[key] !== undefined), 'capture_attempt_invalid')
       const changed = this.database.prepare(`UPDATE t3_capture_roots SET available = 0
         WHERE physical_root = ? AND environment_id = ? AND generation IS ?
         AND (SELECT version FROM t3_capture_root_versions WHERE physical_root = t3_capture_roots.physical_root) = ?
@@ -84,8 +86,8 @@ export class CaptureAttempts {
           JOIN t3_capture_alias_versions AS av USING (admitted_root)
           WHERE alias.admitted_root = ? AND alias.physical_root = t3_capture_roots.physical_root AND av.version = ?)
         AND (? IS NULL OR generation = ?)`)
-        .run(row.physical_root, row.environment_id, row.generation, row.root_version, row.admitted_root,
-          row.alias_version, row.requested_generation, row.requested_generation)
+        .run(row.physical_root!, row.environment_id!, row.generation!, row.root_version!, row.admitted_root!,
+          row.alias_version!, row.requested_generation!, row.requested_generation!)
       this.database.prepare(`UPDATE t3_capture_attempts SET outcome = 'failed', failure_code = ?, withdrew = ?
         WHERE attempt_id = ?`).run(code, Number(changed.changes), attempt.id)
     })

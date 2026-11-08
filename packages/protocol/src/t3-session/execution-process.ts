@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 const text = z.string().max(32768).refine(value => !value.includes('\0'))
-const path = text.min(1)
+const path = z.string().min(1).max(32768).refine(value => !value.includes('\0'))
 export const T3ExecutionHistoryInvocationSchema = z.object({
   method: z.enum(['getSessionMessages', 'forkSession']), sessionId: path, rawOptions: text,
 }).strict()

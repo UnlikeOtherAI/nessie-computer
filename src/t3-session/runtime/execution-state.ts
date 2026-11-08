@@ -60,13 +60,17 @@ export async function withSessionExecutionState<A>(source: T3ExecutionResourceSc
               const fingerprint = view.fingerprint(journal.snapshotKey())
               const root = journal.root(rootKey)
               const baseline = journal.baseline(rootKey)
-              requireCapture(!root || baseline, 'execution_state_incomplete_requires_recovery')
+              const previous = root && typeof root.generation === 'string' ? journal.generation(root.generation) : undefined
+              requireCapture(!root || previous?.phase === 'capturing' || previous?.phase === 'captured',
+                'execution_state_phase_unknown')
+              const resume = previous?.phase === 'captured'
+              requireCapture(!resume || baseline, 'execution_state_baseline_missing')
               requireCapture(!baseline || baseline.layout === snapshot.source.layout, 'capture_source_layout_changed')
               requireCapture(snapshot.source.layout !== 'v2-80' || !baseline
                 || baseline.legacy_digest === fingerprint.legacyDigest, 'capture_frozen_legacy_diverged')
               let generation: string
               let stage: OwnedCaptureStage
-              if (root) {
+              if (root && resume) {
                 // Never replace accepted engine writes with another source copy.
                 // Changed sources need an explicit reconciliation implementation.
                 requireCapture(typeof root.generation === 'string', 'execution_state_generation_missing')
@@ -80,6 +84,12 @@ export async function withSessionExecutionState<A>(source: T3ExecutionResourceSc
                 journal.recover(snapshot.source, generation, attempt)
                 stage = await storage.workspace.reopenGeneration(job.stage_ref)
               } else {
+                // A capturing generation was never exposed to the original
+                // engine. Retry a failed copy into a fresh stage, retaining its
+                // journal/artifact rather than deleting or resetting evidence.
+                if (root && typeof root.generation === 'string') {
+                  journal.fail(snapshot.source, root.generation, 'execution_copy_interrupted')
+                }
                 generation = randomUUID()
                 stage = await storage.workspace.createGeneration(generation)
                 journal.begin(snapshot.source, generation, stage.reference, attempt)

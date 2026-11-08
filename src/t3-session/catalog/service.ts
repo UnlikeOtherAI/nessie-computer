@@ -1,29 +1,40 @@
 import * as Effect from 'effect/Effect'
 import { EnvironmentIdentity, HistoryPaging, WireProjection,
   SourceContracts as S } from '@nessie/t3-session-source/engine'
-import { ExecutorT3HttpEndpoints, type ExecutorT3ImplementationSlots } from '@nessie/executor-protocol/t3-session'
+import { ExecutorT3HttpEndpoints, type ExecutorT3ImplementationSlots,
+  type ExecutorT3Descriptor } from '@nessie/executor-protocol/t3-session'
 import type { RetainedCapturePorts } from '../import/capture.js'
-import { readRetainedEffect, type RetainedCatalogSource, type RetainedCatalogReader } from './scope.js'
-import type { RetainedCatalogInput } from './operations.js'
-import { archivedSnapshot, boundedSnapshot, familyRows, olderSettled, shellSnapshot } from './queries.js'
+import { readRetainedEffect, type RetainedCatalogSource, type RetainedCatalogReader,
+  type RetainedCatalogResult } from './scope.js'
+import type { RetainedCatalogInput, RetainedCatalogOutput, RetainedCatalogRpcMethod } from './operations.js'
+import { archivedSnapshot, boundedSnapshot, familyRows, olderSettled, shellSnapshot,
+  type RetainedCatalogReadError } from './queries.js'
 
 type HttpEndpoint<K extends keyof typeof ExecutorT3HttpEndpoints> = typeof ExecutorT3HttpEndpoints[K]
 export type RetainedHttpInput<K extends keyof typeof ExecutorT3HttpEndpoints> = {
   readonly params: HttpEndpoint<K>['~Params']['Type']
   readonly query: HttpEndpoint<K>['~Query']['Type']
 }
+export type RetainedCatalogService = {
+  readonly rpc: { [M in RetainedCatalogRpcMethod]: (input: RetainedCatalogInput<M>) =>
+    Effect.Effect<RetainedCatalogResult<RetainedCatalogOutput<M>>, ExecutorT3Descriptor<M>['errorSchema']['Type']> }
+  readonly http: { [K in keyof typeof ExecutorT3HttpEndpoints]: (input: RetainedHttpInput<K>) =>
+    Effect.Effect<RetainedCatalogResult<HttpEndpoint<K>['~Success']['Type']>, RetainedCatalogReadError> }
+}
 
 /** Production read composition, with REQUIRED producer inputs. Construction starts
  * no writer, provider, server, stream or native process. Returned envelopes retain
  * capture provenance separately from original T3 values and their sequence numbers.
  */
-export function createRetainedCatalogService(ports: RetainedCapturePorts, boundSource: RetainedCatalogSource) {
+export function createRetainedCatalogService(ports: RetainedCapturePorts,
+  boundSource: RetainedCatalogSource): RetainedCatalogService {
   const source = { ...boundSource, authorization: 'catalog' as const }
   return composeRetainedCatalogService(source, (targets, query) => readRetainedEffect(ports, source, targets, query))
 }
 
 /** One operation composition shared by per-call and already-held read graphs. */
-export function composeRetainedCatalogService(source: RetainedCatalogSource, read: RetainedCatalogReader) {
+export function composeRetainedCatalogService(source: RetainedCatalogSource,
+  read: RetainedCatalogReader): RetainedCatalogService {
   const shellError = () => new S.OrchestrationV2GetShellSnapshotError({ message: 'Retained shell read failed' })
   const projectionError = (threadId: S.ThreadId) =>
     new S.OrchestrationV2GetThreadProjectionError({ threadId, message: 'Retained thread read failed' })
@@ -92,8 +103,6 @@ export function composeRetainedCatalogService(source: RetainedCatalogSource, rea
   }
   return { rpc, http }
 }
-
-export type RetainedCatalogService = ReturnType<typeof createRetainedCatalogService>
 
 /** The existing typed dispatcher seam. The outer broker must carry the bound
  * source/capture metadata, admit its request, and classify lease defects as

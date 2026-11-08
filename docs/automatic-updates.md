@@ -65,7 +65,17 @@ machine restart. None of these candidates establishes stable A-to-B acceptance.
 macOS signing uses the existing GUI session and Developer ID identity; no
 additional Installer certificate or account setup is required.
 
-The Windows MSI producer requires Node 22 and supplies the selected numeric
+## Runtime requirements
+
+Executor packages require Node 24. Preparation executes the selected binary,
+opens SQLite and verifies transaction state plus a denied operation through
+`DatabaseSync.setAuthorizer`. It repeats the probe on the copied runtime and
+records that binary's version. Unsupported input refuses before replacing an
+existing staging directory. A JavaScript compilation target supplies no proof
+of these APIs. The installed Maxis Node 22.23.4 runtime lacks `setAuthorizer`
+and requires an executor update before the new source reader can qualify.
+
+The Windows MSI producer requires Node 24 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
 helper. A development-labelled bundle is not a release candidate.
 Unsigned Windows source candidates omit the SYSTEM updater service and its

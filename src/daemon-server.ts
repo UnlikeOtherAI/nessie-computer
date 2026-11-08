@@ -229,7 +229,7 @@ export const serveExecutor = async (
       commands: commandPoll, sessions: screenPoll, heartbeat,
       sessionsHot: () => relayScreens.hot() || Boolean(t3Lane?.hot()), monitorHot: monitor.watching,
     })
-    wakeRetained = () => { if (!shuttingDown) cadence.wake(['sessions']) }
+    wakeRetained = () => { if (!shuttingDown) cadence.wake(['session_views']) }
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live,
       onReady: (pollSeconds, connectionEpoch) => {

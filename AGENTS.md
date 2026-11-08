@@ -9,7 +9,7 @@ available, including its two-year Apache 2.0 conversion.
 Work in an isolated worktree and branch. Keep changes focused, commit and push
 them, and use a pull request. Merge only after the required checks pass.
 
-Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
+Use Node 24, pnpm 10.22.0 and `pnpm verify`. Packaging probes SQLite authorization on the selected runtime; see [runtime requirements](docs/automatic-updates.md#runtime-requirements). Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
 prerequisites. Windows source tests use the Debug native helper beside an
 unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
