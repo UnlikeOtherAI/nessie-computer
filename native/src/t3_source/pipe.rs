@@ -98,9 +98,7 @@ pub(super) fn dispatch(request: &Value, resource: &mut Resource) -> Result<Value
         "describe" => Ok(resource.description.clone()),
         "recheck" | "close" => Ok(json!({})),
         "transaction" => resource.database.transaction(request["action"].as_str().ok_or_else(fail)?),
-        "query" => resource.database.query(request["query"].as_str().ok_or_else(fail)?, request["table"].as_str()),
-        "next" => resource.database.next(request["statement"].as_u64().ok_or_else(fail)?),
-        "finalize" => { resource.database.finish(request["statement"].as_u64().ok_or_else(fail)?)?; Ok(json!({})) },
+        "query" | "next" | "finalize" => resource.database.dispatch_read(request),
         _ => Err(fail()),
     }
 }

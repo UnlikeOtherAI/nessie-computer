@@ -20,6 +20,7 @@ struct ExecutionResource {
     settings: Settings,
     _configuration: Held,
     receipt: Receipt,
+    snapshot: super::execution_snapshot::Snapshot,
     closed: bool,
 }
 impl ExecutionResource {
@@ -44,15 +45,21 @@ impl ExecutionResource {
 }
 impl Session for ExecutionResource {
     fn dispatch(&mut self, request: &Value) -> Result<Value, NativeError> {
-        if request.as_object().is_none_or(|o| o.len() != 1) { return Err(fail()); }
+        let fields = request.as_object().ok_or_else(fail)?;
         self.recheck()?;
-        match request["op"].as_str().ok_or_else(fail)? {
-            "executionDescribe" => Ok(json!({"receipt":self.receipt,
+        let result = match request["op"].as_str().ok_or_else(fail)? {
+            "executionSnapshotOpen" | "executionSnapshotRead" | "executionSnapshotClose" =>
+                self.snapshot.dispatch(request, &mut self.source),
+            "executionDescribe" if fields.len() == 1 => Ok(json!({"receipt":self.receipt,
                 "settingsBase64":base64::engine::general_purpose::STANDARD.encode(self.settings.bytes()?)})),
-            "recheck" => Ok(json!({})),
-            "close" => { self.close()?; Ok(json!({})) },
+            "recheck" if fields.len() == 1 => Ok(json!({})),
+            "close" if fields.len() == 1 => { self.close()?; return Ok(json!({})); },
             _ => Err(fail()),
-        }
+        }?;
+        // Rows cross the protected channel only after current service-held
+        // registration, settings, owner ACL and graph custody are rechecked.
+        self.recheck()?;
+        Ok(result)
     }
     fn renew(&self) -> Result<(), NativeError> {
         if self.closed { return Ok(()); }
@@ -108,7 +115,8 @@ pub(super) fn run() -> Result<(), NativeError> {
             && receipt.evidence == evidence && receipt.custody == custody => receipt,
         _ => { let _ = service(Request::Close { executor_id: executor, resource_id }); return Err(fail()); }
     };
-    let session = ExecutionResource { source, settings, _configuration: configuration, receipt, closed: false };
+    let session = ExecutionResource { source, settings, _configuration: configuration, receipt,
+        snapshot: Default::default(), closed: false };
     session.recheck()?;
     pipe::serve_session(&request, session)
 }
