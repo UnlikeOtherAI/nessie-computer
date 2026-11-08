@@ -75,6 +75,8 @@ service's ChatGPT plan connection to the same team pause together.
 | `executor_audience` | `{ executorId }` | the CLI's `audience --json` answer |
 | `executor_program_requests` | `{ executorId? }` | `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: 'once' \| 'always' \| 'deny' }` | every team's remaining requests |
+| `executor_sessions` | `{ executorId? }` | every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |
+| `executor_stop_session` | `{ executorId, sessionId }` | `session stop` for that team, then every team's sessions |
 | `executor_configure` | as before | describe; applied live, never restarts the team |
 | `executor_open_logs` | — | opens the service's logs folder |
 | `executor_open_nessie` | `{ executorId? }` | that team's Computers page; with no team, while a pairing code is showing, `/admin/computers?create=1&code=<code>` on that attempt's server, else the first team's server. The page never passes an address or a code |
@@ -92,8 +94,13 @@ API's error code when the line is one of its fixed refusals
 `executor_set_running`, `executor_reconnect`, `executor_hide_status`,
 `executor_notify`, and the pairing commands' `replace` and
 `personalPlanConnection` arguments. Every team command names its team with
-`executorId`; `executor_set_paused` takes `null` for every team and
-`executor_program_requests` may omit it for every team.
+`executorId`; `executor_set_paused` takes `null` for every team, and
+`executor_program_requests` and `executor_sessions` may omit it for every team.
+A service-owned team's requests and sessions are read and stopped only by the
+Windows account that connected it (the service's `programRequests`,
+`sessions` and `stopSession` pipe commands); other accounts' lists leave that
+team out. Sessions are read through the CLI only when the daemon rewrote its
+`sessions.json`, or every 30 seconds while it names work.
 
 Section events are `tray://section/<overview|access|documents|ai|settings>`
 with an optional `{ executorId }`, and `tray://connect`.

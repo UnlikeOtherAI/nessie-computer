@@ -158,7 +158,7 @@ pub fn run(
     if !matches!(
         arguments.first().map(String::as_str),
         Some("describe" | "pairing-start" | "pairing-status" | "pairing-cancel" | "unpair" | "sync" | "local-inference"
-            | "program-requests" | "audience")
+            | "program-requests" | "sessions" | "audience")
     ) {
         return Ok(serde_json::Value::Null);
     }

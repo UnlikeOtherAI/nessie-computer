@@ -129,6 +129,11 @@ pub struct ProgramRequest {
     pub args: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_name: Option<String>,
+    /// The command that asks and its session: what links the request to its row under Now working.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
     pub requested_at: String,
     pub expires_at: String,
 }
@@ -244,6 +249,11 @@ mod tests {
             "requestedAt": "2026-11-08T10:00:00.000Z", "expiresAt": "2026-11-08T10:02:00.000Z",
         }])).unwrap();
         assert_eq!(list[0].agent_name.as_deref(), Some("Builder"));
+        let linked = parse_program_requests(serde_json::json!([{
+            "id": "r2", "program": "docker", "args": [], "commandId": "c1", "sessionId": "s1",
+            "requestedAt": "2026-11-08T10:00:00.000Z", "expiresAt": "2026-11-08T10:15:00.000Z",
+        }])).unwrap();
+        assert_eq!((linked[0].command_id.as_deref(), linked[0].session_id.as_deref()), (Some("c1"), Some("s1")));
         assert!(parse_program_requests(serde_json::json!({"requests": []})).is_err());
         assert!(parse_program_requests(serde_json::json!([{"id": "r1"}])).is_err());
     }
@@ -251,7 +261,7 @@ mod tests {
     fn request(id: &str) -> ProgramRequest {
         ProgramRequest {
             id: id.to_owned(), program: "python".to_owned(), args: Vec::new(), agent_name: None,
-            requested_at: "2026-11-08T10:00:00.000Z".to_owned(), expires_at: "2026-11-08T10:02:00.000Z".to_owned(),
+            command_id: None, session_id: None, requested_at: "2026-11-08T10:00:00.000Z".to_owned(), expires_at: "2026-11-08T10:02:00.000Z".to_owned(),
         }
     }
 

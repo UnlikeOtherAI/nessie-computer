@@ -313,6 +313,8 @@ fn main() {
             owner_commands::executor_audience,
             owner_commands::executor_program_requests,
             owner_commands::executor_answer_program_request,
+            owner_commands::executor_sessions,
+            owner_commands::executor_stop_session,
             pairing_code::executor_pairing_start,
             pairing_code::executor_pairing_status,
             pairing_code::executor_pairing_cancel,
