@@ -69,6 +69,7 @@ export const T3ExecutionReceiptSchema = z.object({ domain: z.enum([
   T3_EXECUTION_GRAPH_DOMAIN,
   T3_EXECUTION_PREPARATION_DOMAIN,
   T3_EXECUTION_HISTORY_RESULT_DOMAIN,
+  'nessie.t3.execution.frame-preparation.v1',
 ]), payload: z.string().min(1).max(32768), keyId: hex,
   signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/u),
 }).strict()
