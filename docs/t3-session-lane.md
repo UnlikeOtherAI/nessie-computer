@@ -121,3 +121,29 @@ JSON/constructor forgery. After integration, run `pnpm exec turbo run
 test:t3-session-broker --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
 This normal build-dependent gate needs the coordinator's serial qualification
 window; builtin syntax checks do not qualify it.
+## Daemon-owned native phase and frame transport
+
+`src/t3-native-execution-transport.ts` exports `createT3NativeExecutionTransport(state,
+originalRequest, delivery, parentSignal, api?)`. Construct it in the daemon for
+one actual offered launch. It returns `phase(input, signal)`,
+`frame({reservationId, frameReceipt}, signal)` and `receipt(receipt, signal)`.
+The protected child relays only the strict finite `T3NativeExecutionOperation`
+messages; it receives neither `ExecutorLocalState` nor machine keys. Runtime
+composition must forward those messages through the port belonging to the same
+held open operation, and abort its parent signal when that operation closes.
+
+The existing `executorApi.nativeExecution` sends those signed envelopes to
+`POST /api/executor-daemon/t3/native-execution`. It refuses redirects, bounds
+request/response bytes to 64 KiB and uses a five-second request deadline. The
+transport captures original request SHA, relay HMAC and graph binding, fences
+paired origin/key/epoch before and after each exchange, and preserves exact
+signed payload bytes. It never retries an uncertain response or renews a nonce.
+The backend restores the original protected relay and admission; the native
+service independently verifies the returned RSA envelope against its enrolled
+backend before acting. This facade does not mint a verified grant.
+
+The immutable original serializer-to-held-byte producer and protected child
+relay registration remain runtime-owned integration prerequisites. The new
+fetch-boundary fixtures cover exact original selectors/signatures, frame receipt
+byte digests, injected selectors, source replacement, cancellation, expiry and
+bounded responses. They are authored, not run at the source checkpoint.
