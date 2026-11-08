@@ -101,7 +101,7 @@ pub(crate) mod imp {
         }
     }
 
-    fn kill_on_close_job() -> Result<Owned, NativeError> {
+    pub(crate) fn kill_on_close_job() -> Result<Owned, NativeError> {
         let job = unsafe { CreateJobObjectW(std::ptr::null(), std::ptr::null()) };
         if job.is_null() {
             return Err(NativeError::new(CONTAINMENT_FAILED));
@@ -220,7 +220,7 @@ pub(crate) mod imp {
         NativeError::new(code)
     }
 
-    fn terminate_job(job: &Owned) -> Result<(), NativeError> {
+    pub(crate) fn terminate_job(job: &Owned) -> Result<(), NativeError> {
         // The authorized relay owns a duplicate handle while waiting for input.
         // Closing only the main handle cannot trigger kill-on-close in that state.
         // End descendants before asking the service for independent clearance.

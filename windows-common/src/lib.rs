@@ -14,6 +14,12 @@
 mod sid;
 
 pub mod custody;
+pub mod execution;
+pub mod execution_resource;
+#[cfg(windows)]
+pub mod execution_resource_handles;
+#[cfg(windows)]
+pub mod execution_isolation;
 pub mod custody_store;
 #[cfg(windows)]
 pub mod custody_observation;

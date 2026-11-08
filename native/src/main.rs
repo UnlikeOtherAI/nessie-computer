@@ -1,6 +1,12 @@
 mod chatgpt_browser;
 mod command;
 mod t3_source;
+#[cfg(windows)]
+mod t3_execution;
+#[cfg(windows)]
+mod owner_approval_windows;
+#[cfg(windows)]
+mod execution_approval;
 mod job_run;
 mod kernel_context;
 #[cfg(target_os = "macos")]
@@ -162,6 +168,12 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
+        Command::T3Execution(mode) => {
+            #[cfg(windows)]
+            { t3_execution::run(mode) }
+            #[cfg(not(windows))]
+            { let _ = mode; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
         Command::T3SourceRead => t3_source::run(),
         Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
         Command::T3RetainedVerify => t3_source::verify_retained_import(),
@@ -349,6 +361,9 @@ fn run(command: &Command) -> Result<(), NativeError> {
 /// unparsable argv keeps answering in the promotion shape, as it always has.
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
+        Some(Command::T3Execution(_)) => {
+            eprintln!("{}", serde_json::json!({"error":error.code}));
+        }
         Some(
             Command::BuildInfo
             | Command::UpdateControl

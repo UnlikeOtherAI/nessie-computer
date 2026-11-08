@@ -13,6 +13,7 @@ pub const MAX_JOB_ARGUMENT_LENGTH: usize = 32_767;
 /// only the bodies behind the workspace commands are POSIX-only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    T3Execution(String),
     T3SourceRead,
     T3RetainedApprove(String),
     T3RetainedVerify,
@@ -113,6 +114,9 @@ fn job_argv(values: &[String]) -> Result<Vec<String>, NativeError> {
 
 pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
     match arguments {
+        [command, mode] if command == "t3-execution"
+            && ["offer", "enroll", "graph", "reserve", "prepare", "associate", "launch"].contains(&mode.as_str()) =>
+            Ok(Command::T3Execution(mode.clone())),
         [command] if command == "t3-source-read" => Ok(Command::T3SourceRead),
         [command, nonce] if command == "t3-retained-approve" && nonce.len()==64
             && nonce.bytes().all(|b|b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) => Ok(Command::T3RetainedApprove(nonce.clone())),
@@ -406,6 +410,15 @@ mod tests {
             parse(&["secure-directory", "/one", "/two"]),
             Err("EXECUTOR_NATIVE_USAGE")
         );
+    }
+
+    #[test]
+    fn execution_has_no_external_approval_or_handle_attachment_command() {
+        assert_eq!(parse(&["t3-execution", "enroll"]), Ok(Command::T3Execution("enroll".into())));
+        for mode in ["review", "approve", "observe", "sign", "stdin"] {
+            assert_eq!(parse(&["t3-execution", mode]), Err("EXECUTOR_NATIVE_USAGE"));
+        }
+        assert_eq!(parse(&["t3-execution", "enroll", "true"]), Err("EXECUTOR_NATIVE_USAGE"));
     }
 
     #[test]
