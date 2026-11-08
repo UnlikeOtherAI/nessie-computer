@@ -88,8 +88,10 @@ impl Request {
                     return Err(REJECTED.into());
                 }
                 let mut refs = std::collections::HashSet::new();
+                let mut roles = std::collections::HashSet::new();
                 for r in &e.provider_references {
                     if !valid_nonce(&r.reference_id) || !refs.insert(&r.reference_id)
+                        || !roles.insert((&r.instance_id, &r.role))
                         || !id(&r.instance_id) || !id(&r.identity)
                         || !["codex", "claude"].contains(&r.driver.as_str())
                         || !["continuation", "history", "credential"].contains(&r.role.as_str()) {
@@ -101,8 +103,50 @@ impl Request {
                         .contains(&o.kind.as_str()) || (o.kind != "directory" && !o.private)) {
                     return Err(REJECTED.into());
                 }
+                for kind in ["source-root", "settings", "database", "environment", "configuration"] {
+                    if objects.iter().filter(|o| o.kind == kind).count() != 1 { return Err(REJECTED.into()); }
+                }
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    fn registration() -> Request {
+        Request::Register { executor_id: "executor".into(), resource_id: "a".repeat(64),
+            evidence: Evidence { source: Source { executor_id: "executor".into(), admitted_root_key: "original".into(),
+                physical_root_key: format!("windows-file-id:{}", "b".repeat(64)), environment_id: "env:雪".into(),
+                database_identity: "volume:db".into(), environment_identity: "volume:env".into(),
+                layout: "v2-80".into(), database_role: "authoritative-v2".into() },
+                settings_identity: "volume:settings".into(), settings_digest: "c".repeat(64), settings_length: 2,
+                provider_references: vec![ProviderReference { reference_id: "d".repeat(64),
+                    instance_id: "original-instance".into(), driver: "codex".into(), role: "history".into(), identity: "volume:home".into() }] },
+            objects: ["source-root", "settings", "database", "environment", "configuration"].into_iter().enumerate()
+                .map(|(i, kind)| Object { handle: (i + 1) as u64, identity: format!("codec:{i}"), kind: kind.into(), private: true }).collect(),
+            watches: vec![7] }
+    }
+    #[test]
+    fn strict_wire_acceptance_is_not_handle_or_custody_admission() {
+        let value = registration(); value.validate().unwrap(); // Shape only; fake handles cannot be duplicated.
+        let mut raw = serde_json::to_value(&value).unwrap();
+        raw["settingsBytes"] = json!("must never cross this wire");
+        assert!(serde_json::from_value::<Request>(raw).is_err());
+        for mutation in 0..5 {
+            let mut value = registration();
+            if let Request::Register { evidence, objects, watches, .. } = &mut value {
+                match mutation {
+                    0 => evidence.settings_length = SETTINGS_LIMIT + 1,
+                    1 => evidence.provider_references.push(evidence.provider_references[0].clone()),
+                    2 => objects.push(objects[1].clone()),
+                    3 => watches.clear(),
+                    _ => evidence.source.database_role = "sole-legacy".into(),
+                }
+            }
+            assert!(value.validate().is_err());
+        }
     }
 }

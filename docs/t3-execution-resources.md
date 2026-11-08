@@ -116,6 +116,16 @@ missing/corrupt/oversized/traversal/symlink refusal, real duplicated file identi
 ACL denial, retained-opcode refusal and sticky ACL revocation. TS cases cover
 bounded strict metadata and forged callback rejection. All remain unrun.
 
+Receiver component cases use actual duplicated file/ACL/process objects to
+exercise retained file locks, environment/digest substitution, expiry and
+unissued provider-reference refusal. They bypass no production gate and do not
+claim positive SYSTEM-created graph admission. A separate wire-only case checks
+duplicate roles/objects and bounds; valid wire shape is explicitly not admission.
+
+Four changed TypeScript modules passed non-evaluating Node builtin syntax
+parsing with a 192 MiB heap; `git diff --check` passed. No implementation import,
+test suite, compiler or native code was executed.
+
 Root must add `test/t3-execution-resources.test.ts` to `test:t3-physical-source`,
 then run on the exact combined revision in its reserved Maxis lane:
 

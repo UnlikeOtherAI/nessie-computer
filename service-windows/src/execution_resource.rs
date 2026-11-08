@@ -16,8 +16,12 @@ struct Held {
     config_digest: Vec<u8>,
     graph_generation: Option<(String, String)>,
     inspections: HashMap<String, String>,
+    paired_origin: String,
 }
 static RESOURCES: OnceLock<Mutex<HashMap<String, Held>>> = OnceLock::new();
+#[cfg(test)]
+#[path = "execution_resource_tests.rs"]
+mod tests;
 fn resources() -> &'static Mutex<HashMap<String, Held>> {
     RESOURCES.get_or_init(|| {
         // Duplicate handles must not retain source locks indefinitely after
@@ -33,7 +37,7 @@ fn resources() -> &'static Mutex<HashMap<String, Held>> {
 }
 fn same_graph(a: &Custody, b: &Custody) -> bool {
     // Each native helper is a distinct child of this exact graph incarnation.
-    a.runtime == b.runtime && a.supervisor == b.supervisor && a.service == b.service
+    a.runtime == b.runtime && a.controller == b.controller && a.supervisor == b.supervisor && a.service == b.service
         && a.job_name == b.job_name && a.release_digest == b.release_digest
         && a.service_image_digest == b.service_image_digest
 }
@@ -108,7 +112,8 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
             let mut held = Held { receipt: Receipt { version: 1, resource_id: resource_id.clone(),
                 resource_generation: generation, evidence, custody: context.custody }, caller: observed,
                 objects, watches, deadline: Instant::now() + Duration::from_millis(LEASE_MILLIS),
-                config_digest: Vec::new(), graph_generation: None, inspections: HashMap::new() };
+                config_digest: Vec::new(), graph_generation: None, inspections: HashMap::new(),
+                paired_origin: context.paired_origin };
             let mut config = held.object("configuration")?.bytes(256 * 1024)?;
             let parsed: Value = serde_json::from_slice(&config).map_err(|_| REJECTED)?;
             held.config_digest = Sha256::digest(&config).to_vec();
@@ -126,7 +131,8 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
         }
         Request::Recheck { resource_id, .. } => {
             let held = resources.get_mut(&resource_id).ok_or(REJECTED)?;
-            if held.caller.generation != caller.generation || !same_graph(&held.receipt.custody, &context.custody) {
+            if held.caller.generation != caller.generation || held.paired_origin != context.paired_origin
+                || !same_graph(&held.receipt.custody, &context.custody) {
                 return Err(REJECTED.into());
             }
             held.recheck()?;
@@ -158,7 +164,7 @@ pub fn bind_graph(resource_id: &str, caller: &Process, context: &DescriptorConte
         }
         let evidence: &Evidence = &held.receipt.evidence;
         let b = &graph.binding;
-        if !caller.alive() || !same_graph(&held.receipt.custody, &context.custody)
+        if !caller.alive() || held.paired_origin != context.paired_origin || !same_graph(&held.receipt.custody, &context.custody)
             || b.executor_id != evidence.source.executor_id || b.environment_id != evidence.source.environment_id
             || b.source_root_key != evidence.source.physical_root_key { return Err(REJECTED.into()); }
         for (role, reference) in [("history", &b.history_home_key), ("continuation", &b.continuation_home_key),
