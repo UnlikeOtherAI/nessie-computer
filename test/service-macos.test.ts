@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
-import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises'
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { promisify } from 'node:util'
 
-import { createMacServiceEnvironment, enableMacExecutorService, macServicePlan } from '../src/service-macos.js'
+import {
+  createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService, macLaunchAgent, macServicePlan,
+} from '../src/service-macos.js'
 
 const POSIX_ONLY = process.platform === 'win32' ? 'launchd uses POSIX paths and ownership' : false
 const environment = (home: string): ReturnType<typeof createMacServiceEnvironment> => ({
@@ -65,4 +67,40 @@ test('failed runtime verification leaves launchd untouched', { skip: POSIX_ONLY 
   env.verifyPackagedRuntime = async () => { throw new Error('runtime rejected') }
   env.run = async () => { assert.fail('launchd must not run') }
   await assert.rejects(enableMacExecutorService({ executorId: 'team-one' }, env), /runtime rejected/)
+})
+
+test('disable removes a team\'s launch agent whatever installed the command line', { skip: POSIX_ONLY }, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'nessie-launchd-'))
+  try {
+    // A command line outside Homebrew has no runtime paths, and disabling needs none.
+    const env = { ...environment(home), launcher: '' }
+    const calls: string[][] = []
+    let loaded = false
+    env.run = async (file, args) => {
+      assert.equal(file, '/bin/launchctl')
+      calls.push(args)
+      if (args[0] === 'bootout') loaded = false
+      return { code: args[0] === 'print' && loaded ? 0 : args[0] === 'print' ? 113 : 0, stdout: '' }
+    }
+    assert.equal(await disableMacExecutorService({ executorId: 'team-one' }, env), false)
+    assert.deepEqual(calls, [['print', `gui/${env.uid}/works.nessie.executor.team-one`]])
+
+    const agent = macLaunchAgent('team-one', env)
+    await mkdir(dirname(agent.path), { recursive: true })
+    await writeFile(agent.path, '<plist/>', { mode: 0o600 })
+    loaded = true
+    calls.length = 0
+    assert.equal(await disableMacExecutorService({ executorId: 'team-one' }, env), true)
+    assert.deepEqual(calls.map(([verb]) => verb), ['print', 'bootout'])
+    await assert.rejects(lstat(agent.path), { code: 'ENOENT' })
+
+    // A plist that is not this account's own file is left alone.
+    const other = macLaunchAgent('team-two', env)
+    await symlink(join(home, 'elsewhere.plist'), other.path)
+    await assert.rejects(disableMacExecutorService({ executorId: 'team-two' }, env), /left alone/)
+    assert.equal((await lstat(other.path)).isSymbolicLink(), true)
+    assert.throws(() => macLaunchAgent('../escape', env))
+  } finally {
+    await rm(home, { recursive: true, force: true })
+  }
 })
