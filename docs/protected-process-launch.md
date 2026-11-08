@@ -90,6 +90,8 @@ shadow home when configured); its continuation/history references remain the
 shared home. Claude's explicit CLAUDE_CONFIG_DIR must match its configured home;
 HOME/USERPROFILE remain untouched, preserving original keychain grouping.
 Defaults and inherited home guesses are refused by this execution resource scope.
+Clearance releases preparation pins; source expiry or graph loss also releases
+them through service cleanup without waiting for another request or a restart.
 
 After actual OS file-ID matching under the graph's retained owner token, the
 service uses the guard's canonical volume-GUID path for the provider home. It

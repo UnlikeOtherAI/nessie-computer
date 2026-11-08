@@ -9,7 +9,13 @@ use nessie_windows_common::{
     release::{pin_execution_image, Release},
 };
 use serde_json::{json, Value};
-use std::{collections::BTreeMap, fs::File, path::Path, sync::Mutex};
+use std::{
+    collections::BTreeMap,
+    fs::File,
+    path::Path,
+    sync::{Mutex, OnceLock},
+    time::Duration,
+};
 struct Prepared {
     descriptor: Descriptor,
     launch_digest: String,
@@ -17,7 +23,25 @@ struct Prepared {
     launch: Launch,
     homes: Vec<crate::execution_resource::HeldLaunchHome>,
 }
-static PREPARED: Mutex<BTreeMap<String, Prepared>> = Mutex::new(BTreeMap::new());
+static PREPARED: OnceLock<Mutex<BTreeMap<String, Prepared>>> = OnceLock::new();
+fn prepared() -> &'static Mutex<BTreeMap<String, Prepared>> {
+    PREPARED.get_or_init(|| {
+        // A dead graph or expired source must release pins even when no new
+        // request arrives. Never retain owner-directory locks until restart.
+        std::thread::spawn(|| loop {
+            std::thread::sleep(Duration::from_millis(250));
+            if let Some(values) = PREPARED.get() {
+                if let Ok(mut values) = values.lock() {
+                    values.retain(|_, value| {
+                        !absent(&value.descriptor.custody.runtime).unwrap_or(true)
+                            && value.homes.iter().all(|home| home.recheck().is_ok())
+                    });
+                }
+            }
+        });
+        Mutex::new(BTreeMap::new())
+    })
+}
 pub fn hold(
     id: &str,
     descriptor: &Descriptor,
@@ -80,7 +104,7 @@ pub fn hold(
         sha(canonical(&serde_json::to_value(&launch).map_err(|_| REJECTED)?)?.as_bytes());
     let result = json!({"launchDigest":launch_digest,"command":launch.command,"providerImageDigest":digest,
             "processPurpose":launch.process_purpose});
-    let mut held = PREPARED.lock().map_err(|_| REJECTED)?;
+    let mut held = prepared().lock().map_err(|_| REJECTED)?;
     held.retain(|_, value| !absent(&value.descriptor.custody.runtime).unwrap_or(false));
     if held.len() >= 256 || held.contains_key(id) {
         return Err(REJECTED.into());
@@ -99,11 +123,11 @@ pub fn hold(
 }
 pub fn selected(id: &str, descriptor: &Descriptor, digest: &str) -> Result<Launch, String> {
     recheck(id, descriptor, digest)?;
-    let held = PREPARED.lock().map_err(|_| REJECTED)?;
+    let held = prepared().lock().map_err(|_| REJECTED)?;
     Ok(held.get(id).ok_or(REJECTED)?.launch.clone())
 }
 pub fn recheck(id: &str, descriptor: &Descriptor, digest: &str) -> Result<(), String> {
-    let held = PREPARED.lock().map_err(|_| REJECTED)?;
+    let held = prepared().lock().map_err(|_| REJECTED)?;
     let held = held.get(id).ok_or(REJECTED)?;
     if held.descriptor != *descriptor || held.launch_digest != digest {
         return Err(REJECTED.into());
@@ -111,5 +135,9 @@ pub fn recheck(id: &str, descriptor: &Descriptor, digest: &str) -> Result<(), St
     for home in &held.homes {
         home.recheck()?;
     }
+    Ok(())
+}
+pub fn release(id: &str) -> Result<(), String> {
+    prepared().lock().map_err(|_| REJECTED)?.remove(id);
     Ok(())
 }
