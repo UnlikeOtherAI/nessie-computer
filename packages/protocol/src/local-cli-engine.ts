@@ -18,6 +18,10 @@ export type LocalCliEngineState = z.infer<typeof LocalCliEngineStateSchema>
 /** The machine-key signature domain of the registration route. */
 export const LOCAL_CLI_HOST_SIGNATURE_DOMAIN = 'local_inference.cli_host'
 
+/** Why an engine connection is withdrawn: the owner switched it off, or its CLI signed out or went away. */
+export const LocalCliWithdrawReasonSchema = z.enum(['switched_off', 'signed_out', 'not_installed'])
+export type LocalCliWithdrawReason = z.infer<typeof LocalCliWithdrawReasonSchema>
+
 /** Body of `POST /api/local-inference/daemon/executor-cli-host`. */
 export const LocalCliHostRequestSchema = z.object({
   connectionEpoch: z.string().regex(/^[1-9][0-9]{0,18}$/),
@@ -27,8 +31,11 @@ export const LocalCliHostRequestSchema = z.object({
   /** `null` is the CLI's own default account; a UUID names an account added in Nessie Computer. */
   profileId: z.string().uuid().nullable(),
   available: z.boolean(),
+  /** Present exactly when `available` is false. */
+  reason: LocalCliWithdrawReasonSchema.optional(),
   signature: z.string().regex(/^[A-Za-z0-9_-]+$/).min(64).max(128),
-}).strict()
+}).strict().refine((body) => (body.reason === undefined) === body.available,
+  'A withdrawal names its reason; an offer has none.')
 export type LocalCliHostRequest = z.infer<typeof LocalCliHostRequestSchema>
 
 /** `available: true` answers the host; `available: false` answers its withdrawal. */
@@ -62,8 +69,12 @@ export const LocalCliEngineRowSchema = z.object({
   installed: z.boolean(),
   signedIn: z.boolean(),
   account: z.string().min(1).max(254).optional(),
+  /** The team's Make available switch: on unless the owner switched it off. */
   available: z.boolean(),
-  /** `yes`: Nessie has the host; `no`: switched off; `not_yet`: on, but Nessie doesn't offer it yet. */
+  /**
+   * `yes`: Nessie has the host; `no`: not offered (switched off, not installed or signed out);
+   * `not_yet`: on and signed in, but Nessie doesn't offer it yet.
+   */
   offered: z.enum(['yes', 'no', 'not_yet']),
 }).strict()
 export type LocalCliEngineRow = z.infer<typeof LocalCliEngineRowSchema>

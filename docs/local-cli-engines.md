@@ -2,7 +2,11 @@
 
 Contract §12 ([Nessie Computer contract](plans/2026-11-08-nessie-computer.md#12-ai-already-on-this-computer-a4--d3))
 offers Claude Code and Codex, already installed and signed in on a computer, to
-Nessie with one **Make available** switch per team. This page is the exact wire
+Nessie with one **Make available** switch per team. Ruling (Ondrej, 8 Nov): the
+switch is **on by default**: for a new pairing, for an existing team that
+never touched it, and for a newly added account. Only the owner's explicit off
+is stored (in the team's state folder, so it survives updates). A program that
+is not installed or is signed out is never offered. This page is the exact wire
 contract between the computer and Nessie (tranche D3 implements Nessie against
 it), and the local shapes the apps read. The schemas are in
 `packages/protocol/src/local-cli-engine.ts` and
@@ -32,8 +36,9 @@ An **engine connection** is one engine and one account on one team connection
 | `engine` | `claude-code`, `codex` |
 | `profileId` | `null` for the CLI's own default account; a UUID for an account added in Nessie Computer ([more accounts](#more-accounts)) |
 
-Each engine connection the owner made available is a **local-inference host**
-of role `local_cli`, one per `(executorId, engine, profileId)`. Everything after
+Each engine connection that is installed, signed in and not switched off is a
+**local-inference host** of role `local_cli`, one per
+`(executorId, engine, profileId)`. Everything after
 registration is the existing local-inference host protocol, unchanged:
 challenge, `claim` envelope signed with the executor's machine key, socket,
 heartbeat inventory, attempt claims, `accept`, frames, `result`, `terminate`,
@@ -55,6 +60,11 @@ resource attachment.
 }
 ```
 
+A withdrawal sends `"available": false` with `"reason"`: `switched_off` (the
+owner turned it off for this team), `signed_out` (the CLI signed out) or
+`not_installed` (the CLI or the added account is gone). `reason` is present
+exactly when `available` is false.
+
 Signed with the machine key in the domain
 `nessie.executor.daemon.local_inference.cli_host.v1` over the canonical JSON of
 every field but `signature` (`profileId: null` is signed). Authorize exactly as
@@ -67,12 +77,16 @@ epoch, signature, freshness).
   `LocalInferenceExecutorHostSchema` (`{ connectionEpoch, hostId, organizationId }`).
   A revoked host stays revoked (same rule as `executor-host`).
 - `available: false`: mark the host withdrawn, advance its connection epoch so
-  an open socket of the old epoch is refused, and answer `{ "withdrawn": true }`.
-  Unknown host: answer `{ "withdrawn": true }` too. Nessie then shows the
-  engine as **Turned off on {computer}**, distinct from offline or paused.
+  an open socket of the old epoch is refused, keep the reason, and answer
+  `{ "withdrawn": true }`. Unknown host: answer `{ "withdrawn": true }` too.
+  Nessie shows `switched_off` as **Turned off on {computer}**, `signed_out` as
+  "Claude Code on {computer} is signed out. Run `claude` on that computer to
+  sign in." (Codex: `codex`), `not_installed` as not on that computer; each
+  is distinct from offline or paused.
 
 The daemon registers on start, after each claim of its executor connection,
-when the owner flips **Make available**, and when the account list changes. An
+when the owner flips **Make available**, when the account list changes, and
+when it notices a sign-in or sign-out (it checks every minute). An
 older Nessie answers `404`: the daemon offers nothing, keeps the owner's
 switch, says "Nessie doesn't offer this yet" locally, and tries again after its
 next executor claim. **Ship order:** Nessie implements this route, the role and
@@ -104,9 +118,9 @@ The host heartbeats exactly one model (or none when the CLI is not installed):
 - `displayName`: `Claude Code` / `Codex`, or `Claude Code · {account name}` for
   an added account, where the name is what the owner typed. The provider
   account's email never leaves the computer.
-- `cliEngineState`: `ready` (signed in), `signed_out`. Show a signed-out engine
-  as "Claude Code on {computer} is signed out. Run `claude` on that computer
-  to sign in." (Codex: `codex`). Attempts to it fail with `cli_signed_out`.
+- `cliEngineState`: `ready` (signed in), `signed_out`. A signed-out engine is
+  withdrawn within a minute; until then it heartbeats `signed_out` and attempts
+  fail with `cli_signed_out`.
 - `manifestDigest` changes when the CLI version, the account or this protocol
   changes; Nessie's existing model-follow rule (`followRunningLocalModels`)
   mirrors it. It is not a weights manifest.
@@ -192,11 +206,14 @@ command `executor_local_ai { executorId }`, answer:
    "available": false, "offered": "not_yet" }]
 ```
 
-`offered` is `yes` (Nessie has the host), `no` (switched off), `not_yet`
-(switched on, Nessie doesn't offer this yet or the team is not connected).
+`available` is the switch: `true` unless the owner switched it off. `offered`
+is `yes` (Nessie has the host), `no` (not offered: switched off, not installed
+or signed out), `not_yet` (on and signed in, but Nessie doesn't offer this yet
+or the team is not connected).
 `executor_set_local_ai { executorId, engine, profileId?, available }` and
-`ai local on|off <engine> [--account <name>]` change the switch, which is saved
-in the team's state folder (`local-cli-engines.json`) and applied live.
+`ai local on|off <engine> [--account <name>]` change the switch. The team's
+state folder keeps only what is off (`local-cli-engines.json`,
+`{ "version": 1, "off": ["codex"] }`); the daemon applies a change live.
 `executor_local_ai_add_account { executorId, engine, name }` creates the
 account and opens a terminal window running the program's own sign-in
 (`claude auth login` or `codex login` with the account's folder);
@@ -222,8 +239,8 @@ instead: the service account has no sign-in of the owner's.
 | Backend, host, manager | `src/local-cli-engine-backend.ts`, `-host.ts`, `-manager.ts`; started beside the local-weights host in `src/local-inference-supervisor.ts` |
 | Apps and CLI | `src/local-cli-engine-cli.ts` (`local-inference engines`), `src/cli-ai-local.ts` (`ai local`), console `ai-local.js`, macOS `LocalAIControl.swift`, Windows `local_ai.rs` |
 
-The daemon applies a changed switch or account list within two seconds,
-without restarting the team. A Windows team run by the background service never
+The daemon applies a changed switch or account list within two seconds, and a
+sign-in or sign-out within a minute, without restarting the team. A Windows team run by the background service never
 registers a host.
 
 ## Verification

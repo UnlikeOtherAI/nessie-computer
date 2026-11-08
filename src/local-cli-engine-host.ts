@@ -1,7 +1,9 @@
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { LOCAL_CLI_HOST_SIGNATURE_DOMAIN, type LocalCliEngine } from '@nessie/executor-protocol'
+import {
+  LOCAL_CLI_HOST_SIGNATURE_DOMAIN, type LocalCliEngine, type LocalCliWithdrawReason,
+} from '@nessie/executor-protocol'
 
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import { createLocalInferenceDaemonApi, LocalInferenceApiError, type LocalInferenceDaemonApi } from './local-inference-api.js'
@@ -27,15 +29,16 @@ export type LocalCliRegistration =
 
 const FOLDER = 'local-cli-engines'
 
+/** Offers the engine connection (`true`), or withdraws it naming why. */
 export const registerLocalCliHost = async (
-  state: ExecutorLocalState, engine: LocalCliEngine, profileId: string | null, available: boolean,
+  state: ExecutorLocalState, engine: LocalCliEngine, profileId: string | null, offer: true | LocalCliWithdrawReason,
   api: Pick<LocalInferenceDaemonApi, 'registerCliHost'>
     = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl }),
   now: () => Date = () => new Date(),
 ): Promise<LocalCliRegistration> => {
   if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
-  const payload = { available, connectionEpoch: state.connectionEpoch, engine, executorId: state.executorId,
-    observedAt: now().toISOString(), profileId }
+  const payload = { available: offer === true, connectionEpoch: state.connectionEpoch, engine,
+    executorId: state.executorId, observedAt: now().toISOString(), profileId, ...(offer === true ? {} : { reason: offer }) }
   try {
     const answer = await api.registerCliHost({ ...payload,
       signature: signExecutorDaemonPayload(state.machinePrivateKey, LOCAL_CLI_HOST_SIGNATURE_DOMAIN, payload) })

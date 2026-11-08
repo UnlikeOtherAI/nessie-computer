@@ -153,11 +153,12 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     window.localAiAccounts ??= []
     window.localAiPrograms ??= { 'claude-code': { installed: true, signedIn: true, account: 'person@example.com' },
       codex: { installed: false, signedIn: false } }
-    const switches = ((window.localAiSwitches ??= {})[args.executorId] ??= [])
+    // On by default: only a team's explicit off is kept.
+    const off = ((window.localAiOff ??= {})[args.executorId] ??= [])
     const key = (engine, profileId) => (profileId ? `${engine}:${profileId}` : engine)
     if (command === 'executor_set_local_ai') {
       const name = key(args.engine, args.profileId)
-      window.localAiSwitches[args.executorId] = args.available ? [...new Set([...switches, name])] : switches.filter((entry) => entry !== name)
+      window.localAiOff[args.executorId] = args.available ? off.filter((entry) => entry !== name) : [...new Set([...off, name])]
     }
     if (command === 'executor_local_ai_add_account') {
       window.localAiAccounts.push({ engine: args.engine, profileId: `00000000-0000-4000-8000-00000000000${window.localAiAccounts.length + 1}`,
@@ -166,12 +167,12 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     if (command === 'executor_local_ai_remove_account') {
       window.localAiAccounts = window.localAiAccounts.filter((account) => account.profileId !== args.profileId)
     }
-    const on = window.localAiSwitches[args.executorId]
+    const switchedOff = window.localAiOff[args.executorId]
     const row = (engine, profileId, name, program) => {
-      const available = on.includes(key(engine, profileId))
+      const available = !switchedOff.includes(key(engine, profileId))
       return { engine, profileId, name, installed: program.installed, signedIn: program.signedIn,
         ...(program.account ? { account: program.account } : {}), available,
-        offered: available ? window.localAiOffered ?? 'yes' : 'no' }
+        offered: available && program.installed && program.signedIn ? window.localAiOffered ?? 'yes' : 'no' }
     }
     return [row('claude-code', null, null, window.localAiPrograms['claude-code']), row('codex', null, null, window.localAiPrograms.codex),
       ...window.localAiAccounts.map((account) => row(account.engine, account.profileId, account.name,

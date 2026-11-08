@@ -222,10 +222,12 @@ nessie-computer ai local sign-in <account> [--team <team>]
 nessie-computer ai local remove <account> [--team <team>]
 ```
 `list` shows each program, the account it's signed in to and whether it's
-available to the team's agents. `on` offers it to them; they then use the
-program's own sign-in, and Nessie decides whether only you or the whole team
-may. `add` makes another account on this computer and runs the program's own
-sign-in in this terminal; `--account` picks it for `on` and `off`. `remove`
+available to the team's agents. A program that is installed and signed in is
+on for every team by default; `off` stops that team's agents using it and `on`
+undoes that. Agents use the program's own sign-in, and Nessie decides whether
+only you or the whole team may. `add` makes another account on this computer,
+on by default, and runs the program's own sign-in in this terminal; `--account`
+picks it for `on` and `off`. `remove`
 signs it out and deletes it. Not on Windows teams the background service runs:
 the service can't use your sign-in.
 

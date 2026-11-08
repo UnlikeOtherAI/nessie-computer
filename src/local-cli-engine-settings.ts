@@ -9,10 +9,12 @@ import { acquireOwnerStateLock } from './personal-admission-lock.js'
 import { assertOwnerOnlyStatePath } from './state-security.js'
 
 /**
- * A team's Make available switches (contract §12), in its state folder. Off
- * by default: an installed, signed-in CLI is offered only after the owner
- * turns it on for that team. The running daemon watches this file and
- * applies a change live; it writes back what Nessie answered.
+ * A team's Make available switches (contract §12), in its state folder. On by
+ * default (Ondrej's ruling, 8 Nov): an installed, signed-in CLI is offered to
+ * every team, new or existing, until its owner turns it off. Only an explicit
+ * off is stored, so it survives updates and a new account starts on. The
+ * running daemon watches this file and applies a change live; it writes back
+ * what Nessie answered.
  */
 export type LocalCliEngineKey = { engine: LocalCliEngine; profileId: string | null }
 
@@ -33,7 +35,7 @@ export const parseLocalCliEngineKey = (value: string): LocalCliEngineKey => {
   }
 }
 
-const Settings = z.object({ version: z.literal(1), available: z.array(KeySchema).max(MAX_KEYS) }).strict()
+const Settings = z.object({ version: z.literal(1), off: z.array(KeySchema).max(MAX_KEYS) }).strict()
 /** `yes` Nessie has the host; `not_yet` registration was refused as unknown (an older Nessie) or failed. */
 const Status = z.object({
   version: z.literal(1), checkedAt: z.string().datetime(),
@@ -53,8 +55,9 @@ const readOwnerJson = async <T>(stateDir: string, name: string, schema: z.ZodTyp
   return schema.parse(JSON.parse(bytes.toString('utf8')))
 }
 
-export const readLocalCliAvailability = async (stateDir: string): Promise<Set<string>> =>
-  new Set((await readOwnerJson(stateDir, SETTINGS, Settings))?.available ?? [])
+/** The engine connections the owner switched off for this team; every other one is on. */
+export const readLocalCliSwitchedOff = async (stateDir: string): Promise<Set<string>> =>
+  new Set((await readOwnerJson(stateDir, SETTINGS, Settings))?.off ?? [])
 
 /** Turns one engine connection on or off for this team; answers whether anything changed. */
 export const setLocalCliAvailability = async (
@@ -63,20 +66,20 @@ export const setLocalCliAvailability = async (
   await assertOwnerOnlyStatePath(stateDir, 'directory')
   const lease = await acquireOwnerStateLock(stateDir, 'local-cli-engines.lock')
   try {
-    const current = await readLocalCliAvailability(stateDir)
+    const off = await readLocalCliSwitchedOff(stateDir)
     const name = localCliEngineKey(key)
-    if (current.has(name) === available) return false
-    if (available) current.add(name)
-    else current.delete(name)
-    await replaceOwnerOnlyJson(join(stateDir, SETTINGS), Settings.parse({ version: 1, available: [...current].sort() }))
+    if (off.has(name) !== available) return false
+    if (available) off.delete(name)
+    else off.add(name)
+    await replaceOwnerOnlyJson(join(stateDir, SETTINGS), Settings.parse({ version: 1, off: [...off].sort() }))
     return true
   } finally { await lease.release() }
 }
 
-/** Drops switches for accounts that no longer exist. */
+/** Drops a removed account's switch from this team. */
 export const forgetLocalCliProfile = async (stateDir: string, profileId: string): Promise<void> => {
   for (const engine of LocalCliEngineSchema.options) {
-    await setLocalCliAvailability(stateDir, { engine, profileId }, false)
+    await setLocalCliAvailability(stateDir, { engine, profileId }, true)
   }
 }
 

@@ -1,25 +1,27 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import type { LocalCliWithdrawReason } from '@nessie/executor-protocol'
+
 import { runsUnderWindowsService } from './coding-session/self-check.js'
 import type { LocalInferenceHostSession } from './local-inference-host-session.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { readLocalCliAccounts, localCliAccountsRoot, type LocalCliAccount } from './local-cli-engine-accounts.js'
 import { createLocalCliEngineBackend, type LocalCliSessionGate } from './local-cli-engine-backend.js'
-import { detectLocalCliEngines } from './local-cli-engine-detect.js'
+import { detectLocalCliEngines, type LocalCliDetection } from './local-cli-engine-detect.js'
 import { connectLocalCliHost, registerLocalCliHost, type LocalCliRegistration } from './local-cli-engine-host.js'
 import {
-  LOCAL_CLI_SETTINGS_FILE, localCliEngineKey, parseLocalCliEngineKey, readLocalCliAvailability, readLocalCliStatus,
+  LOCAL_CLI_SETTINGS_FILE, localCliEngineKey, parseLocalCliEngineKey, readLocalCliStatus, readLocalCliSwitchedOff,
   writeLocalCliStatus,
   type LocalCliEngineKey,
 } from './local-cli-engine-settings.js'
 
 /**
- * Keeps one `local_cli` host per engine connection the owner made available
- * for this team (contract §12), beside the team's local-weights host. A switch
- * turned on registers and connects its host; turned off, it withdraws it from
- * Nessie. Changes to the switches or the account list apply within a second
- * or two, without restarting the team.
+ * Keeps one `local_cli` host per installed, signed-in engine connection the
+ * owner has not switched off for this team (contract §12), beside the team's
+ * local-weights host. Switched off, signed out or gone, it is withdrawn from
+ * Nessie with the reason. Switch and account changes apply within a second or
+ * two, a sign-in or sign-out within a minute, without restarting the team.
  */
 type Entry = {
   key: LocalCliEngineKey
@@ -39,6 +41,8 @@ export type LocalCliEngineManager = {
 }
 
 const RETRY_UNSUPPORTED_MS = 60 * 60_000
+/** How often a sign-in or sign-out, which no file announces, is noticed. */
+const DETECT_MS = 60_000
 const WATCH_MS = 1_500
 
 export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorLocalState, options: {
@@ -48,6 +52,8 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
   log?: (message: string) => void
   watch?: boolean
   underService?: () => Promise<boolean>
+  /** What is installed and signed in; the CLIs' own status probes outside tests. */
+  detect?: () => Promise<LocalCliDetection[]>
 } = {}): LocalCliEngineManager => {
   const accountsRoot = options.accountsRoot ?? localCliAccountsRoot()
   const register = options.register ?? registerLocalCliHost
@@ -60,6 +66,7 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
   /** Keys this daemon registered as available, so turning one off withdraws exactly those. */
   const offered = new Map<string, 'yes' | 'not_yet'>()
   let unsupportedAt = 0
+  let checkedAt = 0
   let seeded = false
   let written = '[]'
   let fingerprint = ''
@@ -91,22 +98,29 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
     return 'yes'
   }
 
+  /**
+   * Every engine connection is wanted unless its owner switched it off for
+   * this team, and only while its CLI is installed and signed in. Anything
+   * offered earlier that is no longer wanted is withdrawn, naming why.
+   */
   const apply = async (): Promise<void> => {
     const accounts = await readLocalCliAccounts(accountsRoot).catch(() => [])
+    const off = await readLocalCliSwitchedOff(stateDir).catch(() => new Set<string>())
+    const found = await (options.detect ?? (() => detectLocalCliEngines({ accounts, accountsRoot })))()
     const wanted = new Map<string, LocalCliEngineKey>()
-    for (const name of await readLocalCliAvailability(stateDir).catch(() => new Set<string>())) {
-      const key = parseLocalCliEngineKey(name)
-      const known = key.profileId === null
-        || accounts.some((account) => account.id === key.profileId && account.engine === key.engine)
-      if (known) {
-        wanted.set(name, key)
-      }
+    const why = new Map<string, LocalCliWithdrawReason>()
+    for (const row of found) {
+      const name = localCliEngineKey(row)
+      const reason = off.has(name) ? 'switched_off' : !row.installed ? 'not_installed' : !row.signedIn ? 'signed_out' : null
+      if (reason) why.set(name, reason)
+      else wanted.set(name, { engine: row.engine, profileId: row.profileId })
     }
     for (const name of [...offered.keys()]) {
       if (wanted.has(name)) continue
       await close(name)
       const key = parseLocalCliEngineKey(name)
-      await register(state, key.engine, key.profileId, false).catch((error: unknown) => {
+      // An account removed from this computer is withdrawn as not installed: its program has no such account any more.
+      await register(state, key.engine, key.profileId, why.get(name) ?? 'not_installed').catch((error: unknown) => {
         log(`${name} was not withdrawn: ${error instanceof Error ? error.message : String(error)}`)
       })
       offered.delete(name)
@@ -121,6 +135,7 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
         log(`${name} was not offered: ${error instanceof Error ? error.message : String(error)}`)
       }
     }
+    checkedAt = Date.now()
     const report = JSON.stringify([...offered].sort())
     if (report !== written) {
       written = report
@@ -167,7 +182,8 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
   return {
     reconcile,
     heartbeat: async () => {
-      if (Date.now() - unsupportedAt >= RETRY_UNSUPPORTED_MS && [...offered.values()].includes('not_yet')) {
+      if (Date.now() - checkedAt >= DETECT_MS
+        || Date.now() - unsupportedAt >= RETRY_UNSUPPORTED_MS && [...offered.values()].includes('not_yet')) {
         await reconcile().catch(() => undefined)
       }
       await Promise.all([...entries.values()].map((entry) => entry.session?.heartbeat().catch(() => undefined)))

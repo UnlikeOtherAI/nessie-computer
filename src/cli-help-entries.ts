@@ -212,11 +212,12 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'nessie-computer ai local remove <account> [--team <team>]',
     ],
     notes: [
-      'on offers that program to the team\'s agents, which then use its own sign-in. Nessie decides who may use it.',
+      'Each program is on for every team by default once it is installed and signed in; off stops that team\'s agents',
+      'using it, and on undoes that. Agents use the program\'s own sign-in; Nessie decides who may use it.',
       'add makes another account on this computer and runs the program\'s own sign-in; --account picks it.',
       'remove signs that account out and deletes it from this computer.',
     ],
-    examples: ['nessie-computer ai local on codex --team "Sales · Acme"',
+    examples: ['nessie-computer ai local off codex --team "Sales · Acme"',
       'nessie-computer ai local add claude-code "Work"'],
   },
   {

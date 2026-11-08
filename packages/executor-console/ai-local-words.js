@@ -1,7 +1,7 @@
 // The words of the AI tab's "On this computer" section, in every console locale.
 const aiLocalEnglish = {
   title: 'On this computer',
-  hint: 'Claude Code and Codex, when they are installed and signed in here. Agents in {team} use them through their own sign-in.',
+  hint: 'When Claude Code or Codex is installed and signed in here, agents in {team} can use it through its own sign-in. Switch one off to stop agents using it.',
   service: 'This team runs in the Nessie Computer background service, which can’t use your Claude Code or Codex sign-in. Add this computer to the team under your own account to use them.',
   engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
   withName: '{engine} · {name}',
@@ -32,7 +32,7 @@ const aiLocalByLocale = {
   'en-US': aiLocalEnglish,
   cs: {
     title: 'Na tomto počítači',
-    hint: 'Claude Code a Codex, pokud jsou tu nainstalované a přihlášené. Agenti v týmu {team} je používají přes jejich vlastní přihlášení.',
+    hint: 'Když je tu Claude Code nebo Codex nainstalovaný a přihlášený, agenti v týmu {team} ho mohou používat přes jeho vlastní přihlášení. Vypněte ho, pokud ho agenti používat nemají.',
     service: 'Tento tým běží ve službě Nessie Computer na pozadí, která nemůže použít vaše přihlášení do Claude Code ani Codexu. Pokud je chcete použít, přidejte tento počítač k týmu pod svým vlastním účtem.',
     engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
     withName: '{engine} · {name}',
@@ -60,7 +60,7 @@ const aiLocalByLocale = {
   },
   de: {
     title: 'Auf diesem Computer',
-    hint: 'Claude Code und Codex, wenn sie hier installiert und angemeldet sind. Agenten in {team} nutzen sie über deren eigene Anmeldung.',
+    hint: 'Ist Claude Code oder Codex hier installiert und angemeldet, können Agenten in {team} es über seine eigene Anmeldung nutzen. Schalten Sie es aus, damit Agenten es nicht mehr nutzen.',
     service: 'Dieses Team läuft im Hintergrunddienst von Nessie Computer, der Ihre Anmeldung bei Claude Code oder Codex nicht nutzen kann. Fügen Sie diesen Computer unter Ihrem eigenen Konto zum Team hinzu, um sie zu nutzen.',
     engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
     withName: '{engine} · {name}',
@@ -88,7 +88,7 @@ const aiLocalByLocale = {
   },
   es: {
     title: 'En este ordenador',
-    hint: 'Claude Code y Codex, si están instalados y con sesión iniciada aquí. Los agentes de {team} los usan con su propia sesión.',
+    hint: 'Si Claude Code o Codex está instalado y con sesión iniciada aquí, los agentes de {team} pueden usarlo con su propia sesión. Desactívalo para que dejen de usarlo.',
     service: 'Este equipo funciona en el servicio en segundo plano de Nessie Computer, que no puede usar tu sesión de Claude Code ni de Codex. Para usarlos, añade este ordenador al equipo con tu propia cuenta.',
     engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
     withName: '{engine} · {name}',
@@ -116,7 +116,7 @@ const aiLocalByLocale = {
   },
   fr: {
     title: 'Sur cet ordinateur',
-    hint: 'Claude Code et Codex, s’ils sont installés et connectés ici. Les agents de {team} les utilisent avec leur propre connexion.',
+    hint: 'Si Claude Code ou Codex est installé et connecté ici, les agents de {team} peuvent l’utiliser avec sa propre connexion. Désactivez-le pour qu’ils cessent de l’utiliser.',
     service: 'Cette équipe tourne dans le service d’arrière-plan de Nessie Computer, qui ne peut pas utiliser votre connexion à Claude Code ou Codex. Pour les utiliser, ajoutez cet ordinateur à l’équipe avec votre propre compte.',
     engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
     withName: '{engine} · {name}',
@@ -144,7 +144,7 @@ const aiLocalByLocale = {
   },
   it: {
     title: 'Su questo computer',
-    hint: 'Claude Code e Codex, se sono installati e con l’accesso effettuato qui. Gli agenti di {team} li usano con il loro accesso.',
+    hint: 'Se Claude Code o Codex è installato e con l’accesso effettuato qui, gli agenti di {team} possono usarlo con il suo accesso. Disattivalo perché smettano di usarlo.',
     service: 'Questo team funziona nel servizio in background di Nessie Computer, che non può usare il tuo accesso a Claude Code o Codex. Per usarli, aggiungi questo computer al team con il tuo account.',
     engines: { 'claude-code': 'Claude Code', codex: 'Codex' },
     withName: '{engine} · {name}',

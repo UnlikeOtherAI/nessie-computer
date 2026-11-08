@@ -8,7 +8,7 @@ import {
 } from './local-cli-engine-accounts.js'
 import { detectLocalCliEngines, type LocalCliProbes } from './local-cli-engine-detect.js'
 import {
-  forgetLocalCliProfile, localCliEngineKey, readLocalCliAvailability, readLocalCliStatus, setLocalCliAvailability,
+  forgetLocalCliProfile, localCliEngineKey, readLocalCliStatus, readLocalCliSwitchedOff, setLocalCliAvailability,
 } from './local-cli-engine-settings.js'
 import { signInInTerminal, signOut } from './local-cli-engine-sign-in.js'
 import { loadExecutorState } from './state-store.js'
@@ -48,19 +48,21 @@ export const localCliEngineRows = async (
 ): Promise<LocalCliEngineRow[]> => {
   const accountsRoot = dependencies.accountsRoot ?? localCliAccountsRoot()
   const accounts = await readLocalCliAccounts(accountsRoot)
-  const [found, available, status] = await Promise.all([
+  const [found, off, status] = await Promise.all([
     detectLocalCliEngines({ accounts, accountsRoot, ...(dependencies.env ? { env: dependencies.env } : {}),
       ...(dependencies.probes ? { probes: dependencies.probes } : {}) }),
-    readLocalCliAvailability(stateDir), readLocalCliStatus(stateDir).catch(() => null),
+    readLocalCliSwitchedOff(stateDir), readLocalCliStatus(stateDir).catch(() => null),
   ])
   return found.map((row) => {
     const key = localCliEngineKey(row)
-    const on = available.has(key)
+    // On by default: only the owner's explicit off is stored. Signed out or not installed is never offered.
+    const on = !off.has(key)
+    const ready = on && row.installed && row.signedIn
     return {
       engine: row.engine, profileId: row.profileId,
       name: accounts.find((account) => account.id === row.profileId)?.name ?? null,
       installed: row.installed, signedIn: row.signedIn, ...(row.account ? { account: row.account } : {}),
-      available: on, offered: !on ? 'no' : status?.offered[key] === 'yes' ? 'yes' : 'not_yet',
+      available: on, offered: !ready ? 'no' : status?.offered[key] === 'yes' ? 'yes' : 'not_yet',
     }
   })
 }

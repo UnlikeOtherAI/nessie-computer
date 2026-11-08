@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID, createPublicKey, verify } from 'node:crypto'
-import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -66,24 +66,27 @@ test('Codex is signed in when its own login status says so; the account name is 
   assert.deepEqual(ran, [['login', 'status'], ['login', 'status']])
 })
 
-test('Make available is per team, and only for an installed program', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
+test('Make available is on by default; only the owner\'s off is stored, per team', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
   const dirs = await folders()
   try {
     const deps = { accountsRoot: dirs.accounts, env: {}, probes: probes() }
+    const codex = async (dir: string) => (await localCliEngineRows(dir, deps)).find((row) => row.engine === 'codex')!
+    const claude = async (dir: string) => (await localCliEngineRows(dir, deps)).find((row) => row.engine === 'claude-code')!
+    assert.deepEqual([(await codex(dirs.teamA)).available, (await codex(dirs.teamA)).offered], [true, 'not_yet'])
+    // Not installed: on, but never offered.
+    assert.deepEqual([(await claude(dirs.teamA)).available, (await claude(dirs.teamA)).offered], [true, 'no'])
+    await writeLocalCliStatus(dirs.teamA, { codex: 'yes' })
+    assert.equal((await codex(dirs.teamA)).offered, 'yes')
+    const off = await applyLocalCliEngineOperation(dirs.teamA,
+      { operation: 'set', engine: 'codex', profileId: null, available: false }, deps)
+    assert.deepEqual(off.filter((row) => row.engine === 'codex').map((row) => [row.available, row.offered]), [[false, 'no']])
+    assert.equal((await codex(dirs.teamB)).available, true, 'another team keeps its own switch')
+    assert.deepEqual(JSON.parse(await readFile(join(dirs.teamA, 'local-cli-engines.json'), 'utf8')), { version: 1, off: ['codex'] })
+    await assert.rejects(applyLocalCliEngineOperation(dirs.teamA,
+      { operation: 'set', engine: 'claude-code', profileId: null, available: true }, deps), /not installed/u)
     const on = await applyLocalCliEngineOperation(dirs.teamA,
       { operation: 'set', engine: 'codex', profileId: null, available: true }, deps)
     assert.equal(on.find((row) => row.engine === 'codex')?.available, true)
-    assert.equal(on.find((row) => row.engine === 'codex')?.offered, 'not_yet')
-    const other = await localCliEngineRows(dirs.teamB, deps)
-    assert.equal(other.find((row) => row.engine === 'codex')?.available, false)
-    assert.equal(other.find((row) => row.engine === 'codex')?.offered, 'no')
-    await writeLocalCliStatus(dirs.teamA, { codex: 'yes' })
-    assert.equal((await localCliEngineRows(dirs.teamA, deps)).find((row) => row.engine === 'codex')?.offered, 'yes')
-    await assert.rejects(applyLocalCliEngineOperation(dirs.teamA,
-      { operation: 'set', engine: 'claude-code', profileId: null, available: true }, deps), /not installed/u)
-    const off = await applyLocalCliEngineOperation(dirs.teamA,
-      { operation: 'set', engine: 'codex', profileId: null, available: false }, deps)
-    assert.equal(off.find((row) => row.engine === 'codex')?.offered, 'no')
   } finally { await dirs.done() }
 })
 
@@ -99,15 +102,17 @@ test('another account signs in with the program and is removed with its sign-out
       } }
     const rows = await applyLocalCliEngineOperation(dirs.teamA, { operation: 'add', engine: 'codex', name: 'Work' }, deps)
     const added = rows.find((row) => row.profileId !== null)!
-    assert.deepEqual([added.name, added.signedIn], ['Work', false])
+    assert.deepEqual([added.name, added.signedIn, added.available, added.offered], ['Work', false, true, 'no'])
     assert.deepEqual(signIns, [localCliAccountDirectory(dirs.accounts, added.profileId!)])
     await assert.rejects(applyLocalCliEngineOperation(dirs.teamA, { operation: 'add', engine: 'codex', name: 'work' }, deps),
       /already/u)
     assert.equal(findLocalCliAccount(await readLocalCliAccounts(dirs.accounts), 'codex', 'WORK')?.id, added.profileId)
     await applyLocalCliEngineOperation(dirs.teamA,
-      { operation: 'set', engine: 'codex', profileId: added.profileId, available: true }, deps)
+      { operation: 'set', engine: 'codex', profileId: added.profileId, available: false }, deps)
     const left = await applyLocalCliEngineOperation(dirs.teamA, { operation: 'remove', profileId: added.profileId! }, deps)
     assert.equal(left.some((row) => row.profileId !== null), false)
+    assert.deepEqual(JSON.parse(await readFile(join(dirs.teamA, 'local-cli-engines.json'), 'utf8')).off, [],
+      'a removed account leaves no switch behind')
     assert.deepEqual(signOuts, signIns)
     await assert.rejects(stat(signIns[0]!), /ENOENT/u)
   } finally { await dirs.done() }
@@ -133,40 +138,50 @@ test('registration is signed in its own domain, and an older Nessie means not of
     ['available', 'connectionEpoch', 'engine', 'executorId', 'observedAt', 'profileId'])
   assert.ok(verify(null, Buffer.from(canonicalExecutorPayload('nessie.executor.daemon.local_inference.cli_host.v1', payload)),
     publicKey, Buffer.from(String(signature), 'base64url')))
+  let withdrawal: Record<string, unknown> | undefined
+  await registerLocalCliHost(state, 'codex', null, 'signed_out', { registerCliHost: async (input) => {
+    withdrawal = input
+    return { withdrawn: true }
+  } })
+  assert.deepEqual([withdrawal?.available, withdrawal?.reason], [false, 'signed_out'])
   const older = await registerLocalCliHost(state, 'codex', null, true, { registerCliHost: async () => {
     throw new LocalInferenceApiError('LOCAL_INFERENCE_API_FAILED', 404)
   } })
   assert.equal(older.kind, 'unsupported')
 })
 
-test('turning a switch on offers its host; off withdraws it from Nessie', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
+test('installed and signed in is offered; off, signed out or gone is withdrawn with why', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
   const dirs = await folders()
   try {
     const { state } = machine()
-    const calls: Array<{ engine: string; available: boolean }> = []
+    const calls: Array<{ engine: string; offer: unknown }> = []
     let stops = 0
+    let codexSignedIn = false
     const session = { loop: { stop: () => undefined, drain: async () => undefined, resume: () => undefined,
       isIdle: () => true }, heartbeat: async () => undefined, refused: new Promise<void>(() => undefined),
     connected: Promise.resolve(), stop: async () => { stops += 1 } } as unknown as LocalInferenceHostSession
+    const detection = (engine: 'claude-code' | 'codex', signedIn: boolean) => ({ engine, profileId: null,
+      installed: true, signedIn, env: {} })
     const manager = createLocalCliEngineManager(dirs.teamA, state, { accountsRoot: dirs.accounts, watch: false,
       underService: async () => false, log: () => undefined,
-      register: async (_state, engine, _profile, available) => {
-        calls.push({ engine, available })
-        if (engine === 'claude-code') return { kind: 'unsupported' }
-        return available ? { kind: 'host', hostId: randomUUID(), organizationId: randomUUID(), connectionEpoch: '1' }
+      detect: async () => [detection('claude-code', true), detection('codex', codexSignedIn)],
+      register: async (_state, engine, _profile, offer) => {
+        calls.push({ engine, offer })
+        if (engine === 'codex') return { kind: 'unsupported' }
+        return offer === true ? { kind: 'host', hostId: randomUUID(), organizationId: randomUUID(), connectionEpoch: '1' }
           : { kind: 'withdrawn' }
       },
       connect: async () => session })
-    await setLocalCliAvailability(dirs.teamA, { engine: 'codex', profileId: null }, true)
-    await setLocalCliAvailability(dirs.teamA, { engine: 'claude-code', profileId: null }, true)
+    // Nothing switched: Claude Code is offered at once; Codex, signed out, is not.
     await manager.reconcile()
-    assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { codex: 'yes', 'claude-code': 'not_yet' })
-    await setLocalCliAvailability(dirs.teamA, { engine: 'codex', profileId: null }, false)
+    assert.deepEqual(calls, [{ engine: 'claude-code', offer: true }])
+    assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { 'claude-code': 'yes' })
+    codexSignedIn = true
+    await setLocalCliAvailability(dirs.teamA, { engine: 'claude-code', profileId: null }, false)
     await manager.reconcile()
-    assert.deepEqual(calls, [{ engine: 'claude-code', available: true }, { engine: 'codex', available: true },
-      { engine: 'codex', available: false }])
+    assert.deepEqual(calls.slice(1), [{ engine: 'claude-code', offer: 'switched_off' }, { engine: 'codex', offer: true }])
     assert.equal(stops, 1)
-    assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { 'claude-code': 'not_yet' })
+    assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { codex: 'not_yet' })
     await manager.stop()
   } finally { await dirs.done() }
 })

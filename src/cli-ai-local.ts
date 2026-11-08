@@ -34,7 +34,7 @@ const describeRow = (row: LocalCliEngineRow): string[] => {
     return [name, row.name ? `Signed out. Run nessie-computer ai local sign-in "${row.name}".`
       : `Signed out. Run ${program} once to sign in.`]
   }
-  const offer = !row.available ? 'Make available: off'
+  const offer = !row.available ? 'Make available: off (switched off for this team)'
     : row.offered === 'yes' ? 'Make available: on' : 'Make available: on (Nessie doesn\'t offer this yet)'
   return [name, row.account ?? 'Signed in', offer]
 }
