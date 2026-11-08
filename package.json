@@ -7,6 +7,7 @@
     "nessie-executor": "./dist/index.js"
   },
   "scripts": {
+    "test:t3-native-codex": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-native-codex/*.test.ts",
     "test:t3-session-control-source": "node --max-old-space-size=256 --test --test-concurrency=1 test/t3-session-control/source.test.mjs",
     "test:t3-session-control": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-control/controls.test.mjs test/t3-session-control/receipts.test.mjs test/t3-session-control/schedules.test.mjs",
     "test:t3-session-runtime": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-runtime/*.test.mjs",
