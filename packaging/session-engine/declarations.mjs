@@ -65,9 +65,12 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolve
     const path = `source/${local}`
     files.set(path, portableModule(source.fileName, source.text, path))
   }
-  const save = async (directory, entryPoint) => {
-    const entry = location(entryPoint).replace(/\.d\.ts$/u, '.js')
-    files.set('index.d.ts', `/// <reference lib="es2023.array" />\nexport * from './${entry}'\n`)
+  const save = async (directory, entryPoints) => {
+    for (const [name, entryPoint] of Object.entries(entryPoints)) {
+      if (!/^[a-z]+$/u.test(name)) throw new Error('Declaration entry name refused.')
+      const entry = location(entryPoint).replace(/\.d\.ts$/u, '.js')
+      files.set(`${name}.d.ts`, `/// <reference lib="es2023.array" />\nexport * from './${entry}'\n`)
+    }
     const identities = {}
     for (const [path, content] of [...files].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
       const destination = resolve(directory, path)
@@ -80,7 +83,8 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolve
       if (!existing) await writeFile(destination, content, { flag: 'wx' })
       identities[path] = hash(content)
     }
-    return { entry: 'index.d.ts', upstream: 'compiler-declarations-with-shared-contract-source', files: identities,
+    return { entry: 'index.d.ts', entries: Object.keys(entryPoints).map(name => `${name}.d.ts`),
+      upstream: 'compiler-declarations-with-shared-contract-source', files: identities,
       sha256: hash(JSON.stringify(identities)) }
   }
   return { writeFile: writeDeclaration, addSourceTypes, save }

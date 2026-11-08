@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "license": "FSL-1.1-ALv2",
-  "engines": { "node": ">=22.19.0" },
+  "engines": {
+    "node": ">=22.19.0"
+  },
   "exports": {
     "./engine": {
       "types": "./dist/engine-types/index.d.ts",
@@ -25,17 +27,22 @@
       "types": "./dist/types/relay.d.ts",
       "default": "./dist/relay.js"
     },
-    "./routes": "./dist/routes.json"
+    "./routes": "./dist/routes.json",
+    "./client": {
+      "types": "./dist/engine-types/client.d.ts",
+      "default": "./dist/client.js"
+    }
   },
   "scripts": {
     "prepare:engine": "node prepare.mjs && pnpm --dir ../../packaging/session-engine install --frozen-lockfile --ignore-workspace --ignore-scripts --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
     "build": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs",
     "typecheck": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs --check",
     "lint": "node --check build.mjs && node --check input.mjs && node --check cache.mjs && node --check routes.mjs && node --check prepare.mjs",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs test/client/*.test.mjs",
     "test:t3-session-engine": "node --test --test-concurrency=1 test/engine/*.test.mjs",
     "test:t3-session-engine-browser": "node test/engine/browser.mjs",
-    "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs"
+    "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:t3-session-client": "node --max-old-space-size=512 --test --test-concurrency=1 test/client/*.test.mjs"
   },
   "dependencies": {
     "@effect/platform-node": "4.1.2",
@@ -53,7 +60,8 @@
     "remark-rehype": "11.1.2",
     "unified": "11.0.5",
     "@types/mdast": "4.0.4",
-    "micromark-util-types": "2.0.2"
+    "micromark-util-types": "2.0.2",
+    "@noble/hashes": "1.8.0"
   },
   "devDependencies": {
     "esbuild": "0.25.12",

@@ -68,7 +68,8 @@ export const authorizeUoaEnvironment = (ports: UoaBootstrapPorts, account: UoaCo
   });
   const issuedAt = now();
   const access = yield* bootstrapRemoteBearerSession({ httpBaseUrl: endpoint.httpBaseUrl,
-    credential: connected.credential, clientMetadata: ports.clientMetadata });
+    credential: connected.credential,
+    ...(ports.clientMetadata === undefined ? {} : { clientMetadata: ports.clientMetadata }) });
   const expiresAt = Math.min(account.expiresAt, issuedAt + access.expires_in * 1_000);
   yield* Effect.try({ try: () => {
     checkCurrent();

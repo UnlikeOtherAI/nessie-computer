@@ -10,15 +10,18 @@ import { assertSessionEngineSourceGraph } from './graph.mjs'
 import { lintSessionEngineSources } from './lint.mjs'
 import { sessionEngineSourcePlugin } from './resolver.mjs'
 import { typecheckSessionState } from './typecheck.mjs'
+import { clientSourceManifest, readClientSourceInputs } from './client-source.mjs'
+import { selectMobileClientSource } from './client-selection.mjs'
+import { assertBrowserClientGraph } from './client-graph.mjs'
 
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(tools, '../..')
 const slash = path => path.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const externalPackages = ['effect', '@effect/platform-node', '@effect/platform-node-shared']
+const externalPackages = ['effect', '@effect/platform-node', '@effect/platform-node-shared', '@noble/hashes']
 const external = name => externalPackages.some(pkg => name === pkg || name.startsWith(`${pkg}/`))
 
-export const prepareLibrarySnapshot = async original => {
+export const prepareLibrarySnapshot = async (original, { sourceRepository } = {}) => {
   const registration = JSON.parse(await readFile(new URL('./library-inputs.json', import.meta.url), 'utf8'))
   const privacy = await readFile(new URL('../../patches/t3-session/requests/boundary-patches.json', import.meta.url))
   if (registration.format !== 1 || hash(privacy) !== registration.privacyManifestSha256) {
@@ -28,8 +31,12 @@ export const prepareLibrarySnapshot = async original => {
   if (hash(contracts) !== registration.contractsInputSha256) {
     throw new Error('SESSION_ENGINE_LIBRARY_CONTRACTS_IDENTITY_MISMATCH')
   }
-  return { ...prepareSessionEngineSnapshot(original,
-    { additionalPatchFamilies: [{ id: 'request-privacy', bytes: privacy }] }), registration }
+  const prepared = prepareSessionEngineSnapshot(original,
+    { additionalPatchFamilies: [{ id: 'request-privacy', bytes: privacy }] })
+  const { default: ts } = await import('typescript')
+  const supplemented = await readClientSourceInputs(prepared.snapshot, sourceRepository)
+  const selected = selectMobileClientSource(ts, supplemented, clientSourceManifest)
+  return { ...prepared, snapshot: selected.snapshot, mobileClientSelection: selected.records, registration }
 }
 
 /** Exact authored files only: future adapters must register their complete imported closure here. */
@@ -52,15 +59,20 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
   await lintSessionEngineSources()
   const { snapshot, registration, manifestBytes } = prepared
   const entry = resolve(root, registration.entryPoint)
-  assertLibraryAuthoredInputs([registration.entryPoint], registration)
+  if (registration.clientEntryPoint !== 'packaging/session-engine/core/Client.ts') {
+    throw new Error('SESSION_CLIENT_ENTRY_REGISTRATION_INVALID')
+  }
+  const clientEntry = resolve(root, registration.clientEntryPoint)
+  assertLibraryAuthoredInputs([registration.entryPoint, registration.clientEntryPoint], registration)
   const typecheck = await typecheckSessionState(snapshot, entry,
-    { ...(check ? {} : { declarationDirectory: resolve(outputDirectory, 'engine-types'), sharedContracts: true }),
+    { additionalEntries: { client: clientEntry },
+      ...(check ? {} : { declarationDirectory: resolve(outputDirectory, 'engine-types'), sharedContracts: true }),
       assertAuthoredInputs: paths => assertLibraryAuthoredInputs(paths, registration) })
   if (check) return { typecheck }
   const manifest = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'))
   const result = await build({
     absWorkingDir: tools,
-    entryPoints: { engine: entry, contracts: 't3-source:packages/contracts/src/index.ts',
+    entryPoints: { engine: entry, client: clientEntry, contracts: 't3-source:packages/contracts/src/index.ts',
       settings: 't3-source:packages/contracts/src/settings.ts', relay: 't3-source:packages/contracts/src/relay.ts' },
     outdir: outputDirectory, splitting: true, bundle: true, format: 'esm', platform: 'node', target: 'node22.16',
     external: externalPackages.flatMap(name => [name, `${name}/*`]),
@@ -69,6 +81,7 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
       snapshot, dependencyDirectory: tools, dependencies: Object.keys(manifest.dependencies),
     })],
   })
+  const clientGraph = assertBrowserClientGraph(result.metafile)
   const inputs = Object.keys(result.metafile.inputs)
   const sourceInputs = inputs.filter(path => path.startsWith('nessie-t3-source:'))
     .map(path => path.slice('nessie-t3-source:'.length)).sort()
@@ -95,14 +108,16 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
   const notices = { upstream: { ...snapshot.identity, license: snapshot.read('LICENSE').toString('utf8') },
     dependencies: await sessionDependencyNotices([...dependencies,
       ...externalPackages.map(name => `node_modules/${name}/package.json`)]) }
-  const producer = (await readdir(tools)).filter(path => path.endsWith('.mjs') || path === 'library-inputs.json').sort()
+  const producer = (await readdir(tools))
+    .filter(path => path.endsWith('.mjs') || ['library-inputs.json', 'client-source.json'].includes(path)).sort()
   const hashes = async (paths, directory) => Object.fromEntries(await Promise.all(paths.map(async path =>
     [path, hash(await readFile(resolve(directory, path)))])))
   const provenance = {
     format: 1, kind: 'session-engine-package', sourceIdentity: snapshot.identity,
     qualification: { distributableLibrary: true, syntheticProofs: false, installedRuntime: false,
       providerExecution: false, canonicalVaultBroker: false },
-    registration, typecheck, bundler, node: process.versions.node,
+    registration, typecheck, clientGraph, mobileClientSelection: prepared.mobileClientSelection,
+    bundler, node: process.versions.node,
     dependencyLockSha256: hash(await readFile(new URL('./pnpm-lock.yaml', import.meta.url))),
     buildManifestSha256: hash(await readFile(new URL('./package.json', import.meta.url))),
     sourceInputs: Object.fromEntries(sourceInputs.map(path => [path, hash(snapshot.read(path))])),

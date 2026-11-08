@@ -384,3 +384,30 @@ provider mutation, personal-history read or memory polling ran in this tranche.
 Strict typecheck, runtime fixtures, real UOA denial/revocation, cold links through
 the original mobile Home flow, gateway offline/reconnect, selected-team changes,
 and UI/WebMCP/MCP user journeys remain unverified and required before delivery.
+
+## Client export and host composition
+
+The browser-safe original selectors, projections and history machinery now have
+a dedicated generated `/client` entry under the [package contract](session-engine-package.md#original-browser-client-entry-source-checkpoint-not-yet-qualified).
+This is an additive producer change. The minimal original-source changes remain
+the registered URL helper patch and registry lifecycle patch; the eleven mobile
+Git inputs only undergo build-time declaration selection, and shared reducers,
+Home and screens retain their original implementation. `Client.ts` adds exports;
+it creates no application or session store. Optional metadata, clock and scheduler
+ports are omitted when absent to respect exact optional-property checking.
+
+T08 supplies the real canonical `listT3Environments`, read/connect/admit/renew
+operations and durable one-use credentials (`20261108006000`). T09 supplies the
+mounted original raw HTTP/WS codec routes and DPoP verification boundary. The
+account adapter's `list` and `connect` ports must call those canonical operations
+under the current UOA subject, organization and selected team; endpoint strings
+and historical capture do not establish admission. `prepare(account, signal)`
+still needs an actual host implementation that deletes prior account credentials,
+cached shells/history and pending outbox data before reconciliation, including
+cold startup and cleanup failure recovery. An arbitrary successful callback is
+not evidence of cleanup. No live binding is claimed in this checkpoint.
+
+All new package runtime and declaration fixtures await the parent's combined
+producer qualification. The dependency-free graph checks exercise only rejection
+and reachability of synthetic build metadata; they do not establish a usable
+browser runtime, identity authority or physical source readiness.

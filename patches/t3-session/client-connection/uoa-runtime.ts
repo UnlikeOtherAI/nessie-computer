@@ -24,8 +24,8 @@ export const makeUoaConnectionAccount = (ports: UoaRuntimePorts) => Effect.gen(f
     prepare: ports.prepare,
     list: ports.list,
     report: ports.report,
-    now: ports.now,
-    schedule: ports.schedule,
+    ...(ports.now === undefined ? {} : { now: ports.now }),
+    ...(ports.schedule === undefined ? {} : { schedule: ports.schedule }),
     reconcile: registrations => Effect.runPromise(registry.reconcilePlatform(registrations)),
     authorize: async (account, environment, signal) => {
       const result = await Effect.runPromise(authorizeUoaEnvironment(ports, account, environment, signal).pipe(
