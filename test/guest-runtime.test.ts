@@ -50,7 +50,7 @@ test('guest runtime bundles pin every browser and coding artifact without host f
   const tmuxPath = join(bundle, 'bin', 'tmux')
   const codexPath = join(bundle, 'bin', 'codex')
   try {
-    if (process.platform === 'win32' && process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
+    if (process.platform === 'win32') {
       await ensureOwnerOnlyStateDirectory(bundle)
       await ensureOwnerOnlyStateDirectory(snapshotParent)
       await ensureOwnerOnlyStateDirectory(join(bundle, 'bin'))

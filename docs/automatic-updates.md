@@ -391,6 +391,8 @@ MCP teardown on proof the uncontained test process could not provide.
 
 The ACL transport and runtime admission are now separate. State-test prerequisite
 checks use the sibling helper, so unmarked source runs retain real DACL coverage.
+State-store and guest-runtime fixtures set actual Windows DACLs in that context;
+POSIX chmod is never treated as Windows privacy.
 Guest artifact tests still require installed package resources. A missing or symlinked
 helper still refuses; there is no PATH search or helper environment override.
 Installed-only updater and credential commands retain their own package, publisher

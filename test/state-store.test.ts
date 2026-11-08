@@ -61,9 +61,9 @@ test('state storage rejects shared or symbolic paths and preserves owner-only st
     workspaceFolders: [{ name: 'work', path: '/private/tmp/nessie-workspace' }],
   }
   try {
-    const packagedWindows = process.platform === 'win32' && process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
+    const windows = process.platform === 'win32'
     await saveExecutorState(shared, state)
-    if (packagedWindows) {
+    if (windows) {
       const grant = await new Promise<{ code: number | null }>((resolvePromise, reject) => {
         const child = spawn('icacls', [shared, '/grant', '*S-1-1-0:R'], { windowsHide: true })
         child.once('error', reject)
@@ -79,7 +79,7 @@ test('state storage rejects shared or symbolic paths and preserves owner-only st
     await saveExecutorState(safe, state)
     assert.deepEqual(await loadExecutorState(safe), state)
 
-    await symlink(safe, linked, packagedWindows ? 'junction' : undefined)
+    await symlink(safe, linked, windows ? 'junction' : undefined)
     await assert.rejects(
       () => saveExecutorState(linked, state),
       /ordinary directory/u,
@@ -92,7 +92,7 @@ test('state storage rejects shared or symbolic paths and preserves owner-only st
 test('native-host state-root dispatch accepts only protected matching pairing directories', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
   const root = await mkdtemp(join(tmpdir(), 'nessie-executor-pairings-'))
   const firstId = '00000000-0000-4000-8000-000000000031'
-  if (process.platform === 'win32' && process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
+  if (process.platform === 'win32') {
     await ensureOwnerOnlyStateDirectory(root)
   }
   const secondId = '00000000-0000-4000-8000-000000000032'
