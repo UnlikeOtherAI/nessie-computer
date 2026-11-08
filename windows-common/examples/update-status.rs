@@ -5,14 +5,16 @@ fn main() {
         inspect_peer();
         std::process::exit(1);
     }
-    let result = nessie_windows_common::update_channel::call(
-        &serde_json::json!({"operation":"status"}),
-        option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"),
-    );
+    let result = nessie_windows_common::update_channel::inspect_status(option_env!(
+        "NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"
+    ));
     match result {
         Ok(status) => println!("{status}"),
         Err(reason) => {
-            eprintln!("{reason}");
+            eprintln!(
+                "{}",
+                serde_json::to_string(&reason).expect("closed diagnostic fields serialize")
+            );
             std::process::exit(1);
         }
     }

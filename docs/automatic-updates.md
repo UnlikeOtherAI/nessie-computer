@@ -519,3 +519,8 @@ protected installed image. A real suspended process and private duplicate token
 regression assert the exact authenticated-user masks and retained SYSTEM access.
 Startup verification failures report a nonzero SCM exit code, so the configured
 recovery restart retries them instead of leaving a stopped service marked healthy.
+The read-only status probe also reports the failed transport stage, Windows error
+or closed broker error using the production exchange. Application calls keep
+their existing public error; no diagnostic flag bypasses authentication or changes
+timeouts. Signed 1.0.7 passed normal installation and desktop peer verification;
+its subsequent control exchange is still under investigation and is not accepted.
