@@ -80,7 +80,8 @@ test('stream demand retains original elements and cancellation finalizes the sub
 
 test('HTTP retains original error/status and does not expose internal capture errors', async () => {
   const input = Schema.decodeUnknownSync(ExecutorT3HttpRequest)({ ...route, kind: 'http-request',
-    endpoint: 'threadSnapshot', params: { threadId: 'thread:雪' }, headers: {} })
+    endpoint: 'threadSnapshot', params: { threadId: 'thread:雪' },
+    headers: { 'x-t3-orchestration-protocol': '2' } })
   const error = new EnvironmentResourceNotFoundError({
     code: 'not_found', reason: 'thread_not_found', traceId: 'synthetic:trace',
   })

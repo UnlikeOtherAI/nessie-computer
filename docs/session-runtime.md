@@ -322,7 +322,10 @@ The real writer-incarnation fixture additionally requires
 `T3_RUNTIME_FIXTURE_ROOT`, a coordinator-approved private artifact directory
 outside all checkouts and durable user state. It uses actual file-backed SQLite
 and the existing permission helper, preserves its files, and fails explicitly
-when the prerequisite is absent. It has not run.
+when the prerequisite is absent. Both Turbo task definitions pass this variable.
+On Windows the suite uses `scripts/run-tests.mjs`, which places an unmarked
+source Node beside the built Debug ACL helper. That transport grants no installed
+runtime or personal credential authority.
 Compiler commands retain their explicit 5120 MiB limit; test processes use at
 most 512 MiB. Check the reservation and at least 12 GiB free on Maxis before each
 heavy command. This first batch requires no database service, native build,
@@ -659,11 +662,12 @@ replay repeats neither work nor timer updates. Missing ACK, substituted metadata
 and changed deadlines cannot open a recognized command callback. Callback exit
 aborts and drains demand before releasing the engine and SQL resources.
 
-No command or provider authority is inferred from retaining the scope. Six lease
-fixtures are authored and unrun, including lost-ACK retention, shortening,
-metadata substitution and joined cleanup. Builtin parsing performs no application
-evaluation. No compiler, package tests, native launch or manual journey ran for
-this checkpoint.
+No command or provider authority is inferred from retaining the scope. Root's
+combined Maxis build passed all 15 CLI/management tasks after correcting the
+preparation Promise and reading the actual Effect 4 fiber exit after interruption.
+Seven lease fixtures passed, including lost-ACK retention, shortening, metadata
+substitution, joined cleanup and persistent cleanup failure. Native launch and
+the installed journey remain unqualified.
 
 ## Protected inspection entry
 
@@ -700,5 +704,5 @@ remain unfinished. It does not advertise retained readiness or claim a provider
 launch. The protected finite native phase transport will attach to the exact
 open operation's closure, never to a caller-selected operation or daemon key DTO.
 Four control-channel fixtures cover bounded framing, UTF8, field injection and
-write acknowledgements. They are authored and unrun. No installed/native journey
-or compiler qualification is claimed for this entry.
+write acknowledgements. These passed in root's Maxis runtime gate. The integrated
+entry compiled; no installed/native journey is claimed for this entry.
