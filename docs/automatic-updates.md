@@ -469,3 +469,14 @@ without restricting the installing session. They still verify the fixed installe
 release, publishers, hashes and protected namespace. Live updater worker/service
 execution retains the separate SYSTEM-and-session-0 requirement. The correction
 needs a fresh signed candidate and real installation before acceptance.
+
+## Windows CLI entry point
+
+The MSI installs `nessie-executor.cmd` beside its native launcher and registers
+that protected directory in the machine PATH. New terminals can use
+`nessie-executor updates status --json` and the ordinary CLI commands. The wrapper
+passes arguments to the fixed native managed-runtime entry; it never invokes an
+ambient Node binary, selects an update origin or supplies credentials. Windows
+Installer owns PATH registration and removes it on uninstall. The typed-command,
+argument/exit-code and launch-notification journeys still need the installed
+candidate; the prior edge MSI exposed no `nessie-executor` command on Maxis.

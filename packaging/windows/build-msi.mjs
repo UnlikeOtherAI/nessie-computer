@@ -204,6 +204,7 @@ const stage = async (version) => {
   // Signatures alone cannot distinguish an older signed direct-Node launcher.
   // Bind the service/tray's final signed bytes into this exact release digest.
   await sealWindowsLaunchConsumers(stagingDirectory)
+  await copyFile(join(packagingDirectory, 'nessie-executor.cmd'), join(stagingDirectory, 'nessie-executor.cmd'))
   await copyFile(join(stagingDirectory, 'nessie-executor-native.exe'), join(stagingDirectory, 'nessie-computer-updater.exe'))
 
   const resourcesDirectory = join(stagingDirectory, 'resources')
