@@ -58,3 +58,13 @@ const restoreTeamNames = {
   "it": "Apri Computer in Nessie e conferma il proprietario di questo computer per ripristinare il nome del team."
 }
 window.aiConsoleWords.restoreNames = restoreTeamNames[aiLanguage] ?? restoreTeamNames.en
+
+const changeConnectionFailed = {
+  en: 'Could not update this connection. Your changes are still here. Try again.',
+  cs: 'Připojení se nepodařilo upravit. Vaše změny zůstaly ve formuláři. Zkuste to znovu.',
+  de: 'Die Verbindung konnte nicht aktualisiert werden. Ihre Änderungen bleiben im Formular. Versuchen Sie es erneut.',
+  es: 'No se pudo actualizar la conexión. Tus cambios siguen aquí. Inténtalo de nuevo.',
+  fr: 'Impossible de modifier cette connexion. Vos changements sont conservés dans le formulaire. Réessayez.',
+  it: 'Impossibile aggiornare la connessione. Le modifiche sono ancora nel modulo. Riprova.',
+}
+window.aiConsoleWords.changeFailed = changeConnectionFailed[aiLanguage] ?? changeConnectionFailed.en

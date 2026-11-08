@@ -31,7 +31,7 @@ const changeEndpoint = async (operation) => {
     await invoke('executor_inference_connections', { executorId: endpointExecutor, operation })
     endpointDialog.close()
     await loadAi()
-  } catch { reportError(aiWords.failed) }
+  } catch { reportError(aiWords.changeFailed) }
   finally {
     endpointBusy = false
     for (const control of endpointDialog.querySelectorAll('button,input,select')) control.disabled = false

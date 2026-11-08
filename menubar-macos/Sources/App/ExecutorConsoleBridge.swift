@@ -234,8 +234,11 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
             }
             let data = try JSONSerialization.data(withJSONObject: operation)
             guard data.count <= 16 * 1024 else { throw ExecutorRefusal("Invalid inference connection action.") }
-            return try await json(ExecutorCLIInvocation(arguments: ["local-inference", "connections",
-                "--operation-stdin", "--state-dir", controller.stateDirectory], standardInput: data), controller: controller)
+            let invocation = ExecutorCLIInvocation(
+                arguments: ["local-inference", "connections", "--operation-stdin",
+                    "--state-dir", controller.stateDirectory], standardInput: data
+            )
+            return try await json(invocation, controller: controller)
         case "executor_personal_chatgpt":
             guard args["executorId"] as? String == controller.model.description?.executorId,
                   let operation = args["operation"] as? [String: Any] else {
