@@ -182,11 +182,45 @@ impl Coordinator<'_> {
         Ok(root.join(digest))
     }
 
+    /// Whether the installed release is exactly this manifest's: an
+    /// installation finished outside this worker (a person ran the signed MSI)
+    /// reaches the target too.
+    fn target_installed(&self, manifest: &Manifest) -> bool {
+        self.installer.installed().is_ok_and(|installed| {
+            installed.version == manifest.version && installed.source_commit == manifest.source_commit
+        })
+    }
+
+    /// A failure with no transaction left is about reaching a release. Once the
+    /// installed release is that one or newer, the failure is history and
+    /// Settings stops saying the update could not finish.
+    fn clear_reached_failure(&self, journal: &Journal, now: u64) -> UpdateResult<()> {
+        let preferences = self.store.preferences()?;
+        let (Some(_), Some(envelope)) = (&journal.code, &journal.available_envelope) else {
+            return Ok(());
+        };
+        let Ok(verified) = verify_manifest(envelope, &self.key()?, now as i64, preferences.channel,
+            journal.seen.get(&preferences.channel)) else {
+            return Ok(());
+        };
+        if compare_versions(&verified.manifest.version, &self.installer.installed()?.version)? == Ordering::Greater {
+            return Ok(());
+        }
+        self.store.mutate_journal(|current| {
+            if current.pending.is_none() && current.code == journal.code {
+                current.code = None;
+            }
+            Ok(())
+        })?;
+        Ok(())
+    }
+
     pub fn advance(&self, now: u64) -> UpdateResult<()> {
         self.supersede(now)?;
         let preferences = self.store.preferences()?;
         let journal = self.store.journal()?;
         if journal.pending.is_none() {
+            self.clear_reached_failure(&journal, now)?;
             if !preferences.automatic && !journal.manual {
                 return Ok(());
             }
@@ -232,6 +266,17 @@ impl Coordinator<'_> {
             return Ok(());
         };
         let verified = self.accepted(&pending)?;
+        if matches!(pending.phase, Phase::Downloading | Phase::Waiting | Phase::Installing)
+            && self.target_installed(&verified.manifest)
+        {
+            // The target is already in place, typically after this transaction
+            // failed and the person installed the same signed release. Nothing
+            // is downloaded or installed again: what remains is the restart
+            // confirmation, which also releases the native fences. Entering it
+            // clears the earlier failure.
+            self.phase(&mut journal, Phase::Restarting)?;
+            return self.resume(now);
+        }
         let target = self.installer.target()?;
         let assets = verified
             .manifest
