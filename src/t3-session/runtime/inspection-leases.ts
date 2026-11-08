@@ -15,6 +15,7 @@ import type { SessionInspectionContext } from './inspection-context.js'
 import type { HeldSessionExecutionGraph } from './execution-graph.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import { SessionExecutionGraphRefused } from './execution-graph.js'
+import { SessionSecretReadAttempts, type ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type Delivery = Parameters<NonNullable<T3SessionLaneRuntime['inspect']>>[2]
@@ -29,6 +30,7 @@ type Lease = {
   readonly retentionExpiresAt: number
   expiresAt: number
   accepted?: T3LaneInspectionAccepted
+  secretReadAttempts?: SessionSecretReadAttempts
   accepting?: Promise<void>
   timer?: ReturnType<typeof setTimeout>
   scope?: Scope.Closeable
@@ -45,7 +47,8 @@ export interface SessionInspectionLeases {
   release(inspectionId: string): Promise<void>
   withRecognized<A>(request: Request, delivery: ExecutorT3LaneDelivery, signal: AbortSignal,
     use: (target: PreparedSessionLaunchTarget, signal: AbortSignal,
-      accepted: Readonly<T3LaneInspectionAccepted>) => Promise<A>): Promise<A>
+      accepted: Readonly<T3LaneInspectionAccepted>,
+      secretReadAttempts: ScopedSessionSecretReadAttempts) => Promise<A>): Promise<A>
 }
 
 /** Receipt creation is finite, but the original allocated target is held in its
@@ -181,6 +184,8 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
       }
       lease.accepted = accepted
       lease.expiresAt = expiresAt
+      lease.secretReadAttempts = new SessionSecretReadAttempts(
+        AbortSignal.any([lease.signal, lease.stop.signal]), expiresAt)
       arm(lease)
       const pending = Effect.runPromise(owner.recheck, { signal: AbortSignal.any([signal, lease.stop.signal]) })
       lease.accepting = pending
@@ -208,7 +213,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
         .update(canonicalExecutorJson(delivery.executionGraph)).digest('hex')
       const matches = [...leases.values()].filter(lease => lease.receiptDigest === digest && !lease.closing)
       const lease = matches.length === 1 ? matches[0] : undefined
-      if (!lease?.graph || !lease.scope || !lease.accepted
+      if (!lease?.graph || !lease.scope || !lease.accepted || !lease.secretReadAttempts
         || lease.signal.aborted || lease.expiresAt <= Date.now()) {
         throw new SessionExecutionGraphRefused()
       }
@@ -222,17 +227,18 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
         return yield* restore(Fiber.join(child)).pipe(Effect.onInterrupt(() => Fiber.interrupt(child)))
       }))
       const demandSignal = AbortSignal.any([signal, lease.signal, lease.stop.signal])
+      const secretReadAttempts = lease.secretReadAttempts.scope(demandSignal)
       const pending = (async () => {
         const target = await Effect.runPromise(operation, { signal: demandSignal })
         demandSignal.throwIfAborted()
-        return use(target, demandSignal, accepted)
+        return use(target, demandSignal, accepted, secretReadAttempts)
       })()
       lease.demand.add(pending)
       try {
         const result = await pending
         if (!live || lease.closing || lease.signal.aborted) throw new SessionExecutionGraphRefused()
         return result
-      } finally { lease.demand.delete(pending) }
+      } finally { secretReadAttempts.close(); lease.demand.delete(pending) }
     },
   }
 })

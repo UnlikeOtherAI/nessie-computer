@@ -14,6 +14,7 @@ import type { HeldSessionInspectionRuntime } from './inspection-runtime.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import { createProtectedCodexSerialization, type ProtectedCodexSerialization } from './codex-serialization.js'
 import { protectedRuntimeRefused } from './protected-wire.js'
+import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type ProviderLaunch = Extract<T3NativeLaunchDescriptor, { processPurpose: 'provider' }>
@@ -31,6 +32,8 @@ export interface ReservedSessionLaunch {
   readonly target: PreparedSessionLaunchTarget
   readonly signal: AbortSignal
   readonly binding: Readonly<T3ExecutionBinding>
+  /** Replay refusal only; reserve does not authorize secret reads. */
+  readonly secretReadAttempts: ScopedSessionSecretReadAttempts
   /** Internal original-adapter seam, after separately authorized preparation.
    * Does not hydrate settings, allocate IDs, perform workspace effects or infer
    * a launch descriptor from the original launchThread input. */
@@ -46,7 +49,7 @@ export interface ReservedSessionLaunch {
 export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRuntime,
   request: Request, delivery: ExecutorT3LaneDelivery, transport: T3NativeExecutionTransport,
   caller: AbortSignal, use: (launch: ReservedSessionLaunch) => Promise<A>): Promise<A> {
-  return held.withRecognized(request, delivery, caller, async (target, parent, accepted) => {
+  return held.withRecognized(request, delivery, caller, async (target, parent, accepted, secretReadAttempts) => {
     if (target.driver !== 'codex' || !delivery.executionGraph) throw protectedRuntimeRefused()
     const stop = new AbortController(), signal = AbortSignal.any([parent, stop.signal])
     const graph = T3ExecutionGraphPayloadSchema.parse(JSON.parse(delivery.executionGraph.payload))
@@ -145,6 +148,7 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     }
     try {
       return await use(Object.freeze({ target, signal, binding: Object.freeze(structuredClone(reserve.binding)),
+        secretReadAttempts,
         withProvider: <T>(providerSessionId: string, launch: ProviderLaunch,
           callback: (provider: HeldNativeSessionProvider) => Promise<T>) => {
           const work = launchProvider(providerSessionId, structuredClone(launch), callback)

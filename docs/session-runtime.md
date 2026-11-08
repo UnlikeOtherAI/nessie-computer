@@ -60,6 +60,20 @@ settings remain in graph memory. Evidence contains reference/slot identity,
 never secret values. Rechecks and scope closure invalidate escaped plans. This
 plan is a candidate for independent native observation, not read permission.
 
+The `candidate` getter now uses the integrated native secret-plan schema, with
+`{evidence,selection}` and actual custody in `evidence.custody`. Empty original
+plans return an empty selection without consuming a read. Nonempty plans retain
+the original full environment-array indices, including gaps for literal values.
+`beginSessionProviderSecretRead` rechecks the recognized plan and exact target
+before marking that selected index attempted. The accepted inspection lease owns
+the attempted-index set across plan creation and open callbacks; duplicate ACKs
+cannot replace it. Concurrent calls cannot claim the same index, and callback
+exit, expiry or cancellation cannot reopen it. This is a replay refusal only;
+neither a successful local claim nor a reservation authorizes a secret read.
+The dedicated native receiver/private installer is still unbound. Its eventual
+release must check the original native preparation's absolute five-second total
+deadline and 65,536-byte limit; the graph resource deadline cannot replace either.
+
 The original resolver cannot be enabled by wrapping a registry reconcile. It
 caches across its lifetime and deduplicates references; its only built-in driver,
 1Password, spawns `op`, and batch reads write a temporary template, run `inject`
@@ -69,7 +83,14 @@ five-second total deadline through execution, EOF, positive Job clearance and
 private delivery to the same graph slot. Duplicate references at different
 environment indices remain separate; a consumed or uncertain slot cannot retry
 under a new plan/read ID. No batch, fallback, invalidation or global cache is
-authorized. Native/backend schemas and the private sink are still being authored.
+authorized. The shared schemas are integrated; the native producer, backend
+consumer and private sink still require their concrete composition.
+
+The original registry's startup prefetch, reconcile prefetch and final instance
+read rely on that global cache. They do not represent three authorized effects.
+The finite selected-instance path must bypass those prefetches and reloadSecrets;
+it needs one read per selected index and no separately admitted repeat. Ordinary
+registry construction therefore remains unsuitable for this protected path.
 
 Other original preparation effects remain unbound: pending attachment copies
 in `AttachmentClaims`, workspace fetch/worktree/setup/rollback in
