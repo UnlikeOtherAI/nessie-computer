@@ -144,8 +144,9 @@ export const verifyConsoleShell = async (browser, serve, output) => {
       window.syncStates['team-1'] = { executorId: 'team-1', enabled: true, paused: false, state: 'needs_attention',
         counts: { openConflicts: 1, errors: 0, heldDeletes: 0 }, conflicts: [{ clientConflictId: 'c1' }], heldDeletes: null }
     })
-    await page.getByText('Jev wants to run git').waitFor()
-    await page.getByText('Documents for Research · UnlikeOtherAI need you: files to check').waitFor()
+    const needs = page.locator('#needs-you-list')
+    await needs.getByText('Jev wants to run git').waitFor()
+    await needs.getByText('Documents for Research · UnlikeOtherAI need you: files to check').waitFor()
     assert.equal(await status(), 'Needs you: Jev wants to run git')
     assert.equal(await card('Platform · UnlikeOtherAI').locator('.status-word').textContent(), 'Needs you')
     assert.equal(await page.getByRole('button', { name: 'Allow once' }).count(), 1)
@@ -166,8 +167,8 @@ export const verifyConsoleShell = async (browser, serve, output) => {
       window.paired[0].daemonStatus = 'stopped'
       window.paired[0].failure = { code: 'EXECUTOR_CONNECTION_FENCED', message: 'Executor connection is fenced.' }
     })
-    await page.getByText('Platform · UnlikeOtherAI is not connected').waitFor()
-    await page.getByText(/Another copy of this team connected to Nessie after this computer did/).waitFor()
+    await needs.getByText('Platform · UnlikeOtherAI is not connected').waitFor()
+    await needs.getByText(/Another copy of this team connected to Nessie after this computer did/).waitFor()
     assert.equal(await card('Platform · UnlikeOtherAI').locator('.status-word').textContent(), 'Not connected')
     assert.equal(await page.locator('.need-failure').evaluate((node) => node.textContent.includes('EXECUTOR_CONNECTION_FENCED') && !node.querySelector('details').open), true)
     await shot('failure')
@@ -177,7 +178,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.waitForFunction(() => !document.body.textContent.includes('is not connected'))
     // An unknown failure is quoted honestly.
     await page.evaluate(() => { window.paired[0].failure = { message: 'Something new went wrong.' } })
-    await page.getByText('Nessie refused that. What it said is under Details.').waitFor()
+    await needs.getByText('Nessie refused that. What it said is under Details.').waitFor()
     assert.equal(await page.locator('.need-failure details p').textContent(), 'Something new went wrong.')
     await page.evaluate(() => { delete window.paired[0].failure })
 
