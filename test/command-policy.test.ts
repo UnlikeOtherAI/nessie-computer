@@ -75,3 +75,28 @@ test('an allowlist starts only the named programs, found on PATH, never a shell 
     'a permitted tool could leave an executable of that name anywhere')
   assert.equal(localTerminalCommandRefusal(policy, ['Claude.exe'], 'win32'), undefined)
 })
+
+test('configuration input carries the built-in programs, local apps policy and websites', () => {
+  const base = { operationKeys: ['file.read'], workspaceFolders: [{ name: 'work', path: '/work' }] }
+  const trusted = { unlikeotherai: true, claudeCode: false, codex: true, t3Code: false }
+  const parsed = parseConfigurationInput(JSON.stringify({
+    ...base,
+    commandPolicy: { mode: 'allowlist', allowlist: [], denylist: [], trusted },
+    mcpPolicy: { mode: 'installed', disabled: ['kelpie'] },
+    allowedOrigins: ['https://b.example.test', 'https://a.example.test/'],
+  }))
+  assert.deepEqual(parsed.commandPolicy?.trusted, trusted)
+  assert.deepEqual(parsed.mcpPolicy, { mode: 'installed', disabled: ['kelpie'] })
+  assert.deepEqual(parsed.allowedOrigins, ['https://a.example.test', 'https://b.example.test'])
+  assert.deepEqual(parseConfigurationInput(JSON.stringify({ ...base, allowedOrigins: [] })).allowedOrigins, [])
+  const omitted = parseConfigurationInput(JSON.stringify(base))
+  assert.equal(omitted.mcpPolicy, undefined)
+  assert.equal(omitted.allowedOrigins, undefined)
+  assert.throws(() => parseConfigurationInput(JSON.stringify({ ...base, allowedOrigins: ['http://a.example.test'] })),
+    /HTTPS origin/)
+  assert.throws(() => parseConfigurationInput(JSON.stringify({ ...base, allowedOrigins: 'https://a.example.test' })))
+  assert.throws(() => parseConfigurationInput(JSON.stringify({ ...base, mcpPolicy: { mode: 'everything', disabled: [] } })))
+  assert.throws(() => parseConfigurationInput(JSON.stringify({
+    ...base, commandPolicy: { mode: 'allowlist', allowlist: [], denylist: [], trusted: { codex: true } },
+  })))
+})

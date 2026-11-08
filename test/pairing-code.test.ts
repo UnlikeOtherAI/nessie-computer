@@ -129,9 +129,16 @@ test('pairing preserves the key through response loss and saves the pairing on t
   assert.ok(!f.events.includes('confirm'), 'the computer never asks for or sends a second consent')
   assert.equal(f.state()?.executorId, executorId)
   assert.deepEqual(f.state()?.descriptor.operationKeys, EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS)
-  assert.deepEqual(f.state()?.commandPolicy, { mode: 'all', allowlist: [], denylist: [] })
+  // A new team starts with the built-in programs only and every installed local app (contract §4.3, §4.5).
+  assert.deepEqual(f.state()?.commandPolicy, {
+    mode: 'allowlist', allowlist: [], denylist: [],
+    trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true },
+  })
+  assert.deepEqual(f.state()?.mcpPolicy, { mode: 'installed', disabled: [] })
   assert.equal(Object.hasOwn(f.state()!.descriptor, 'commandPolicy'), false)
   assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"commandPolicy"')))
+  assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"mcpPolicy"')))
+  assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"trusted"')))
   assert.equal(f.pending(), null)
   assert.equal(Object.hasOwn(f.state()!, 'organizationName'), false)
 })

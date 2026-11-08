@@ -19,6 +19,7 @@ import {
 
 import { codingSessionsStateIsConsistent } from './coding-sessions-policy.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from './command-policy.js'
+import { parseLocalMcpPolicy, type LocalMcpPolicy } from './mcp-policy.js'
 import {
   assertExecutorLocalMcpServers,
   executorLocalMcpServerNames,
@@ -62,6 +63,14 @@ export type ExecutorCodexSandboxConfig = {
 
 export type ExecutorLocalState = {
   commandPolicy?: LocalCommandPolicy
+  /** Which local apps the team may use; absent reads as `listed` (`mcp-policy.ts`). */
+  mcpPolicy?: LocalMcpPolicy
+  /**
+   * The websites (HTTPS origins) the owner chose before the guest browser was
+   * set up. Once it is, they live in `browserSandbox.allowedOrigins` and this
+   * is absent: the two are never both present.
+   */
+  allowedOrigins?: string[]
   apiBaseUrl: string
   connectionEpoch?: string
   descriptor: {
@@ -304,7 +313,7 @@ const parseLocalMcpServers = (value: unknown): ExecutorLocalMcpServer[] | null =
     if (
       !keys.includes('name')
       || !keys.includes('command')
-      || keys.some((key) => !['name', 'command', 'cwd', 'env'].includes(key))
+      || keys.some((key) => !['name', 'command', 'cwd', 'env', 'source'].includes(key))
       || typeof candidate.name !== 'string'
       || !Array.isArray(candidate.command)
       || candidate.command.some((part) => typeof part !== 'string')
@@ -321,6 +330,7 @@ const parseLocalMcpServers = (value: unknown): ExecutorLocalMcpServer[] | null =
       command: [...candidate.command] as string[],
       ...(candidate.cwd === undefined ? {} : { cwd: candidate.cwd as string }),
       ...(candidate.env === undefined ? {} : { env: { ...(candidate.env as Record<string, string>) } }),
+      ...(candidate.source === undefined ? {} : { source: candidate.source as ExecutorLocalMcpServer['source'] }),
     })
   }
   try {
@@ -603,6 +613,7 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
   await assertOwnerOnly(path, 'file')
   const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<ExecutorLocalState>
   if (parsed.commandPolicy !== undefined) parsed.commandPolicy = parseLocalCommandPolicy(parsed.commandPolicy)
+  if (parsed.mcpPolicy !== undefined) parsed.mcpPolicy = parseLocalMcpPolicy(parsed.mcpPolicy)
   const workspaceFolders = migratedWorkspaceFolders(parsed as LegacySingleRootShape)
   const mcpServers = parsed.mcpServers === undefined ? undefined : parseLocalMcpServers(parsed.mcpServers)
   if (
@@ -615,6 +626,9 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
     || mcpServers === null
     || (parsed.nativeHelperPath !== undefined && typeof parsed.nativeHelperPath !== 'string')
     || (parsed.browserSandbox !== undefined && !validBrowserSandbox(parsed.browserSandbox))
+    || (parsed.allowedOrigins !== undefined && (parsed.browserSandbox !== undefined
+      || !Array.isArray(parsed.allowedOrigins)
+      || parsed.allowedOrigins.some((origin) => typeof origin !== 'string' || origin.includes('\0'))))
     || (parsed.codexSandbox !== undefined && !validCodexSandbox(parsed.codexSandbox))
     || !parsed.descriptor
   ) {
