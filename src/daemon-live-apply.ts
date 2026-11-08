@@ -56,9 +56,9 @@ export const createDaemonLiveApply = (
   const submit = async (): Promise<void> => {
     const state = live.current
     if (!state.connectionEpoch) return
-    const send = (descriptorState: ExecutorLocalState) => dependencies.api.submitDescriptor(descriptorState.apiBaseUrl, {
-      connectionEpoch: state.connectionEpoch!, descriptor: signedDescriptorForState(descriptorState),
-      executorId: descriptorState.executorId,
+    const connectionEpoch = state.connectionEpoch
+    const send = (signed: ExecutorLocalState) => dependencies.api.submitDescriptor(signed.apiBaseUrl, {
+      connectionEpoch, descriptor: signedDescriptorForState(signed), executorId: signed.executorId,
     })
     try {
       await send(state)
@@ -72,9 +72,10 @@ export const createDaemonLiveApply = (
       const persisted = await dependencies.loadState(stateDir)
       // Another save landed meanwhile; the watch reloads it and submits that.
       if (persisted.descriptor.revision !== state.descriptor.revision) return
-      const next = { ...persisted, descriptor: { ...persisted.descriptor, revision: persisted.descriptor.revision + 1 } }
+      const revision = persisted.descriptor.revision + 1
+      const next = { ...persisted, descriptor: { ...persisted.descriptor, revision } }
       await dependencies.saveState(stateDir, next, persisted)
-      live.set({ ...next, ...(state.connectionEpoch ? { connectionEpoch: state.connectionEpoch } : {}) })
+      live.set({ ...next, connectionEpoch })
       await send(live.current)
       due = false
     }
