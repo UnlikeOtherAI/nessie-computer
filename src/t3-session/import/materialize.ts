@@ -8,7 +8,7 @@ import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import type { CapturedIdentity } from '../state/journal.js'
 import type { NativeHistoryAlias, NativeHistoryHomePort, RetainedReadScope } from '../ownership/continuity.js'
 import type { ProvenT3Source } from './manifest.js'
-import type { T3SourceSnapshot } from './snapshot.js'
+import type { T3SourceSnapshot, SnapshotReadChecks } from './snapshot-view.js'
 import { CapturePrivacy, recheckRow } from './privacy.js'
 
 /** This SQL layer is ONLY the owner's isolated destination, initialized through
@@ -24,7 +24,7 @@ export interface OwnedCaptureWorkspacePort {
 }
 
 export async function materializeSnapshot(snapshot: T3SourceSnapshot, stage: OwnedCaptureStage,
-  reads: RetainedReadScope): Promise<void> {
+  reads: SnapshotReadChecks): Promise<void> {
   const privacy = new CapturePrivacy()
   // No raw row is written before the complete correlation preflight.
   await privacy.preflight(snapshot, reads)

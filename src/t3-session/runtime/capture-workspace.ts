@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import * as Context from 'effect/Context'
@@ -17,12 +17,15 @@ import { ownDatabaseFile } from './database-file.js'
 import { acquireSessionStateWriter } from './ownership.js'
 import { resolveT3SessionStateDir } from './paths.js'
 
-export interface RetainedCaptureWorkspace {
+export interface OwnedSnapshotWorkspace {
   readonly workspace: OwnedCaptureWorkspacePort
   readonly journal: T3CaptureJournal
   readonly signal: AbortSignal
+  /** Minted only after this process acquired the exclusive destination writer. */
+  readonly runtimeGeneration: string
   assertCurrent(): void
 }
+export type RetainedCaptureWorkspace = OwnedSnapshotWorkspace
 
 /**
  * Actual private capture destination, outside the checkout. One writer owns the
@@ -32,9 +35,18 @@ export interface RetainedCaptureWorkspace {
  */
 export async function withRetainedCaptureWorkspace<A>(stateDirectory: string, physicalRootKey: string,
   use: (storage: RetainedCaptureWorkspace) => Promise<A>, caller: AbortSignal): Promise<A> {
+  return withOwnedSnapshotWorkspace(stateDirectory, physicalRootKey, 'retained-capture', use, caller)
+}
+
+/** Distinct namespaces ensure a passive capture can never become a live writer.
+ * Both use the same checked file/SQL lifetime implementation. */
+export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, physicalRootKey: string,
+  purpose: 'retained-capture' | 'execution-state',
+  use: (storage: OwnedSnapshotWorkspace) => Promise<A>, caller: AbortSignal): Promise<A> {
   caller.throwIfAborted()
-  const directory = await resolveT3SessionStateDir(stateDirectory, `retained-capture:${physicalRootKey}`)
+  const directory = await resolveT3SessionStateDir(stateDirectory, `${purpose}:${physicalRootKey}`)
   const writer = await acquireSessionStateWriter(directory)
+  const runtimeGeneration = randomUUID()
   const lifetime = new AbortController()
   const signal = AbortSignal.any([caller, lifetime.signal])
   let scopes: Awaited<ReturnType<typeof makeSqlScope>> | undefined
@@ -107,7 +119,7 @@ export async function withRetainedCaptureWorkspace<A>(stateDirectory: string, ph
     })
     timer = setInterval(() => { try { assertCurrent() } catch { /* Sticky signal closes dependent graph. */ } }, 1000)
     timer.unref()
-    result = await use(Object.freeze({ workspace, journal, signal, assertCurrent }))
+    result = await use(Object.freeze({ workspace, journal, signal, runtimeGeneration, assertCurrent }))
     assertCurrent()
   } catch (error) { useFailed = true; useFailure = error }
   finally {

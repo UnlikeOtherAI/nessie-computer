@@ -6,6 +6,7 @@ export { resolveT3SessionStateDir, SessionStateError } from './paths.js'
 export { acquireSessionStateWriter } from './ownership.js'
 export { withOwnedSessionState } from './state.js'
 export { SessionStateOwner } from './state-owner.js'
+export { withSessionExecutionState, type HeldSessionExecutionState } from './execution-state.js'
 export { sessionOperationScope, SessionOperationScopeClosed } from './operation-scope.js'
 export { bindSessionControlSlots, bindRetainedCatalogSlots, bindRetainedCatalogHttp,
   isSessionControlRequest } from './slots.js'

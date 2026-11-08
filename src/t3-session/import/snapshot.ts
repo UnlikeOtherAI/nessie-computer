@@ -1,22 +1,13 @@
-import { createHmac } from 'node:crypto'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
-import type { SqlRow } from '../state/sqlite.js'
-import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from './manifest.js'
-import { tablesForLayout, selectCaptureRows, legacyThreads, legacyMessages, legacyPullRequests } from './layout.js'
-import type { CaptureTable } from './layout.js'
+import type { AdmittedT3SourcePort, T3SourceManifest } from './manifest.js'
+import { tablesForLayout } from './layout.js'
+import { withSourceSnapshotView, type T3SourceSnapshot } from './snapshot-view.js'
+export type { T3SourceSnapshot } from './snapshot-view.js'
 import type { RetainedOriginalOwnerPort, RetainedReadScope } from '../ownership/continuity.js'
 import { withRetainedReadScope } from '../ownership/continuity.js'
 import type { RetainedImportAuthorityPort } from '../ownership/import-scope.js'
 import { checkT3SourceLayout } from '../source/layout-check.js'
 export { checkT3SourceLayout } from '../source/layout-check.js'
-
-export interface T3SourceSnapshot {
-  readonly source: ProvenT3Source
-  readonly sourceHighWater: number
-  readonly tables: readonly CaptureTable[]
-  rows(table: CaptureTable): Iterable<SqlRow>
-  fingerprint(key: string): { digest: string; legacyDigest: string }
-}
 
 /** A supported read transaction pins WAL-visible schema and rows. No migrations,
  * checkpoint, immutable URI, write pragma, source copy or auxiliary file read.
@@ -56,35 +47,9 @@ export async function withT3SourceSnapshot<A>(
           ? database.prepare('SELECT COALESCE(MAX(sequence), 0) AS sequence FROM orchestration_events').get()?.sequence : 0
         requireCapture(typeof sourceHighWater === 'number' && Number.isSafeInteger(sourceHighWater) && sourceHighWater >= 0,
           'invalid_source_sequence')
-        const fingerprint = (entries: readonly CaptureTable[], key: string, sequence: number) => {
-          requireCapture(transaction, 'source_snapshot_closed_or_table_not_admitted')
-          const hash = createHmac('sha256', key)
-          hash.update(JSON.stringify(['t3-capture-snapshot-v1', source.layout, sequence]))
-          for (const entry of entries) {
-            hash.update(JSON.stringify([entry.name, entry.columns]))
-            for (const row of database.prepare(selectCaptureRows(entry)).iterate()) {
-              hash.update(JSON.stringify(entry.columns.map(column => row[column])))
-              hash.update('\n')
-            }
-          }
-          return hash.digest('hex')
-        }
-        const snapshot: T3SourceSnapshot = { source, sourceHighWater, tables,
-          fingerprint: key => ({ digest: fingerprint(tables, key, sourceHighWater),
-            legacyDigest: fingerprint([legacyThreads, legacyMessages, legacyPullRequests], key, 0) }),
-          rows: function* (entry) {
-            requireCapture(transaction && tables.includes(entry), 'source_snapshot_closed_or_table_not_admitted')
-            const iterator = database.prepare(selectCaptureRows(entry)).iterate()
-            try {
-              for (;;) {
-                requireCapture(transaction, 'source_snapshot_closed_or_table_not_admitted')
-                const next = iterator.next()
-                if (next.done) return
-                yield next.value
-              }
-            } finally { iterator.return?.() }
-          } }
-        const result = await use(snapshot, reads)
+        const result = await withSourceSnapshotView(database, source, sourceHighWater,
+          () => requireCapture(transaction, 'source_snapshot_closed_or_table_not_admitted'),
+          snapshot => use(snapshot, reads))
         await recheck()
         await reads.recheckSource()
         database.exec('COMMIT')
