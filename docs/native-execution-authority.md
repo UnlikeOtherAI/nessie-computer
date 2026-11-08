@@ -1,5 +1,22 @@
 # Protected execution issuer
 
+Bootstrap frame evidence uses `T3ExecutionFramePreparationPayloadSchema` and
+`nessie.t3.execution.frame-preparation.v1`. The protected service holds the exact
+serialized bytes and attests their original launch binding, original allocated
+providerSessionId, actual child generation and typed protocol/message ID. A
+receipt grants no write. The backend accepts only `{reservationId, frameReceipt}`
+and returns `T3ExecutionFrameAdmissionSchema` signed under
+`nessie.t3.execution.frame.v1`; native consumes its fresh nonce before writing
+the held bytes. Frame IDs and backend command/correlation IDs are distinct.
+
+Preparation and launch now require `processPurpose`: `provider`,
+`claude-history-read` or `claude-history-fork`. The backend copies this only from
+verified preparation and checks the original admitted action. Reserve has no
+purpose; association accepts only `provider`. History uses the separate
+`nessie.t3.execution.history-result.v1` receipt, binding exact worker payload and
+result byte digests, original providerSessionId and service-observed child/Job
+clearance. A reuse flag or a provider launch admission never grants a fork.
+
 The native execution issuer, finite phase receiver and public companion client
 are source-authored and unqualified. The isolation gate deliberately refuses the
 current same-user managed-runtime creator. No signed launch or association has

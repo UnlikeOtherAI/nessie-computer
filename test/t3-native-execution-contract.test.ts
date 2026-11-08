@@ -31,6 +31,8 @@ test('inspection accepts an exact empty target ledger without prospective provid
   assert.notDeepEqual(executionReceiptBytes(T3_EXECUTION_INSPECTION_DOMAIN, JSON.stringify(inspection)),
     executionAdmissionBytes(JSON.stringify(inspection)))
   assert.equal(T3ExecutionPreparationPayloadSchema.shape.providerSessionId.safeParse(undefined).success, false)
+  assert.equal(T3ExecutionPreparationPayloadSchema.shape.processPurpose.safeParse(undefined).success, false)
+  assert.equal(T3ExecutionPreparationPayloadSchema.shape.processPurpose.safeParse('claude-history-fork').success, true)
 })
 
 test('native receipt signatures reject byte changes, another key and another domain', () => {
