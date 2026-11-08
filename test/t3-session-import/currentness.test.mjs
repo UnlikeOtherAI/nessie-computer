@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { DatabaseSync } from 'node:sqlite'
 import { test } from 'node:test'
 import { SourceContracts as S, ThreadStream } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3, resumeRetainedT3 } from '../../dist/t3-session/import/capture.js'
@@ -150,6 +151,14 @@ for (const legacy of [false, true]) {
           assert.deepEqual(full.messages.map(row => ({ id: row.id, text: row.text, at: row.createdAt })),
             expected.map(row => ({ id: row.message_id, text: row.text, at: row.created_at })))
           assert.equal(full.messages.length, 5)
+          const destination = new DatabaseSync(f.destination(next.generation), { readOnly: true })
+          try {
+            const positions = destination.prepare(`SELECT turn_item_id, ordinal FROM orchestration_v2_turn_item_positions
+              WHERE thread_id = ? ORDER BY ordinal`).all(f.ids[0])
+            assert.deepEqual(positions.map(row => ({ ...row })), expected.map((row, index) => ({
+              turn_item_id: `migration:v1:turn-item:${row.message_id}`, ordinal: index + 1,
+            })))
+          } finally { destination.close() }
           await resume(f, next.generation)
         }
       } finally { f.close() }

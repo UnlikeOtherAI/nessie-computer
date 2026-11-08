@@ -112,6 +112,8 @@ root's current, catalog and hydrated generations. An in-progress or failed
 refresh makes prior captures unavailable through these wrappers. Advancement or
 revocation during an await rejects the result. There is no historical-generation
 read API and no fallback to `last_ready_generation`.
+Capture and resume receipts also recheck publication after the final physical
+and owner lease awaits, so an advanced generation cannot return a ready receipt.
 
 Successful capture/resume returns the admitted source descriptor and the original
 source watermark `{ generation, sequence }` alongside local readiness. The
