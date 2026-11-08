@@ -572,10 +572,11 @@ the destination captured. Captured is neither published nor executing readiness.
 The original engine must reconcile legacy shells inside its own shared graph.
 
 On restart, the same source fingerprint reopens the existing destination and
-preserves accepted engine writes. An interrupted copy, changed source, changed
-layout or divergent original-v2 frozen legacy refuses; no automatic recopy
-replaces execution history. An explicit source-reconciliation/recovery operation
-is still required for those cases. A fresh runtime incarnation is minted only
+preserves accepted engine writes. An interrupted `capturing` generation was never exposed to the original
+engine: retry allocates a fresh stage and preserves the failed journal/artifact.
+Once captured, changed source, changed layout or divergent original-v2 frozen
+legacy refuses; no automatic recopy replaces execution history. Explicit source
+reconciliation is still required for those cases. A fresh runtime incarnation is minted only
 after the destination writer lock is acquired. Callback exit invalidates access;
 the enclosing original graph must drain before SQL and the writer close.
 

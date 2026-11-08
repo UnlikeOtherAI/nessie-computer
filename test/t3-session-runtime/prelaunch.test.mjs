@@ -87,7 +87,7 @@ test('cold clone reader observes the same original map used by actual clone mana
     const snapshot = { projectId: 'project:clone', phase: 'running' }
     yield* Ref.update(clones, current => new Map(current).set('project:clone', { snapshot }))
     assert.equal(yield* read.get('project:clone'), snapshot)
-    const refused = yield* Effect.result(ProjectClones.rejectCommandsDuringClone(read,
+    const refused = yield* Effect.exit(ProjectClones.rejectCommandsDuringClone(read,
       { type: 'thread.create', projectId: 'project:clone' }))
     assert.equal(refused._tag, 'Failure')
   }).pipe(Effect.provide(CloneState.readLayer))))
