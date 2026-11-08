@@ -71,6 +71,11 @@ The fixed `t3-execution-resource` native command calls
 **before** opening settings/source data. Native16 observes the kernel peer,
 protected T3SessionGraph parent generation, supervisor, Job, immutable release
 and paired executor. Caller PIDs, markers and descriptors confer no authority.
+Every resource/link request additionally calls `require_companion_role(...,
+CompanionRole::Resource)`: native16's service creator journal must match the actual
+peer generation, immutable release and uncleared fixed resource role. Another
+protected companion does not qualify. This function is a separate creator
+prerequisite; it is not present in the compiler-qualified parent `7b7ad417`.
 After that gate, `allow_execution_pipe_observer` grants `PROCESS_DUP_HANDLE`
 only to the actual service SID for this native child.
 
@@ -111,6 +116,11 @@ Read-only source proof is T3 `25bf84ab07f53f141c20239c63e383823a9d5ea0`:
 - `apps/server/src/config.ts:deriveServerPaths` defines `stateDir/settings.json`.
 - `packages/contracts/src/settings.ts` and `providerInstance.ts` define original
   instance configs and distinguish unresolved secret references.
+- Original `ClaudeDriver.ts` registers `claudeAgent` with `ClaudeSettings`.
+  Native settings selection accepts that exact source name and emits `claude`
+  only in the execution reference wire. Literal source `claude` is unknown and
+  issues no references. `CodexSettings.setupMode` and `shadowHomePath` apply only
+  to Codex; `ClaudeSettings` uses `homePath` and has neither field.
 - `provider/Drivers/CodexHomeLayout.ts:resolveCodexHomeLayout` keeps continuation
   and history on explicit shared `homePath`, including authOverlay; explicit
   `shadowHomePath` is the credential home when present.
@@ -158,19 +168,29 @@ They never invoke a personal registration or manufacture local affirmation.
 Service comparison cases reject mismatched executor, API URL and public key,
 missing enrollment identity and cleartext API origins. These are policy tests,
 not a substitute for protected service/ceremony acceptance.
+The shared `test/t3-session-source/fixtures/execution-settings.json` uses original
+`claudeAgent` and `codex` envelopes. A runtime test decodes it with the pinned
+ServerSettings, ProviderInstanceConfigMap and both original driver codecs.
+The native counterpart substitutes disposable absolute home directories and
+verifies all three Claude role refs, exact original instance ID, wire-only
+normalization and absence of refs for source `claude`.
 
 Four changed TypeScript modules passed non-evaluating Node builtin syntax
 parsing with a 192 MiB heap; `git diff --check` passed. No implementation import,
 test suite, compiler or native code was executed.
 
-Root must add `test/t3-execution-resources.test.ts` to `test:t3-physical-source`,
-then run on the exact combined revision in its reserved Maxis lane:
+Parent `7b7ad417588be5472179eb5e1474b76cececc528` adds the resource TS fixture to
+`test:t3-physical-source`; root reported locked native/service cargo checks on
+that parent. Those compiler results predate the registration link and original
+Claude selection correction. Run the exact combined revision in root's reserved
+Maxis lane:
 
 ```powershell
 $env:NODE_OPTIONS = '--max-old-space-size=5120'
 pnpm exec turbo run build typecheck --filter=@nessie/executor --root-turbo-json=scripts/turbo.public.json --concurrency=1
 $env:NODE_OPTIONS = '--max-old-space-size=512'
 pnpm exec turbo run test:t3-physical-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+pnpm exec turbo run test:t3-session-runtime --root-turbo-json=scripts/turbo.public.json --concurrency=1
 cargo test --manifest-path native/Cargo.toml t3_source -- --test-threads=1
 cargo test --manifest-path service-windows/Cargo.toml execution_resource -- --test-threads=1
 ```

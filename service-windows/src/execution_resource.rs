@@ -103,6 +103,8 @@ impl Held {
 /// and immutable release are observed by that dispatcher, not deserialized.
 pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, request: Request) -> Result<Value, String> {
     request.validate()?;
+    execution_context::require_companion_role(caller, release, state,
+        nessie_windows_common::execution_creator::CompanionRole::Resource)?;
     let context = execution_context::authenticate_graph(root, caller, release, state, request.executor())?;
     let mut resources = resources().lock().map_err(|_| REJECTED)?;
     resources.retain(|_, h| h.recheck().is_ok());
