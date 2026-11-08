@@ -12,7 +12,7 @@ test('project mutations retain exact project and independent workspace authoriza
   for (const type of ['project.create', 'project.update']) {
     for (const workspaceRoot of ['/allowed/workspace', '/denied/workspace', 'C:\\denied\\workspace', '//host/share']) {
       const request = decodeExecutorT3Request({ ...route,
-        input: { type, projectId: 'project:opaque/id', name: 'Synthetic', workspaceRoot } })
+        input: { type, commandId: route.commandId, projectId: 'project:opaque/id', title: 'Synthetic', workspaceRoot } })
       const targets = requestTargets(request)
       assert.deepEqual(targets, [
         { kind: 'project', id: 'project:opaque/id', scope: type === 'project.create' ? 'create' : 'existing' },
@@ -22,6 +22,9 @@ test('project mutations retain exact project and independent workspace authoriza
     }
   }
   const rename = decodeExecutorT3Request({ ...route,
-    input: { type: 'project.update', projectId: 'project:opaque/id', name: 'Renamed' } })
+    input: { type: 'project.update', commandId: route.commandId, projectId: 'project:opaque/id', title: 'Renamed' } })
   assert.deepEqual(requestTargets(rename), [{ kind: 'project', id: 'project:opaque/id', scope: 'existing' }])
+  assert.throws(() => decodeExecutorT3Request({ ...route,
+    input: { type: 'project.create', commandId: route.commandId, projectId: 'project:opaque/id',
+      name: 'Synthetic', workspaceRoot: '/workspace' } }))
 })
