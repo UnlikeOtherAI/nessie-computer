@@ -95,17 +95,16 @@ fn service_main(_arguments: Vec<OsString>) {
     // SCM points at a durable protected image. Repair does not depend on the
     // JavaScript/native payload being fully installed after an interruption.
     let outcome = host::verify_worker()
-        .and_then(|()| crate::updates::windows_peer::allow_verification());
-    if outcome.is_ok() {
-        let _ = handle.set_service_status(status(ServiceState::Running));
-        if serve(stopped).is_err() {
-            let mut failure = status(ServiceState::Stopped);
-            failure.exit_code = ServiceExitCode::Win32(1);
-            let _ = handle.set_service_status(failure);
-            return;
-        }
+        .and_then(|()| crate::updates::windows_peer::allow_verification())
+        .and_then(|()| {
+            let _ = handle.set_service_status(status(ServiceState::Running));
+            serve(stopped)
+        });
+    let mut final_status = status(ServiceState::Stopped);
+    if outcome.is_err() {
+        final_status.exit_code = ServiceExitCode::Win32(1);
     }
-    let _ = handle.set_service_status(status(ServiceState::Stopped));
+    let _ = handle.set_service_status(final_status);
 }
 
 fn instance(first: bool) -> Result<File, String> {
