@@ -23,6 +23,10 @@ let engine
 try {
   engine = await import('@nessie/t3-session-source/engine')
   assert.equal(engine.ORCHESTRATION_PROTOCOL_VERSION, 2)
+  const masked = engine.RequestPrivacy.createRequestPrivacyProjector()({
+    id: 'synthetic:question', isSecret: true, initialAnswer: 'synthetic:private',
+  })
+  assert.equal(masked.initialAnswer, '[REDACTED]')
   const state = engine.createSessionStateLayers()
   const reads = engine.createSessionReadLayers(state)
   const higher = engine.createSessionEngineLayers(state)

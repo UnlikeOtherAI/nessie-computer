@@ -2,7 +2,9 @@ import { RequestPrivacy } from '@nessie/t3-session-source/engine'
 import { requireCapture } from '../state/sqlite.js'
 import type { SqlRow } from '../state/sqlite.js'
 import type { T3SourceSnapshot } from './snapshot.js'
-import { storedPayload, encodeStoredPayload, attachmentArrayCodec, messageContextCodec } from './original-codecs.js'
+import { rawStoredPayload, storedPayload, encodeStoredPayload,
+  attachmentArrayCodec, messageContextCodec } from './original-codecs.js'
+import { CaptureQuestions } from './questions.js'
 import type { CaptureTable } from './layout.js'
 import type { RetainedReadScope } from '../ownership/continuity.js'
 import { SourceContracts as S } from '@nessie/t3-session-source/engine'
@@ -10,12 +12,16 @@ import { SourceContracts as S } from '@nessie/t3-session-source/engine'
 const recordOf = (value: unknown): Record<string, unknown> | undefined =>
   value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 
-/** One registered correlation projector per original thread, retained over both
+/** One registered tool correlation projector per original thread, retained over all
  * complete passes. It caches only bounded IDs, never secret values. Each call
  * sees one stored record, not a capped concatenation of a huge transcript.
  */
 export class CapturePrivacy {
-  private readonly projectors = new Map<string, ReturnType<typeof RequestPrivacy.createRequestPrivacyProjector>>()
+  private readonly questions = new CaptureQuestions()
+  private ready = false
+  private started = false
+  private readonly projectors = new Map<string,
+    ReturnType<typeof RequestPrivacy.createRequestPrivacyProjector>>()
 
   private projector(scope: string): (value: unknown) => unknown {
     let projector = this.projectors.get(scope)
@@ -37,17 +43,37 @@ export class CapturePrivacy {
   }
 
   async preflight(snapshot: T3SourceSnapshot, reads: RetainedReadScope): Promise<void> {
+    requireCapture(!this.started, 'capture_privacy_requires_fresh_preflight')
+    this.started = true
     for (const entry of snapshot.tables) {
       await reads.recheckSource()
-      if (!entry.codec) continue
       for (const row of snapshot.rows(entry)) {
         await recheckRow(reads, entry, row)
-        const payload = storedPayload(entry, row)
+        if (!entry.codec && entry.name !== 'projection_thread_messages') continue
+        const raw = entry.codec ? rawStoredPayload(entry, row) : this.legacyContext(row)
+        const payload = this.questions.transform(raw, this.scope(entry, row))
         const project = this.projector(this.scope(entry, row))
         project(payload)
         this.observeNativeItems(payload, project)
+        // Validate the original shape only AFTER structural classification.
+        if (entry.codec) storedPayload(entry, row)
       }
     }
+    this.questions.complete()
+    // Validate every final projected row before the first destination INSERT.
+    this.ready = true
+    for (const entry of snapshot.tables) {
+      for (const row of snapshot.rows(entry)) {
+        await recheckRow(reads, entry, row)
+        this.row(entry, row)
+      }
+    }
+  }
+
+  private legacyContext(row: SqlRow): unknown {
+    if (typeof row.context_json !== 'string') return null
+    requireCapture(Buffer.byteLength(row.context_json) <= 1024 * 1024, 'capture_privacy_incomplete')
+    return JSON.parse(row.context_json)
   }
 
   private observeNativeItems(value: unknown, project: (value: unknown) => unknown): void {
@@ -88,13 +114,9 @@ export class CapturePrivacy {
       } else if (key === 'nativeRequestRef') {
         result[key] = null
       } else if (key === 'answers') {
-        const answers = recordOf(recordOf(project({ answers: nested }))?.answers)
-        requireCapture(answers, 'capture_privacy_incomplete')
-        // Original ProviderUserInputAnswers is a record of string arrays.
-        result[key] = Object.fromEntries(Object.entries(answers).map(([id, answer]) =>
-          [id, answer === '[REDACTED]' ? ['[REDACTED]'] : answer]))
+        result[key] = nested
       } else if (key === 'questions' && Array.isArray(nested)) {
-        result[key] = nested.map(question => project(question))
+        result[key] = nested
       } else {
         result[key] = this.projectEntity(nested, project)
       }
@@ -103,10 +125,16 @@ export class CapturePrivacy {
   }
 
   row(entry: CaptureTable, source: SqlRow): SqlRow {
+    requireCapture(this.ready, 'capture_privacy_preflight_required')
     const project = this.projector(this.scope(entry, source))
+    const classify = (value: unknown) => this.questions.transform(value, this.scope(entry, source), question => {
+      const result = RequestPrivacy.createRequestPrivacyProjector()(question)
+      requireCapture(recordOf(result)?.privacy !== 'request_projection_unavailable', 'capture_privacy_incomplete')
+      return result
+    })
     let row = { ...source }
     if (entry.codec) {
-      row = encodeStoredPayload(entry, row, this.projectEntity(storedPayload(entry, row), project))
+      row = encodeStoredPayload(entry, row, this.projectEntity(classify(rawStoredPayload(entry, row)), project))
     }
     if (entry.name === 'orchestration_v2_legacy_imports') {
       // Fresh process/read layers plus reset durable markers invalidate BOTH caches.
@@ -118,8 +146,8 @@ export class CapturePrivacy {
         row.attachments_json = JSON.stringify(attachmentArrayCodec(JSON.parse(row.attachments_json)))
       }
       if (typeof row.context_json === 'string') {
-        const context = messageContextCodec(JSON.parse(row.context_json))
-        row.context_json = JSON.stringify(this.projectEntity(context, project))
+        const context = this.projectEntity(classify(this.legacyContext(row)), project)
+        row.context_json = JSON.stringify(messageContextCodec(context))
       }
     }
     return row

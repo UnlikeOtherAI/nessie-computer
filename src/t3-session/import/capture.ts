@@ -89,7 +89,10 @@ async function finishStage(ports: RetainedCapturePorts, source: ProvenT3Source, 
   // Serializes with capture advancement and retains known rows on rejection.
   // This is local data completion only; it grants no current human access.
   ports.journal.complete(source, generation, result.identities, result.aliases)
+  const captured = ports.journal.generation(generation)
+  requireCapture(captured && typeof captured.source_high_water === 'number', 'capture_watermark_missing')
   return { generation, localState: 'ready' as const, nativeHomes: result.nativeHomes,
+    source: { ...source }, watermark: { generation, sequence: captured.source_high_water },
     serverCatalog: 'required_unbound' as const, ownerReadAdmission: 'required_unbound' as const,
     control: 'unavailable' as const }
 }

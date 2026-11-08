@@ -9,6 +9,6 @@
     "packaging/session-engine/core/ReadLayers.ts",
     "packaging/session-engine/core/StateLayers.ts"
   ],
-  "privacyCommit": "fdfdfed264be073a085a893ff3916fdd11c65f72",
-  "privacyManifestSha256": "85f076324103220a4dce9358684899de8f6cfa3eb4121fcf88a6dd8bfdf13a04"
+  "privacyCommit": "7567a431d3404a0c3a2610c23bebbc4e8eb6ff5f",
+  "privacyManifestSha256": "98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9"
 }

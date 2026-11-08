@@ -4,7 +4,7 @@ import * as SqlClient from 'effect/sql/SqlClient'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
 import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ResourceOwners, Settings,
-  ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite,
+  ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts } from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
 
@@ -30,6 +30,7 @@ type SqlitePorts = Input<ReturnType<typeof Sqlite.layerFromPath>>
 const fileSystemRequired: FileSystem.FileSystem extends SqlitePorts ? true : false = true
 const pathRequired: Path.Path extends SqlitePorts ? true : false = true
 const sharedOriginalId: SourceContracts.ThreadId = ThreadId.make('opaque:consumer')
+const retainedProjector: (value: unknown) => unknown = RequestPrivacy.createRequestPrivacyProjector()
 type Command = Parameters<typeof ThreadMessageIntake.dispatchCommand>[0]
 // @ts-expect-error Original source command discriminants survive the generated boundary.
 const invalidCommand: Command = { type: 'invented-command' }
@@ -38,4 +39,4 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,
-  fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret]
+  fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret, retainedProjector]

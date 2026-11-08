@@ -61,15 +61,31 @@ runs source migrations, checkpoints or write pragmas, uses `immutable=1`, copies
 raw databases/archives, or reads provider credentials, auth/device/account rows,
 ServerSecretStore, native transcripts or arbitrary attachment files.
 
-`materializeSnapshot` preflights every admitted stored record before writing any
-session row. It uses the same patched original `RequestPrivacy` namespace:
+`materializeSnapshot` classifies raw stored records before codec normalization.
+The first preflight retains only bounded thread/request/question IDs and explicit
+boolean `isSecret` classification. Absent markers may resolve from another exact
+occurrence of the same request/question in this pinned source transaction; they
+never inherit classification from another request or thread. Missing, malformed
+or conflicting classification fails the whole capture. Wording is never used.
+The second preflight projects and validates every row before any session INSERT;
+the final pass repeats that projection over the same read transaction.
+It uses the same patched original `RequestPrivacy` namespace:
 `isSecretRequestTool`, `projectSecretRequestInput/Output/Item` and
 `createRequestPrivacyProjector`. Correlation persists per original thread over
-both complete passes, including responses before requests, replay and exact
+all complete passes, including responses before requests, replay and exact
 dynamic-tool native call IDs. It never resets per page/row or projects a whole
 large transcript as one capped value. Exhaustion, oversized records or invalid
 post-projection original schemas leave the generation incomplete. This bounded
 correlation retains opaque IDs, not a second cache of secret values.
+
+Masked question defaults, option values/previews, runtime answers and embedded
+`questionAnswer` values are projected before the original codecs strip native
+mask flags. Answer values retain their original shape when public. Masked
+attachments with nonempty descriptors fail explicitly because their delivery
+cannot be reconstructed safely here. Each capture uses fresh classification;
+reusing a preflight object is refused. Resume reads only the already projected
+generation, and refresh reclassifies source data. Unknown classification is an
+incomplete source, never permission to omit a session or claim subset parity.
 
 Original codecs validate stored entities/events and strip unsupported fields.
 Typed runtime-request references become `not_resumable`, with no native callback
@@ -88,6 +104,14 @@ lineage, delegatedFrom and remoteChild remain independent original data.
 `readRetainedProjection`, `readRetainedSnapshotWindow` and
 `readRetainedHistoryPage` use original services under fresh callback admission.
 T07/T09 still own entitled transport projection and publication.
+
+Successful capture/resume returns the admitted source descriptor and the original
+source watermark `{ generation, sequence }` alongside local readiness. The
+sequence is the journal's captured source high-water, not a destination sequence
+created by legacy hydration. Physical root, environment and capture generation
+must accompany every parity observation. The producer must still prove its
+actual source revision and installation coverage; a supported layout is not
+revision evidence and this return value grants no authority.
 
 Each refresh allocates a new staging generation and resets destination legacy
 completion markers. Fresh original read/import services invalidate process
@@ -108,12 +132,11 @@ artifacts. Set `T3_SESSION_IMPORT_REFERENCE` to the explicitly admitted readonly
 Git object store, then run from the public root:
 
 ```powershell
-node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/source.test.mjs
+pnpm exec turbo run test:t3-session-import-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
 ```
 
-The equivalent registered Turbo task is `test:t3-session-import-source`, with
-`--root-turbo-json=scripts/turbo.public.json --concurrency=1`. It has no build
-prerequisite. Its SQLite schema is synthetic: this is source/readonly/journal
+This registered task has no build prerequisite and includes bounded question
+classification tests. Its SQLite schema is synthetic: this is source/readonly/journal
 evidence, not original-engine materialization or production authority proof.
 
 The later PRIMARY/aux request is an owned frozen public preparation with pinned
@@ -128,16 +151,37 @@ pnpm exec turbo run test:t3-session-engine --filter=@nessie/t3-session-source --
 pnpm exec turbo run test:t3-session-import --root-turbo-json=scripts/turbo.public.json --concurrency=1
 ```
 
+Export `DATABASE_URL` for package gates as required by the repository standard;
+these focused importer gates themselves use disposable SQLite, not PostgreSQL.
+Prepare only this worktree's dependencies. Run the compiler steps with the normal
+5120 MiB ceiling, then lower `NODE_OPTIONS` to `--max-old-space-size=512` for tests.
+Repeat the updated normal package/strict consumer and importer gates on the owned
+Node 22 interpreter. No prior package qualification covers these changed bytes.
+
 The authored engine gate uses the normal built package, original migrations,
 actual original legacy importer and real disposable SQL. It covers >5000 old
 catalog rows, opaque Unicode IDs, archives/tombstones, >200 history rows/paging,
 source refresh after completed hydration, interrupted importer recovery,
 cross-record secret canaries and exhaustion, inert callbacks, independent family
 edges/orphans and retained native overlay/tombstone aliases. It has NOT RUN in
-this source lane. Full attachment/sensitive-question fixtures, strict consumer
+this source lane. The added `privacy-destination.test.mjs` uses original package
+state/read/importer interfaces and the supported readonly capture port. It
+asserts masked defaults/options/answers are absent from all destination SQLite
+exports and main/WAL/journal files, original event replay, repeated cached reads,
+bounded wire exports, diagnostics, resume and refreshed legacy history. It also
+asserts missing/unknown/conflicting masks, orphan answers and capacity exhaustion
+retain the prior catalog instead of reporting success. These tests are authored,
+NOT EXECUTED. Full attachment delivery, strict consumer
 qualification and separate Node 22 readonly-capture execution remain required.
 The new privacy namespace export changes runtime/types/provenance;
 the prior 5013e582 normal-package qualification is historical input evidence.
+
+The privacy registration now binds reviewed commit `7567a431d3404a0c3a2610c23bebbc4e8eb6ff5f`,
+manifest `98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9`
+and composed manifest `8abd5bb0fd7818503b849a65a05440c1522fcdc1001b4fbd91f106e9cd65b6f1`.
+Importer files remain ordinary executor consumers, outside the generated engine
+graph; only the already registered `core/Engine.ts` gains the privacy namespace.
+No authored-input wildcard or unrelated lock resolution is added.
 
 No compiler, install, Node 22 candidate, PostgreSQL, native, browser, service or
 provider job ran here. Private lock integration belongs to root: preserve private

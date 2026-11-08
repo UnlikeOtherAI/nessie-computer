@@ -26,27 +26,39 @@ const codecs: Readonly<Record<string, (value: unknown) => unknown>> = {
   OrchestrationV2ContextTransferJson: roundTrip(S.OrchestrationV2ContextTransferJson),
 }
 
-export function storedPayload(entry: CaptureTable, row: SqlRow): unknown {
+/** Read the original shape before codecs discard native privacy metadata. */
+export function rawStoredPayload(entry: CaptureTable, row: SqlRow): unknown {
   requireCapture(typeof row.payload_json === 'string', 'invalid_source_payload')
+  requireCapture(Buffer.byteLength(row.payload_json, 'utf8') <= 1024 * 1024, 'capture_privacy_incomplete')
   const value: unknown = JSON.parse(row.payload_json)
   if (entry.codec !== 'application-event') {
     requireCapture(entry.codec && codecs[entry.codec], 'unsupported_source_codec')
-    return codecs[entry.codec]!(value)
+    return value
   }
   requireCapture(typeof row.metadata_json === 'string', 'invalid_source_event_metadata')
   const metadata: unknown = JSON.parse(row.metadata_json)
   requireCapture(metadata && typeof metadata === 'object' && !Array.isArray(metadata), 'invalid_source_event_metadata')
   if (row.aggregate_kind === 'project') {
-    return roundTrip(S.ApplicationProjectEvent)({
+    return {
       sequence: row.sequence, eventId: row.event_id, aggregateKind: 'project', aggregateId: row.stream_id,
       occurredAt: row.occurred_at, commandId: row.command_id, causationEventId: row.causation_event_id,
       correlationId: row.correlation_id, type: row.event_type, payload: value, metadata,
-    })
+    }
   }
-  return roundTrip(S.OrchestrationV2DomainEventJson)({
+  return {
     ...metadata, id: row.event_id, threadId: row.stream_id, type: row.event_type,
     occurredAt: row.occurred_at, payload: value,
-  })
+  }
+}
+
+export function storedPayload(entry: CaptureTable, row: SqlRow): unknown {
+  const value = rawStoredPayload(entry, row)
+  if (entry.codec === 'application-event') {
+    return row.aggregate_kind === 'project'
+      ? roundTrip(S.ApplicationProjectEvent)(value) : roundTrip(S.OrchestrationV2DomainEventJson)(value)
+  }
+  requireCapture(entry.codec && codecs[entry.codec], 'unsupported_source_codec')
+  return codecs[entry.codec]!(value)
 }
 
 /** Validate again after privacy projection, so a projected value cannot silently

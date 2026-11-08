@@ -141,6 +141,12 @@ historical package. The producer's existing `buildSessionEngineModule` and
 `buildSessionStateModule` APIs remain available for their explicit source/probe
 uses; probes are never package exports.
 
+The retained-privacy correction registers the reviewed `7567a431` privacy manifest
+(`98310d0…a3c9`) and updates the expected four-family composition (`8abd5bb0…b6f1`).
+The normal runtime and strict consumer fixtures now explicitly use `RequestPrivacy`.
+Syntax and manifest identity checks do not qualify those runtime/type consumers;
+their registered normal-package and Node 22 gates must run again.
+
 ## Runtime and browser checks
 
 The first normal package gate passed four cases on Node 24.19.0. The final

@@ -10,7 +10,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
  */
 export async function prepareTinySources() {
   const directory = join(root, '.artifacts/t04-import', randomUUID())
-  const files = ['state/sqlite', 'state/journal', 'ownership/continuity', 'import/manifest', 'import/layout', 'import/snapshot']
+  const files = ['state/sqlite', 'state/journal', 'ownership/continuity', 'import/manifest', 'import/layout',
+    'import/snapshot', 'import/questions']
   for (const file of files) {
     const target = join(directory, `${file}.js`)
     await mkdir(dirname(target), { recursive: true })
