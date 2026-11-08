@@ -12,11 +12,15 @@ import { sessionEngineSourcePlugin } from './resolver.mjs'
 
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const commit = '0f53775b804df5558e5a3be6b8a6d6c6f830f638'
+const commit = process.argv[3] ?? '0f53775b804df5558e5a3be6b8a6d6c6f830f638'
+const expectedHash = process.argv[4] ?? '763ec6d19901614479f8a0d710255dd6cae6c58dde971b29a71c2d53296fe1ed'
+assert.match(commit, /^[a-f0-9]{40}$/u)
+assert.match(expectedHash, /^[a-f0-9]{64}$/u)
+assert.equal(process.argv[3] === undefined, process.argv[4] === undefined, 'Supply both committed identity and digest')
 const input = execFileSync('git', ['--no-replace-objects', 'show', `${commit}:packages/t3-session-source/input.mjs`], {
   cwd: resolve(tools, '../..'), windowsHide: true,
 })
-assert.equal(hash(input), '763ec6d19901614479f8a0d710255dd6cae6c58dde971b29a71c2d53296fe1ed')
+assert.equal(hash(input), expectedHash)
 await mkdir(resolve(tools, '.artifacts'), { recursive: true })
 const directory = await mkdtemp(resolve(tools, '.artifacts/combined-plugins-'))
 const helper = resolve(directory, 'packages/t3-session-source/input.mjs')

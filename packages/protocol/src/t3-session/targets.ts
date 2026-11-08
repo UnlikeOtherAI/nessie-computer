@@ -46,6 +46,9 @@ export const requestTargets = (request: ExecutorT3Request): readonly ExecutorT3T
   if ('resource' in input && Schema.is(AssetResource)(input.resource)) targets.push(...resourceTargets(input.resource))
   if ('attachmentId' in input) targets.push({ kind: 'attachment', id: input.attachmentId, scope: 'resolve' })
   if ('cwd' in input && input.cwd) targets.push({ kind: 'workspace', id: input.cwd, scope: 'resolve' })
+  if ('workspaceRoot' in input && input.workspaceRoot) {
+    targets.push({ kind: 'workspace', id: input.workspaceRoot, scope: 'resolve' })
+  }
   if ('worktreePath' in input && input.worktreePath) targets.push({ kind: 'workspace', id: input.worktreePath, scope: 'resolve' })
   if ('workspaceStrategy' in input) targets.push(...workspaceTargets(input.workspaceStrategy))
   if ('relativePath' in input) targets.push({ kind: 'workspace', id: input.relativePath, scope: 'resolve' })

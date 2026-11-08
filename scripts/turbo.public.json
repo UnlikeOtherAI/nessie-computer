@@ -1,6 +1,10 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "test:t3-session-source": { "dependsOn": [], "cache": false },
+    "//#test:t3-session-requests": { "dependsOn": [], "cache": false,
+      "env": ["T3_REQUEST_PRIVACY_SOURCE_REPOSITORY", "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"] },
+    "//#test:t3-session-engine-plugins": { "dependsOn": [], "cache": false },
     "test:t3-session-contracts": { "dependsOn": ["build"], "cache": false },
     "//#test:t3-session-client-connection": { "dependsOn": [], "cache": false,
       "env": ["T3_CLIENT_CONNECTION_SOURCE_REPOSITORY", "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE"] },

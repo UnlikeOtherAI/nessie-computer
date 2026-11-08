@@ -320,6 +320,25 @@ Both plugins must receive the same directory.
 `plugin-proof.mjs` loads the exact committed T01 helper and runs real esbuild in
 both plugin orders. First-party and virtual original imports must share the
 actual Schema namespace and codec objects, with one dependency-root module graph.
+Both plugins now preserve unrelated plugin metadata and skip resolution only when
+the boolean marker and normalized dependency-root marker both match. Contract
+`input.mjs` refuses a conflicting root rather than replacing it.
+
+The historical plugin proof defaults to T01 `0f53775`. To qualify a corrected
+committed helper, pass the full public commit and SHA-256 of its `input.mjs`:
+`pnpm exec turbo run test:t3-session-engine-plugins --root-turbo-json=scripts/turbo.public.json --concurrency=1 -- <capsule> <contracts-commit> <input-sha256>`.
+The proof reads Git bytes and checks the digest before executing either order.
+`test:t3-session-source --filter=@nessie/t3-session-source` runs the network-free
+temporary Git fetch/retry and resolver metadata fixtures. It does not build the
+engine. Source cache recovery fetches only a missing exact commit object, keeps
+failed work and prior objects, and still verifies the original tree and capsule.
+
+The request owner's existing fixtures are registered as `test:t3-session-requests`
+on `@nessie/executor` (public root task). Set
+`T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and `T3_REQUEST_PRIVACY_SOURCE_ARCHIVE` to
+the verified source and capsule, and prepare the fixture's isolated pinned
+dependencies as documented by its `prepare-dependencies.mjs`. This registration
+does not qualify the pending corrected privacy patch or a canonical vault port.
 
 The engine build emits `.mjs`, provenance/licenses, the original capsule, one
 `.patches.json` and `.declarations/index.d.ts`. Large upstream inferred schemas

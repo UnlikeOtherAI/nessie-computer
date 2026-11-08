@@ -24,7 +24,9 @@
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "node build.mjs --check",
-    "lint": "node --check build.mjs && node --check input.mjs && node --check routes.mjs"
+    "lint": "node --check build.mjs && node --check input.mjs && node --check cache.mjs && node --check routes.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs"
   },
   "dependencies": {
     "effect": "4.1.2"

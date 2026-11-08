@@ -1,8 +1,7 @@
 // Build-time dependency extraction. Never imports or executes the T3 server.
 import { createHash } from 'node:crypto'
-import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { mkdir, readFile, writeFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
@@ -11,6 +10,7 @@ import { prepareSessionEngineSource, T3_SESSION_ENGINE_SOURCE } from '../../pack
 import { readSessionEngineSnapshot } from '../../packaging/session-engine/snapshot.mjs'
 import { createSessionEngineSourceResolver, sessionEngineSourcePlugin } from '../../packaging/session-engine/resolver.mjs'
 import { extractT3RawHttp } from './routes.mjs'
+import { ensurePinnedSourceObject } from './cache.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const cache = resolve(root, '.artifacts/source')
@@ -19,16 +19,9 @@ const archive = resolve(cache, T3_SESSION_ENGINE_SOURCE.archiveSha256, 'source.t
 const repository = resolve(cache, 'upstream.git')
 const contracts = resolve(source, 'packages/contracts/src')
 const digest = value => createHash('sha256').update(value).digest('hex')
-const run = (command, args) => execFileSync(command, args, {
-  cwd: root, stdio: 'pipe', windowsHide: true, timeout: 180_000, maxBuffer: 128 * 1024 * 1024,
-})
-const exists = path => stat(path).then(() => true, () => false)
 await mkdir(cache, { recursive: true })
-if (!await exists(repository)) {
-  run('git', ['init', '--bare', repository])
-  run('git', ['--git-dir', repository, 'fetch', '--depth=1', T3_SESSION_ENGINE_SOURCE.repository,
-    T3_SESSION_ENGINE_SOURCE.commit])
-}
+await ensurePinnedSourceObject({ repository, upstream: T3_SESSION_ENGINE_SOURCE.repository,
+  commit: T3_SESSION_ENGINE_SOURCE.commit })
 await prepareSessionEngineSource({ sourceRepository: repository, archivePath: archive })
 const snapshot = await readSessionEngineSnapshot(archive)
 const resolver = createSessionEngineSourceResolver(snapshot)
@@ -146,6 +139,7 @@ const provenance = {
   declarationsSha256: digest(JSON.stringify(declarations)), declarations,
   adapterSha256: digest(await readFile(fileURLToPath(import.meta.url))),
   coBuildAdapterSha256: digest(await readFile(resolve(root, 'input.mjs'))),
+  cacheAdapterSha256: digest(await readFile(resolve(root, 'cache.mjs'))),
   rawHttpRoutesSha256: digest(JSON.stringify(rawHttpRoutes)),
   routeAdapterSha256: digest(await readFile(resolve(root, 'routes.mjs'))),
 }
