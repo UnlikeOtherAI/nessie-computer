@@ -7,7 +7,7 @@ import { constrainInteractiveRequest, requireInteractiveSource } from '../../dis
 import { constrainTerminalEvent, devicesForScope, terminalMetadataForScope } from '../../dist/t3-session/interactive/projections.js'
 import { scope, snapshot } from './fixture.mjs'
 
-const request = (method, input, admitted = scope) => constrainInteractiveRequest(admitted,
+const request = (method, input, admitted = scope) => constrainInteractiveRequest(admitted, scope,
   { method, input: decodeInteractiveInput(method, input) })
 
 test('inventory retains the exact original descriptors and excludes installation/account operations', () => {

@@ -39,7 +39,10 @@ export function requireInteractiveSource(scope: InteractiveScope, source: Intera
 /** Additional confinement only; call the actual admission service before this check.
  * Closed/absent resources cannot be adopted merely by supplying their IDs here.
  */
-export function constrainInteractiveRequest(scope: InteractiveScope, request: InteractiveRequest): void {
+export function constrainInteractiveRequest(
+  scope: InteractiveScope, source: InteractiveSource, request: InteractiveRequest,
+): void {
+  requireInteractiveSource(scope, source)
   requireInteractive(interactiveOperations[request.method].access === 'read' || scope.access === 'operate',
     'operate_required')
   const input = request.input
