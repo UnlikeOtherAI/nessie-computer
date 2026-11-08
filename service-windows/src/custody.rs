@@ -22,6 +22,15 @@ const JOB_OBJECT_QUERY: u32 = 0x0004;
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
     let now=nessie_windows_common::execution::now_ms()?;
+    for record in state.execution_processes.values_mut(){
+        let gone=match &record.child{Some(child)=>absent(child)?,None=>record.admission.expires_at_ms<=now};
+        if gone&&job_members(&record.job_name)?.is_empty(){record.cleared=true;}
+    }
+    let expired=state.execution_processes.iter().filter_map(|(id,record)|{
+        (record.cleared&&absent(&record.creator).unwrap_or(false)&&absent(&record.graph).unwrap_or(false))
+            .then_some(id.clone())
+    }).collect::<Vec<_>>();
+    for id in expired{state.execution_processes.remove(&id);crate::execution_process_io::release(&id)?;}
     for record in state.execution_creations.values_mut(){
         if let Some(job)=&record.job_name{
             let gone=match &record.child {Some(child)=>absent(child)?,None=>record.expires_at_ms<=now};
@@ -127,7 +136,7 @@ pub fn handle(
         return Err(REJECTED.into());
     }
     let caller = Process::open(pid)?;
-    let creator=matches!(&operation,Operation::ExecutionCreator{..});
+    let creator=matches!(&operation,Operation::ExecutionCreator{..}|Operation::ExecutionProcess{..});
     if !caller.alive()
         || Some(caller.sid.as_str()) != sid
         || caller.image.file_name().and_then(|value| value.to_str())
@@ -150,6 +159,13 @@ pub fn handle(
     reconcile(&mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
+        Operation::ExecutionProcess{request}=>{
+            if !matches!(&*request,nessie_windows_common::execution_process::Request::Clear{..}
+                |nessie_windows_common::execution_process::Request::End{..}){
+                machine.admit_daemon(&release.digest)?;
+            }
+            crate::execution_process::handle(root,&caller,&release,&mut state,*request)?
+        }
         Operation::ExecutionCreator {request}=>{
             if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}
                 |nessie_windows_common::execution_creator::Request::ClearSessionHost{..}){

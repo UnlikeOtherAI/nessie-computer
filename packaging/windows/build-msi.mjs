@@ -55,14 +55,14 @@ const requireWindows = () => {
   if (process.platform !== 'win32') {
     throw new Error(
       'The Nessie Executor MSI is built on Windows. It needs the MSVC toolchain for its two Rust '
-      + 'binaries, a Windows Node 22 to copy as the packaged runtime, and the WiX toolset '
+      + 'binaries, a Windows Node 24 to copy as the packaged runtime, and the WiX toolset '
       + `(dotnet tool install --global wix --version ${WIX_VERSION}) `
       + `with its UI extension (wix extension add --global ${UI_EXTENSION}). `
       + `This host is ${process.platform}.`,
     )
   }
-  if (process.versions.node.split('.')[0] !== '22') {
-    throw new Error('Build the Windows release with Node 22 so its packaged runtime matches the supported version.')
+  if (process.versions.node.split('.')[0] !== '24') {
+    throw new Error('Build the Windows release with Node 24 so its packaged runtime matches the supported version.')
   }
 }
 

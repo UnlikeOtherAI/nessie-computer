@@ -205,6 +205,10 @@ diff checks ran. No compiler, suite, native launch, signing or installation ran.
 
 # Nonexecuting inspection delivery
 
+The subsequent provider/history creation implementation and exact SYSTEM/service
+handoff are documented in [protected process launch](protected-process-launch.md).
+Its source checkpoint has not inherited the earlier compiler or installed checks.
+
 The canonical daemon session lane carries bounded `inspections` and exact
 `inspectionReceipts`, with explicit acknowledgements. Only an executing runtime
 implements `T3SessionLaneRuntime.inspect`; retained runtimes omit it. Inspection

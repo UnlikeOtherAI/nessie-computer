@@ -151,6 +151,7 @@ export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: Re
             published()
             return held.evaluate(program, signal)
           }
+          requireCapture(typeof job.stage_ref === 'string', 'capture_stage_mismatch')
           const stage = await ports.workspace.reopenGeneration(job.stage_ref)
           requireCapture(stage.reference === job.stage_ref, 'capture_stage_mismatch')
           published()

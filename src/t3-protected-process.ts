@@ -4,8 +4,11 @@ import { createConnection } from 'node:net'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { T3ProtectedGraphStartupSchema, T3ProtectedCompanionRoleSchema, T3ExecutionGenerationSchema,
   type T3ProtectedGraphStartup, type T3ProtectedCompanionRole } from '@nessie/executor-protocol/t3-session'
+import { T3ExecutionSignedAdmissionSchema, T3ExecutionAdmissionSchema,
+  type T3ExecutionSignedAdmission } from '@nessie/executor-protocol/t3-session'
 import { packagedNativeHelperPath } from './state-security.js'
 import { ProtectedT3Process, protectedDeliveryUnknown } from './t3-protected-stream.js'
+import { ProtectedT3Provider } from './t3-protected-provider.js'
 
 const companionPipe = String.raw`\\.\pipe\NessieT3ExecutionCompanion`
 const readyDomain = 'nessie.t3.execution.creator-ready.v1'
@@ -113,3 +116,35 @@ export async function startProtectedT3Graph(executorId: string, signal?: AbortSi
 }
 
 export type { ProtectedT3Process } from './t3-protected-stream.js'
+
+/** SYSTEM chooses only the currently service-held, phase-admitted descriptor.
+ * The graph supplies neither an executable nor a launch permission boolean. */
+export async function startProtectedT3Provider(
+  input: T3ExecutionSignedAdmission, signal?: AbortSignal,
+): Promise<ProtectedT3Provider> {
+  signal?.throwIfAborted()
+  const admission = T3ExecutionSignedAdmissionSchema.parse(input)
+  const selected = T3ExecutionAdmissionSchema.parse(JSON.parse(admission.payload))
+  const current = binding
+  if (!current || selected.phase !== 'launch' || selected.binding.executorId !== current.startup.executorId
+    || current.startup.custody.runtime.pid !== process.pid) throw protectedDeliveryUnknown()
+  const nonce = randomBytes(32).toString('hex')
+  const socket = createConnection(companionPipe + '-' + current.startup.graphId)
+  const child = new ProtectedT3Process({ input: socket, output: socket, dispose: () => socket.destroy() }, frame => {
+    const { proof, ...ready } = frame
+    if (frame.kind !== 'ready' || frame.graphId !== current.startup.graphId || frame.nonce !== nonce
+      || frame.processPurpose !== selected.processPurpose || frame.reservationId !== selected.reservationId
+      || typeof frame.creationId !== 'string' || !/^[a-f0-9]{64}$/u.test(frame.creationId)
+      || typeof proof !== 'string' || !/^[a-f0-9]{64}$/u.test(proof)) throw protectedDeliveryUnknown()
+    const expected = createHmac('sha256', current.key)
+      .update(readyDomain + '\n' + canonicalExecutorJson(ready)).digest()
+    if (!timingSafeEqual(expected, Buffer.from(proof, 'hex'))) throw protectedDeliveryUnknown()
+    return T3ExecutionGenerationSchema.parse(frame.child).pid
+  }, 'finite')
+  const provider = new ProtectedT3Provider(child)
+  cancellation(child, signal)
+  await child.sendInitial({ operation: 'provider', graphId: current.startup.graphId, nonce, admission })
+  signal?.throwIfAborted()
+  return provider
+}
+export type { ProtectedT3Provider } from './t3-protected-provider.js'

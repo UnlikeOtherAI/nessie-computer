@@ -249,6 +249,10 @@ pub fn handle(
                 return Err(REJECTED.into());
             }
             if creation.role.is_none()
+                && state.execution_processes.values().any(|v|v.graph==*child&&!v.cleared){
+                return Err(REJECTED.into());
+            }
+            if creation.role.is_none()
                 && state
                     .execution_creations
                     .values()

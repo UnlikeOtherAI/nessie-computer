@@ -24,7 +24,7 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
@@ -68,7 +68,7 @@ jobs:
       - if: runner.os == 'macOS' && (steps.scope.outputs.macos_app == '1' || steps.scope.outputs.macos_tests == '1')
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - if: runner.os == 'macOS' && (steps.scope.outputs.macos_app == '1' || steps.scope.outputs.macos_tests == '1')
         run: |

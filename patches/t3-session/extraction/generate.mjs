@@ -16,6 +16,7 @@ import { extractPrelaunch } from './prelaunch.mjs'
 import { extractColdLaunch } from './cold-launch.mjs'
 import { extractProviderLive } from './provider-live.mjs'
 import { extractProviderEvents } from './provider-events.mjs'
+import { extractInspectionHosts } from './inspection-hosts.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -37,6 +38,7 @@ export const generateExtractionManifest = snapshot => {
     'import { rejectCommandsDuringClone } from "./ProjectCloneTracker.session-port.ts";\nexport { rejectCommandsDuringClone };\n\n',
     'share-clone-admission')
   exports.get(clone).add('rejectCommandsDuringClone')
+  extractInspectionHosts(author, redirects)
   const reads = extractReadServices(author, redirects)
   extractThreadLive(author, redirects, exports)
   extractRuntimeLive(author, redirects)

@@ -1,16 +1,43 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import { nodeExecutableName, nodeLicensePath, prepareExecutorRuntime } from '../scripts/prepare-runtime.mjs'
+import { inspectPackagedNodeRuntime } from '../scripts/packaged-node.mjs'
 import { collectExecutorRuntimeFacts, verifyExecutorRuntime } from '../src/runtime-integrity.js'
 
 const ENTRY_POINT = fileURLToPath(new URL('../src/index.ts', import.meta.url))
+
+test('the selected Node executes SQLite authorization and reports its own version', () => {
+  assert.deepEqual(inspectPackagedNodeRuntime(process.execPath), { nodeVersion: process.versions.node })
+})
+
+test('missing SQLite authorization refuses preparation before replacing staged bytes', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-node-capabilities-'))
+  try {
+    const preload = join(directory, 'no-authorizer.cjs')
+    await writeFile(preload, "require('node:sqlite').DatabaseSync.prototype.setAuthorizer = undefined\n")
+    const outputDirectory = join(directory, 'runtime')
+    await mkdir(outputDirectory)
+    await writeFile(join(outputDirectory, 'previous'), 'preserved')
+    const producer = new URL('../scripts/prepare-runtime.mjs', import.meta.url).href
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e',
+      `import {prepareExecutorRuntime} from ${JSON.stringify(producer)};`
+      + `await prepareExecutorRuntime(${JSON.stringify({ entryPoint: ENTRY_POINT, outputDirectory,
+        nodeLicenseContents: 'fixture license' })});`], {
+      encoding: 'utf8', timeout: 30_000,
+      env: { ...process.env, NODE_OPTIONS: `--require="${preload.replaceAll('\\', '/')}"` },
+    })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /requires Node 24 with SQLite setAuthorizer/u)
+    assert.equal(await readFile(join(outputDirectory, 'previous'), 'utf8'), 'preserved')
+  } finally { await rm(directory, { force: true, recursive: true }) }
+})
 
 const digest = async (path: string): Promise<string> => (
   createHash('sha256').update(await readFile(path)).digest('hex')
@@ -77,7 +104,7 @@ test('the Windows layout ships nessie-executor-runtime.exe and the licence insta
     const nodeHome = join(directory, 'nodejs')
     await mkdir(nodeHome, { recursive: true })
     const nodeExecutablePath = join(nodeHome, 'node.exe')
-    await writeFile(nodeExecutablePath, 'windows-node-binary')
+    await copyFile(process.execPath, nodeExecutablePath)
     await writeFile(join(nodeHome, 'LICENSE'), 'node license')
     const helperSourcePath = join(directory, 'nessie-executor-native.exe')
     await writeFile(helperSourcePath, 'windows-native-helper')
@@ -118,7 +145,7 @@ test('the POSIX layout reads the licence one directory above the Node binary', a
     // A POSIX Node install: `bin/node` with `LICENSE` at the prefix root.
     const nodeExecutablePath = join(directory, 'nodejs', 'bin', 'node')
     await mkdir(dirname(nodeExecutablePath), { recursive: true })
-    await writeFile(nodeExecutablePath, 'posix-node-binary')
+    await copyFile(process.execPath, nodeExecutablePath)
     await writeFile(join(directory, 'nodejs', 'LICENSE'), 'node license')
 
     assert.equal(nodeLicensePath(nodeExecutablePath, 'linux'), join(directory, 'nodejs', 'LICENSE'))
@@ -147,7 +174,7 @@ test('a Node install with no licence beside it stops the build', async () => {
   try {
     const nodeExecutablePath = join(directory, 'nodejs', 'node.exe')
     await mkdir(dirname(nodeExecutablePath), { recursive: true })
-    await writeFile(nodeExecutablePath, 'windows-node-binary')
+    await copyFile(process.execPath, nodeExecutablePath)
 
     await assert.rejects(
       prepareExecutorRuntime({
@@ -168,7 +195,7 @@ test('an installer-facing caller can provide the official licence when Node omit
   try {
     const nodeExecutablePath = join(directory, 'nodejs', 'node.exe')
     await mkdir(dirname(nodeExecutablePath), { recursive: true })
-    await writeFile(nodeExecutablePath, 'windows-node-binary')
+    await copyFile(process.execPath, nodeExecutablePath)
 
     const prepared = await prepareExecutorRuntime({
       entryPoint: ENTRY_POINT,

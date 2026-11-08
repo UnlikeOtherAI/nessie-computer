@@ -104,6 +104,7 @@ impl Key {
             RESERVATION_DOMAIN,
             PREPARATION_DOMAIN,
             ASSOCIATION_DOMAIN,
+            HISTORY_RESULT_DOMAIN,
         ]
         .contains(&domain)
         {
@@ -126,6 +127,7 @@ impl Key {
                 "associate",
                 "enroll",
                 "graph",
+                "process-creation", "process-resumed", "process-cleared",
             ]
             .contains(&kind)
         {
@@ -153,6 +155,7 @@ impl Key {
                 "associate",
                 "enroll",
                 "graph",
+                "process-cleared",
             ]
             .contains(&kind)
         {
@@ -167,5 +170,11 @@ impl Key {
             return Err(REJECTED.into());
         }
         serde_json::from_slice(&bytes).map_err(|_| REJECTED.into())
+    }
+    pub fn cleared_process(&self,id:&str)->Result<Option<Value>,String>{
+        if !nessie_windows_common::custody::valid_nonce(id){return Err(REJECTED.into());}
+        let path=self.directory.join(format!("process-cleared-{id}.json"));
+        if !path.try_exists().map_err(|_|REJECTED)? {return Ok(None);}
+        self.read("process-cleared",id).map(Some)
     }
 }
