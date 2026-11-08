@@ -20,7 +20,9 @@ type NativeRequest = ExecutorLocalUpdateRequest | {
 
 type UpdateClientOptions = { background?: boolean }
 
-const nativeUpdate = async (request: NativeRequest, options: UpdateClientOptions = {}): Promise<ExecutorLocalUpdateStatus> => {
+const nativeUpdate = async (
+  request: NativeRequest, options: UpdateClientOptions = {},
+): Promise<ExecutorLocalUpdateStatus> => {
   if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') {
     if (request.operation === 'status' || request.operation === 'check') {
       return { ...uninstalledSoftwareStatus(), notify: false }
@@ -73,7 +75,9 @@ const nativeUpdate = async (request: NativeRequest, options: UpdateClientOptions
   })
 }
 
-export const localUpdate = (request: ExecutorLocalUpdateRequest, options?: UpdateClientOptions): Promise<ExecutorLocalUpdateStatus> =>
+export const localUpdate = (
+  request: ExecutorLocalUpdateRequest, options?: UpdateClientOptions,
+): Promise<ExecutorLocalUpdateStatus> =>
   nativeUpdate(ExecutorLocalUpdateRequestSchema.parse(request), options)
 
 export const requestSoftwareUpdate = (request: ExecutorSoftwareUpdateRequest): Promise<ExecutorLocalUpdateStatus> =>
