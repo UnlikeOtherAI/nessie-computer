@@ -1,6 +1,7 @@
 import { createPrivateKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { hostname } from 'node:os'
-import { newLocalCommandPolicy } from './command-policy.js'
+import { pairedLocalCommandPolicy } from './command-policy.js'
+import { pairedLocalMcpPolicy } from './mcp-policy.js'
 
 import {
   canonicalExecutorPayload,
@@ -207,8 +208,10 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
   ): Promise<void> => {
     const state = await existingState(directory)
     if (state && state.executorId !== claim.executorId) throw new Error('This computer already has another pairing.')
+    // A new team starts with the built-in programs and every installed local app (contract §4.3, §4.5).
     if (!state) await saveExecutorState(directory, {
-      commandPolicy: newLocalCommandPolicy(),
+      commandPolicy: pairedLocalCommandPolicy(),
+      mcpPolicy: pairedLocalMcpPolicy(),
       apiBaseUrl: pending.apiBaseUrl,
       descriptor: localPolicy(pending.workspaceFolders, pending.request.descriptor.descriptor.operationKeys),
       executorId: claim.executorId,
