@@ -7,8 +7,10 @@
     "packaging/session-engine/core/Engine.ts",
     "packaging/session-engine/core/EngineLayers.ts",
     "packaging/session-engine/core/ReadLayers.ts",
-    "packaging/session-engine/core/StateLayers.ts"
+    "packaging/session-engine/core/StateLayers.ts",
+    "packaging/session-engine/core/Client.ts"
   ],
   "privacyCommit": "7567a431d3404a0c3a2610c23bebbc4e8eb6ff5f",
-  "privacyManifestSha256": "98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9"
+  "privacyManifestSha256": "98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9",
+  "clientEntryPoint": "packaging/session-engine/core/Client.ts"
 }
