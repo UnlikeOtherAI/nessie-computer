@@ -26,6 +26,22 @@ references stay in the backend relay. Launch adds its exact launch digest;
 association adds the original provider-session ID and service-observed native
 identity. An observed native ID never substitutes for an original session ID.
 
+Graph receipts have domain `nessie.t3.execution.graph.v1`, include every
+resolved original request target and source revision, and have no launch digest.
+Only after original admitted provisioning produces the actual native process
+descriptor does `T3ExecutionPreparationPayloadSchema` bind its exact digest,
+reservation ID, original reserve admission digest/binding and custody under
+`nessie.t3.execution.preparation.v1`. Backend launch admission must consume this
+receipt rather than accepting a raw caller launch digest. Descriptor/reference
+digests use canonicalExecutorJson; admissionDigest hashes the exact signed
+payload string bytes without domain or reserialization.
+
+`test/t3-native-execution-contract.test.ts` authors byte-level U+000A and Windows
+single-separator checks plus five-second admission lifetime/phase refusals.
+These fixtures are unrun. Source inspection confirms the original helper has
+one escaped newline and regex one escaped Windows separator, not literal
+backslash+n or a doubled path separator.
+
 The source graph producer and original SDK serializer remain separate owned
 dependencies. Generic SDK stdin remains denied. No signing, install, native
 launch or heavy check is authorized in this checkout's source window.
