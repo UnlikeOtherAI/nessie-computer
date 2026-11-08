@@ -5,7 +5,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { codingSessionsPolicyOf } from './coding-sessions-policy.js'
-import { localCommandPolicyOf, localCommandPolicyPermits, localTerminalCommandRefusal } from './command-policy.js'
+import { localCommandPolicyOf, localCommandPolicyPermits, localTerminalCommandDecision } from './command-policy.js'
 import type { DaemonLiveState } from './daemon-live-state.js'
 import { programRequestRefusal, programRequestRule, type ProgramRequestGate } from './program-request-gate.js'
 import type { ExecutorLocalState } from './state-store.js'
@@ -82,6 +82,9 @@ export const admitTerminalLaunch = async (
   const argv = launch?.agent === 'terminal' && Array.isArray(launch.command) ? launch.command : undefined
   if (!argv?.every((entry): entry is string => typeof entry === 'string')) return unchanged
   const [program, ...args] = argv
-  if (!program || localTerminalCommandRefusal(localCommandPolicyOf(state), argv) !== 'not_allowlisted') return unchanged
+  if (!program) return unchanged
+  // The bridge's own decision, signature check included: an app UnlikeOtherAI signed needs no question.
+  const decision = await localTerminalCommandDecision(localCommandPolicyOf(state), argv)
+  if (decision.allowed || decision.refusal !== 'not_allowlisted') return unchanged
   return await ask(admission, state, command, program, args, signal) ?? unchanged
 }

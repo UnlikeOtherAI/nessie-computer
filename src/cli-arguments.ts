@@ -55,6 +55,7 @@ export type ParsedCommand =
   | { json: boolean; kind: 'pause'; stateDir: string }
   | { json: boolean; kind: 'resume'; stateDir: string }
   | { json: boolean; kind: 'program-requests'; stateDir: string }
+  | { json: boolean; kind: 'audience'; stateDir: string }
   | { answer: ProgramRequestAnswer; id: string; json: boolean; kind: 'program-request-answer'; stateDir: string }
   | { kind: 'serve-direct-local-inference' }
   | { kind: 'describe'; stateDir: string }
@@ -121,6 +122,7 @@ const usage = (): never => {
     + '       nessie-executor program-requests --state-dir <owner-only-path> [--json]\n'
     + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
     + '--answer once|always|deny [--json]\n'
+    + '       nessie-executor audience --state-dir <owner-only-path> [--json]\n'
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
     + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
@@ -262,7 +264,7 @@ export const parseCommand = (args: string[]): ParsedCommand => {
   if (command === 'connect' || command === 'heartbeat') {
     return { kind: command, stateDir: option(args, '--state-dir') }
   }
-  if (command === 'pause' || command === 'resume' || command === 'program-requests') {
+  if (command === 'pause' || command === 'resume' || command === 'program-requests' || command === 'audience') {
     const json = args.includes('--json')
     if (args.length !== (json ? 4 : 3)) return usage()
     return { json, kind: command, stateDir: option(args, '--state-dir') }

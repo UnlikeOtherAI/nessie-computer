@@ -12,7 +12,8 @@ in tranche F map onto them.
 | `resume --state-dir <dir> [--json]` | Ends the pause. |
 | `program-requests --state-dir <dir> [--json]` | Lists the program requests waiting for an answer. |
 | `program-request answer --state-dir <dir> --id <id> --answer once\|always\|deny [--json]` | Answers one request. |
-| `describe --state-dir <dir>` | Also reports `paused` and `pendingProgramRequests`. |
+| `audience --state-dir <dir> [--json]` | Asks Nessie who can send work here: agents, people and projects. Nothing is stored. |
+| `describe --state-dir <dir>` | Also reports `paused`, `pendingProgramRequests` and the discovered `localApps`. |
 
 ## Saving applies live
 
@@ -39,10 +40,14 @@ daemon writes it in two cases only: its claim records the connection epoch,
 and when Nessie already holds the same revision number with different content,
 the daemon saves the next revision, as a claim does.
 
-To propose a new revision from code — for example when the set of installed
-local apps changes — save it through the same writer
-(`configureExecutorLocalPolicy` in `src/pair.ts`). The running daemon applies it
-the same way.
+Code proposes a revision by saving it through the same writer; the running
+daemon applies it the same way. The daemon does this itself for local apps:
+under the `installed` local-apps policy it runs discovery every two minutes
+(`refreshLocalApps` in `src/local-mcp-apps.ts`). A local app installed, removed
+or switched off is saved as the next revision and applied live.
+
+`configure --configuration-input-stdin` passes `mcpPolicy` and `allowedOrigins`
+to the writer with the rest of the input.
 
 ## Pause
 
@@ -75,8 +80,11 @@ paused on the computer.
 When the team's rules refuse a launch only because the program is not on the
 allowlist, the daemon asks the owner instead of refusing it at once. This
 covers a sandboxed `command.run`, and a terminal session that the
-coding-sessions bridge would start on this computer. A launch the denylist
-refuses is refused without asking.
+coding-sessions bridge would start on this computer. For a terminal the daemon
+makes the bridge's own decision first, signature check included, so an app
+signed by UnlikeOtherAI starts without a question. A launch the denylist
+refuses, or a terminal program named by path while only listed programs are
+allowed, is refused without asking.
 
 The daemon writes the request to `program-requests/<id>.json` in the team's
 owner-only state directory and holds the launch. The hold lasts at most 120
@@ -115,5 +123,5 @@ that the command is waiting for the owner.
 - A lent "once" rule is safe only because the daemon runs one command at a time.
   A second loan while one is active is refused.
 - When the allowlist already holds its maximum of 64 rules, nobody is asked.
-- `audience` (who can send work here) is not available yet; it needs the
-  signed audience call from tranche A1.
+- `audience` needs a connected team: it signs with the connection epoch the
+  team's daemon last claimed.

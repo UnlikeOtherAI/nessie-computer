@@ -28,7 +28,10 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { ownerPausePath } from './owner-pause.js'
 import { createProgramRequestGate } from './program-request-gate.js'
 import { openProgramRequestStore } from './program-requests.js'
-import type { ExecutorLocalState } from './state-store.js'
+import { LOCAL_MCP_REFRESH_INTERVAL_MS } from './local-mcp-report.js'
+import { refreshLocalApps } from './local-mcp-apps.js'
+import { localMcpPolicyOf } from './mcp-policy.js'
+import { loadExecutorState, type ExecutorLocalState } from './state-store.js'
 import { createDaemonCadence } from './daemon-cadence.js'
 import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
 import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.js'
@@ -239,6 +242,18 @@ export const serveExecutor = async (
     const existingRefresh = createNonOverlappingExecutorTask(async () => {
       if (await tools().codingBridge.refreshExisting().catch(() => false)) sessionChanged()
     })
+    // Under the `installed` local-apps policy, a local app installed, removed or switched
+    // off is a new revision; saving it reaches `applySaved` below like any other save.
+    const proposeLocalApps = createNonOverlappingExecutorTask(async () => {
+      const saved = await loadExecutorState(stateDir)
+      if (localMcpPolicyOf(saved).mode === 'installed') await refreshLocalApps(stateDir, saved)
+    })
+    const localAppsInterval = setInterval(() => {
+      void proposeLocalApps.run().catch((error: unknown) => {
+        console.error('[nessie-executor] local apps were not refreshed:', error instanceof Error ? error.message : String(error))
+      })
+    }, LOCAL_MCP_REFRESH_INTERVAL_MS)
+    localAppsInterval.unref()
     // The owner's saves on this computer, applied where the daemon stands.
     const applySaved = createNonOverlappingExecutorTask(async () => {
       if (await liveApply.reload()) cadence.wake(['commands'])
@@ -275,6 +290,7 @@ export const serveExecutor = async (
       changes.stop()
       clearInterval(commandInterval)
       clearInterval(existingInterval)
+      clearInterval(localAppsInterval)
       executorApi.cancelPending()
       // Its in-flight calls were just cancelled; whatever a transfer left is in its journal.
       await monitor.stop()

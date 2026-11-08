@@ -12,7 +12,8 @@ import { readOwnerPause, setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
 import { listProgramRequests } from './program-requests.js'
 import { serveExecutor } from './daemon-server.js'
-import { describeExecutor } from './describe.js'
+import { readAudience } from './audience.js'
+import { describeExecutorWithLocalApps } from './describe.js'
 import { runDistributionCli } from './distribution-cli.js'
 import { offerUpdateAtLaunch, runUpdateCli } from './updates/cli.js'
 import { runMacServiceCli } from './service-macos.js'
@@ -249,6 +250,10 @@ export const run = async (args: string[]): Promise<void> => {
       input.mcpServers,
       'codingSessions' in input ? { requested: input.codingSessions } : {},
       input.commandPolicy,
+      {
+        ...(input.mcpPolicy === undefined ? {} : { mcpPolicy: input.mcpPolicy }),
+        ...(input.allowedOrigins === undefined ? {} : { allowedOrigins: input.allowedOrigins }),
+      },
     )
     if (input.existingCodingSessionsEnabled !== undefined) {
       await setExistingSessionsEnabled(command.stateDir, input.existingCodingSessionsEnabled)
@@ -266,6 +271,19 @@ export const run = async (args: string[]): Promise<void> => {
       ...(pause ? { since: pause.since } : {}) })}\n`
       : pause ? 'Paused. Agents in this team start nothing new on this computer until you resume it.\n'
         : 'Resumed. Agents in this team can use this computer again.\n')
+    return
+  }
+  if (command.kind === 'audience') {
+    const audience = await readAudience(command.stateDir)
+    if (command.json) {
+      process.stdout.write(`${JSON.stringify(audience)}\n`)
+      return
+    }
+    const names = (entries: Array<{ name: string }>): string => entries.map((entry) => entry.name).join(', ') || 'none'
+    process.stdout.write(`Agents: ${names(audience.agents)}\n`
+      + `People: ${audience.everyoneInTeam ? 'everyone in the team' : `${names(audience.people)}${
+        audience.peopleCount > audience.people.length ? ` and ${audience.peopleCount - audience.people.length} more` : ''}`}\n`
+      + `Projects: ${names(audience.projects)}\n`)
     return
   }
   if (command.kind === 'program-requests') {
@@ -292,7 +310,7 @@ export const run = async (args: string[]): Promise<void> => {
     return
   }
   if (command.kind === 'describe') {
-    process.stdout.write(`${JSON.stringify({ ...describeExecutor(state),
+    process.stdout.write(`${JSON.stringify({ ...await describeExecutorWithLocalApps(state),
       paused: await ownerPaused(command.stateDir),
       pendingProgramRequests: (await listProgramRequests(command.stateDir)).length,
       folderSync: await describeFolderSync(command.stateDir, state.executorId),
