@@ -61,7 +61,8 @@ export class CodexHistoryPrivacy {
       identities.set(fields.id, fields.isSecret)
       return fields.isSecret
     })
-    return masks.includes(undefined) ? UNKNOWN_VALUE : masks.includes(true) ? PRIVATE_VALUE : undefined
+    return masks.length === 0 || masks.includes(undefined) ? UNKNOWN_VALUE
+      : masks.includes(true) ? PRIVATE_VALUE : undefined
   }
 
   private questionDescriptor(item: Record<string, unknown>): unknown {

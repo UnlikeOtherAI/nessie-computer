@@ -102,3 +102,12 @@ test('explicitly public native questions keep their original answer and raw priv
   assert.match(result, /supported summary/u)
   assert.doesNotMatch(result, /CANARY/u)
 })
+
+test('empty question declarations cannot assert public answer classification', async () => {
+  const f = fixture([header, response({ type: 'function_call', call_id: 'empty', name: 'request_user_input',
+    arguments: JSON.stringify({ questions: [] }) }),
+  response({ type: 'function_call_output', call_id: 'empty', output: 'CANARY' })])
+  const history = new CodexRetainedHistory(f.source)
+  await history.prepare()
+  assert.doesNotMatch(JSON.stringify(await history.page()), /CANARY/u)
+})

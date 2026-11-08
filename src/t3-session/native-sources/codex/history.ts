@@ -1,4 +1,4 @@
-import { codexIdentityKey, requireCodex, type CodexNativeIdentity } from './identity.js'
+import { codexIdentity, codexIdentityKey, requireCodex, type CodexNativeIdentity } from './identity.js'
 import { CodexHistoryPrivacy } from './privacy.js'
 import { parseCodexRolloutLine, projectCodexRecord, type CodexRolloutRecord } from './rollout.js'
 
@@ -76,7 +76,11 @@ export class CodexRetainedHistory {
   private unsupportedRecords = 0
   private readonly source: CodexRolloutBytes
 
-  constructor(source: CodexRolloutBytes) { this.source = source }
+  constructor(source: CodexRolloutBytes) {
+    this.source = Object.freeze({ identity: codexIdentity(source.identity, source.identity.nativeId),
+      resourceRevision: source.resourceRevision, capturedBytes: source.capturedBytes,
+      read: source.read.bind(source), recheck: source.recheck.bind(source) })
+  }
 
   async prepare(): Promise<void> {
     requireCodex(!this.attempted, 'codex_history_requires_fresh_capture')
@@ -99,6 +103,11 @@ export class CodexRetainedHistory {
     }
     requireCodex(!first, 'codex_rollout_header_incomplete')
     this.privacy.complete()
+    // Validate the complete projected capture before its first page can claim completeness.
+    for await (const line of lines(source, 0)) {
+      const projected = projectCodexRecord(line.record)
+      if (projected.record) this.privacy.apply(projected.record)
+    }
     await source.recheck()
     this.ready = true
   }

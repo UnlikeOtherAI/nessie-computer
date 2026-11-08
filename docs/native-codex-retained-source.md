@@ -65,7 +65,8 @@ Keep the instance inside the canonical port's live callback and invalidate it
 when that lease ends. Reads must honor the canonical maximum 60-second freshness.
 
 Preparation walks every complete JSONL record in 64 KiB reads before any page
-is published. The first `session_meta` must bind the exact native ID; conflicting
+is published, then validates a full projection pass using that correlation.
+The first `session_meta` must bind the exact native ID; conflicting
 headers fail. A record is limited to 1 MiB, with no tail or message-count
 retention cutoff. Malformed JSON/UTF-8 and oversized records fail explicitly.
 A partial last record yields `partial-final-record`, and a later source capture
