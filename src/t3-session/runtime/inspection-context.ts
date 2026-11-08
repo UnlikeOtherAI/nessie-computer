@@ -8,6 +8,7 @@ import type { ServerSettingsError } from '@nessie/t3-session-source/contracts'
 import type { OwnedCaptureSqlError } from '../import/materialize.js'
 import type { ExecutorT3Request, ExecutorT3LaneDelivery, T3ExecutionSignedAdmission }
   from '@nessie/executor-protocol/t3-session'
+import { T3ExecutionInspectionSchema } from '@nessie/executor-protocol/t3-session'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import type { HeldSessionExecutionState } from './execution-state.js'
 import { sessionExecutionSettingsLayer } from './execution-settings.js'
@@ -25,13 +26,12 @@ type ColdServices = HostServices | ContextServices<EffectValue<Inspection>>
 export interface SessionInspectionContext {
   readonly engine: EngineOwner
   readonly context: Context.Context<ColdServices>
+  readonly recheck: Effect.Effect<void, SessionExecutionGraphRefused>
   inspect(request: LaunchRequest,
     delivery: { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string }):
-    Effect.Effect<HeldSessionExecutionGraph, EffectFailure<SessionExecutionGraphPreparation>,
-      Exclude<EffectServices<SessionExecutionGraphPreparation>, ColdServices>>
+    Effect.Effect<HeldSessionExecutionGraph, EffectFailure<SessionExecutionGraphPreparation>, Scope.Scope>
   recognize(graph: HeldSessionExecutionGraph, request: LaunchRequest, delivery: ExecutorT3LaneDelivery):
-    Effect.Effect<EffectValue<SessionExecutionGraphRecognition>, EffectFailure<SessionExecutionGraphRecognition>,
-      Exclude<EffectServices<SessionExecutionGraphRecognition>, ColdServices>>
+    Effect.Effect<EffectValue<SessionExecutionGraphRecognition>, EffectFailure<SessionExecutionGraphRecognition>>
 }
 export type SessionInspectionContextEffect = Effect.Effect<SessionInspectionContext,
   OwnedCaptureSqlError | ServerSettingsError | EffectFailure<Inspection> | SessionExecutionGraphRefused,
@@ -60,6 +60,15 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
       delivery: { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string }) =>
       Effect.gen(function* () {
         yield* current
+        const challenge = yield* Effect.try({
+          try: () => T3ExecutionInspectionSchema.parse(JSON.parse(delivery.inspection.payload)),
+          catch: () => new SessionExecutionGraphRefused(),
+        })
+        if (challenge.sourceGeneration !== state.captureGeneration
+          || challenge.sourceRootKey !== state.source.physicalRootKey
+          || challenge.runtimeGeneration !== state.owner.runtimeGeneration) {
+          return yield* Effect.fail(new SessionExecutionGraphRefused())
+        }
         const graph = yield* prepareSessionExecutionGraph(request, delivery, source).pipe(Effect.provide(context))
         yield* current
         return graph
@@ -71,5 +80,5 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
         yield* current
         return target
       })
-    return { engine, context, inspect, recognize }
+    return { engine, context, inspect, recognize, recheck: current }
   })

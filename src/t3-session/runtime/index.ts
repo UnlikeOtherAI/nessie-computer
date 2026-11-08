@@ -9,6 +9,9 @@ export { SessionStateOwner } from './state-owner.js'
 export { withSessionExecutionState, type HeldSessionExecutionState } from './execution-state.js'
 export { sessionExecutionSettingsLayer } from './execution-settings.js'
 export { makeSessionInspectionContext } from './inspection-context.js'
+export { makeSessionInspectionLeases, type SessionInspectionLeases } from './inspection-leases.js'
+export { withHeldSessionInspectionRuntime, type HeldSessionInspectionRuntime,
+  type SessionInspectionRuntime } from './inspection-runtime.js'
 export { sessionOperationScope, SessionOperationScopeClosed } from './operation-scope.js'
 export { bindSessionControlSlots, bindRetainedCatalogSlots, bindRetainedCatalogHttp,
   isSessionControlRequest } from './slots.js'

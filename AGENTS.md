@@ -61,6 +61,7 @@ Retained catalog reads, original operation contracts and their unbound transport
 The callback-scoped captured read graph and signed ordered publication producer follow [retained publication](docs/retained-t3-publication.md); passive graph readiness does not authorize execution.
 Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).
 Runtime composition, opaque ProviderHost references, scoped operation slots and the combined qualification gate follow [session runtime](docs/session-runtime.md); native/provider producers remain required.
+The fixed `t3-session-runtime` entry and existing-daemon inspection channel follow [protected inspection](docs/session-runtime.md#protected-inspection-entry); source inspection never authorizes command/provider input.
 The Windows tray's bounded inherited-pipe handoff, existing-daemon registry, whole-source capture/publication and drained retirement follow [retained runtime handoff](docs/retained-runtime-handoff.md); no local listener or native execution is added.
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
 Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).

@@ -2,6 +2,8 @@ import type { Readable, Writable } from 'node:stream'
 import { createRetainedDaemonRuntime } from './t3-session/runtime/daemon-handoff.js'
 import { attachRetainedParentHandoff } from './t3-session/runtime/parent-handoff.js'
 import { registerMachineT3Sources } from './t3-session/source/owner.js'
+import { createProtectedSessionRuntime } from './t3-session/runtime/protected-runtime.js'
+import { isT3NativeLaunchOperation } from '@nessie/executor-protocol/t3-session'
 import { enableLocalSessionBridge } from './local-session-bridge.js'
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
 import { createSessionAuthorityClient } from './session-authority-client.js'
@@ -64,9 +66,11 @@ export const serveExecutor = async (
   let protectionRuntime: Awaited<ReturnType<PersonalInferenceGuard['registerRuntime']>> | null = null
   let releaseT3Sources: (() => void) | undefined
   let retained: ReturnType<typeof createRetainedDaemonRuntime> | undefined
+  let executing: ReturnType<typeof createProtectedSessionRuntime> | undefined
   let retainedParent: ReturnType<typeof attachRetainedParentHandoff> | undefined
   let retainedFailure: unknown
   const closeRetained = async () => {
+    try { await executing?.close() } catch (error) { retainedFailure ??= error }
     try { await retained?.close() } catch (error) { retainedFailure ??= error }
     try { await retainedParent?.close() } catch (error) { retainedFailure ??= error }
   }
@@ -81,6 +85,8 @@ export const serveExecutor = async (
     let wakeRetained = () => undefined as void
     const retainedRuntime = createRetainedDaemonRuntime(stateDir, () => live, () => wakeRetained(),
       status => retainedParent?.report(status))
+    const executingRuntime = createProtectedSessionRuntime(() => live, () => wakeRetained())
+    executing = executingRuntime
     retained = retainedRuntime
     if (options.retainedParentOutput) {
       if (!options.parentLiveness) throw new Error('retained_handoff_parent_required')
@@ -112,8 +118,19 @@ export const serveExecutor = async (
     const relayScreens = createSessionViewRelay(
       codingBridge, ownerRequestsGate.understood, ownerRequestsGate.holdReports,
     )
-    const t3Lane = createT3SessionLane(retainedRuntime.lane)
+    const t3Lane = createT3SessionLane({
+      describe: () => retainedRuntime.lane.describe(),
+      describeInspections: () => executingRuntime.runtime.describeInspections(),
+      inspect: (request, signal, delivery) => executingRuntime.runtime.inspect(request, signal, delivery),
+      acceptInspection: (request, accepted, signal) =>
+        executingRuntime.runtime.acceptInspection(request, accepted, signal),
+      releaseInspection: id => executingRuntime.runtime.releaseInspection(id),
+      open: (request, signal, delivery) => isT3NativeLaunchOperation(request)
+        ? executingRuntime.runtime.open(request, signal, delivery)
+        : retainedRuntime.lane.open(request, signal, delivery),
+    })
     const screenPoll = createNonOverlappingExecutorTask(async () => {
+      await executingRuntime.refresh()
       await Promise.allSettled([relayScreens(live), t3Lane.exchangeT3SessionOperations(live)])
     })
     void localMcp.refresh().catch(() => undefined)
@@ -179,6 +196,7 @@ export const serveExecutor = async (
         )
         void codingBridge.close(close).catch(() => undefined)
       } catch (error) {
+        await executingRuntime.stopCurrent()
         await retainedRuntime.stopCurrent()
         await browserSessions.stopAll()
         await commandSessions.stopAll()
@@ -211,6 +229,7 @@ export const serveExecutor = async (
       && browserSessions.isIdle() && commandSessions.isIdle() && codingSessions.isIdle()
       && localInference.supervisor.isIdle()
       && !retainedRuntime.busy()
+      && !executingRuntime.busy()
     const pollTick = createNonOverlappingExecutorTask(async () => {
       if (shuttingDown) return
       if (drainingForUpdate && idle() && await codingBridge.isIdle() && drainingForUpdate && idle()) {

@@ -628,3 +628,73 @@ Catalog and file wrappers name their original codecs and Effect services; SQL
 transaction errors remain explicit. The retained wake uses the actual
 `session_views` cadence topic. These compiler results establish neither native
 execution nor installed readiness; focused runtime and provider tests continue.
+
+`makeSessionInspectionLeases` retains a separate child Effect Scope for each
+original inspection. Its independent timer uses the supplied original admission
+resource deadline, not the five-second signing window. Exact retries keep that
+deadline; changing it refuses. Parent cancellation, explicit release and owner
+closure interrupt and join preparation, native companion cleanup and all demand
+before releasing the selection. Native Promise interruption joins the same
+pending call, including its positive-clearance cleanup; it never retries a write.
+`withRecognized` holds the entire admitted callback and supplies its scoped abort
+signal and the frozen canonical acceptance record, so the reserve selector can
+use that exact backend graph ID. The record is retention metadata, never a signed
+phase grant. A returned target cannot end lifetime tracking before dispatch drains.
+The cold context checks challenge source/capture/writer generation against the
+actual held imported state before creating the native graph receipt.
+
+`withHeldSessionInspectionRuntime(source, state, use, signal)` now composes that
+lease owner and the original cold context inside the existing resource/writer
+callbacks. It exposes the exact parent-integrated `describeInspections`,
+`inspect`, `acceptInspection` and `releaseInspection` methods. Announcements name
+the actual held source/capture/writer; no retained read state or execution-ready
+flag is returned. The same original engine remains available to the enclosing
+protected owner for separately admitted activation.
+
+ACK handling compares the full original request, full canonical receipt digest,
+epoch, source revision/root/capture, runtime generation, command and relay
+correlation against the existing record. It independently shortens the resource
+timer to the backend canonical expiry and rechecks held source state. Exact ACK
+replay repeats neither work nor timer updates. Missing ACK, substituted metadata
+and changed deadlines cannot open a recognized command callback. Callback exit
+aborts and drains demand before releasing the engine and SQL resources.
+
+No command or provider authority is inferred from retaining the scope. Six lease
+fixtures are authored and unrun, including lost-ACK retention, shortening,
+metadata substitution and joined cleanup. Builtin parsing performs no application
+evaluation. No compiler, package tests, native launch or manual journey ran for
+this checkpoint.
+
+## Protected inspection entry
+
+The fixed `t3-session-runtime` CLI now reads SYSTEM's startup frame exactly once
+through `readProtectedT3GraphStartup`. Its later bounded NDJSON channel accepts
+only a configured admitted-root selector, inspect/accept/release/describe and
+close. It receives no source path, settings DTO, machine key or executable.
+Settings and the source snapshot come from `withT3ExecutionResources` inside
+that protected process. It imports once through `withSessionExecutionState` and
+holds the original graph until the channel, source or writer closes.
+
+Destination journals live under the actual process user's
+`.local/state/nessie-t3-graphs/<sha256-executor-id>`, checked outside checkouts and
+secured owner-only. This is new local execution state, never a replacement for
+the enrolled service directory or original source configuration. Source consent
+and registration linkage remain native-owned before any source read.
+
+`createProtectedSessionRuntime` now attaches those children to `serveExecutor`'s
+existing source registry and single signed lane. Configured roots select which
+children to start; only a returned actual held descriptor announces inspection.
+Each request fences executor, epoch, source and writer. Heartbeat replacement,
+source removal, shutdown and update draining withdraw announcements and join
+service-positive child clearance before daemon custody releases. A cleared child
+may be recreated after a bounded delay; unknown startup/clearance is retained as
+unavailable rather than retried as if no process existed.
+
+This is inspection only. The command `open` path still refuses: original admitted
+activation, per-operation SDK serialization and immutable history composition
+remain unfinished. It does not advertise retained readiness or claim a provider
+launch. The protected finite native phase transport will attach to the exact
+open operation's closure, never to a caller-selected operation or daemon key DTO.
+Four control-channel fixtures cover bounded framing, UTF8, field injection and
+write acknowledgements. They are authored and unrun. No installed/native journey
+or compiler qualification is claimed for this entry.
