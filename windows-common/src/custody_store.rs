@@ -33,6 +33,8 @@ pub struct State {
     pub hosts: BTreeMap<String, Host>,
     #[serde(default)]
     pub holds: BTreeMap<String, Generation>,
+    #[serde(default)]
+    pub execution_creations: BTreeMap<String, crate::execution_creator::Creation>,
 }
 pub struct Store {
     path: PathBuf,
@@ -102,12 +104,15 @@ impl Store {
             || state.fences.len() > 256
             || state.hosts.len() > 4096
             || state.holds.len() > 256
+            || state.execution_creations.len() > 256
         {
             return Err(REJECTED.into());
         }
         Ok(state)
     }
     pub fn write(&self, state: &State) -> Result<(), String> {
+        let encoded=serde_json::to_vec(state).map_err(|_|REJECTED)?;
+        if encoded.len()>1_048_576{return Err(REJECTED.into());}
         let parent = self.path.parent().ok_or(REJECTED)?;
         fs::create_dir_all(parent).map_err(|_| REJECTED)?;
         let draft = self.path.with_extension("draft");
@@ -117,7 +122,7 @@ impl Store {
             .truncate(true)
             .open(&draft)
             .map_err(|_| REJECTED)?;
-        file.write_all(&serde_json::to_vec(state).map_err(|_| REJECTED)?)
+        file.write_all(&encoded)
             .map_err(|_| REJECTED)?;
         file.sync_all().map_err(|_| REJECTED)?;
         drop(file);

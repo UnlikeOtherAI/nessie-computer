@@ -25,6 +25,7 @@ path = "src/main.rs"
 
 [dependencies]
 base64 = "0.22.1"
+hmac = "0.12.1"
 ed25519-dalek = { version = "3.0.0", features = ["pem"] }
 libc = "0.2.182"
 serde = { version = "1.0.228", features = ["derive"] }

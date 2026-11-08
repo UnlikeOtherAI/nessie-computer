@@ -21,9 +21,24 @@ const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
+    let now=nessie_windows_common::execution::now_ms()?;
+    for record in state.execution_creations.values_mut(){
+        if let Some(job)=&record.job_name{
+            let gone=match &record.child {Some(child)=>absent(child)?,None=>record.expires_at_ms<=now};
+            if gone&&job_members(job)?.is_empty(){
+                record.cleared=true;record.cleared_at_ms.get_or_insert(now);
+            }
+        }
+    }
+    // Keep observable clearance for late readers; nonce claims live separately
+    // and are never pruned, so removal cannot permit replay.
+    state.execution_creations.retain(|_,v|v.cleared_at_ms.is_none_or(|t|now.saturating_sub(t)<60_000));
     let mut gone = Vec::new();
     for (key, record) in &state.runtimes {
         if record.supervisor.boot_id != boot
+            || (record.kind==RuntimeKind::T3SessionGraph && absent(&record.child)?
+                && job_members(&record.job_name)?.is_empty()
+                && !state.execution_creations.values().any(|v|v.graph.as_ref()==Some(&record.child)&&!v.cleared))
             || (job_members(&record.job_name)?.is_empty()
                 && absent(&record.child)?
                 && absent(&record.supervisor)?)
@@ -112,22 +127,40 @@ pub fn handle(
         return Err(REJECTED.into());
     }
     let caller = Process::open(pid)?;
+    let creator=matches!(&operation,Operation::ExecutionCreator{..});
     if !caller.alive()
         || Some(caller.sid.as_str()) != sid
         || caller.image.file_name().and_then(|value| value.to_str())
-            != Some("nessie-executor-native.exe")
+            != Some(if creator && caller.session==0{"nessie-computer-updater.exe"}else{"nessie-executor-native.exe"})
     {
         return Err(REJECTED.into());
     }
     caller.signed(PIN)?;
-    let release = nessie_windows_common::release::load_at(&caller.image, PIN)?;
+    let release = if creator {
+        if caller.sid!="S-1-5-18"{return Err(REJECTED.into());}
+        if caller.session==0 { let _pins=nessie_windows_common::update_runtime::pin_image(&caller.image,PIN)?; }
+        let program=nessie_windows_common::update_admission::known_folder(
+            &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)?;
+        let mut release=nessie_windows_common::release::load_at(
+            &program.join("Nessie Executor/nessie-executor-native.exe"),PIN)?;
+        release.verify_launch_consumers(PIN)?;release
+    }else{nessie_windows_common::release::load_at(&caller.image, PIN)?};
     let store = Store::new(root);
     let mut state = store.read()?;
     reconcile(&mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
+        Operation::ExecutionCreator {request}=>{
+            if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}
+                |nessie_windows_common::execution_creator::Request::ClearSessionHost{..}){
+                machine.admit_daemon(&release.digest)?;
+            }
+            crate::execution_creator::handle(root,&caller,&release,&mut state,request)?
+        }
         Operation::ExecutionResource { request } => {
             machine.admit_daemon(&release.digest)?;
+            crate::execution_context::require_companion_role(&caller, &release, &state,
+                nessie_windows_common::execution_creator::CompanionRole::Resource)?;
             crate::execution_resource::handle(root,&caller,&release,&state,*request)?
         }
         Operation::Execution { request } => {

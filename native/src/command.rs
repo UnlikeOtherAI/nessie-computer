@@ -13,6 +13,8 @@ pub const MAX_JOB_ARGUMENT_LENGTH: usize = 32_767;
 /// only the bodies behind the workspace commands are POSIX-only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    T3ExecutionStart(String),
+    T3ExecutionSessionHost(String),
     T3Execution(String),
     T3SourceRead,
     T3ExecutionResource,
@@ -115,6 +117,12 @@ fn job_argv(values: &[String]) -> Result<Vec<String>, NativeError> {
 
 pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
     match arguments {
+        [command, nonce] if command == "t3-execution-session-host" && nonce.len()==64
+            && nonce.bytes().all(|v|v.is_ascii_digit()||(b'a'..=b'f').contains(&v)) =>
+            Ok(Command::T3ExecutionSessionHost(nonce.clone())),
+        [command, executor] if command == "t3-execution-start" && !executor.is_empty()
+            && executor.len() <= 512 && !executor.contains('\0') =>
+            Ok(Command::T3ExecutionStart(executor.clone())),
         [command, mode] if command == "t3-execution"
             && ["offer", "enroll", "graph", "reserve", "prepare", "associate", "launch"].contains(&mode.as_str()) =>
             Ok(Command::T3Execution(mode.clone())),

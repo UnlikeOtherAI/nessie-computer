@@ -101,6 +101,8 @@ fn service_main(_arguments: Vec<OsString>) {
             // Source consent uses its own typed listener and never widens update control.
             let issuer_stopped = stopped.clone();
             std::thread::spawn(move || { let _ = crate::t3_source::issuer_service::serve(issuer_stopped); });
+            let creator_stopped = stopped.clone();
+            std::thread::spawn(move || { let _ = crate::execution_creator_listener::serve(creator_stopped); });
             let _ = handle.set_service_status(status(ServiceState::Running));
             serve(stopped.clone()).map_err(|_| ERROR)
         });

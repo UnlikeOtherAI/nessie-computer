@@ -16,11 +16,13 @@ pub fn call(
     };
     crate::custody::validate(operation)?;
     let observer = service_account_sid()?;
-    crate::peer_inspection::allow_process_for(
+    let isolated=crate::process::Process::open(std::process::id())
+        .is_ok_and(|own|crate::execution_isolation::verify(&own).is_ok());
+    if !isolated { crate::peer_inspection::allow_process_for(
         unsafe { windows_sys::Win32::System::Threading::GetCurrentProcess() },
         &observer,
     )
-    .map_err(str::to_owned)?;
+    .map_err(str::to_owned)?; }
     let name: Vec<u16> = std::ffi::OsStr::new(crate::CUSTODY_PIPE_NAME)
         .encode_wide()
         .chain(Some(0))

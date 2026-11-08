@@ -45,6 +45,12 @@ mod execution_observation;
 mod execution_preparation;
 #[cfg(windows)]
 mod execution_resource;
+#[cfg(windows)]
+mod execution_creator;
+#[cfg(windows)]
+mod execution_session_host;
+#[cfg(windows)]
+mod execution_creator_owner;
 mod custody_store;
 mod paths;
 #[cfg(windows)]

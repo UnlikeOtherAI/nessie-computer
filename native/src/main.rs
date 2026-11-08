@@ -4,6 +4,22 @@ mod t3_source;
 #[cfg(windows)]
 mod t3_execution;
 #[cfg(windows)]
+mod execution_creator_listener;
+#[cfg(windows)]
+mod execution_creator_stream;
+#[cfg(windows)]
+mod execution_creator_bridge;
+#[cfg(windows)]
+mod execution_spawn;
+#[cfg(windows)]
+mod execution_spawn_security;
+#[cfg(windows)]
+mod execution_session_host;
+#[cfg(windows)]
+mod execution_session_process;
+#[cfg(windows)]
+mod protected_pipe;
+#[cfg(windows)]
 mod owner_approval_windows;
 #[cfg(windows)]
 mod execution_approval;
@@ -168,6 +184,18 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
+        Command::T3ExecutionSessionHost(nonce) => {
+            #[cfg(windows)]
+            { execution_session_host::run(nonce) }
+            #[cfg(not(windows))]
+            { let _=nonce; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
+        Command::T3ExecutionStart(executor) => {
+            #[cfg(windows)]
+            { execution_creator_bridge::start(executor) }
+            #[cfg(not(windows))]
+            { let _ = executor; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
         Command::T3Execution(mode) => {
             #[cfg(windows)]
             { t3_execution::run(mode) }

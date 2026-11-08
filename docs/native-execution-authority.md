@@ -116,13 +116,17 @@ recorded SYSTEM creation plus process/thread/token/default-DACL and mitigation
 checks from `execution_isolation.rs`, before registration and on every call.
 Current same-user startup cannot pass. This refusal is intentional.
 
-The missing production creator must establish protected process/thread/token
-security at creation for the graph AND each native companion, before their first
-instruction, and preserve original runtime transport. Tightening ACLs after
-spawn, a boolean marker or merely a signed helper does not establish that fact.
-The existing retained SYSTEM launch has OS primitives to refactor, but its
-signer, key and domain must not become the execution issuer. Installed Node and
-all required native modules must also pass the mitigation compatibility journey.
+The new SYSTEM creator source installs process/thread/token security, mitigation
+policy and Job membership at suspended creation. Its listener runs in the
+existing LocalSystem updater; the normal executor service retains its virtual
+account and independently journals/verifies creation. Same-user launch remains
+denied. The session-0 updater creates an isolated SYSTEM session host with no
+inherited handles. The service records that host's actual generation before
+resume; it then creates the user graph and companions within the same Windows
+session. A private SYSTEM-only pipe binds the host to its actual updater parent.
+Graph stdio therefore never relies on cross-session handle inheritance.
+Installed verification must establish these token privileges, nested parent/Job
+behavior and Node/native-module mitigation compatibility.
 
 Physical resource modules and original allocator/serializer integration need
 parent integration. New service Cargo dependencies need root-owned lock
@@ -134,6 +138,54 @@ approval/handle commands. Root's serial window must compile these sources and
 exercise enrollment, denied ordinary-process injection, expiry/revoke/late
 delivery, exact provider association, backpressure, crash and positive clearance
 through the signed disposable installed journey. No production-working claim.
+# Protected creator source checkpoint
+
+The fixed SYSTEM creator is under implementation. Its service journal records
+the actual creator, graph and companion process generations before resume.
+Creation installs process, thread and token ACLs, mitigation policy and Job
+membership before the child's first instruction. The startup descriptor goes
+directly to graph stdin; its per-graph channel key never reaches the daemon.
+Companion transport acknowledges stdin only after the child pipe write and
+requires independent service clearance of the Job before reporting closed.
+
+The updater listener, fixed native bootstrap, service role gate and public
+stream consumer are wired in source. `startProtectedT3Graph(executorId, signal?)`
+uses only `t3-execution-start`; SYSTEM selects immutable `t3-session-runtime`.
+The graph calls `readProtectedT3GraphStartup()` before reading its runtime lane.
+That function owns the first stdin frame, retains the creator key privately and
+returns only the startup descriptor. It never loads machine state or keys.
+
+`spawnProtectedT3Companion(role, signal?)` returns standard stdin/stdout/stderr
+streams, pid, exitCode, exit/close/error events, `terminate()` and `closed`.
+`closed` resolves only after independent service clearance. A process exit or
+kill result does not settle it. Unknown write delivery is not retried. A finite
+companion has an exact journal role; every resource variant requires `resource`
+before entering the resource handler. Execution roles cannot call resource or
+other execution transitions. Generic provider stdin and old launch/observation
+routes remain denied pending the distinct finite SYSTEM provider transition.
+
+The graph-to-companion endpoint is separate from update, pairing, retained
+consent and bootstrap pipes. Node's Windows pipe open requires generic file
+write rights, including the instance bit. Therefore this endpoint authenticates
+the actual kernel graph peer and returns an HMAC over the exact graph/role/nonce/
+child record before the client sends private input. The per-graph key travels
+only through SYSTEM-created stdin. A spoofed pipe instance cannot produce the
+proof; it can cause connection refusal, which is never retried as an effect.
+Restricted native endpoints retain their existing access mask.
+
+Companion pipe names include the native graph ID. The updater withholds graph
+`closed` until the executor service also observes the SYSTEM session host absent
+and its enclosing Job empty. A host self-report, a proxy EOF or exit alone cannot
+clear that additional lifetime. The SYSTEM host has no generic command/argv
+receiver; its fixed CLI carries only the service-journal nonce.
+
+Service journals retain clearance for late readers, preserve permanent nonce
+claims, reject replay/expired registration and cap active records. New fixtures
+cover exact write ACK, split UTF8/header bytes, exit without clearance, revocation,
+late ACK, missing ACK, false clearance and forbidden creator selectors. These
+fixtures are authored, unrun. Node syntax at 128 MiB, Rust formatting/parsing and
+diff checks ran. No compiler, suite, native launch, signing or installation ran.
+
 # Nonexecuting inspection delivery
 
 The canonical daemon session lane carries bounded `inspections` and exact

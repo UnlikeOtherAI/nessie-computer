@@ -110,6 +110,19 @@ pub fn handle(
     request: Request,
 ) -> Result<Value, String> {
     request.validate()?;
+    use nessie_windows_common::execution_creator::CompanionRole as Role;
+    let role = match &request {
+        Request::Offer { .. } => Role::ExecutionOffer,
+        Request::Review { .. } | Request::Approve { .. } => Role::ExecutionEnroll,
+        Request::Graph { .. } => Role::ExecutionGraph,
+        Request::Reserve { .. } => Role::ExecutionReserve,
+        Request::Prepare { .. } => Role::ExecutionPrepare,
+        Request::Associate { .. } => Role::ExecutionAssociate,
+        // Provider creation is a distinct SYSTEM transition. No fixed companion
+        // role authorizes the old same-user launcher or observation route.
+        Request::Launch { .. } | Request::Observe { .. } => return Err(REJECTED.into()),
+    };
+    execution_context::require_companion_role(caller, release, state, role)?;
     match request {
         Request::Offer { executor_id } => {
             let (descriptor, _) =
@@ -241,8 +254,9 @@ pub fn handle(
             // Scoped environment remains in held service memory, never the replay journal.
             payload["launchDigest"] = held["launchDigest"].clone();
             payload["providerSessionId"] = json!(provider_session_id);
-            payload["issuedAtMs"] = json!(now_ms()?);
-            payload["expiresAtMs"] = json!(now_ms()?.checked_add(5000).ok_or(REJECTED)?);
+            let issued=now_ms()?;
+            payload["issuedAtMs"] = json!(issued);
+            payload["expiresAtMs"] = json!(issued.checked_add(5000).ok_or(REJECTED)?);
             key.claim(
                 "prepare",
                 &reservation_id,
