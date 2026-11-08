@@ -90,6 +90,8 @@ original registry: whitespace-only values refuse; other whitespace is preserved.
 Only then are raw buffers wiped and the token-derived ACK written before expiry.
 Every failure is terminal, clears private installed values and closes both
 channels. Scope closure aborts and joins receivers, then releases value references.
+The captured operation and source abort signals remain attached after ACK;
+either revokes installed values even when no receiver is still pending.
 JavaScript strings cannot be physically zeroed; raw buffers are explicitly wiped.
 
 There is no raw-value getter, exported installer or callback registration. The

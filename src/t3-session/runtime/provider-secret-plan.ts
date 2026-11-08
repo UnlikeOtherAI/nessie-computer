@@ -49,9 +49,17 @@ type PlanEffect = Effect.Effect<HeldSessionProviderSecretPlan,
 type Record = { source: T3ExecutionResourceScope; target: PreparedSessionLaunchTarget;
   evidence: SessionProviderSecretPlanEvidence; settings: string; entry: ProviderInstanceConfig;
   environment: Array<ResolvedProviderInstanceEnvironment[number] | undefined>; stop: AbortController;
-  pending: Set<Promise<void>> }
+  pending: Set<Promise<void>>; lifetimes: Map<AbortSignal, () => void> }
 const records = new WeakMap<HeldSessionProviderSecretPlan, Record>()
 const token = Object.freeze({})
+
+function retainSecretLifetime(record: Record, signal: AbortSignal): void {
+  if (record.lifetimes.has(signal)) return
+  const revoke = () => { record.environment.fill(undefined); record.stop.abort() }
+  record.lifetimes.set(signal, revoke)
+  signal.addEventListener('abort', revoke, { once: true })
+  if (signal.aborted) revoke()
+}
 
 /** Non-hydrating selection only. A service must independently bind these
  * original slots to its held settings/recipient before it can sign a read plan.
@@ -98,7 +106,7 @@ export class HeldSessionProviderSecretPlan {
       }
       const plan = new HeldSessionProviderSecretPlan(token, { source, target, evidence,
         settings: canonicalExecutorJson(Schema.encodeSync(ServerSettings)(settings)),
-        entry: structuredClone(entry), stop: new AbortController(), pending: new Set(),
+        entry: structuredClone(entry), stop: new AbortController(), pending: new Set(), lifetimes: new Map(),
         environment: (entry.environment ?? []).map(variable =>
           ProviderSecretPlan.resolveProviderEnvironmentVariable(variable, undefined)) })
       yield* readSessionExecutionResources(source, target)
@@ -108,6 +116,8 @@ export class HeldSessionProviderSecretPlan {
           record.stop.abort()
           await Promise.allSettled([...record.pending])
           record.environment.fill(undefined)
+          for (const [signal, revoke] of record.lifetimes) signal.removeEventListener('abort', revoke)
+          record.lifetimes.clear()
         }
         records.delete(plan)
       }))
@@ -187,6 +197,10 @@ export const receiveSessionProviderSecretRead = (read: SessionProviderSecretRead
     slot.state = 'receiving' // All later failures are terminal, including malformed authority.
     const record = records.get(slot.plan)
     if (!record || record.stop.signal.aborted) throw new SessionSecretPlanRefused()
+    // The delivery deadline ends at ACK; the captured operation/source lifetime
+    // still revokes installed values afterwards, until the owner scope drains.
+    retainSecretLifetime(record, parent)
+    retainSecretLifetime(record, record.source.signal)
     const signed = T3ExecutionSignedAdmissionSchema.parse(exactSignedAdmission)
     const admission = T3ExecutionSecretReadAdmissionSchema.parse(JSON.parse(signed.payload))
     const preparation = T3ExecutionSecretReadPreparationPayloadSchema.parse(JSON.parse(preparationReceipt.payload))
