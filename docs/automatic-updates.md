@@ -2,8 +2,8 @@
 
 Status: **not released**. The Windows native installer coordinator and shared
 local controls are implemented in source. No signed installed upgrade has been
-verified, and macOS/Linux installer adapters and the transition release remain
-unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
+verified. Cross-platform installer adapters exist in source; complete stable
+publication and installed upgrade acceptance remain unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
 catalogs contain only the Apple-silicon DMG. They do not provide a complete
 stable distribution or establish installed upgrade acceptance.
 
@@ -11,14 +11,18 @@ The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
 background helper. See [the helper trust contract](macos-update-helper.md).
 
-Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
-at `c7ac37d` has verified timestamped signatures and matching extracted payload
-hashes; its native helper and CLI report the expected version/source. The macOS
-0.9.0 app and DMG at `b0e5c3b` passed Developer ID validation, notarization,
-stapling and Gatekeeper. Neither candidate has been installed, published or
-used for an A-to-B upgrade. No additional Installer certificate is required.
-macOS signing uses a temporary launchd job in the existing GUI
-session so SSH does not require another keychain sign-in or copied credentials.
+Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.11
+at `9d8fef9` installed normally on Maxis; its non-elevated controls can read
+status, change and restore the automatic preference, and request a check. The
+SYSTEM worker completed its first catalog check and returned idle with no
+recorded failures. Its managed CLI passed under the non-elevated desktop token
+and passed again after a normal SCM service restart. The runtime admission
+transport no longer requires a legacy pairing-control grant.
+The notarized macOS candidates pass signature and Gatekeeper checks but are
+not installed. Fedora's signed 1.0.2 package has passed service recovery and a
+machine restart. None of these candidates establishes stable A-to-B acceptance.
+macOS signing uses the existing GUI session and Developer ID identity; no
+additional Installer certificate or account setup is required.
 
 The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
@@ -343,3 +347,79 @@ automatic/stable defaults with SELinux still enforcing. The root-owned legacy
 image remains. Packaging-plan tests and all 37 native Rust tests passed.
 This verifies service setup and restart recovery, not catalogue-driven A-to-B
 installation, notification, interrupted-transaction recovery or GNOME controls.
+
+## Windows installed setup and rollback
+
+The signed MSI uses the existing UnlikeOtherAI Azure Artifact Signing identity.
+Major upgrades remove the old product inside the MSI transaction, after
+`InstallInitialize`; failure restores the old product. Installed tests must use
+the original signed MSI. A transform may inject a failure only in a separate
+rollback test, and that result is not an ordinary installation pass.
+
+The native protected-image pin requests READ_CONTROL for its retained handle.
+Creator-owner inheritance-only ACEs do not grant access to the parent; actual
+files remain independently checked. SYSTEM installer setup may run in the active
+logon session, while live updater and worker roles still require SYSTEM/session 0.
+SCM recovery setup requests SERVICE_CHANGE_CONFIG and SERVICE_START. A real
+one-off test service verifies its failure actions without starting an executable.
+
+The signed 1.0.4 candidate at `2fcf592` passed a forced-failure rollback test:
+MSI restored the previous installed edge product, service and pairing. That test
+did not validate stable automatic updates. The signed 1.0.11 candidate at
+`9d8fef9` subsequently passed the normal installer, timestamped publisher/EKU
+verification, both automatic services, non-elevated update controls and a
+background catalog check. Its managed CLI passed before and after a normal SCM
+service restart. Its native gates passed 39 common, 31 native, five integration
+and 58 service tests on Maxis. Its MSI SHA-256 is
+`315c2e7307a46b65838321c48bcf6f4b5a1b87eb70e186e8827f568b598f5480`
+and size is 50,593,792 bytes. It remains unpublished.
+
+Nonblocking broker reads preserve Win32 ERROR_NO_DATA rather than Rust's EOF
+mapping. ConnectNamedPipe returning TRUE means the server is listening; only
+ERROR_PIPE_CONNECTED establishes a client in PIPE_NOWAIT mode. Real kernel pipe
+tests cover empty, connected, request/reply and disconnected states. The
+restricted worker environment includes OS-derived SystemRoot, SystemDrive,
+ALLUSERSPROFILE and ProgramData. No caller environment override selects the state
+root. The admission marker is read through the retained locked handle because
+Windows mandatory locks reject a second handle; the journal and inode survive
+recovery unchanged.
+
+### Runtime admission and pairing control
+
+The pairing/control pipe `\\.\pipe\NessieExecutor` retains its existing
+Administrators and explicitly approved-account ACL. User-owned connections do
+not need a legacy service pairing or a repair grant to start. Their signed native
+launcher uses the separate fixed local pipe
+`\\.\pipe\NessieExecutorCustody`. This transport admits authenticated local
+accounts with client read/write rights only: no rival-instance creation and no
+remote clients. It accepts only managed-custody operations. Status, pairing,
+enrollment, folder grants and daemon-control requests cannot reach the legacy
+control handler through it.
+
+The same service custody handler still proves the live native producer's
+publisher, immutable release, account, session, child generation and named Job
+Object before registration. Machine-only runtime roles retain their service
+account and session-zero checks. Credential fences and update admission remain
+mandatory. Opening a pipe never grants custody.
+
+Both service roles publish only the process identity/liveness and token query
+metadata their clients require. The native launcher and suspended child grant
+those same read-only facts to the Windows-derived service account so the service
+can verify them. Existing ACL entries are merged, not replaced. No terminate,
+memory, handle duplication, token impersonation or ACL-write right is added.
+
+The runtime-only channel and reciprocal metadata fix passed the signed installed
+CLI journey, including service restart, without a control grant or Repair. The
+full native app, computer reconnect and machine-restart upgrade journeys remain
+unverified. Existing user pairings, service grants, accepted work and
+update/custody journals remain intact.
+
+The read-only developer probe is:
+`cargo run --manifest-path windows-common/Cargo.toml --example update-status`.
+It uses the authenticated fixed updater pipe and reports closed failure stages,
+OS errors and bounded byte counts. `--peer-facts` independently reports updater
+process/token, publisher and protected-image observations. `--installed-facts`
+checks known-folder and release provenance without changing state.
+`--service-peer-facts` inspects the fixed runtime service pipe without sending
+companion proof or a command. Diagnostic output never establishes health,
+authorizes installation or bypasses authentication.

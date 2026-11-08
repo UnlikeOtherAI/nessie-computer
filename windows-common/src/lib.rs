@@ -21,6 +21,8 @@ pub mod lease;
 #[cfg(windows)]
 pub mod process;
 #[cfg(windows)]
+pub mod peer_inspection;
+#[cfg(windows)]
 pub mod installed;
 #[cfg(windows)]
 pub mod registry;
@@ -43,6 +45,9 @@ pub use sid::sid_to_string;
 /// The Windows service name. `nessie-executor-service` registers under it and
 /// the MSI authors the same string.
 pub const SERVICE_NAME: &str = "NessieExecutor";
+
+/// Runtime admission only; pairing and machine control retain their separate ACL.
+pub const CUSTODY_PIPE_NAME: &str = r"\\.\pipe\NessieExecutorCustody";
 
 /// The account Windows creates for a service registered with that name and no
 /// password. The workspace ACL grant and the Hyper-V group membership name it.
@@ -140,3 +145,6 @@ mod tests {
         assert_eq!(CONTROL_PIPE_CLIENT_ACCESS & 0x0000_0004, 0);
     }
 }
+
+#[cfg(windows)]
+pub mod pipe_io;

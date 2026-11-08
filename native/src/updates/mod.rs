@@ -69,7 +69,7 @@ pub fn registered_service() -> Result<(), NativeError> {
     { Err(rejected()) }
 }
 pub fn install() -> Result<(), NativeError> {
-    broker::install().map_err(|_| rejected())
+    broker::install().map_err(NativeError::new)
 }
 pub fn uninstall() -> Result<(), NativeError> {
     host::platform::uninstall().map_err(|_| rejected())

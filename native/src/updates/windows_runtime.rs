@@ -20,12 +20,26 @@ pub(super) fn wide(value: &std::ffi::OsStr) -> Vec<u16> {
     value.encode_wide().chain(Some(0)).collect()
 }
 
-pub(in crate::updates) fn system() -> UpdateResult<()> {
+fn system_identity() -> UpdateResult<process::Process> {
     let current = process::Process::open(std::process::id()).map_err(|_| ERROR)?;
-    if current.sid != "S-1-5-18" || current.session != 0 {
+    if current.sid != "S-1-5-18" {
+        return Err("update.installation_authorization_required");
+    }
+    Ok(current)
+}
+
+pub(in crate::updates) fn system() -> UpdateResult<()> {
+    if system_identity()?.session != 0 {
         return Err("update.installation_authorization_required");
     }
     Ok(())
+}
+
+// Deferred non-impersonating MSI actions retain the installing session. They
+// must be SYSTEM, but need not be session 0. This only permits setup/removal
+// and staging a verified image; broker and worker execution still call system().
+fn installation_system() -> UpdateResult<()> {
+    system_identity().map(|_| ())
 }
 pub(in crate::updates) fn runtime() -> UpdateResult<release::Release> {
     let program_files =
@@ -137,7 +151,7 @@ pub(super) fn installer_temporary() -> UpdateResult<PathBuf> {
 }
 
 pub(in crate::updates) fn initialize() -> UpdateResult<()> {
-    system()?;
+    installation_system()?;
     // The installer calls the exact newly installed helper, not caller code.
     let release = runtime()?;
     let executable = std::env::current_exe().map_err(|_| ERROR)?;
@@ -174,13 +188,13 @@ pub(in crate::updates) fn initialize() -> UpdateResult<()> {
 }
 
 pub(in crate::updates) fn uninstall() -> UpdateResult<()> {
-    system()?;
+    installation_system()?;
     directory(&root()?)?;
     nessie_executor_updater::storage::Store::new(root()?).set_installation_enabled(false)
 }
 
 pub(in crate::updates) fn worker_image() -> UpdateResult<PathBuf> {
-    system()?;
+    installation_system()?;
     let installed = match runtime() {
         Ok(installed) => installed,
         Err(_) => {
