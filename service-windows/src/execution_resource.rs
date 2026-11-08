@@ -1,7 +1,7 @@
 //! Service-owned duplicated source handles, scoped to one protected graph.
 use crate::execution_context::{self, DescriptorContext};
 use nessie_windows_common::{custody::REJECTED, custody_store::State,
-    execution::{Custody, Graph}, execution_resource::{Evidence, Receipt, Request, LEASE_MILLIS, SETTINGS_LIMIT},
+    execution::{Binding, Custody, Graph}, execution_resource::{Evidence, Receipt, Request, LEASE_MILLIS, SETTINGS_LIMIT},
     execution_resource_handles::{check_watches, Duplicator, HeldObject}, process::{Owned, Process}, release::Release};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -21,6 +21,9 @@ struct Held {
 }
 #[path = "execution_resource_link.rs"]
 mod link;
+#[path = "execution_resource_homes.rs"]
+mod homes;
+pub(crate) use homes::{resolve_launch_homes, match_launch_home, ResolvedLaunchHome, ResolvedLaunchHomes, HeldLaunchHome};
 static RESOURCES: OnceLock<Mutex<HashMap<String, Held>>> = OnceLock::new();
 #[cfg(test)]
 #[path = "execution_resource_tests.rs"]
@@ -46,6 +49,21 @@ fn same_graph(a: &Custody, b: &Custody) -> bool {
         && a.service_image_digest == b.service_image_digest
 }
 impl Held {
+    fn check_binding(&self, caller: &Process, context: &DescriptorContext, b: &Binding) -> Result<(), String> {
+        let evidence: &Evidence = &self.receipt.evidence;
+        if !caller.alive() || caller.sid != self.caller.sid || caller.session != self.caller.session
+            || self.paired_origin != context.paired_origin || !same_graph(&self.receipt.custody, &context.custody)
+            || b.executor_id != evidence.source.executor_id || b.environment_id != evidence.source.environment_id
+            || b.source_root_key != evidence.source.physical_root_key { return Err(REJECTED.into()); }
+        for (role, reference) in [("history", &b.history_home_key), ("continuation", &b.continuation_home_key),
+            ("credential", &b.credential_binding_id)] {
+            if !evidence.provider_references.iter().any(|r| r.role == role && &r.reference_id == reference
+                && r.instance_id == b.provider_instance_id && r.driver == b.driver) { return Err(REJECTED.into()); }
+        }
+        let generation = (b.runtime_generation.clone(), b.source_generation.clone());
+        if self.graph_generation.as_ref().is_some_and(|old| old != &generation) { return Err(REJECTED.into()); }
+        Ok(())
+    }
     fn object(&self, kind: &str) -> Result<&HeldObject, String> {
         let mut found = self.objects.iter().filter(|o| o.description.kind == kind);
         let first = found.next().ok_or(REJECTED)?;
@@ -178,18 +196,9 @@ pub fn bind_graph(resource_id: &str, caller: &Process, context: &DescriptorConte
             Some(_) => return Err(REJECTED.into()),
             None => { graph.validate()?; if held.inspections.len() >= 256 { return Err(REJECTED.into()); } }
         }
-        let evidence: &Evidence = &held.receipt.evidence;
         let b = &graph.binding;
-        if !caller.alive() || held.paired_origin != context.paired_origin || !same_graph(&held.receipt.custody, &context.custody)
-            || b.executor_id != evidence.source.executor_id || b.environment_id != evidence.source.environment_id
-            || b.source_root_key != evidence.source.physical_root_key { return Err(REJECTED.into()); }
-        for (role, reference) in [("history", &b.history_home_key), ("continuation", &b.continuation_home_key),
-            ("credential", &b.credential_binding_id)] {
-            if !evidence.provider_references.iter().any(|r| r.role == role && &r.reference_id == reference
-                && r.instance_id == b.provider_instance_id && r.driver == b.driver) { return Err(REJECTED.into()); }
-        }
+        held.check_binding(caller, context, b)?;
         let generation = (b.runtime_generation.clone(), b.source_generation.clone());
-        if held.graph_generation.as_ref().is_some_and(|old| old != &generation) { return Err(REJECTED.into()); }
         held.graph_generation = Some(generation);
         held.inspections.insert(graph.nonce.clone(), digest);
         held.recheck()
