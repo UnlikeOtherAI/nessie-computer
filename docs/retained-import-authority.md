@@ -58,10 +58,14 @@ idle fence. It does not extend the hard native consent or backend lease expiry.
 `RetainedImportLocalContext.bootstrapAuthority('capture' | 'publish')` uses the
 descriptors returned by the real `consent.commit` activation, inside its held
 native/source callback. Whole-source grants receive capture and publication;
-thread grants receive publication only. These descriptors cannot serve a lane
+thread grants receive scoped read and publication. These descriptors cannot serve a lane
 request. Their deadline is bounded by the original consume proof, consumedAt +
 60 seconds, current human admission and the five-minute native consent. A commit
 retry may replace bootstrap tokens but cannot move that deadline.
+Before exposing the local callback, each bootstrap descriptor is verified using
+the actual native signed nonce and backend `lease.check`. This establishes finite
+read liveness for thread-only admission without using publication as read consent,
+reading any source row, or claiming inherited-history closure.
 
 The existing lane offer carries operation catalog descriptors. Before calling
 `local.authority(lease, binding)`, runtime calls
