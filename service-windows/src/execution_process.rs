@@ -283,6 +283,8 @@ pub fn handle(
             }
             let key = Key::open(root, &record.admission.binding.executor_id, false)?;
             if let Some(result) = key.cleared_process(&nonce)? {
+                crate::execution_process_io::release(&nonce)?;
+                execution_preparation::release(&record.admission.reservation_id)?;
                 state
                     .execution_processes
                     .get_mut(&nonce)
@@ -303,6 +305,7 @@ pub fn handle(
                 .ok_or(REJECTED)?
                 .cleared = true;
             crate::execution_process_io::release(&nonce)?;
+            execution_preparation::release(&record.admission.reservation_id)?;
             Ok(result)
         }
     }

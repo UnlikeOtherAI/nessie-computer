@@ -90,6 +90,8 @@ shadow home when configured); its continuation/history references remain the
 shared home. Claude's explicit CLAUDE_CONFIG_DIR must match its configured home;
 HOME/USERPROFILE remain untouched, preserving original keychain grouping.
 Defaults and inherited home guesses are refused by this execution resource scope.
+Clearance releases preparation pins; source expiry or graph loss also releases
+them through service cleanup without waiting for another request or a restart.
 
 After actual OS file-ID matching under the graph's retained owner token, the
 service uses the guard's canonical volume-GUID path for the provider home. It
@@ -97,13 +99,14 @@ hashes and holds that exact final Launch, before backend launch admission. There
 is no later environment rewrite. Directory handles alone cannot pin a drive/SUBST
 device mapping, so an original drive-letter spelling is not retained as proof.
 History options.dir and process cwd remain original workspace selections, never
-native-home aliases. This consumer requires parent integration of physical
-producer `77be11620622812af1a44391326035c853b15441`; its compiler and installed
-verification remain the root's responsibility. Original serializer integration is
+native-home aliases. Physical producer `77be11620622812af1a44391326035c853b15441`
+is integrated through approved parent `a8c282ad3d8666396262c2383391c6ce60eae88c`;
+its compiler and installed verification remain the root's responsibility. Original serializer integration is
 also still required before a positive installed provider journey.
 
 Authored fixtures cover creator selector injection, distinct history methods and
-Windows argument/environment encoding. Only builtin Node syntax checks, rustfmt
+Windows argument/environment encoding, exact frame metadata, mixed/duplicate JSON,
+finite expiry, denied raw stdin and missing native acknowledgements. Only builtin Node syntax checks, rustfmt
 parsing/formatting and Git whitespace checks ran in the worker. Root must compile,
 run those fixtures and exercise creation, revocation, late resume, uncertain ACK,
 history failure, backpressure and enclosing graph/host clearance on installed
