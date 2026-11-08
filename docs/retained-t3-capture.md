@@ -169,6 +169,21 @@ every app history, separate homes and weak references, without electing a writer
 
 ## Gates and evidence
 
+The currentness correction passed ordinary executor build/typecheck and the
+registered importer gate on Maxis with owned Node 22.23.1: **27 passed, zero
+failed/skipped**. This includes all three real read wrappers under obsolete,
+unavailable, in-progress/failed refresh and advancement/revocation races;
+capture/resume receipt races; unchanged-sequence snapshot mutation; V2 frozen
+legacy insert/edit/delete refusal; and fresh legacy-54 backdated, equal-time and
+append ordering with exact original timestamp/ordinal comparisons. Source code
+is unchanged from the built checkpoint; subsequent fixes corrected only fixture
+DateTime formatting and the original snapshot budget used before cursor bounding.
+The earlier 21/27 and 24/27 attempts are retained, not counted as passes.
+Engine exports, codec/Context identity and generated dependency bytes did not
+change. The private currentness receipt records exact sources, output hashes,
+commands and logs. PRIMARY and the coordinated heavy window were released
+immediately after the passing gate. Live and ALL-session blockers above remain.
+
 The source gate needs no dependency installation. It uses Node builtins, builtin
 type erasure and disposable synthetic SQLite files in this worktree's ignored
 artifacts. Set `T3_SESSION_IMPORT_REFERENCE` to the explicitly admitted readonly
