@@ -490,7 +490,10 @@ uniquely named service pointing to a nonexistent executable, configures and read
 back its restart policy, and deletes the service without ever starting it.
 Native setup retains its closed domain error code so a future refusal can be
 diagnosed without paths, credentials or journal edits. Corrected signed setup
-still needs installed acceptance; the preserved state is reused on retry.
+was exercised by signed candidate 1.0.6: the unmodified MSI completed, and both
+executor and updater services ran with automatic startup. The installed desktop
+status connection still refuses peer authentication, so local control health,
+reconnection and A-to-B updates remain unverified. The protected state is retained.
 
 For a refused Windows status request, the read-only developer probe is
 `cargo run --manifest-path windows-common/Cargo.toml --example update-status`.
@@ -500,5 +503,6 @@ it cannot change preferences, select packages or supply an alternate endpoint.
 This is a machine-only diagnostic, not a replacement for the installed app/CLI
 journey. Run it with the actual desktop token when diagnosing local controls.
 The optional `--peer-facts` flag reports read-only Windows API failures, session,
-SYSTEM identity and publisher/namespace results after a refused call. These
-independent facts never substitute for authenticated status or grant authority.
+SYSTEM identity and publisher/namespace results on a separate connection. It
+exits unsuccessfully even when those probes pass; the independent facts never
+substitute for authenticated status or grant authority.
