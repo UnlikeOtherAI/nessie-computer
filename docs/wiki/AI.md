@@ -6,8 +6,9 @@ it instead of paying for Nessie's AI. Pick the team from the **Team** list first
 ## Claude Code and Codex already on this computer
 
 If Claude Code or Codex is installed and signed in here, the **On this
-computer** section lists it with the account it's signed in to. Turn on
-**Make available** and agents for this team can use it for their AI. They run
+computer** section lists it with the account it's signed in to. It is
+**available to agents by default**; switch **Make available** off to stop this
+team's agents using it. They run
 it the way T3 Code does: through the installed program and its own sign-in.
 Nessie Computer never reads or copies that sign-in.
 
