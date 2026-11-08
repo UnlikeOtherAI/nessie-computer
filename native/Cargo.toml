@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+# Opt-in real installed probe. This adds no production admission bypass.
+retained-issuer-installed-qualification = []
+
+[[test]]
+name = "retained_issuer_installed"
+path = "tests/retained_issuer_installed.rs"
+required-features = ["retained-issuer-installed-qualification"]
+
 # What Windows names this executable in Task Manager and its properties; the
 # icon beside it is embedded by build.rs.
 [package.metadata.tauri-winres]

@@ -5,7 +5,8 @@
 fn held_issuer_denies_daemon_process_and_private_key_access() {
     use nessie_windows_common::process::Process;
     use windows_sys::Win32::{Foundation::{CloseHandle,GetLastError,INVALID_HANDLE_VALUE},System::{
-        Threading::{OpenProcess,OpenProcessToken,OpenThread,GetProcessIdOfThread},
+        Threading::{OpenProcess,OpenProcessToken,OpenThread,GetProcessIdOfThread,GetProcessMitigationPolicy,
+            ProcessSignaturePolicy,ProcessExtensionPointDisablePolicy},
         Diagnostics::ToolHelp::{CreateToolhelp32Snapshot,Thread32First,Thread32Next,TH32CS_SNAPTHREAD,THREADENTRY32}}};
     let pid=std::env::var("NESSIE_T3_TEST_CEREMONY_PID").expect("explicit fixture ceremony PID required").parse().unwrap();
     let expected_start=std::env::var("NESSIE_T3_TEST_CEREMONY_STARTED_AT").expect("exact kernel generation required");
@@ -14,6 +15,12 @@ fn held_issuer_denies_daemon_process_and_private_key_access() {
     let target=Process::open(pid).expect("fixture child must be queryable");
     assert_eq!(target.generation.started_at,expected_start);assert_eq!(target.sid,own.sid);
     assert_eq!(target.session,own.session);assert!(target.alive());
+    for policy in [ProcessSignaturePolicy,ProcessExtensionPointDisablePolicy] {
+        let mut flags=0_u32;
+        assert_ne!(unsafe {GetProcessMitigationPolicy(target.handle.0,policy,(&mut flags as *mut u32).cast(),
+            std::mem::size_of::<u32>())},0);
+        assert_ne!(flags&1,0,"installed ceremony must exclude injected hook/extension DLLs");
+    }
     assert_eq!(target.image.file_name().unwrap(),"nessie-executor-native.exe");
     target.signed(option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU")).expect("actual signed fixture helper");
     use sha2::{Sha256,Digest};

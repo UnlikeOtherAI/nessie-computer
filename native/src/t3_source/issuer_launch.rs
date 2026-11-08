@@ -7,7 +7,10 @@ use std::{path::Path,mem::size_of};
 use windows_sys::Win32::{Foundation::LocalFree,
     Security::{SECURITY_ATTRIBUTES,Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW},
     System::{RemoteDesktop::WTSQueryUserToken,Threading::{CreateProcessAsUserW,TerminateProcess,
-        CREATE_UNICODE_ENVIRONMENT,CREATE_SUSPENDED,PROCESS_INFORMATION,STARTUPINFOW,ResumeThread}}};
+        CREATE_UNICODE_ENVIRONMENT,CREATE_SUSPENDED,PROCESS_INFORMATION,STARTUPINFOW,STARTUPINFOEXW,ResumeThread,
+        InitializeProcThreadAttributeList,UpdateProcThreadAttribute,DeleteProcThreadAttributeList,
+        EXTENDED_STARTUPINFO_PRESENT,PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY,
+        GetProcessMitigationPolicy,ProcessSignaturePolicy,ProcessExtensionPointDisablePolicy}}};
 
 pub struct Child { pub process:Process,handle:Owned }
 impl Drop for Child {fn drop(&mut self) {unsafe {TerminateProcess(self.handle.0,1);}}}
@@ -25,6 +28,35 @@ impl Descriptor {
     }
 }
 impl Drop for Descriptor {fn drop(&mut self) {unsafe {LocalFree(self.0);}}}
+struct Attributes {bytes:Vec<usize>,policy:Box<u64>,initialized:bool}
+impl Attributes {
+    fn new()->Result<Self,NativeError> {
+        let mut size=0;
+        unsafe {InitializeProcThreadAttributeList(std::ptr::null_mut(),1,0,&mut size);}
+        if size==0 || size>65_536 {return Err(fail());}
+        // Extension point disable + Microsoft-only DLLs, set before any user
+        // code runs. Process ACLs alone do not block same-desktop hook DLLs.
+        let mut result=Self {bytes:vec![0;size.div_ceil(size_of::<usize>())],
+            policy:Box::new((1_u64<<32)|(1_u64<<44)),initialized:false};
+        let list=result.bytes.as_mut_ptr().cast();
+        if unsafe {InitializeProcThreadAttributeList(list,1,0,&mut size)}==0 {return Err(fail());}
+        result.initialized=true;
+        if unsafe {UpdateProcThreadAttribute(list,0,PROC_THREAD_ATTRIBUTE_MITIGATION_POLICY as usize,
+            (&mut *result.policy as *mut u64).cast(),size_of::<u64>(),std::ptr::null_mut(),std::ptr::null_mut())}==0 {
+            return Err(fail());
+        }Ok(result)
+    }
+}
+impl Drop for Attributes {fn drop(&mut self) {if self.initialized {
+    unsafe {DeleteProcThreadAttributeList(self.bytes.as_mut_ptr().cast());}
+}}}
+fn verify_mitigations(handle:windows_sys::Win32::Foundation::HANDLE)->Result<(),NativeError> {
+    for policy in [ProcessSignaturePolicy,ProcessExtensionPointDisablePolicy] {
+        let mut flags=0_u32;
+        if unsafe {GetProcessMitigationPolicy(handle,policy,(&mut flags as *mut u32).cast(),size_of::<u32>())}==0
+            || flags&1==0 {return Err(fail());}
+    }Ok(())
+}
 fn verify_protected_object(handle:windows_sys::Win32::Foundation::HANDLE,limited:u32)->Result<(),NativeError> {
     use windows_sys::Win32::Security::{Authorization::{GetSecurityInfo,SE_KERNEL_OBJECT},
         ACL,ACCESS_ALLOWED_ACE,GetAce,GetSecurityDescriptorControl,SE_DACL_PROTECTED,
@@ -69,18 +101,26 @@ pub fn launch(release:&Release,tray:&Process,nonce:&str)->Result<Child,NativeErr
     let mut desktop=wide(Path::new("winsta0\\default"));
     let mut environment=wide(Path::new(&format!("SystemRoot={}",windows.display())));environment.push(0);
     let directory=wide(&release.runtime.root);
-    let mut startup:STARTUPINFOW=unsafe {std::mem::zeroed()};startup.cb=size_of::<STARTUPINFOW>() as u32;
-    startup.lpDesktop=desktop.as_mut_ptr();
+    let mut attributes=Attributes::new()?;
+    let mut startup:STARTUPINFOEXW=unsafe {std::mem::zeroed()};startup.StartupInfo.cb=size_of::<STARTUPINFOEXW>() as u32;
+    startup.StartupInfo.lpDesktop=desktop.as_mut_ptr();startup.lpAttributeList=attributes.bytes.as_mut_ptr().cast();
     let mut created:PROCESS_INFORMATION=unsafe {std::mem::zeroed()};
     let started=unsafe {CreateProcessAsUserW(token.0,image.as_ptr(),arguments.as_mut_ptr(),
         &process_security.attributes(),&thread_security.attributes(),
-        0,CREATE_UNICODE_ENVIRONMENT|CREATE_SUSPENDED|0x0800_0000,environment.as_mut_ptr().cast(),
-        directory.as_ptr(),&startup,&mut created)};
+        0,CREATE_UNICODE_ENVIRONMENT|CREATE_SUSPENDED|EXTENDED_STARTUPINFO_PRESENT|0x0800_0000,environment.as_mut_ptr().cast(),
+        directory.as_ptr(),(&startup as *const STARTUPINFOEXW).cast::<STARTUPINFOW>(),&mut created)};
     if started==0 {return Err(fail());}
     let handle=Owned(created.hProcess);let thread=Owned(created.hThread);
     let result=(|| {
         verify_protected_object(handle.0,0x00101000)?;
         verify_protected_object(thread.0,0x00100800)?;
+        verify_mitigations(handle.0)?;
+        let mut actual_token=std::ptr::null_mut();
+        if unsafe {windows_sys::Win32::System::Threading::OpenProcessToken(handle.0,0x00020008,&mut actual_token)}==0 {
+            return Err(fail());
+        }
+        let actual_token=Owned(actual_token);verify_protected_object(actual_token.0,0x00020008)?;
+        verify_default_dacl(actual_token.0)?;
         let process=Process::open(created.dwProcessId).map_err(|_|fail())?;
         if process.sid!=tray.sid || process.session!=tray.session || process.elevated
             || process.image!=*executable || !tray.alive() {return Err(fail());}
@@ -107,5 +147,27 @@ fn ceremony_token(session:&Owned)->Result<Owned,NativeError> {
     let dacl=TOKEN_DEFAULT_DACL {DefaultDacl:acl};
     if unsafe {SetTokenInformation(token.0,TokenDefaultDacl,(&dacl as *const TOKEN_DEFAULT_DACL).cast(),
         size_of::<TOKEN_DEFAULT_DACL>() as u32)}==0 {return Err(fail());}
+    verify_default_dacl(token.0)?;
     Ok(token)
+}
+
+fn verify_default_dacl(token:windows_sys::Win32::Foundation::HANDLE)->Result<(),NativeError> {
+    use windows_sys::Win32::Security::{GetTokenInformation,TokenDefaultDacl,TOKEN_DEFAULT_DACL,GetAce,ACCESS_ALLOWED_ACE};
+    let mut size=0;
+    unsafe {GetTokenInformation(token,TokenDefaultDacl,std::ptr::null_mut(),0,&mut size);}
+    if size==0 || size>65_536 {return Err(fail());}
+    let mut bytes=vec![0_usize;(size as usize).div_ceil(size_of::<usize>())];
+    if unsafe {GetTokenInformation(token,TokenDefaultDacl,bytes.as_mut_ptr().cast(),size,&mut size)}==0 {return Err(fail());}
+    let acl=unsafe {(*bytes.as_ptr().cast::<TOKEN_DEFAULT_DACL>()).DefaultDacl};
+    if acl.is_null() || unsafe {(*acl).AceCount}!=3 {return Err(fail());}
+    let mut sids=std::collections::HashSet::new();
+    for index in 0..3 {
+        let mut pointer=std::ptr::null_mut();
+        if unsafe {GetAce(acl,index,&mut pointer)}==0 || pointer.is_null() {return Err(fail());}
+        let ace=unsafe {&*pointer.cast::<ACCESS_ALLOWED_ACE>()};
+        if ace.Header.AceType!=0 || ace.Header.AceFlags!=0 {return Err(fail());}
+        let sid=nessie_windows_common::sid_to_string((&ace.SidStart as *const u32).cast_mut().cast()).ok_or_else(fail)?;
+        let expected=match sid.as_str() {"S-1-5-18"=>0x1000_0000,"S-1-5-11"=>0x00100800,"S-1-3-4"=>0x00020000,_=>return Err(fail())};
+        if ace.Mask!=expected || !sids.insert(sid) {return Err(fail());}
+    }Ok(())
 }

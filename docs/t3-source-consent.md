@@ -45,6 +45,10 @@ from duplication/default-DACL changes and installs an OWNER RIGHTS default DACL
 for later authentication/watchdog threads. Process, primary thread and token ACLs
 are read back before the suspended child resumes. Ordinary user processes get query/synchronize
 access, without memory-write, thread-creation, duplicate-handle or ACL-write rights.
+Creation-time extension-point disable and Microsoft-only DLL policies close the
+same-desktop hook-DLL route that process ACLs alone do not cover. These policies
+are read back before resume; unsupported policy/credential-provider combinations
+refuse and remain part of the required positive installed qualification.
 The broker retains the exact child process handle/generation and authenticates
 that child on its private bootstrap/signing pipe. Merely launching a signed helper
 or spoofing a parent PID cannot acquire that channel. Source acquisition uses the
@@ -192,7 +196,8 @@ rights or sign without the secure ceremony. The additional real OS denial probe:
 $env:NESSIE_T3_TEST_CEREMONY_PID = '<fixture pid>'
 $env:NESSIE_T3_TEST_CEREMONY_STARTED_AT = '<kernel creation timestamp>'
 $env:NESSIE_T3_TEST_NATIVE_SHA256 = '<verified exact signed helper SHA256>'
-cargo test --manifest-path native/Cargo.toml --test retained_issuer_installed -- --test-threads=1
+$env:NESSIE_DESKTOP_WINDOWS_SIGNER_EKU = '<existing verified publisher profile EKU used for this candidate>'
+cargo test --manifest-path native/Cargo.toml --features retained-issuer-installed-qualification --test retained_issuer_installed -- --test-threads=1
 ```
 
 Run that probe as the ordinary source owner while the real fixture ceremony is
@@ -201,3 +206,6 @@ launch, credential-provider behavior, Windows process/thread ACL construction,
 WinSQLite, IPC replay, translations/rendering and the full enrollment/import
 journey all remain unqualified. T03C's tests and earlier importer passes do not
 cover these new bytes.
+The required Cargo feature selects only this installed test target; production
+admission has no feature, fixture or default-success branch. Ordinary native
+unit/CI runs do not execute the installed probe or a UI ceremony.

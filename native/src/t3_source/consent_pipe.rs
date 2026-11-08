@@ -80,7 +80,7 @@ pub fn serve(context:&Context,resource:Resource,mut consent:Consent,revoked:Arc<
                     // The client reads the response then closes; retain the
                     // instance until that EOF so Disconnect cannot discard it.
                     while peer.as_ref().is_some_and(|p|p.alive()) {
-                        consent.challenge.bind(&resource)?;context.recheck()?;resource.renew()?;issuer.recheck()?;
+                        consent.challenge.bind(&resource)?;context.recheck()?;resource.renew()?;consent.transport_live()?;
                         if revoked.load(Ordering::Acquire) {return Err(fail());}
                         let mut available=0;
                         if unsafe {PeekNamedPipe(handle,std::ptr::null_mut(),0,std::ptr::null_mut(),

@@ -33,7 +33,12 @@ impl Consent {
             issuer,verifications:HashMap::new() })
     }
     pub fn recheck(&self) -> Result<(), NativeError> {
-        if self.revoked || self.opened.elapsed().as_millis() >= self.milliseconds as u128 { return Err(fail()); }
+        if self.revoked {return Err(fail());}
+        self.transport_live()
+    }
+    /// A revoke response may drain, but never past its monotonic lease expiry.
+    pub fn transport_live(&self)->Result<(),NativeError> {
+        if self.opened.elapsed().as_millis() >= self.milliseconds as u128 { return Err(fail()); }
         self.issuer.recheck()?;self.challenge.validate(now_ms()?)
     }
     pub fn dispatch(&mut self, request: &Value) -> Result<Value, NativeError> {
