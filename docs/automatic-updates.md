@@ -499,3 +499,6 @@ It uses the same authenticated fixed pipe and prints its closed failure reason;
 it cannot change preferences, select packages or supply an alternate endpoint.
 This is a machine-only diagnostic, not a replacement for the installed app/CLI
 journey. Run it with the actual desktop token when diagnosing local controls.
+The optional `--peer-facts` flag reports read-only Windows API failures, session,
+SYSTEM identity and publisher/namespace results after a refused call. These
+independent facts never substitute for authenticated status or grant authority.
