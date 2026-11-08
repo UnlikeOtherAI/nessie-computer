@@ -11,7 +11,7 @@ import {
 } from '@nessie/executor-protocol'
 
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
-const base = { connectionEpoch: '3', executorId: id(1), observedAt: '2026-11-08T12:00:00.000Z', signature: 'c2ln' }
+const base = { connectionEpoch: '3', executorId: id(1), observedAt: '2026-11-08T12:00:00.000Z', signature: 's'.repeat(86) }
 const target = {
   argumentDigest: `sha256:${'a'.repeat(64)}`, bindingFence: '1', bindingId: id(2), capabilityRevision: 1,
   commandId: id(3), expiresAt: '2099-01-01T00:00:00.000Z', idempotencyKey: 'k',

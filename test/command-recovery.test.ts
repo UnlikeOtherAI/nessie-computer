@@ -13,6 +13,7 @@ import {
   type ExecutorCommandRecord,
 } from '../src/command-journal.js'
 import { replaceOwnerOnlyText } from '../src/owner-only-json.js'
+import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import {
   advanceExecutorCommand,
   type ExecutorCommandLifecycle,
@@ -242,8 +243,9 @@ test('client-recovery: a refused replacement is not replaced again', async () =>
   assert.deepEqual(memory.read()?.result, { code: 'EXECUTOR_RESULT_REFUSED', success: false })
 })
 
+// Owner-only, as a team's runtime directory is: on Windows the helper secures a record only inside one.
 const withStateDirectory = async (body: (stateDir: string) => Promise<void>): Promise<void> => {
-  const directory = await mkdtemp(join(tmpdir(), 'nessie-command-recovery-'))
+  const directory = await ensureOwnerOnlyStateDirectory(await mkdtemp(join(tmpdir(), 'nessie-command-recovery-')))
   try {
     await body(directory)
   } finally {
