@@ -114,6 +114,10 @@
         <Environment Id="ExecutorCliPath" Name="PATH" Value="[INSTALLFOLDER]"
                      Action="set" Part="last" Permanent="no" System="yes" />
       </Component>
+      <!-- The command's name; nessie-executor.cmd above stays for what already calls it. -->
+      <Component>
+        <File Id="ComputerCliCommand" Source="$(var.StagingDir)\nessie-computer.cmd" KeyPath="yes" />
+      </Component>
     </ComponentGroup>
 
     <!-- The sandbox payload. Its own manifest.json records one SHA-256 per

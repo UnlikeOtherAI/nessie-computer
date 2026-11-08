@@ -255,8 +255,12 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await rename(releaseStaging, released)
   await makeReleaseReadonly(released)
   await symlink(`releases/${releaseDigest}`, join(stagingDirectory, INSTALL_PREFIX, 'current'))
-  await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor'), linuxManagedLauncher(releaseDigest), { mode: 0o755 })
-  await chmod(join(stagingDirectory, 'usr/bin/nessie-executor'), 0o755)
+  // `nessie-computer` is the command's name; `nessie-executor` stays for the
+  // services, packages and scripts that already call it. Both run one release.
+  for (const command of ['nessie-computer', 'nessie-executor']) {
+    await writeFile(join(stagingDirectory, 'usr/bin', command), linuxManagedLauncher(releaseDigest), { mode: 0o755 })
+    await chmod(join(stagingDirectory, 'usr/bin', command), 0o755)
+  }
   await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor-app'),
     linuxConsoleLauncher(`/${INSTALL_PREFIX}/releases/${releaseDigest}`), { mode: 0o755 })
   await mkdir(join(stagingDirectory, 'usr/share/applications'), { recursive: true })

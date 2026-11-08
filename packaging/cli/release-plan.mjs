@@ -19,7 +19,7 @@ export const homebrewFormula = (version, sha256) => {
   releaseVersion(version)
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('The macOS archive needs its SHA-256 digest.')
   return `class NessieExecutor < Formula
-  desc "Pair your computer with Nessie and manage its local resources"
+  desc "Let agents in your Nessie team use this computer"
   homepage "https://nessie.works/docs/executor-setup"
   url "${RELEASES}/download/${releaseTag(version)}/${archiveName(version)}"
   version "${version}"
@@ -40,21 +40,24 @@ export const homebrewFormula = (version, sha256) => {
       exec "#{opt_libexec}/runtime/nessie-executor-runtime" "#{opt_libexec}/runtime/nessie-executor.cjs" "$@"
     SH
     (bin/"nessie-executor").chmod 0755
+    bin.install_symlink "nessie-executor" => "nessie-computer"
   end
 
   def caveats
     <<~EOS
-      Pair a team: nessie-executor login --api nessie --workspace /path/to/work
-      Each team has its own launchd service and local permissions.
-      List teams: nessie-executor teams
-      Stop startup: nessie-executor disable <executor-id>
-      Pairing keys and permissions are kept outside the Homebrew Cellar.
-      Uninstalling this formula does not revoke or erase paired teams.
+      Connect a team: nessie-computer connect
+      Each team runs as its own launchd service with its own access rules.
+      List teams: nessie-computer teams
+      Disconnect one: nessie-computer disconnect --team <team>
+      Pairing keys and settings are kept outside the Homebrew Cellar.
+      Uninstalling this formula does not disconnect or erase your teams.
+      nessie-executor is the same command under its older name.
     EOS
   end
 
   test do
-    assert_equal "nessie-executor ${version}", shell_output("#{bin}/nessie-executor --version").strip
+    assert_equal "nessie-computer ${version}", shell_output("#{bin}/nessie-computer --version").strip
+    assert_equal "nessie-computer ${version}", shell_output("#{bin}/nessie-executor --version").strip
     assert_equal "[]", shell_output("#{bin}/nessie-executor teams --json --state-root #{testpath}/state").strip
   end
 end
@@ -67,7 +70,7 @@ export const linuxPackage = (version, payload, format, signingKey) => {
   return {
     name: 'nessie-executor', arch: 'amd64', platform: 'linux', version,
     maintainer: 'Nessie <desktop@nessie.works>', homepage: 'https://nessie.works',
-    description: 'Nessie Executor with local update settings, per-team permissions and systemd user services.',
+    description: 'Nessie Computer: the nessie-computer command, per-team access, local update settings and systemd user services.',
     license: 'FSL-1.1-ALv2',
     depends: format === 'deb'
       ? ['libc6 (>= 2.31)', 'libgcc-s1', 'libstdc++6', 'systemd', 'git', 'tmux', 'ca-certificates', 'gpgv', 'policycoreutils', 'python3', 'python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1']
