@@ -445,7 +445,10 @@ No pairing or update journal was reset. Edge remains ineligible for stable A-to-
 Protected directory pins now request READ_CONTROL as well as file attributes,
 because [GetSecurityInfo](https://learn.microsoft.com/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo)
 requires that handle right to read owner/DACL information. The trusted-owner,
-write-access, reparse and file-identity checks remain mandatory. A real Windows
+write-access, reparse and file-identity checks remain mandatory. Inherit-only
+ACEs do not grant access to the directory itself; each executable input still
+requires its own effective DACL check. The standard Program Files DACL and its
+creator-owner inheritance are covered by a read-only Windows regression. A real Windows
 fixture accepts an Administrators-owned directory with public read/execute and
 rejects public write access; run the native Windows tests elevated as in CI.
 The MSI uses [afterInstallInitialize](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/)

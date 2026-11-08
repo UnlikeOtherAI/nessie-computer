@@ -19,7 +19,7 @@ fn protected_directory(path: &Path, public_write: bool) {
     let sddl = if public_write {
         "O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;AU)"
     } else {
-        "O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;GRGX;;;AU)"
+        "O:BAG:BAD:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;GRGX;;;AU)(A;OICIIO;GA;;;CO)"
     };
     let mut descriptor = std::ptr::null_mut();
     assert_ne!(
@@ -61,5 +61,17 @@ fn protected_directory_accepts_readonly_public_access_and_rejects_public_writes(
     assert!(
         pin_protected(&writable, true).is_err(),
         "READ_CONTROL must not relax the trusted-owner/write checks"
+    );
+}
+
+#[test]
+fn the_standard_program_files_dacl_is_verifiable() {
+    let path = crate::update_admission::known_folder(
+        &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles,
+    )
+    .unwrap();
+    assert!(
+        pin_protected(&path, true).is_ok(),
+        "Program Files has inherit-only creator-owner entries, not public write access to itself"
     );
 }

@@ -17,7 +17,7 @@ use windows_sys::Win32::{
     Foundation::{LocalFree, HANDLE},
     Security::{
         Authorization::{GetSecurityInfo, SE_FILE_OBJECT},
-        GetAce, ACCESS_ALLOWED_ACE, ACL, DACL_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
+        GetAce, ACCESS_ALLOWED_ACE, ACL, DACL_SECURITY_INFORMATION, INHERIT_ONLY_ACE, OWNER_SECURITY_INFORMATION,
     },
     Storage::FileSystem::{
         GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_REPARSE_POINT,
@@ -121,6 +121,11 @@ fn secure(handle: HANDLE) -> Result<(), String> {
             } // Deny ACE never grants write access.
             if ace.Header.AceType != 0 {
                 return Err(REJECTED.into());
+            }
+            // Inherit-only entries grant no access to this object. Every
+            // executable input is pinned separately with its effective DACL.
+            if u32::from(ace.Header.AceFlags) & INHERIT_ONLY_ACE != 0 {
+                continue;
             }
             if ace.Mask & writes != 0 {
                 let sid = crate::sid_to_string((&ace.SidStart as *const u32).cast_mut().cast())
