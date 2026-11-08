@@ -14,6 +14,7 @@ import { acquireExecutorProcessLease } from './process-lease.js'
 import { createExecutorServiceEnvironment, executorServiceStateRoot } from './service-environment.js'
 import { ensureOwnerOnlyStateDirectory } from './state-security.js'
 import { disableExecutorServiceIfPresent } from './service-linux.js'
+import { TeamRunningError } from './unpair.js'
 
 /**
  * Add this computer (`add`, and `connect` under its older name) and
@@ -132,7 +133,7 @@ const disconnect = async (run: CliRun): Promise<void> => {
         { ...createExecutorServiceEnvironment(), write: () => undefined })
     }
     const result = await run.ops(team).remove().catch((error: unknown) => {
-      if (error instanceof Error && error.message.startsWith('This connection is running.')) {
+      if (error instanceof TeamRunningError) {
         throw new CliRefusal('TEAM_RUNNING', `Nessie Computer is running ${team.label}. `
           + 'Disconnect it in the app, or quit the app and try again.')
       }

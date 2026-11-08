@@ -10,6 +10,11 @@ import { acquireChatgptPairingRetirement } from './chatgpt-pairing-retirement.js
 
 export type UnpairResult = { status: 'removed'; signedOff: boolean }
 
+/** A daemon still holds the team's folder; whoever runs it must stop it first. */
+export class TeamRunningError extends Error {
+  constructor() { super('This team is still running. Stop it first, then disconnect it.') }
+}
+
 const unpairDependencies = {
   acquireExecutorDaemonLease,
   loadExecutorState,
@@ -20,7 +25,7 @@ const unpairDependencies = {
 }
 
 /**
- * Removes one team's connection from this computer: its machine key, local
+ * Disconnects one team from this computer: removes its machine key, local
  * permissions, settings and any draft copies not yet applied. The key signs a
  * last "signing off" message first, so Nessie shows the computer as
  * Disconnected straight away. If Nessie cannot be reached the removal still
@@ -37,11 +42,11 @@ export const createUnpair = (overrides: Partial<typeof unpairDependencies> = {})
   return async (stateDir: string): Promise<UnpairResult> => {
     const directory = resolve(stateDir)
     if (directory === resolve(homedir()) || directory === parse(directory).root) {
-      throw new Error('This folder is not an executor connection, so it was not removed.')
+      throw new Error('This folder isn\'t a team\'s folder, so nothing was removed.')
     }
     const lease = await acquireExecutorDaemonLease(directory).catch((error: unknown) => {
       if ((error as Error).message === 'EXECUTOR_DAEMON_ALREADY_RUNNING') {
-        throw new Error('This connection is running. Stop it first, then remove it.')
+        throw new TeamRunningError()
       }
       throw error
     })

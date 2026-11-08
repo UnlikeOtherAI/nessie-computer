@@ -15,7 +15,7 @@ final class ExecutorConnections: ObservableObject {
     private let isDevelopmentBuild: Bool
     private var observations: Set<AnyCancellable> = []
     private var discoveryTimer: Timer?
-    /// The directory the last Connect a team used, so the pairing dialog's
+    /// The directory the last Add this computer used, so the pairing dialog's
     /// status checks follow that attempt and no other.
     private var connectingDirectory: String?
 
@@ -101,7 +101,7 @@ final class ExecutorConnections: ObservableObject {
 
     var nessieOrigin: String { (teams.first ?? controllers[0]).apiOrigin }
 
-    /// A Connect a team attempt whose code is showing, without starting one.
+    /// An Add this computer attempt whose code is showing, without starting one.
     var openAttempt: ExecutorController? {
         controllers.first { $0.pairing.state?.isPending == true }
     }
@@ -118,7 +118,7 @@ final class ExecutorConnections: ObservableObject {
         if let firstRefusal { throw firstRefusal }
     }
 
-    // MARK: - Connect a team
+    // MARK: - Add this computer
 
     /// The directory a new team connects in: an unfinished one if there is
     /// one, otherwise a fresh directory of its own.
@@ -139,7 +139,7 @@ final class ExecutorConnections: ObservableObject {
     }
 
     /// The attempt the pairing dialog is following: one with a code still
-    /// open, else the one Connect a team last used, else a fresh one.
+    /// open, else the one Add this computer last used, else a fresh one.
     func connectingController() -> ExecutorController {
         controllers.first { ExecutorStateDiscovery.pendingAttemptBlocksStart(in: $0.stateDirectory) }
             ?? controllers.first { $0.stateDirectory == connectingDirectory }

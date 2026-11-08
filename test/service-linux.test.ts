@@ -162,7 +162,7 @@ test('enable refuses a state directory the unit template would not read', async 
     { assumeYes: true, executorId: 'executor-one', stateDir: '/srv/elsewhere' },
     environment,
   ))
-  assert.match(message, /would start a different executor/)
+  assert.match(message, /would start a different team/)
   await enableExecutorService(
     { assumeYes: true, executorId: 'executor-one', stateDir: '/home/person/.local/state/nessie-executor/executor-one' },
     environment,
@@ -220,8 +220,8 @@ test('status reports paired executors, unit state, and lingering as plain lines'
   assert.deepEqual(output, [
     'state root: /home/person/.local/state/nessie-executor',
     'linger: yes',
-    'executor executor-one: active=active enabled=enabled autorestart=on',
-    'executor executor-two: active=inactive enabled=enabled autorestart=on',
+    'team executor-one: active=active enabled=enabled autorestart=on',
+    'team executor-two: active=inactive enabled=enabled autorestart=on',
   ])
 })
 
@@ -234,11 +234,11 @@ test('status says so when nothing is paired, and refuses an unpaired named execu
   assert.deepEqual(output, [
     'state root: /home/person/.local/state/nessie-executor',
     'linger: unknown',
-    'no paired executors',
+    'No teams on this computer.',
   ])
   assert.match(
     await rejects(executorServiceStatus({ executorId: 'executor-one' }, environment)),
-    /has no paired state/,
+    /No team with id/,
   )
 })
 

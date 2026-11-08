@@ -12,8 +12,8 @@ const UNIT_TEMPLATE = 'nessie-executor@'
 const requireLinux = (environment: ExecutorServiceEnvironment, command: string): void => {
   if (environment.platform !== 'linux') {
     throw new Error(
-      `nessie-executor ${command} controls a systemd user service and is available only on Linux `
-      + `(this host is ${environment.platform}).`,
+      `nessie-computer ${command} controls a systemd user service, so it works only on Linux `
+      + `(this computer runs ${environment.platform}).`,
     )
   }
 }
@@ -50,7 +50,7 @@ const resolveStateDirectory = (
   if (resolved !== expected) {
     throw new Error(
       `The nessie-executor@${executorId} service reads ~/${SERVICE_STATE_DIRECTORY}/${executorId}. `
-      + 'Enabling it against a different state directory would start a different executor.',
+      + 'Enabling it against a different state directory would start a different team.',
     )
   }
   return resolved
@@ -58,7 +58,7 @@ const resolveStateDirectory = (
 
 const LINGER_EXPLANATION = [
   'Lingering starts your systemd user manager at boot and keeps it running after you log out.',
-  'That is what keeps this executor online when nobody is signed in.',
+  'That keeps this team online when nobody is signed in.',
   'It applies to your whole user account, not only to Nessie, and `loginctl disable-linger` undoes it.',
 ]
 
@@ -82,9 +82,9 @@ export const enableExecutorService = async (
     // malformed) are the diagnosis; enabling a service for state that cannot be
     // read would produce a unit that fails at every start instead.
     throw new Error(
-      `Executor ${executorId} has no usable paired state in ${stateDir}: `
+      `Team ${executorId} has no usable settings in ${stateDir}: `
       + `${error instanceof Error ? error.message : String(error)}. `
-      + 'Pair this computer first, then confirm its fingerprint in Nessie.',
+      + 'Add this computer to the team first with nessie-computer add.',
     )
   }
   await environment.verifyPackagedRuntime()
@@ -93,8 +93,8 @@ export const enableExecutorService = async (
   if (!options.assumeYes) {
     if (!environment.interactive) {
       throw new Error(
-        'Enabling this executor also enables lingering for your account. '
-        + 'Re-run with --yes to accept that without a prompt.',
+        'Enabling this team\'s service also enables lingering for your account. '
+        + 'Run it again with --yes to accept that without a prompt.',
       )
     }
     if (!await environment.confirm(`Enable lingering for ${environment.username} and start ${unitName(executorId)}?`)) {
@@ -134,7 +134,7 @@ const unitProperty = async (
   return result.stdout.trim().split('\n')[0]?.trim() || 'unknown'
 }
 
-/** Stops and disables one executor's user unit when it is enabled or running; otherwise does nothing. */
+/** Stops and disables one team's user unit when it is enabled or running; otherwise does nothing. */
 export const disableExecutorServiceIfPresent = async (
   options: { executorId: string },
   environment: ExecutorServiceEnvironment = createExecutorServiceEnvironment(),
@@ -168,18 +168,18 @@ export const executorServiceStatus = async (
     ? paired
     : [assertExecutorIdentifier(options.executorId)]
   if (options.executorId !== undefined && !paired.includes(options.executorId)) {
-    throw new Error(`Executor ${options.executorId} has no paired state under ${stateRoot}.`)
+    throw new Error(`No team with id ${options.executorId} under ${stateRoot}.`)
   }
   environment.write(`state root: ${stateRoot}`)
   environment.write(`linger: ${await lingerState(environment)}`)
   if (executorIds.length === 0) {
-    environment.write('no paired executors')
+    environment.write('No teams on this computer.')
     return
   }
   for (const executorId of executorIds) {
     const active = await unitProperty(environment, 'is-active', executorId)
     const enabled = await unitProperty(environment, 'is-enabled', executorId)
     const restart = await serviceAutoRestartEnabled(join(stateRoot, executorId)) ? 'on' : 'off'
-    environment.write(`executor ${executorId}: active=${active} enabled=${enabled} autorestart=${restart}`)
+    environment.write(`team ${executorId}: active=${active} enabled=${enabled} autorestart=${restart}`)
   }
 }
