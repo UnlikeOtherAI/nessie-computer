@@ -54,6 +54,7 @@ test('validation refuses stale, settled, mismatched and non-resumable native cal
     assert.throws(() => validate({ ...current, request: { ...request, status } }), /request_not_pending/)
   }
   assert.throws(() => validate({ ...current, item: { ...item, threadId: 'other' } }), /request_mismatch/)
+  assert.throws(() => validate({ ...current, request: { ...request, kind: 'permission' } }), /request_mismatch/)
   assert.throws(() => validate({ ...current, request: { ...request,
     responseCapability: { type: 'not_resumable', reason: 'stopped' } } }), /request_not_resumable/)
 })

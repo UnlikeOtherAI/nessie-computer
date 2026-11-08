@@ -58,12 +58,14 @@ export const validateT3RuntimeAnswer = (input: {
   if (request.responseCapability.type === 'live'
     && request.responseCapability.providerSessionId !== input.activeProviderSessionId) refuse('provider_session_stale')
   if (item.type === 'approval_request') {
+    if (request.kind !== item.requestKind) refuse('request_mismatch')
     if (request.responseCapability.type !== 'live') refuse('request_not_resumable')
     if (command.answers !== undefined || command.attachmentsByQuestionId !== undefined
       || command.decision === undefined || !item.options?.some(option => option.decision === command.decision)) refuse()
     if (command.feedback !== undefined && !request.responseCapability.supportsFeedback) refuse()
     return
   }
+  if (request.kind !== 'user_input') refuse('request_mismatch')
   if (command.decision !== undefined || command.feedback !== undefined || command.answers === undefined) refuse()
   const ids = new Set(item.questions.map(question => question.id))
   if (ids.size !== item.questions.length || Object.keys(command.answers).some(id => !ids.has(id))) refuse()
