@@ -34,7 +34,8 @@ test('a concurrent poll sends capacity and activeCommands, and never the single 
     ...concurrent, waiting: [{ commandId: id(3), for: 'owner' }], stoppedSessions: [id(5)],
   }).success)
   assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse({ ...base, concurrency: 1, capacity }).success, false)
-  assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse({ ...concurrent, activeCommand: target }).success, false)
+  const both = { ...concurrent, activeCommand: target }
+  assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse(both).success, false)
   assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse({ ...base, capacity }).success, false)
   assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse({ ...concurrent, waiting: [] }).success, false)
   assert.equal(ExecutorDaemonCommandPollRequestSchema.safeParse({ ...concurrent, concurrency: 2 }).success, false)

@@ -85,7 +85,12 @@ test('an idle concurrent poll leaves out waiting and stoppedSessions, so they ar
   let sent: Record<string, unknown> | undefined
   await createDaemonCommandPoll({
     state: () => state, dispatcher: fake.dispatcher, log: () => undefined,
-    api: { pollCommand: async (_url, request) => { sent = request as never; return { cancellations: [], commands: [], sessionClose: [] } as never } },
+    api: {
+      pollCommand: async (_url, request) => {
+        sent = request as never
+        return { cancellations: [], commands: [], sessionClose: [] } as never
+      },
+    },
   }).poll()
   assert.deepEqual(Object.keys(sent ?? {}).sort(), [
     'activeCommands', 'capacity', 'concurrency', 'connectionEpoch', 'executorId', 'observedAt', 'signature',
@@ -108,7 +113,9 @@ test('a Nessie that refuses the concurrent fields gets the old poll, one command
       return { command } as never
     },
   }
-  const poll = createDaemonCommandPoll({ state: () => state, dispatcher: fake.dispatcher, api, log: (message) => { logged.push(message) } })
+  const poll = createDaemonCommandPoll({
+    state: () => state, dispatcher: fake.dispatcher, api, log: (message) => { logged.push(message) },
+  })
   await poll.poll()
   assert.equal(sent.length, 2)
   assert.deepEqual(Object.keys(sent[1]!).sort(), ['connectionEpoch', 'executorId', 'observedAt', 'signature'])

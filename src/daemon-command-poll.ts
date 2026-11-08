@@ -53,7 +53,9 @@ export const createDaemonCommandPoll = (input: {
   const pollOne = async (state: PollState & { connectionEpoch: string }): Promise<void> => {
     // The command held now watches its own cancellation (`watchLegacyCancellation`).
     if (dispatcher.held() > 0) return
-    const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt: now().toISOString() }
+    const payload = {
+      connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt: now().toISOString(),
+    }
     const response = await api.pollCommand(state.apiBaseUrl, {
       ...payload, signature: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload),
     })

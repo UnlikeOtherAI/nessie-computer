@@ -136,7 +136,9 @@ test('allow once lets only the asking launch run: the same program launched besi
       commandSessions: sessions, programRequests: admissionFor(stateDir),
     })
     await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
-    for (let attempt = 0; attempt < 200 && ran.length === 0; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 10))
+    for (let attempt = 0; attempt < 200 && ran.length === 0; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
     assert.deepEqual(ran, ['ls -la'], 'the first launch runs')
     // While it still runs, the same program from another command is not covered by its allowance.
     const second = executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: [] }), {

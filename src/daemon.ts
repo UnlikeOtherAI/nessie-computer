@@ -378,7 +378,8 @@ export const executeExecutorCommand = async (
       : undefined
     if (admitted && 'refusal' in admitted) return admitted.refusal
     return executeExecutorMcpCommand(operationKey, command.payload.args, mcpSessions, {
-      codingBridge: admitted?.rules ? withLaunchRules(dependencies.codingBridge, admitted.rules) : dependencies.codingBridge,
+      codingBridge: admitted?.rules
+        ? withLaunchRules(dependencies.codingBridge, admitted.rules) : dependencies.codingBridge,
       commandId: command.commandId,
       payload: command.payload,
     }, attachments && ((images) => attachments.write(command.commandId, images)), dependencies.signal)

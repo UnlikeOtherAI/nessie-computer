@@ -64,7 +64,9 @@ const isDigestList = (value: unknown): value is string[] => (
 const missing = (error: unknown): boolean => (error as NodeJS.ErrnoException).code === 'ENOENT'
 
 /** A record, or the version-1 journal an older daemon wrote (which has no `waiting` and no times). */
-export const parseExecutorCommandRecord = (value: unknown, now: () => Date = () => new Date()): ExecutorCommandRecord => {
+export const parseExecutorCommandRecord = (
+  value: unknown, now: () => Date = () => new Date(),
+): ExecutorCommandRecord => {
   const version = isRecord(value) ? value.version : undefined
   if (!isRecord(value) || (version !== 1 && version !== 2)) throw new Error('A command recovery record is malformed.')
   const command = ExecutorCommandEnvelopeSchema.safeParse(value.command)

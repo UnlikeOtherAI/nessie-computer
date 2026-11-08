@@ -9,6 +9,7 @@ import {
   type ExecutorCommandEnvelope,
   type ExecutorCommandWait,
   type ExecutorSessionClose,
+  type ExecutorSessionId,
 } from '@nessie/executor-protocol'
 
 import { cancellationNames, cancellationTargetOf, runCancellable } from './command-cancellation.js'
@@ -62,7 +63,9 @@ export type CommandDispatcherOptions = {
   /** Ends a run's sandboxes, browsers and coding work, when its session ends. */
   endRun: (runId: string) => Promise<void>
   /** The old cancellation watch, for `single` mode. */
-  legacyCancelWatch?: (command: ExecutorCommandEnvelope, onCancel: () => void) => { first: Promise<void>; stop: () => void }
+  legacyCancelWatch?: (
+    command: ExecutorCommandEnvelope, onCancel: () => void,
+  ) => { first: Promise<void>; stop: () => void }
   /** The coding-sessions bridge's server name, which decides what a terminal is. */
   bridge: () => string | undefined
   paused: () => boolean
@@ -118,7 +121,8 @@ export const createCommandDispatcher = (options: CommandDispatcherOptions) => {
   }
 
   const takeSlot = async (entry: Entry): Promise<boolean> => {
-    if (closing) await new Promise<never>(() => undefined) // a closing daemon starts nothing; the record resumes after restart
+    // A closing daemon starts nothing; the record resumes after the restart.
+    if (closing) await new Promise<never>(() => undefined)
     const { command } = entry.record
     entry.queued = true
     changed()
@@ -287,7 +291,8 @@ export const createCommandDispatcher = (options: CommandDispatcherOptions) => {
       }
       if (closes.length) changed()
     },
-    stoppedSessions: (): string[] => sessions.stopped(),
+    // Only Nessie's own session ids, and stop files' ids that were checked as UUIDs, are named.
+    stoppedSessions: (): ExecutorSessionId[] => sessions.stopped() as ExecutorSessionId[],
     isStopped: (sessionId: string): boolean => sessions.isStopped(sessionId),
     setMode: (next: CommandDispatcherMode): void => {
       if (mode === next) return

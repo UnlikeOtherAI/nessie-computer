@@ -100,7 +100,9 @@ const run = async (command: SessionsCliCommand, write: (text: string) => void): 
 }
 
 /** Runs the verb; answers its exit code. */
-export const runSessionsCommand = async (command: SessionsCliCommand, write: (text: string) => void): Promise<number> => {
+export const runSessionsCommand = async (
+  command: SessionsCliCommand, write: (text: string) => void,
+): Promise<number> => {
   try {
     await run(command, write)
     return 0
