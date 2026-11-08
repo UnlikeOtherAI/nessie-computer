@@ -16,6 +16,8 @@ import * as Output from 't3-source:apps/server/src/orchestration-v2/CommandOutpu
 import * as Recovery from 't3-source:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts'
 import * as Continuations from 't3-source:apps/server/src/orchestration-v2/ProviderContinuationService.ts'
 import * as Worker from 't3-source:apps/server/src/orchestration-v2/EffectWorker.ts'
+import * as ControlLive from 't3-source:apps/server/src/orchestration-v2/ProviderTurnControlService.session-live.ts'
+import * as RequestsLive from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-live.ts'
 import { createSessionStateLayers } from './StateLayers.ts'
 
 /**
@@ -27,9 +29,10 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const shared = Layer.mergeAll(IdAllocator.layer, ContinuationRequests.layer,
     ThreadCommandExecutor.layer, CommandPolicy.layer, Forks.layer, Output.layer).pipe(Layer.provideMerge(state.layer))
   const adapters = Adapters.layerFromProviderInstanceRegistry.pipe(Layer.provide(shared))
+  const turns = Layer.mergeAll(ControlLive.layer, RequestsLive.layer).pipe(Layer.provideMerge(shared))
   const switches = Switches.layer.pipe(Layer.provide(adapters))
   const decisions = Layer.mergeAll(Handoffs.layer, Policy.layerFromProjectStore,
-    adapters, switches).pipe(Layer.provideMerge(shared))
+    adapters, switches).pipe(Layer.provideMerge(turns))
   const legacyImporter = LegacyImporter.layer.pipe(Layer.provide(decisions))
   const orchestrator = Orchestrator.layer.pipe(Layer.provideMerge(decisions))
   const threads = Threads.layerWithLegacyImporter.pipe(
@@ -41,7 +44,7 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const worker = Worker.layer.pipe(Layer.provideMerge(effectExecutor))
   // Explicit opt-in: the original continuation layer starts its scoped queue consumer.
   const continuationConsumer = Continuations.layer.pipe(Layer.provide(threads))
-  return { state, shared, decisions, legacyImporter, orchestrator, threads, launch, recovery,
+  return { state, shared, turns, decisions, legacyImporter, orchestrator, threads, launch, recovery,
     effectExecutor, worker, continuationConsumer, layer: Layer.mergeAll(launch, recovery) }
 }
 
@@ -61,6 +64,7 @@ export * as ResourceOwners from 't3-source:apps/server/src/orchestration-v2/Reso
 export * as Finalization from 't3-source:apps/server/src/orchestration-v2/RunFinalizationService.session-port.ts'
 export * as TurnStart from 't3-source:apps/server/src/orchestration-v2/ProviderTurnStartService.session-port.ts'
 export * as TurnControl from 't3-source:apps/server/src/orchestration-v2/ProviderTurnControlService.session-port.ts'
+export { ControlLive as SessionTurnControl, RequestsLive as SessionRuntimeRequests }
 export * as RuntimeRequests from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts'
 export * as Rollback from 't3-source:apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts'
 export * as Titles from 't3-source:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts'

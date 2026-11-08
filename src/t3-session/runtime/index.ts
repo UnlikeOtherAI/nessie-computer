@@ -5,3 +5,5 @@ export { createSessionRuntimeLayers, SessionEngineLifecycle, SessionLifecycleErr
 export { resolveT3SessionStateDir, SessionStateError } from './paths.js'
 export { acquireSessionStateWriter } from './ownership.js'
 export { withOwnedSessionState } from './state.js'
+export { sessionOperationScope, SessionOperationScopeClosed } from './operation-scope.js'
+export { bindSessionControlSlots, bindRetainedCatalogSlots, isSessionControlRequest } from './slots.js'

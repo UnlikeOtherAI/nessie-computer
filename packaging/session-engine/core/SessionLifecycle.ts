@@ -55,7 +55,7 @@ const make = Effect.gen(function* () {
     const prepared = Exit.isSuccess(closed) ? yield* Effect.exit(recovery.prepareForShutdown) : closed
     const stopped = yield* Effect.exit(sessions.shutdown)
     // A provider shutdown defect must not be turned into a recorded stop.
-    const reconciled = Exit.isSuccess(closed) && Exit.isSuccess(stopped)
+    const reconciled = Exit.isSuccess(closed) && Exit.isSuccess(prepared) && Exit.isSuccess(stopped)
       ? yield* Effect.exit(recovery.reconcile('shutdown').pipe(Effect.asVoid)) : stopped
     const failed = [closed, prepared, stopped, reconciled].find(Exit.isFailure)
     if (failed && Exit.isFailure(failed)) {

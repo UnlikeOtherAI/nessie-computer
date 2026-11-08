@@ -10,8 +10,32 @@ and custody bindings remain required. Constructing a layer is not readiness.
 It uses the existing factory, original Context tags and the exact same `state`
 for stores, receipts, projections, outbox and wakeups. The normal split package
 keeps Effect external at 4.1.2. No second source resolver, application server,
-credential store or provider engine is introduced. Three new core files are
-exact entries in `library-inputs.json`.
+credential store or provider engine is introduced. Runtime core inputs are
+explicit entries in `library-inputs.json`.
+
+The extraction now selects the original `ProviderTurnControlService.layer` and
+`RuntimeRequestService.layer`, with their original Context tags, projection
+checks, interrupt/restart/steer behavior and error guards. They use the same
+state graph and required provider session manager. The runtime composes those
+live layers; callers no longer implement those two services themselves.
+
+`sessionProviderHostLayer` preserves settings snapshot locking/subscriptions,
+background policy and original attachment/sidecar resolution. The extracted
+original `ProviderHost` replaces its raw `credentials.get/set/remove` API with
+`credentialReference(namespace, bindingId)`. The required native producer is
+`ProviderCredentialReferences.resolve`, returning only an opaque binding key
+under the original `owner: "provider"` domain. Original auth grouping and its
+`withAccess` rules remain intact. Reference lookup grants no execution, login,
+profile adoption or credential access. Native custody must implement resolution
+against its actual association; no producer is installed in this checkpoint.
+
+`sessionResourceCleanupLayer` selects the original cleanup body, retaining its
+attachment resolution/deletion, concurrency and error conversion. Required
+`SessionResourceTargets` supplies actual `terminals.close({threadId,
+deleteHistory:true})`, `previews.close({threadId})` and
+`scheduledTasks.deleteForThread(threadId)`. These are ownership integrations,
+not authorization callbacks. Native owners must return only after their
+required lifetime clearance. No empty cleanup target is provided.
 
 `SessionEngineLifecycle` runs original legacy-shell reconciliation, provider
 runtime recovery and delegated-task recovery before continuation intake and the
@@ -65,11 +89,15 @@ registers no CLI command, protocol implementation slot or advertised capability.
    T03C's isolated source is not assumed integrated or qualified.
 2. Original `ProviderHost` and `effect/process/ChildProcessSpawner` through the
    admitted native creator, including Codex/Claude SDK/history/PTY paths.
-   Requiring these tags does not implement them. `ProviderHost.credentials`
-   still exposes T3-owned raw `get/set/remove`; binding that to executor-native
-   profiles is prohibited. Its opaque credential-control refactor must land first.
-3. Actual `ProviderSessionManagerV2`, directory, turn start/control, requests,
-   cleanup, finalization, checkpoints, titles, project/workspace and settings
+   Requiring the native tag does not implement its protected creator. The
+   opaque ProviderHost reference seam is authored; its real custody producer is
+   still required. Reuse `startAgentProcess` beneath the original Codex client
+   and Claude SDK adapter, not the reduced native driver projections. T03C must
+   supply T3-operation-to-`SessionEffectAuthority` admission with exact native
+   association, awaited automatic protocol replies, and mandatory positive
+   child-tree clearance. Its native-only `requestEffectAuthority` is insufficient.
+3. Actual `ProviderSessionManagerV2`, directory, turn start, resource targets,
+   finalization, checkpoints, titles, project/workspace and settings
    owners required by the existing engine. The callback endpoint and canonical
    secret broker must be real scoped owners too. No empty registry, `layerTest`,
    default Node spawner or raw credential-store fallback is supplied.
@@ -86,6 +114,31 @@ Session operations retain their original RPC/HTTP descriptors, input/result
 schemas and finite/stream classification from the existing protocol ledger.
 Discovery, dispatch and tool registration remain with their assigned owners.
 
+`src/t3-session/runtime/slots.ts` exports `bindSessionControlSlots(request,
+provenance)` and `bindRetainedCatalogSlots(service)`. Both are scoped Effects
+returning the existing `ExecutorT3ImplementationSlots`, for the broker's single
+`exchangeExecutorT3Operations` / `exchangeT3SessionOperations` lane. They add no
+socket, poller or queue. Control registration binds only the exact admitted
+request's method; invoke it with that same decoded `request.input`. Another
+input object or mutation of the bound envelope is refused. It snapshots through
+the original request codec and calls the control owner's `executeSessionControl`
+with those exact values and broker-stamped provenance, then validates the
+original descriptor's result/error. The four finite controls are
+`dispatchCommand`, `launchThread`, `stopWorkflow` and `forceStopThread` under
+`orchestration.`. Their original command/receipt semantics are unchanged.
+
+Retained registration wraps the catalog owner's eight finite read handlers.
+Its capture/source-owner fences remain in that service; passive reads do not
+start providers. These imports require the coordinator-integrated control and
+catalog source, absent from this worker's base. They are not a runnable lane yet.
+
+`sessionOperationScope<R>()` captures the held graph once. Each invocation
+evaluates the unresolved Effect in a joined scoped child. Caller abort interrupts
+that child and waits for its finalizers; closing the owning scope refuses later
+calls and joins active children before provider/SQL/writer teardown. Broker
+admission and native per-operation consumption remain mandatory. These helpers
+create no authority and may not be exposed as a bypass around the signed lane.
+
 Startup is scoped acquisition. Stop is finite teardown; repeating it observes
 the same success or failure. Neither is an application receipt, provider
 acceptance, human grant or native stop receipt. Runtime unavailability is not
@@ -99,26 +152,31 @@ Authored normal-package fixtures cover competing writers in this and another
 process, process-loss release, reopen without unlink, aliases/replacement and
 rejection of unbound runtime services. Import/factory checks trap process,
 worker and SQLite side effects. Strict Bundler/NodeNext consumers require the
-host, native process and cleanup ports. Executor path fixtures reject checkout
-state before invoking native permissions.
+native process, credential-reference and resource-owner ports. Additional
+fixtures exercise original request refusals, resource errors and opaque host
+references with service doubles; they are not native admission proof. Executor
+fixtures cover path refusal, graph identity, cancellation and scope closure.
 
-Only builtin syntax and diff checks have run. Fixtures, compiler, normal package
+Only builtin syntax, bounded source extraction/closure and diff checks have run. Fixtures, compiler, normal package
 build, native ACL paths and full startup/shutdown have **not** run. Positive
 lifecycle/recovery proof needs real provider/custody owners, a scripted synthetic
 protocol child and a coordinator-scheduled heavy window. No actual T3/native
 Codex/native Claude journey, WebMCP/MCP acceptance or installed readiness is claimed.
 
-After the coordinator grants a serial window, from the public executor root:
+Qualification uses ONE coordinator-integrated source graph and producer install,
+after all compatible owner patches are integrated. Do not prepare independent
+worker installations or reuse sibling dependencies. On that exact integrated
+revision, after a granted serial window, the focused commands are:
 
 ```powershell
 $env:NODE_OPTIONS = '--max-old-space-size=512'
-pnpm.cmd install --frozen-lockfile --ignore-scripts --ignore-pnpmfile --store-dir .artifacts/runtime-pnpm-store --child-concurrency=1 --network-concurrency=1
 pnpm.cmd exec turbo run test:t3-session-engine --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
 pnpm.cmd exec turbo run test:t3-session-runtime --root-turbo-json=scripts/turbo.public.json --concurrency=1
 ```
 
-Use only this worktree's dependencies, source capsule, outputs and store. The
-declared producer prerequisite performs its own frozen isolated preparation.
+The coordinator owns the combined family order, authoritative hashes and frozen
+producer preparation. This worker's extraction manifest is an authored source
+checkpoint, not qualified evidence for the final combined graph.
 Compiler commands retain their explicit 5120 MiB limit; test processes use at
 most 512 MiB. Check the reservation and at least 12 GiB free on Maxis before each
 heavy command. This first batch requires no database service, native build,

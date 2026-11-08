@@ -6,7 +6,9 @@
   "authoredInputs": [
     "packaging/session-engine/core/Engine.ts",
     "packaging/session-engine/core/EngineLayers.ts",
+    "packaging/session-engine/core/ProviderHostLayers.ts",
     "packaging/session-engine/core/ReadLayers.ts",
+    "packaging/session-engine/core/ResourceLayers.ts",
     "packaging/session-engine/core/RuntimeLayers.ts",
     "packaging/session-engine/core/SessionLifecycle.ts",
     "packaging/session-engine/core/StateDirectoryLock.ts",
