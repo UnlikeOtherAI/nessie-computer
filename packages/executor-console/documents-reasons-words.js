@@ -2,9 +2,9 @@
 // reasons, held deletions and console refusals — in every console locale.
 // Each code in packages/schemas (FOLDER_SYNC_CONFLICT_REASONS,
 // FolderSyncHeldDeletes.reason, FOLDER_SYNC_CONSOLE_REFUSALS) has a sentence
-// here; a new code is a new sentence in every locale. sync-words.js merges
-// these into the Sync tab's words.
-const syncReasonsEnglish = {
+// here; a new code is a new sentence in every locale. documents-words.js merges
+// these into the Documents tab's words.
+const documentsReasonsEnglish = {
   reasons: {
     edited_on_both_sides: 'Changed here and in Nessie. Both versions are kept.',
     created_on_both_sides: 'Created here and in Nessie with the same name. Both are kept.',
@@ -47,10 +47,10 @@ const syncReasonsEnglish = {
   },
 }
 
-const syncReasonsByLocale = {
-  'en-GB': syncReasonsEnglish,
-  'en-US': syncReasonsEnglish,
-  'cs-CZ': {
+const documentsReasonsByLocale = {
+  'en-GB': documentsReasonsEnglish,
+  'en-US': documentsReasonsEnglish,
+  cs: {
     reasons: {
       edited_on_both_sides: 'Změněno tady i v Nessie. Obě verze jsou zachované.',
       created_on_both_sides: 'Vytvořeno tady i v Nessie se stejným názvem. Obojí je zachované.',
@@ -96,7 +96,7 @@ const syncReasonsByLocale = {
       held_deletes_changed: 'Pozastavená mazání se změnila. Projděte seznam znovu.', other: 'Synchronizaci se nepodařilo změnit. Zkuste to znovu.',
     },
   },
-  'de-DE': {
+  de: {
     reasons: {
       edited_on_both_sides: 'Hier und in Nessie geändert. Beide Versionen bleiben erhalten.',
       created_on_both_sides: 'Hier und in Nessie mit demselben Namen erstellt. Beide bleiben erhalten.',
@@ -142,7 +142,7 @@ const syncReasonsByLocale = {
       other: 'Die Synchronisierung konnte nicht geändert werden. Versuchen Sie es erneut.',
     },
   },
-  'es-ES': {
+  es: {
     reasons: {
       edited_on_both_sides: 'Modificado aquí y en Nessie. Se conservan ambas versiones.',
       created_on_both_sides: 'Creado aquí y en Nessie con el mismo nombre. Se conservan ambos.',
@@ -186,7 +186,7 @@ const syncReasonsByLocale = {
       other: 'No se pudo cambiar la sincronización. Inténtalo de nuevo.',
     },
   },
-  'fr-FR': {
+  fr: {
     reasons: {
       edited_on_both_sides: 'Modifié ici et dans Nessie. Les deux versions sont conservées.',
       created_on_both_sides: 'Créé ici et dans Nessie avec le même nom. Les deux sont conservés.',
@@ -230,7 +230,7 @@ const syncReasonsByLocale = {
       other: 'Impossible de modifier la synchronisation. Réessayez.',
     },
   },
-  'it-IT': {
+  it: {
     reasons: {
       edited_on_both_sides: 'Modificato qui e in Nessie. Entrambe le versioni sono conservate.',
       created_on_both_sides: 'Creato qui e in Nessie con lo stesso nome. Entrambi sono conservati.',
