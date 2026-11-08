@@ -216,8 +216,8 @@ test('C21 deleting the whole sync folder is root_missing: nothing is archived in
 test('C22 pointing sync at a folder that already has files asks first; accepted, they become pages', async (t) => {
   const w = await createMatrix()
   t.after(w.cleanup)
-  await mkdir(join(w.pc.replica.root, 'UnlikeOtherAI', 'Projects'), { recursive: true })
-  await writeFile(join(w.pc.replica.root, 'UnlikeOtherAI', 'Projects', 'old notes.txt'), 'from before')
+  await mkdir(join(w.pc.replica.root, 'UnlikeOtherAI', 'Platform', 'Projects'), { recursive: true })
+  await writeFile(join(w.pc.replica.root, 'UnlikeOtherAI', 'Platform', 'Projects', 'old notes.txt'), 'from before')
   const asked = await w.pc.command({ command: 'configure', root: w.pc.replica.root, enabled: true, acceptExistingFiles: false })
   assert.deepEqual(asked, { outcome: 'confirm_existing_files', fileCount: 1 })
   assert.equal(w.server.livePages().length, 0)

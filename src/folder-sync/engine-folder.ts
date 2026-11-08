@@ -2,17 +2,11 @@ import { readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { StateSecurityDeps } from '../state-security.js'
-import {
-  readMarker,
-  saveFolderSyncConfig,
-  teamFoldersOfOtherSyncs,
-  writeMarker,
-  type FolderSyncConfig,
-} from './config.js'
+import { readMarker, saveFolderSyncConfig, writeMarker, type FolderSyncConfig } from './config.js'
 import { EngineStore } from './engine-store.js'
 import { rootRealPath } from './local-fs.js'
-import { teamFolderName } from './path-mapping.js'
 import { createIndexStorePort, type FolderSyncPaths } from './state-files.js'
+import { chooseTeamFolder, type TeamFolderNames } from './team-folder.js'
 
 /**
  * Which folder a pass syncs: the root the person chose (C21), the team's folder
@@ -29,14 +23,19 @@ export const syncRootPresent = async (config: FolderSyncConfig, executorId: stri
   return marker !== null && marker.syncId === config.syncId
 }
 
-/** The team's folder under the root: named once from the handshake's label, then fixed. */
+/**
+ * The team's folder under the root: named once, from the team's and its
+ * organisation's names (`team-folder.ts`), then fixed. `names` is asked only
+ * when the folder has no name yet.
+ */
 export const ensureTeamFolder = async (
   config: FolderSyncConfig,
-  context: { stateDir: string; executorId: string; teamLabel: string; now: number; security?: StateSecurityDeps },
+  context: {
+    stateDir: string; executorId: string; names: () => Promise<TeamFolderNames>; now: number; security?: StateSecurityDeps
+  },
 ): Promise<string> => {
   if (!config.teamFolder) {
-    const taken = await teamFoldersOfOtherSyncs(config.root!, context.executorId)
-    config.teamFolder = teamFolderName(context.teamLabel, context.executorId, taken)
+    config.teamFolder = await chooseTeamFolder(config.root!, await context.names(), context.executorId)
     await saveFolderSyncConfig(context.stateDir, config, context.security)
     const marker = await readMarker(config.root!, context.executorId)
     await writeMarker(config.root!, {
