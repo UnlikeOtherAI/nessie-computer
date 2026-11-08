@@ -18,6 +18,10 @@ pub mod execution;
 pub mod execution_creator;
 pub mod execution_process;
 pub mod execution_frame;
+pub mod execution_secret_plan;
+pub mod execution_secret_read;
+#[cfg(windows)]
+pub mod execution_tool;
 pub mod execution_effect;
 pub mod execution_frame_bytes;
 pub mod execution_json;
