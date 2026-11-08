@@ -33,6 +33,13 @@ fn admission_expiry_and_phase_cannot_be_reinterpreted() {
     let mut launch = value;
     launch.phase = "launch".into();
     assert!(launch.validate(1000).is_err());
+    launch.launch_digest = Some(format!("sha256:{}", "a".repeat(64)));
+    assert!(launch.validate(1000).is_err());
+    launch.process_purpose = Some(ProcessPurpose::ClaudeHistoryRead);
+    assert!(launch.validate(1000).is_ok());
+    launch.phase = "associate".into();
+    launch.provider_session_id = Some("original-session".into());
+    assert!(launch.validate(1000).is_err());
     let mut raw = admission();
     raw["nativeId"] = json!("placeholder");
     assert!(serde_json::from_value::<Admission>(raw).is_err());
