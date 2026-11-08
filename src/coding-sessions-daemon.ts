@@ -34,6 +34,8 @@ import {
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_CONNECTION_META,
 } from './coding-session/meta-keys.js'
 import {
   codingSessionsPolicyOf,
@@ -117,7 +119,8 @@ export type CodingSessionsDaemon = {
   screen: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionScreen | null>
   /** The reserved `_meta` for one call, command rules included: defined only for the built-in bridge. */
   callMeta: (
-    server: string, input: { commandId: string; owner?: ExecutorMcpCallOwner },
+    server: string, input: { commandId: string; owner?: ExecutorMcpCallOwner;
+      codingSessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority },
   ) => Record<string, unknown> | undefined
   /** Every session on this machine, as the daemon's authority ends. */
   closeAll: (reason: string) => Promise<void>
@@ -160,6 +163,8 @@ const answerOf = (result: Record<string, unknown>): Record<string, unknown> | un
 }
 
 export const createCodingSessionsDaemon = (input: {
+  pairingSource?: () => import('@nessie/executor-protocol').ExecutorSessionPairingSource | undefined
+  connectionEpoch?: () => string | undefined
   executorId: string
   /** The rules this daemon runs under; changing them restarts it. */
   commandRules: LocalCommandPolicy
@@ -276,6 +281,9 @@ export const createCodingSessionsDaemon = (input: {
       return {
         [CODING_SESSION_COMMAND_META]: call.commandId,
         [CODING_SESSION_COMMAND_RULES_META]: input.commandRules,
+        ...(input.pairingSource?.() ? { [CODING_SESSION_PAIRING_SOURCE_META]: input.pairingSource() } : {}),
+        ...(input.connectionEpoch?.() ? { [CODING_SESSION_CONNECTION_META]: input.connectionEpoch() } : {}),
+        ...(call.codingSessionAuthority ? { [CODING_SESSION_AUTHORITY_META]: call.codingSessionAuthority } : {}),
         ...(ownerKey ? { [CODING_SESSION_OWNER_META]: ownerKey } : {}),
       }
     },

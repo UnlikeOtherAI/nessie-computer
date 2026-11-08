@@ -11,9 +11,12 @@ import {
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_CONNECTION_META,
 } from './meta-keys.js'
 import type { PathRewriter } from './path-rewrite.js'
-import { PersonalInferenceAuthoritySchema } from '@nessie/executor-protocol'
+import { PersonalInferenceAuthoritySchema, ExecutorCodingSessionAuthoritySchema,
+  ExecutorSessionPairingSourceSchema } from '@nessie/executor-protocol'
 
 /**
  * `nessie-executor serve-coding-session-mcp --config <abs path>`: the
@@ -41,12 +44,18 @@ export const codingBridgeCallMeta = (meta: unknown): CodingBridgeCallMeta => {
   const command = fields[CODING_SESSION_COMMAND_META]
   const commandRules = commandRulesOf(fields[CODING_SESSION_COMMAND_RULES_META])
   const personalAuthority = PersonalInferenceAuthoritySchema.safeParse(fields['nessie/personal-authority'])
+  const sessionAuthority = ExecutorCodingSessionAuthoritySchema.safeParse(fields[CODING_SESSION_AUTHORITY_META])
+  const source = ExecutorSessionPairingSourceSchema.safeParse(fields[CODING_SESSION_PAIRING_SOURCE_META])
+  const connection = fields[CODING_SESSION_CONNECTION_META]
   return {
     ...(typeof owner === 'string' ? { ownerKey: owner } : {}),
     ...(typeof command === 'string' ? { commandId: command } : {}),
     daemonControl: fields[CODING_SESSION_DAEMON_CONTROL_META] === true,
     ...(commandRules ? { commandRules } : {}),
     ...(personalAuthority.success ? { personalAuthority: personalAuthority.data } : {}),
+    ...(sessionAuthority.success ? { codingSessionAuthority: sessionAuthority.data } : {}),
+    ...(source.success ? { sessionPairingSource: source.data } : {}),
+    ...(typeof connection === 'string' ? { connectionEpoch: connection } : {}),
   }
 }
 

@@ -74,6 +74,8 @@ export const serveExecutor = async (
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const codingBridge = createCodingSessionsDaemon({
+      pairingSource: () => live.sessionPairingSource,
+      connectionEpoch: () => live.connectionEpoch,
       executorId: live.executorId,
       commandRules: localCommandPolicyOf(live),
       facts: live.descriptor.codingSessions,

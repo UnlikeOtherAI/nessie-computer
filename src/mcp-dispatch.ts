@@ -113,6 +113,7 @@ export const executeExecutorMcpCommand = async (
   // reserved `_meta`, and only to the executor's own coding-sessions bridge.
   const meta = bridge?.codingBridge?.callMeta(parsed.data.server, {
     commandId: bridge.commandId,
+    ...(payload?.data.codingSessionAuthority ? { codingSessionAuthority: payload.data.codingSessionAuthority } : {}),
     ...(owner ? { owner } : {}),
   })
   const callMeta = personalAuthority ? { ...meta, 'nessie/personal-authority': personalAuthority } : meta

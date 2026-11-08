@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "test:executor-private-assignments": { "dependsOn": ["build"], "cache": false },
     "test:t3-session-source": { "dependsOn": [], "cache": false },
     "//#test:t3-session-request-prepare": { "dependsOn": [], "cache": false,
       "env": ["T3_REQUEST_PRIVACY_SOURCE_REPOSITORY", "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"] },

@@ -51,7 +51,8 @@ export type ExecutorApiClient = {
   ) => Promise<unknown>
   cancelPending: () => void
   claim: (baseUrl: string, input: { challenge: string; executorId: string; signature: string }) =>
-    Promise<{ connectionEpoch: string; status: string }>
+    Promise<{ connectionEpoch: string; status: string;
+      sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource }>
   heartbeat: (
     baseUrl: string,
     input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string;
