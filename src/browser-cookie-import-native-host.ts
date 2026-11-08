@@ -12,7 +12,7 @@ const failedHostFrame = (): Record<string, unknown> => ({
 })
 
 const requireLiveConnection = (state: ExecutorLocalState): string => {
-  if (!state.connectionEpoch) throw new Error('Browser cookie import requires a live paired executor connection.')
+  if (!state.connectionEpoch) throw new Error('Browser cookie import requires a team connected from this computer.')
   return state.connectionEpoch
 }
 
@@ -60,7 +60,7 @@ export const serveBrowserCookieImportNativeHost = async (input: {
     pending,
     upload: async (value) => {
       const state = selectedState
-      if (!state) throw new Error('Browser cookie import has no selected paired executor.')
+      if (!state) throw new Error('Browser cookie import has no selected team.')
       const connectionEpoch = requireLiveConnection(state)
       const submittedAt = new Date().toISOString()
       const payload = {

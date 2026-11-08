@@ -45,7 +45,7 @@ export const WINDOWS_HYPERV_SERVICE_BINARY = 'System32\\vmms.exe'
 export const SUPERVISOR_ENVIRONMENT_VARIABLE = 'NESSIE_EXECUTOR_SUPERVISOR'
 
 const UNSUPPORTED_HOST =
-  'This executor release supports macOS 15+ on Apple Silicon, Linux on x86_64 or arm64, '
+  'This Nessie Computer release supports macOS 15+ on Apple Silicon, Linux on x86_64 or arm64, '
   + 'and Windows 10 22H2+ on x86_64. Set no execution capability on other platforms.'
 
 /** macOS states its own version here, in XML, on every supported release. */

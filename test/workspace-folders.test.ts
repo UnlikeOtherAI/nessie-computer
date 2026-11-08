@@ -349,7 +349,7 @@ test('a guest session refuses to start while more than one folder is configured'
           code: 'EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED',
           folders: ['alpha', 'beta'],
           message:
-            'A guest session mounts one workspace folder, and this executor exposes 2. '
+            'A guest session mounts one folder, and this team uses 2. '
             + 'The workspace file operations reach every folder.',
           success: false,
         },

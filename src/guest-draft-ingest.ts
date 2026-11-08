@@ -82,10 +82,10 @@ const applyFile = async (
       }
       if (chunk.eof) break
       if (chunk.bytes.byteLength === 0) {
-        throw new WorkspacePathError('The executor guest stalled while returning a workspace draft.')
+        throw new WorkspacePathError('The guest stalled while returning a workspace draft.')
       }
       if (chunk.bytes.byteLength > GUEST_DRAFT_READ_MAX_BYTES) {
-        throw new WorkspacePathError('The executor guest returned an oversized workspace draft chunk.')
+        throw new WorkspacePathError('The guest returned an oversized workspace draft chunk.')
       }
     }
     await handle.sync()
@@ -130,11 +130,11 @@ export const ingestGuestDrafts = async (
     }
     if (scan.next === undefined) return { bytes, files }
     if (scan.next <= cursor) {
-      throw new WorkspacePathError('The executor guest returned a non-advancing workspace draft cursor.')
+      throw new WorkspacePathError('The guest returned a non-advancing workspace draft cursor.')
     }
     cursor = scan.next
   }
-  throw new WorkspacePathError('The executor guest returned an unterminated workspace draft listing.')
+  throw new WorkspacePathError('The guest returned an unterminated workspace draft listing.')
 }
 
 export type SandboxDraftFlush = () => Promise<void>

@@ -64,16 +64,16 @@ const runMkfs: GuestImageSpawner = async ({ argv, path, timeoutMs }) => {
     const child = spawn(path, argv, { stdio: ['ignore', 'ignore', 'ignore'], windowsHide: true })
     const timeout = setTimeout(() => {
       child.kill('SIGKILL')
-      reject(new WorkspacePathError('Building the executor guest filesystem image timed out.'))
+      reject(new WorkspacePathError('Building the guest filesystem image timed out.'))
     }, timeoutMs)
     child.once('error', () => {
       clearTimeout(timeout)
-      reject(new WorkspacePathError('The executor guest filesystem builder (mkfs.ext4) is unavailable.'))
+      reject(new WorkspacePathError('The guest filesystem builder (mkfs.ext4) is unavailable.'))
     })
     child.once('exit', (code) => {
       clearTimeout(timeout)
       if (code === 0) resolvePromise()
-      else reject(new WorkspacePathError('The executor guest filesystem image could not be created.'))
+      else reject(new WorkspacePathError('The guest filesystem image could not be created.'))
     })
   })
 }
@@ -144,7 +144,7 @@ export const guestImageIdentity = (
   }
   if (uid === 0 || gid === 0) {
     throw new WorkspacePathError(
-      'The executor daemon must not run as root: a guest whose workspace is root-owned refuses to boot rather '
+      'Nessie Computer must not run as root: a guest whose workspace is root-owned refuses to boot rather '
       + 'than leave a privileged workload inside the sandbox. Run the daemon as the account that owns the '
       + 'paired workspace.',
     )

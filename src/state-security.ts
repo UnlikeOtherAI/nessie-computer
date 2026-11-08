@@ -50,7 +50,7 @@ export const packagedNativeHelperPath = (): string => join(dirname(process.execP
   process.platform === 'win32' ? HELPER_EXECUTABLE : 'nessie-executor-native')
 
 const helperUnavailable = (): Error => new Error(
-  'Executor state security on Windows needs the native helper beside its Node runtime. '
+  'State security on Windows needs the native helper beside its Node runtime. '
   + 'Use the installed package, or the repository Windows test runner with its built native ACL helper.',
 )
 
@@ -64,7 +64,7 @@ export const spawnStateSecurityHelper: StateSecurityHelper = async (command, pat
     let output = ''
     const timeout = setTimeout(() => {
       child.kill()
-      fail(new Error(`Executor state security timed out verifying ${path}.`))
+      fail(new Error(`State security timed out verifying ${path}.`))
     }, HELPER_TIMEOUT_MS)
     child.once('error', () => {
       clearTimeout(timeout)
@@ -85,14 +85,14 @@ export const assertStateSecurityHelperResponse = (answer: string, path: string):
   try {
     parsed = JSON.parse(answer) as { code?: unknown; status?: unknown }
   } catch {
-    throw new Error(`Executor state security could not read the helper's answer for ${path}.`)
+    throw new Error(`State security could not read the helper's answer for ${path}.`)
   }
   if (parsed.status === 'secured' || parsed.status === 'verified') return
   const code = typeof parsed.code === 'string' ? parsed.code : 'EXECUTOR_STATE_SECURITY_REJECTED'
   if (code === 'EXECUTOR_STATE_SECURITY_NOT_FOUND') {
-    throw Object.assign(new Error(`Executor state path ${path} no longer exists.`), { code: 'ENOENT' })
+    throw Object.assign(new Error(`State path ${path} no longer exists.`), { code: 'ENOENT' })
   }
-  throw new Error(`Executor state path ${path} is not owner-only (${code}).`)
+  throw new Error(`State path ${path} is not owner-only (${code}).`)
 }
 
 const runHelper = async (
@@ -107,13 +107,13 @@ const assertPosixOwnerOnly = async (path: string, expectedKind: StateEntryKind):
   const current = await lstat(path)
   const shaped = expectedKind === 'directory' ? current.isDirectory() : current.isFile()
   if (current.isSymbolicLink() || !shaped) {
-    throw new Error(`Executor state path ${path} must be an ordinary ${expectedKind}.`)
+    throw new Error(`State path ${path} must be an ordinary ${expectedKind}.`)
   }
   if (currentOwnerId() !== undefined && current.uid !== currentOwnerId()) {
-    throw new Error(`Executor state path ${path} must be owned by the current user.`)
+    throw new Error(`State path ${path} must be owned by the current user.`)
   }
   if ((current.mode & MODE_MASK_GROUP_OR_OTHER) !== 0) {
-    throw new Error(`Executor state path ${path} must not be accessible by other users.`)
+    throw new Error(`State path ${path} must not be accessible by other users.`)
   }
 }
 
@@ -121,7 +121,7 @@ const assertWindowsShape = async (path: string, expectedKind: StateEntryKind): P
   const current = await lstat(path)
   const shaped = expectedKind === 'directory' ? current.isDirectory() : current.isFile()
   if (current.isSymbolicLink() || !shaped) {
-    throw new Error(`Executor state path ${path} must be an ordinary ${expectedKind}.`)
+    throw new Error(`State path ${path} must be an ordinary ${expectedKind}.`)
   }
 }
 

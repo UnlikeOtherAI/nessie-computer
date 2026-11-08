@@ -278,7 +278,7 @@ mod tests {
     /// instead would have the tray reporting the wrong problem entirely.
     #[test]
     fn a_refusing_service_answers_every_command_with_its_reason() {
-        let refusal = "Executor controls require a signed, intact Nessie release.";
+        let refusal = "Nessie Computer’s controls need a signed, intact release.";
         let control = Control::Refused(refusal.to_owned());
         for command in [
             Command::Status,

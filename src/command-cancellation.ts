@@ -91,7 +91,7 @@ export const watchLegacyCancellation = (input: {
     checking = true
     const state = input.state()
     try {
-      if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+      if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
       const payload = {
         activeCommand,
         connectionEpoch: state.connectionEpoch,
@@ -106,7 +106,7 @@ export const watchLegacyCancellation = (input: {
       if (finished || !answer) return
       const cancellation = ExecutorCommandCancellationSchema.parse(answer)
       if (!cancellationNames(cancellation, input.command)) {
-        throw new Error('Executor cancellation does not name the active command.')
+        throw new Error('The cancellation does not name the active command.')
       }
       input.onCancel()
     } catch (error) {
@@ -140,7 +140,7 @@ export const executeWithCommandCancellation = async (input: {
   intervalMs?: number
   state: CancellationState
 }): Promise<Record<string, unknown>> => {
-  if (!input.state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!input.state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const controller = new AbortController()
   const watch = watchLegacyCancellation({
     api: input.api, command: input.command, intervalMs: input.intervalMs,

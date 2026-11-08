@@ -1,4 +1,4 @@
-//! The Windows service itself: `NessieExecutor`, displayed as "Nessie Executor".
+//! The Windows service itself: `NessieExecutor`, displayed as "Nessie Computer".
 //!
 //! It runs as the virtual account `NT SERVICE\NessieExecutor` — no password, no
 //! interactive logon, its own SID — and starts automatically at boot, which is

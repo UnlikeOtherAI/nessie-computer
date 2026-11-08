@@ -65,7 +65,7 @@ export const materializeDeepTestExecutionSource = async (
   assertActive: () => Promise<void> = async () => undefined,
 ): Promise<{ release: () => Promise<void>; workspaceRoot: string }> => {
   await assertActive()
-  const stateRoot = await configureOrdinaryDirectory(stateDir, 'The executor state directory')
+  const stateRoot = await configureOrdinaryDirectory(stateDir, 'The team's state folder')
   const source = resolve(stateRoot, `.deeptest-execution-source-${randomUUID()}`)
   await mkdir(source, { mode: 0o700 })
   try {

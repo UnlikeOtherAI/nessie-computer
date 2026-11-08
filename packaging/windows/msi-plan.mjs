@@ -85,7 +85,7 @@ export const GUEST_CONSOLE_PORT = 49_151
 export const HYPERV_SOCKET_PORTS = [GUEST_CONSOLE_PORT, GUEST_CONTROL_PORT, GUEST_EGRESS_PORT]
 
 /** What the registry key is called for a person reading it in regedit. */
-export const HYPERV_SOCKET_ELEMENT_NAME = 'Nessie Executor'
+export const HYPERV_SOCKET_ELEMENT_NAME = 'Nessie Computer'
 
 export const HYPERV_SOCKET_REGISTRY_KEY =
   'SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Virtualization\\GuestCommunicationServices'

@@ -33,7 +33,7 @@ export type CreateGuestVmInput = HyperVGuestDisks & {
 
 const positiveInteger = (value: number, label: string): string => {
   if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new WorkspacePathError(`The executor guest VM ${label} is invalid.`)
+    throw new WorkspacePathError(`The guest VM ${label} is invalid.`)
   }
   return String(value)
 }
@@ -72,11 +72,11 @@ const readVmId = (output: string): string => {
   try {
     parsed = JSON.parse(output.trim())
   } catch {
-    throw new WorkspacePathError('The executor guest VM was not created: its identity was not reported.')
+    throw new WorkspacePathError('The guest VM was not created: its identity was not reported.')
   }
   const vmId = (parsed as { vmId?: unknown }).vmId
   if (typeof vmId !== 'string' || !VM_ID.test(vmId)) {
-    throw new WorkspacePathError('The executor guest VM reported an invalid identity.')
+    throw new WorkspacePathError('The guest VM reported an invalid identity.')
   }
   return vmId.toLowerCase()
 }

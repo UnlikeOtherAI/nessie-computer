@@ -50,7 +50,7 @@ export const terminalLaunch = async (
   if (!rules) {
     throw new CodingBridgeError(
       'coding_session_command_rules_missing',
-      'Terminal sessions start only through the executor, which applies this computer\'s command rules.',
+      'Terminal sessions start only through Nessie Computer, which applies this computer\'s command rules.',
     )
   }
   // CreateProcess runs no script without its interpreter, and there is no shell in between.

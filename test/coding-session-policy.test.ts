@@ -214,7 +214,7 @@ test('the name coding-sessions is the executor\'s; nobody may point it at a prog
     await assert.rejects(planCodingSessions({
       current: {}, mcpServers: [{ name: 'coding-sessions', command: ['/tmp/anything'] }],
       stateDir: s.stateDir, workspaceFolders: [],
-    }), /reserved for the executor's own bridge/u)
+    }), /reserved for Nessie Computer's own bridge/u)
   } finally {
     await rm(s.dir, { recursive: true, force: true })
   }

@@ -26,26 +26,26 @@ const socketFailure = (socket: Duplex, status: number, message: string): void =>
 
 const assertOwnerOnlySocketParent = async (rawSocketPath: string): Promise<string> => {
   if (!isAbsolute(rawSocketPath)) {
-    throw new Error('The executor egress socket path must be absolute.')
+    throw new Error('The egress socket path must be absolute.')
   }
   const socketPath = resolve(rawSocketPath)
   if (socketPath.length > SOCKET_PATH_MAX_CHARS) {
-    throw new Error('The executor egress socket path is too long.')
+    throw new Error('The egress socket path is too long.')
   }
   const parent = dirname(socketPath)
   const metadata = await lstat(parent)
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error('The executor egress socket parent must be an ordinary directory.')
+    throw new Error('The egress socket parent must be an ordinary directory.')
   }
   if (process.getuid?.() !== undefined && metadata.uid !== process.getuid()) {
-    throw new Error('The executor egress socket parent must be owned by the current user.')
+    throw new Error('The egress socket parent must be owned by the current user.')
   }
   if ((metadata.mode & OWNER_ONLY_MASK) !== 0) {
-    throw new Error('The executor egress socket parent must be owner-only.')
+    throw new Error('The egress socket parent must be owner-only.')
   }
   try {
     await lstat(socketPath)
-    throw new Error('The executor egress socket path already exists.')
+    throw new Error('The egress socket path already exists.')
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
   }

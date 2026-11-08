@@ -135,18 +135,18 @@ export const ensureSandboxWorkspace = async (
   const source = await configureWorkspaceFolderPath(folder.path)
   const paths = await sandboxFolderPaths(stateDir, runId, folder.name)
   try {
-    await assertOrdinaryDirectory(paths.root, 'The executor sandbox is unavailable.')
+    await assertOrdinaryDirectory(paths.root, 'The sandbox is unavailable.')
   } catch (error) {
     if (!missing(error)) throw error
     // The run root and its `folders/` level are shared by every folder of this
     // run, so they are created idempotently; only the folder itself is renamed
     // into place, which is what makes one folder's snapshot atomic.
     await mkdir(paths.parent, { mode: 0o700, recursive: true })
-    await assertOrdinaryDirectory(paths.run, 'The executor sandbox is unavailable.')
-    await assertOrdinaryDirectory(paths.parent, 'The executor sandbox is unavailable.')
+    await assertOrdinaryDirectory(paths.run, 'The sandbox is unavailable.')
+    await assertOrdinaryDirectory(paths.parent, 'The sandbox is unavailable.')
     const staging = resolve(paths.parent, `.${paths.name}.${RunIdSchema.parse(runId)}.${randomUUID()}.new`)
     if (!isInsideDirectory(paths.parent, staging)) {
-      throw new WorkspacePathError('The executor sandbox staging path is invalid.')
+      throw new WorkspacePathError('The sandbox staging path is invalid.')
     }
     await mkdir(staging, { mode: 0o700 })
     try {
@@ -164,13 +164,13 @@ export const ensureSandboxWorkspace = async (
       await rm(staging, { force: true, recursive: true })
       throw copyError
     }
-    return configureOrdinaryDirectory(paths.workspace, 'The executor sandbox workspace')
+    return configureOrdinaryDirectory(paths.workspace, 'The sandbox workspace')
   }
   try {
-    return await configureOrdinaryDirectory(paths.workspace, 'The executor sandbox workspace')
+    return await configureOrdinaryDirectory(paths.workspace, 'The sandbox workspace')
   } catch (error) {
     throw new WorkspacePathError(
-      error instanceof Error ? error.message : 'The executor sandbox workspace is unavailable.',
+      error instanceof Error ? error.message : 'The sandbox workspace is unavailable.',
     )
   }
 }

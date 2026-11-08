@@ -117,7 +117,7 @@ const sendHeartbeat = async (
   onMonitorRequest: ((request: ExecutorMonitorRequest | null) => void) | undefined,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
-    throw new Error('Executor has not claimed a live daemon connection.')
+    throw new Error('This team is not connected from this computer right now.')
   }
   const observedAt = new Date().toISOString()
   // Each optional field joins the signed payload exactly when it is present.

@@ -35,10 +35,10 @@ const SPAWN_GRACE_MS = 15_000
 const SLOW_START_LIMIT_MS = 120_000
 
 export const resolveExecutorEntry = (invoked: string | undefined = process.argv[1]): string => {
-  if (!invoked) throw new Error('The executor entry point is unknown.')
+  if (!invoked) throw new Error('Nessie Computer’s entry point is unknown.')
   const entry = realpathSync(invoked)
   if (!ENTRY_NAMES.includes(basename(entry))) {
-    throw new Error('The coding-sessions bridge runs only from the executor entry point.')
+    throw new Error('The coding-sessions bridge runs only from Nessie Computer’s entry point.')
   }
   return entry
 }

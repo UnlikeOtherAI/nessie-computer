@@ -154,7 +154,7 @@ export const createFolderSyncTransport = (
 ): FolderSyncTransport => {
   const envelope = (operation: FolderSyncOperation) => {
     const live = connection()
-    if (!live.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+    if (!live.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
     return {
       live,
       fields: {

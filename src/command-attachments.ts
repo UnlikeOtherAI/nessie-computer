@@ -110,7 +110,7 @@ export const createExecutorCommandAttachmentStore = (
     write: async (commandId, images) => {
       const directory = await commandDirectory(commandId)
       await mkdir(directory, { mode: 0o700, recursive: true })
-      await assertOrdinaryDirectory(directory, 'The executor attachment directory is unavailable.')
+      await assertOrdinaryDirectory(directory, 'The attachment folder is unavailable.')
       for (const image of images) {
         const handle = await open(resolve(directory, sidecarName(image.digest)), 'w', 0o600)
         try {

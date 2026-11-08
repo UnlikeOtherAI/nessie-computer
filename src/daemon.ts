@@ -61,7 +61,7 @@ export const sendExecutorCommandReceipt = async (
     state: 'accepted' | 'started' | 'result_acknowledged'
   },
 ): Promise<void> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const occurredAt = new Date().toISOString()
   const commandReceipt = {
     commandId: input.commandId,
@@ -90,7 +90,7 @@ export const uploadExecutorCommandAttachment = (
   state: ExecutorLocalState,
   api: Pick<ExecutorApiClient, 'uploadCommandAttachment'> = executorApi,
 ): ExecutorAttachmentUpload => async (image) => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const payload = {
     attachment: {
       byteLength: image.bytes.length,
@@ -137,7 +137,7 @@ const guestSessionRefusal = (state: ExecutorLocalState): Record<string, unknown>
       code: 'EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED',
       folders: executorWorkspaceFolderNames(state.workspaceFolders),
       message:
-        'A guest session mounts one workspace folder, and this executor exposes '
+        'A guest session mounts one folder, and this team uses '
         + `${state.workspaceFolders.length}. The workspace file operations reach every folder.`,
       success: false,
     }

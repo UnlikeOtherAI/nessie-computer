@@ -48,7 +48,7 @@ export const firecrackerLayout = (input: {
   socketDirectory: string
 }): FirecrackerLayout => {
   if (!SESSION_ID.test(input.sessionId)) {
-    throw new WorkspacePathError('The executor micro-VM session id is invalid.')
+    throw new WorkspacePathError('The micro-VM session id is invalid.')
   }
   return {
     apiSocketPath: join(input.socketDirectory, FIRECRACKER_API_SOCKET_NAME),
@@ -79,7 +79,7 @@ export const buildFirecrackerArgv = (input: {
   sessionId: string
 }): string[] => {
   if (!SESSION_ID.test(input.sessionId)) {
-    throw new WorkspacePathError('The executor micro-VM session id is invalid.')
+    throw new WorkspacePathError('The micro-VM session id is invalid.')
   }
   return ['--api-sock', input.apiSocketPath, '--id', input.sessionId]
 }
@@ -93,7 +93,7 @@ export const defaultFirecrackerHostProbe = (): FirecrackerHostProbe => ({
 })
 
 const KVM_REMEDY =
-  'This computer\'s /dev/kvm is not readable and writable by the executor daemon, so a sandboxed guest '
+  'This computer\'s /dev/kvm is not readable and writable by Nessie Computer, so a sandboxed guest '
   + 'cannot start. Add this account to the kvm group (and sign in again), or grant it access with '
   + 'setfacl -m u:$USER:rw /dev/kvm.'
 

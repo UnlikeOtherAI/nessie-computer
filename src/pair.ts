@@ -154,7 +154,7 @@ const configuredOperationKeys = (
 ): string[] => {
   const requested = new Set(requestedOperationKeys)
   if (requested.size === 0 || requested.size !== requestedOperationKeys.length) {
-    throw new Error('Specify one or more distinct implemented executor operations.')
+    throw new Error('Name one or more distinct operations this computer implements.')
   }
   if ([...requested].some((operationKey) => (
     !ImplementedExecutorOperationKeySchema.safeParse(operationKey).success
@@ -499,7 +499,7 @@ const assertPreparedPairingMatches = (
     })
     storedPublicKey = rawEd25519PublicKey(createPublicKey(privateKey))
   } catch {
-    throw new Error('Executor pairing state contains an invalid private key.')
+    throw new Error('This team's pairing state contains an invalid private key.')
   }
   if (
     prepared.apiBaseUrl !== input.apiBaseUrl
@@ -510,7 +510,7 @@ const assertPreparedPairingMatches = (
     || !sameWorkspaceFolders(prepared.workspaceFolders, workspaceFolders)
   ) {
     throw new Error(
-      'This executor state directory contains a different unfinished pairing. '
+      'This team's folder contains a different unfinished pairing. '
       + 'Complete that pairing before starting another.',
     )
   }

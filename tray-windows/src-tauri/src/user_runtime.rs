@@ -16,7 +16,7 @@ pub fn command() -> Result<Command, String> {
     let root = std::env::current_exe()
         .ok()
         .and_then(|file| file.parent().map(PathBuf::from))
-        .ok_or("Could not locate the packaged executor.")?;
+        .ok_or("Nessie Computer couldn’t find its own program files. Reinstall it.")?;
     let runtime = verify_packaged_runtime(&root)?;
     let mut command = if cfg!(debug_assertions) {
         let mut command = Command::new(&runtime.node_executable);

@@ -35,7 +35,7 @@ test('client-recovery: daemon shutdown cancels pending executor API requests', a
     (error: unknown) => (
       error instanceof ExecutorApiError
       && error.code === 'EXECUTOR_API_CANCELLED'
-      && error.message === 'Executor API request was cancelled.'
+      && error.message === 'The Nessie request was cancelled.'
     ),
   )
 })

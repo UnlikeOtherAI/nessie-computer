@@ -17,14 +17,14 @@ const validResult = (name: string, value: unknown): boolean => {
 }
 const tools = [
   {
-    name: 'ollama_web_search', description: 'Search using this executor’s configured Ollama account. Returns source URLs and excerpts.',
+    name: 'ollama_web_search', description: 'Search using this computer’s configured Ollama account. Returns source URLs and excerpts.',
     inputSchema: {
       type: 'object' as const, additionalProperties: false, required: ['query'],
       properties: { query: { type: 'string', minLength: 1, maxLength: 4_000 }, max_results: { type: 'integer', minimum: 1, maximum: 10 } },
     },
   },
   {
-    name: 'ollama_web_fetch', description: 'Read a public page using this executor’s configured Ollama account.',
+    name: 'ollama_web_fetch', description: 'Read a public page using this computer’s configured Ollama account.',
     inputSchema: {
       type: 'object' as const, additionalProperties: false, required: ['url'],
       properties: { url: { type: 'string', minLength: 1, maxLength: 4_000 } },
