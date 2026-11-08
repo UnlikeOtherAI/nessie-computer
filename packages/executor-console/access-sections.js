@@ -4,7 +4,9 @@
   const nc = window.nc
   const access = window.accessTab
   const t = access.t
-  const LOCAL_APP_SOURCES = new Set(['unlikeotherai', 'claudeCode', 'codex', 't3Code'])
+  // Where the runtime found a local app (`LOCAL_APP_SOURCES` in src/mcp-servers.ts);
+  // `configured` means the owner named it.
+  const LOCAL_APP_SOURCES = { unlikeotherai: 'unlikeotherai', 'claude-code': 'claudeCode', codex: 'codex' }
   const setText = (id, text) => { nc.byId(id).textContent = text }
   // A folder is shown by its own name, as the person's file manager shows it.
   const folderLabel = (path) => path.split(/[\\/]/).filter(Boolean).at(-1) ?? path
@@ -81,7 +83,7 @@
   // Folders: rows with the name agents use, Remove, Add folder… The runtime
   // keeps at least one folder (workspace-folders.ts), so the last Remove waits.
   access.register('folders', (() => {
-    let list; let add; let last; let intro
+    let list; let add; let last; let intro; let several
     const inForce = (input) => t('save.inForce.folders', { list: access.list(input.workspaceFolders.map((folder) => folderLabel(folder.path))) })
     return {
       build: (node) => {
@@ -91,7 +93,8 @@
           // Native and runtime validation own path, overlap and name rules.
           access.edit({ section: 'folders', target: add, inForce, mutate: (input) => {
             if (input.workspaceFolders.some((folder) => folder.path === path)) return false
-            input.workspaceFolders = [...input.workspaceFolders, { name: folderName(path, input.workspaceFolders), path }]
+            const name = folderName(path, input.workspaceFolders)
+            input.workspaceFolders = [...input.workspaceFolders, { name, path }]
           } })
         }), { id: 'access-add-folder' })
         ;({ intro } = heading(node, 'folders', add))
@@ -100,7 +103,10 @@
         last = document.createElement('p')
         last.id = 'access-last-folder'
         last.className = 'hint'
-        node.append(list, last)
+        several = document.createElement('p')
+        several.id = 'access-several-folders'
+        several.className = 'hint'
+        node.append(list, last, several)
       },
       render: ({ input, label }) => {
         setText(`access-folders-title`, t('sections.folders'))
@@ -119,6 +125,10 @@
         }, () => add)
         last.textContent = t('folders.last')
         last.hidden = input.workspaceFolders.length !== 1
+        // The agent browser, sandboxed commands and coding sessions need exactly one folder
+        // (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
+        several.textContent = t('folders.multiple')
+        several.hidden = input.workspaceFolders.length < 2
       },
     }
   })())
@@ -180,11 +190,23 @@
     }
   })())
 
-  // Local apps: every installed local MCP server, on unless the owner switched it off.
+  // Local apps: every installed local MCP server, on unless the owner switched
+  // it off; an app the owner named (`configured`) is removed rather than switched.
   access.register('localApps', (() => {
     let list; let intro; let empty
     const inForce = (input, saved) => t('save.inForce.localApps', { list: access.list((saved?.localApps ?? [])
-      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name)).map((app) => app.name)) })
+      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name)
+        && !input.mcpServers?.every((server) => server.name !== app.name))
+      .map((app) => app.name)) })
+    /** Removing an owner-named app sends the owner's list without it; the discovered ones are the runtime's to keep. */
+    const removeConfigured = (app, saved) => access.edit({ section: 'localApps', target: list, inForce: (draft) => inForce(draft, saved),
+      mutate: (draft) => {
+        const named = (saved.reach.mcpServers ?? []).filter((server) => server.source === undefined)
+        const owned = named.filter((server) => server.name !== app.name)
+        if (owned.length === named.length) return false
+        draft.mcpServers = owned.map((server) => ({ name: server.name, command: [...server.command],
+          ...(server.cwd ? { cwd: server.cwd } : {}) }))
+      } })
     return {
       build: (node) => {
         ;({ intro } = heading(node, 'localApps'))
@@ -202,6 +224,12 @@
         access.keepFocus(list, () => {
           list.replaceChildren()
           for (const app of apps ?? []) {
+            if (input.mcpServers?.every((server) => server.name !== app.name) && app.source === 'configured') continue
+            if (app.source === 'configured') {
+              const remove = button(t('folders.remove'), () => removeConfigured(app, saved), { 'aria-label': t('localApps.removeLabel', { app: app.name, team: label }) })
+              list.append(access.row({ name: app.name, detail: t('programs.ownerAdded'), control: remove, key: app.name }))
+              continue
+            }
             const enabled = !input.mcpPolicy?.disabled.includes(app.name)
             const toggle = access.toggle({ label: t('localApps.switchLabel', { team: label, app: app.name }), checked: enabled,
               disabled: !input.mcpPolicy, onchange: (on) => access.edit({ section: 'localApps', target: list,
@@ -212,7 +240,7 @@
                   else disabled.add(app.name)
                   draft.mcpPolicy = { ...draft.mcpPolicy, disabled: [...disabled].sort() }
                 } }) })
-            const source = t(`localApps.source.${LOCAL_APP_SOURCES.has(app.source) ? app.source : 'other'}`)
+            const source = t(`localApps.source.${LOCAL_APP_SOURCES[app.source] ?? 'other'}`)
             list.append(access.row({ name: app.name, detail: app.installed === false ? `${source} · ${t('localApps.notInstalled')}` : source,
               control: toggle, key: app.name, disabled: app.installed === false }))
           }
