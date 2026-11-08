@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
+import { tablesForLayout } from '../../dist/t3-session/import/layout.js'
 
 export const at = '2020-01-01T00:00:00.000Z'
 export const canary = 'synthetic-mask-only-秘密-7a2'
@@ -63,4 +64,17 @@ export function assertDestinationsClean(f) {
       }
     } finally { database.close() }
   }
+}
+
+export function assertGenerationEmpty(f, generation) {
+  const path = f.destination(generation)
+  if (!existsSync(path)) return
+  const database = new DatabaseSync(path, { readOnly: true })
+  try {
+    for (const { name } of tablesForLayout('v2-80')) {
+      // Original migrations initialize projection metadata, not session rows.
+      if (name === 'orchestration_v2_projection_metadata') continue
+      assert.equal(database.prepare(`SELECT COUNT(*) AS n FROM ${name}`).get().n, 0, name)
+    }
+  } finally { database.close() }
 }

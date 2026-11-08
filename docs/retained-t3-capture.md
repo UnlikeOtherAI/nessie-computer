@@ -196,3 +196,12 @@ consumer compiler inherited the 512 MiB test heap and exhausted it. The compiler
 child now explicitly uses the standard 5120 MiB cap; the test process stays at
 512 MiB. This changes no compiler checks or consumer assertions.
 
+
+Independent qualification now runs the normal importer gate against generated
+engine declarations. Replay assertions use the original stored-event envelope
+(`row.event.id`), and the append-refresh fixture supplies a timestamp after
+existing history. The prior backdated fixture and failed gate logs are retained.
+A valid masked attachment exercises refusal in the projected preflight, with
+explicit zero-row assertions across destination session tables. These synthetic
+fixtures do not bind either production authority producer.
+

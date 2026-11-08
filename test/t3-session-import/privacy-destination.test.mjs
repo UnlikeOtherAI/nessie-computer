@@ -4,12 +4,14 @@ import { test } from 'node:test'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Stream from 'effect/Stream'
+import * as Schema from 'effect/Schema'
 import { createSessionStateLayers, createSessionReadLayers, EventStore, ThreadReadService,
   ThreadStream, SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3, resumeRetainedT3 } from '../../dist/t3-session/import/capture.js'
 import { readRetainedProjection } from '../../dist/t3-session/import/reads.js'
 import { engineFixture, sqlLayer } from './engine-fixture.mjs'
-import { addQuestion, addAnswer, addEvent, assertDestinationsClean, at, canary, ordinary } from './privacy-fixture.mjs'
+import { addQuestion, addAnswer, addEvent, assertDestinationsClean,
+  assertGenerationEmpty, canary, ordinary } from './privacy-fixture.mjs'
 
 const capture = f => captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
 const resume = (f, generation) => resumeRetainedT3(f.ports, f.manifest, f.source.admittedRootKey, generation)
@@ -42,7 +44,9 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
       const store = yield* EventStore.EventStoreV2
       const service = yield* ThreadReadService
       const replay = yield* store.read({ threadId: S.ThreadId.make(f.ids[0]) }).pipe(Stream.runCollect)
-      assert.deepEqual(replay.filter(row => eventIds.includes(row.id)).map(row => row.id), eventIds)
+      const capturedEvents = replay.filter(row => eventIds.includes(row.event.id))
+      assert.deepEqual(capturedEvents.map(row => row.event.id), eventIds)
+      assert.ok(capturedEvents[0].sequence < capturedEvents[1].sequence)
       assert.equal(JSON.stringify(replay).includes(canary), false)
       // Twice through the same original service instance exercises its caches.
       for (let pass = 0; pass < 2; pass++) {
@@ -61,7 +65,7 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
     addAnswer(f, { request: 'request:late' })
     f.writer.prepare(`INSERT INTO projection_thread_messages
       (message_id, thread_id, role, text, is_streaming, created_at, updated_at) VALUES (?, ?, 'user', ?, 0, ?, ?)`)
-      .run('legacy:after', f.ids[0], ordinary, at, at)
+      .run('legacy:after', f.ids[0], ordinary, '2021-01-01T00:00:00.000Z', '2021-01-01T00:00:00.000Z')
     const next = await capture(f)
     assert.notEqual(next.generation, first.generation)
     const full = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
@@ -75,7 +79,7 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
   } finally { f.close() }
 })
 
-for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capacity']) {
+for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capacity', 'masked-attachment']) {
   test(`actual capture rejects ${scenario} before session inserts, retaining prior catalog`, async t => {
     const f = await engineFixture({ messages: 4 })
     const logs = []
@@ -87,8 +91,12 @@ for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capa
         for (let index = 0; index < 8193; index++) addQuestion(f, { request: `request:${index}`, ordinal: 1000 + index })
       } else {
         const value = addQuestion(f, { mask: scenario === 'unknown' ? 'unknown' : true })
-        if (scenario === 'missing') {
-          delete value.questions[0].isSecret
+        if (scenario === 'missing' || scenario === 'masked-attachment') {
+          if (scenario === 'missing') delete value.questions[0].isSecret
+          else value.questionAnswer.attachmentsByQuestionId = { 'q:reused': [{
+            type: 'file', id: 'synthetic_attachment', name: canary, mimeType: 'text/plain', sizeBytes: 1,
+          }] }
+          Schema.decodeUnknownSync(S.OrchestrationV2TurnItemJson)(value)
           f.writer.prepare('UPDATE orchestration_v2_projection_turn_items SET payload_json = ? WHERE turn_item_id = ?')
             .run(JSON.stringify(value), value.id)
         }
@@ -100,11 +108,12 @@ for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capa
       let failure
       try { await capture(f) } catch (error) { failure = error }
       assert.ok(failure)
-      assert.match(failure.message, /capture_(question_classification|privacy_incomplete)/u)
+      assert.match(failure.message, /capture_(question_classification|privacy_incomplete|masked_attachment_unsupported)/u)
       assert.equal(inspect(failure).includes(canary), false)
       const root = f.ports.journal.root(f.source.physicalRootKey)
       assert.equal(root.last_ready_generation, first.generation)
       assert.notEqual(root.generation, first.generation)
+      assertGenerationEmpty(f, root.generation)
       // A stage is allowed to remain unopened when privacy preflight fails.
       assertDestinationsClean(f)
       assert.equal(logs.join('\n').includes(canary), false)
