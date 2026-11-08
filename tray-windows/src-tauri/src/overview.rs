@@ -46,12 +46,14 @@ pub enum Reason {
     NotConnected,
 }
 
-/// The one "Needs you" line, and the place it opens.
+/// The one "Needs you" line, and the place it opens: a console section, or,
+/// when `confirm` is set, that team's computer page in Nessie.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NeedsYou {
     pub text: String,
     pub section: ConsoleSection,
     pub executor_id: Option<String>,
+    pub confirm: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -59,6 +61,17 @@ pub struct Overview {
     pub status: String,
     pub needs_you: Option<NeedsYou>,
     pub teams: Vec<Team>,
+}
+
+impl Overview {
+    /// The icon's tooltip: the status sentence the menu opens with, and the one
+    /// thing that needs the owner. It changes whenever the status does.
+    pub fn tooltip(&self) -> String {
+        match &self.needs_you {
+            Some(needs) => format!("{}\n{}", self.status, needs.text),
+            None => self.status.clone(),
+        }
+    }
 }
 
 fn identity<'a>(names: &'a BTreeMap<String, Entry>, executor_id: &str) -> Option<&'a TeamIdentity> {
@@ -187,9 +200,13 @@ pub fn build(
     let activities: Vec<Activity> = groups.iter().map(|team| activity(team)).collect();
 
     let mut items: Vec<NeedsYou> = Vec::new();
-    if executors.iter().any(|executor| matches!(names.get(&executor.executor_id), Some(Entry::OwnerConfirmation))) {
-        items.push(NeedsYou { text: words.needs_you_unreadable.to_owned(), section: ConsoleSection::Overview,
-            executor_id: None });
+    // Nessie needs its owner to confirm this computer again before it names
+    // the team: the line opens that computer's page, where they do.
+    for executor in executors {
+        if matches!(names.get(&executor.executor_id), Some(Entry::OwnerConfirmation(_))) {
+            items.push(NeedsYou { text: words.needs_you_confirm.to_owned(), section: ConsoleSection::Overview,
+                executor_id: Some(executor.executor_id.clone()), confirm: true });
+        }
     }
     for (team, connections) in teams.iter().zip(&groups) {
         let Some(reason) = team_reason(connections, sync) else { continue };
@@ -204,11 +221,12 @@ pub fn build(
             text: fill(words.needs_you, &[("team", &team.label), ("reason", &say(reason, words, locale))]),
             section,
             executor_id: Some(executor_id),
+            confirm: false,
         });
     }
     let needs_you = if items.len() > 1 {
         Some(NeedsYou { text: words.needs_you_many.pick(locale, items.len()), section: ConsoleSection::Overview,
-            executor_id: None })
+            executor_id: None, confirm: false })
     } else {
         items.pop()
     };
@@ -247,6 +265,20 @@ mod tests {
     }
 
     #[test]
+    fn the_tooltip_follows_the_status_from_no_team_to_working() {
+        let none = english(&reachable(Vec::new()), &BTreeMap::new(), None);
+        assert_eq!(none.tooltip(), "No team connected");
+        let view = reachable(vec![executor("sales", "running", false), executor("ops", "running elsewhere", false)]);
+        let working = english(&view, &named(&[("sales", "Sales"), ("ops", "Ops")]), None);
+        assert_eq!(working.tooltip(), "Working for 2 teams");
+        let mut asking = executor("sales", "running", false);
+        asking.pending_program_requests = 1;
+        let needs = english(&reachable(vec![asking]), &named(&[("sales", "Sales")]), None);
+        assert!(needs.tooltip().starts_with("Working for 1 team\n"), "{}", needs.tooltip());
+        assert!(needs.tooltip().ends_with(&needs.needs_you.as_ref().unwrap().text));
+    }
+
+    #[test]
     fn the_status_sentence_counts_teams_not_connections() {
         let mut plans = executor("plans", "running", false);
         plans.connection = Connection::Service;
@@ -281,12 +313,12 @@ mod tests {
         asking.pending_program_requests = 2;
         assert_eq!(english(&reachable(vec![asking, executor("b", "running", false)]), &names, None).needs_you,
             Some(NeedsYou { text: "Needs you: Sales · Acme — 2 programs ask to run".to_owned(),
-                section: ConsoleSection::Overview, executor_id: Some("a".to_owned()) }));
+                section: ConsoleSection::Overview, executor_id: Some("a".to_owned()), confirm: false }));
         let documents = SyncOverview { executor_id: "b".to_owned(), line: SyncLine::Conflicts(1) };
         let quiet = reachable(vec![executor("a", "running", false), executor("b", "running", false)]);
         assert_eq!(english(&quiet, &names, Some(&documents)).needs_you,
             Some(NeedsYou { text: "Needs you: Ops · Acme — 1 document conflict".to_owned(),
-                section: ConsoleSection::Documents, executor_id: Some("b".to_owned()) }));
+                section: ConsoleSection::Documents, executor_id: Some("b".to_owned()), confirm: false }));
         let mut fenced = executor("b", "stopped", false);
         fenced.failure = Some(classify("Executor connection is fenced."));
         assert_eq!(english(&reachable(vec![executor("a", "running", false), fenced]), &names, None)
@@ -296,14 +328,16 @@ mod tests {
     #[test]
     fn several_things_are_counted_and_open_overview() {
         let mut names = named(&[("a", "Sales")]);
-        names.insert("b".to_owned(), Entry::OwnerConfirmation);
+        names.insert("b".to_owned(), Entry::OwnerConfirmation(Some("https://api.nessie.works".to_owned())));
         let mut asking = executor("a", "running", false);
         asking.pending_program_requests = 1;
         let overview = english(&reachable(vec![asking, executor("b", "running", false)]), &names, None);
         assert_eq!(overview.needs_you, Some(NeedsYou { text: "Needs you: 2 things — open Nessie Computer".to_owned(),
-            section: ConsoleSection::Overview, executor_id: None }));
-        let unreadable = english(&reachable(vec![executor("b", "running", false)]), &names, None);
-        assert_eq!(unreadable.needs_you.unwrap().text, "Needs you: a team on this computer can’t be read");
+            section: ConsoleSection::Overview, executor_id: None, confirm: false }));
+        // Alone, the line asks for the confirmation and opens that computer's page in Nessie.
+        let confirm = english(&reachable(vec![executor("b", "running", false)]), &names, None);
+        assert_eq!(confirm.needs_you, Some(NeedsYou { text: "Needs you: confirm this computer in Nessie".to_owned(),
+            section: ConsoleSection::Overview, executor_id: Some("b".to_owned()), confirm: true }));
     }
 
     #[test]

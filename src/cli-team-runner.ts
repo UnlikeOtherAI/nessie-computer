@@ -1,10 +1,10 @@
-import { lstat, readdir, unlink } from 'node:fs/promises'
+import { lstat, readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { CliContext } from './cli-output.js'
 import { createExecutorServiceEnvironment, executorServiceStateRoot } from './service-environment.js'
 import { enableExecutorService } from './service-linux.js'
-import { createMacServiceEnvironment, enableMacExecutorService } from './service-macos.js'
+import { createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService } from './service-macos.js'
 import { packagedRuntimeDirectory } from './runtime-integrity.js'
 
 /**
@@ -54,32 +54,21 @@ export const teamRunner = async (context: Pick<CliContext, 'platform' | 'run' | 
 /** Whether the command line's own background service runs the teams in its folder. */
 export const runsCliServices = (runner: TeamRunner): boolean => runner === 'mac-launch-agent' || runner === 'linux-service'
 
-/** The label `enableMacExecutorService` gives a team's launch agent (`service-macos.ts`). */
-const launchAgentLabel = (executorId: string): string => `works.nessie.executor.${executorId}`
-
-const launchAgentPath = (home: string, executorId: string): string => (
-  join(home, 'Library', 'LaunchAgents', `${launchAgentLabel(executorId)}.plist`))
+/** This account's launch agents, through the context's own `run`. */
+const launchAgents = (context: Pick<CliContext, 'home' | 'run'>) => ({
+  platform: 'darwin' as const, home: context.home, uid: process.getuid?.() ?? -1,
+  run: async (file: string, args: string[]) => {
+    const result = await context.run(file, args)
+    return { code: result.code ?? -1, stdout: result.stdout }
+  },
+})
 
 /**
  * Stops and removes one team's launch agent, when the command line set one
  * up; true when it did. Only the agent goes: pairing, access and pause stay.
  */
-export const retireMacLaunchAgent = async (context: Pick<CliContext, 'home' | 'run'>, executorId: string): Promise<boolean> => {
-  const path = launchAgentPath(context.home, executorId)
-  const entry = await lstat(path).catch(() => null)
-  if (!entry) return false
-  const uid = process.getuid?.() ?? -1
-  if (!entry.isFile() || entry.isSymbolicLink() || entry.uid !== uid) {
-    throw new Error('The team\'s launch agent is not an ordinary file of this account, so it was left alone.')
-  }
-  const target = `gui/${uid}/${launchAgentLabel(executorId)}`
-  if ((await context.run('/bin/launchctl', ['print', target])).code === 0) {
-    const stopped = await context.run('/bin/launchctl', ['bootout', target])
-    if (stopped.code !== 0) throw new Error('macOS didn\'t stop the team\'s launch agent. Run this in your logged-in account.')
-  }
-  await unlink(path)
-  return true
-}
+export const retireMacLaunchAgent = (context: Pick<CliContext, 'home' | 'run'>, executorId: string): Promise<boolean> => (
+  disableMacExecutorService({ executorId }, launchAgents(context)))
 
 /**
  * Hands the command line's earlier launch agents to the app: each one is

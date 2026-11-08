@@ -447,3 +447,6 @@ fn a_newer_app_runtime_retires_the_stuck_transaction_and_ends_its_drain() {
     assert!(store.journal().unwrap().pending.is_none(), "an older release is never accepted again");
     assert_eq!(host.installs.get(), 0);
 }
+
+#[path = "coordinator_stale_tests.rs"]
+mod stale;

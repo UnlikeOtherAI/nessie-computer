@@ -36,6 +36,16 @@ process, a process group or a successful compiler run does not establish
 credential custody. Never weaken these checks to make development builds
 eligible for personal credentials.
 
+On Windows, custody also refuses any `nessie-computer` or `nessie-executor`
+launcher (and the old Desktop app) in a folder on the user or machine PATH, so
+a stray npm or hand-made wrapper cannot run the CLI outside the managed
+runtime. The one exception is the MSI's own command line:
+`nessie-computer.cmd` and `nessie-executor.cmd` in the verified release folder
+itself, each a protected file (administrator-owned, no other writers, one
+link) holding exactly the bytes of `packaging/windows/nessie-executor.cmd`.
+The same names anywhere else, a changed byte, or any other launcher name in
+the release folder still fail.
+
 Official Windows packages use UnlikeOtherAI's existing Azure Artifact Signing
 publisher. Official macOS packages use Developer ID signing and notarization.
 Linux packages and repository metadata are signed. Ordinary public pull request

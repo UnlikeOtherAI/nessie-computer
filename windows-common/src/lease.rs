@@ -59,9 +59,12 @@ pub fn daemon_is_live(pid: u32) -> bool {
 
     let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
     if handle.is_null() {
-        // The process is gone, or is one this service may not open at all —
-        // either way it is not a daemon of ours still tearing down guests.
-        return false;
+        // Access denied means the process exists but belongs to an account or
+        // integrity level this caller may not inspect — a team a scheduled task
+        // or an elevated CLI runs, which the CLI's own lease also counts as
+        // running. Anything else (no such process) means it is gone.
+        return unsafe { windows_sys::Win32::Foundation::GetLastError() }
+            == windows_sys::Win32::Foundation::ERROR_ACCESS_DENIED;
     }
     let mut code = 0_u32;
     let read = unsafe { GetExitCodeProcess(handle, &mut code) };

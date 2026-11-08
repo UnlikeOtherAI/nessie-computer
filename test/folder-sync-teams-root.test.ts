@@ -3,8 +3,10 @@ import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
 
+import { ExecutorApiError } from '../src/api-client.js'
 import { loadFolderSyncConfig, markerPath, saveFolderSyncConfig } from '../src/folder-sync/config.js'
 import { runConsoleCommand } from '../src/folder-sync/sync-command.js'
+import { organizationNameFieldRefused } from '../src/folder-sync/transport.js'
 import { createSyncHarness, testSecurity } from './support/folder-sync-harness.js'
 
 /**
@@ -82,6 +84,33 @@ test('a Nessie that does not name the organisation: the pairing claim names it',
   await h.settle()
   assert.equal((await loadFolderSyncConfig(h.stateDir)).teamFolder, 'UnlikeOtherAI/Platform')
   assert.ok(h.server.calls.includes('pairing_connection'))
+})
+
+test('a Nessie that refuses the organisation field: the handshake asks again without it, the claim names it', async (t) => {
+  const h = await createSyncHarness()
+  t.after(h.cleanup)
+  h.server.handshakeNamesOrganization = false
+  h.server.handshakeRefusesOrganizationName = true
+  await h.enable()
+  await h.settle()
+  assert.equal((await loadFolderSyncConfig(h.stateDir)).teamFolder, 'UnlikeOtherAI/Platform')
+  assert.ok(h.server.calls.includes('pairing_connection'))
+  assert.equal((await h.state()).state, 'up_to_date')
+  // For the rest of this connection the field is left out: one refusal, not one per pass.
+  await h.write('Projects/Notes.txt', 'n\n')
+  await h.settle()
+  assert.equal(h.server.text(h.server.find('Projects/Notes.txt')), 'n\n')
+  assert.equal(h.server.organizationNameRefusals, 1)
+})
+
+test('only a validation refusal naming the field reads as an older Nessie', () => {
+  const refusal = (status: number, code: string, details: unknown) => (
+    new ExecutorApiError(code, { status, code, details }))
+  assert.equal(organizationNameFieldRefused(refusal(400, 'VALIDATION_ERROR', [{ keys: ['wantsOrganizationName'] }])), true)
+  assert.equal(organizationNameFieldRefused(refusal(400, 'VALIDATION_ERROR', [{ keys: ['requested'] }])), false)
+  assert.equal(organizationNameFieldRefused(refusal(403, 'VALIDATION_ERROR', [{ keys: ['wantsOrganizationName'] }])), false)
+  assert.equal(organizationNameFieldRefused(refusal(400, 'EXECUTOR_FOLDER_SYNC_FORBIDDEN', 'wantsOrganizationName')), false)
+  assert.equal(organizationNameFieldRefused(new Error('wantsOrganizationName')), false)
 })
 
 test('the handshake\'s organisation name is used when the claim cannot be read', async (t) => {

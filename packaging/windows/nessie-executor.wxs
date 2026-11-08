@@ -323,7 +323,28 @@
       Impersonate="no"
       Return="check" />
 
+    <!-- Before any file changes, close what runs from the install folder
+         besides the service (the Windows app in each session, and team
+         daemons a scheduled task or a terminal started), and reopen the app
+         afterwards. Files replaced under running processes failed the install
+         with 1603 and left reboot-time file swaps that undid the next one.
+         Closing runs the package's own copy of the service binary from the
+         Binary table, so it is the new code even while an older release is
+         installed; it derives the folder itself. A rollback reopens the apps
+         for the release it restores. Neither runs inside an upgrade's removal
+         of the previous product. -->
+    <Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\nessie-executor-service.exe" />
+    <CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"
+      Execute="deferred" Impersonate="no" Return="check" />
+    <CustomAction Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"
+      Execute="rollback" Impersonate="no" Return="ignore" />
+    <CustomAction Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"
+      Execute="deferred" Impersonate="no" Return="ignore" />
+
     <InstallExecuteSequence>
+      <Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="ReopenAfterInstall" After="StartServices" Condition="NOT UPGRADINGPRODUCTCODE AND NOT (REMOVE=&quot;ALL&quot;)" />
       <?if $(var.EnableUpdater) = 1 ?>
       <Custom Action="RestoreUpdaterAfterFailedRemoval" Before="DisableUpdaterForRemoval" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="DisableUpdaterForRemoval" Before="StopServices" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />

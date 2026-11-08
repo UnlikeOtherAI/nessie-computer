@@ -3,14 +3,19 @@ import type { Readable } from 'node:stream'
 /**
  * The daemon process's own lifetime: when it stops, and the one-at-a-time
  * tasks its loops run.
+ *
+ * Ctrl+Break (SIGBREAK) is how the Windows installer asks a daemon it did not
+ * start to stop before it replaces the files: the same graceful stop as a
+ * signal or the parent closing its liveness pipe.
  */
+export const SHUTDOWN_SIGNALS = ['SIGINT', 'SIGTERM', 'SIGBREAK'] as const
+
 export const waitForExecutorDaemonShutdown = async (
   parentLiveness?: Readable,
   updateReady?: Promise<void>,
 ): Promise<void> => new Promise((resolve) => {
   const stop = () => {
-    process.off('SIGINT', stop)
-    process.off('SIGTERM', stop)
+    for (const signal of SHUTDOWN_SIGNALS) process.off(signal, stop)
     parentLiveness?.off('close', stop)
     parentLiveness?.off('end', stop)
     parentLiveness?.off('error', stop)
@@ -19,8 +24,7 @@ export const waitForExecutorDaemonShutdown = async (
     parentLiveness?.destroy()
     resolve()
   }
-  process.once('SIGINT', stop)
-  process.once('SIGTERM', stop)
+  for (const signal of SHUTDOWN_SIGNALS) process.once(signal, stop)
   void updateReady?.then(stop)
   if (parentLiveness) {
     parentLiveness.once('close', stop)

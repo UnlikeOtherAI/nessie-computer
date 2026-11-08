@@ -63,7 +63,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             // The line carries its own target, so the menu keeps no selection
             // that could drift from what it shows.
             let line = item(needsYou.title, #selector(openTarget(_:)))
-            line.representedObject = needsYou.target
+            line.representedObject = needsYou
             menu.addItem(line)
         }
         menu.addItem(.separator())
@@ -109,8 +109,13 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func openTarget(_ sender: NSMenuItem) {
-        guard let target = sender.representedObject as? ConsoleTarget else { return }
-        console.show(target)
+        guard let needsYou = sender.representedObject as? NeedsYouItem else { return }
+        if let executorId = needsYou.confirmExecutorId,
+           let team = connections.teams.first(where: { $0.model.description?.executorId == executorId }) {
+            NSWorkspace.shared.open(team.nessieConsoleURL(computerId: executorId))
+            return
+        }
+        console.show(needsYou.target)
     }
 
     /// Pause and Resume take effect at once, with no question first. A pause

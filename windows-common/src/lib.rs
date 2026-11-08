@@ -36,6 +36,10 @@ pub mod release;
 pub mod runtime;
 #[cfg(windows)]
 pub mod service_channel;
+#[cfg(windows)]
+pub mod session_launch;
+#[cfg(windows)]
+pub mod install_handover;
 pub mod unpair;
 #[cfg(windows)]
 pub mod update_admission;
@@ -62,6 +66,10 @@ pub const CUSTODY_PIPE_NAME: &str = r"\\.\pipe\NessieExecutorCustody";
 /// The account Windows creates for a service registered with that name and no
 /// password. The workspace ACL grant and the Hyper-V group membership name it.
 pub const SERVICE_ACCOUNT: &str = r"NT SERVICE\NessieExecutor";
+
+/// The MSI's install folder under Program Files: the release, the service, the
+/// Windows app and the command line all run from it.
+pub const INSTALL_DIRECTORY_NAME: &str = "Nessie Executor";
 
 /// The service's own directory name under `%ProgramData%`. Pairing material
 /// and machine keys belong to the service account, not to a person's profile,

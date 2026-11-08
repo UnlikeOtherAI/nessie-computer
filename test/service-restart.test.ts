@@ -36,7 +36,7 @@ test('autorestart names its own usage and is not the Windows CLI’s to change',
   const misuses = [
     ['autorestart'], ['autorestart', '--yes'], ['autorestart', 'team-one', 'maybe'], ['autorestart', 'team-one', 'on', 'x'],
   ]
-  const usage = /Usage: nessie-executor autorestart <executor-id> \[on\|off\]/
+  const usage = /Usage: nessie-computer autorestart <team-id> \[on\|off\]/
   for (const args of misuses) await assert.rejects(runServiceRestartCli(args, env), usage)
   await assert.rejects(runServiceRestartCli(['autorestart', 'team-one', 'off'], { ...env, platform: 'win32' }),
     (error: Error) => error.message === WINDOWS_AUTORESTART)
@@ -67,7 +67,7 @@ test('on Linux off writes a Restart=no drop-in and on removes it, each followed 
     await assert.rejects(readFile(linuxRestartDropIn(home, 'team-one')), { code: 'ENOENT' })
     assert.deepEqual(calls.map((call) => call.args.join(' ')), ['--user daemon-reload', '--user daemon-reload'])
     assert.deepEqual(output, [
-      'executor team-one: autorestart=off', 'executor team-one: autorestart=off', 'executor team-one: autorestart=on',
+      'team team-one: autorestart=off', 'team team-one: autorestart=off', 'team team-one: autorestart=on',
     ])
   })
 })

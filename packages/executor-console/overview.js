@@ -27,6 +27,10 @@
         const text = t('overview.notConnected', { team: nc.team.label(team.executorId) })
         items.push({ kind: 'failure', team, text, short: text })
       }
+      // Nessie names the team again once its owner confirms this computer there.
+      if (nc.team.ownerConfirmationRequired(team.executorId)) {
+        items.push({ kind: 'confirm', team, text: t('overview.confirmComputer'), short: t('overview.confirmComputerShort') })
+      }
       if (nc.team.isPlanConnection(team.executorId)) continue
       const reason = nc.summary.syncAttention(syncStates.get(team.executorId))
       if (reason) {
@@ -94,6 +98,14 @@
         onRemedy: (remedy) => nc.team.applyRemedy(item.team.executorId, remedy).then(render),
       })
       row.append(block)
+    }
+    if (item.kind === 'confirm') {
+      const button = document.createElement('button')
+      button.textContent = t('overview.confirmComputerOpen')
+      button.dataset.key = `confirm:${item.team.executorId}`
+      // The host opens this team's computer page on its own server (§5.1).
+      button.onclick = () => attempt(() => invoke('executor_open_nessie', { executorId: item.team.executorId, computer: true }))
+      row.append(button)
     }
     if (item.kind === 'updates') {
       const button = document.createElement('button')

@@ -29,9 +29,11 @@ mod control;
 mod inference_connections;
 mod helper;
 mod hyperv;
+mod install_modes;
 use nessie_windows_common::lease;
 mod log;
 use nessie_windows_common::runtime as manifest;
+use setup_report::Refusal;
 #[cfg(windows)]
 mod custody;
 mod custody_store;
@@ -45,6 +47,7 @@ mod provenance;
 mod security;
 mod service;
 mod service_chatgpt;
+mod setup_report;
 mod supervisor;
 mod supervisor_commands;
 mod supervisor_pairing;
@@ -53,8 +56,9 @@ mod supervisor_public_json;
 mod supervisor_run;
 
 const USAGE: &str = "nessie-executor-service runs as the Nessie Computer Windows service. \
-                     Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal and --join-hyperv-administrators, \
-                     which the installer uses while registering the service, and --control, which nessie-computer uses.";
+                     Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal, \
+                     --join-hyperv-administrators, --close-for-install and --reopen-after-install, which the installer uses, \
+                     and --control, which nessie-computer uses.";
 
 #[derive(Debug, PartialEq, Eq)]
 enum Mode {
@@ -64,6 +68,8 @@ enum Mode {
     SecureStateRoot,
     SecureUpdaterRoot,
     DisableUpdaterForRemoval,
+    CloseForInstall,
+    ReopenAfterInstall,
 }
 
 fn parse_mode(arguments: &[String]) -> Result<Mode, String> {
@@ -74,6 +80,8 @@ fn parse_mode(arguments: &[String]) -> Result<Mode, String> {
         [only] if only == "--secure-state-root" => Ok(Mode::SecureStateRoot),
         [only] if only == "--secure-updater-root" => Ok(Mode::SecureUpdaterRoot),
         [only] if only == "--disable-updater-for-removal" => Ok(Mode::DisableUpdaterForRemoval),
+        [only] if only == "--close-for-install" => Ok(Mode::CloseForInstall),
+        [only] if only == "--reopen-after-install" => Ok(Mode::ReopenAfterInstall),
         _ => Err(USAGE.to_owned()),
     }
 }
@@ -114,20 +122,34 @@ fn secure_state_root() -> Result<(), String> {
     Err("Nessie Computer secures its state root on Windows only.".to_owned())
 }
 
+/// Sets up or disables the updater through the packaged native helper. A
+/// refusal keeps the helper's own code (`setup_report`), so the installer's
+/// rollback can be explained afterwards.
 #[cfg(windows)]
-fn configure_updater(operation: &str) -> Result<(), String> {
+fn configure_updater(operation: &str) -> Result<(), Refusal> {
     use std::{os::windows::process::CommandExt, process::{Command, Stdio}};
-    let directory = std::env::current_exe().map_err(|_| "Updater setup could not locate its runtime.")?
-        .parent().ok_or("Updater setup could not locate its runtime.")?.to_path_buf();
-    let helper = manifest::verify_packaged_runtime(&directory)?.native_helper;
-    let result = Command::new(helper).arg(operation).stdin(Stdio::null())
-        .stdout(Stdio::null()).stderr(Stdio::null()).creation_flags(0x0800_0000).status()
-        .map_err(|_| "Updater setup could not start its native helper.")?;
-    if !result.success() { return Err("Updater setup could not verify its protected state.".into()); }
+    let directory = std::env::current_exe().ok()
+        .and_then(|executable| executable.parent().map(std::path::Path::to_path_buf))
+        .ok_or_else(|| Refusal::new("updater_setup.runtime_unlocated"))?;
+    let helper = manifest::verify_packaged_runtime(&directory)
+        .map_err(|reason| Refusal::with("updater_setup.runtime_unverified", reason))?.native_helper;
+    let output = Command::new(helper).arg(operation).stdin(Stdio::null())
+        .stdout(Stdio::piped()).stderr(Stdio::null()).creation_flags(0x0800_0000).output()
+        .map_err(|_| Refusal::new("updater_setup.helper_unstartable"))?;
+    if !output.status.success() {
+        return Err(Refusal::helper("updater_setup.helper_refused", &output.stdout, output.status.code()));
+    }
     Ok(())
 }
 #[cfg(not(windows))]
-fn configure_updater(_operation: &str) -> Result<(), String> { Err("Updater setup requires Windows.".into()) }
+fn configure_updater(_operation: &str) -> Result<(), Refusal> {
+    Err(Refusal::with("updater_setup.unsupported", "Updater setup requires Windows."))
+}
+
+/// A setup mode's refusal, reported with its stable code (`setup_report`).
+fn setup(mode: &str, outcome: Result<(), Refusal>) -> Result<(), String> {
+    outcome.map_err(|refusal| setup_report::report(mode, &refusal))
+}
 
 fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
@@ -135,15 +157,21 @@ fn main() {
         Ok(Mode::RunService) => service::run(),
         Ok(Mode::Control) => client::run(),
         Ok(Mode::JoinHypervAdministrators) => hyperv::join_hyperv_administrators(),
-        Ok(Mode::SecureStateRoot) => secure_state_root(),
-        Ok(Mode::SecureUpdaterRoot) => configure_updater("update-install"),
-        Ok(Mode::DisableUpdaterForRemoval) => configure_updater("update-uninstall"),
+        Ok(Mode::SecureStateRoot) => setup("--secure-state-root",
+            secure_state_root().map_err(|reason| Refusal::with("state_setup.refused", reason))),
+        Ok(Mode::SecureUpdaterRoot) => setup("--secure-updater-root", configure_updater("update-install")),
+        Ok(Mode::DisableUpdaterForRemoval) => {
+            setup("--disable-updater-for-removal", configure_updater("update-uninstall"))
+        }
+        Ok(Mode::CloseForInstall) => setup("--close-for-install", install_modes::close_for_install()),
+        Ok(Mode::ReopenAfterInstall) => setup("--reopen-after-install", install_modes::reopen_after_install()),
         Err(usage) => Err(usage),
     };
     if let Err(reason) = outcome {
         // A custom action reads the exit code; the SCM reads the service status.
         // Either way the reason belongs on stderr rather than in a dialog no
-        // unattended install would ever show.
+        // unattended install would ever show. Setup modes also wrote it to the
+        // Application event log, which outlives the installer's rollback.
         eprintln!("{reason}");
         std::process::exit(1);
     }
@@ -151,7 +179,16 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_mode, Mode, USAGE};
+    use super::{parse_mode, setup, Mode, USAGE};
+    use crate::setup_report::Refusal;
+
+    #[test]
+    fn a_setup_refusal_is_reported_with_its_code_and_success_is_silent() {
+        assert_eq!(setup("--secure-updater-root", Ok(())), Ok(()));
+        let reason = setup("--secure-updater-root", Err(Refusal::new("updater_setup.helper_unstartable")))
+            .expect_err("a refusal must fail the custom action");
+        assert_eq!(reason, "Nessie Computer setup --secure-updater-root refused: updater_setup.helper_unstartable");
+    }
 
     #[test]
     fn no_arguments_means_the_service_control_manager_started_it() {
@@ -169,6 +206,13 @@ mod tests {
             Ok(Mode::SecureStateRoot)
         );
         assert_eq!(parse_mode(&["--control".to_owned()]), Ok(Mode::Control));
+        assert_eq!(parse_mode(&["--secure-updater-root".to_owned()]), Ok(Mode::SecureUpdaterRoot));
+        assert_eq!(
+            parse_mode(&["--disable-updater-for-removal".to_owned()]),
+            Ok(Mode::DisableUpdaterForRemoval),
+        );
+        assert_eq!(parse_mode(&["--close-for-install".to_owned()]), Ok(Mode::CloseForInstall));
+        assert_eq!(parse_mode(&["--reopen-after-install".to_owned()]), Ok(Mode::ReopenAfterInstall));
         for arguments in [
             vec!["--control".to_owned(), "status".to_owned()],
             vec!["--control=status".to_owned()],
@@ -182,6 +226,8 @@ mod tests {
             vec!["--secure-state-root".to_owned(), "extra".to_owned()],
             vec!["--secure-state-root=1".to_owned()],
             vec!["--secure-state-roots".to_owned()],
+            // The install folder is derived, never named by the installer.
+            vec!["--close-for-install".to_owned(), r"C:\Elsewhere".to_owned()],
         ] {
             assert_eq!(
                 parse_mode(&arguments),

@@ -160,7 +160,7 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
         return ["signedOff": (result as? [String: Any])?["signedOff"] as? Bool == true]
     }
 
-    // MARK: - Connect a team
+    // MARK: - Add this computer
 
     /// Pairing always happens in a directory of its own, which this app picks;
     /// the page only names the server, and only when the person chose another

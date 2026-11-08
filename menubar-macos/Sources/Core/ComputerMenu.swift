@@ -8,10 +8,19 @@ public enum MenuIcon: Equatable, Sendable {
     case needsYou
 }
 
-/// The "Needs you" line: one sentence and the exact place that settles it.
+/// The "Needs you" line: one sentence and the exact place that settles it —
+/// a console section, or, when `confirmExecutorId` is set, that team's
+/// computer page in Nessie, where its owner confirms this computer again.
 public struct NeedsYouItem: Equatable, Sendable {
     public let title: String
     public let target: ConsoleTarget
+    public let confirmExecutorId: String?
+
+    public init(title: String, target: ConsoleTarget, confirmExecutorId: String? = nil) {
+        self.title = title
+        self.target = target
+        self.confirmExecutorId = confirmExecutorId
+    }
 }
 
 /// Pause and Resume. One team gets one line; several get a submenu with
@@ -37,6 +46,8 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public let teams: [TeamSnapshot]
     /// Directories that hold a pairing this Mac cannot read.
     public let unreadableTeams: Int
+    /// Teams Nessie names again only after their owner confirms this computer there.
+    public let confirmationTeams: [String]
     public let runtimeMissing: Bool
     /// The update helper can't be reached or refuses, so no team can start.
     public let updatesStuck: Bool
@@ -45,12 +56,14 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public init(
         teams: [TeamSnapshot],
         unreadableTeams: Int = 0,
+        confirmationTeams: [String] = [],
         runtimeMissing: Bool = false,
         updatesStuck: Bool = false,
         language: NativeLanguage = .current
     ) {
         self.teams = teams
         self.unreadableTeams = unreadableTeams
+        self.confirmationTeams = confirmationTeams
         self.runtimeMissing = runtimeMissing
         self.updatesStuck = updatesStuck
         self.language = language
@@ -85,6 +98,13 @@ public struct ComputerMenuModel: Equatable, Sendable {
         }
         if unreadableTeams > 0 {
             items.append(NeedsYouItem(title: say(.needsYouUnreadableTeam), target: ConsoleTarget(section: .overview)))
+        }
+        for executorId in confirmationTeams {
+            items.append(NeedsYouItem(
+                title: say(.needsYouConfirmComputer),
+                target: ConsoleTarget(section: .overview, executorId: executorId),
+                confirmExecutorId: executorId
+            ))
         }
         for team in teams {
             guard let reason = team.needsYou else { continue }

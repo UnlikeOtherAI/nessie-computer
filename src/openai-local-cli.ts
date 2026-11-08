@@ -8,7 +8,7 @@ import {
 import { createLocalModelServerBackend, localModelServerKind } from './local-model-server.js'
 import { DEFAULT_OLLAMA_ORIGIN } from './ollama-client.js'
 
-const USAGE = 'Usage: nessie-executor local-inference endpoint configure|status|remove --state-dir <owner-only-path> [--config-stdin]'
+const USAGE = 'Usage: nessie-computer local-inference endpoint configure|status|remove --state-dir <owner-only-path> [--config-stdin]'
 
 /**
  * Local command only: the hosted server never supplies an endpoint or its credentials.
@@ -38,14 +38,14 @@ export const runLocalOpenAiCli = async (args: string[]): Promise<boolean> => {
     try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown }
     catch { throw new LocalOpenAiError('endpoint_configuration_invalid') }
     await saveLocalOpenAiConfig(stateDir, parseLocalOpenAiConfig(input))
-    process.stdout.write('Endpoint configuration saved. Restart this executor connection to apply it.\n')
+    process.stdout.write('Endpoint saved. It takes effect when this team next starts.\n')
   }
   if (action === 'remove') {
     await readLocalOpenAiConfig(stateDir)
     await unlink(join(stateDir, OPENAI_ENDPOINT_FILE)).catch((error: unknown) => {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     })
-    process.stdout.write('Endpoint configuration removed. Restart this executor connection to use Ollama on its own port.\n')
+    process.stdout.write('Endpoint removed. When this team next starts, it uses Ollama on its own port.\n')
     return true
   }
   const config = await readLocalOpenAiConfig(stateDir)

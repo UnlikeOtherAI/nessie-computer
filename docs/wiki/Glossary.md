@@ -26,4 +26,4 @@ The same words are used in the app, in Nessie and on the command line.
 | **Session** | One agent run's work on this computer. Sessions run side by side, and so do the commands inside one. |
 | **Now working** | The list on Overview of every session and what it is running, with **Stop** on each. |
 | **Needs you** | Something waiting for your answer: a program request, a Documents question, or a problem with a fix. |
-| **Working / Paused / Not connected** | A team's status. |
+| **Working / Paused / Not connected** | A team's status. **Working in another app** means another app, the command line or a scheduled task on this computer runs that team, so this app leaves it alone. |

@@ -98,14 +98,22 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.locator('#pairing-server').inputValue(), '')
     assert.equal(await page.locator('#pairing-server').getAttribute('placeholder'), 'https://nessie.example.com')
     await page.locator('#pairing-server').fill('http://nessie.example.com')
+    const cancelsBefore = await callCount(page, 'executor_pairing_cancel')
     await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.locator('#pairing-server-error').getByText('The server address must start with https://.').waitFor()
     assert.equal(await page.locator('#pairing-server').getAttribute('aria-invalid'), 'true')
+    // A typo costs nothing: the hosted code still waits, and is still shown.
+    assert.equal(await callCount(page, 'executor_pairing_cancel'), cancelsBefore)
+    assert.equal(await page.evaluate(() => window.pairStatus), 'waiting')
+    assert.equal(await page.locator('#pairing-code').textContent(), '01234567')
+    assert.equal(await page.locator('#pairing-open-nessie').isVisible(), true)
     await shot('connect-own-server')
     await page.locator('#pairing-server').fill('https://nessie.example.com')
     await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.waitForFunction(() => window.pairServer === 'https://nessie.example.com')
     assert.equal(await page.locator('#pairing-server-error').isHidden(), true)
+    // Only an accepted address replaces the hosted code.
+    assert.equal(await callCount(page, 'executor_pairing_cancel'), cancelsBefore + 1)
     // Asked again while that code waits, the dialog keeps its code and names the server it belongs to.
     await page.locator('#pairing-server').fill('')
     const startsBefore = await callCount(page, 'executor_pairing_start')
@@ -148,6 +156,12 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.getByRole('button', { name: 'Resume all', exact: true }).click()
     await page.getByRole('button', { name: 'Pause all', exact: true }).waitFor()
     assert.equal(await status(), 'Working for 2 teams')
+    // A team another app, the command line or a scheduled task runs is working there, never "Not connected".
+    await page.evaluate(() => { window.paired[0].daemonStatus = 'running elsewhere' })
+    await card('Platform · UnlikeOtherAI').locator('.status-word').getByText('Working in another app').waitFor()
+    assert.equal(await status(), 'Working for 2 teams')
+    await page.evaluate(() => { window.paired[0].daemonStatus = 'running' })
+    await card('Platform · UnlikeOtherAI').locator('.status-word').getByText('Working', { exact: true }).waitFor()
     // Change access lands on Access with that team selected, and the tab names it.
     await card('Research · UnlikeOtherAI').getByRole('button', { name: 'Change access' }).click()
     assert.equal(await page.getByRole('tab', { name: 'Access' }).getAttribute('aria-selected'), 'true')
@@ -349,6 +363,20 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     journeys++
     await context.close()
   }
+  // Nessie names a team again only after its owner confirms this computer there:
+  // the line says so, and opens that computer's page on the team's own server.
+  for (const host of ['windows', 'macos']) {
+    const { context, page, errors } = await open({ host, paired: 1, ownerConfirmationRequired: true })
+    await page.locator('#needs-you-list').getByText('Confirm this computer in Nessie', { exact: true }).waitFor()
+    assert.equal(await page.locator('#status-sentence').textContent(), 'Needs you: confirm this computer in Nessie')
+    await page.locator('#needs-you-list').getByRole('button', { name: 'Open Nessie', exact: true }).click()
+    await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_open_nessie'))
+    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { executorId: 'team-0', computer: true })
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
+
   // The smallest window the apps allow: everything still fits and reads.
   for (const [locale, dark] of [['en-GB', false], ['cs-CZ', true]]) {
     const { context, page, errors, shot } = await open({ host: 'macos', locale, dark, size: 'minimum' })

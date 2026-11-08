@@ -183,7 +183,9 @@
     planConnectionOf,
     get: (executorId) => executors.find((team) => team.executorId === executorId) ?? null,
     status,
-    statusWord: (team) => t(`teams.${{ working: 'working', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),
+    // A team another app, the command line or a scheduled task runs is working, just not in this app.
+    statusWord: (team) => t(status(team) === 'working' && team.daemonStatus === 'running elsewhere' ? 'teams.workingElsewhere'
+      : `teams.${{ working: 'working', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),
     nameUnknown: (executorId) => !names.has(executorId),
     ownerConfirmationRequired: (executorId) => ownerConfirmationRequired.has(executorId),
     describe,

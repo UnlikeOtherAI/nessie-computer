@@ -272,6 +272,23 @@ test('the state root is created and never removed', () => {
   }
 })
 
+test('everything running from the install folder is closed before files change, and the app reopened after', () => {
+  // The new package's own service binary closes them, from the Binary table:
+  // an installed older release would not know how.
+  assert.ok(authoring.includes('<Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\\nessie-executor-service.exe" />'))
+  assert.ok(/Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\s+Execute="deferred" Impersonate="no" Return="check"/.test(authoring))
+  // Before the previous product's files are removed, and never inside that removal.
+  assert.ok(authoring.includes('<Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />'))
+  // A rollback reopens the apps for the release it restores.
+  assert.ok(/Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"\s+Execute="rollback"/.test(authoring))
+  assert.ok(authoring.includes('<Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall"'))
+  // The installed binary reopens them once the service is back; a failure to reopen never fails the install.
+  assert.ok(/Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"\s+Execute="deferred" Impersonate="no" Return="ignore"/.test(authoring))
+  assert.ok(authoring.includes('<Custom Action="ReopenAfterInstall" After="StartServices"'))
+  // The folder is derived by the binary, never passed in.
+  assert.ok(!/--close-for-install [^"]/.test(authoring))
+})
+
 /**
  * The anti-flash guarantee, as a property rather than a spelling: no custom
  * action may run the packaged native helper. It is a console program by design

@@ -31,8 +31,10 @@ pub struct TeamIdentity {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Entry {
     Known(TeamIdentity),
-    /// The captured owner proof needs renewing in Nessie before names can be read.
-    OwnerConfirmation,
+    /// The captured owner proof needs renewing in Nessie before names can be
+    /// read. Holds the team's server, read from its settings, so the line can
+    /// open that computer's page in Nessie.
+    OwnerConfirmation(Option<String>),
 }
 
 #[derive(Default)]
@@ -59,8 +61,18 @@ pub fn identity_from(view: &serde_json::Value) -> Option<TeamIdentity> {
 fn read(executor_id: &str) -> Result<Entry, ()> {
     match crate::pipe_client::call(&serde_json::json!({ "command": "pairingStatus", "executorId": executor_id })) {
         Ok(ServiceResponse::Pairing(view)) => identity_from(&view).map(Entry::Known).ok_or(()),
-        Err(reason) if reason.contains("PAIRING_OWNER_CONFIRMATION_REQUIRED") => Ok(Entry::OwnerConfirmation),
+        Err(reason) if reason.contains("PAIRING_OWNER_CONFIRMATION_REQUIRED") => {
+            Ok(Entry::OwnerConfirmation(server_of(executor_id)))
+        }
         _ => Err(()),
+    }
+}
+
+/// The server a team is paired with, from its own settings; no name is needed.
+fn server_of(executor_id: &str) -> Option<String> {
+    match crate::pipe_client::call(&serde_json::json!({ "command": "describe", "executorId": executor_id })) {
+        Ok(ServiceResponse::Describe(description)) => description["apiBaseUrl"].as_str().map(str::to_owned),
+        _ => None,
     }
 }
 

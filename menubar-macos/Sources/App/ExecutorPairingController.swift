@@ -8,6 +8,9 @@ final class ExecutorPairingController: ObservableObject {
     @Published private(set) var state: ExecutorPairing?
     @Published private(set) var busy = false
     @Published private(set) var failure: String?
+    /// Nessie answered that this computer's owner must confirm it again
+    /// before it names the team (`PAIRING_OWNER_CONFIRMATION_REQUIRED`).
+    @Published private(set) var ownerConfirmationRequired = false
 
     var onPaired: (() -> Void)?
     var onChanged: (() -> Void)?
@@ -64,19 +67,29 @@ final class ExecutorPairingController: ObservableObject {
         busy = true
         failure = nil
         work.async { [weak self] in
+            let completion = try? runner.run(invocation)
+            // Nessie names the team again once its owner confirms this computer there.
+            let confirmation = completion.map {
+                !$0.succeeded && $0.standardError.contains("PAIRING_OWNER_CONFIRMATION_REQUIRED")
+            } ?? false
             let result: Result<ExecutorPairing, ExecutorRefusal>
-            do {
-                let completion = try runner.run(invocation)
-                let output = Data(completion.standardOutput.utf8)
-                result = completion.succeeded
-                    ? .success(try ExecutorPairing.decode(output))
-                    : .failure(ExecutorRefusal(ExecutorPairing.failureMessage(from: output)))
-            } catch {
+            if let completion, completion.succeeded,
+               let state = try? ExecutorPairing.decode(Data(completion.standardOutput.utf8)) {
+                result = .success(state)
+            } else if let completion, !completion.succeeded {
+                result = .failure(ExecutorRefusal(
+                    ExecutorPairing.failureMessage(from: Data(completion.standardOutput.utf8))
+                ))
+            } else {
                 result = .failure(ExecutorRefusal(ExecutorPairing.genericFailureMessage))
             }
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.busy = false
+                if self.ownerConfirmationRequired != confirmation {
+                    self.ownerConfirmationRequired = confirmation
+                    self.onChanged?()
+                }
                 switch result {
                 case let .success(state):
                     // The claim in Nessie completed the pairing: the poll that

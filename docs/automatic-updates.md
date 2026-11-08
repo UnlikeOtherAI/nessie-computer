@@ -509,6 +509,34 @@ Major upgrades remove the old product inside the MSI transaction, after
 the original signed MSI. A transform may inject a failure only in a separate
 rollback test, and that result is not an ordinary installation pass.
 
+Before any file changes, the MSI closes what runs from the install folder
+besides the service, which it stops itself: the Windows app in each session,
+and team daemons a scheduled task or a terminal started. Files replaced under
+running processes failed the install with 1603, and the rollback queued
+reboot-time file swaps that undid the next install. `--close-for-install` runs
+from the package's own Binary-table copy of the service, so the new code runs
+while an older release is installed. A Windows app from this release quits when
+the install event is set, and its daemons stop as their liveness pipes close.
+Other daemons get Ctrl+Break on their own console, which this release's daemon
+treats as a graceful stop. Whatever still runs after 30 seconds is terminated
+(the app after six). The action refuses with `install_handover.still_running`
+before any file changes if something survives that. `--reopen-after-install`
+reopens each closed app in its own session, for the person signed in there,
+after the service starts again. A rollback runs it as well.
+
+The setup custom actions (`--secure-state-root`, `--secure-updater-root`,
+`--disable-updater-for-removal`) keep only an exit code in the MSI log, so a
+refusal is also written to the Windows Application event log under the source
+`Nessie Computer Setup`, as one line led by a stable code: for example
+`updater_setup.helper_refused helper=update.installed_tray_unverified exit=1`.
+`helper=` is the native helper's own code. `update.installed_tray_unverified`
+and `update.installed_service_unverified` mean that file in the release folder
+is not the one the new manifest names. A Windows app still running from the
+previous install causes the first: Windows Installer replaces a file in use only
+at the next restart. Read it with Event Viewer, or in Windows PowerShell:
+`Get-WinEvent -LogName Application -FilterXPath "*[System[Provider[@Name='Nessie Computer Setup']]]" -MaxEvents 5`.
+The line carries codes only, never a path, key or child-process output.
+
 The native protected-image pin requests READ_CONTROL for its retained handle.
 Creator-owner inheritance-only ACEs do not grant access to the parent; actual
 files remain independently checked. SYSTEM installer setup may run in the active

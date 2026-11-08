@@ -1,7 +1,8 @@
 //! Known inactive Desktop/CLI entrypoints, including persistent PATH registrations.
-use crate::{custody::REJECTED, registry::read_launch_string};
+use crate::{custody::REJECTED, registry::read_launch_string, release::pin_protected};
 use std::{
-    fs,
+    fs::{self, File},
+    io::Read,
     path::{Path, PathBuf},
 };
 use windows_sys::Win32::System::{
@@ -41,6 +42,16 @@ fn absent(path: &Path) -> Result<(), String> {
 /// The command's name and its older name: a stray launcher may answer to either.
 const COMMANDS: [&str; 2] = ["nessie-computer", "nessie-executor"];
 
+/// The command line the MSI ships, byte for byte. `build-msi.mjs` copies this
+/// file under both [`OFFICIAL_NAMES`] into the release folder it puts on the
+/// machine PATH; the repository stores it with LF line endings everywhere.
+const OFFICIAL_LAUNCHER: &[u8] = include_bytes!("../../packaging/windows/nessie-executor.cmd");
+const OFFICIAL_NAMES: [&str; 2] = ["nessie-computer.cmd", "nessie-executor.cmd"];
+
+/// Opens a launcher the way custody trusts it: production pins a protected
+/// release file, so only administrators could ever change what it runs.
+type Open<'a> = &'a dyn Fn(&Path) -> Result<File, String>;
+
 /// Every file a PATH lookup of one of [`COMMANDS`] could run, and the old Desktop app.
 fn launcher_names() -> Vec<String> {
     COMMANDS
@@ -50,7 +61,41 @@ fn launcher_names() -> Vec<String> {
         .collect()
 }
 
-fn check_path(value: &str) -> Result<(), String> {
+/// The verified release folder itself, compared component by component and
+/// ignoring only ASCII case and a trailing separator. The release loader pins
+/// every component of that path as a real directory, so any other spelling —
+/// a short name, `..`, a link — is treated as a different folder.
+fn release_folder(entry: &Path, release: &Path) -> bool {
+    entry.components().count() == release.components().count()
+        && entry
+            .components()
+            .zip(release.components())
+            .all(|(entry, release)| entry.as_os_str().eq_ignore_ascii_case(release.as_os_str()))
+}
+
+/// A launcher name in one PATH folder must be absent. The one exception is the
+/// MSI's own command line: one of its two names, in the verified release
+/// folder, whose protected file holds exactly the shipped bytes.
+fn check_launcher(folder: &Path, name: &str, release: &Path, open: Open) -> Result<(), String> {
+    let path = folder.join(name);
+    if absent(&path).is_ok() {
+        return Ok(());
+    }
+    if !OFFICIAL_NAMES.contains(&name) || !release_folder(folder, release) {
+        return Err(REJECTED.into());
+    }
+    let mut bytes = Vec::new();
+    open(&path)?
+        .take(OFFICIAL_LAUNCHER.len() as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| REJECTED)?;
+    if bytes != OFFICIAL_LAUNCHER {
+        return Err(REJECTED.into());
+    }
+    Ok(())
+}
+
+fn check_path(value: &str, release: &Path, open: Open) -> Result<(), String> {
     if value.len() > 65_536 {
         return Err(REJECTED.into());
     }
@@ -64,12 +109,15 @@ fn check_path(value: &str) -> Result<(), String> {
             return Err(REJECTED.into());
         }
         for name in launcher_names() {
-            absent(&path.join(name))?;
+            check_launcher(&path, &name, release, open)?;
         }
     }
     Ok(())
 }
-pub(super) fn verify(home: &Path) -> Result<(), String> {
+/// `release` is the verified installed release folder, the only place the
+/// MSI's own command line may sit on PATH.
+pub(super) fn verify(home: &Path, release: &Path) -> Result<(), String> {
+    let protected = |path: &Path| pin_protected(path, false);
     let mut windows = vec![0_u16; 32_768];
     let size = unsafe { GetWindowsDirectoryW(windows.as_mut_ptr(), windows.len() as u32) } as usize;
     if size == 0 || size >= windows.len() {
@@ -130,62 +178,14 @@ pub(super) fn verify(home: &Path) -> Result<(), String> {
         ),
     ] {
         if let Some(value) = read_launch_string(root, key, Some("Path"), 0).map_err(|_| REJECTED)? {
-            check_path(&expand(&value, &variables)?)?;
+            check_path(&expand(&value, &variables)?, release, &protected)?;
         }
     }
     if let Some(path) = std::env::var_os("PATH") {
-        check_path(path.to_str().ok_or(REJECTED)?)?;
+        check_path(path.to_str().ok_or(REJECTED)?, release, &protected)?;
     }
     Ok(())
 }
 #[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn expansion_uses_actual_owner_and_os_facts_and_refuses_unknown_ambient_variables() {
-        let variables = [("USERPROFILE", r"C:\Users\actual".to_owned())];
-        assert_eq!(
-            expand(r"%userprofile%\bin", &variables).unwrap(),
-            r"C:\Users\actual\bin"
-        );
-        for value in ["%HOME%\\bin", "%USERPROFILE", "%USERPROFILE%\n"] {
-            assert!(expand(value, &variables).is_err());
-        }
-    }
-    #[test]
-    fn both_command_names_are_launchers_in_every_form_windows_runs() {
-        let names = launcher_names();
-        for command in ["nessie-computer", "nessie-executor"] {
-            for extension in ["", ".exe", ".cmd", ".bat", ".ps1"] {
-                assert!(names.contains(&format!("{command}{extension}")), "{command}{extension}");
-            }
-        }
-        assert!(names.contains(&"nessie-desktop.exe".to_owned()));
-    }
-
-    #[test]
-    fn a_stray_nessie_computer_launcher_on_path_blocks_activation() {
-        for name in ["nessie-computer.cmd", "nessie-computer.ps1", "nessie-computer.exe", "nessie-computer"] {
-            let directory = tempfile::tempdir().unwrap();
-            let path = directory.path().to_str().unwrap();
-            assert!(check_path(path).is_ok());
-            fs::write(directory.path().join(name), b"fixture wrapper").unwrap();
-            assert!(check_path(path).is_err(), "{name}");
-        }
-    }
-
-    #[test]
-    fn an_inactive_wrapper_or_ambiguous_search_directory_blocks_activation() {
-        let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().to_str().unwrap();
-        assert!(check_path(path).is_ok());
-        fs::write(
-            directory.path().join("nessie-executor.cmd"),
-            b"fixture wrapper",
-        )
-        .unwrap();
-        assert!(check_path(path).is_err());
-        assert!(check_path("relative").is_err());
-        assert!(check_path("").is_err());
-    }
-}
+#[path = "installed_paths_tests.rs"]
+mod tests;

@@ -29,6 +29,7 @@ mod grant;
 mod inference_connections;
 mod local_ai;
 mod menu;
+mod menu_guard;
 mod nessie_desktop;
 mod notification;
 mod overview;
@@ -93,13 +94,14 @@ fn apply(app: &AppHandle, view: &ServiceView) {
     if let Ok(icon) = Image::from_bytes(tray_state(view, overview.needs_you.is_some()).icon_bytes()) {
         let _ = tray.set_icon(Some(icon));
     }
-    let tooltip = match &overview.needs_you {
-        Some(needs) => format!("{}\n{}", overview.status, needs.text),
-        None => overview.status.clone(),
-    };
-    let _ = tray.set_tooltip(Some(tooltip));
-    if let Ok(menu) = menu::build(app, &overview, words::words()) {
-        let _ = tray.set_menu(Some(menu));
+    // The tooltip follows every poll; it is safe to change while the menu is open.
+    let _ = tray.set_tooltip(Some(overview.tooltip()));
+    if menu_guard::should_rebuild(&overview) {
+        if let Ok(menu) = menu::build(app, &overview, words::words()) {
+            if tray.set_menu(Some(menu)).is_ok() {
+                menu_guard::rebuilt(overview);
+            }
+        }
     }
 }
 
@@ -107,7 +109,7 @@ fn label_of(executor_id: &str) -> String {
     let names = team_names::snapshot();
     let all: Vec<&team_names::TeamIdentity> = names.values().filter_map(|entry| match entry {
         team_names::Entry::Known(identity) => Some(identity),
-        team_names::Entry::OwnerConfirmation => None,
+        team_names::Entry::OwnerConfirmation(_) => None,
     }).collect();
     let mine = match names.get(executor_id) {
         Some(team_names::Entry::Known(identity)) => Some(identity),
@@ -125,7 +127,14 @@ fn start_polling(app: AppHandle) {
         // deletion and complete process/job observations decide recovery.
         custody_cleanup::attempt();
         loop {
-            user_connections::restart_stopped();
+            // An installer about to replace the files asks this app to quit;
+            // its teams' daemons stop on their own as their pipes close.
+            #[cfg(windows)]
+            if nessie_windows_common::install_handover::install_signalled() {
+                app.exit(0);
+                return;
+            }
+            user_connections::supervise();
             let view = commands::view();
             if let ServiceView::Reachable { executors } = &view {
                 let executors = executors.clone();
@@ -140,15 +149,15 @@ fn start_polling(app: AppHandle) {
     });
 }
 
-/// Pointing at the icon reads folder sync again, unless it was read moments ago.
-fn refresh_sync_on_hover(app: &AppHandle) {
+/// Pointing at the icon reads what is true now, so the tooltip it is about to
+/// show is current, and folder sync again unless it was read moments ago.
+fn refresh_on_hover(app: &AppHandle) {
     let app = app.clone();
     std::thread::spawn(move || {
         let view = commands::view();
-        if sync_status::refresh_if_older(&view, SYNC_HOVER_INTERVAL) {
-            let handle = app.clone();
-            let _ = app.run_on_main_thread(move || apply(&handle, &view));
-        }
+        sync_status::refresh_if_older(&view, SYNC_HOVER_INTERVAL);
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || apply(&handle, &view));
     });
 }
 
@@ -189,6 +198,14 @@ fn handle_menu(app: &AppHandle, id: &str) {
                 }
             });
         }
+        MenuAction::ConfirmInNessie(executor_id) => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                if let Err(reason) = commands::open_computer(&app, &executor_id) {
+                    commands::notify(&app, words::words().open_nessie_failed, reason);
+                }
+            });
+        }
         MenuAction::OpenNessie => {
             let app = app.clone();
             std::thread::spawn(move || {
@@ -224,10 +241,15 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 button_state: MouseButtonState::Up,
                 ..
             } => commands::show_status(tray.app_handle()),
-            TrayIconEvent::Enter { .. } => refresh_sync_on_hover(tray.app_handle()),
+            TrayIconEvent::Enter { .. } => refresh_on_hover(tray.app_handle()),
             _ => {}
         })
         .build(app)?;
+    #[cfg(windows)]
+    if let Some(tray) = app.tray_by_id(TRAY_ID) {
+        // Without the watch the menu still changes only when its contents do.
+        let _ = tray.with_inner_tray_icon(|inner| menu_guard::watch(inner.window_handle()));
+    }
     Ok(())
 }
 

@@ -49,9 +49,14 @@ impl Remedy {
     }
 }
 
+/// The daemon a supervisor started found another one already holding the
+/// team's folder: another app, the CLI or a scheduled task runs that team.
+pub const ALREADY_RUNNING: &str = "EXECUTOR_DAEMON_ALREADY_RUNNING";
+
 /// The refusals the API raises beside a code, as the CLI prints them. Matched
 /// by containment, as the macOS app has always matched them.
-const KNOWN: [(&str, &str); 11] = [
+const KNOWN: [(&str, &str); 12] = [
+    (ALREADY_RUNNING, ALREADY_RUNNING),
     ("Executor descriptor revisions cannot move backwards.", "EXECUTOR_DESCRIPTOR_ROLLBACK"),
     ("A descriptor revision cannot describe two different policies.", "EXECUTOR_DESCRIPTOR_REVISION_CONFLICT"),
     ("Executor connection is fenced.", "EXECUTOR_CONNECTION_FENCED"),
@@ -163,6 +168,14 @@ mod tests {
             Some("EXECUTOR_DAEMON_PROOF_INVALID"));
         assert_eq!(remedy(&classify("No active executor enrollment is ready to confirm.")), Some(Remedy::OpenNessie));
         assert_eq!(remedy(&classify("Executor API request timed out.")), None);
+    }
+
+    #[test]
+    fn a_team_already_running_elsewhere_is_named_and_never_retried() {
+        let refused = classify("EXECUTOR_DAEMON_ALREADY_RUNNING\n");
+        assert_eq!(refused.code.as_deref(), Some(super::ALREADY_RUNNING));
+        assert!(!super::retriable(&refused));
+        assert_eq!(super::remedy(&refused), None);
     }
 
     #[test]
