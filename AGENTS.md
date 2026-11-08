@@ -50,3 +50,5 @@ Computer telemetry, provider quotas, owner-only CI, native history and human inp
 All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
+
+Linux updater images use root-owned immutable libexec paths with the standard SELinux executable label; retain journals and legacy protected images during recovery. See [Fedora service execution](docs/automatic-updates.md#fedora-service-execution).

@@ -70,8 +70,8 @@ export const linuxPackage = (version, payload, format, signingKey) => {
     description: 'Nessie executor CLI with per-team local permissions and systemd user services.',
     license: 'FSL-1.1-ALv2',
     depends: format === 'deb'
-      ? ['libc6 (>= 2.31)', 'libgcc-s1', 'libstdc++6', 'systemd', 'git', 'tmux', 'ca-certificates', 'gpgv']
-      : ['glibc >= 2.31', 'libgcc', 'libstdc++', 'systemd', 'git', 'tmux', 'ca-certificates', 'gnupg2'],
+      ? ['libc6 (>= 2.31)', 'libgcc-s1', 'libstdc++6', 'systemd', 'git', 'tmux', 'ca-certificates', 'gpgv', 'policycoreutils']
+      : ['glibc >= 2.31', 'libgcc', 'libstdc++', 'systemd', 'git', 'tmux', 'ca-certificates', 'gnupg2', 'policycoreutils'],
     contents: [{ src: `${payload}/usr/`, dst: '/usr', type: 'tree' }],
     scripts: { postinstall: `${payload}/install-custody-barrier.sh`,
       preremove: `${payload}/disable-updater-for-removal.sh` },
