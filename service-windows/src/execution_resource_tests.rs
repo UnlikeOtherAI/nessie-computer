@@ -59,13 +59,13 @@ fn fixture() -> Fixture {
     let held = Held { receipt: Receipt { version: 1, resource_id: "a".repeat(64), resource_generation: "component-test".into(),
         evidence, custody }, caller, objects, watches: Vec::new(), deadline: Instant::now() + Duration::from_secs(10),
         config_digest: Sha256::digest(b"{}").to_vec(), graph_generation: None, inspections: HashMap::new(),
-        paired_origin: "https://example.invalid".into() };
+        paired_origin: "https://example.invalid".into(), service_root: root.path().into() };
     Fixture { root, native, held }
 }
 #[test]
 fn execution_resource_receiver_retains_actual_files_and_rejects_substituted_source() {
     let mut fixture = fixture();
-    fixture.held.validate_source().unwrap(); fixture.held.recheck().unwrap();
+    fixture.held.validate_source().unwrap(); fixture.held.recheck_objects().unwrap();
     fixture.native.clear();
     assert!(fs::rename(fixture.root.path().join("settings"), fixture.root.path().join("replaced")).is_err());
     assert!(fs::write(fixture.root.path().join("settings"), "changed").is_err());
@@ -73,10 +73,10 @@ fn execution_resource_receiver_retains_actual_files_and_rejects_substituted_sour
     assert!(fixture.held.validate_source().is_err());
     fixture.held.receipt.evidence.source.environment_id = "original:env".into();
     fixture.held.receipt.evidence.settings_digest = "f".repeat(64);
-    assert!(fixture.held.recheck().is_err());
+    assert!(fixture.held.recheck_objects().is_err());
 }
 #[test]
-fn execution_resource_receiver_expiry_and_wrong_provider_references_never_recover() {
+fn execution_resource_receiver_expiry_and_unlinked_registration_never_recover() {
     let fixture = fixture();
     let caller = Process::open(std::process::id()).unwrap();
     let context = DescriptorContext { paired_origin: fixture.held.paired_origin.clone(), custody: fixture.held.receipt.custody.clone() };

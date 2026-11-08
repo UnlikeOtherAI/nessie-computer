@@ -17,7 +17,10 @@ struct Held {
     graph_generation: Option<(String, String)>,
     inspections: HashMap<String, String>,
     paired_origin: String,
+    service_root: std::path::PathBuf,
 }
+#[path = "execution_resource_link.rs"]
+mod link;
 static RESOURCES: OnceLock<Mutex<HashMap<String, Held>>> = OnceLock::new();
 #[cfg(test)]
 #[path = "execution_resource_tests.rs"]
@@ -30,6 +33,7 @@ fn resources() -> &'static Mutex<HashMap<String, Held>> {
             std::thread::sleep(Duration::from_millis(250));
             if let Some(resources) = RESOURCES.get() {
                 if let Ok(mut held) = resources.lock() { held.retain(|_, h| h.recheck().is_ok()); }
+                link::cleanup();
             }
         });
         Mutex::new(HashMap::new())
@@ -49,6 +53,12 @@ impl Held {
         Ok(first)
     }
     fn recheck(&self) -> Result<(), String> {
+        self.recheck_objects()?;
+        link::require_link(&self.service_root, &self.receipt.evidence.source.executor_id,
+            &self.caller, &self.receipt.evidence.source.admitted_root_key,
+            self.object("configuration")?, self.object("source-root")?)
+    }
+    fn recheck_objects(&self) -> Result<(), String> {
         if Instant::now() >= self.deadline || !self.caller.alive() { return Err(REJECTED.into()); }
         for generation in [&self.receipt.custody.runtime, &self.receipt.custody.supervisor] {
             let observed = Process::open(generation.pid)?;
@@ -98,6 +108,10 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
     resources.retain(|_, h| h.recheck().is_ok());
     match request {
         Request::Authorize { .. } => Ok(json!({"custody":context.custody})),
+        Request::ReviewRegistration { executor_id, review_id, admitted_root_key, configuration, source_root } =>
+            link::review(root, caller, &executor_id, &review_id, &admitted_root_key, &configuration, &source_root),
+        Request::LinkRegistration { executor_id, review_id, review_digest } =>
+            link::confirm(caller, &executor_id, &review_id, &review_digest),
         Request::Register { executor_id: _, resource_id, evidence, objects, watches } => {
             if resources.len() >= 64 || resources.contains_key(&resource_id) { return Err(REJECTED.into()); }
             let duplicate = Duplicator::new(caller)?;
@@ -113,7 +127,7 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
                 resource_generation: generation, evidence, custody: context.custody }, caller: observed,
                 objects, watches, deadline: Instant::now() + Duration::from_millis(LEASE_MILLIS),
                 config_digest: Vec::new(), graph_generation: None, inspections: HashMap::new(),
-                paired_origin: context.paired_origin };
+                paired_origin: context.paired_origin, service_root: root.into() };
             let mut config = held.object("configuration")?.bytes(256 * 1024)?;
             let parsed: Value = serde_json::from_slice(&config).map_err(|_| REJECTED)?;
             held.config_digest = Sha256::digest(&config).to_vec();

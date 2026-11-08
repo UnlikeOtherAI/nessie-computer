@@ -56,6 +56,8 @@ pub struct Object {
 #[serde(tag = "operation", rename_all = "camelCase", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Request {
     Authorize { executor_id: String },
+    ReviewRegistration { executor_id: String, review_id: String, admitted_root_key: String, configuration: Object, source_root: Object },
+    LinkRegistration { executor_id: String, review_id: String, review_digest: String },
     Register { executor_id: String, resource_id: String, evidence: Evidence, objects: Vec<Object>, watches: Vec<u64> },
     Recheck { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
@@ -64,7 +66,8 @@ impl Request {
     pub fn executor(&self) -> &str {
         match self {
             Self::Authorize { executor_id } | Self::Register { executor_id, .. }
-            | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. } => executor_id,
+            | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. }
+            | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -72,6 +75,16 @@ impl Request {
         if !id(self.executor()) { return Err(REJECTED.into()); }
         match self {
             Self::Authorize { .. } => (),
+            Self::ReviewRegistration { review_id, admitted_root_key, configuration, source_root, .. } => {
+                if !valid_nonce(review_id) || !id(admitted_root_key) || configuration.handle == 0
+                    || configuration.kind != "configuration" || !configuration.private || !id(&configuration.identity)
+                    || source_root.kind != "source-root" || source_root.handle == 0 || !source_root.private || !id(&source_root.identity) {
+                    return Err(REJECTED.into());
+                }
+            }
+            Self::LinkRegistration { review_id, review_digest, .. } => {
+                if !valid_nonce(review_id) || !valid_nonce(review_digest) { return Err(REJECTED.into()); }
+            }
             Self::Close { resource_id, .. } | Self::Recheck { resource_id, .. } => {
                 if !valid_nonce(resource_id) { return Err(REJECTED.into()); }
             }
@@ -148,5 +161,16 @@ mod tests {
             }
             assert!(value.validate().is_err());
         }
+    }
+    #[test]
+    fn source_link_wire_cannot_accept_an_approval_boolean_or_an_unheld_root() {
+        let confirm = json!({"operation":"linkRegistration","executorId":"executor",
+            "reviewId":"a".repeat(64),"reviewDigest":"b".repeat(64),"approved":true});
+        assert!(serde_json::from_value::<Request>(confirm).is_err());
+        let review = Request::ReviewRegistration { executor_id:"executor".into(),review_id:"a".repeat(64),
+            admitted_root_key:"source".into(),configuration:Object {handle:1,identity:"fixture:config".into(),
+                kind:"configuration".into(),private:true},source_root:Object {handle:0,identity:"fixture:root".into(),
+                kind:"source-root".into(),private:true} };
+        assert!(review.validate().is_err());
     }
 }

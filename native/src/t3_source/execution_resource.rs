@@ -10,7 +10,7 @@ use std::{io::Read, sync::Arc};
 use base64::Engine;
 
 const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
-fn service(request: Request) -> Result<Value, NativeError> {
+pub(super) fn service(request: Request) -> Result<Value, NativeError> {
     request.validate().map_err(|_| fail())?;
     nessie_windows_common::service_channel::call(&Operation::ExecutionResource { request: Box::new(request) }, PIN)
         .map_err(|_| fail())
@@ -79,9 +79,16 @@ pub(super) fn run() -> Result<(), NativeError> {
     let custody: Custody = serde_json::from_value(context["custody"].clone()).map_err(|_| fail())?;
     if request["parentPid"].as_u64() != Some(custody.runtime.pid as u64) { return Err(fail()); }
     nessie_windows_common::peer_inspection::allow_execution_pipe_observer().map_err(|_| fail())?;
-    let source = Resource::open_with_clock(&request, clock)?;
-    let settings = Settings::open(source.execution_root()?)?;
+    let key = request["admittedRootKey"].as_str().ok_or_else(fail)?;
+    let resource_id = random_id()?;
+    let registration = super::execution_link::Registration::open(&executor, key, clock.clone())?;
+    registration.require_link(&executor, key, &resource_id)?;
+    let source = Resource::open_with_clock(&registration.request, clock)?;
     let configuration = source.execution_configuration()?;
+    let source_objects = source.execution_objects(&configuration);
+    registration.handoff(&source, &configuration)?;
+    drop(registration);
+    let settings = Settings::open(source.execution_root()?)?;
     let description = &source.description;
     let raw = &description["source"];
     let string = |v: &Value| v.as_str().map(str::to_owned).ok_or_else(fail);
@@ -92,8 +99,7 @@ pub(super) fn run() -> Result<(), NativeError> {
         database_role: string(&raw["databaseRole"])? }, settings_identity: settings.identity().to_owned(),
         settings_digest: settings.digest().to_owned(), settings_length: settings.length(),
         provider_references: settings.references().to_vec() };
-    let resource_id = random_id()?;
-    let mut objects = source.execution_objects(&configuration); objects.extend(settings.objects());
+    let mut objects = source_objects; objects.extend(settings.objects());
     let mut watches = source.execution_watches(); watches.extend(settings.watches());
     let result = service(Request::Register { executor_id: executor.clone(), resource_id: resource_id.clone(),
         evidence: evidence.clone(), objects, watches });

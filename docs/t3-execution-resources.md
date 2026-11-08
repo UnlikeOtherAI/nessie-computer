@@ -18,9 +18,34 @@ remain unattested.
 
 `src/t3-session/source/execution.ts` exports
 `withT3ExecutionResources({stateDirectory, executorId, admittedRootKey, signal?}, use)`
-and `recognizeT3ExecutionResource(scope)`. `stateDirectory` selects existing
-executor configuration, not a caller-authorized provider path. Native independently
-pins that configuration and resolves the admitted original root. Settings are
+and `recognizeT3ExecutionResource(scope)`. `stateDirectory` is the startup's
+service enrollment reference only: the graph does not open it, load executor
+state or receive machine keys. The protected native helper resolves the actual
+Windows token's profile using `GetUserProfileDirectoryW`, then only the existing
+`.local/state/nessie-executor/<executorId>` source registration. It pins this
+owner-only configuration. Service compares its duplicated handle's exact
+executor ID, API URL and machine public key with its independently held paired
+service enrollment. Missing registration or a different enrollment refuses.
+No source configuration or machine key is copied between registrations.
+
+Before opening source DB/settings, a missing or changed linkage requires a
+secure-desktop source-owner affirmation. The native prompt displays the actual
+registration/source directories, admitted key, owner SID, paired origin and
+configuration/public-key fingerprints. It uses six locale translations and
+the existing shared OS approval primitive. Service tracks the exact review
+helper generation, held configuration and digest; only that fixed protected
+native role can confirm after obtaining `AffirmedOwner`. A CLI boolean, daemon
+JSON or another helper cannot confirm it. This bounded ceremony is a local
+source-registration link, separate from execution issuer/UOA/command authority.
+
+The service-owned `execution-source-links/<executorId>/<SHA256(admittedRootKey)>.json` stores only
+product-specific linkage metadata: owner SID, exact configuration identity,
+digest/revision, admitted key/actual physical root, executor/public-key digest, paired API origin and enrollment
+digest. It stores no homes, keys, profiles or org hierarchy. Replacement or a
+different revision/digest/enrollment requires another explicit affirmation;
+there is no automatic migration. Observations only cover periods with held resources;
+they cannot attest to changes made and restored between scopes. Live resources recheck
+both registration and link throughout. Settings are
 always `<original stateDir>/settings.json`. Missing, corrupt, over-1-MiB, reparse,
 unavailable or non-owner-only settings refuse; absence never creates defaults.
 
@@ -58,7 +83,7 @@ persisted environment, configured admission, root and provider-home identities.
 Native SQLite main/WAL checks remain in the physical reader. Both retain sticky
 namespace/security notifications. Inspect opens no credential/history child.
 
-`windows-common/src/execution_resource.rs` defines private `Authorize`, `Register`,
+`windows-common/src/execution_resource.rs` defines private `Authorize`, `ReviewRegistration`, `LinkRegistration`, `Register`,
 `Recheck`, `Close` requests. The public `execution-resource.ts` schema contains
 metadata only; parsing it issues nothing. Settings travel only to the exact
 service-observed graph PID through the private-stdin-key authenticated native
@@ -105,8 +130,13 @@ homes refuse. No scan, original file change or provider setup occurs.
 ## Integration and qualification
 
 Native16 public `27649f3efc28b637a58e9820e5017f75095bebd9` defines execution/Custody/Graph
-wire. Its following context/starter commit supplies the real gate and custody
-registration. Runtime9 owns the fixed entry and original registry integration.
+wire; `62f36dd0dfa9dad65a4e6f18ee8cf232c924f104` supplies the refusing protected-process
+gate and shared registration. Execution-only transport calls native16's
+`spawnProtectedT3Companion('resource')` from `src/t3-protected-process.ts` and awaits
+its positive service-cleared `closed` promise on teardown. It never falls back
+to ordinary spawn. That SYSTEM creator/facade is a pending separate source
+prerequisite; the retained reader keeps its existing direct spawn. Runtime9 owns
+the fixed entry and original registry integration.
 Root integrates these prerequisites and manifest hunks serially. No sibling
 branch was merged or written here.
 
@@ -118,9 +148,16 @@ bounded strict metadata and forged callback rejection. All remain unrun.
 
 Receiver component cases use actual duplicated file/ACL/process objects to
 exercise retained file locks, environment/digest substitution, expiry and
-unissued provider-reference refusal. They bypass no production gate and do not
+unlinked-registration refusal. They bypass no production gate and do not
 claim positive SYSTEM-created graph admission. A separate wire-only case checks
 duplicate roles/objects and bounds; valid wire shape is explicitly not admission.
+Native registration cases hold actual configuration/root handles across the review,
+dialog and source-open boundaries, refuse replacement, missing admissions and
+wrong executors, and verify expiry and overlapping handoff to the SQLite resource.
+They never invoke a personal registration or manufacture local affirmation.
+Service comparison cases reject mismatched executor, API URL and public key,
+missing enrollment identity and cleartext API origins. These are policy tests,
+not a substitute for protected service/ceremony acceptance.
 
 Four changed TypeScript modules passed non-evaluating Node builtin syntax
 parsing with a 192 MiB heap; `git diff --check` passed. No implementation import,
