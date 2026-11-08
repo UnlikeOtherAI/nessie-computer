@@ -183,16 +183,18 @@ export async function withRetainedImportLocally<A>(stateDirectory: string,
         await consent.recheck()
         return result
       } finally {
+        let locallyRevoked = false
         try {
           if (committed) {
             const withdrawal = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
               operation: 'verification.issue', grantId: challenge.challengeId, purpose: 'revoke',
             }))
             const liveProof = RetainedImportLiveProofSchema.parse(await consent.revoke(withdrawal))
+            locallyRevoked = true
             await retainedImportPost(stateDirectory, { operation: 'consent.withdraw',
               grantId: challenge.challengeId, liveProof })
           }
-        } finally { await consent.revoke() }
+        } finally { if (!locallyRevoked) await consent.revoke() }
       }
     })
 }
