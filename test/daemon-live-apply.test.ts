@@ -92,9 +92,12 @@ const startFakeNessie = async (): Promise<FakeNessie> => {
         return send(response, { command: queue[0] ?? null })
       case '/api/executor-daemon/commands/receipt': {
         const receipt = body.receipt as { commandId: string; state: string }
+        // A restarted daemon replays the receipt its predecessor's journal still held.
         if (receipt.state === 'result_acknowledged') {
-          queue.shift()
+          const index = queue.findIndex((command) => command.commandId === receipt.commandId)
+          if (index >= 0) queue.splice(index, 1)
           results.get(receipt.commandId)?.(body.result as Record<string, unknown>)
+          results.delete(receipt.commandId)
         }
         return send(response, { recorded: true })
       }
