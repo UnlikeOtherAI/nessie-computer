@@ -23,6 +23,7 @@ test('normal package/original importer retains complete old catalog, original op
     assert.equal(first.localState, 'ready')
     assert.equal(first.serverCatalog, 'required_unbound')
     assert.equal(first.control, 'unavailable')
+    assert.equal(first.nativeHomes, 'required_unbound')
     assert.equal(f.ports.journal.catalog(f.source.physicalRootKey).length, f.ids.length)
     assert.equal(f.ports.journal.catalog(f.source.physicalRootKey).find(row => row.thread_id === f.ids[1]).source_state, 'archived')
     assert.equal(f.ports.journal.catalog(f.source.physicalRootKey).find(row => row.thread_id === f.ids[2]).source_state, 'deleted')
@@ -165,5 +166,70 @@ test('original page input/output remains typed and unbound owner denies before r
     f.ports.originalOwner = undefined
     await assert.rejects(projection(f, captured.generation), /required_retained_read_producers/u)
     f.ports.originalOwner = original
+  } finally { f.close() }
+})
+
+test('original v2 authority preserves independent local/delegated/remote lineage, orphans and native overlay histories', async () => {
+  const f = await engineFixture({ messages: 4 })
+  try {
+    const template = f.writer.prepare('SELECT * FROM orchestration_v2_projection_threads WHERE thread_id = ?').get(f.ids[0])
+    const base = JSON.parse(template.payload_json)
+    const child = { ...base, id: 'child:retained', historyOrigin: 'native', tags: ['hidden'],
+      lineage: { parentThreadId: f.ids[2], relationshipToParent: 'subagent', rootThreadId: f.ids[2] },
+      delegatedFrom: { environmentId: 'elsewhere:one', threadId: 'remote:parent', title: 'Remote parent' } }
+    const orphan = { ...child, id: 'orphan:retained',
+      lineage: { parentThreadId: 'absent:parent', relationshipToParent: 'subagent', rootThreadId: 'absent:parent' } }
+    const columns = Object.keys(template)
+    const insert = f.writer.prepare(`INSERT INTO orchestration_v2_projection_threads
+      (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+    for (const value of [child, orphan]) {
+      const row = { ...template, thread_id: value.id, payload_json: JSON.stringify(value) }
+      insert.run(...columns.map(column => row[column]))
+    }
+    // A legacy row in the same file must not overwrite current v2 title or graph.
+    f.writer.prepare('UPDATE orchestration_v2_projection_threads SET title = ?, payload_json = ? WHERE thread_id = ?')
+      .run('V2 authoritative', JSON.stringify({ ...base, title: 'V2 authoritative' }), f.ids[0])
+    f.writer.prepare('UPDATE projection_threads SET title = ? WHERE thread_id = ?').run('obsolete legacy title', f.ids[0])
+    const remoteChild = { environmentId: 'elsewhere:two', threadId: 'remote:child', label: 'Remote child' }
+    const subagent = { id: 'subagent:retained', threadId: f.ids[0], runId: null, parentNodeId: 'node:parent',
+      origin: 'app_owned', createdBy: 'agent', driver: 'codex', providerInstanceId: 'disabled-unbound',
+      providerThreadId: null, childThreadId: child.id, remoteChild, nativeTaskRef: null, prompt: 'Synthetic task',
+      title: null, model: null, status: 'completed', result: 'Synthetic result', startedAt: null, completedAt: null,
+      updatedAt: '2020-01-01T00:00:00.000Z' }
+    f.writer.prepare(`INSERT INTO orchestration_v2_projection_subagents
+      (subagent_id, thread_id, parent_node_id, provider, origin, status, updated_at, payload_json, driver, provider_instance_id)
+      VALUES (?, ?, ?, 'codex', 'app_owned', 'completed', ?, ?, 'codex', 'disabled-unbound')`)
+      .run(subagent.id, f.ids[0], subagent.parentNodeId, subagent.updatedAt, JSON.stringify(subagent))
+    for (const [index, appThreadId] of [f.ids[0], f.ids[1], f.ids[2]].entries()) {
+      const provider = { id: `provider:${index}`, driver: 'codex', providerInstanceId: 'disabled-unbound',
+        providerSessionId: null, appThreadId, ownerNodeId: null,
+        nativeThreadRef: { driver: 'codex', nativeId: 'same-native', strength: 'strong' },
+        nativeConversationHeadRef: null, status: 'not_loaded', firstRunOrdinal: null, lastRunOrdinal: null,
+        handoffIds: [], forkedFrom: null, createdAt: '2020-01-01T00:00:00.000Z', updatedAt: '2020-01-01T00:00:00.000Z' }
+      f.writer.prepare(`INSERT INTO orchestration_v2_projection_provider_threads
+        (provider_thread_id, thread_id, provider, status, updated_at, payload_json, driver, provider_instance_id)
+        VALUES (?, ?, 'codex', 'not_loaded', ?, ?, 'codex', 'disabled-unbound')`)
+        .run(provider.id, appThreadId, provider.updatedAt, JSON.stringify(provider))
+    }
+    // Synthetic fixture port only; no production home/custody authority is asserted.
+    f.ports.nativeHomes = { proveHomes: async ({ providerThread }) => ({ continuationHomeKey: 'synthetic:shared-home',
+      historyHomeKey: `synthetic:overlay:${providerThread.id}`, homeProofReference: 'synthetic:home-proof' }) }
+    const captured = await capture(f)
+    const full = await projection(f, captured.generation)
+    assert.equal(full.thread.title, 'V2 authoritative')
+    assert.deepEqual(full.subagents.find(row => row.id === subagent.id).remoteChild, remoteChild)
+    const retainedChild = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
+      captured.generation, S.ThreadId.make(child.id))
+    assert.deepEqual(retainedChild.thread.lineage, child.lineage)
+    assert.deepEqual(retainedChild.thread.delegatedFrom, child.delegatedFrom)
+    assert.ok(f.ports.journal.catalog(f.source.physicalRootKey).some(row => row.thread_id === orphan.id))
+    const journal = new DatabaseSync(`${f.directory}/local-capture-journal.sqlite`, { readOnly: true })
+    try {
+      const aliases = journal.prepare('SELECT * FROM t3_capture_native_aliases ORDER BY thread_id').all()
+      assert.equal(aliases.length, 3)
+      assert.equal(new Set(aliases.map(row => row.thread_id)).size, 3)
+      assert.equal(new Set(aliases.map(row => row.continuation_home)).size, 1)
+      assert.equal(new Set(aliases.map(row => row.history_home)).size, 3)
+    } finally { journal.close() }
   } finally { f.close() }
 })
