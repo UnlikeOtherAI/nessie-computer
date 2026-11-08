@@ -311,7 +311,7 @@ family IDs and composition over an already patched snapshot are refused. The
 separate web family targets omitted source and is never selected implicitly.
 
 `buildSessionEngineModule({sourceRepository, outputPath, entryPoint?, proof?,
-additionalPatchFamilies?})` is additive to `buildSessionStateModule`. T01 may supply
+additionalPatchFamilies?, contractsAliasPlugin?})` is additive to `buildSessionStateModule`. T01 may supply
 its source-only co-build entry under `packages/t3-session-source/src`; every
 authored input is hashed. Engine, contracts, workspace aliases and all first-party
 Effect imports use the same source resolver and isolated dependency root. Effect,
