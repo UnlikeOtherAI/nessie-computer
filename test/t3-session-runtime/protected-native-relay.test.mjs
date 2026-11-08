@@ -8,13 +8,16 @@ const parent = () => new AbortController()
 const phase = { phase: 'reserve', graphId: 'a'.repeat(64) }
 const proof = { payload: '{ "exact": "signed string bytes" }', keyId: 'key', signature: 'signature' }
 const unsupported = async () => { throw new Error('unexpected method') }
+// Transport-shape fixture only; these bytes cannot authorize a native read.
+const secretRead = { preparationReceipt: { domain: 'nessie.t3.execution.secret-read-preparation.v1',
+  keyId: 'c'.repeat(64), payload: '{ "observed": "exact preparation bytes" }', signature: 'd'.repeat(86) } }
 
 test('finite native relay preserves signed bytes and refuses replay of a consumed call ID', async () => {
   let observed, calls = 0
   const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
   const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
   const held = daemon.register({ phase: async () => { calls++; return proof },
-    frame: unsupported, receipt: unsupported }, parent().signal)
+    frame: unsupported, secretRead: unsupported, receipt: unsupported }, parent().signal)
   const local = child.open(held.operationId, parent().signal)
   assert.deepEqual(await local.port.phase(phase, parent().signal), proof)
   assert.equal(calls, 1)
@@ -34,7 +37,7 @@ test('operation close aborts HTTP demand and joins its actual unresolved result'
     entered.resolve(signal)
     await finished.promise
     return proof
-  }, frame: unsupported, receipt: unsupported }, parent().signal)
+  }, frame: unsupported, secretRead: unsupported, receipt: unsupported }, parent().signal)
   daemon.receive({ type: 'native', operationId: held.operationId, callId: 'b'.repeat(64),
     operation: { operation: 'execution.phase', input: phase } })
   const signal = await entered.promise
@@ -65,4 +68,75 @@ test('a response cannot cross captured operation ports or introduce raw selector
   await assert.rejects(answer, /REFUSED/u)
   await two.close()
   await child.close()
+})
+
+test('secretRead stays on its captured port and preserves exact receipt and signed payload strings', async () => {
+  let observed, calls = 0
+  const stop = parent()
+  const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
+  const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, receipt: unsupported,
+    secretRead: async (input, signal) => {
+      calls++
+      assert.deepEqual(input, secretRead)
+      assert.equal(signal.aborted, false)
+      return proof
+    } }, stop.signal)
+  const other = daemon.register({ phase: unsupported, frame: unsupported,
+    secretRead: unsupported, receipt: unsupported }, parent().signal)
+  const local = child.open(held.operationId, stop.signal)
+  assert.deepEqual(await local.port.secretRead(secretRead, stop.signal), proof)
+  assert.equal(observed.operationId, held.operationId)
+  assert.equal(observed.operation.operation, 'execution.secretRead')
+  assert.equal(observed.operation.input.preparationReceipt.payload, secretRead.preparationReceipt.payload)
+  assert.equal(calls, 1)
+  assert.throws(() => daemon.receive(observed), /REFUSED/u)
+  for (const injected of [{ value: 'raw' }, { reference: 'caller-selected' }, { binding: {} }, { request: {} }]) {
+    assert.equal(ProtectedRuntimeOutputSchema.safeParse({ ...observed, operation: { ...observed.operation,
+      input: { ...secretRead, ...injected } } }).success, false)
+  }
+  await local.close(); await held.close(); await other.close()
+  await child.close(); await daemon.close()
+})
+
+test('secretRead refusal terminates the captured operation without retry or renewed observation', async () => {
+  let observed, calls = 0
+  const stop = parent()
+  const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
+  const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, receipt: unsupported,
+    secretRead: async () => { calls++; throw new Error('unavailable native observation') } }, stop.signal)
+  const local = child.open(held.operationId, stop.signal)
+  await assert.rejects(local.port.secretRead(secretRead, stop.signal), /REFUSED/u)
+  await assert.rejects(local.port.secretRead(secretRead, stop.signal))
+  assert.throws(() => daemon.receive({ ...observed, callId: 'e'.repeat(64) }), /REFUSED/u)
+  assert.equal(calls, 1)
+  await local.close(); await held.close(); await child.close(); await daemon.close()
+})
+
+test('secretRead operation cancellation joins the original HTTP demand and refuses fresh calls', async () => {
+  const finished = Promise.withResolvers(), entered = Promise.withResolvers()
+  let drained = false, calls = 0
+  const daemon = createProtectedNativeRelay(async () => {}, () => assert.fail('unexpected failure'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, receipt: unsupported,
+    secretRead: async (_input, signal) => {
+      calls++
+      entered.resolve(signal)
+      await finished.promise
+      return proof
+    } }, parent().signal)
+  const request = { type: 'native', operationId: held.operationId, callId: 'f'.repeat(64),
+    operation: { operation: 'execution.secretRead', input: secretRead } }
+  daemon.receive(request)
+  const signal = await entered.promise
+  const closing = held.close().then(() => { drained = true })
+  assert.equal(signal.aborted, true)
+  await Promise.resolve()
+  assert.equal(drained, false)
+  assert.throws(() => daemon.receive({ ...request, callId: '1'.repeat(64) }), /REFUSED/u)
+  finished.resolve()
+  await closing
+  assert.equal(drained, true)
+  assert.equal(calls, 1)
+  await daemon.close()
 })

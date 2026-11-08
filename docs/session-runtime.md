@@ -36,13 +36,21 @@ Stdio output refuses. These internal source adapters are not yet called by an
 activated original `launchThread` graph.
 
 `protected-native-relay.ts` implements both finite pipe endpoints. An operation
-port accepts only phase/frame/receipt requests; it carries no caller-supplied
+port accepts only phase/frame/secretRead/receipt requests; it carries no caller-supplied
 original operation, keys, frame bytes or method/hash selector. Call IDs cannot
 replay, responses cannot cross operation IDs, and close aborts then joins pending
 HTTP demand. The fixed entry and daemon recognize these wire messages. The
 production `open` registration still refuses: the complete original activation
 and its preparation-effect authority are not bound. Therefore no native port is
 registered from inspection, and none of this advertises executing readiness.
+
+The `secretRead` child method forwards only the strict preparation receipt to
+the already captured daemon transport. Both directions retain the operation ID
+and one-use call ID; exact receipt/admission payload strings are preserved.
+Refusal aborts the operation, and close aborts then joins the same HTTP demand.
+There is no retry or observation renewal. Shared schemas reject injected values,
+references, bindings and original-request selectors. This relay registration
+does not create native observation evidence, start `op` or enable a read producer.
 
 ## Selected provider secret preparation
 
