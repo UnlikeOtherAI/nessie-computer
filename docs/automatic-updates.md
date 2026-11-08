@@ -1,9 +1,8 @@
 # Automatic executor updates
 
-Status: **not released**. The Windows native installer coordinator and shared
-local controls are implemented in source. No signed installed upgrade has been
-verified, and macOS/Linux installer adapters and the transition release remain
-unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
+Status: **not released**. Native installer adapters and local update controls
+are implemented in source. Installed A-to-B acceptance on Windows, macOS and
+Linux has not passed, and the transition release remains unpublished. The published 0.9.1 prerelease and sequence-1 stable/preview
 catalogs contain only the Apple-silicon DMG. They do not provide a complete
 stable distribution or establish installed upgrade acceptance.
 
@@ -11,14 +10,18 @@ The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
 background helper. See [the helper trust contract](macos-update-helper.md).
 
-Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
-at `c7ac37d` has verified timestamped signatures and matching extracted payload
-hashes; its native helper and CLI report the expected version/source. The macOS
-0.9.0 app and DMG at `b0e5c3b` passed Developer ID validation, notarization,
-stapling and Gatekeeper. Neither candidate has been installed, published or
-used for an A-to-B upgrade. No additional Installer certificate is required.
-macOS signing uses a temporary launchd job in the existing GUI
-session so SSH does not require another keychain sign-in or copied credentials.
+Local signed candidates 1.0.2 and 1.0.3 now exist for all four formats at
+`a24bd9c2bf40201693baa1ddca9ffb7713619d2c`: timestamped Azure-signed Windows
+MSIs, Developer ID signed/notarized/stapled Apple-silicon DMGs, and signed
+Linux DEB/RPM packages and repository metadata. They remain unpublished and
+have not passed installed A-to-B acceptance. The Linux GUI and non-blocking
+CLI launch changes require new candidates before release.
+
+The signed Fedora 1.0.2 candidate at `f0a6085` recovered the updater service
+from its preserved SELinux execution failure. Service setup and a full VM
+restart passed with SELinux enforcing; this does not establish an upgrade
+journey. macOS signing uses a temporary launchd job in the existing GUI
+session, without another keychain sign-in or copied credentials.
 
 The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
