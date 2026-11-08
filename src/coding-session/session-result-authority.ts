@@ -48,5 +48,5 @@ export const validateScopedCodingResult = (
       seen.add(row.sessionId)
     }
   }
-  return raw
+  return { content: [{ type: 'text', text: JSON.stringify(body) }] }
 }
