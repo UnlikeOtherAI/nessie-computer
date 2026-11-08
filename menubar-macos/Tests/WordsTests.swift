@@ -77,7 +77,8 @@ final class WordsTests: XCTestCase {
         let expected: [NativeLanguage: String] = [
             .britishEnglish: "Add this computer…", .americanEnglish: "Add this computer…",
             .czech: "Přidat tento počítač…", .german: "Diesen Computer hinzufügen …",
-            .spanish: "Añadir este ordenador…", .french: "Ajouter cet ordinateur…", .italian: "Aggiungi questo computer…"
+            .spanish: "Añadir este ordenador…", .french: "Ajouter cet ordinateur…",
+            .italian: "Aggiungi questo computer…"
         ]
         for language in NativeLanguage.allCases {
             XCTAssertEqual(Word.addThisComputer.text(in: language), expected[language], "\(language)")
