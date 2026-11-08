@@ -32,7 +32,7 @@ use windows_service::{
 };
 use windows_sys::Win32::{
     Foundation::{
-        GetLastError, LocalFree, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, INVALID_HANDLE_VALUE,
+        GetLastError, LocalFree, HANDLE, ERROR_NO_DATA, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, INVALID_HANDLE_VALUE,
     },
     Security::{
         Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW, SECURITY_ATTRIBUTES,
@@ -151,6 +151,24 @@ fn instance(first: bool) -> Result<File, String> {
     Ok(unsafe { File::from_raw_handle(pipe.cast()) })
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum Accept { Listening, Connected, Abandoned }
+
+fn accept_state(pipe: HANDLE) -> Result<Accept, String> {
+    let connected = unsafe { ConnectNamedPipe(pipe, std::ptr::null_mut()) };
+    if connected != 0 {
+        // For PIPE_NOWAIT, success makes a disconnected instance available.
+        // Only ERROR_PIPE_CONNECTED proves that a client has connected.
+        return Ok(Accept::Listening);
+    }
+    match unsafe { GetLastError() } {
+        ERROR_PIPE_CONNECTED => Ok(Accept::Connected),
+        ERROR_PIPE_LISTENING => Ok(Accept::Listening),
+        ERROR_NO_DATA => Ok(Accept::Abandoned),
+        _ => Err(ERROR.into()),
+    }
+}
+
 fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
     use std::os::windows::io::AsRawHandle;
     let active = Arc::new(AtomicUsize::new(0));
@@ -179,19 +197,11 @@ fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
                 }
                 next_worker_check = Instant::now() + Duration::from_secs(3);
             }
-            let connected =
-                unsafe { ConnectNamedPipe(file.as_raw_handle().cast(), std::ptr::null_mut()) };
-            let error = unsafe { GetLastError() };
-            if connected != 0 || error == ERROR_PIPE_CONNECTED {
-                break;
+            match accept_state(file.as_raw_handle().cast())? {
+                Accept::Connected => break,
+                Accept::Abandoned => continue 'accept,
+                Accept::Listening => std::thread::sleep(Duration::from_millis(50)),
             }
-            // A client may time out or exit before acceptance. Keep the broker
-            // alive and replace only this abandoned connection.
-            if error == ERROR_NO_DATA { continue 'accept; }
-            if error != ERROR_PIPE_LISTENING {
-                return Err(ERROR.into());
-            }
-            std::thread::sleep(Duration::from_millis(50));
         }
         if active.load(Ordering::Acquire) >= 16 {
             continue;
@@ -335,5 +345,35 @@ pub fn worker() -> Result<(), String> {
             return Ok(());
         }
         std::thread::sleep(Duration::from_secs(3));
+    }
+}
+
+#[cfg(test)]
+mod pipe_tests {
+    use super::*;
+    use windows_sys::Win32::{
+        Foundation::CloseHandle,
+        Storage::FileSystem::{CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING},
+    };
+
+    #[test]
+    fn nonblocking_listen_success_is_not_an_accepted_client() {
+        let name = wide(&format!(r"\\.\pipe\NessieUpdaterAcceptTest-{}", std::process::id()));
+        let pipe = unsafe { CreateNamedPipeW(name.as_ptr(), PIPE_ACCESS_DUPLEX,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1, 4096, 4096, 0, std::ptr::null()) };
+        assert_ne!(pipe, INVALID_HANDLE_VALUE);
+        struct Owned(HANDLE);
+        impl Drop for Owned { fn drop(&mut self) { unsafe { CloseHandle(self.0) }; } }
+        let server = Owned(pipe);
+        assert_eq!(accept_state(server.0).unwrap(), Accept::Listening);
+        assert_eq!(accept_state(server.0).unwrap(), Accept::Listening);
+        let client = unsafe { CreateFileW(name.as_ptr(), nessie_windows_common::CONTROL_PIPE_CLIENT_ACCESS,
+            0, std::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, std::ptr::null_mut()) };
+        assert_ne!(client, INVALID_HANDLE_VALUE);
+        let client = Owned(client);
+        assert_eq!(accept_state(server.0).unwrap(), Accept::Connected);
+        drop(client);
+        assert_eq!(accept_state(server.0).unwrap(), Accept::Abandoned);
     }
 }
