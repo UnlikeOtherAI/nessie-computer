@@ -66,17 +66,10 @@ fn original_target_ledger_and_sha_hmac_remain_distinct() {
         "issuerKeyId":"d".repeat(64),"nonce":graph.nonce,"executorId":b.executor_id,
         "environmentId":b.environment_id,"connectionEpoch":b.connection_epoch,"runtimeGeneration":b.runtime_generation,
         "correlationId":b.correlation_id,"commandId":b.command_id,"requestSha256":b.request_sha256,
-        "provenance":{"createdBy":"user","creationSource":"web"},
         "relayHmac":b.relay_hmac,"actorReference":b.actor_reference,"initiationReference":b.initiation_reference,
         "sourceRootKey":b.source_root_key,"sourceGeneration":b.source_generation,"sourceRevision":graph.source_revision,
         "targets":[],"issuedAtMs":1000,"expiresAtMs":6000})).unwrap();
     assert!(inspect.validate(1000).is_ok());
-    let mut missing = serde_json::to_value(&inspect).unwrap();
-    missing.as_object_mut().unwrap().remove("provenance");
-    assert!(serde_json::from_value::<Inspection>(missing).is_err());
-    let mut invalid = serde_json::to_value(&inspect).unwrap();
-    invalid["provenance"]["createdBy"] = json!("system");
-    assert!(serde_json::from_value::<Inspection>(invalid).is_err());
     assert!(inspect.matches_graph(&graph).is_ok());
     inspect.targets.push(Target {
         kind: "project".into(),

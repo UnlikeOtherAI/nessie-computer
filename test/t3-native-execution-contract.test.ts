@@ -20,15 +20,10 @@ test('inspection accepts an exact empty target ledger without prospective provid
   const inspection = { version: 1, inspectionId: 'a'.repeat(64), issuerKeyId: 'b'.repeat(64),
     nonce: 'c'.repeat(64), executorId: 'executor', environmentId: 'environment', connectionEpoch: 'epoch',
     runtimeGeneration: 'runtime', correlationId: 'correlation', commandId: 'command', requestSha256: sha,
-    provenance: { createdBy: 'user', creationSource: 'web' },
     relayHmac: `hmac-sha256:${'d'.repeat(64)}`, actorReference: sha, initiationReference: sha,
     sourceRootKey: 'root', sourceGeneration: 'source', sourceRevision: '25bf84ab07f53f141c20239c63e383823a9d5ea0',
     targets: [], issuedAtMs: 1000, expiresAtMs: 6000 }
   assert.ok(T3ExecutionInspectionSchema.safeParse(inspection).success)
-  for (const provenance of [undefined, { createdBy: 'system', creationSource: 'web' },
-    { createdBy: 'user', creationSource: 'native' }, { ...inspection.provenance, owner: true }]) {
-    assert.equal(T3ExecutionInspectionSchema.safeParse({ ...inspection, provenance }).success, false)
-  }
   for (const extra of [{ nativeId: 'guessed' }, { providerSessionId: 'guessed' }, { providerInstanceId: 'guessed' },
     { expiresAtMs: 6001 }, { sourceRevision: 'a'.repeat(64) }, { relayHmac: sha }]) {
     assert.equal(T3ExecutionInspectionSchema.safeParse({ ...inspection, ...extra }).success, false)

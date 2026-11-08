@@ -7,25 +7,6 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Provenance {
-    pub created_by: CreatedBy,
-    pub creation_source: CreationSource,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum CreatedBy {
-    User,
-    Agent,
-}
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum CreationSource {
-    Web,
-    Mcp,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Inspection {
     pub version: u32,
     pub inspection_id: String,
@@ -37,7 +18,6 @@ pub struct Inspection {
     pub runtime_generation: String,
     pub correlation_id: String,
     pub command_id: String,
-    pub provenance: Provenance,
     pub request_sha256: String,
     pub relay_hmac: String,
     pub actor_reference: String,
