@@ -93,6 +93,7 @@ for (const [name, path, from, until, exportName] of [
         { id: 63, result: { contentItems: [{ type: 'inputText', text: canary }] } },
         { id: 63, error: { message: canary } },
         { callId: 'native-p02', contentItems: [{ type: 'inputText', text: canary }] },
+        { params: { callId: 'native-p02', result: { contentItems: [{ type: 'inputText', text: canary }] } } },
         { id: 'metadata', method: 'tools/call', params: { name: 't3-code.request_secret',
           arguments: { value: canary }, status: { result: { value: canary } } } },
       ]
@@ -102,7 +103,7 @@ for (const [name, path, from, until, exportName] of [
       assert.equal(logs.length, frames.length * 2, 'all frames traversed the actual persistence filter and logger')
       if (boundary === 'old') {
         assert.equal(JSON.stringify(logs[1]).includes(canary), true, 'old outer-ID result leaked after original redactor')
-        assert.equal(JSON.stringify(logs[4]).includes(canary), true, 'old nested status leaked after original redactor')
+        assert.equal(JSON.stringify(logs[5]).includes(canary), true, 'old nested status leaked after original redactor')
       } else {
         noCanary(logs)
         assert.equal(logs[1].event.payload.id, 63)

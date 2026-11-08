@@ -8,9 +8,10 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
 import { CommandId, EnvironmentId } from 't3-source:packages/contracts/src/index.ts'
-import { EventSink } from './StateLayers.ts'
+import { createSessionStateLayers, EventSink } from './StateLayers.ts'
+import { createSessionEngineLayers } from './EngineLayers.ts'
 import { createSessionReadLayers, EnvironmentIdentity, LegacyImporter, Sqlite, ThreadReadService } from './ReadLayers.ts'
-import { Forks, historyMessageCount, historyThreadId, seedHistoryFixture, seedLineageFixture } from './HistoryFixture.ts'
+import { historyMessageCount, historyThreadId, seedHistoryFixture, seedLineageFixture } from './HistoryFixture.ts'
 import { qualifyRetainedReads } from './HistoryReadsProof.ts'
 import { qualifyThreadSync } from './HistorySyncProof.ts'
 
@@ -19,11 +20,14 @@ const host = Layer.mergeAll(NodeFileSystem.layer, NodePath.layer,
     getEnvironmentId: Effect.succeed(EnvironmentId.make('synthetic-history-environment')),
   }))
 
-const runtime = (path: string) => createSessionReadLayers().layer.pipe(
-  Layer.provideMerge(Sqlite.layerFromPath(path)),
-  Layer.provideMerge(Forks.layer),
-  Layer.provideMerge(host),
-)
+const runtime = (path: string) => {
+  const state = createSessionStateLayers()
+  const shared = createSessionEngineLayers(state).shared
+  return Layer.mergeAll(createSessionReadLayers(state).layer, shared).pipe(
+    Layer.provideMerge(Sqlite.layerFromPath(path)),
+    Layer.provideMerge(host),
+  )
+}
 
 const durableCounts = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
