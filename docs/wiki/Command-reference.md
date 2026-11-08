@@ -19,7 +19,7 @@ command was typed wrong · `3` waiting timed out (for example `add`).
 
 ---
 
-## Overview
+## Status
 
 ### `status`
 What Nessie Computer and each team are doing, and anything that needs you.
@@ -36,20 +36,13 @@ List connected teams: label, status, server and id.
 nessie-computer teams [--json]
 ```
 
-### `who`
-Who can send work to this computer for a team: agents, people and projects.
-Read from Nessie each time; nothing is stored.
-
-```sh
-nessie-computer who [--team <team>] [--json]
-```
 
 ---
 
 ## Adding this computer
 
 ### `add`
-Add this computer to a team: get a code from Nessie and wait until it's entered
+Add a team: get a code from Nessie and wait until it's entered
 under **Computers → Add a computer**, within 5 minutes. `connect` is the same
 command under its older name.
 
@@ -174,10 +167,9 @@ waits; the agent's other work carries on.
 
 ---
 
-## Now working
+## Sessions
 
-What agents are doing on this computer, one session per agent and team, as
-Overview shows it.
+What agents are doing on this computer, one session per agent and team.
 
 ```sh
 nessie-computer sessions [list] [--team <team>] [--json]
@@ -301,12 +293,11 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 |---|---|
 | `describe --state-dir <dir>` | One team's full settings as JSON |
 | `configure --configuration-input-stdin --state-dir <dir>` | Save a team's settings from JSON |
-| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Add this computer dialog |
+| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Add another team dialog |
 | `serve`, `connect`, `heartbeat --state-dir <dir>` | Running a team (services and the apps) |
 | `pause`, `resume --state-dir <dir>` | The app's Pause |
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
-| `audience --state-dir <dir>` | The app's "Who can send work here" |
-| `sessions`, `session stop --state-dir <dir>` | The app's Now working and its Stop |
+| `sessions`, `session stop --state-dir <dir>` | Listing and stopping agent sessions |
 | `sync --state-dir <dir> …` | The app's Documents tab |
 | `local-inference connections …` | The app's model servers |
 | `local-inference engines …` | The app's Claude Code and Codex rows |

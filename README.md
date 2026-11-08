@@ -24,14 +24,13 @@ control from the command line.
 
    Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Install-Nessie-Computer)
 
-2. **Add this computer.** Open Nessie Computer and choose **Add this computer**. It
+2. **Add a team.** Open Nessie Computer. It
    shows an 8-digit pairing code. In Nessie, open **Computers**, choose
    **Add a computer** and enter the code. Nessie shows this computer's name;
-   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-this-computer)
+   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-a-team)
 
-3. **Check what the team can use.** Nessie Computer opens on **Overview**,
-   which lists each team, what it can use and who can send it work. Choose
-   **Change access** to adjust it.
+3. **Check what the team can use.** Pick the team in the **Team** list at the top
+   and open **Access**.
 
 ## What a new team can use
 
@@ -52,7 +51,7 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
 - **Pause.** Choose **Pause** in the menu bar or notification-area menu. Agents
   start nothing new until you choose **Resume**, even after a restart.
   [Pausing](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Pause-and-resume)
-- **Several teams.** Connect each one. In the window, pick a team from the
+- **Several teams.** Add each one. In the window, pick a team from the
   **Team** list, then change its access, documents and AI.
   [Several teams](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Several-teams-on-one-computer)
 - **Keep your documents on the computer.** Open **Documents**, turn on
@@ -62,7 +61,7 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
   in with ChatGPT. Add as many plans as you have, personal or company.
   [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
-- **Disconnect a team.** On **Overview**, choose **Disconnect…** on its card.
+- **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
   [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
 
 ## Command line
@@ -72,7 +71,7 @@ words. (`nessie-executor` is the same command under its older name.)
 
 ```sh
 nessie-computer status                      # what each team is doing
-nessie-computer add                         # add this computer to a team
+nessie-computer add                         # add a team: get a code
 nessie-computer pause                       # pause every team
 nessie-computer resume --team "Sales · Acme"
 nessie-computer access show --team "Sales · Acme"

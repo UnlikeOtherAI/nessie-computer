@@ -7,13 +7,13 @@ menu. It always says what is going on.
 |---|---|---|
 | Plain | **Working for 2 teams** | Connected. Agents you allow can use the computer. |
 | Grey | **Paused** | You paused it. Choose **Resume**. |
-| Grey | **No team connected** | Choose **Add this computer**. |
-| Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; Overview says why and offers a fix. |
+| Grey | **No team connected** | Choose **＋ Add another team** in the **Team** list. |
+| Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; the **Needs you** strip says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
 | Red (Windows) | **Background service isn't running** | Choose **Start it**, or reinstall Nessie Computer. |
 
-Every problem on **Overview** comes with one button that fixes it. **Details**
+Every problem in the **Needs you** strip comes with one button that fixes it. **Details**
 underneath shows the technical message, which helps if you contact support.
 
 ## Common problems
@@ -53,7 +53,7 @@ settings again**. Nothing about what agents can use changes.
 ### "This computer's key no longer matches"
 The team was connected again from somewhere else, or the computer's files were
 restored. [Disconnect](Disconnect-or-uninstall) the team and
-[connect it](Add-this-computer) again.
+[connect it](Add-a-team) again.
 
 ### ChatGPT says terminals and coding tools are stopped
 That is expected while a ChatGPT plan is signed in. See

@@ -6,24 +6,24 @@ about another.
 
 ## Connect another team
 
-Choose **Add this computer** again and follow [Add this computer](Add-this-computer).
+Open the **Team** list and choose **＋ Add another team**; see [Add a team](Add-a-team).
 In Nessie, switch to the other team before you choose **Add a computer**,
 because a computer is always added to the team you are in.
 
 ## The Team list
 
-**Access**, **Documents** and **AI** show one team at a time. Pick it from the
+**Access**, **Documents**, **AI** and **Settings** show one team at a time. Pick it from the
 **Team** list at the top of the tab, for example **Sales · Acme**. The heading
 repeats the team's name so you always know whose settings you are changing.
 
-**Overview** and **Settings** are about the whole computer, so they have no
-Team list.
+**Settings** shows the selected team's Pause and Disconnect first, then the
+settings for the whole computer.
 
 | Per team (follows the Team list) | Whole computer |
 |---|---|
 | Folders, programs, websites, local apps, coding assistants | Open at login, restart if it stops |
 | Documents (sync) and its folder | Software updates, notifications |
-| ChatGPT plans and model servers | Pause all |
+| ChatGPT plans and model servers | Pause every team (menu bar / notification area) |
 
 ## How teams are named
 
@@ -34,7 +34,7 @@ teams have the same name on different Nessie servers, the server is added:
 
 ## Pausing one team
 
-On **Overview**, choose **Pause** on the team's card, or use **Pause → team**
+Pick the team, open **Settings** and choose **Pause**, or use **Pause → team**
 in the menu. See [Pause and resume](Pause-and-resume).
 
 ## On the command line
