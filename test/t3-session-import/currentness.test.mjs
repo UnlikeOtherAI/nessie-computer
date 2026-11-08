@@ -37,7 +37,7 @@ for (const operation of ['capture', 'resume']) {
 
 for (const kind of ['projection', 'history', 'window']) {
   test(`${kind} reads only the available published generation, fencing advancement and revocation during awaits`, async () => {
-    const f = await engineFixture({ messages: 30 })
+    const f = await engineFixture({ messages: 360 })
     try {
       const g1 = (await capture(f)).generation
       const snapshot = await readRetainedSnapshotWindow(...args(f, g1), { rowLimit: 5 })
