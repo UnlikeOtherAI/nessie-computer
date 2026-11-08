@@ -470,6 +470,17 @@ release, publishers, hashes and protected namespace. Live updater worker/service
 execution retains the separate SYSTEM-and-session-0 requirement. The correction
 needs a fresh signed candidate and real installation before acceptance.
 
+The ae2c3b6 1.0.5 setup diagnostic preserved its protected admission inode,
+installation record and verified worker image, then failed service configuration.
+Configuring an SC_ACTION_RESTART requires SERVICE_START on the service handle,
+in addition to SERVICE_CHANGE_CONFIG ([Windows API contract](https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-changeserviceconfig2a)).
+Setup now requests both rights. Its elevated Windows regression creates one
+uniquely named service pointing to a nonexistent executable, configures and reads
+back its restart policy, and deletes the service without ever starting it.
+Native setup retains its closed domain error code so a future refusal can be
+diagnosed without paths, credentials or journal edits. Corrected signed setup
+still needs installed acceptance; the preserved state is reused on retry.
+
 ## Windows CLI entry point
 
 The MSI installs `nessie-executor.cmd` beside its native launcher and registers
