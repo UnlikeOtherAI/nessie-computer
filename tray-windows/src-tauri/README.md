@@ -21,6 +21,7 @@ original identifiers so upgrades and installed scripts keep working.
   Pause | Resume                    several teams: All teams, then one line per team (✓ paused)
   ──────────
   Open Nessie Computer…
+  Add this computer…                the window, straight onto a new pairing code
   Open Nessie                       the paired server's Computers page
   ──────────
   Quit Nessie Computer

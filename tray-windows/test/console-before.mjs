@@ -29,7 +29,7 @@ export const captureConsoleBefore = async (browser, root, revision, output) => {
     const { context, page, shot } = await open({ host })
     await settle(page)
     await shot('welcome')
-    await page.getByRole('button', { name: /Add team|Connect a team/ }).first().click()
+    await page.getByRole('button', { name: /Add team|Connect a team|Add this computer/ }).first().click()
     await settle(page)
     await shot('connect')
     await page.keyboard.press('Escape')

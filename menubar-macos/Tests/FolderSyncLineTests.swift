@@ -116,7 +116,7 @@ final class ConsoleTargetTests: XCTestCase {
         XCTAssertFalse(hostile.contains("'}))</script>\""), "the id is escaped inside the JSON payload")
     }
 
-    /// The five tabs of the contract, in its order, and the Connect a team event.
+    /// The five tabs of the contract, in its order, and the Add this computer event.
     func testTheSectionsAreTheWindowsTabs() {
         XCTAssertEqual(ConsoleSection.allCases.map(\.rawValue), ["overview", "access", "documents", "ai", "settings"])
         XCTAssertEqual(

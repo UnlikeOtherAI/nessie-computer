@@ -8,6 +8,7 @@
 //!                                   All teams, then one line per team (✓ paused)
 //! ──────────
 //! Open Nessie Computer…
+//! Add this computer…                the window, straight onto a new pairing code
 //! Open Nessie
 //! ──────────
 //! Quit Nessie Computer
@@ -29,6 +30,7 @@ use crate::{
 };
 
 pub const OPEN_WINDOW_ID: &str = "open-window";
+pub const ADD_COMPUTER_ID: &str = "add-computer";
 pub const OPEN_NESSIE_ID: &str = "open-nessie";
 pub const QUIT_ID: &str = "quit";
 const ALL: &str = "all";
@@ -85,6 +87,8 @@ pub enum MenuAction {
     Open(ConsoleSection, ConsoleTarget),
     /// `None` is every team.
     SetPaused { executor_id: Option<String>, paused: bool },
+    /// The window, on Add this computer: it asks for a pairing code at once.
+    AddComputer,
     OpenNessie,
     Quit,
     Unknown,
@@ -121,6 +125,7 @@ pub fn parse_menu_id(id: &str) -> MenuAction {
     }
     match id {
         OPEN_WINDOW_ID => MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()),
+        ADD_COMPUTER_ID => MenuAction::AddComputer,
         OPEN_NESSIE_ID => MenuAction::OpenNessie,
         QUIT_ID => MenuAction::Quit,
         _ => MenuAction::Unknown,
@@ -177,6 +182,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, overview: &Overview, words: &Words)
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, OPEN_WINDOW_ID, words.open_window, true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, ADD_COMPUTER_ID, words.add_computer, true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, OPEN_NESSIE_ID, words.open_nessie, true, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, QUIT_ID, words.quit, true, None::<&str>)?)?;
@@ -187,7 +193,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, overview: &Overview, words: &Words)
 mod tests {
     use super::{
         needs_id, parse_menu_id, pause_lines, ConsoleSection, ConsoleTarget, MenuAction, PauseLines,
-        OPEN_NESSIE_ID, OPEN_WINDOW_ID, QUIT_ID,
+        ADD_COMPUTER_ID, OPEN_NESSIE_ID, OPEN_WINDOW_ID, QUIT_ID,
     };
     use crate::{
         overview::{NeedsYou, Team},
@@ -201,8 +207,9 @@ mod tests {
     }
 
     #[test]
-    fn the_standing_entries_open_the_window_nessie_or_quit() {
+    fn the_standing_entries_open_the_window_add_this_computer_nessie_or_quit() {
         assert_eq!(parse_menu_id(OPEN_WINDOW_ID), MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()));
+        assert_eq!(parse_menu_id(ADD_COMPUTER_ID), MenuAction::AddComputer);
         assert_eq!(parse_menu_id(OPEN_NESSIE_ID), MenuAction::OpenNessie);
         assert_eq!(parse_menu_id(QUIT_ID), MenuAction::Quit);
         // No Start, Stop, Settings, logs or hidden selection remain.

@@ -45,7 +45,7 @@ export const homebrewFormula = (version, sha256) => {
 
   def caveats
     <<~EOS
-      Connect a team: nessie-computer connect
+      Add this computer to a team: nessie-computer add
       Each team runs as its own launchd service with its own access rules.
       List teams: nessie-computer teams
       Disconnect one: nessie-computer disconnect --team <team>

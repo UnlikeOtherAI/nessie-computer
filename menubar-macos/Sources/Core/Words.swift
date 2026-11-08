@@ -55,6 +55,7 @@ public enum Word: Equatable, Sendable {
     case resume
     case allTeams
     case openComputer
+    case addThisComputer
     case openNessie
     case quit
     case quitWhileWorking

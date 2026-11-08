@@ -40,6 +40,7 @@ enum EnglishWords {
         case .resume: return "Resume"
         case .allTeams: return "All teams"
         case .openComputer: return "Open Nessie Computer…"
+        case .addThisComputer: return "Add this computer…"
         case .openNessie: return "Open Nessie"
         case .quit: return "Quit Nessie Computer"
         case .quitWhileWorking: return "Quit Nessie Computer — agents stop until you open it again"
@@ -82,13 +83,13 @@ enum EnglishWords {
         case .addressMustBeHTTPS: return "The server address must start with https://."
         case .pairingFailed: return "Nessie couldn’t finish this step. Check your connection and try again."
         case .pairingCleanupRequired:
-            return "Remove every local draft and stop every sandbox, then connect this team again."
+            return "Remove every local draft and stop every sandbox, then add this computer to the team again."
         case .pairingCodeMissing: return "Nessie couldn’t give a pairing code. Try again."
         case .existingTeamsUnreadable: return "Nessie Computer couldn’t check the teams already on this Mac."
         case .existingTeamNeedsAttention: return "A team on this Mac needs attention."
         case let .settingsStillOlder(attempts):
             return "Nessie still treats this Mac’s settings as older after \(count(attempts, "try", "tries")). "
-                + "Disconnect this team and connect it again."
+                + "Disconnect this team, then add this computer to it again."
         case .settingsNotProposed: return "Nessie Computer couldn’t send these settings again."
         case .planNameRequired: return "Give this ChatGPT plan a name."
         case .planCheckFailed: return "Couldn’t check the ChatGPT plan. Try again."

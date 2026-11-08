@@ -1,5 +1,5 @@
 // Overview: the status sentence and Pause all in the header, the Needs you
-// list, one card per team, Connect a team, and the card shown after a team
+// list, one card per team, Add this computer, and the card shown after a team
 // connects. Computer-wide, so no team row.
 (() => {
   const nc = window.nc
@@ -235,10 +235,10 @@
   }
 
   byId('overview-welcome-text').textContent = t('overview.welcome')
-  byId('overview-welcome-connect').textContent = t('overview.connect')
+  byId('overview-welcome-connect').textContent = t('overview.addComputer')
   byId('overview-needs-title').textContent = t('overview.needsYou')
   byId('overview-teams-title').textContent = t('overview.teams')
-  byId('overview-connect').textContent = t('overview.connect')
+  byId('overview-connect').textContent = t('overview.addComputer')
   byId('connected-access').textContent = t('overview.changeAccess')
   byId('connected-done').textContent = t('shell.done')
   byId('connected-unexpected').textContent = t('overview.unexpected')

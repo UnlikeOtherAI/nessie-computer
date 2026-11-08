@@ -1,5 +1,5 @@
-// Shell journeys for the shared Nessie Computer console: welcome, Connect a
-// team, the connected card, Overview with two teams, Needs you, a failure
+// Shell journeys for the shared Nessie Computer console: welcome, Add this
+// computer, the connected card, Overview with two teams, Needs you, a failure
 // with its remedy, Settings, Czech, dark and the smallest window. Both hosts
 // render the same document.
 import assert from 'node:assert/strict'
@@ -23,7 +23,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.title(), 'Nessie Computer')
     assert.equal(await page.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected'), 'true')
     assert.ok((await page.locator('.tabs').boundingBox()).height <= 32)
-    await page.getByText('Nothing is shared until you connect a team.').waitFor()
+    await page.getByText('Nothing is shared until you add this computer to a team.').waitFor()
     assert.equal(await status(), 'No team connected yet')
     assert.equal(await page.locator('#team-row').isHidden(), true)
     assert.equal(await page.locator('#pause-all').isHidden(), true)
@@ -32,9 +32,11 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.locator('#overview-welcome-text').evaluate((node) => getComputedStyle(node).userSelect), 'text')
     assert.equal(await page.locator('#overview-welcome-connect').evaluate((node) => getComputedStyle(node).userSelect), 'none')
     await shot('welcome')
-    // A team tab with nothing connected offers Connect a team instead of an empty page.
+    // A team tab with nothing connected offers Add this computer instead of an empty page.
     await page.getByRole('tab', { name: 'Access' }).click()
     await page.locator('#no-team').waitFor()
+    await page.locator('#no-team').getByText('Add this computer to a team to choose what that team may use.').waitFor()
+    assert.equal(await page.locator('#no-team-connect').textContent(), 'Add this computer')
     assert.equal(await page.locator('#team-row').isHidden(), true)
     await shot('no-team')
     // Arrow keys move between tabs.
@@ -42,11 +44,17 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.keyboard.press('ArrowLeft')
     assert.equal(await page.getByRole('tab', { name: 'Overview' }).getAttribute('aria-selected'), 'true')
 
-    // Connect a team asks for a code at once, with no address field in sight.
-    await page.getByRole('button', { name: 'Connect a team', exact: true }).first().click()
+    // Add this computer asks the hosted Nessie for a code at once: no address field shown, filled or focused.
+    await page.getByRole('button', { name: 'Add this computer', exact: true }).first().click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    assert.equal(await page.locator('#connect-title').textContent(), 'Add this computer')
     assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { apiBaseUrl: 'https://api.nessie.works' })
     assert.equal(await page.locator('#pairing-server').isVisible(), false)
+    assert.equal(await page.locator('#connect-advanced').evaluate((details) => details.open), false)
+    assert.equal(await page.locator('#pairing-server').inputValue(), '')
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'connect-title')
+    // The countdown runs to the server's expiresAt (five minutes from the hosted Nessie).
+    assert.match(await page.locator('#pairing-time').textContent(), /^Expires in 4:[45]\d$/)
     assert.equal(await page.locator('#pairing-instruction').textContent(), 'In Nessie, open Computers and choose Add a computer.')
     assert.equal(await page.getByRole('dialog').getByText(/fingerprint/i).count(), 0)
     assert.equal(await page.getByRole('dialog').locator('input[type=checkbox]').count(), 0)
@@ -72,19 +80,39 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_pairing_cancel'))
     await page.waitForFunction(() => !document.getElementById('connect-dialog').open)
-    // The organisation's own server sits behind one link; a refused address is reported beside it.
-    await page.getByRole('button', { name: 'Connect a team', exact: true }).first().click()
+    // A request Nessie refuses says why, with Try again; it never opens the server address.
+    await page.evaluate(() => { window.pairingFailure = 'Nessie couldn’t finish this step. Check your connection and try again.' })
+    await page.getByRole('button', { name: 'Add this computer', exact: true }).first().click()
+    await page.locator('#pairing-error').getByText('Nessie couldn’t finish this step. Check your connection and try again.').waitFor()
+    assert.equal(await page.locator('#connect-advanced').evaluate((details) => details.open), false)
+    assert.equal(await page.locator('#connect-progress').isHidden(), true)
+    assert.equal(await page.locator('#pairing-open-nessie').isHidden(), true)
+    await shot('connect-failed')
+    await page.evaluate(() => { window.pairingFailure = null })
+    await page.getByRole('button', { name: 'Try again', exact: true }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    assert.equal(await page.locator('#pairing-error').isHidden(), true)
+    assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { apiBaseUrl: 'https://api.nessie.works' })
+    // The organisation's own server sits behind one link, empty until typed; a refused address is reported beside it.
     await page.locator('#connect-advanced summary').click()
+    assert.equal(await page.locator('#pairing-server').inputValue(), '')
+    assert.equal(await page.locator('#pairing-server').getAttribute('placeholder'), 'https://nessie.example.com')
     await page.locator('#pairing-server').fill('http://nessie.example.com')
-    await page.getByRole('button', { name: 'Get a code for this server' }).click()
+    await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.locator('#pairing-server-error').getByText('The server address must start with https://.').waitFor()
     assert.equal(await page.locator('#pairing-server').getAttribute('aria-invalid'), 'true')
     await shot('connect-own-server')
     await page.locator('#pairing-server').fill('https://nessie.example.com')
-    await page.getByRole('button', { name: 'Get a code for this server' }).click()
+    await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.waitForFunction(() => window.pairServer === 'https://nessie.example.com')
     assert.equal(await page.locator('#pairing-server-error').isHidden(), true)
+    // Asked again while that code waits, the dialog keeps its code and names the server it belongs to.
+    await page.locator('#pairing-server').fill('')
+    const startsBefore = await callCount(page, 'executor_pairing_start')
+    await page.evaluate(() => window.emitTray('tray://connect'))
+    await page.waitForFunction(() => document.getElementById('pairing-server').value === 'https://nessie.example.com')
+    assert.equal(await page.locator('#connect-advanced').evaluate((details) => details.open), true)
+    assert.equal(await callCount(page, 'executor_pairing_start'), startsBefore)
     // The claim in Nessie finishes it: the dialog closes and Overview shows what the team may use.
     await page.evaluate(() => window.claimInNessie())
     await page.locator('#overview-connected:not([hidden])').waitFor()
@@ -97,7 +125,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.locator('#overview-connected').isHidden(), true)
 
     // Two teams, one paused: cards name the team, its status, its access and who may send work.
-    await page.getByRole('button', { name: 'Connect a team', exact: true }).click()
+    await page.getByRole('button', { name: 'Add this computer', exact: true }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
     await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 2)
@@ -212,8 +240,13 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.getByRole('tab', { name: 'AI' }).getAttribute('aria-selected'), 'true')
     assert.equal(await page.locator('#team-select').inputValue(), 'team-0')
     await page.getByRole('heading', { name: 'AI for Platform · UnlikeOtherAI' }).waitFor()
+    // The menus' "Add this computer…" opens the window straight onto a new code.
+    const starts = await callCount(page, 'executor_pairing_start')
     await page.evaluate(() => window.emitTray('tray://connect'))
     await page.locator('#connect-dialog[open]').waitFor()
+    await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    assert.equal(await callCount(page, 'executor_pairing_start'), starts + 1)
+    assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { apiBaseUrl: 'https://api.nessie.works' })
     await page.keyboard.press('Escape')
     await page.waitForFunction(() => !document.getElementById('connect-dialog').open)
     await page.evaluate(() => window.emitTray('tray://section/overview'))
@@ -235,13 +268,15 @@ export const verifyConsoleShell = async (browser, ui, output) => {
   {
     const { context, page, errors, shot } = await open({ host: 'macos', locale: 'cs-CZ' })
     assert.equal(await page.evaluate(() => document.documentElement.lang), 'cs')
-    await page.getByText('Dokud nepřipojíte tým, nesdílí se nic.').waitFor()
+    await page.getByText('Dokud tento počítač nepřidáte do týmu, nesdílí se nic.').waitFor()
     assert.equal(await page.getByRole('tab', { name: 'Přehled' }).getAttribute('aria-selected'), 'true')
     assert.equal(await page.locator('#status-sentence').textContent(), 'Zatím není připojen žádný tým')
     await shot('welcome-cs')
-    await page.getByRole('button', { name: 'Připojit tým', exact: true }).first().click()
+    await page.getByRole('button', { name: 'Přidat tento počítač', exact: true }).first().click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    assert.equal(await page.locator('#connect-title').textContent(), 'Přidat tento počítač')
     await page.locator('#pairing-instruction').getByText('V Nessie otevřete Počítače a zvolte Přidat počítač.').waitFor()
+    assert.match(await page.locator('#pairing-time').textContent(), /^Vyprší za 4:[45]\d$/)
     await shot('connect-cs')
     await page.evaluate(() => window.claimInNessie())
     await page.locator('#connected-body').getByText('1 složka · aplikace UnlikeOtherAI, Claude Code, Codex, T3 Code · všechny místní aplikace · žádné weby').waitFor()
@@ -302,7 +337,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.locator('#team-cards .team-card .team-audience-text').first().getByText('Agents: Jev').waitFor()
     assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)')
     await shot('overview-dark')
-    await page.getByRole('button', { name: 'Connect a team', exact: true }).click()
+    await page.getByRole('button', { name: 'Add this computer', exact: true }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await shot('connect-dark')
     await page.keyboard.press('Escape')
@@ -328,7 +363,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.locator('#connected-body').getByText(/·/).waitFor()
     await shot(`connected${suffix}`)
     await page.getByRole('button', { name: /Done|Hotovo/, exact: true }).click()
-    await page.getByRole('button', { name: /Connect a team|Připojit tým/, exact: true }).click()
+    await page.getByRole('button', { name: /Add this computer|Přidat tento počítač/, exact: true }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
     await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 2)

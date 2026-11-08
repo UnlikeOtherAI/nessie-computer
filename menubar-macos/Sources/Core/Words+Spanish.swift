@@ -40,6 +40,7 @@ enum SpanishWords {
         case .resume: return "Reanudar"
         case .allTeams: return "Todos los equipos"
         case .openComputer: return "Abrir Nessie Computer…"
+        case .addThisComputer: return "Añadir este ordenador…"
         case .openNessie: return "Abrir Nessie"
         case .quit: return "Salir de Nessie Computer"
         case .quitWhileWorking: return "Salir de Nessie Computer — los agentes se detienen hasta que lo vuelvas a abrir"
@@ -82,15 +83,16 @@ enum SpanishWords {
         case .addressMustBeHTTPS: return "La dirección del servidor debe empezar por https://."
         case .pairingFailed: return "Nessie no ha podido terminar este paso. Revisa tu conexión e inténtalo de nuevo."
         case .pairingCleanupRequired:
-            return "Elimina todos los borradores locales y detén todos los sandboxes. Luego vuelve a conectar este "
-                + "equipo."
+            return "Elimina todos los borradores locales y detén todos los sandboxes. Luego vuelve a añadir este "
+                + "ordenador al equipo."
         case .pairingCodeMissing: return "Nessie no ha podido dar un código de vinculación. Inténtalo de nuevo."
         case .existingTeamsUnreadable:
             return "Nessie Computer no ha podido comprobar los equipos que ya hay en este Mac."
         case .existingTeamNeedsAttention: return "Un equipo de este Mac necesita atención."
         case let .settingsStillOlder(attempts):
             return "Nessie sigue considerando más antiguos los ajustes de este Mac tras "
-                + "\(count(attempts, "intento", "intentos")). Desconecta este equipo y vuelve a conectarlo."
+                + "\(count(attempts, "intento", "intentos")). Desconecta este equipo "
+                + "y luego vuelve a añadir este ordenador."
         case .settingsNotProposed: return "Nessie Computer no ha podido volver a enviar estos ajustes."
         case .planNameRequired: return "Ponle un nombre a este plan de ChatGPT."
         case .planCheckFailed: return "No se ha podido comprobar el plan de ChatGPT. Inténtalo de nuevo."
