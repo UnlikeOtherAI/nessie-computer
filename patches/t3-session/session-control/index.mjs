@@ -40,7 +40,11 @@ export const generateSessionControlManifest = snapshot => {
     ').pipe(Effect.map((result) => ({ sequence: result.sequence })),\n',
     author.sourcePart(ws, dispatchError, { current: true }), ');\n});\n\n',
     'export const launchThread = (input: OrchestrationV2ThreadLaunchInput, provenance: ThreadManagementProvenance): Effect.Effect<OrchestrationV2ThreadLaunchResult, OrchestrationV2ThreadLaunchError, Services<ReturnType<typeof ThreadMessageIntake.launchThread>>> =>\n',
-    author.sourcePart(ws, launch, { current: true }), '}).pipe(\n', author.sourcePart(ws, launchResult, { current: true }), ');\n',
+    author.sourcePart(ws, launch, { current: true }), '}).pipe(\n',
+    author.sourcePart(ws, launchResult, { current: true }),
+    'Effect.catchTag("FileBoundaryError", (cause) => new OrchestrationV2ThreadLaunchError({\n'
+      + '  commandId: input.commandId, projectId: input.projectId, message: "Failed to access launch files", cause,\n'
+      + '})),\n);\n',
   ], 'extract-session-control')
   // Provenance comes from the admitted caller, not a client-controlled payload.
   author.replace(target, 'createdBy: "user",\n                          creationSource:\n                            "creationSource" in command ? command.creationSource : "web",',

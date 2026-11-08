@@ -268,25 +268,75 @@
       "file": "apps/server/src/git/GitManager.session-port.ts",
       "create": [
         {
-          "text": "import * as Effect from \"effect/Effect\";\nimport { GitActionProgressEvent, VcsStatusResult, ModelSelection, type SourceControlWritingStyleSettings } from \"@t3tools/contracts\";\nimport * as GitVcsDriver from \"../vcs/GitVcsDriver.session-port.ts\";\n"
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Scope from \"effect/Scope\";\nimport * as Stream from \"effect/Stream\";\nimport { GitActionProgressEvent, GitCommandError, GitPreparePullRequestThreadInput, GitPreparePullRequestThreadResult, GitPullRequestRefInput, GitResolvePullRequestResult, GitRunStackedActionInput, GitRunStackedActionResult, VcsStatusInput, type VcsStatusLocalResult, type VcsStatusRemoteResult, VcsStatusResult, ModelSelection, type SourceControlWritingStyleSettings, type ThreadPullRequestKey, type VcsCreateWorktreeInput, type VcsCreateWorktreeResult } from \"@t3tools/contracts\";\nimport type { GitManagerServiceError } from \"@t3tools/contracts\";\nimport * as GitVcsDriver from \"../vcs/GitVcsDriver.session-port.ts\";\n"
         },
         {
           "sourceFile": "apps/server/src/git/GitManager.ts",
           "start": 3613,
-          "end": 4430,
-          "sha256": "406e5b91d93e64adb58f928f8c12a1e17aaae0ce1c9eb363c50e3915a3729ac5"
+          "end": 6395,
+          "sha256": "00b15cab8fd0f8ec838c12149797a585c0e323bfcc550c5faaf3595bf0e45e31"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "684b1e5969d177f32b59f528ee37e83d30c25a07ed90c0eadb42f5ead1f8e04c"
+      "afterSha256": "b6b082b382a1760172ecc4896cadf5c22e3c368951e8238cda093c11c3e5a0dd"
     },
     {
       "id": "share-port:git/GitManager.ts",
       "file": "apps/server/src/git/GitManager.ts",
-      "from": "export interface GitActionProgressReporter {\n  readonly publish: (event: GitActionProgressEvent) => Effect.Effect<void, never>;\n}\n\nexport interface GitRunStackedActionOptions {\n  readonly actionId?: string;\n  readonly progressReporter?: GitActionProgressReporter;\n}\n\nexport interface GitRemoteStatusOptions extends GitVcsDriver.GitRemoteStatusOptions {\n  readonly refreshMissingPullRequest?: boolean;\n}\n\nexport type GitBranchPullRequest = NonNullable<VcsStatusResult[\"pr\"]> & {\n  readonly repositoryKey: string | null;\n  readonly updatedAt: string | null;\n  readonly closedAt?: string | null;\n  readonly mergedAt?: string | null;\n  readonly headSha?: string | null;\n};\n\ninterface SourceControlTextGenerationSettings {\n  readonly modelSelection: ModelSelection;\n  readonly style: SourceControlWritingStyleSettings;\n}\n\n",
-      "to": "import { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest } from \"./GitManager.session-port.ts\";\nexport { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest };\n\n",
+      "from": "export interface GitActionProgressReporter {\n  readonly publish: (event: GitActionProgressEvent) => Effect.Effect<void, never>;\n}\n\nexport interface GitRunStackedActionOptions {\n  readonly actionId?: string;\n  readonly progressReporter?: GitActionProgressReporter;\n}\n\nexport interface GitRemoteStatusOptions extends GitVcsDriver.GitRemoteStatusOptions {\n  readonly refreshMissingPullRequest?: boolean;\n}\n\nexport type GitBranchPullRequest = NonNullable<VcsStatusResult[\"pr\"]> & {\n  readonly repositoryKey: string | null;\n  readonly updatedAt: string | null;\n  readonly closedAt?: string | null;\n  readonly mergedAt?: string | null;\n  readonly headSha?: string | null;\n};\n\ninterface SourceControlTextGenerationSettings {\n  readonly modelSelection: ModelSelection;\n  readonly style: SourceControlWritingStyleSettings;\n}\n\nexport class GitManager extends Context.Service<\n  GitManager,\n  {\n    readonly createWorktree: (\n      input: VcsCreateWorktreeInput,\n      options?: GitVcsDriver.CreateWorktreeOptions,\n    ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;\n    readonly status: (\n      input: VcsStatusInput,\n    ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;\n    readonly localStatus: (\n      input: VcsStatusInput,\n    ) => Effect.Effect<VcsStatusLocalResult, GitManagerServiceError>;\n    readonly remoteStatus: (\n      input: VcsStatusInput,\n      options?: GitRemoteStatusOptions,\n    ) => Effect.Effect<VcsStatusRemoteResult | null, GitManagerServiceError>;\n    /** refresh queries the host; freshGitState rereads only git state and is required before persisting. */\n    readonly branchPullRequest: (\n      input: { readonly cwd: string; readonly branch: string },\n      options?: { readonly refresh?: boolean; readonly freshGitState?: boolean },\n    ) => Effect.Effect<GitBranchPullRequest | null, GitManagerServiceError>;\n    readonly invalidateLocalStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly invalidateRemoteStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly invalidateStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly resolvePullRequest: (\n      input: GitPullRequestRefInput,\n    ) => Effect.Effect<GitResolvePullRequestResult, GitManagerServiceError>;\n    readonly preparePullRequestThread: (\n      input: GitPreparePullRequestThreadInput,\n    ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;\n    readonly runStackedAction: (\n      input: GitRunStackedActionInput,\n      options?: GitRunStackedActionOptions,\n    ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;\n    readonly subscribePullRequestStateChanges: Effect.Effect<\n      Stream.Stream<ThreadPullRequestKey>,\n      never,\n      Scope.Scope\n    >;\n  }\n>()(\"t3/git/GitManager\") {}\n\n",
+      "to": "import { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest, GitManager } from \"./GitManager.session-port.ts\";\nexport { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest, GitManager };\n\n",
       "beforeSha256": "42ac8f168b639497cbde2bee5913b3b53055aed431de08c22c84728ff4fa3bad",
-      "afterSha256": "8ef5a9da82052a1ef8539f86a1a85e344884f1cd500103baae15967c08426c89"
+      "afterSha256": "3618c6568419943d50adb279b914c0f1153b6de1d543ddaacb1c5ae6b8f32f5f"
+    },
+    {
+      "id": "extract-port:sourceControl/SourceControlProviderRegistry.ts",
+      "file": "apps/server/src/sourceControl/SourceControlProviderRegistry.session-port.ts",
+      "create": [
+        {
+          "text": "import { SourceControlProviderKind } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport { SourceControlProviderError, type SourceControlProviderDiscoveryItem } from \"@t3tools/contracts\";\nimport * as SourceControlProvider from \"@t3tools/source-control-core/server/SourceControlProvider\";\nimport { type SourceControlProviderDiscoverySpec } from \"@t3tools/source-control-core/server/discovery\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/sourceControl/SourceControlProviderRegistry.ts",
+          "start": 1431,
+          "end": 2799,
+          "sha256": "e4ebb16b806dba91fd91e2d61a3104e6c567e7e43520a6d22afe6f74f87df56c"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "9253eacfdb6866ebf8f12f51c39bd607d990faed8da38eca1865ce07e25e44fe"
+    },
+    {
+      "id": "share-port:sourceControl/SourceControlProviderRegistry.ts",
+      "file": "apps/server/src/sourceControl/SourceControlProviderRegistry.ts",
+      "from": "export interface SourceControlProviderRegistration {\n  readonly kind: SourceControlProviderKind;\n  readonly provider: SourceControlProvider.SourceControlProvider[\"Service\"];\n  readonly discovery: SourceControlProviderDiscoverySpec;\n}\n\nexport interface SourceControlProviderHandle {\n  readonly provider: SourceControlProvider.SourceControlProvider[\"Service\"];\n  readonly context: SourceControlProvider.SourceControlProviderContext | null;\n}\n\nexport class SourceControlProviderRegistry extends Context.Service<\n  SourceControlProviderRegistry,\n  {\n    readonly resolveLink: SourceControlProvider.ResolveSourceControlLink;\n    readonly get: (\n      kind: SourceControlProviderKind,\n    ) => Effect.Effect<\n      SourceControlProvider.SourceControlProvider[\"Service\"],\n      SourceControlProviderError\n    >;\n    readonly resolveHandle: (input: {\n      readonly cwd: string;\n      readonly context?: SourceControlProvider.SourceControlProviderContext;\n    }) => Effect.Effect<SourceControlProviderHandle, SourceControlProviderError>;\n    readonly resolve: (input: {\n      readonly cwd: string;\n    }) => Effect.Effect<\n      SourceControlProvider.SourceControlProvider[\"Service\"],\n      SourceControlProviderError\n    >;\n    readonly discover: Effect.Effect<ReadonlyArray<SourceControlProviderDiscoveryItem>>;\n  }\n>()(\"t3/sourceControl/SourceControlProviderRegistry\") {}\n\n",
+      "to": "import { type SourceControlProviderRegistration, type SourceControlProviderHandle, SourceControlProviderRegistry } from \"./SourceControlProviderRegistry.session-port.ts\";\nexport { type SourceControlProviderRegistration, type SourceControlProviderHandle, SourceControlProviderRegistry };\n\n",
+      "beforeSha256": "2f8f2928b6e692aafd1479dfb73d4041ea321b0e4a1ee25b42002b31cb1e4ec6",
+      "afterSha256": "54babc306a69942b656caae15e819d565cc5d01b27a5ad4a7948ff7284d188e1"
+    },
+    {
+      "id": "extract-port:policy/ManagedPolicy.ts",
+      "file": "apps/server/src/policy/ManagedPolicy.session-port.ts",
+      "create": [
+        {
+          "text": "import { ManagedPolicyDocument, type ManagedPolicySummary } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as ManagedProviders from \"./managedProviders.ts\";\nimport * as ManagedSettings from \"./managedSettings.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/policy/ManagedPolicy.ts",
+          "start": 1141,
+          "end": 1652,
+          "sha256": "a310b22e8ff7a4db9a4535f3fe71fbb1c5f9f6565f31ca07cc85f1ad7dd9c22b"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "16c227efb4d2384ee5ec2ad60135f2e9bc0851f2547b1790cadfaa4adb6fda08"
+    },
+    {
+      "id": "share-port:policy/ManagedPolicy.ts",
+      "file": "apps/server/src/policy/ManagedPolicy.ts",
+      "from": "export class ManagedPolicy extends Context.Service<\n  ManagedPolicy,\n  {\n    /** Where the policy is read from, whether or not a file exists there. */\n    readonly path: string;\n    readonly document: ManagedPolicyDocument | undefined;\n    readonly settings: ManagedSettings.ManagedSettings;\n    readonly providers: ManagedProviders.ManagedProviders;\n    /** What clients are told; absent when no policy applies. */\n    readonly summary: ManagedPolicySummary | undefined;\n  }\n>()(\"t3/policy/ManagedPolicy\") {}\n\n",
+      "to": "import { ManagedPolicy } from \"./ManagedPolicy.session-port.ts\";\nexport { ManagedPolicy };\n\n",
+      "beforeSha256": "88c85fcd795ba6fe7e46782cd88a28a90f6c74887b7bf2a99dec076d130a511f",
+      "afterSha256": "d9df65409a9701b4b5cab432d58e399bb4f1500a918a146a35ba835e0f4c84ec"
     },
     {
       "id": "extract-port:vcs/GitVcsDriver.ts",
@@ -456,12 +506,20 @@
       "afterSha256": "83222b4747dfd3e042a8b26d8f81d269e2ed3087a768f325a05ea3dee6be27fc"
     },
     {
+      "id": "share-checkpoint-error-guard",
+      "file": "apps/server/src/orchestration-v2/CheckpointService.session-port.ts",
+      "from": "const isCheckpointRestoreError =",
+      "to": "export const isCheckpointRestoreError =",
+      "beforeSha256": "83222b4747dfd3e042a8b26d8f81d269e2ed3087a768f325a05ea3dee6be27fc",
+      "afterSha256": "9d51b291c705b1b13f6c05054864edb7761b8dad4ebf6265ab5e9cd3bac7a814"
+    },
+    {
       "id": "share-port:orchestration-v2/CheckpointService.ts",
       "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
       "from": "export class CheckpointRootScopePrepareError extends Schema.TaggedError<CheckpointRootScopePrepareError>()(\n  \"CheckpointRootScopePrepareError\",\n  {\n    threadId: ThreadId,\n    runId: RunId,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to prepare root checkpoint scope for run ${this.runId}.`;\n  }\n}\n\nexport class CheckpointBaselineCaptureError extends Schema.TaggedError<CheckpointBaselineCaptureError>()(\n  \"CheckpointBaselineCaptureError\",\n  {\n    scopeId: CheckpointScopeId,\n    ordinalWithinScope: Schema.Number,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to capture checkpoint baseline ${this.ordinalWithinScope} for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointCaptureError extends Schema.TaggedError<CheckpointCaptureError>()(\n  \"CheckpointCaptureError\",\n  {\n    scopeId: CheckpointScopeId,\n    parentCheckpointId: Schema.optional(CheckpointId),\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to capture checkpoint for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointRestoreError extends Schema.TaggedError<CheckpointRestoreError>()(\n  \"CheckpointRestoreError\",\n  {\n    scopeId: CheckpointScopeId,\n    checkpointId: CheckpointId,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to restore checkpoint ${this.checkpointId} for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointDeleteStaleRefsError extends Schema.TaggedError<CheckpointDeleteStaleRefsError>()(\n  \"CheckpointDeleteStaleRefsError\",\n  {\n    scopeId: CheckpointScopeId,\n    checkpointIds: Schema.Array(CheckpointId),\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to delete stale checkpoint refs for scope ${this.scopeId}.`;\n  }\n}\n\nexport const CheckpointServiceV2Error = Schema.Union([\n  CheckpointRootScopePrepareError,\n  CheckpointBaselineCaptureError,\n  CheckpointCaptureError,\n  CheckpointRestoreError,\n  CheckpointDeleteStaleRefsError,\n]);\nexport type CheckpointServiceV2Error = typeof CheckpointServiceV2Error.Type;\n\nconst isCheckpointRestoreError = Schema.is(CheckpointRestoreError);\n\nexport interface CheckpointServiceV2Shape {\n  readonly prepareRootRunScope: (input: {\n    readonly threadId: ThreadId;\n    readonly runId: RunId;\n    readonly rootNodeId: NodeId;\n    readonly providerThreadId: ProviderThreadId;\n    readonly cwd: string;\n    readonly createdAt: DateTime.Utc;\n  }) => Effect.Effect<OrchestrationV2CheckpointScope, CheckpointServiceV2Error>;\n  readonly captureBaseline: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly ordinalWithinScope: number;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n  readonly materializeBaselineCheckpoint: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly ordinalWithinScope: number;\n    /** The run materializing the baseline: its root node, and when it was requested. */\n    readonly nodeId: NodeId;\n    readonly capturedAt: DateTime.Utc;\n    /** Records a missing checkpoint without touching git, for side chats sharing a parent's worktree. */\n    readonly forceMissing?: boolean;\n  }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;\n  readonly capture: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly runId: RunId | null;\n    readonly nodeId: NodeId;\n    readonly ordinalWithinScope: number;\n    readonly appRunOrdinal: number | null;\n    readonly capturedAt: DateTime.Utc;\n    readonly forceMissing?: boolean;\n  }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;\n  readonly restore: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly checkpoint: OrchestrationV2Checkpoint;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n  readonly deleteStaleRefs: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly checkpoints: ReadonlyArray<OrchestrationV2Checkpoint>;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n}\n\nexport class CheckpointServiceV2 extends Context.Service<\n  CheckpointServiceV2,\n  CheckpointServiceV2Shape\n>()(\"t3/orchestration-v2/CheckpointService/CheckpointServiceV2\") {}\n\n",
-      "to": "import { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";\nexport { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2 };\n\n",
+      "to": "import { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2, isCheckpointRestoreError } from \"./CheckpointService.session-port.ts\";\nexport { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2, isCheckpointRestoreError };\n\n",
       "beforeSha256": "12f8fc7280dbe754ca1700dad566e53558b861931a417d1b18687866888c28cb",
-      "afterSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+      "afterSha256": "f448f3cb825d6e5678b2c3590ba0879505612fe764fc59ad4032d1040e740b51"
     },
     {
       "id": "extract-port:orchestration-v2/ProviderTurnStartService.ts",

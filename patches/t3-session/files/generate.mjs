@@ -235,5 +235,9 @@ replace(media, '      }),\n  });\n};',
   + '      catch: () => new FileBoundaryError({ code: "changed" }) });\n'
   + '    if (now.size !== file.info.size || now.mtimeNs !== file.info.mtimeNs || now.ctimeNs !== file.info.ctimeNs) {\n'
   + '      return yield* new FileBoundaryError({ code: "changed" });\n    }\n    return chunk;\n  })));\n};')
+// Named error declarations preserve the checked cross-module Effect error types.
+for (const name of ['MediaFileOpenError', 'MediaFileReadError', 'MediaFileStatError']) {
+  replace(media, `class ${name} extends`, `export class ${name} extends`)
+}
 writeFileSync(fileURLToPath(new URL('./boundary-patches.json', import.meta.url)),
   `${JSON.stringify({ format: 1, sourceCommit: commit, patches }, null, 2)}\n`)

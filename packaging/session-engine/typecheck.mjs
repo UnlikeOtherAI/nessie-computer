@@ -93,16 +93,19 @@ export const typecheckSessionState = async (snapshot, entryPoint,
     }))
   }
   if (declarations) {
+    const emitDiagnostics = []
     for (const source of program.getSourceFiles()) {
       if (sourcePath(source.fileName)?.startsWith('packages/contracts/src/')) {
         declarations.addSourceTypes(source)
       } else if (!source.isDeclarationFile && !slash(source.fileName).includes('/node_modules/')) {
         const result = program.emit(source, declarations.writeFile, undefined, true)
-        if (result.emitSkipped || result.diagnostics.length) throw new Error(ts.formatDiagnostics(result.diagnostics, {
-          getCurrentDirectory: () => tools, getCanonicalFileName: name => name, getNewLine: () => '\n',
-        }))
+        if (result.emitSkipped && !result.diagnostics.length) throw new Error('Session declaration emit was skipped.')
+        emitDiagnostics.push(...result.diagnostics)
       }
     }
+    if (emitDiagnostics.length) throw new Error(ts.formatDiagnostics(emitDiagnostics, {
+      getCurrentDirectory: () => tools, getCanonicalFileName: name => name, getNewLine: () => '\n',
+    }))
   }
   return { compiler: ts.version, sourceFiles: program.getSourceFiles().length, libraryChecks: true,
     authoredInputs,

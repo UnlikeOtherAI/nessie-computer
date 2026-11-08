@@ -4,6 +4,7 @@ import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 export type ExecutorDaemonSignatureDomain =
   | 't3_effect_authority'
+  | 't3_native_execution'
   | 't3_operations'
   | 't3_receipt'
   | 't3_catalog'
