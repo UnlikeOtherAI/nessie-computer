@@ -39,7 +39,8 @@ const capture = (): { context: CliContext; out: () => string; err: () => string 
   let err = ''
   return {
     out: () => out, err: () => err,
-    context: { out: (text) => { out += text }, err: (text) => { err += text }, stdin: Readable.from([]), interactive: false,
+    context: { out: (text) => { out += text }, err: (text) => { err += text },
+      stdin: Readable.from([]), interactive: false,
       ask: async () => '', platform: process.platform, home: tmpdir(), now: () => new Date(), sleep: async () => undefined },
   }
 }

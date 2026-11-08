@@ -60,7 +60,8 @@ const unpair = async (stateDir: string) => {
 const run = async (home: string, args: string[], platform: NodeJS.Platform = process.platform) => {
   let out = ''
   let err = ''
-  const context: CliContext = { out: (text) => { out += text }, err: (text) => { err += text }, stdin: Readable.from([]),
+  const context: CliContext = { out: (text) => { out += text }, err: (text) => { err += text },
+    stdin: Readable.from([]),
     interactive: false, ask: async () => '', platform, home, now: () => new Date(), sleep: async () => undefined }
   const exit = await runUserCli(args, { context, unpair, nameLookup: async (stateDir) => NAMES[stateDir] ?? {} })
   return { exit, out, err, json: () => JSON.parse(out) as unknown }
