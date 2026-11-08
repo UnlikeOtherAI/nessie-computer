@@ -15,6 +15,27 @@ in tranche F map onto them.
 | `audience --state-dir <dir> [--json]` | Asks Nessie who can send work here: agents, people and projects. Nothing is stored. |
 | `describe --state-dir <dir>` | Also reports `paused`, `pendingProgramRequests` and the discovered `localApps`. |
 
+With `--json`, a failure of `pause`, `resume`, `program-requests`,
+`program-request answer` or `audience` prints one line on standard output and
+exits with 1:
+
+```json
+{ "error": { "code": "PROGRAM_REQUEST_NOT_WAITING", "message": "That program request is no longer waiting: …" } }
+```
+
+| `code` | Meaning |
+|---|---|
+| `EXECUTOR_STATE_UNAVAILABLE` | The state directory cannot be read as a team. |
+| `PROGRAM_REQUEST_ID_INVALID` | The id is not one `program-requests` lists. |
+| `PROGRAM_REQUEST_NOT_WAITING` | The request was answered, expired, or its team stopped. |
+| `PROGRAM_REQUEST_ALREADY_ANSWERED` | Another answer reached it first. |
+| `PROGRAM_REQUEST_RULE_NOT_SAVED` | "Always" could not save the rule; the request still waits. |
+| `EXECUTOR_NOT_CONNECTED` | `audience` needs a team that has connected. |
+| Nessie's own code | Nessie refused the call, for example `EXECUTOR_API_TIMEOUT` or `EXECUTOR_CONNECTION_FENCED`. |
+| `EXECUTOR_COMMAND_FAILED` | Anything else; the message says what. |
+
+Without `--json`, failures are a sentence on standard error, as for every other verb.
+
 ## Saving applies live
 
 `configure` writes the new state through the compare-and-set writer, as it
@@ -42,12 +63,14 @@ the daemon saves the next revision, as a claim does.
 
 Code proposes a revision by saving it through the same writer; the running
 daemon applies it the same way. The daemon does this itself for local apps:
-under the `installed` local-apps policy it runs discovery every two minutes
-(`refreshLocalApps` in `src/local-mcp-apps.ts`). A local app installed, removed
+under the `installed` local-apps policy it runs discovery when it starts and
+every two minutes after (`refreshLocalApps` in `src/local-mcp-apps.ts`). A local app installed, removed
 or switched off is saved as the next revision and applied live.
 
 `configure --configuration-input-stdin` passes `mcpPolicy` and `allowedOrigins`
-to the writer with the rest of the input.
+to the writer with the rest of the input. A key the input leaves out keeps what
+is saved. That includes `commandPolicy.trusted`: a proposal without it keeps the
+saved built-in programs.
 
 ## Pause
 
@@ -80,11 +103,12 @@ paused on the computer.
 When the team's rules refuse a launch only because the program is not on the
 allowlist, the daemon asks the owner instead of refusing it at once. This
 covers a sandboxed `command.run`, and a terminal session that the
-coding-sessions bridge would start on this computer. For a terminal the daemon
-makes the bridge's own decision first, signature check included, so an app
-signed by UnlikeOtherAI starts without a question. A launch the denylist
-refuses, or a terminal program named by path while only listed programs are
-allowed, is refused without asking.
+coding-sessions bridge would start on this computer. Two refusals are asked
+about: `not_allowlisted`, and for a terminal `path_needs_allow_all` (a program
+named by its path while only listed programs may start). For a terminal the
+daemon makes the bridge's own decision first, signature check included, so an
+app signed by UnlikeOtherAI starts without a question. A launch the denylist
+refuses, or one refused for any other reason, is refused without asking.
 
 The daemon writes the request to `program-requests/<id>.json` in the team's
 owner-only state directory and holds the launch. The hold lasts at most 120
@@ -94,10 +118,15 @@ and the launch is refused as before.
 
 The owner answers on the computer:
 
-- `once` runs this launch and saves nothing.
+- `once` runs this launch and saves nothing. A program named by its path runs
+  with every program not denied allowed for that one launch, because no rule can
+  name a path.
 - `always` first saves `<program> *` to the allowlist through the ordinary
   policy writer, which the running team applies live. Then this launch runs.
-  If the save fails, the request keeps waiting for another answer.
+  If the save fails, the request keeps waiting for another answer. A program
+  named by its path is saved by its file name (`htop *`, without `.exe` on
+  Windows): later launches by name start without asking, a launch by path still
+  asks.
 - `deny` refuses the launch with `reason: "owner_declined"`.
 
 No answer in time refuses it with `reason: "owner_did_not_answer"`. Both
@@ -120,8 +149,8 @@ that the command is waiting for the owner.
 
 ## Limits
 
-- A lent "once" rule is safe only because the daemon runs one command at a time.
-  A second loan while one is active is refused.
+- A launch's lent rules are safe only because the daemon runs one command at a
+  time. A second loan while one is active is refused.
 - When the allowlist already holds its maximum of 64 rules, nobody is asked.
 - `audience` needs a connected team: it signs with the connection epoch the
   team's daemon last claimed.

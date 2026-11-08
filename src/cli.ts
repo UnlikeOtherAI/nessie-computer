@@ -10,7 +10,9 @@ import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-
 import { claimExecutor, heartbeatExecutor } from './daemon.js'
 import { readOwnerPause, setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
-import { listProgramRequests } from './program-requests.js'
+import { listProgramRequests, ProgramRequestError } from './program-requests.js'
+import { ExecutorApiError } from './api-client.js'
+import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
 import { serveExecutor } from './daemon-server.js'
 import { readAudience } from './audience.js'
 import { describeExecutorWithLocalApps } from './describe.js'
@@ -43,7 +45,7 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand } from './cli-arguments.js'
+import { parseCommand, type ParsedCommand } from './cli-arguments.js'
 import { describeFolderSync } from './folder-sync/console-state.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -56,6 +58,7 @@ import {
   publishExecutorDeepTestSourceGrant,
   publishExecutorDeepTestExecutionGrant,
   revokeExecutorDeepTestExecutionGrant,
+  type ExecutorLocalState,
 } from './state-store.js'
 
 /** A pause file that cannot be read counts as paused, as it does in the daemon. */
@@ -67,6 +70,64 @@ const ownerPauseReport = async (stateDir: string) => ({
   paused: await ownerPaused(stateDir),
   refused: () => { process.stderr.write('This Nessie cannot show that the team is paused; it stays paused here.\n') },
 })
+
+/**
+ * A proposal that names no built-in programs keeps the ones saved: `trusted`
+ * is absent from every proposal made before it existed, and absent must not
+ * read as "switch them all off".
+ */
+const withSavedTrust = (state: ExecutorLocalState, proposed: LocalCommandPolicy | undefined) => {
+  const saved = localCommandPolicyOf(state).trusted
+  return proposed && proposed.trusted === undefined && saved ? { ...proposed, trusted: saved } : proposed
+}
+
+/** A failure of a verb the apps call, under the stable code they key their words on. */
+class OwnerVerbFailure extends Error {
+  constructor(readonly code: 'EXECUTOR_STATE_UNAVAILABLE' | 'EXECUTOR_NOT_CONNECTED', message: string) {
+    super(message)
+    this.name = 'OwnerVerbFailure'
+  }
+}
+
+/** Nessie's own code when Nessie refused; otherwise the verb's; never a guess from the message. */
+const failureCode = (error: unknown): string => {
+  if (error instanceof OwnerVerbFailure || error instanceof ProgramRequestError) return error.code
+  if (error instanceof ExecutorApiError && error.code) return error.code
+  return 'EXECUTOR_COMMAND_FAILED'
+}
+
+type OwnerVerb = Extract<ParsedCommand, {
+  kind: 'pause' | 'resume' | 'program-requests' | 'program-request-answer' | 'audience'
+}>
+
+/** The verbs the apps call for one team: pause, resume, program requests and who can send work here. */
+const runOwnerVerb = async (command: OwnerVerb, write: (text: string) => void): Promise<void> => {
+  const state = await loadExecutorState(command.stateDir).catch((error: unknown) => {
+    throw new OwnerVerbFailure('EXECUTOR_STATE_UNAVAILABLE', `This team's saved state could not be read: ${
+      error instanceof Error ? error.message : String(error)}`)
+  })
+  if (command.kind === 'pause' || command.kind === 'resume') {
+    const pause = await setOwnerPaused(command.stateDir, command.kind === 'pause')
+    write(command.json ? `${JSON.stringify({ paused: pause !== null, ...(pause ? { since: pause.since } : {}) })}\n`
+      : pause ? 'Paused. Agents in this team start nothing new on this computer until you resume it.\n'
+        : 'Resumed. Agents in this team can use this computer again.\n')
+  } else if (command.kind === 'program-requests') {
+    await printProgramRequests(command.stateDir, command.json, write)
+  } else if (command.kind === 'program-request-answer') {
+    await answerProgramRequest(command.stateDir, state, command, write)
+  } else {
+    if (!state.connectionEpoch) {
+      throw new OwnerVerbFailure('EXECUTOR_NOT_CONNECTED', 'This team has not connected yet. Start it, then try again.')
+    }
+    const audience = await readAudience(command.stateDir)
+    const names = (entries: Array<{ name: string }>): string => entries.map((entry) => entry.name).join(', ') || 'none'
+    const more = audience.peopleCount - audience.people.length
+    write(command.json ? `${JSON.stringify(audience)}\n` : `Agents: ${names(audience.agents)}\n`
+      + `People: ${audience.everyoneInTeam ? 'everyone in the team'
+        : `${names(audience.people)}${more > 0 ? ` and ${more} more` : ''}`}\n`
+      + `Projects: ${names(audience.projects)}\n`)
+  }
+}
 
 const readPairingChallenge = async (): Promise<string> => {
   const chunks: Buffer[] = []
@@ -229,6 +290,19 @@ export const run = async (args: string[]): Promise<void> => {
     })
     return
   }
+  if (command.kind === 'pause' || command.kind === 'resume' || command.kind === 'program-requests'
+    || command.kind === 'program-request-answer' || command.kind === 'audience') {
+    try {
+      await runOwnerVerb(command, (text) => { process.stdout.write(text) })
+    } catch (error) {
+      if (!command.json) throw error
+      process.stdout.write(`${JSON.stringify({ error: {
+        code: failureCode(error), message: error instanceof Error ? error.message : String(error),
+      } })}\n`)
+      process.exitCode = 1
+    }
+    return
+  }
   const state = await loadExecutorState(command.stateDir)
   if (command.kind === 'configure') {
     const input: Partial<ExecutorConfigurationInput> = command.configurationInputFromStandardInput
@@ -249,11 +323,9 @@ export const run = async (args: string[]): Promise<void> => {
       input.commandAllowlist,
       input.mcpServers,
       'codingSessions' in input ? { requested: input.codingSessions } : {},
-      input.commandPolicy,
-      {
-        ...(input.mcpPolicy === undefined ? {} : { mcpPolicy: input.mcpPolicy }),
-        ...(input.allowedOrigins === undefined ? {} : { allowedOrigins: input.allowedOrigins }),
-      },
+      withSavedTrust(state, input.commandPolicy),
+      // Local apps and websites ride on the input; a key it leaves out keeps what is saved.
+      input,
     )
     if (input.existingCodingSessionsEnabled !== undefined) {
       await setExistingSessionsEnabled(command.stateDir, input.existingCodingSessionsEnabled)
@@ -263,35 +335,6 @@ export const run = async (args: string[]): Promise<void> => {
       `Saved as revision ${updated.descriptor.revision}. A running team uses it within a second, `
       + 'and a stopped one when it next starts.\n',
     )
-    return
-  }
-  if (command.kind === 'pause' || command.kind === 'resume') {
-    const pause = await setOwnerPaused(command.stateDir, command.kind === 'pause')
-    process.stdout.write(command.json ? `${JSON.stringify({ paused: pause !== null,
-      ...(pause ? { since: pause.since } : {}) })}\n`
-      : pause ? 'Paused. Agents in this team start nothing new on this computer until you resume it.\n'
-        : 'Resumed. Agents in this team can use this computer again.\n')
-    return
-  }
-  if (command.kind === 'audience') {
-    const audience = await readAudience(command.stateDir)
-    if (command.json) {
-      process.stdout.write(`${JSON.stringify(audience)}\n`)
-      return
-    }
-    const names = (entries: Array<{ name: string }>): string => entries.map((entry) => entry.name).join(', ') || 'none'
-    process.stdout.write(`Agents: ${names(audience.agents)}\n`
-      + `People: ${audience.everyoneInTeam ? 'everyone in the team' : `${names(audience.people)}${
-        audience.peopleCount > audience.people.length ? ` and ${audience.peopleCount - audience.people.length} more` : ''}`}\n`
-      + `Projects: ${names(audience.projects)}\n`)
-    return
-  }
-  if (command.kind === 'program-requests') {
-    await printProgramRequests(command.stateDir, command.json, (text) => { process.stdout.write(text) })
-    return
-  }
-  if (command.kind === 'program-request-answer') {
-    await answerProgramRequest(command.stateDir, state, command, (text) => { process.stdout.write(text) })
     return
   }
   if (command.kind === 'configure-browser') {

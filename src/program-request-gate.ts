@@ -44,10 +44,18 @@ export type ProgramRequestGate = {
   }) => Promise<ProgramRequestVerdict>
 }
 
-/** The rule `always` saves and `once` lends for one launch, when the program can be written as one. */
-export const programRequestRule = (program: string): string | undefined => {
-  const pattern = parseExecutorCommandPattern(`${program} *`)
-  return pattern && pattern.program === program ? formatExecutorCommandPattern(pattern) : undefined
+/**
+ * The rule `always` saves: `<program> *`, naming a program given by its path
+ * by its file name (without `.exe` or `.com` on Windows), which is how the
+ * rules compare names. Undefined when the name cannot be written as a rule.
+ */
+export const programRequestRule = (
+  program: string, platform: NodeJS.Platform = process.platform,
+): string | undefined => {
+  const file = program.split(platform === 'win32' ? /[\\/]/u : /\//u).at(-1) ?? ''
+  const name = platform === 'win32' ? file.replace(/\.(?:exe|com)$/iu, '') : file
+  const pattern = parseExecutorCommandPattern(`${name} *`)
+  return pattern && pattern.program === name ? formatExecutorCommandPattern(pattern) : undefined
 }
 
 const sleep = (ms: number, signal?: AbortSignal): Promise<void> => new Promise((resolve) => {

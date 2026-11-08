@@ -29,6 +29,18 @@ export const PROGRAM_REQUEST_ANSWERS: readonly ProgramRequestAnswer[] = ['once',
 
 export const PROGRAM_REQUESTS_DIRECTORY = 'program-requests'
 
+/** Why the owner's answer could not be taken; `code` is what the apps key their words on. */
+export class ProgramRequestError extends Error {
+  constructor(
+    readonly code: 'PROGRAM_REQUEST_ID_INVALID' | 'PROGRAM_REQUEST_NOT_WAITING' | 'PROGRAM_REQUEST_ALREADY_ANSWERED'
+      | 'PROGRAM_REQUEST_RULE_NOT_SAVED',
+    message: string,
+  ) {
+    super(message)
+    this.name = 'ProgramRequestError'
+  }
+}
+
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u
 
 const directoryOf = (stateDir: string): string => join(stateDir, PROGRAM_REQUESTS_DIRECTORY)
@@ -121,10 +133,13 @@ export const listProgramRequests = async (
 export const waitingProgramRequest = async (
   stateDir: string, id: string, now: Date = new Date(),
 ): Promise<ProgramRequest> => {
-  if (!ID.test(id)) throw new Error('A program request id is the id that program-requests lists.')
+  if (!ID.test(id)) {
+    throw new ProgramRequestError('PROGRAM_REQUEST_ID_INVALID', 'A program request id is the id that program-requests lists.')
+  }
   const request = (await listProgramRequests(stateDir, now)).find((candidate) => candidate.id === id)
   if (!request) {
-    throw new Error('That program request is no longer waiting: it was answered, it expired, or the team stopped.')
+    throw new ProgramRequestError('PROGRAM_REQUEST_NOT_WAITING',
+      'That program request is no longer waiting: it was answered, it expired, or the team stopped.')
   }
   return request
 }
@@ -138,7 +153,9 @@ export const writeProgramRequestAnswer = async (
   try {
     handle = await open(path, 'wx', 0o600)
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new Error('That program request was already answered.')
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new ProgramRequestError('PROGRAM_REQUEST_ALREADY_ANSWERED', 'That program request was already answered.')
+    }
     throw error
   }
   try {

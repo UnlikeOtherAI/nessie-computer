@@ -248,11 +248,12 @@ export const serveExecutor = async (
       const saved = await loadExecutorState(stateDir)
       if (localMcpPolicyOf(saved).mode === 'installed') await refreshLocalApps(stateDir, saved)
     })
-    const localAppsInterval = setInterval(() => {
+    const refreshApps = (): void => {
       void proposeLocalApps.run().catch((error: unknown) => {
         console.error('[nessie-executor] local apps were not refreshed:', error instanceof Error ? error.message : String(error))
       })
-    }, LOCAL_MCP_REFRESH_INTERVAL_MS)
+    }
+    const localAppsInterval = setInterval(refreshApps, LOCAL_MCP_REFRESH_INTERVAL_MS)
     localAppsInterval.unref()
     // The owner's saves on this computer, applied where the daemon stands.
     const applySaved = createNonOverlappingExecutorTask(async () => {
@@ -280,6 +281,7 @@ export const serveExecutor = async (
     // Anything saved between the start-up reads and the watch's first look.
     void applySaved.run().catch(() => undefined)
     void applyPause.run().catch(() => undefined)
+    refreshApps()
     try {
       await waitForExecutorDaemonShutdown(options.parentLiveness, updateReady)
     } finally {

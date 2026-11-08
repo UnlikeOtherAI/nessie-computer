@@ -5,7 +5,7 @@ import test from 'node:test'
 import { ExecutorApiError } from '../src/api-client.js'
 import { localCommandPolicyOf, localCommandPolicyPermits } from '../src/command-policy.js'
 import { createDaemonLiveApply } from '../src/daemon-live-apply.js'
-import { createDaemonLiveState } from '../src/daemon-live-state.js'
+import { createDaemonLiveState, lendAnyProgram, lendRule } from '../src/daemon-live-state.js'
 import { daemonToolsKey } from '../src/daemon-tools.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 
@@ -43,16 +43,26 @@ test('the view answers every read from the current state, and nothing can write 
 test('allowOnce lends one rule for one launch, never past it and never two at once', async () => {
   const live = createDaemonLiveState(state(1))
   assert.equal(localCommandPolicyPermits(live.view, 'ls', ['-la']), false)
-  const inside = await live.allowOnce('ls *', async () => {
-    await assert.rejects(live.allowOnce('cat *', async () => undefined), /one launch at a time/u)
+  const inside = await live.allowOnce(lendRule('ls *'), async () => {
+    await assert.rejects(live.allowOnce(lendRule('cat *'), async () => undefined), /one launch at a time/u)
     // The denylist still wins over a lent rule.
     assert.equal(localCommandPolicyPermits(live.view, 'git', ['push', 'origin']), false)
     return localCommandPolicyPermits(live.view, 'ls', ['-la'])
   })
   assert.equal(inside, true)
   assert.equal(localCommandPolicyPermits(live.view, 'ls', ['-la']), false)
-  await assert.rejects(live.allowOnce('ls *', async () => { throw new Error('launch failed') }), /launch failed/u)
+  await assert.rejects(live.allowOnce(lendRule('ls *'), async () => { throw new Error('launch failed') }), /launch failed/u)
   assert.deepEqual(live.commandRules.allowlist, ['git *'])
+})
+
+test('a path launch borrows "any program not denied" for its own length, and the denylist still wins', async () => {
+  const live = createDaemonLiveState(state(1))
+  await live.allowOnce(lendAnyProgram, async () => {
+    assert.equal(live.commandRules.mode, 'all')
+    assert.equal(localCommandPolicyPermits(live.view, 'htop', []), true)
+    assert.equal(localCommandPolicyPermits(live.view, 'git', ['push', 'origin']), false)
+  })
+  assert.equal(live.commandRules.mode, 'allowlist')
 })
 
 test('reload swaps in the saved policy, keeps the connection and submits the revision under it', async () => {
