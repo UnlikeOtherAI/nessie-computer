@@ -83,7 +83,8 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
       snapshot, dependencyDirectory: tools, dependencies: Object.keys(manifest.dependencies),
     })],
   })
-  const clientGraph = assertBrowserClientGraph(result.metafile)
+  assertLibraryAuthoredInputs(registration.clientAuthoredInputs, registration)
+  const clientGraph = assertBrowserClientGraph(result.metafile, registration.clientAuthoredInputs)
   const inputs = Object.keys(result.metafile.inputs)
   const sourceInputs = inputs.filter(path => path.startsWith('nessie-t3-source:'))
     .map(path => path.slice('nessie-t3-source:'.length)).sort()

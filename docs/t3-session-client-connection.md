@@ -389,8 +389,8 @@ and UI/WebMCP/MCP user journeys remain unverified and required before delivery.
 
 The browser-safe original selectors, projections and history machinery now have
 a dedicated generated `/client` entry under the [package contract](session-engine-package.md#original-browser-client-entry-source-checkpoint-not-yet-qualified).
-This is an additive producer change. The minimal original-source changes remain
-the registered URL helper patch and registry lifecycle patch; the eleven mobile
+This is an additive producer change. The original-source changes comprise
+the registered URL helper, registry lifecycle and scoped host-factory patches; the eleven mobile
 Git inputs only undergo build-time declaration selection, and shared reducers,
 Home and screens retain their original implementation. `Client.ts` adds exports;
 it creates no application or session store. Optional metadata, clock and scheduler
@@ -411,3 +411,77 @@ All new package runtime and declaration fixtures await the parent's combined
 producer qualification. The dependency-free graph checks exercise only rejection
 and reachability of synthetic build metadata; they do not establish a usable
 browser runtime, identity authority or physical source readiness.
+
+## Finite browser detail host
+
+`BrowserThreadHost.open` from `@nessie/t3-session-source/client` implements the
+read-only detail composition. Its input is the original decoded
+`RelayEnvironmentConnectResponse`, original `threadId`, opaque `scopeKey`, actual
+`authorizationExpiresAt`, an `AbortSignal`, and `onState(EnvironmentThreadState)`.
+The detail owner resolves and checks the existing canonical UUID detail routes
+before calling it. `scopeKey` combines the current team content generation and
+checked detail identity; it is neither a token nor an admission assertion.
+Nessie API success-envelope decoding stays in that facade. Original mounted T3
+descriptor, OAuth, HTTP snapshot and WebSocket routes remain raw.
+
+The handle exposes `loadEarlier(throughEntryId?, workAnchorId?)`,
+`readItem(originalGetTurnItemInput, signal)`, `dispose(): Promise<void>` and
+`closed: Promise<void>`. The latter resolves immediately when the host retires;
+the detail owner must clear its displayed state then. `dispose` separately waits
+for original Effect scope closure and persistent cleanup and rejects on failure.
+Bootstrap completion never calls `onState`; every callback comes from the
+original `Threads.makeEnvironmentThreadState` subscription. Reads use the
+original RPC request function; cross-thread item requests are rejected.
+
+The host assembles the original supervisor, driver, bearer resolver, RPC session,
+bounded snapshot loader and history controller. It does not create the general
+relay-discovery layer or supply Clerk/usage services. Four hash-checked edits in
+`host-patches.json` lift the original descriptor/bearer authorization functions
+into a shared factory, retain their original bodies, and expose restricted
+bearer layers. Original full-host factories remain available. Unsupported
+primary, relay, SSH and DPoP renewal paths explicitly fail. Existing URL patches
+still determine exact mounted HTTP/WS/proof semantics.
+
+The public original namespaces added for composition are `EnvironmentSupervisor`,
+`EnvironmentRegistry`, `ConnectionDriver`, `ConnectionResolver`,
+`ConnectionCredentials`, `ConnectionCatalog`, `ConnectionModel`, `Persistence`,
+`Authorization`, `BearerAuthorization`, `BoundedThreadSnapshotLoader` and `Rpc`.
+The finite host owns one supervisor directly; it does not create a second
+environment registry or session store. Its platform cache adapter serializes
+only the original `StoredOrchestrationThreadSnapshot` codec, bound to the exact
+environment/thread. Environment-wide cache operations are unavailable.
+
+Credentials remain in memory. Browser sessionStorage under
+`nessie:t3-detail:v1:` holds the non-authoritative original thread cache. A cold
+open removes stale owned keys before spending a credential. Each lifetime has a
+unique suffix, so an old finalizer cannot clear its successor. Account/team
+change, route abort, scope replacement, original supervisor blocking, or the
+earlier of admission/access-token expiry immediately disables reads/writes,
+clears both bootstrap and access credential slots and closes the original scope.
+Lifetime callbacks retain only copied public identity/lifetime fields; they do
+not capture the connected envelope. The current-host slot clears after cleanup
+only when it still belongs to that host. Persistent deletion
+tries every owned key; failures leave keys available for retry and block the
+next opening until cleanup succeeds. Late cache writes cannot resurrect data.
+Only this host's namespace is removed; unrelated browser and original T3 app
+data is untouched. No cleanup callback or success boolean stands in for removal.
+
+This `thread_read` host creates no mutation queue or outbox. Retirement also
+purges any residual pending-data keys within its owned namespace; the synthetic
+cleanup fixture exercises that boundary. It does not claim to drain a separately
+running original mobile application's outbox. General environment discovery and
+the older `createUoaConnectionAccount.prepare` binding remain separate from this
+finite detail lifecycle. Renewing the view requires a new checked canonical
+detail/connect and remount; no expiry extension is inferred locally.
+
+Source checks on Maxis, Node 24.19.0, 384 MiB: four storage-retirement fixtures,
+four browser-input-graph fixtures and one exact-original host-extraction fixture
+passed. Builtin stripping checks syntax only.
+The ten-family composition also applied successfully to 85 exact original Git
+files (137 resulting files), with ordered digest
+`ee31451828ab5dc42b49ed53fc78f0bc38223908bb8e9069f3096115e8dc2303`.
+New normal-producer host refusal
+fixtures and strict consumer types are authored but unrun. The normal client
+Turbo gate, real browser cold links, offline/reconnect, revoked/expired grants,
+team changes and user/tool detail journeys still need the serial qualification
+window. No live host acceptance is claimed by these source checks.

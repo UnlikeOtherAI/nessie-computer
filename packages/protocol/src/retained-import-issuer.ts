@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import { RetainedImportDaemonEnvelopeSchema, RetainedImportSourceSchema } from './retained-import.js'
+import { RetainedImportDaemonEnvelopeSchema, RetainedImportSourceSchema,
+  RetainedImportChallengeSchema } from './retained-import.js'
 import { ExecutorSsoVerificationSchema } from './executor.js'
 
 const keyId = z.string().regex(/^[a-f0-9]{64}$/u)
@@ -36,6 +37,12 @@ export const RetainedIssuerReviewSchema = z.object({
 export const RetainedIssuerDiscoverySchema = z.object({
   offers: z.array(RetainedIssuerOfferSchema.extend({ offerId: z.string().uuid() })),
   enrollments: z.array(RetainedIssuerReviewSchema),
+}).strict()
+export const RetainedIssuerPendingRequestSchema = RetainedImportDaemonEnvelopeSchema.extend({
+  operation: z.literal('issuer.pending'),
+}).strict()
+export const RetainedIssuerPendingSchema = z.object({
+  enrollments: z.array(RetainedIssuerEnrollmentChallengeSchema), imports: z.array(RetainedImportChallengeSchema),
 }).strict()
 export type RetainedIssuerEnrollmentChallenge = z.infer<typeof RetainedIssuerEnrollmentChallengeSchema>
 export type RetainedIssuerReview = z.infer<typeof RetainedIssuerReviewSchema>

@@ -35,6 +35,7 @@ export function nativeCiInputs(files, before, after) {
     linuxHelper ||= file.startsWith('packaging/linux/keys/')
     updater ||= file.startsWith('updater/')
     helper ||= file.startsWith('native/') || file === 'src/t3-session/source/tables.json'
+      || file === 'packages/executor-console/retained-import-words.json'
     const windowsPath = /^(?:windows-common|windows-provenance|service-windows|tray-windows)\//u.test(file)
     windows ||= windowsPath && !file.endsWith('package.json')
     vm ||= file.startsWith('vm/')
@@ -50,6 +51,7 @@ export function nativeCiInputs(files, before, after) {
     }
     windows ||= windowsPath
     helperPayload ||= file.startsWith('native/') || file === 'src/t3-session/source/tables.json'
+      || file === 'packages/executor-console/retained-import-words.json'
     if (file === 'pnpm-lock.yaml') {
       const ignored = { '.': EXECUTOR_DEVELOPMENT_ONLY_DEPENDENCIES }
       const changed = roots => {

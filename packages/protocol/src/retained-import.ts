@@ -1,22 +1,24 @@
 import { z } from 'zod'
 
-const ref = z.string().min(1).max(512)
+const ref = z.string().min(1).max(256).refine(id => new TextEncoder().encode(id).length <= 256
+  && !/[\u0000-\u001f\u007f]/u.test(id))
+const selectedId = ref
 export const RetainedImportSelectionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('whole_source') }).strict(),
-  z.object({ kind: z.literal('threads'), projectIds: z.array(ref).max(5000)
-    .refine(ids => new Set(ids).size === ids.length), threadIds: z.array(ref).min(1).max(5000)
+  z.object({ kind: z.literal('threads'), projectIds: z.array(selectedId).max(64)
+    .refine(ids => new Set(ids).size === ids.length), threadIds: z.array(selectedId).min(1).max(64)
     .refine(ids => new Set(ids).size === ids.length, 'Thread identities must be unique.') }).strict(),
 ])
 export const RetainedImportSourceSchema = z.object({
   executorId: z.string().uuid(), environmentId: ref, physicalRootKey: ref, admittedRootKey: ref,
   databaseIdentity: ref, environmentIdentity: ref, captureGeneration: ref,
 }).strict()
-export const RetainedImportChallengeInputSchema = RetainedImportSourceSchema.extend({
+export const RetainedImportChallengeInputSchema = z.object({
   requestId: z.string().uuid(), issuerEnrollmentId: z.string().uuid(), selection: RetainedImportSelectionSchema,
   acceptedBaseline: z.literal('not_attested_by_original_source'),
   grantExpiresAtMs: z.number().int().nonnegative().safe(),
 }).strict()
-export const RetainedImportChallengeSchema = RetainedImportChallengeInputSchema.extend({
+export const RetainedImportChallengeSchema = RetainedImportSourceSchema.merge(RetainedImportChallengeInputSchema).extend({
   version: z.literal(1), challengeId: z.string().uuid(), nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
   grantGeneration: z.string().uuid(), organizationId: z.string().uuid(), teamId: z.string().uuid(),
   recipient: z.object({ subject: ref, organizationId: ref, teamId: ref }).strict(),
@@ -57,11 +59,18 @@ export const RetainedImportVerificationRequestSchema = RetainedImportDaemonEnvel
   operation: z.literal('verification.issue'), grantId: z.string().uuid(),
   purpose: z.enum(['consume', 'recheck', 'revoke']), leaseId: z.string().uuid().optional(),
 }).strict()
+export const RetainedImportWithdrawalSchema = RetainedImportDaemonEnvelopeSchema.extend({
+  operation: z.literal('consent.withdraw'), grantId: z.string().uuid(), liveProof: RetainedImportLiveProofSchema,
+}).strict()
 export const RetainedImportGrantStatusSchema = z.object({
   grantId: z.string().uuid(), generation: z.string().uuid(),
   status: z.enum(['pending', 'active', 'revoked', 'expired']),
   basis: z.literal('prospective_import'),
   legacyCopyProvenance: z.literal('not_attested_by_original_source'),
+}).strict()
+export const RetainedImportGrantReviewSchema = RetainedImportGrantStatusSchema.extend({
+  challenge: RetainedImportChallengeSchema, selection: RetainedImportSelectionSchema,
+  expiresAtMs: z.number().int().nonnegative().safe(),
 }).strict()
 export const RetainedImportLeaseInputSchema = z.object({
   grantId: z.string().uuid(), purpose: z.enum(['capture', 'read', 'catalog', 'publish']),
@@ -97,3 +106,14 @@ export type RetainedImportLeaseCheck = z.infer<typeof RetainedImportLeaseCheckSc
 export type RetainedImportSelection = z.infer<typeof RetainedImportSelectionSchema>
 export type RetainedImportLiveProof = z.infer<typeof RetainedImportLiveProofSchema>
 export type RetainedImportVerificationRequest = z.infer<typeof RetainedImportVerificationRequestSchema>
+
+/** Exact native digest preimage. Order is protocol, not a source catalog sort. */
+export function retainedImportChallengeDigestInput(c: RetainedImportChallenge): readonly unknown[] {
+  return ['nessie-retained-import-challenge-v1', c.version, c.challengeId, c.nonce, c.requestId,
+    c.executorId, c.environmentId, c.admittedRootKey, c.physicalRootKey, c.databaseIdentity, c.environmentIdentity,
+    c.organizationId, c.teamId, c.recipient.subject, c.recipient.organizationId, c.recipient.teamId,
+    c.selection.kind, c.selection.kind === 'threads' ? c.selection.threadIds : [],
+    c.selection.kind === 'threads' ? c.selection.projectIds : [], c.purpose, c.grantGeneration,
+    c.captureGeneration, c.acceptedBaseline, c.issuedAtMs, c.expiresAtMs, c.grantExpiresAtMs,
+    c.issuerEnrollmentId, c.issuerKeyId]
+}

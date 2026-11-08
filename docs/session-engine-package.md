@@ -74,6 +74,13 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 
 ## Package interface
 
+The gateway source adds `SocketFrameParts` and uses `TerminalOutputProtocol` from
+the engine entry. They export the pinned source's multipart socket helpers and
+eight-chunk/terminal-byte output window without copying implementations or
+starting a server. This export change is source-only and requires a new normal
+package build and consumer qualification; the previous package hashes below
+do not qualify it. The private gateway consumes the same external Effect root.
+
 The combined 8 November source candidate registers state, client connection,
 extraction/runtime, catalog, files, session control, request privacy and workspace
 families in that order. Bounded Node 24.19 checks on Maxis applied every exact
@@ -216,6 +223,15 @@ builtins and platform/native dependencies before output publication. A normal
 browser bundle fixture separately resolves all external dependencies. The
 client export supplies original factories and selectors, not a second store,
 server, identity authority or source-readiness result.
+
+The [finite browser detail host](t3-session-client-connection.md#finite-browser-detail-host)
+adds `BrowserThreadHost.open` and the original transport/persistence namespaces.
+`clientAuthoredInputs` registers its four exact first-party platform/lifecycle
+files for strict lint, compilation, browser graph admission and provenance.
+The registry and `client-host` patch families follow the URL family and precede extraction;
+it factors original bearer-only factories without acquiring cloud/relay services.
+It changes the combined ordered patch digest, so historical qualification hashes
+do not apply to this composition.
 
 The normal package `test` includes the client fixtures. The focused gate is:
 

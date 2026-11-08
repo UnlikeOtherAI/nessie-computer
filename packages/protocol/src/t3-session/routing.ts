@@ -18,6 +18,7 @@ export const ExecutorT3Routing = Schema.Struct({
 })
 export type ExecutorT3Routing = typeof ExecutorT3Routing.Type
 export type ExecutorT3RoutingEncoded = typeof ExecutorT3Routing.Encoded
+export const decodeExecutorT3Routing = Schema.decodeUnknownSync(ExecutorT3Routing)
 
 /** Broker/custody failures are separate from original source error tags. */
 export const ExecutorT3TransportError = Schema.Struct({

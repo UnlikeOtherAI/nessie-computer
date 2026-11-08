@@ -1,7 +1,7 @@
 import { posix } from 'node:path'
 
 /** Inspect only outputs reachable from /client in the shared split build. */
-export const assertBrowserClientGraph = metafile => {
+export const assertBrowserClientGraph = (metafile, authoredInputs = ['packaging/session-engine/core/Client.ts']) => {
   const outputs = new Map(Object.entries(metafile.outputs).map(([path, output]) =>
     [path.replaceAll('\\', '/'), output]))
   const entry = [...outputs].filter(([, output]) =>
@@ -21,8 +21,12 @@ export const assertBrowserClientGraph = metafile => {
         if (!/^nessie-t3-source:(?:packages\/|apps\/mobile\/src\/)/u.test(normalized)) {
           throw new Error(`CLIENT_SERVER_SOURCE_REFUSED:${normalized}`)
         }
-      } else if (!/(?:^|\/)core\/Client\.ts$/u.test(normalized)) {
-        throw new Error(`CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED:${normalized}`)
+      } else {
+        const path = posix.normalize(posix.join('packaging/session-engine', normalized))
+        if (!authoredInputs.includes(path) || path.startsWith('packaging/session-engine/core/')
+          && path !== 'packaging/session-engine/core/Client.ts') {
+          throw new Error(`CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED:${normalized}`)
+        }
       }
       inputs.add(normalized)
     }

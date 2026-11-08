@@ -5,6 +5,8 @@ import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from './m
 import { tablesForLayout, selectCaptureRows, legacyThreads, legacyMessages, legacyPullRequests } from './layout.js'
 import type { CaptureTable } from './layout.js'
 import type { RetainedOriginalOwnerPort, RetainedReadScope } from '../ownership/continuity.js'
+import { withRetainedReadScope } from '../ownership/continuity.js'
+import type { RetainedImportAuthorityPort } from '../ownership/import-scope.js'
 import migrationManifest from './migration-manifest.json' with { type: 'json' }
 
 export interface T3SourceSnapshot {
@@ -46,7 +48,7 @@ export async function withT3SourceSnapshot<A>(
   port: AdmittedT3SourcePort | undefined,
   manifest: T3SourceManifest,
   admittedRootKey: string,
-  owner: RetainedOriginalOwnerPort | undefined,
+  owner: RetainedOriginalOwnerPort | RetainedImportAuthorityPort | undefined,
   generation: string,
   use: (snapshot: T3SourceSnapshot, reads: RetainedReadScope) => Promise<A>,
   afterCommit?: (value: A, reads: RetainedReadScope, recheckPhysicalSource: () => Promise<void>) => Promise<void>,
@@ -58,8 +60,8 @@ export async function withT3SourceSnapshot<A>(
     'duplicate_manifest_admission')
   return port.withReadonlySource(manifest, admittedRootKey, async (source, database, recheck) => {
     requireCapture(source.admittedRootKey === admittedRootKey, 'source_admission_mismatch')
-    return owner.withReadScope({ source, physicalSourceRecheck: recheck,
-      captureGeneration: generation, purpose: 'retained-history-read' }, async reads => {
+    return withRetainedReadScope(owner, { source, physicalSourceRecheck: recheck,
+      captureGeneration: generation }, async reads => {
       const tables = tablesForLayout(source.layout)
       let transaction = false
       try {

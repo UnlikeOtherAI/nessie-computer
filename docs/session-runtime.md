@@ -188,6 +188,49 @@ a stream releases demand; it does not stop the runtime.
 
 ## Qualification and limits
 
+### Held source and lane demand checkpoint
+
+`withRetainedRuntimeSource(stateDirectory, { challenge, receipt }, use, signal?)`
+calls the real `withRetainedImportLocally` producer. Its callback receives the
+exact held source, database and physical recheck through `local`; it never
+opens another physical reader. A checked exchange every 20 seconds keeps the
+55-second JS / 60-second native idle limit from expiring during unrelated waits.
+The first failed check aborts dependent demand and remains failed. `checked`
+rechecks before and after each dependent await. The wrapper waits for the
+callback even after cancellation, then permits the producer to revoke consent
+and release the source. Neither consent nor server lease deadlines slide.
+
+`dispatchSessionRpc(request, slots, signal)` and
+`dispatchRetainedHttp(request, http, signal)` adapt already admitted handlers
+to the existing lane iterator. They preserve original decoded values, method
+errors, HTTP status annotations and finite/stream classification. Invalid
+values and internal defects fail the iterator. Unbound RPC methods return
+`unbound_operation`. They do not echo a request's claimed source sequence,
+buffer a stream, retry a command or create authority.
+`bindRetainedCatalogHttp(service)` binds the five HTTP handlers to the same
+captured operation lifetime as RPC reads.
+
+`sessionDispatchScope` joins active iterators before the graph closes. It
+interrupts pending demand on owner closure, caller abort or iterator return,
+waits for finalizers, preserves close failures and refuses concurrent pulls.
+It does not stop an admitted provider turn. Only pure Effect interruption maps
+to the caller's abort reason; a finalizer defect remains a failure. Construct
+this scope after graph acquisition so it closes first.
+
+These exports are internal machinery, not a separately registered tool or
+transport. T07's one `describe/open` lane remains the doorway; WebMCP and
+internal/external MCP use the canonical operation ledger and original receipt
+and retry rules. Final read composition awaits the catalog owner's integrated
+`withHeldRetainedCatalogGraph` over the same callback, not per-request source
+or SQL acquisition. Controls remain unbound until the authenticated offer
+supplies prospective `ThreadManagementProvenance` from the actual principal
+and trusted entry point. Read/import consent supplies no execution or native
+association.
+
+Nine dispatch/lifetime fixtures are authored against the normal package and
+unrun. Seven authored files passed builtin syntax parsing without linking
+imports. No compiler, runtime or native qualification is claimed.
+
 Authored normal-package fixtures cover competing writers in this and another
 process, process-loss release, reopen without unlink, aliases/replacement and
 rejection of unbound runtime services. Import/factory checks trap process,

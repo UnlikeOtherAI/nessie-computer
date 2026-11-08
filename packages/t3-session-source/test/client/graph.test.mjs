@@ -36,4 +36,18 @@ test('client graph refuses missing outputs and an authored engine chunk', () => 
   const engine = fixture()
   engine.outputs['dist/shared.js'].inputs['core/Engine.ts'] = {}
   assert.throws(() => assertBrowserClientGraph(engine), /CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED/u)
+  assert.throws(() => assertBrowserClientGraph(engine,
+    ['packaging/session-engine/core/Client.ts', 'packaging/session-engine/core/Engine.ts']),
+  /CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED/u)
+})
+
+test('client graph admits only explicitly registered browser host files', () => {
+  const graph = fixture()
+  const path = 'patches/t3-session/client-connection/browser-thread-host.ts'
+  graph.outputs['dist/client.js'].inputs[`../../${path}`] = {}
+  assert.throws(() => assertBrowserClientGraph(graph), /CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED/u)
+  assert.doesNotThrow(() => assertBrowserClientGraph(graph, ['packaging/session-engine/core/Client.ts', path]))
+  graph.outputs['dist/client.js'].inputs['../../unregistered/host.ts'] = {}
+  assert.throws(() => assertBrowserClientGraph(graph, ['packaging/session-engine/core/Client.ts', path]),
+    /CLIENT_AUTHORED_OR_DEPENDENCY_INPUT_REFUSED/u)
 })
