@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import {
   decodeExecutorT3ToolInput, executorT3ToolInputSchema, executorT3ToolOperations,
-  executorT3HistoryTools,
+  executorT3HistoryTools, executorT3RpcInputPolicy,
 } from '@nessie/executor-protocol/t3-session'
 
 const executorId = '38e32aef-a7a4-49c1-95e4-87b38d83f4bf'
@@ -81,4 +81,31 @@ test('all original finite HTTP history doors retain separate endpoint identity',
   ])
   assert.ok(history.every(tool => tool.kind === 'finite' && tool.authority === 'read'))
   assert.ok(history.every(tool => !('headers' in tool.inputCodec.fields)))
+})
+
+test('refs refresh preserves the combined method and resolves only decoded true as mutation', () => {
+  const operation = named('t3_session_rpc_vcs_listRefs')
+  assert.equal(operation.receipt, 'conditional-refresh')
+  assert.equal(operation.annotations.readOnlyHint, false)
+  assert.equal(operation.authority, 'owner')
+  assert.deepEqual(operation.inputPolicies, [{ when: { field: 'refresh', equals: true },
+    admission: 'mutation', receipt: 'durable-command-or-delivery' }])
+  assert.ok(executorT3ToolInputSchema(operation).allOf)
+  for (const input of [{ cwd: 'C:/synthetic' }, { cwd: 'C:/synthetic', refresh: false }]) {
+    const request = decodeExecutorT3ToolInput(operation, { executorId, environmentId, input })
+    assert.equal(request.commandId, undefined)
+    assert.equal(executorT3RpcInputPolicy(request).receipt, 'none')
+    assert.equal(executorT3RpcInputPolicy(request).admission, 'read')
+  }
+  const input = { cwd: 'C:/synthetic', refresh: true }
+  assert.throws(() => decodeExecutorT3ToolInput(operation, { executorId, environmentId, input }))
+  assert.throws(() => decodeExecutorT3ToolInput(operation, {
+    executorId, environmentId, commandId, input: { ...input, refresh: 'true' },
+  }))
+  const args = { executorId, environmentId, commandId, input }
+  const request = decodeExecutorT3ToolInput(operation, args)
+  assert.deepEqual(decodeExecutorT3ToolInput(operation, args), request)
+  assert.equal(executorT3RpcInputPolicy(request).receipt, 'durable-command-or-delivery')
+  assert.equal(executorT3RpcInputPolicy(request).admission, 'mutation')
+  assert.equal(executorT3RpcInputPolicy(request).authority, 'owner')
 })

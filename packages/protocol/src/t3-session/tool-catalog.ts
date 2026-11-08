@@ -5,6 +5,8 @@ import { ExecutorT3Routing } from './routing.js'
 import { requireClientCommand } from './commands.js'
 import { isAdmissibleT3Request } from './validation.js'
 import type { ExecutorT3Request } from './request.js'
+import { executorT3RpcInputPolicy, executorT3RpcOperationPolicy,
+  type ExecutorT3ReceiptPolicy } from './operation-policy.js'
 import ledger from './ledger.json' with { type: 'json' }
 
 export type ExecutorT3ToolOperation = {
@@ -13,7 +15,9 @@ export type ExecutorT3ToolOperation = {
   readonly command?: typeof OrchestrationV2Command.Type['type']
   readonly authority: 'read' | 'owner' | 'operate'
   readonly kind: 'finite' | 'stream'
-  readonly receipt: 'none' | 'conditional-provider-session' | 'durable-command-or-delivery'
+  readonly receipt: ExecutorT3ReceiptPolicy
+  readonly inputPolicies: ReturnType<typeof executorT3RpcOperationPolicy>['inputPolicies']
+  readonly annotations: { readonly readOnlyHint: boolean }
   readonly inputCodec: Schema.Codec<unknown, unknown>
   readonly resultCodec: string
   readonly errorCodec: string
@@ -45,9 +49,8 @@ export const executorT3ToolOperations = (): readonly ExecutorT3ToolOperation[] =
     }
     operations.push({
       name: nameOf('rpc', method), method,
-      authority: rule.authority as ExecutorT3ToolOperation['authority'],
+      ...executorT3RpcOperationPolicy(method),
       kind: rule.kind as ExecutorT3ToolOperation['kind'],
-      receipt: rule.receipt as ExecutorT3ToolOperation['receipt'],
       inputCodec: inputCodec(ExecutorT3Descriptors[method].payloadSchema, rule.receipt),
       resultCodec: rule.resultCodec, errorCodec: rule.errorCodec,
     })
@@ -61,6 +64,7 @@ export const executorT3ToolOperations = (): readonly ExecutorT3ToolOperation[] =
     operations.push({
       name: nameOf('command', command), method: 'orchestration.dispatchCommand', command,
       authority: 'operate', kind: 'finite', receipt: 'durable-command-or-delivery',
+      inputPolicies: [], annotations: { readOnlyHint: false },
       inputCodec: inputCodec(member, 'durable-command-or-delivery'),
       resultCodec: dispatch.resultCodec, errorCodec: dispatch.errorCodec,
     })
@@ -76,7 +80,14 @@ export const executorT3ToolInputSchema = (operation: ExecutorT3ToolOperation): R
   const document = Schema.toJsonSchemaDocument(Schema.toCodecJson(operation.inputCodec), {
     onExcessProperty: 'error',
   })
-  return { ...document.schema, ...(document.definitions ? { $defs: document.definitions } : {}) }
+  const schema = { ...document.schema, ...(document.definitions ? { $defs: document.definitions } : {}) }
+  // The original payload codec stays intact. This adds only the transport receipt
+  // requirement corresponding to the shared structural input policy.
+  return operation.inputPolicies.length ? { ...schema, allOf: operation.inputPolicies.map(policy => ({
+    if: { properties: { input: { properties: { [policy.when.field]: { const: policy.when.equals } },
+      required: [policy.when.field] } }, required: ['input'] },
+    then: { required: ['commandId'] },
+  })) } : schema
 }
 
 type ToolRequest<R> = R extends ExecutorT3Request
@@ -99,6 +110,9 @@ export const decodeExecutorT3ToolInput = (
     // reconnects that correlation after iterating the heterogeneous inventory.
     const request = { ...(decoded as Record<string, unknown>), method: operation.method } as ExecutorT3ToolRequest
     if (!isAdmissibleT3Request(request)) throw new Error('T3_TOOL_INPUT_REJECTED')
+    if (executorT3RpcInputPolicy(request).receipt === 'durable-command-or-delivery' && !request.commandId) {
+      throw new Error('T3_TOOL_INPUT_REJECTED')
+    }
     if (request.method === 'orchestration.dispatchCommand') {
       if (request.input.type !== operation.command) throw new Error('T3_TOOL_COMMAND_MISMATCH')
       requireClientCommand(request.input)
