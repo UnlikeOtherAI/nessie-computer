@@ -84,7 +84,7 @@ export const verifyNowWorking = async (browser, ui, output) => {
     await page.getByRole('button', { name: 'Allow or don’t allow' }).click()
     assert.equal(await page.evaluate(() => document.activeElement.closest('[data-request]')?.dataset.request), 'req-1')
     assert.equal(await page.evaluate(() => document.activeElement.textContent), 'Allow once')
-    await page.getByRole('button', { name: 'Don’t allow' }).click()
+    await page.getByRole('button', { name: 'Don’t allow', exact: true }).click()
     await page.waitForFunction(() => !document.querySelector('#needs-you-list [data-request="req-1"]'))
     await page.evaluate(() => { window.sessions = window.sessions.filter((session) => session.sessionId !== 'session-c') })
     await page.waitForFunction(() => !document.querySelector('.session[data-session="session-c"]'))
