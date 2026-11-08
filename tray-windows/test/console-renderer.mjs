@@ -56,7 +56,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { replace: false, apiBaseUrl: 'https://api.nessie.works' })
     assert.equal(await page.locator('#pairing-server').isVisible(), false)
-    assert.equal(await page.getByRole('dialog').getByText('In Nessie, open Computers and choose Add a computer.').count(), 1)
+    assert.equal(await page.locator('#pairing-instruction').textContent(), 'In Nessie, open Computers and choose Add a computer.')
     assert.equal(await page.getByRole('dialog').getByText(/fingerprint/i).count(), 0)
     assert.equal(await page.getByRole('dialog').locator('input[type=checkbox]').count(), 0)
     await page.getByRole('button', { name: 'Copy pairing code' }).click()
