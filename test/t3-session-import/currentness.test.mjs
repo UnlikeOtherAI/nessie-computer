@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { test } from 'node:test'
+import * as DateTime from 'effect/DateTime'
 import { SourceContracts as S, ThreadStream } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3, resumeRetainedT3 } from '../../dist/t3-session/import/capture.js'
 import { readRetainedProjection, readRetainedHistoryPage, readRetainedSnapshotWindow } from '../../dist/t3-session/import/reads.js'
@@ -148,7 +149,7 @@ for (const legacy of [false, true]) {
           const full = await readRetainedProjection(...args(f, next.generation))
           const expected = f.writer.prepare(`SELECT message_id, text, created_at FROM projection_thread_messages
             WHERE thread_id = ? ORDER BY created_at, message_id`).all(f.ids[0])
-          assert.deepEqual(full.messages.map(row => ({ id: row.id, text: row.text, at: row.createdAt })),
+          assert.deepEqual(full.messages.map(row => ({ id: row.id, text: row.text, at: DateTime.formatIso(row.createdAt) })),
             expected.map(row => ({ id: row.message_id, text: row.text, at: row.created_at })))
           assert.equal(full.messages.length, 5)
           const destination = new DatabaseSync(f.destination(next.generation), { readOnly: true })
