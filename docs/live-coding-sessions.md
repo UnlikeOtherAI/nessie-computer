@@ -317,3 +317,11 @@ cover the lease's facts condition and the `ownerAnswers` fact.
 
 The Windows DACL arm is exercised with a stand-in helper here; the real native
 helper's verdict on a secret file has not been run on Windows.
+
+Exclusive JSON claims retain CREATE_NEW/O_EXCL single-winner semantics. On Windows,
+a delete-pending claim or a transient scanner handle can reject a new exclusive
+open with EPERM/EACCES/EBUSY. The writer retries that same exclusive operation for
+at most two seconds; an existing claim still loses immediately, and persistent
+permission errors still fail. It never removes or overwrites another writer’s
+claim. Focused Windows source checks include concurrent channel drains and
+claim-file deletion with an outstanding handle.
