@@ -417,3 +417,5 @@ token duplication, impersonation or ACL writes. Client authentication still
 requires the retained live process, SYSTEM/session 0, exact signed role and
 protected installed image. A real suspended process and private duplicate token
 regression assert the exact authenticated-user masks and retained SYSTEM access.
+Startup verification failures report a nonzero SCM exit code, so the configured
+recovery restart retries them instead of leaving a stopped service marked healthy.
