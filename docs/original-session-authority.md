@@ -117,3 +117,28 @@ channel failure cannot act on a closed/reused handle.
 Receiver elapsed-time checks use a monotonic clock as well as the permit's wall
 deadline. Clock rollback cannot lengthen a pending challenge. Authorized Job
 launch refusals retain the wrapper's exit code 125.
+
+## Protected Windows continuation
+
+The terminal driver now starts its fixed `terminal-session-process` through
+`executorChildCommand`, just like other compiled executor children. The managed
+native creator registers that Node generation before it runs. An outer Job
+alone cannot satisfy the inner ConPTY helper's direct-parent `HostAcquire`
+check. Development Node still cannot establish release custody.
+
+When an authorized Job's program exits, the helper explicitly terminates the
+existing Job before requesting service clearance. Its input relay retains a
+duplicate Job handle, so closing only the main handle would leave descendants
+alive until the helper itself exited. Termination failure remains a refusal;
+only the service's independent membership observation can release the host lease.
+The added kernel regression retains the duplicate through its child-exit check.
+
+These are source corrections, not a signed installed launch result. Qualification
+needs one exact protected candidate: compiled publisher EKU, final signed helper,
+manifest-pinned Node and bundle, a compatible authenticated service, and an actual
+managed parent generation from that candidate. The supported creator runs only
+its fixed CLI bundle. It cannot start a TypeScript test loader or an arbitrary
+test entry instead. Signed-route fixtures invoked by development Node remain
+separate from a synthetic installed journey through the normal coding bridge.
+No helper override, fixture-only managed entry or relaxed service admission is
+introduced. Personal providers and existing conversations are not test inputs.

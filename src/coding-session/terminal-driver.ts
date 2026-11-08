@@ -3,6 +3,7 @@ import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
+import { executorChildCommand } from '../executor-child-command.js'
 
 import { ExecutorSessionScreenSchema, type ExecutorSessionScreen } from '@nessie/executor-protocol'
 
@@ -39,9 +40,11 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       ...(effect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}),
       ...(globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' ? { NESSIE_EXECUTOR_PACKAGED_CLI: '1' } : {}),
     } }
-    const child = await startAgentProcess(helperContext, [
-      globalThis.process.execPath, ...execArgv, resolveExecutorEntry(), 'terminal-session-process',
-    ], (line) => {
+    const terminalCommand = executorChildCommand({
+      execPath: globalThis.process.execPath, execArgv, entry: resolveExecutorEntry(),
+      packaged: globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1',
+    }, ['terminal-session-process'])
+    const child = await startAgentProcess(helperContext, terminalCommand, (line) => {
       try {
         const message = JSON.parse(line) as { socketPath?: unknown }
         if (outcomes.accept(message)) return

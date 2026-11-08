@@ -220,6 +220,16 @@ pub(crate) mod imp {
         NativeError::new(code)
     }
 
+    fn terminate_job(job: &Owned) -> Result<(), NativeError> {
+        // The authorized relay owns a duplicate handle while waiting for input.
+        // Closing only the main handle cannot trigger kill-on-close in that state.
+        // End descendants before asking the service for independent clearance.
+        if unsafe { TerminateJobObject(job.0, ENDED_BY_HELPER) } == 0 {
+            return Err(NativeError::new(CONTAINMENT_FAILED));
+        }
+        Ok(())
+    }
+
     pub fn run(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
         let (program, arguments) = argv.split_first().ok_or(NativeError::new(SPAWN_FAILED))?;
         let parent = parent_process()?;
@@ -287,16 +297,57 @@ pub(crate) mod imp {
                 .ok()
                 .and_then(|status| status.code())
                 .unwrap_or(ENDED_BY_HELPER as i32);
-            // Dropping the job here, before the helper exits, kills whatever
-            // the program left behind, while the exit code is still its own.
+            // A relay may still hold the job open after the root exits. Explicit
+            // termination closes that gap without treating root exit as clearance.
+            terminate_job(&job)?;
             drop(job);
             return Ok(code);
         }
         // The session host is gone, or the wait itself failed: either way no
         // one is left to end this job later, so it ends now.
-        unsafe { TerminateJobObject(job.0, ENDED_BY_HELPER) };
+        terminate_job(&job)?;
         let _ = child.wait();
         Ok(ENDED_BY_HELPER as i32)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+
+        #[test]
+        fn explicit_job_termination_ends_children_while_the_relay_retains_a_handle() {
+            let job = kill_on_close_job().unwrap();
+            let relay = unsafe { BorrowedHandle::borrow_raw(job.0 as _) }
+                .try_clone_to_owned()
+                .unwrap();
+            let program = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32/cmd.exe");
+            // A suspended synthetic child needs no provider, credentials or host
+            // authority. This verifies a kernel primitive, not release admission.
+            let mut child = Command::new(program)
+                .args(["/d", "/c", "exit 0"])
+                .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW)
+                .spawn()
+                .unwrap();
+            assert_ne!(
+                unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) },
+                0
+            );
+            assert_eq!(
+                unsafe { WaitForSingleObject(child.as_raw_handle() as HANDLE, 0) },
+                WAIT_TIMEOUT
+            );
+            terminate_job(&job).unwrap();
+            assert_eq!(
+                unsafe { WaitForSingleObject(child.as_raw_handle() as HANDLE, 5_000) },
+                WAIT_OBJECT_0
+            );
+            child.wait().unwrap();
+            // Keep the relay handle alive through the exit observation.
+            drop(relay);
+        }
     }
 }
 
