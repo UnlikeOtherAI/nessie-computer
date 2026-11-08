@@ -671,6 +671,8 @@ The fixed `t3-session-runtime` CLI now reads SYSTEM's startup frame exactly once
 through `readProtectedT3GraphStartup`. Its later bounded NDJSON channel accepts
 only a configured admitted-root selector, inspect/accept/release/describe and
 close. It receives no source path, settings DTO, machine key or executable.
+All entry failures become a fixed refusal before the CLI error printer; startup
+and original-request decoder diagnostics never cross that boundary.
 Settings and the source snapshot come from `withT3ExecutionResources` inside
 that protected process. It imports once through `withSessionExecutionState` and
 holds the original graph until the channel, source or writer closes.
