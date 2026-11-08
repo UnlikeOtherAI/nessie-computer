@@ -1,3 +1,4 @@
+import { readTerminalEffectFrame, terminalProgramEnvironment } from './terminal-effect-frame.js'
 import { createInterface } from 'node:readline'
 import { spawn } from 'node:child_process'
 import headless from '@xterm/headless'
@@ -9,7 +10,9 @@ export const runWindowsTerminal = async (): Promise<void> => {
   const lines = createInterface({ input: process.stdin })
   const iterator = lines[Symbol.asyncIterator]()
   const first = await iterator.next()
-  const argv: unknown = first.done ? undefined : JSON.parse(first.value)
+  const required = process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1'
+  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required)
+  const argv = launch.value
   if (!Array.isArray(argv) || !argv.length || argv.some((arg) => typeof arg !== 'string' || arg.includes('\0'))) {
     throw new Error('terminal_invalid_command')
   }
@@ -19,8 +22,10 @@ export const runWindowsTerminal = async (): Promise<void> => {
   })
   const serializer = new serialize.SerializeAddon()
   term.loadAddon(serializer)
+  await launch.effect?.consume()
+  launch.effect?.assertLive()
   const child = spawn(argv[0] as string, argv.slice(1) as string[], {
-    cwd: process.cwd(), env: process.env, windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'],
+    cwd: process.cwd(), env: terminalProgramEnvironment(), windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'],
   })
   child.stdout.setEncoding('utf8')
   term.onData((data) => { child.stdin.write(data) })
@@ -54,8 +59,11 @@ export const runWindowsTerminal = async (): Promise<void> => {
   })
   void (async () => {
     for await (const line of { [Symbol.asyncIterator]: () => iterator }) {
-      const data: unknown = JSON.parse(line)
+      const frame = readTerminalEffectFrame(JSON.parse(line), required)
+      const data = frame.value
       if (typeof data !== 'string' || data.length > 32_000) throw new Error('terminal_invalid_input')
+      await frame.effect?.consume()
+      frame.effect?.assertLive()
       child.stdin.write(data)
     }
     child.stdin.end()

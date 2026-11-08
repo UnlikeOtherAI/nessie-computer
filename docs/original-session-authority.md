@@ -31,3 +31,33 @@ Nessie must expose exactly T3's sessions and ordering on each individual
 machine. The current managed-only admission selection does not meet that goal.
 Legacy/native admission and original catalog ordering remain unresolved with
 their owning importer and parity work; omission is not a complete catalog.
+## Effect-boundary correction checkpoint (8 November 2026)
+
+Bound writes now carry the original exact operation through retained request
+intents, secret delivery, host launch and deferred driver turns. Each owner
+consumes through the signed session-authority route after its awaited reads.
+Expired carriers cannot be revived locally. The host does not concatenate a
+previous unconfirmed prompt into a different bound command. Codex queues each
+message with its own carrier; expiry refuses that message.
+
+Start reconciliation precedes new-launch root, configuration and quota checks.
+The journal, metadata, creation phase and returned evidence must agree. Empty
+exclusive claims, missing outcomes and conflicting results remain uncertain.
+No replay creates a host. Bound answer claims are retained after partial writes.
+
+This checkpoint is **not ready for runtime integration**. The Windows native
+`job-run` / `terminal-run` interface has no signed consumption handshake at its
+queued CreateProcessW/ConPTY boundary. The agent guard also relays raw stdin
+without per-operation authority. Bound launches through these transports now
+refuse before starting a provider; they must not silently use the unguarded
+transport. The next implementation must frame each original operation across
+the relay, consume at the receiving owner, acknowledge refusal without deleting
+intent, and preserve the existing Job Object/personal custody fences. It must
+not pass machine credentials to a provider or extend deadlines locally.
+
+Only builtin syntax parsing and whitespace checks ran for this checkpoint.
+Handler tests in the private control-plane repository use real enrollment,
+signed command acceptance and the owning HTTP route. They are authored but
+unrun. Crash-phase replay fixtures are explicit durable-record fixtures, not
+proof that an installed host was created. Native, driver, database and installed
+qualification remain required; no public pin advancement is recommended.

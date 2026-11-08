@@ -1,3 +1,6 @@
+import { SessionEffectRefused, type SessionEffectAuthority } from './session-effect-authority.js'
+import { requestEffectAuthority } from './session-effect-authority.js'
+import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { assertPersonalHostExecution } from '../personal-host-execution.js'
 import { stat, unlink } from 'node:fs/promises'
@@ -263,7 +266,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     return driver
   }
 
-  const deliver = async (text: string, kind: 'start' | 'send'): Promise<void> => {
+  const deliver = async (text: string, kind: 'start' | 'send', effect?: SessionEffectAuthority): Promise<void> => {
     if (!context.mayRunAgent) {
       emit({ kind: 'system', subtype: 'refused', reason: 'config_changed' })
       if (!state.agentSessionStarted) update({ status: 'failed', reason: 'config_changed' })
@@ -274,15 +277,16 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     // confirmed its session, so they went with it. A start delivered again (its host died before it
     // left the inbox) is that first message itself, never a second copy of it.
     const unconfirmed = meta.agent !== 'terminal' && state.agentSessionStarted !== true
-    const held = kind === 'send' && unconfirmed ? state.firstPrompt : undefined
+    const held = !effect && kind === 'send' && unconfirmed ? state.firstPrompt : undefined
     const lost = held !== undefined && !driver?.running()
     if (lost) log('sending the earlier messages again: the agent that had them never confirmed its session')
     const message = lost ? `${held}\n\n${text}` : text
     // However many agents are lost before one confirms, the next gets all of it.
-    if (unconfirmed) update({ firstPrompt: held === undefined ? text : `${held}\n\n${text}` })
+    if (unconfirmed && !effect) update({ firstPrompt: held === undefined ? text : `${held}\n\n${text}` })
     try {
-      await (await prepare()).send(message, randomUUID())
+      await (await prepare()).send(message, randomUUID(), effect)
     } catch (error) {
+      if (error instanceof SessionEffectRefused) throw error
       const reason = error instanceof AgentStartError ? error.reason : 'agent_exited'
       if (reason === 'host_superseded') throw new HostSuperseded()
       log(`the agent could not start: ${reason}`)
@@ -293,22 +297,25 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   }
 
   const handle = async (request: CodingSessionRequest): Promise<void> => {
+    const effect = requestEffectAuthority(dirname(loaded.configPath), meta, request)
+    await effect?.consume()
+    effect?.assertLive()
     if (request.kind === 'retire') {
       retiring = true
     } else if (request.kind === 'answer') {
       const answer = request.answer && unsealHostAnswer(request.answer, answerKey, context.projector)
       // Sealed for a key this host does not hold: nothing can deliver it, so the request ends rather than waits.
       if (request.answer && !answer) book.withdraw(request.answer.requestId, 'expired', 'answer_unreadable')
-      const problem = answer ? book.answer(answer) : 'answer_shape_mismatch'
+      const problem = answer ? book.answer(answer, effect) : 'answer_shape_mismatch'
       if (problem) log(`an answer was not delivered: ${problem}`)
     } else if (request.kind === 'close') {
       book.withdrawAll('cancelled', 'session_closed')
       // The daemon's close carries its categorical reason; an owner's carries none.
-      if (driver) await driver.close(request.reason)
+      if (driver) await driver.close(request.reason, effect)
       else update({ status: 'closed', reason: request.reason, turnStartedAt: undefined })
     } else if (request.kind === 'interrupt') {
       book.withdrawAll('cancelled', 'turn_interrupted')
-      await driver?.interrupt()
+      await driver?.interrupt(undefined, effect)
       // Ctrl-C is a key the terminal's program handles as it likes: a shell stays open, so it never ends one.
       if (driver?.busy() && meta.agent !== 'terminal') pendingInterrupt ??= { at: Date.now(), turn: state.turn }
     } else if (state.status === 'closed' || state.status === 'failed') {
@@ -316,7 +323,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     } else if (request.kind === 'start' && state.turn > 0) {
       // A start this session already acted on (a replay the bridge let through); nothing to do.
     } else if (request.kind === 'start' || request.kind === 'send') {
-      await deliver(request.text ?? '', request.kind)
+      await deliver(request.text ?? '', request.kind, effect)
     }
   }
 
@@ -452,9 +459,12 @@ export const runCodingSessionHost = async (input: { configPath: string; sessionI
     if (outcome === 'retired' && await inboxHasRequests(paths)) {
       // This host runs older code. A request that arrived behind the retirement
       // goes to a successor started from the entry as it is installed now.
+      const pending = (await listRequests(paths)).find(request => request.kind !== 'retire')
+      if (!pending) return
+      const effect = requestEffectAuthority(dirname(loaded.configPath), meta, pending)
       await ensureCodingSessionHost({
         configPath: input.configPath, entry, paths, sessionId: input.sessionId,
-      }, { fresh: true })
+      }, { fresh: true, effect })
     }
     // A closed session's unit is stopped, so nothing its agent started outlives it.
     if ((await readJson<CodingSessionState>(paths.state))?.status === 'closed') await stopOwnUserUnit()

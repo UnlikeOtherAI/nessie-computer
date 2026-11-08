@@ -152,6 +152,7 @@ export type CodingSessionEvent = CodingEventBody & { seq: number; at: string }
 
 /** A request the bridge leaves for the host, named after the executor command that caused it. */
 export type CodingSessionRequest = {
+  sessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority
   id: string
   kind: 'start' | 'send' | 'interrupt' | 'close' | 'retire' | 'answer'
   text?: string

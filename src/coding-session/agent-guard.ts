@@ -1,3 +1,4 @@
+import { SessionEffectAuthority, SessionEffectRefused } from './session-effect-authority.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 
 import { runsInOwnUserUnit } from './host-unit.js'
@@ -59,7 +60,7 @@ const TEARDOWN_MS = 10_000
 /** After the agent's `exit`, how long its pipes stay quiet before a descendant holding them is all that is left. */
 const DRAIN_MS = 1_000
 
-type AgentStart = { command: string; args: string[]; cwd: string; env: Record<string, string> }
+type AgentStart = { sessionEffect?: unknown; command: string; args: string[]; cwd: string; env: Record<string, string> }
 
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string')
 
@@ -68,7 +69,7 @@ const agentStart = (message: unknown): AgentStart | undefined => {
   const env = value?.env as unknown
   if (typeof value?.command !== 'string' || !strings(value.args) || typeof value.cwd !== 'string') return undefined
   if (!env || typeof env !== 'object' || !Object.values(env).every((item) => typeof item === 'string')) return undefined
-  return { command: value.command, args: value.args, cwd: value.cwd, env: env as Record<string, string> }
+  return { sessionEffect: value.sessionEffect, command: value.command, args: value.args, cwd: value.cwd, env: env as Record<string, string> }
 }
 
 export type AgentGuardLaunch = {
@@ -86,14 +87,16 @@ export const guardedProcessControl = (
 ): CodingProcessControl => ({
   ...control,
   spawnAgent: (command, args, options) => {
+    // The raw stdin relay cannot yet reconsume each original operation after queueing.
+    if (options.sessionEffect) throw new SessionEffectRefused()
     // Detached: on Windows libuv puts every other child in its parent's kill-on-close job, which
     // would end the guard with the host before it could act; on POSIX a kill of the host's group
     // would reach it too.
     const guard = spawn(launch.argv[0]!, launch.argv.slice(1), {
-      cwd: launch.cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe', 'ipc'], windowsHide: true, shell: false, detached: true,
+      cwd: launch.cwd, env: { ...launch.env, ...(options.sessionEffect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}) }, stdio: ['pipe', 'pipe', 'pipe', 'ipc'], windowsHide: true, shell: false, detached: true,
     })
     // A guard that dies before reading this exits on its own, and that exit is the failure the host sees.
-    guard.send({ kind: 'start', command, args, cwd: options.cwd, env: options.env }, () => undefined)
+    guard.send({ kind: 'start', sessionEffect: options.sessionEffect, command, args, cwd: options.cwd, env: options.env }, () => undefined)
     return guard
   },
   /**
@@ -312,6 +315,10 @@ export const runCodingAgentGuard = async (
     process.exit(REFUSED)
   }
 
+  const effect = SessionEffectAuthority.fromReference(request.sessionEffect)
+  if (process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1' && !effect) throw new SessionEffectRefused()
+  await effect?.consume()
+  effect?.assertLive()
   const child = control.spawnAgent(request.command, request.args, { cwd: request.cwd, env: request.env })
   agent = child
   const ending = watchAgentEnding(child)

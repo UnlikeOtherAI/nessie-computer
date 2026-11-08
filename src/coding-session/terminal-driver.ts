@@ -1,3 +1,5 @@
+import { terminalEffectFrame } from './terminal-effect-frame.js'
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -23,7 +25,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
   const writer = createDebouncedJsonWriter(
     join(context.paths.dir, 'terminal.json'), () => screen, context.log, 100, context.stillOwner,
   )
-  const start = async (): Promise<AgentProcess> => {
+  const start = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     if (!await context.stillOwner()) throw new AgentStartError('host_superseded')
     // PTYs cannot resume a killed process. The closed screen remains readable;
     // a fresh session is required rather than silently replaying its commands.
@@ -33,6 +35,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     ))
     const helperContext = { ...context, env: {
       ...context.env,
+      ...(effect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}),
       ...(globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' ? { NESSIE_EXECUTOR_PACKAGED_CLI: '1' } : {}),
     } }
     const child = await startAgentProcess(helperContext, [
@@ -48,7 +51,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
         const parsed = ExecutorSessionScreenSchema.safeParse(message)
         if (parsed.success) { screen = parsed.data; writer.schedule() }
       } catch { /* A malformed helper frame never becomes terminal content. */ }
-    })
+    }, effect)
     process = child
     // One program for the session's whole life, not a turn: no turn limit applies to it (host.ts).
     context.update({ agentIdentity: child.identity, status: 'working', turn: 1 })
@@ -59,7 +62,9 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       if (!helper) throw new AgentStartError('terminal_helper_missing')
       argv.unshift(helper, 'terminal-run', '--')
     }
-    child.write(`${JSON.stringify(argv)}\n`)
+    await effect?.consume()
+    effect?.assertLive()
+    child.write(terminalEffectFrame(argv, effect))
     settled = false
     void child.exited.then(async ({ code }) => {
       await writer.flush()
@@ -71,10 +76,12 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     }).finally(() => { settled = true })
     return child
   }
-  const stop = async (): Promise<void> => {
+  const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     ending = true
     if (process) {
       const descendants = await context.control.descendants(process.identity)
+      await effect?.consume()
+      effect?.assertLive()
       const stopped = process.confirmHostExecutionStopped
         ? await process.confirmHostExecutionStopped(descendants)
         : (await context.control.killTree(process.identity, descendants), true)
@@ -85,12 +92,14 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     context.update({ turnStartedAt: undefined })
   }
   return {
-    send: async (data) => {
-      const child = process?.alive() ? process : await start()
-      if (data) child.write(`${JSON.stringify(data)}\n`)
+    send: async (data, _uuid, effect) => {
+      const child = process?.alive() ? process : await start(effect)
+      await effect?.consume()
+      effect?.assertLive()
+      if (data) child.write(terminalEffectFrame(data, effect))
     },
-    interrupt: async () => { process?.write(`${JSON.stringify('\u0003')}\n`) },
-    close: async (reason) => { await stop(); context.update({ status: 'closed', reason }) },
+    interrupt: async (_reason, effect) => { await effect?.consume(); effect?.assertLive(); process?.write(terminalEffectFrame('\u0003', effect)) },
+    close: async (reason, effect) => { await stop(effect); context.update({ status: 'closed', reason }) },
     endIdle: stop,
     running: () => process?.alive() === true || !settled,
     busy: () => process?.alive() === true || !settled,

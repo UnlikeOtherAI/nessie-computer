@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 
 import {
@@ -125,7 +126,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     }
   }
 
-  const start = async (): Promise<AgentProcess> => {
+  const start = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     const state = context.state()
     const sessionId = state.agentSessionId ?? randomUUID()
     const resume = state.agentSessionId !== undefined && state.agentSessionStarted === true
@@ -146,7 +147,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         sessionId, resume, ...(context.maxBudgetUsd === undefined ? {} : { maxBudgetUsd: context.maxBudgetUsd }),
         ...(context.secretServer ? { mcpServer: context.secretServer } : {}),
       }),
-    ], (line) => handle(current.accept(line), readyHooks))
+    ], (line) => handle(current.accept(line), readyHooks), effect)
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
     void spawned.exited.then(({ code }) => {
@@ -167,6 +168,8 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
       }
     })
+    await effect?.consume()
+    effect?.assertLive()
     spawned.write(claudeControlLine('initialize'))
     const timer = setTimeout(() => rejectReady(new AgentStartError('agent_exited')), READY_TIMEOUT_MS)
     try {
@@ -177,23 +180,27 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     return spawned
   }
 
-  const ensureAgent = async (): Promise<AgentProcess> => {
+  const ensureAgent = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     if (agent?.alive()) return agent
-    starting ??= start().finally(() => { starting = undefined })
+    starting ??= start(effect).finally(() => { starting = undefined })
     return starting
   }
 
-  const stop = async (): Promise<void> => {
+  const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
     const identity = current?.identity ?? context.state().agentIdentity
     if (!identity) return
     ending = true
     const snapshot = await context.control.descendants(identity)
+    await effect?.consume()
+    effect?.assertLive()
     if (current?.alive()) {
       current.write(claudeControlLine('end_session'))
       current.endInput()
       await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
     }
+    await effect?.consume()
+    effect?.assertLive()
     const stopped = current?.confirmHostExecutionStopped
       ? await current.confirmHostExecutionStopped(snapshot)
       : (await context.control.killTree(identity, snapshot), true)
@@ -207,25 +214,29 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   }
 
   return {
-    send: async (text, uuid) => {
+    send: async (text, uuid, effect) => {
       if (context.maxBudgetUsd !== undefined && agent?.alive() && stream && !stream.busy()
         && stream.processCostUsd() > 0 && stream.backgroundTasks() === 0) {
         context.log('starting a fresh claude process so the next turn has its whole budget')
-        await stop()
+        await stop(effect)
       }
-      const running = await ensureAgent()
+      const running = await ensureAgent(effect)
+      await effect?.consume()
+      effect?.assertLive()
       stream?.noteSent(uuid)
       beginTurn()
       running.write(claudeUserLine(uuid, text))
     },
-    interrupt: async (reason) => {
+    interrupt: async (reason, effect) => {
       if (!agent?.alive() || !stream?.busy()) return
       interruptRequested = true
       interruptReason = reason
+      await effect?.consume()
+      effect?.assertLive()
       agent.write(claudeControlLine('interrupt'))
     },
-    close: async (reason) => {
-      await stop()
+    close: async (reason, effect) => {
+      await stop(effect)
       context.update({ status: 'closed', reason, turnStartedAt: undefined })
     },
     endIdle: stop,

@@ -1,3 +1,4 @@
+import { SessionEffectRefused } from './session-effect-authority.js'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { CodingProcessControl } from './process-control.js'
@@ -197,11 +198,15 @@ export const windowsControl = (
     ...(refusal ? { refusal } : {}),
     // Through the helper the program is resolved and started by `CreateProcessW`
     // inside the job; the host still holds the same three pipes.
-    spawnAgent: (command, args, options) => spawn(
+    spawnAgent: (command, args, options) => {
+      // job-run has no signed effect-consumption handshake at CreateProcessW yet.
+      if (jobHelper && options.sessionEffect) throw new SessionEffectRefused()
+      return spawn(
       jobHelper ?? command,
       jobHelper ? ['job-run', '--', command, ...args] : args,
       { cwd: options.cwd, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false },
-    ),
+      )
+    },
     identify: async (pid) => {
       const started = await startTimeOfLive(pid, startedAt)
       return started === undefined ? undefined : { pid, startedAt: started }

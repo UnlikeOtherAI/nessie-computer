@@ -1,3 +1,4 @@
+import { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
@@ -5,8 +6,8 @@ import { dirname, join } from 'node:path'
 import { ExecutorCodingSessionCloseSchema, type PersonalInferenceAuthority,
   type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { listManagedSessions } from './managed-session-list.js'
-import { claimManagedStart, recordManagedStartOutcome } from './managed-session-start.js'
-import { managedSessionEvidence, preparedManagedSessionAuthority,
+import { claimManagedStart, recordManagedStartOutcome, reconcileManagedStart } from './managed-session-start.js'
+import { managedSessionEvidence, preparedManagedSessionAuthority, originalManagedEffectScope,
   readSessionPairingSource, requireManagedSessionEvidence } from './session-authority.js'
 import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
@@ -182,9 +183,9 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   }
 
   /** `fresh` for a new request, which gets hosts of its own even after earlier ones failed to start. */
-  const ensureHost = (paths: CodingSessionPaths, sessionId: string, fresh = false) => ensureCodingSessionHost({
+  const ensureHost = (paths: CodingSessionPaths, sessionId: string, fresh = false, effect?: SessionEffectAuthority) => ensureCodingSessionHost({
     configPath: loaded.configPath, entry, paths, sessionId,
-  }, { fresh })
+  }, { fresh, effect })
 
   /** A command id seen before returns the first outcome and does nothing else. */
   const replayed = async (commandId: string, ownerKey: string): Promise<CommandRecord | undefined> => {
@@ -221,10 +222,15 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   const start = async (
     value: unknown, ownerKey: string, commandId: string, commandRules: LocalCommandPolicy | undefined,
     personalAuthority?: PersonalInferenceAuthority,
-    authority?: ExecutorCodingSessionAuthority,
+    authority?: ExecutorCodingSessionAuthority, effect?: SessionEffectAuthority,
   ): Promise<Record<string, unknown>> => {
     // A command already acted on answers with its first outcome, before anything is checked again: rules
     // tightened or a folder removed since then must not turn the retry of a start that happened into a refusal.
+    if (authority) {
+      await effect!.consume()
+      const accepted = await reconcileManagedStart(stateDir, authority)
+      if (accepted) { await effect!.consume(); return accepted.replay }
+    }
     const previous = authority ? undefined : await replayed(commandId, ownerKey)
     if (previous) {
       const paths = codingSessionPaths(stateDir, previous.sessionId)
@@ -247,8 +253,8 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
         `You already have ${live.length} open coding sessions on this machine, the most it allows. Close one first.`,
       )
     }
-    const original = authority ? await claimManagedStart(stateDir, authority) : undefined
-    if (original?.replay) return original.replay
+    const original = authority ? await claimManagedStart(stateDir, authority, effect) : undefined
+    if (original?.replay) { await effect?.consume(); return original.replay }
     const sessionId = original?.sessionId ?? randomUUID()
     const claimed = authority ? undefined : await claimCommand(stateDir,
       { commandId, ownerKey, tool: 'session_start', sessionId, at: new Date().toISOString() })
@@ -257,9 +263,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       return { sessionId: claimed.sessionId, ...await briefStatus(paths), replayed: true }
     }
     const paths = codingSessionPaths(stateDir, sessionId)
-    if (authority && Date.parse(authority.expiresAt) <= Date.now()) {
-      throw new CodingBridgeError('coding_session_authority_unavailable', 'Original session authority expired.')
-    }
+    effect?.assertLive()
     await mkdir(paths.inbox, { recursive: true, mode: 0o700 })
     const { rootName, path, title } = target
     const meta: CodingSessionMeta = {
@@ -269,16 +273,14 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       ...(personalAuthority ? { personalAuthority } : {}),
       ...(target.command ? { command: target.command, cwd: target.cwd! } : {}),
     }
-    const created = await createJsonExclusive(paths.meta, meta)
+    const created = await createJsonExclusive(paths.meta, meta, effect)
     if (authority && !created) throw new CodingBridgeError('coding_session_start_outcome_unknown',
       'The original start metadata conflicts. Reconcile the original command before starting again.')
-    if (authority && Date.parse(authority.expiresAt) <= Date.now()) {
-      throw new CodingBridgeError('coding_session_start_outcome_unknown', 'The original start requires reconciliation.')
-    }
-    const written = await writeRequest(paths, { id: commandId, kind: 'start', text: target.prompt, at: meta.createdAt })
+    effect?.assertLive()
+    const written = await writeRequest(paths, { id: commandId, kind: 'start', text: target.prompt, at: meta.createdAt }, effect)
     if (authority && !written) throw new CodingBridgeError('coding_session_start_outcome_unknown',
       'The original start request conflicts. Reconcile the original command before starting again.')
-    const host = await ensureHost(paths, sessionId, true)
+    const host = await ensureHost(paths, sessionId, true, effect)
     if (authority && host !== 'spawned' && host !== 'live') throw new CodingBridgeError('coding_session_start_outcome_unknown',
       'The original host creation is unconfirmed. Reconcile the original command before starting again.')
     const result = { sessionId, status: 'starting', agent, ...(target.command ? {} : { root: rootName, path }), title,
@@ -291,7 +293,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   /** send, interrupt and close: one request per executor command, then a live host. */
   const request = async (
     kind: 'send' | 'interrupt' | 'close', value: unknown, ownerKey: string, commandId: string,
-    authority?: ExecutorCodingSessionAuthority,
+    authority?: ExecutorCodingSessionAuthority, effect?: SessionEffectAuthority,
   ): Promise<Record<string, unknown>> => {
     const args = argumentsFor(value, kind === 'send' ? ['sessionId', 'message', 'terminal'] : ['sessionId'])
     const { paths, meta } = await owned(args.sessionId, ownerKey, authority)
@@ -321,10 +323,10 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     if (kind === 'interrupt' && !derived.hostLive && !derived.hostStarting && derived.reason !== 'host_lost') {
       return { sessionId: meta.sessionId, status: derived.status, interrupted: false }
     }
-    await claimCommand(stateDir, { commandId, ownerKey, tool: `session_${kind}`, sessionId: meta.sessionId, at: new Date().toISOString() })
+    await claimCommand(stateDir, { commandId, ownerKey, tool: `session_${kind}`, sessionId: meta.sessionId, at: new Date().toISOString() }, effect)
     const at = new Date().toISOString()
-    await writeRequest(paths, { id: commandId, kind, ...(text === undefined ? {} : { text }), at })
-    await ensureHost(paths, meta.sessionId, true)
+    await writeRequest(paths, { id: commandId, kind, ...(text === undefined ? {} : { text }), at }, effect)
+    await ensureHost(paths, meta.sessionId, true, effect)
     return {
       sessionId: meta.sessionId,
       status: kind === 'close' ? 'closing' : derived.status,
@@ -429,6 +431,8 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     call: async (tool, args, meta) => {
       try {
         const authority = preparedManagedSessionAuthority(meta)
+        const effectScope = originalManagedEffectScope(meta)
+        const effect = effectScope ? new SessionEffectAuthority(dirname(loaded.configPath), effectScope) : undefined
         const system = meta.daemonControl && ['session_close_all', 'session_list_all', 'session_inventory'].includes(tool)
         if (!system) await readSessionPairingSource(dirname(loaded.configPath), meta.sessionPairingSource)
         if (meta.sessionPairingSource?.kind === 'bound' && !authority
@@ -439,7 +443,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
           await assertPersonalHostExecution(meta.personalAuthority)
         }
         const commandId = commandIdOf(meta)
-        if (!reviewed && !ALLOWED_UNREVIEWED.has(tool)) requireReviewedConfig()
+        if (!reviewed && tool !== 'session_start' && !ALLOWED_UNREVIEWED.has(tool)) requireReviewedConfig()
         if (tool === 'session_close_all') return await closeAll(args, meta, commandId)
         if (tool === 'session_list_all') return await listAll(args, meta)
         if (tool === 'session_inventory') return await listAll(args, meta, true)
@@ -458,21 +462,21 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
           return await listManagedSessions(loaded, rootSet, ownerKey, authority)
         }
         if (tool === 'session_start') {
-          return await start(args, ownerKey, commandId, meta.commandRules, meta.personalAuthority, authority)
+          return await start(args, ownerKey, commandId, meta.commandRules, meta.personalAuthority, authority, effect)
         }
         if (tool === 'session_status') return await status(args, ownerKey, authority)
-        if (tool === 'session_send') return await request('send', args, ownerKey, commandId, authority)
-        if (tool === 'session_interrupt') return await request('interrupt', args, ownerKey, commandId, authority)
-        if (tool === 'session_close') return await request('close', args, ownerKey, commandId, authority)
+        if (tool === 'session_send') return await request('send', args, ownerKey, commandId, authority, effect)
+        if (tool === 'session_interrupt') return await request('interrupt', args, ownerKey, commandId, authority, effect)
+        if (tool === 'session_close') return await request('close', args, ownerKey, commandId, authority, effect)
         if (tool === 'session_review') return await review(args, ownerKey, authority)
         if (tool === 'session_answer') {
           daemonOnly(meta)
           const { sessionId, answer } = argumentsFor(args, ['sessionId', 'answer'])
           const { paths, meta: session } = await owned(sessionId, ownerKey, authority)
-          return await answerSessionRequest({ paths, answer, commandId,
+          return await answerSessionRequest({ paths, answer, commandId, effect,
             hostLive: (await deriveCodingStatus(paths, await readState(paths))).hostLive,
             folder: () => resolveCodingFolder(findCodingRoot(rootSet, session.rootName), session.path),
-            ensureHost: () => ensureHost(paths, session.sessionId) })
+            ensureHost: () => ensureHost(paths, session.sessionId, false, effect) })
         }
         throw new CodingBridgeError('coding_session_unknown_tool', 'That is not a coding-sessions tool.')
       } catch (error) {

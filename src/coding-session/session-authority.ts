@@ -76,6 +76,9 @@ export const requireManagedSessionEvidence = (
   return actual
 }
 
+const originalEffects = new WeakMap<CodingBridgeCallMeta, ExecutorCodingSessionAuthority>()
+export const originalManagedEffectScope = (meta: CodingBridgeCallMeta) => originalEffects.get(meta)
+
 const prepared = new WeakMap<CodingBridgeCallMeta, ExecutorCodingSessionAuthority>()
 export const preparedManagedSessionAuthority = (meta: CodingBridgeCallMeta) => {
   const scope = prepared.get(meta)
@@ -94,6 +97,7 @@ export const managedActionOperationMeta = (
   const innerAuthority = { ...authority, operation }
   const inner = { ...meta, codingSessionAuthority: innerAuthority }
   prepared.set(inner, innerAuthority)
+  originalEffects.set(inner, originalEffects.get(meta) ?? authority)
   return inner
 }
 
@@ -120,5 +124,6 @@ export const prepareManagedBridgeCall = async (
     requireManagedSessionEvidence(authority, session)
   }
   prepared.set(meta, authority)
+  originalEffects.set(meta, authority)
   return authority
 }

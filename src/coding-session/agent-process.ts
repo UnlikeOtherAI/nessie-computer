@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { createWriteStream } from 'node:fs'
 import type { ChildProcess } from 'node:child_process'
 import { createInterface } from 'node:readline'
@@ -46,11 +47,11 @@ export type AgentDriverContext = {
 
 export type AgentDriver = {
   /** The first message starts (or resumes) the agent; later ones follow up. */
-  send: (text: string, uuid: string) => Promise<void>
+  send: (text: string, uuid: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Stops the running turn; `reason` becomes the interrupted status's reason. */
-  interrupt: (reason?: string) => Promise<void>
+  interrupt: (reason?: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Ends the agent and every process under it; the session is closed, `reason` its closed status's reason. */
-  close: (reason?: string) => Promise<void>
+  close: (reason?: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Ends the agent process only; the session stays resumable. */
   endIdle: () => Promise<void>
   running: () => boolean
@@ -98,13 +99,17 @@ export const startAgentProcess = async (
   context: Pick<AgentDriverContext, 'control' | 'env' | 'folder' | 'paths' | 'log' | 'personalAuthority' | 'personalGuard'>,
   argv: readonly string[],
   onLine: (line: string) => void,
+  effect?: SessionEffectAuthority,
 ): Promise<AgentProcess> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
   const protectionLease = await admitPersonalHostExecution('coding/terminal', context.personalAuthority, context.personalGuard)
   let child: ChildProcess
   try {
     await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
-    child = context.control.spawnAgent(argv[0]!, argv.slice(1), { cwd: context.folder, env: context.env })
+    await effect?.consume()
+    effect?.assertLive()
+    child = context.control.spawnAgent(argv[0]!, argv.slice(1), { cwd: context.folder, env: context.env,
+      ...(effect ? { sessionEffect: effect.reference } : {}) })
   }
   catch (error) { await protectionLease?.release(); throw error }
   const spawned = await new Promise<boolean>((settle) => {

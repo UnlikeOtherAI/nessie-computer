@@ -1,8 +1,9 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import type { ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { CodingBridgeError } from './bridge-tools.js'
-import { codingCommandsDir, codingSessionPaths, createJsonExclusive, ensurePrivateDir, readJson } from './session-files.js'
+import { codingCommandsDir, codingSessionPaths, createJsonExclusive, ensurePrivateDir, readJson, readJsonFile } from './session-files.js'
 import { claimCommand, listSessionMetas, readSessionMeta, type CommandRecord } from './session-requests.js'
 import { managedSessionEvidence, type ManagedStart } from './session-authority.js'
 
@@ -11,12 +12,11 @@ const uncertain = () => new CodingBridgeError('coding_session_start_outcome_unkn
   'The original start outcome is unavailable. Reconcile the original command before starting again.')
 
 /** This journal is retained with session history; ordinary command-record pruning never removes it. */
-export const claimManagedStart = async (
+export const reconcileManagedStart = async (
   stateDir: string, authority: ExecutorCodingSessionAuthority,
-): Promise<{ sessionId: string; replay?: Record<string, unknown> }> => {
+): Promise<{ sessionId: string; replay: Record<string, unknown> } | undefined> => {
   const { commandId, executorId, originalOwnerGeneration, ownerKey } = authority
   const directory = join(stateDir, 'accepted-starts')
-  await ensurePrivateDir(directory)
   const path = join(directory, `${commandId}.json`)
   const replay = async (record: StartRecord) => {
     if (record.tool !== 'session_start' || record.executorId !== executorId
@@ -32,24 +32,40 @@ export const claimManagedStart = async (
     if (!outcome || outcome.sessionId !== meta.sessionId || outcome.startCommandId !== commandId
       || outcome.evidenceDigest !== proof.evidenceDigest || outcome.phase !== 'request_and_host_created'
       || !outcome.result || typeof outcome.result !== 'object' || Array.isArray(outcome.result)) throw uncertain()
+    const result = outcome.result as Record<string, unknown>
+    if (result.sessionId !== meta.sessionId || result.startPhase !== 'request_and_host_created'
+      || JSON.stringify(result.startEvidence) !== JSON.stringify(proof)) throw uncertain()
     // Replay the original structural outcome. Never read history or restart a host during reconciliation.
     return { sessionId: record.sessionId, replay: outcome.result as Record<string, unknown> }
   }
-  const previous = await readJson<StartRecord>(path)
-  if (previous) return replay(previous)
+  const previous = await readJsonFile<StartRecord>(path)
+  if (previous.found === 'unreadable') throw uncertain()
+  if (previous.found === 'yes') return replay(previous.value)
   const legacy = await readJson<CommandRecord>(join(codingCommandsDir(stateDir), `${commandId}.json`))
   if (legacy || (await listSessionMetas(stateDir)).some(meta => meta.originalManagedStart?.startCommandId === commandId)) {
     throw uncertain()
   }
+  return undefined
+}
+
+export const claimManagedStart = async (
+  stateDir: string, authority: ExecutorCodingSessionAuthority, effect?: SessionEffectAuthority,
+): Promise<{ sessionId: string; replay?: Record<string, unknown> }> => {
+  const previous = await reconcileManagedStart(stateDir, authority)
+  if (previous) return previous
+  const { commandId, executorId, originalOwnerGeneration, ownerKey } = authority
+  const directory = join(stateDir, 'accepted-starts')
+  await ensurePrivateDir(directory)
+  const path = join(directory, `${commandId}.json`)
   const record: StartRecord = { executorId, originalOwnerGeneration, startCommandId: commandId,
     ownerKey, sessionId: randomUUID(), tool: 'session_start' }
-  if (!await createJsonExclusive(path, record)) {
-    const raced = await readJson<StartRecord>(path)
+  if (!await createJsonExclusive(path, record, effect)) {
+    const raced = await reconcileManagedStart(stateDir, authority)
     if (!raced) throw uncertain()
-    return replay(raced)
+    return raced
   }
   const claimed = await claimCommand(stateDir, { commandId, ownerKey, tool: 'session_start',
-    sessionId: record.sessionId, at: new Date().toISOString() })
+    sessionId: record.sessionId, at: new Date().toISOString() }, effect)
   if (claimed) throw uncertain()
   return { sessionId: record.sessionId }
 }

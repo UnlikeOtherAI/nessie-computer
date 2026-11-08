@@ -1,3 +1,4 @@
+import { SessionEffectRefused, type SessionEffectAuthority } from './session-effect-authority.js'
 import { readFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -58,8 +59,8 @@ const record = (value: unknown): value is Record<string, unknown> => (
  * One `codex app-server` per live host, holding the session's thread: the
  * first message starts it (`thread/start`), and a later process resumes it
  * (`thread/resume`). Each message is a `turn/start`; one sent while a turn
- * runs waits for that turn to end and starts the next, joined with any other
- * waiting message. Interrupt is `turn/interrupt`; Codex's own requests wait
+ * runs waits for that turn to end and starts its own next turn with its original
+ * authority. Interrupt is `turn/interrupt`; Codex's own requests wait
  * for the owner (`codex-requests.ts`). Ending the process ends nothing the
  * thread remembers, so a session idle long enough loses only its process.
  */
@@ -73,16 +74,20 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
   let turnActive = false
   let turnBeginning = false
   let turnId: string | undefined
-  let interrupt: { reason?: string; sent: boolean } | undefined
+  let interrupt: { reason?: string; sent: boolean; effect?: SessionEffectAuthority } | undefined
   let closing = false
   let ending = false
-  const queue: string[] = []
+  const queue: { text: string; effect?: SessionEffectAuthority }[] = []
   const fileChanges = new Map<string, FileChange[]>()
   /** Codex's request id → the owner's request id, while it waits. */
   const asked = new Map<string | number, string>()
 
-  const sendInterrupt = (): void => {
+  const sendInterrupt = async (): Promise<void> => {
     if (!interrupt || interrupt.sent || !rpc || !threadId || !turnId) return
+    const pending = interrupt
+    await pending.effect?.consume()
+    pending.effect?.assertLive()
+    if (interrupt !== pending || !rpc || !threadId || !turnId) return
     interrupt.sent = true
     void rpc.request('turn/interrupt', { threadId, turnId }).catch(() => undefined)
   }
@@ -106,12 +111,21 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     })
     interrupt = undefined
     if (closing || queue.length === 0) return
-    const next = queue.splice(0).join('\n\n')
-    context.update({ queued: 0 })
-    void runTurn(next).catch((error: unknown) => {
-      const reason = error instanceof AgentStartError ? error.reason : 'agent_exited'
-      if (reason !== 'host_superseded') context.update({ status: 'interrupted', reason })
-    })
+    void drainQueue()
+  }
+
+  const drainQueue = async (): Promise<void> => {
+    while (!closing && !turnActive && !turnBeginning && queue.length) {
+      const next = queue.shift()!
+      context.update({ queued: queue.length })
+      try { await runTurn(next.text, next.effect) }
+      catch (error) {
+        const reason = error instanceof SessionEffectRefused ? 'session_authority_unavailable'
+          : error instanceof AgentStartError ? error.reason : 'agent_exited'
+        context.update({ status: 'interrupted', reason })
+        // The bridge's immutable request intent remains available for reconciliation.
+      }
+    }
   }
 
   const serve = (request: CodexServerRequest): void => {
@@ -124,7 +138,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     if (plan.kind === 'reply') return connection.respond(request.id, plan.result)
     if (plan.kind === 'unsupported') return connection.respondError(request.id, 'This client does not serve that request.')
     const opened = context.requests.open(plan.draft, {
-      answer: (answer) => {
+      answer: (answer, effect) => {
+        effect?.assertLive()
         asked.delete(request.id)
         const reply = plan.answer(answer)
         connection.respond(request.id, reply.result)
@@ -134,8 +149,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
             input: [{ type: 'text', text: reply.feedback, text_elements: [] }] }).catch(() => undefined)
         }
         if (reply.stopsTurn) {
-          interrupt ??= { sent: false }
-          sendInterrupt()
+          interrupt ??= { sent: false, effect }
+          void sendInterrupt().catch(() => context.log('Original interrupt intent requires reconciliation.'))
         }
       },
       withdraw: (_status, reason) => {
@@ -176,7 +191,7 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     if (signals.test) context.update({ lastTest: signals.test })
     if (signals.turnId && turnActive) {
       turnId = signals.turnId
-      sendInterrupt()
+      void sendInterrupt().catch(() => context.log('Original interrupt intent requires reconciliation.'))
     }
     if (signals.resolvedRequest !== undefined) {
       const id = asked.get(signals.resolvedRequest)
@@ -204,21 +219,25 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     }
   }
 
-  const start = async (): Promise<void> => {
+  const start = async (effect?: SessionEffectAuthority): Promise<void> => {
     if ('unsupported' in policy) throw new AgentStartError('agent_args_unsupported')
     if (!await context.stillOwner()) throw new AgentStartError('host_superseded')
     const spawned = await startAgentProcess(context, [
       context.agent.command[0]!, ...codexAppServerArguments(context.agent),
-    ], (line) => accept(line))
+    ], (line) => accept(line), effect)
     agent = spawned
     rpc = new CodexAppConnection((line) => spawned.write(line))
     context.update({ agentIdentity: spawned.identity })
     void spawned.exited.then(() => exited(spawned))
     const connection = rpc
     try {
+      await effect?.consume()
+      effect?.assertLive()
       await connection.request('initialize', {
         clientInfo: { name: 'nessie_executor', version: '1.0.0' }, capabilities: { experimentalApi: true },
       })
+      await effect?.consume()
+      effect?.assertLive()
       connection.notify('initialized')
       const secret = context.secretServer
       const params = {
@@ -235,6 +254,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
       }
       const state = context.state()
       const resume = state.agentSessionStarted === true ? state.agentSessionId : undefined
+      await effect?.consume()
+      effect?.assertLive()
       const answer = await connection.request(resume ? 'thread/resume' : 'thread/start', {
         ...(resume ? { threadId: resume } : {}), ...params,
       })
@@ -247,7 +268,7 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
       if (!state.agentSessionStarted) context.update({ agentSessionId: thread.id, agentSessionStarted: true })
     } catch (error) {
       await stop()
-      if (error instanceof AgentStartError) throw error
+      if (error instanceof AgentStartError || error instanceof SessionEffectRefused) throw error
       throw new AgentStartError(resumeFailed(error) ? 'agent_resume_failed' : agentFailureReason(spawned.stderrTail()))
     }
   }
@@ -256,16 +277,19 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     !!error && typeof error === 'object' && (error as { method?: unknown }).method === 'thread/resume'
   )
 
-  const ensureStarted = async (): Promise<void> => {
+  const ensureStarted = async (effect?: SessionEffectAuthority): Promise<void> => {
     if (agent?.alive() && rpc && threadId) return
-    starting ??= start().finally(() => { starting = undefined })
+    starting ??= start(effect).finally(() => { starting = undefined })
     await starting
   }
 
-  const runTurn = async (text: string): Promise<void> => {
+  const runTurn = async (text: string, effect?: SessionEffectAuthority): Promise<void> => {
     turnBeginning = true
     try {
-      await ensureStarted()
+      await effect?.consume()
+      await ensureStarted(effect)
+      await effect?.consume()
+      effect?.assertLive()
       if (closing || !rpc || !threadId) return
       const state = context.state()
       context.emit({ kind: 'user', text: context.projector.text(text, CODING_EVENT_LIMITS.user) })
@@ -282,25 +306,30 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
       const started = record(answer) && record(answer.turn) ? answer.turn : {}
       if (turnActive && typeof started.id === 'string') {
         turnId ??= started.id
-        sendInterrupt()
+        void sendInterrupt().catch(() => context.log('Original interrupt intent requires reconciliation.'))
       }
     } finally {
       turnBeginning = false
+      if (!turnActive && queue.length && !closing) void drainQueue()
     }
   }
 
-  const stop = async (): Promise<void> => {
+  const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
     const identity = current?.identity ?? context.state().agentIdentity
     if (!identity) return
     ending = true
     try {
       const snapshot = await context.control.descendants(identity)
+      await effect?.consume()
+      effect?.assertLive()
       if (current?.alive()) {
         // The app-server leaves when its input ends; anything it leaves behind is stopped below.
         current.endInput()
         await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
       }
+      await effect?.consume()
+      effect?.assertLive()
       const stopped = current?.confirmHostExecutionStopped
         ? await current.confirmHostExecutionStopped(snapshot)
         : (await context.control.killTree(identity, snapshot), true)
@@ -317,23 +346,23 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
   }
 
   return {
-    send: async (text) => {
+    send: async (text, _uuid, effect) => {
       if (turnActive || turnBeginning || starting) {
-        queue.push(text)
+        queue.push({ text, effect })
         context.update({ queued: queue.length })
         return
       }
-      await runTurn(text)
+      await runTurn(text, effect)
     },
-    interrupt: async (reason) => {
+    interrupt: async (reason, effect) => {
       if (!turnActive && !turnBeginning) return
-      interrupt ??= { ...(reason ? { reason } : {}), sent: false }
-      sendInterrupt()
+      interrupt ??= { ...(reason ? { reason } : {}), sent: false, effect }
+      await sendInterrupt()
     },
-    close: async (reason) => {
+    close: async (reason, effect) => {
       closing = true
+      await stop(effect)
       queue.length = 0
-      await stop()
       if (turnActive) {
         turnActive = false
         context.emit({ kind: 'result', text: '', isError: true, subtype: 'interrupted', permissionDenials: [] })

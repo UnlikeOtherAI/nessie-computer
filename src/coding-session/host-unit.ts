@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { execFile } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
@@ -152,10 +153,13 @@ export const startHostInUserUnit = async (input: {
   hostLog: string
   sessionId: string
   manager: UserManager
+  effect?: SessionEffectAuthority
   run?: UnitRunner
 }): Promise<{ pid: number | undefined } | undefined> => {
   const run = input.run ?? runUnitTool
   const unit = codingSessionUnitName(input.sessionId)
+  await input.effect?.consume()
+  input.effect?.assertLive()
   const started = await run('systemd-run', systemdRunArguments({
     argv: input.argv, cwd: process.cwd(), environment: input.manager.environment, hostLog: input.hostLog, unit,
   }), input.manager.environment)
