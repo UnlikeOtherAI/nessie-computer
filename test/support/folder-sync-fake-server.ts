@@ -83,7 +83,10 @@ export class FolderSyncFakeServer {
   readonly connectionEpoch = '1'
   readonly apiBaseUrl = 'https://nessie.test'
   status: FolderSyncRecordStatus = 'live'
-  teamLabel = 'UnlikeOtherAI'
+  teamLabel = 'Platform'
+  organizationName = 'UnlikeOtherAI'
+  /** Nessie names the organisation in the handshake when asked; false is a Nessie from before that. */
+  handshakeNamesOrganization = true
   /** The computer's label as Nessie shows it, which the handshake names. */
   computerLabel = 'Laptop'
   maxUploadBytes = 5 * 1024 * 1024 * 1024

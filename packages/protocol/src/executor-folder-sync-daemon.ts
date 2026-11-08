@@ -156,6 +156,12 @@ export const FolderSyncHandshakeRequestSchema = signedRequest('handshake', {
       includeSensitive: z.boolean(),
     })
     .strict(),
+  /**
+   * The daemon reads `organizationName` in the answer. Earlier daemons parse
+   * the answer strictly, so Nessie sends that field only when asked. Ship
+   * order: Nessie accepts this field before any daemon sends it.
+   */
+  wantsOrganizationName: z.literal(true).optional(),
 })
 export type FolderSyncHandshakeRequest = z.infer<typeof FolderSyncHandshakeRequestSchema>
 
@@ -164,6 +170,12 @@ export const FolderSyncHandshakeResponseSchema = z
     status: FolderSyncRecordStatusSchema,
     /** The team's display name; the client maps it to the team folder. */
     teamLabel: z.string().min(1).max(255),
+    /**
+     * The team's organisation's display name, sent only when the request has
+     * `wantsOrganizationName`. A new team folder is `<organisation>/<team>`;
+     * without it the computer reads the name from its pairing claim.
+     */
+    organizationName: z.string().min(1).max(255).optional(),
     /**
      * This computer's name as Nessie shows it; the client names conflicted
      * copies and change comments with it, never with the host name.

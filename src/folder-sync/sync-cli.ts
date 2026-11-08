@@ -1,12 +1,14 @@
 import { homedir } from 'node:os'
+import { join } from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 
 import type { FolderSyncConsoleCommand, FolderSyncConsoleState } from '@nessie/executor-protocol'
 
 import type { StateSecurityDeps } from '../state-security.js'
 import type { ExecutorLocalState } from '../state-store.js'
-import { defaultFolderSyncRoot, loadFolderSyncConfig } from './config.js'
+import { loadFolderSyncConfig } from './config.js'
 import { readConsoleState, readStatusFile } from './console-state.js'
+import { suggestedMainFolder } from './main-folder.js'
 import { runConsoleCommand, runVerify, type SyncCommandContext, type SyncConsoleResult } from './sync-command.js'
 import { folderSyncPaths } from './state-files.js'
 import type { FolderSyncTransport } from './transport.js'
@@ -73,6 +75,7 @@ const readStdinJson = async (stdin: Readable): Promise<unknown> => {
 const describeState = (state: FolderSyncConsoleState): string => [
   `Folder sync: ${state.state}${state.paused ? ' (paused here)' : ''}`,
   `Folder: ${state.root ?? `not chosen (default ${state.defaultRoot})`}`,
+  ...(state.teamFolder ? [`Team folder: ${join(state.root ?? state.defaultRoot, state.teamFolder)}`] : []),
   `Files: ${state.counts.entries} tracked, ${state.counts.pendingUploads} to upload, ${state.counts.pendingDownloads} to download, `
   + `${state.counts.waiting} waiting, ${state.counts.openConflicts} needing you`,
   ...(state.heldDeletes ? [`Held deletions: ${state.heldDeletes.count} (batch ${state.heldDeletes.batchId})`] : []),
@@ -81,7 +84,7 @@ const describeState = (state: FolderSyncConsoleState): string => [
 
 const commandFor = async (command: SyncCliCommand, io: SyncCliIo): Promise<FolderSyncConsoleCommand | null> => {
   const config = await loadFolderSyncConfig(io.stateDir)
-  const root = command.root ?? config.root ?? defaultFolderSyncRoot(io.home ?? homedir())
+  const root = command.root ?? config.root ?? await suggestedMainFolder(io.stateDir, io.home ?? homedir())
   switch (command.verb) {
     case 'on': return { command: 'configure', root, enabled: true, acceptExistingFiles: command.acceptExistingFiles }
     case 'off': return { command: 'configure', root, enabled: false, acceptExistingFiles: false }

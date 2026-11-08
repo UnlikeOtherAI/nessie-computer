@@ -18,6 +18,7 @@ import {
   FolderSyncSnapshotResponseSchema,
   FolderSyncUploadBeginResponseSchema,
   FolderSyncUploadPartResponseSchema,
+  ExecutorPairingClaimSchema,
   canonicalExecutorJson,
   folderSyncPartByteLength,
   folderSyncPartCount,
@@ -42,6 +43,7 @@ import {
 
 import { executorApi, ExecutorApiError, type ExecutorApiClient } from '../api-client.js'
 import { signExecutorDaemonPayload } from '../daemon-signature.js'
+import { pairingSignature } from '../pairing-code.js'
 import { fsPath } from './local-fs.js'
 
 /**
@@ -72,7 +74,14 @@ export type FolderSyncUploadSource = {
 }
 
 export type FolderSyncTransport = {
+  /** Asks for the organisation's name too (`wantsOrganizationName`). */
   handshake(requested: FolderSyncHandshakeRequest['requested']): Promise<FolderSyncHandshakeResponse>
+  /**
+   * The team's and organisation's names from this computer's pairing claim —
+   * the read the apps label teams with — for a Nessie whose handshake does not
+   * name the organisation, and to show where files will go before it has run.
+   */
+  teamNames(): Promise<{ teamName: string | null; organizationName: string }>
   snapshot(cursor: string | null): Promise<FolderSyncSnapshotResponse>
   changes(cursors: FolderSyncCursors, wait: boolean, signal?: AbortSignal): Promise<FolderSyncChangesResponse>
   /** Fetch a version into `partPath`, resuming from what the part already holds. */
@@ -128,7 +137,7 @@ const transferTimeoutMs = (bytes: number): number => 60_000 + Math.ceil(bytes / 
 
 export const createFolderSyncTransport = (
   connection: () => FolderSyncConnection,
-  api: Pick<ExecutorApiClient, 'syncGetBytes' | 'syncPost' | 'syncPutBytes'> = executorApi,
+  api: Pick<ExecutorApiClient, 'pairing' | 'syncGetBytes' | 'syncPost' | 'syncPutBytes'> = executorApi,
 ): FolderSyncTransport => {
   const envelope = (operation: FolderSyncOperation) => {
     const live = connection()
@@ -195,8 +204,17 @@ export const createFolderSyncTransport = (
   }
 
   return {
-    handshake: async (requested) =>
-      FolderSyncHandshakeResponseSchema.parse(await signed('handshake', '/handshake', { requested })),
+    handshake: async (requested) => FolderSyncHandshakeResponseSchema.parse(
+      await signed('handshake', '/handshake', { requested, wantsOrganizationName: true }),
+    ),
+    teamNames: async () => {
+      const live = connection()
+      const payload = { executorId: live.executorId, timestamp: new Date().toISOString() }
+      const claim = ExecutorPairingClaimSchema.parse(await api.pairing(live.apiBaseUrl, 'connection', {
+        ...payload, signature: pairingSignature(live.machinePrivateKey, 'connection', payload),
+      }))
+      return { teamName: claim.team?.name ?? null, organizationName: claim.organization.name }
+    },
     snapshot: async (cursor) =>
       FolderSyncSnapshotResponseSchema.parse(await signed('snapshot', '/snapshot', { cursor })),
     changes: async (cursors, wait, signal) => FolderSyncChangesResponseSchema.parse(await signed(

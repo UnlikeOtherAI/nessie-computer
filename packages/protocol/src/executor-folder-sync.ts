@@ -203,6 +203,24 @@ export const FolderSyncRelPathSchema = z
   ), 'A relative path has forward-slash segments only, none empty, "." or "..".')
 export type FolderSyncRelPath = z.infer<typeof FolderSyncRelPathSchema>
 
+/**
+ * A team's folder under the sync root, forward slashes: `<Organisation>/<Team>`
+ * for a sync set up since several teams share one main folder, or one
+ * `<Team>` segment for an older one, which keeps its folder. Each segment is a
+ * cleaned folder name of at most `segmentBytes`.
+ */
+export const FolderSyncTeamFolderSchema = z
+  .string()
+  .min(1)
+  .max(FOLDER_SYNC_PATH_LIMITS.segmentBytes * 2 + 1)
+  .refine((value) => {
+    const segments = value.split('/')
+    return segments.length <= 2 && !/[\\\0]/.test(value) && segments.every((segment) => (
+      segment !== '' && segment !== '.' && segment !== '..' && utf8Length(segment) <= FOLDER_SYNC_PATH_LIMITS.segmentBytes
+    ))
+  }, 'A team folder is one or two cleaned folder names.')
+export type FolderSyncTeamFolder = z.infer<typeof FolderSyncTeamFolderSchema>
+
 /** Markdown bounded by its UTF-8 size (UTF-16 length is a lower bound). */
 export const FolderSyncMarkdownSchema = z
   .string()

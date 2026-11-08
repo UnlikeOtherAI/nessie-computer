@@ -37,6 +37,7 @@ import type { HeldDeleteDecision } from './reconcile-model.js'
 import { reconcile } from './reconciler.js'
 import { ConflictBook, countEntries, engineStateOf, heartbeatSummaryOf } from './report.js'
 import { ensureFolderSyncDirectories, folderSyncPaths, takeConsoleRequests, type FolderSyncPaths } from './state-files.js'
+import { TeamNames } from './team-names.js'
 import { isTransientSyncError, syncErrorCode, type FolderSyncTransport } from './transport.js'
 
 /**
@@ -105,6 +106,7 @@ export class FolderSyncEngine {
   private readonly now: () => number
   private readonly scanner = new LocalScanner()
   private readonly busy: BusyLedger = new Map()
+  private readonly names: TeamNames
   private store: EngineStore | null = null
   private book: ConflictBook | null = null
   private handshake: FolderSyncHandshakeResponse | null = null
@@ -124,6 +126,7 @@ export class FolderSyncEngine {
   constructor(private readonly options: FolderSyncEngineOptions) {
     this.paths = folderSyncPaths(options.stateDir)
     this.now = options.now ?? Date.now
+    this.names = new TeamNames(options.transport, () => this.now())
   }
 
   /** The team folder, once the handshake has named it. */
@@ -146,6 +149,8 @@ export class FolderSyncEngine {
     this.book ??= await ConflictBook.open(this.paths.conflicts, this.options.security)
     const config = await loadFolderSyncConfig(this.options.stateDir)
     this.config = config
+    // Until the team folder is named, its names say where files will go (`team-names.ts`).
+    if (!config.teamFolder) Object.assign(this.status!, await this.names.learn(this.status!))
     if (!config.enabled || !config.root) return this.settle({ state: 'off' })
     if (config.paused) {
       await this.reportQuietly()
@@ -199,8 +204,8 @@ export class FolderSyncEngine {
       return this.settle({ state: 'root_missing' })
     }
     const teamDir = await ensureTeamFolder(config, {
-      stateDir: this.options.stateDir, executorId, teamLabel: this.handshake!.teamLabel, now: this.now(),
-      security: this.options.security,
+      stateDir: this.options.stateDir, executorId, now: this.now(), security: this.options.security,
+      names: () => this.names.forNewFolder(this.handshake!),
     })
     const store = await this.openStore(config)
     if (store.entries().length === 0 && !await isDirectory(teamDir)) await mkdir(teamDir, { recursive: true })
@@ -465,6 +470,7 @@ export class FolderSyncEngine {
       serverStatus: this.serverStatus === 'not_private' ? null : this.serverStatus,
       manageUrl: this.handshake?.manageUrl ?? this.status?.manageUrl ?? null,
       teamLabel: this.handshake?.teamLabel ?? this.status?.teamLabel ?? null,
+      organizationName: this.handshake?.organizationName ?? this.status?.organizationName ?? null,
       updatedAt: new Date(this.now()).toISOString(),
     })
     return IDLE
