@@ -230,8 +230,12 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       if (window.pairingFailure) throw new Error(window.pairingFailure)
       if ('replace' in args || 'personalPlanConnection' in args) throw new Error('executor_pairing_start no longer takes options')
       if (!args.apiBaseUrl.startsWith('https://')) throw new Error('The server address must start with https://.')
-      window.pairServer = args.apiBaseUrl
-      window.pairStatus = 'waiting'
+      // As the runtime does: an accepted address answers a code still waiting, and never replaces it.
+      const live = window.pairStatus === 'waiting' && !(window.expiresAt && Date.parse(window.expiresAt) <= Date.now())
+      if (!live) {
+        window.pairServer = args.apiBaseUrl
+        window.pairStatus = 'waiting'
+      }
     }
     if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
     if (command === 'executor_pairing_status' && id && window.ownerConfirmationRequired) {

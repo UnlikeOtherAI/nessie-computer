@@ -144,15 +144,26 @@
   byId('pairing-server-use').textContent = t('pairing.useServer')
   byId('pairing-server').placeholder = 'https://nessie.example.com'
 
+  /**
+   * Asks the organisation's own server for a code. The host checks the address
+   * before anything else, so a refused one leaves a waiting code as it was. An
+   * accepted address answers with the code already waiting, if any: only then
+   * is that code cancelled, when it belongs to another server, and a new one asked.
+   */
   byId('pairing-server-use').onclick = () => {
     const address = byId('pairing-server').value.trim()
+    const waiting = open(view) ? view : null
     run(byId('pairing-server-use'), t('pairing.getting'), async () => {
-      // A code already waiting for another server is cancelled before this one is asked.
-      if (open(view) && view.apiBaseUrl !== address) { attemptId += 1; await invoke('executor_pairing_cancel') }
-      try { return await invoke('executor_pairing_start', { apiBaseUrl: address }) } catch (error) {
-        render({ status: 'idle' })
+      let next
+      try { next = await invoke('executor_pairing_start', { apiBaseUrl: address }) } catch (error) {
+        if (!waiting) render({ status: 'idle' })
         throw error
       }
+      const same = waiting && next.status === 'waiting' && next.code === waiting.code
+        && next.apiBaseUrl === waiting.apiBaseUrl
+      if (!same || waiting.apiBaseUrl === address) return next
+      await invoke('executor_pairing_cancel')
+      return invoke('executor_pairing_start', { apiBaseUrl: address })
     }, 'pairing-server')
   }
   byId('copy-code').onclick = () => attempt(async () => {

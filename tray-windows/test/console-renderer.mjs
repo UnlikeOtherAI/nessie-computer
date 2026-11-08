@@ -98,14 +98,22 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     assert.equal(await page.locator('#pairing-server').inputValue(), '')
     assert.equal(await page.locator('#pairing-server').getAttribute('placeholder'), 'https://nessie.example.com')
     await page.locator('#pairing-server').fill('http://nessie.example.com')
+    const cancelsBefore = await callCount(page, 'executor_pairing_cancel')
     await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.locator('#pairing-server-error').getByText('The server address must start with https://.').waitFor()
     assert.equal(await page.locator('#pairing-server').getAttribute('aria-invalid'), 'true')
+    // A typo costs nothing: the hosted code still waits, and is still shown.
+    assert.equal(await callCount(page, 'executor_pairing_cancel'), cancelsBefore)
+    assert.equal(await page.evaluate(() => window.pairStatus), 'waiting')
+    assert.equal(await page.locator('#pairing-code').textContent(), '01234567')
+    assert.equal(await page.locator('#pairing-open-nessie').isVisible(), true)
     await shot('connect-own-server')
     await page.locator('#pairing-server').fill('https://nessie.example.com')
     await page.getByRole('button', { name: 'Get code', exact: true }).click()
     await page.waitForFunction(() => window.pairServer === 'https://nessie.example.com')
     assert.equal(await page.locator('#pairing-server-error').isHidden(), true)
+    // Only an accepted address replaces the hosted code.
+    assert.equal(await callCount(page, 'executor_pairing_cancel'), cancelsBefore + 1)
     // Asked again while that code waits, the dialog keeps its code and names the server it belongs to.
     await page.locator('#pairing-server').fill('')
     const startsBefore = await callCount(page, 'executor_pairing_start')
