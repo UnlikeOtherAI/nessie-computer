@@ -69,6 +69,7 @@
     text.textContent = item.text
     row.append(text)
     if (item.kind === 'request') {
+      row.dataset.request = item.request.id
       const where = document.createElement('small')
       where.textContent = [t('overview.inTeam', { team: item.team }), item.request.args?.length ? item.request.args.join(' ') : null].filter(Boolean).join(' · ')
       text.append(' ', where)
