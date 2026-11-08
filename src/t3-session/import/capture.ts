@@ -72,8 +72,10 @@ export async function resumeRetainedT3(ports: RetainedCapturePorts,
       requireCapture(typeof job.stage_ref === 'string', 'capture_stage_missing')
       requireCapture(snapshot.sourceHighWater === job.source_high_water, 'capture_source_advanced_requires_refresh')
       const prior = ports.journal.snapshot(generation)
+      const fingerprint = snapshot.fingerprint(ports.journal.snapshotKey())
       requireCapture(prior && prior.layout === source.layout &&
-        prior.digest === snapshot.fingerprint(ports.journal.snapshotKey()).digest, 'capture_snapshot_changed_requires_refresh')
+        prior.digest === fingerprint.digest && prior.legacy_digest === fingerprint.legacyDigest,
+      'capture_snapshot_changed_requires_refresh')
       ports.journal.recover(source, generation)
       ports.journal.requireCurrent(source.physicalRootKey, generation)
       return { source, reference: job.stage_ref }

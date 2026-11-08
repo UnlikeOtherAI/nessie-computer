@@ -48,12 +48,19 @@ export class T3CaptureJournal {
   }
 
   snapshotKey(): string {
-    return this.database.prepare('SELECT key FROM t3_capture_snapshot_key WHERE id = 1').get()?.key as string
+    const key = this.database.prepare('SELECT key FROM t3_capture_snapshot_key WHERE id = 1').get()?.key
+    requireCapture(typeof key === 'string' && /^[a-f0-9]{64}$/u.test(key), 'capture_snapshot_key_invalid')
+    return key
   }
 
   recordSnapshot(generation: string, digest: string, legacyDigest: string, layout: string): void {
-    this.database.prepare('INSERT INTO t3_capture_snapshots VALUES (?, ?, ?, ?)')
-      .run(generation, digest, legacyDigest, layout)
+    journalTransaction(this.database, () => {
+      const job = this.generation(generation)
+      requireCapture(job?.phase === 'capturing' && typeof job.physical_root === 'string', 'capture_phase_mismatch')
+      this.requireCurrent(job.physical_root, generation)
+      this.database.prepare('INSERT INTO t3_capture_snapshots VALUES (?, ?, ?, ?)')
+        .run(generation, digest, legacyDigest, layout)
+    })
   }
 
   snapshot(generation: string): SqlRow | undefined {

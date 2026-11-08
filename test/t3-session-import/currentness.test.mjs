@@ -22,7 +22,7 @@ for (const kind of ['projection', 'history', 'window']) {
         : kind === 'history' ? readRetainedHistoryPage(...args(f, generation), cursor)
           : readRetainedSnapshotWindow(...args(f, generation), { rowLimit: 5 })
       await read(g1)
-      const g2 = (await capture(f)).generation
+      let g2 = (await capture(f)).generation
       await assert.rejects(read(g1), /obsolete/u)
       await read(g2)
       f.ports.journal.unavailable(f.source.admittedRootKey)
@@ -48,6 +48,15 @@ for (const kind of ['projection', 'history', 'window']) {
       f.ports.workspace.reopenGeneration = async ref => { const stage = await reopen(ref); revoked = true; return stage }
       await assert.rejects(read(g2), /revoked/u)
       f.ports.originalOwner = owner
+      f.ports.workspace.reopenGeneration = async ref => {
+        f.ports.workspace.reopenGeneration = reopen
+        const stage = await reopen(ref)
+        await capture(f)
+        return stage
+      }
+      await assert.rejects(read(g2), /obsolete/u)
+      g2 = f.ports.journal.root(f.source.physicalRootKey).generation
+      await read(g2)
       f.ports.workspace.reopenGeneration = async ref => {
         const stage = await reopen(ref)
         f.ports.journal.begin(f.source, 'concurrent', 'concurrent')

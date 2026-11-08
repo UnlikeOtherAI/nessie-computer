@@ -46,8 +46,8 @@ export async function engineFixture({ threads = 3, messages = 360, legacy = fals
         0, ${new Date(Date.UTC(2020, 0, 1, 0, index)).toISOString()}, ${new Date(Date.UTC(2020, 0, 1, 0, index)).toISOString()})`
     }
   }))
-  // Actual original importer establishes v2 plus a completed source hydration
-  // marker. The capture must invalidate it when later legacy messages arrive.
+  // Actual original importer establishes V2 plus a completed source hydration
+  // marker. Subsequent V2 refresh must retain this frozen legacy source copy.
   const state = createSessionStateLayers()
   const reads = createSessionReadLayers(state)
   if (!legacy) await Effect.runPromise(Effect.scoped(Effect.gen(function* () {

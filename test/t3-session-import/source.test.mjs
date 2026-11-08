@@ -58,19 +58,27 @@ test('one supported WAL snapshot, next generation sees additions, no source pers
   const f = fixture('wal')
   try {
     const before = { main: hash(f.path), wal: hash(`${f.path}-wal`), schema: f.writer.prepare('PRAGMA schema_version').get() }
+    let fingerprint
     await capture(f, async snapshot => {
+      fingerprint = snapshot.fingerprint('synthetic-journal-key')
       const table = snapshot.tables.find(entry => entry.name === 'orchestration_v2_projection_threads')
       assert.throws(() => { table.name = 'auth_credentials' }, TypeError)
       assert.throws(() => { table.columns.push('credential') }, TypeError)
       assert.equal([...snapshot.rows(table)].length, 0)
+      assert.deepEqual(snapshot.fingerprint('synthetic-journal-key'), fingerprint)
       f.writer.exec(`INSERT INTO orchestration_v2_projection_threads (thread_id, payload_json) VALUES ('later:雪', '{}')`)
       assert.equal([...snapshot.rows(table)].length, 0)
+      assert.deepEqual(snapshot.fingerprint('synthetic-journal-key'), fingerprint)
     })
     const afterWrite = { main: hash(f.path), wal: hash(`${f.path}-wal`), schema: f.writer.prepare('PRAGMA schema_version').get() }
     assert.equal(before.main, afterWrite.main)
     assert.notEqual(before.wal, afterWrite.wal)
     assert.deepEqual(before.schema, afterWrite.schema)
     await capture(f, async snapshot => {
+      const current = snapshot.fingerprint('synthetic-journal-key')
+      assert.notEqual(current.digest, fingerprint.digest)
+      assert.equal(current.legacyDigest, fingerprint.legacyDigest)
+      assert.notEqual(snapshot.fingerprint('different-journal-key').digest, current.digest)
       for (const table of snapshot.tables) Array.from(snapshot.rows(table))
       const table = snapshot.tables.find(entry => entry.name === 'orchestration_v2_projection_threads')
       assert.equal([...snapshot.rows(table)].length, 1)
@@ -167,13 +175,17 @@ test('durable aliases converge, divergent roots conflict stickily, refresh fence
   try {
     const journal = new T3CaptureJournal(db)
     const concurrent = new T3CaptureJournal(other)
+    assert.equal(journal.snapshotKey(), concurrent.snapshotKey())
     journal.begin(source, 'g1', 'stage:g1')
+    journal.recordSnapshot('g1', 'synthetic-digest', 'synthetic-legacy-digest', 'v2-80')
+    assert.equal(concurrent.snapshot('g1').digest, 'synthetic-digest')
     journal.markCaptured(source, 'g1', 3)
     journal.complete(source, 'g1', [{ threadId: 'old', state: 'active' }, { threadId: 'gone', state: 'deleted' }], [])
     journal.begin({ ...source, admittedRootKey: 'proven:symlink' }, 'g2', 'stage:g2')
     assert.equal(journal.root(source.physicalRootKey).catalog_generation, null)
     journal.markCaptured(source, 'g2', 4)
     concurrent.begin(source, 'g3', 'stage:g3')
+    assert.equal(concurrent.baseline(source.physicalRootKey).generation, 'g1')
     assert.throws(() => journal.complete(source, 'g2', [], []), /obsolete/u)
     journal.markCaptured(source, 'g3', 5)
     journal.fail(source, 'g3', 'synthetic-interruption')
