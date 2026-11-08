@@ -16,12 +16,13 @@ MSIs, Developer ID signed/notarized/stapled Apple-silicon DMGs, and signed
 Linux DEB/RPM packages and repository metadata. They remain unpublished and
 have not passed installed A-to-B acceptance. The local GUI and CLI changes require new candidates before release.
 
-Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.10
-at `99a4cb8` installed normally on Maxis; its non-elevated controls can read
+Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.11
+at `9d8fef9` installed normally on Maxis; its non-elevated controls can read
 status, change and restore the automatic preference, and request a check. The
 SYSTEM worker completed its first catalog check and returned idle with no
-recorded failures. Its managed CLI still rejects startup at the service's
-pairing-only pipe; the separate runtime admission fix below is not yet installed.
+recorded failures. Its managed CLI passed under the non-elevated desktop token
+and passed again after a normal SCM service restart. The runtime admission
+transport no longer requires a legacy pairing-control grant.
 The notarized macOS candidates pass signature and Gatekeeper checks but are
 not installed. Fedora's signed 1.0.2 package has passed service recovery and a
 machine restart. None of these candidates establishes stable A-to-B acceptance.
@@ -466,11 +467,14 @@ one-off test service verifies its failure actions without starting an executable
 
 The signed 1.0.4 candidate at `2fcf592` passed a forced-failure rollback test:
 MSI restored the previous installed edge product, service and pairing. That test
-did not validate stable automatic updates. The signed 1.0.10 candidate at
-`99a4cb8` subsequently passed the normal installer, timestamped publisher/EKU
-verification, both automatic services, non-elevated update controls and the first
-background catalog check. Its native gates passed 38 common, 32 native and five
-integration tests on Maxis. It remains unpublished.
+did not validate stable automatic updates. The signed 1.0.11 candidate at
+`9d8fef9` subsequently passed the normal installer, timestamped publisher/EKU
+verification, both automatic services, non-elevated update controls and a
+background catalog check. Its managed CLI passed before and after a normal SCM
+service restart. Its native gates passed 39 common, 31 native, five integration
+and 58 service tests on Maxis. Its MSI SHA-256 is
+`315c2e7307a46b65838321c48bcf6f4b5a1b87eb70e186e8827f568b598f5480`
+and size is 50,593,792 bytes. It remains unpublished.
 
 Nonblocking broker reads preserve Win32 ERROR_NO_DATA rather than Rust's EOF
 mapping. ConnectNamedPipe returning TRUE means the server is listening; only
@@ -506,9 +510,11 @@ those same read-only facts to the Windows-derived service account so the service
 can verify them. Existing ACL entries are merged, not replaced. No terminate,
 memory, handle duplication, token impersonation or ACL-write right is added.
 
-The runtime-only channel and reciprocal metadata fix have not yet passed a fresh
-signed installed CLI/app journey. Existing user pairings, service grants,
-accepted work and update/custody journals must remain intact while testing it.
+The runtime-only channel and reciprocal metadata fix passed the signed installed
+CLI journey, including service restart, without a control grant or Repair. The
+full native app, computer reconnect and machine-restart upgrade journeys remain
+unverified. Existing user pairings, service grants, accepted work and
+update/custody journals remain intact.
 
 The read-only developer probe is:
 `cargo run --manifest-path windows-common/Cargo.toml --example update-status`.
