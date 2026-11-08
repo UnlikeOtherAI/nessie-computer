@@ -428,3 +428,8 @@ Windows nonblocking pipe acceptance distinguishes listening from a connected
 client: a successful first ConnectNamedPipe call only makes the instance
 available; ERROR_PIPE_CONNECTED establishes the connection. The kernel pipe
 regression covers an empty listener, a real client and abandoned-client recovery.
+The `--installed-facts` probe prints read-only known-folder and installed-runtime
+verification stage timings. It has no install or policy operation and does not
+turn a successful provenance read into a broker-health assertion. Signed 1.0.8
+installed normally, but its desktop control still timed out and its background
+worker had not created a journal; it remains unpublished and unaccepted.
