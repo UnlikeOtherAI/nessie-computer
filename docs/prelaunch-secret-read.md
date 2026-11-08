@@ -189,3 +189,34 @@ buffers on every terminal path. Receipt, ACK and close metadata never include
 secret values or value digests. Native must additionally report positive child
 clearance; connection EOF is not clearance. These authored receiver checks do
 not add the missing native producer or establish noninteractive op eligibility.
+
+## Signed daemon secret-read request
+
+The existing native-execution route carries `execution.secretRead` with the
+strict input `{preparationReceipt:T3ExecutionReceipt}`. The public shared input
+and operation schemas live in `packages/protocol/src/t3-session/native-execution-intake.ts`.
+The daemon's operation-bound `T3NativeExecutionTransport.secretRead(input, signal)`
+uses the same offered request, relay HMAC, graph and parent signal as phase/frame
+requests. It supplies no inventory, tool selector, recipient assertion or value.
+
+The broker restores the original protected relay, prelocks current authority,
+consumes the actual opaque secret-read admission and reconsumes authority in the
+same signed transaction. Only its exact persisted payload is signed under
+`nessie.t3.execution.secret-read.v1`, with the existing RSA issuer and a modulus
+of at least 2048 bits. No payload timestamp or nonce is rewritten.
+
+The HTTP request keeps the existing 64 KiB bound and no-redirect/no-retry policy;
+its deadline is capped by the remaining native observation window. Response
+checks preserve every observed field and the SHA of the exact receipt payload,
+including slot, recipient, tool and accepted graph nonce. They cannot extend the
+original total five-second deadline. Refusal, cancellation, expiry, identity
+replacement and uncertain delivery return no success or replacement admission.
+The service still independently verifies its enrolled backend's signature.
+
+Runtime owns the explicit protected-native-relay dispatch/child-port registration
+and private sink. These transport additions neither create the missing live
+native observation/read-start producer nor prove the inspected tool's no-prompt
+behavior. Actual reads remain unavailable until both prerequisites are met.
+Source-only fixtures cover refused requests and substitution/expiry cases; no
+native read, secret value, positive enrolled receipt or successful delivery is
+claimed or produced by them.

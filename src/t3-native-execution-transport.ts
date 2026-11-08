@@ -4,10 +4,13 @@ import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, isT3Nativ
   T3ExecutionAdmissionSchema, T3ExecutionFrameAdmissionSchema, T3ExecutionFramePreparationPayloadSchema,
   T3ExecutionGraphPayloadSchema, T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
   T3NativeExecutionOperationSchema, T3NativeExecutionReceiptAcceptedSchema,
+  T3ExecutionSecretReadPreparationPayloadSchema, T3ExecutionSecretReadAdmissionSchema,
+  T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
   T3_EXECUTION_FRAME_PREPARATION_DOMAIN,
   type ExecutorT3LaneOperation, type ExecutorT3LaneDelivery, type T3ExecutionBinding,
   type T3ExecutionReceipt, type T3ExecutionSignedAdmission, type T3NativeExecutionPhaseInput,
   type T3NativeExecutionFrameInput, type T3NativeExecutionOperation, type T3NativeExecutionReceiptAccepted,
+  type T3NativeExecutionSecretReadInput,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
@@ -17,6 +20,7 @@ import type { ExecutorLocalState } from './state-store.js'
 export interface T3NativeExecutionTransport {
   phase(input: T3NativeExecutionPhaseInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   frame(input: T3NativeExecutionFrameInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
+  secretRead(input: T3NativeExecutionSecretReadInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   receipt(receipt: T3ExecutionReceipt, signal: AbortSignal): Promise<T3NativeExecutionReceiptAccepted>;
 }
 const refused = () => new Error('T3_NATIVE_TRANSPORT_FENCED')
@@ -59,12 +63,26 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     const signal = AbortSignal.any([parentSignal, callerSignal])
     signal.throwIfAborted()
     const before = current()
+    const preparedRead = operation.operation === 'execution.secretRead'
+      ? T3ExecutionSecretReadPreparationPayloadSchema.parse(JSON.parse(operation.input.preparationReceipt.payload))
+      : undefined
+    let timeoutMs = 5_000
+    if (preparedRead && operation.operation === 'execution.secretRead') {
+      binding(preparedRead.binding)
+      const now = Date.now()
+      timeoutMs = Math.min(timeoutMs, preparedRead.expiresAtMs - now, preparedRead.issuedAtMs + 5_000 - now)
+      if (operation.input.preparationReceipt.domain !== T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN
+        || preparedRead.issuedAtMs > now || timeoutMs <= 0 || preparedRead.acceptedGraphNonce !== graph.nonce
+        || canonicalExecutorJson(preparedRead.evidence.custody) !== canonicalExecutorJson(graph.custody)) {
+        throw refused()
+      }
+    }
     const payload = { executorId: request.executorId, connectionEpoch: request.connectionEpoch,
       observedAt: new Date().toISOString(), environmentId: request.environmentId,
       correlationId: request.correlationId, relayHmac: delivery.requestDigest, ...operation }
     const result = await api.nativeExecution(before.apiBaseUrl, { ...payload,
       signature: signExecutorDaemonPayload(before.machinePrivateKey, 't3_native_execution', payload),
-    }, { signal, timeoutMs: 5_000 })
+    }, { signal, timeoutMs })
     signal.throwIfAborted()
     current()
     if (operation.operation === 'execution.receipt') {
@@ -76,14 +94,26 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
       return accepted
     }
     const signed = T3ExecutionSignedAdmissionSchema.parse(result)
-    if (operation.operation === 'execution.phase') {
+    if (operation.operation === 'execution.secretRead' && preparedRead) {
+      const read = T3ExecutionSecretReadAdmissionSchema.parse(JSON.parse(signed.payload))
+      const { issuerKeyId, preparationReceiptDigest, ...observed } = read
+      binding(read.binding)
+      if (issuerKeyId !== operation.input.preparationReceipt.keyId
+        || preparationReceiptDigest !== sha(operation.input.preparationReceipt.payload)
+        || read.issuedAtMs < preparedRead.issuedAtMs || read.issuedAtMs > Date.now()
+        || read.expiresAtMs <= Date.now() || read.expiresAtMs > preparedRead.expiresAtMs
+        || read.expiresAtMs > preparedRead.issuedAtMs + 5_000
+        || canonicalExecutorJson({ ...observed, nonce: preparedRead.nonce,
+          issuedAtMs: preparedRead.issuedAtMs, expiresAtMs: preparedRead.expiresAtMs })
+          !== canonicalExecutorJson(preparedRead)) throw refused()
+    } else if (operation.operation === 'execution.phase') {
       const phase = T3ExecutionAdmissionSchema.parse(JSON.parse(signed.payload))
       binding(phase.binding)
       if (phase.phase !== operation.input.phase || phase.expiresAtMs <= Date.now()
         || 'reservationId' in operation.input && phase.reservationId !== operation.input.reservationId
         || operation.input.phase === 'associate' && (phase.phase !== 'associate'
           || phase.providerSessionId !== operation.input.providerSessionId)) throw refused()
-    } else {
+    } else if (operation.operation === 'execution.frame') {
       const frame = T3ExecutionFrameAdmissionSchema.parse(JSON.parse(signed.payload))
       const prepared = T3ExecutionFramePreparationPayloadSchema.parse(JSON.parse(operation.input.frameReceipt.payload))
       binding(frame.binding)
@@ -93,7 +123,7 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
         || frame.launchDigest !== prepared.launchDigest
         || frame.frameReceiptDigest !== sha(operation.input.frameReceipt.payload)
         || canonicalExecutorJson(frame.frame) !== canonicalExecutorJson(prepared.frame)) throw refused()
-    }
+    } else throw refused()
     // Preserve exact signed payload bytes. This is not a VerifiedT3EffectGrant.
     return Object.freeze(signed)
   }
@@ -104,6 +134,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     frame: async (input: T3NativeExecutionFrameInput, signal: AbortSignal) =>
       Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
         await send({ operation: 'execution.frame', input }, signal))),
+    secretRead: async (input: T3NativeExecutionSecretReadInput, signal: AbortSignal) =>
+      Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
+        await send({ operation: 'execution.secretRead', input }, signal))),
     receipt: async (receipt: T3ExecutionReceipt, signal: AbortSignal) => T3NativeExecutionReceiptAcceptedSchema.parse(
       await send({ operation: 'execution.receipt', receipt: T3ExecutionReceiptSchema.parse(receipt) }, signal)),
   })
