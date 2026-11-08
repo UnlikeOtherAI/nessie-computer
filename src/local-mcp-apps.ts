@@ -42,7 +42,7 @@ export const composeLocalMcpServers = (
 }
 
 /** The state's own discovered entries, for when no fresh discovery has been made. */
-export const storedLocalApps = (state: ExecutorLocalState): DiscoveredLocalApp[] => (state.mcpServers ?? [])
+const storedLocalApps = (state: ExecutorLocalState): DiscoveredLocalApp[] => (state.mcpServers ?? [])
   .filter((server): server is DiscoveredLocalApp['server'] => server.source !== undefined)
   .map((server) => ({ installed: true, server }))
 

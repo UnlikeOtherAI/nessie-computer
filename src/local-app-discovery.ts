@@ -1,5 +1,5 @@
 import { constants } from 'node:fs'
-import { access, readFile, stat } from 'node:fs/promises'
+import { access, lstat, readFile, stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { posix, win32 } from 'node:path'
 
@@ -77,9 +77,20 @@ export const localAppName = (declared: string): string | undefined => {
   return executorMcpServerNameIsLegal(name) ? name : undefined
 }
 
+/**
+ * Whether an absolute program path is there to start. On Windows an app
+ * execution alias (under `%LOCALAPPDATA%\Microsoft\WindowsApps`, how Store
+ * apps put a command on PATH) is a link that `stat` is refused (EACCES) but
+ * CreateProcess starts, so such a link counts; a dangling one (ENOENT) does not.
+ */
 const runnableFile = async (path: string, platform: NodeJS.Platform): Promise<boolean> => {
+  if (platform === 'win32') {
+    return stat(path).then((info) => info.isFile(), async (error: NodeJS.ErrnoException) => (
+      error.code === 'EACCES' && lstat(path).then((info) => info.isSymbolicLink(), () => false)
+    ))
+  }
   if (!await stat(path).then((info) => info.isFile(), () => false)) return false
-  return platform === 'win32' || access(path, constants.X_OK).then(() => true, () => false)
+  return access(path, constants.X_OK).then(() => true, () => false)
 }
 
 /**
