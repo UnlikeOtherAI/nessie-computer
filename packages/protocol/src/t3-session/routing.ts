@@ -25,5 +25,5 @@ export const ExecutorT3TransportError = Schema.Struct({
   ...ExecutorT3Routing.fields,
   kind: Schema.Literal('transport-error'),
   code: Schema.Literals(['forbidden', 'offline', 'stale_epoch', 'stale_generation',
-    'source_mismatch', 'unbound_operation', 'command_conflict', 'outcome_unknown', 'resource_expired']),
+    'source_mismatch', 'unbound_operation', 'command_conflict', 'outcome_unknown', 'resource_expired', 'capacity_exceeded']),
 })

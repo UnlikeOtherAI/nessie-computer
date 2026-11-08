@@ -10,6 +10,7 @@ import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from './t3-session-delivery.js'
 import { createT3InspectionPump } from './t3-session-inspections.js'
+import { retainT3FiniteReply, T3FiniteReplyCapacityError, type T3RetainedFiniteReply } from './t3-finite-reply.js'
 
 /** Supplied by the admitted runtime graph. This port conveys demand, never grants
  * source, provider or custody authority. The graph checks those before effects.
@@ -30,6 +31,7 @@ type Attempt = {
   request: ExecutorT3LaneOperation; iterator: AsyncIterator<ExecutorT3LaneReply>; abort: AbortController;
   ordinal: number; expiresAt: number; pending?: T3LaneFrame; bytes: number; pulling: boolean;
   delivery: ExecutorT3LaneDelivery;
+  finite?: T3RetainedFiniteReply;
   expiryTimer?: ReturnType<typeof setTimeout>;
 }
 const key = (value: { environmentId: string; correlationId: string }) =>
@@ -55,6 +57,8 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
     buffered -= attempt.bytes
     attempt.bytes = 0
     attempt.pending = undefined
+    attempt.finite?.close()
+    attempt.finite = undefined
     attempt.abort.abort()
     // An original pending stream pull may take time to observe cancellation.
     // Do not block the entire daemon's close/epoch transition on its return.
@@ -65,14 +69,14 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
     attempt.expiryTimer = setTimeout(() => { forget(attempt) }, Math.max(0, attempt.expiresAt - Date.now()))
     attempt.expiryTimer.unref()
   }
-  const failure = (attempt: Attempt): ExecutorT3LaneReply => {
+  const failure = (attempt: Attempt, capacity = false): ExecutorT3LaneReply => {
     const { request } = attempt
     return { kind: 'transport-error', transportVersion: request.transportVersion,
       protocolVersion: request.protocolVersion, sourceRevision: request.sourceRevision,
       executorId: request.executorId, environmentId: request.environmentId,
       connectionEpoch: request.connectionEpoch, runtimeGeneration: request.runtimeGeneration,
       correlationId: request.correlationId, relayOrdinal: attempt.ordinal,
-      code: request.kind === 'request' && request.commandId ? 'outcome_unknown' : 'offline' }
+      code: capacity ? 'capacity_exceeded' : request.kind === 'request' && request.commandId ? 'outcome_unknown' : 'offline' }
   }
   const pull = (attempt: Attempt) => {
     if (attempt.pulling || attempt.pending || attempt.abort.signal.aborted) return
@@ -80,18 +84,35 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
     void (async () => {
       let frame: T3LaneFrame
       try {
-        const next = await attempt.iterator.next()
-        if (next.done && !isExecutorT3Stream(attempt.request)) throw new Error('T3_EMPTY_FINITE_REPLY')
-        frame = { ...target(attempt.request), ordinal: attempt.ordinal,
-          final: Boolean(next.done) || !isExecutorT3Stream(attempt.request)
-            || !next.done && (next.value.kind === 'error' || next.value.kind === 'transport-error'),
-          ...(next.done ? {} : { reply: encodeExecutorT3LaneReply(next.value) }) }
-      } catch {
+        if (!attempt.finite) {
+          const next = await attempt.iterator.next()
+          if (attempt.abort.signal.aborted) return
+          if (next.done && !isExecutorT3Stream(attempt.request)) throw new Error('T3_EMPTY_FINITE_REPLY')
+          const reply = next.done ? undefined : encodeExecutorT3LaneReply(next.value)
+          if (reply && !isExecutorT3Stream(attempt.request)) {
+            attempt.finite = retainT3FiniteReply(attempt.request, reply) ?? undefined
+          }
+          frame = { ...target(attempt.request), ordinal: attempt.ordinal,
+            final: Boolean(next.done) || !isExecutorT3Stream(attempt.request)
+              || !next.done && (next.value.kind === 'error' || next.value.kind === 'transport-error'),
+            ...(reply === undefined ? {} : { reply }) }
+        } else frame = { ...target(attempt.request), ordinal: attempt.ordinal, final: false }
+        if (attempt.finite) {
+          const fragment = attempt.finite.at(attempt.ordinal)
+          frame = { ...target(attempt.request), ordinal: attempt.ordinal,
+            final: fragment.index === fragment.count - 1, fragment }
+        }
+      } catch (error) {
+        attempt.finite?.close()
+        attempt.finite = undefined
         frame = { ...target(attempt.request), ordinal: attempt.ordinal, final: true,
-          reply: encodeExecutorT3LaneReply(failure(attempt)) }
+          reply: encodeExecutorT3LaneReply(failure(attempt, error instanceof T3FiniteReplyCapacityError)) }
       }
       if (attempt.abort.signal.aborted) return
       let bytes = Buffer.byteLength(JSON.stringify(frame))
+      if (frame.fragment && buffered + bytes > T3_LANE_LIMITS.bufferedBytes - 65_536) {
+        return // Keep the exact held finite reply and wait for another credit poll.
+      }
       // Keep space for a small terminal failure for each active request.
       if (bytes > T3_LANE_LIMITS.frameBytes - 16_384 || buffered + bytes > T3_LANE_LIMITS.bufferedBytes - 65_536) {
         frame = { ...target(attempt.request), ordinal: attempt.ordinal, final: true,
