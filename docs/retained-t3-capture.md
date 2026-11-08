@@ -7,6 +7,10 @@ server catalog completion, current read entitlement or execution custody.
 
 ## Required producers
 
+The [original-owner evidence boundary](retained-original-owner.md) records why
+the pinned source cannot mint historical human ownership and provides an
+explicit refusal port. Positive original-owner admission remains unbound.
+
 `AdmittedT3SourcePort.withReadonlySource` consumes an explicit manifest of
 admission references for desktop userdata, desktop development, server and
 configured homes. The existing local-resource authority must enumerate those
