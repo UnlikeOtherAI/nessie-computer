@@ -5,7 +5,7 @@ import { setImmediate } from 'node:timers/promises'
 import { encodeProtectedFrame, ProtectedT3Process } from '../src/t3-protected-stream.js'
 
 // Transport fixtures are not kernel custody or installed creator evidence.
-function fixture() {
+function fixture(mode: 'companion' | 'finite' = 'companion') {
   const received: Record<string, unknown>[] = []
   const output = new PassThrough()
   let disposed = false
@@ -17,11 +17,36 @@ function fixture() {
   const child = new ProtectedT3Process({ input, output, dispose: () => { disposed = true } }, frame => {
     assert.equal(frame.kind, 'ready')
     return 42
-  })
+  }, mode)
   const send = (frame: Record<string, unknown>) => output.write(encodeProtectedFrame(frame))
   send({ kind: 'ready' })
   return { child, received, send, output, get disposed() { return disposed } }
 }
+
+test('finite provider transport refuses raw Writable bytes before sending stdin', async () => {
+  const f = fixture('finite')
+  await f.child.ready
+  const error = await new Promise<Error | null | undefined>(resolve => f.child.stdin.write('arbitrary\n', resolve))
+  assert.match(error?.message ?? '', /T3_NATIVE_DELIVERY_UNKNOWN/u)
+  assert.equal(f.received.some(frame => frame.kind === 'stdin'), false)
+  f.send({ kind: 'closed', cleared: true })
+  await f.child.closed
+})
+
+test('finite frame call awaits exact acknowledgement and rejects exit without clearance', async () => {
+  const f = fixture('finite')
+  await f.child.ready
+  let settled = false
+  const operation = f.child.requestFrame({ operation: 'commit', admission: {} })
+  void operation.then(() => { settled = true }, () => undefined)
+  await setImmediate()
+  assert.equal(settled, false)
+  f.send({ kind: 'exit', code: 0 })
+  f.output.end()
+  await assert.rejects(operation, /T3_NATIVE_DELIVERY_UNKNOWN/u)
+  await assert.rejects(f.child.closed, /T3_NATIVE_DELIVERY_UNKNOWN/u)
+  assert.equal(settled, false)
+})
 
 test('native Writable callback waits for exact protected write acknowledgement', async () => {
   const f = fixture()

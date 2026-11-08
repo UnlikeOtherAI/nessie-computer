@@ -44,6 +44,8 @@ mod execution_observation;
 #[cfg(windows)]
 mod execution_preparation;
 #[cfg(windows)]
+mod execution_launch_homes;
+#[cfg(windows)]
 mod execution_resource;
 #[cfg(windows)]
 mod execution_creator;
@@ -51,6 +53,10 @@ mod execution_creator;
 mod execution_process;
 #[cfg(windows)]
 mod execution_process_io;
+#[cfg(windows)]
+mod execution_frames;
+#[cfg(windows)]
+mod execution_effect;
 #[cfg(windows)]
 mod execution_session_host;
 #[cfg(windows)]

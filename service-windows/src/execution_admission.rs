@@ -8,6 +8,7 @@ use nessie_windows_common::{
 use rsa::{
     pkcs1v15::{Signature, VerifyingKey},
     signature::Verifier,
+    traits::PublicKeyParts,
     BigUint, RsaPublicKey,
 };
 use serde_json::Value;
@@ -88,7 +89,7 @@ pub fn inspection(
     inspection.validate(now_ms()?)?;
     Ok(inspection)
 }
-fn verify_signature(
+pub(crate) fn verify_signature(
     root: &Path,
     owner: &str,
     signed: &SignedAdmission,
@@ -147,6 +148,9 @@ fn verify_signature(
     }
     let public = RsaPublicKey::new(BigUint::from_bytes_be(&n), BigUint::from_bytes_be(&e))
         .map_err(|_| REJECTED)?;
+    if public.n().bits() < 2048 {
+        return Err(REJECTED.into());
+    }
     let signature =
         Signature::try_from(decode(&signed.signature)?.as_slice()).map_err(|_| REJECTED)?;
     VerifyingKey::<Sha256>::new(public)
