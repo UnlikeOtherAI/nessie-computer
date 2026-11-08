@@ -403,6 +403,26 @@ composite consumer remains 470 files, 77 contract declarations and zero dependen
 implementations. No native binary, provider or installed journey ran. Production
 `open`, admitted recovery and positive native preclaim remain unfinished.
 
+A direct package-interface probe on Maxis exercised public `354cd5c` outside
+the test runner against a new isolated SQLite database. Read-only preparation
+and expired admission left the synthetic row unchanged; the low-level conditional
+transition acquired one lease/attempt, and replay refused without changing it.
+Evidence and the retained database are under
+`D:/BuildArtifacts/nessie/t3-7a4698a9-verification/effect-claim-interface-rE9UCK`.
+This exercises SQL primitives only, with no positive admission owner or provider.
+
+The destination-owner audit identified the concrete next seam. `protected-source`
+chooses local storage from the graph process's home; `capture-workspace` builds
+the original SQL layer once, and `database-file` checks the destination inode and
+owner policy. None registers that destination with native. The resource service's
+`Held` map contains duplicated source/settings/home objects only. Native's source
+SQLite connection is read-only and bound to its own main/WAL handles; it cannot
+attest a row in the destination merely because its graph shares source custody.
+A future observer must bind the actual destination namespace, database and writer
+generation before reading a pending row. It must compare the full retained row
+and original command relationship; a stage reference or caller-supplied digest
+cannot supply that evidence. This audit introduces no wire domain or signer.
+
 ## Composition and ownership
 
 `@nessie/t3-session-source/engine` exports `createSessionRuntimeLayers(state)`.
