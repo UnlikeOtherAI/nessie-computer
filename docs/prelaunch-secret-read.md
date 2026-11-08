@@ -137,3 +137,55 @@ the actual protected producer before any receipt may be issued.
 Post-association grants remain unchanged. Root owns compiler,
 signing, immutable tool installation and actual secret-read/clearance qualification;
 no secret values should appear in that evidence.
+
+Root inspected only --version, --help and read --help for the existing Maxis
+2.41.1 candidate. It is vendor-signed but user-profile installed, and those help
+surfaces show no explicit no-input/noninteractive flag. No actual read occurred.
+The current source must not enable execution or release on the assumption that
+OP_BIOMETRIC_UNLOCK_ENABLED=false plus closed stdin/TTY suppresses every prompt.
+A reviewed version-specific noninteractive behavior contract remains required.
+The trusted installation record and the five-second kill deadline do not supply
+that proof. No live read-start client or native secret producer is available yet.
+
+## Dedicated slot receiver ABI
+
+The runtime's private sink owns the dedicated connection and buffering. It does
+not use ProtectedT3Provider stdout, JSON/base64 values or a callback registered
+by a grant. The existing SYSTEM-created graph key authenticates this private
+channel; it never enters the runtime descriptor or the daemon lane.
+
+After service-observed zero exit, EOF and empty child Job, native emits exactly:
+u32le headerByteLength, strict UTF8 JSON header, u32le valueByteLength, raw value,
+32-byte HMAC-SHA256. Header is at most 4096 bytes; value is at most 65536 bytes.
+No partial value is installed. The MAC input is UTF8 of
+nessie.t3.execution.secret-delivery.v1 plus U+000A, followed by those two lengths
+and their corresponding exact bytes in wire order (excluding the MAC).
+
+T3ExecutionSecretDeliveryHeaderSchema fixes version=1, type=t3.secret.value,
+graphId, readId, slotId, admission nonce, admissionDigest (SHA256 of exact signed
+admission payload), recipient generation, observed child generation,
+expiresAtMs, byteLength and clearance=service-observed-job-empty.
+
+The private runtime module imports verifyProtectedT3SecretDelivery and
+protectedT3SecretInstalledFrame from src/t3-protected-process.ts. The verifier
+accepts (headerBytes, ownedValueBytes, proofBytes, exactSignedAdmission), checks
+the private startup key and current graph/read/recipient/deadline, permanently
+rejects duplicate accepted-graph/environment-index delivery, and returns only an
+opaque VerifiedT3SecretDelivery token. It returns no secret and cannot register
+an installer. Runtime installs its owned bytes synchronously into its private
+preselected slot only after verification; scope/expiry/loss must clear values.
+
+Only after installation does protectedT3SecretInstalledFrame(token) consume that
+one-use token and produce a nonsecret acknowledgement. Raw admissions cannot mint
+ACKs. ACK framing is u32le JSON length, canonical UTF8 JSON, 32-byte HMAC-SHA256;
+MAC domain is nessie.t3.execution.secret-installed.v1 plus U+000A, followed by
+length and header. Header fixes version=1, type=t3.secret.installed, graphId,
+readId, slotId, admission nonce and expiresAtMs. Private native delivery must
+verify this ACK before its same absolute deadline. No late ACK restores a read.
+
+The receiver must copy incoming bytes into private bounded buffers, reject extra
+frames/trailing bytes, recheck deadline before installing/acknowledging, and wipe
+buffers on every terminal path. Receipt, ACK and close metadata never include
+secret values or value digests. Native must additionally report positive child
+clearance; connection EOF is not clearance. These authored receiver checks do
+not add the missing native producer or establish noninteractive op eligibility.
