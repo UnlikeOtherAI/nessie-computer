@@ -13,7 +13,8 @@ Contract: `docs/plans/2026-11-08-nessie-computer.md` §3.2–3.3 (window), §5
 | Owner | Files | What they do |
 |---|---|---|
 | shell (E1) | `index.html`, `style.css`, `native.js`, `i18n.js`, `main.js` | the window, tokens, host transport, translations, `window.nc` |
-| shell (E1) | `errors*.js`, `teams*.js`, `overview*.js`, `pairing*.js`, `settings*.js`, `updates*.js` | failure translator, team state, Overview, Connect a team, Settings, Software updates |
+| shell (E1) | `errors*.js`, `teams*.js`, `overview.js`, `overview-summary.js`, `overview-words.js`, `pairing*.js`, `settings*.js`, `updates*.js` | failure translator, team state, Overview, Connect a team, Settings, Software updates |
+| Now working (E3) | `overview-working.js`, `overview-working-words.js` | the sessions running on this computer, their commands, Stop (contract §11.5) |
 | team tabs (E2) | `access*.js`, `documents*.js`, `ai*.js`, `chatgpt*.js`, `inference-endpoints.js`, `team-drafts.js`, `autosave.js` | render into `#tab-access`, `#tab-documents`, `#tab-ai`; inject their own dialogs; `ai-connection.js` is the Windows plan-connection dialog |
 
 `index.html` leaves the three team panels empty. Each E2 script subscribes to
@@ -119,6 +120,25 @@ every script that loads after `main.js`.
 - `nc.updates.onStatus(fn)` / `nc.updates.status()` — the update broker's
   latest status (Help shows the version from it).
 
+### Now working
+
+`overview-working.js` owns the `#overview-working` section between Needs you
+and Teams: one row per session, "{agentName} · {team label}" ("An agent" when
+the session names none), its commands beneath in plain words, **Stop** per row
+behind a short confirm (`#stop-session-dialog`), and the one sentence "No agent
+is working on this computer right now." when nothing runs. The section is
+hidden while no team is connected. It asks `executor_sessions` when Overview
+opens, when the team list changes and every 3 s while Overview is showing, and
+updates rows in place (keyed by `sessionId`, through `nc.keepFocus`) so a
+refresh never moves the page. A read that fails is reported beside the list
+and the last answer stays.
+
+- `nc.working.refresh()` asks the host now; `nc.working.sessions()` is the
+  last answer.
+- A Needs you request row carries `data-request="<id>"`, which a command
+  waiting for the owner links to ("Allow or don't allow" scrolls to and
+  focuses that row's first button; the Needs you heading when it is not there).
+
 ## Host commands this window calls
 
 Contract §5.1, the Windows bridge (`tray-windows/src-tauri/README.md`) and the
@@ -142,6 +162,27 @@ macOS bridge (`menubar-macos/README.md`), plus these shapes the window relies on
   (`organizationName`, `teamName`, `apiBaseUrl`); the label comes from it.
 - `executor_sync_status { executorId }` — `FolderSyncConsoleState`; the
   Overview reads it only to list Documents attention under Needs you.
+- `executor_sessions { executorId? }` and `executor_stop_session { executorId, sessionId }`
+  — contract §11.5, built by tranche A3 in parallel; the console assumes this
+  shape until the daemon's own lands (the fake host in
+  `tray-windows/test/renderer-host.mjs` answers it):
+
+  ```
+  executor_sessions → [{ executorId, sessionId, agentName?, startedAt,
+    commands: [{ id, kind: 'program' | 'file' | 'coding' | 'browser' | 'mcp',
+      status: 'running' | 'queued' | 'waiting_for_owner',
+      program?, args?,            // program: "running `npm test`"; coding: "working in Claude Code"
+      operation?: 'read' | 'write', path?,   // file: "reading report.md" / "writing report.md"
+      site?,                      // browser: "browsing docs.example.com" (the host of a URL)
+      app?,                       // mcp: "using kelpie"
+      requestId? }] }]            // waiting_for_owner: the program request under Needs you
+  executor_stop_session → the new sessions list (any non-array answer drops the row locally)
+  ```
+
+  `queued` reads "waiting to start: …" and `waiting_for_owner` "waiting for
+  you: …" around the command's own words; a command the console cannot
+  describe reads "working". A `kind` or field the daemon adds later needs a
+  word here, not a guess.
 - `executor_describe` — the Overview summary reads `reach.folders`,
   `reach.allowedOrigins`, `commandPolicy` (with `trusted`), `mcpPolicy`,
   `localApps` (falling back to `mcpServers` keys on an older runtime). Access
@@ -155,9 +196,9 @@ macOS bridge (`menubar-macos/README.md`), plus these shapes the window relies on
 ## Verification
 
 Local headless journeys (never CI): `node tray-windows/test/renderer-harness.mjs`
-runs every journey — shell, Access, Documents, AI and Software updates —
+runs every journey — shell, Now working, Access, Documents, AI and Software updates —
 against the real `index.html`, for both hosts, seven locales, light and dark,
-at 640×680 and the 440×500 minimum window. `--only=shell,access,…` narrows it;
+at 640×680 and the 440×500 minimum window. `--only=shell,working,access,…` narrows it;
 `--updates-only` and the other update flags are documented in
 `docs/automatic-updates.md`; `--before=<rev>` captures the console at an older
 revision for comparison; `--output=<dir>` moves the pictures. They land in the
