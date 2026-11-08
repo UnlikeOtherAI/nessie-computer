@@ -46,6 +46,7 @@ export async function captureRetainedT3(ports: RetainedCapturePorts,
       result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck)
     })
     requireCapture(result, 'capture_completion_missing')
+    ports.journal.requirePublished(result.source.physicalRootKey, generation)
     return result
   } catch (error) {
     const code = error instanceof CaptureFailure ? error.code : 'retained_capture_incomplete'
@@ -83,6 +84,7 @@ export async function resumeRetainedT3(ports: RetainedCapturePorts,
       result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck)
     })
     requireCapture(result, 'capture_completion_missing')
+    ports.journal.requirePublished(result.source.physicalRootKey, generation)
     return result
   } catch (error) {
     const code = error instanceof CaptureFailure ? error.code : 'retained_capture_incomplete'

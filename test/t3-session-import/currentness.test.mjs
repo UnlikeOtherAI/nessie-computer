@@ -9,6 +9,30 @@ const capture = f => captureRetainedT3(f.ports, f.manifest, f.source.admittedRoo
 const resume = (f, generation) => resumeRetainedT3(f.ports, f.manifest, f.source.admittedRootKey, generation)
 const args = (f, generation) => [f.ports, f.manifest, f.source.admittedRootKey, generation, S.ThreadId.make(f.ids[0])]
 
+for (const operation of ['capture', 'resume']) {
+  test(`${operation} cannot return a ready receipt after advancement during final lease recheck`, async () => {
+    const f = await engineFixture({ messages: 4 })
+    try {
+      const first = await capture(f)
+      let completed = false
+      const complete = f.ports.journal.complete.bind(f.ports.journal)
+      f.ports.journal.complete = (...input) => { complete(...input); completed = true }
+      f.ports.originalOwner = { withReadScope: async (_input, use) => use({
+        recheckThread: async () => {},
+        recheckSource: async () => {
+          if (completed) {
+            completed = false
+            f.ports.journal.begin(f.source, 'advanced-at-return', 'advanced-at-return')
+          }
+        },
+      }) }
+      await assert.rejects(operation === 'capture' ? capture(f) : resume(f, first.generation), /obsolete/u)
+      assert.equal(f.ports.journal.root(f.source.physicalRootKey).generation, 'advanced-at-return')
+      assert.equal(f.ports.journal.root(f.source.physicalRootKey).available, 1)
+    } finally { f.close() }
+  })
+}
+
 for (const kind of ['projection', 'history', 'window']) {
   test(`${kind} reads only the available published generation, fencing advancement and revocation during awaits`, async () => {
     const f = await engineFixture({ messages: 30 })
