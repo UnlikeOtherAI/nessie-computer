@@ -190,3 +190,9 @@ and integrity checks. Public lock edits change only this consumer importer; no
 package/snapshot resolution records are repinned. T07's actual PostgreSQL
 root/source race awaits its bound port and an explicit T03C-free lane. Installed,
 real-user, provider, gateway/client and end-to-end evidence are all unclaimed.
+
+The independent Node 22 qualification found that the normal engine gate's strict
+consumer compiler inherited the 512 MiB test heap and exhausted it. The compiler
+child now explicitly uses the standard 5120 MiB cap; the test process stays at
+512 MiB. This changes no compiler checks or consumer assertions.
+

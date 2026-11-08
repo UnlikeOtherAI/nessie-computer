@@ -54,7 +54,7 @@ test('authored admission checks erased type-only imports in the real TypeScript 
 
 test('normal package exports retain strict NodeNext and Bundler types and original required host ports', () => {
   for (const [module, resolution] of [['ESNext', 'Bundler'], ['NodeNext', 'NodeNext']]) {
-    run([require.resolve('typescript/bin/tsc'), '--noEmit', '--strict', '--noUncheckedIndexedAccess',
+    run(['--max-old-space-size=5120', require.resolve('typescript/bin/tsc'), '--noEmit', '--strict', '--noUncheckedIndexedAccess',
       '--exactOptionalPropertyTypes', '--target', 'ESNext', '--module', module, '--moduleResolution', resolution,
       '--allowImportingTsExtensions', '--resolveJsonModule', '--types', 'node', resolve(import.meta.dirname, 'consumer.mts')])
   }
