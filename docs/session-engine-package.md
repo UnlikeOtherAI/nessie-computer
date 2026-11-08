@@ -7,7 +7,8 @@ branch `t3/session-engine-runtime-package`, from exact private base
 `e70d7f3713b35758e4c8dc60276f5e3c7320a3cf` retains indexed
 `2bc2a8411c68908586c6df5d3352fb82506a6d60` and V05
 `d6f6773783f29fd139d454a5b3fec3b81e89fed4`, including reviewed V04.
-The coordinator owns the final private gitlink.
+The coordinator owns the final private gitlink. The executor licence is a build
+cache input because each generated distribution includes it.
 
 ## Frozen qualification before package implementation
 

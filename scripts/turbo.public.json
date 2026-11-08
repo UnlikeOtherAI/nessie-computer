@@ -19,7 +19,7 @@
         "T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY"] },
     "@nessie/t3-session-source#build": {
       "dependsOn": ["^build", "prepare:engine"],
-      "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/**", "../../patches/t3-session/**",
+      "inputs": ["$TURBO_DEFAULT$", "../../LICENSE", "../../packaging/session-engine/**", "../../patches/t3-session/**",
         "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"],
       "outputs": ["dist/**"]
     },
