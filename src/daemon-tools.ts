@@ -74,11 +74,11 @@ export type DaemonToolbox = {
 
 export const createDaemonToolbox = (input: {
   live: DaemonLiveState
-  /** The command rules, read as each call is stamped, so a saved or once-allowed rule needs no rebuild. */
+  /** The saved command rules, read as each call is stamped, so a saved rule needs no rebuild. */
   commandRules: () => LocalCommandPolicy
   ownerRequestsGate: OwnerRequestsGate
   runtime?: ExecutorRuntime
-  /** Settles once nothing outside the command lane uses the current set (the session view relay). */
+  /** Settles once nothing outside the commands uses the current set (the session view relay). */
   quiesce: () => Promise<void>
 }): DaemonToolbox => {
   const build = (): DaemonTools => buildDaemonTools(input.live.current, input.commandRules, input.ownerRequestsGate,

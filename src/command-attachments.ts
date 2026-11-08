@@ -233,12 +233,12 @@ export type ExecutorAttachmentDeliveryProgress = {
  * computed from what was journaled. A sidecar that is gone or no longer
  * matches is withdrawn the same way.
  *
- * Anything else — a timeout, a 5xx, a lost connection — is retried on the
- * next poll while the command is live, as `ExecutorAttachmentDeliveryDeferred`
+ * Anything else — a timeout, a 5xx, a lost connection — is retried with the
+ * command's next report while it is live, as `ExecutorAttachmentDeliveryDeferred`
  * (a fenced or stale connection throws as itself). Once the command has
  * expired, an image gets one more attempt and a failure withdraws it: the
- * journal holds the machine's only command lane, and a slow uplink or a lasting
- * storage fault must not hold it for good. Nessie still takes a late result,
+ * command's record, its slot and its session's place in "Now working" must not
+ * be held for good by a slow uplink or a lasting storage fault. Nessie still takes a late result,
  * so a daemon that restarts after the expiry still delivers what it can.
  */
 export const deliverExecutorCommandAttachments = async (input: {

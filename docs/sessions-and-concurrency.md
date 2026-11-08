@@ -139,7 +139,7 @@ arrived:
 | A run's command sandbox | `command.run` with the same `payload.runId` |
 | A run's browser | `browser.open\|observe\|act` with the same run; separately `browser.connected.*` |
 | A run's coding sandbox | `coding.launch`, `coding.observe` with the same run |
-| One path | `file.write` to the same folder and path, from any run |
+| One path | `file.write` to the same path in the same run's draft (case folded on macOS and Windows) |
 | A run's workspace draft | `workspace.review`, `workspace.promote` with the same run |
 | One terminal | `mcp.call` to the coding-sessions bridge naming the same terminal session |
 
@@ -188,7 +188,8 @@ left by an older daemon (`command-recovery.json`) is taken over at start.
 ## Local shapes the apps read
 
 The daemon keeps `sessions.json` in the team's state directory (owner-only)
-while it runs. Two plumbing verbs read and change it:
+while it runs, rewritten whenever a command arrives, starts, waits or ends,
+and removed when it stops. Two plumbing verbs read and change it:
 
 ```text
 nessie-executor sessions --state-dir <dir> [--json]
@@ -196,41 +197,58 @@ nessie-executor session stop --state-dir <dir> --id <sessionId> [--json]
 ```
 
 `sessions --json` prints an array, empty when the team's daemon is not
-running:
+running. This is the shape the console's **Now working** reads
+(`packages/executor-console/README.md`, "Host commands"); the apps' bridges
+add `executorId` to each session:
 
 ```json
 [{
-  "sessionId": "<uuid>" | null,
+  "sessionId": "<uuid>",
   "agentName": "Sales agent",
-  "stopped": false,
+  "startedAt": "<iso>",
   "commands": [{
-    "commandId": "<uuid>",
-    "operationKey": "command.run",
-    "state": "running" | "waiting_to_start" | "waiting_for_you",
-    "detail": "npm test",
-    "receivedAt": "<iso>",
-    "startedAt": "<iso>",
-    "programRequestId": "<uuid>"
+    "id": "<command uuid>",
+    "kind": "program" | "file" | "coding" | "browser" | "mcp",
+    "status": "running" | "queued" | "waiting_for_owner",
+    "program": "npm", "args": ["test"],
+    "operation": "read" | "write", "path": "report.md",
+    "site": "docs.example.com",
+    "app": "kelpie",
+    "requestId": "<program request id>"
   }]
 }]
 ```
 
-`sessionId` is null for commands from a Nessie that sends no session.
-`agentName`, `startedAt` and `programRequestId` are present when known;
-`programRequestId` names the waiting request in `program-requests` that a
-`waiting_for_you` command waits on. `detail` is what the command works on — a
-program and its arguments, a file path, a local app and tool, a website — for
-"running `npm test`" or "reading report.md"; the apps write the sentence.
+- `sessionId` is Nessie's session. Commands from a Nessie that sends no
+  session are grouped by their run, whose id stands in; the owner can still
+  stop them, and they are never named back to Nessie as `stoppedSessions`.
+- `startedAt` is when the daemon first saw work for the session.
+  `agentName` is the latest the session's commands carried.
+- `kind` is what the work is, for the console's words, and differs from the
+  capacity kind in one place: a terminal the coding-sessions bridge starts is
+  `program` with its `program` and `args`, and the bridge's other calls are
+  `coding` (with `program` `claude` or `codex` when a session starts).
+- `program`/`args` for a program; `operation` and `path` for a file
+  (`file.list` and `workspace.review` read, `file.write` and
+  `workspace.promote` write); `site` is the host of the URL a browser command
+  opens, or the host the run last opened; `app` is the local app's name.
+  A field the daemon cannot tell is absent. `sandbox.stop` is not listed.
+- `requestId` is set on a `waiting_for_owner` command and is the `id` that
+  `program-requests` lists for the request it waits on (shown under Needs you).
 
 `session stop` asks the running daemon to stop the session: every command of
-it ends with `EXECUTOR_SESSION_STOPPED`, its sandboxes and browsers end, its
-later commands are refused, and Nessie is told on the next poll. It prints the
-new list with `--json`. It fails with `SESSION_ID_INVALID` for an id that is
-not a UUID and `SESSION_NOT_RUNNING` when the daemon holds no such session.
+it ends with `EXECUTOR_SESSION_STOPPED`, its runs' sandboxes and browsers end,
+its later commands are refused, and Nessie is told on the next poll. The stop
+is kept in `session-stops/<sessionId>.json` until Nessie closes the session
+(at most a day), so a restart does not undo it. The verb waits up to three
+seconds for the daemon to apply it and prints the list after that with
+`--json`. It fails with `SESSION_ID_INVALID` for an id that is not a UUID and
+`SESSION_NOT_RUNNING` when the team's list does not show that session; with
+`--json` a failure prints `{ "error": { "code", "message" } }` and exits 1.
 
 `program-requests --json` entries gain `commandId`, `sessionId` and
 `agentName` when the command carried them.
 
-The apps' bridges mirror the verbs: `executor_sessions { executorId? }` answers
-`[{ executorId, …session }]` across teams, and
+The apps' bridges mirror the verbs: `executor_sessions { executorId? }`
+answers every team's sessions (or one team's) with `executorId` added, and
 `executor_stop_session { executorId, sessionId }` answers the new list.
