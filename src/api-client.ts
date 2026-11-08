@@ -13,6 +13,8 @@ import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js
 import type { T3LaneExchange, T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
 import type { T3EffectAuthorityCheck, T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
 import type { T3CatalogPublicationExchange, T3CatalogPublicationReceipt } from '@nessie/executor-protocol/t3-session'
+import type { T3NativeExecutionOperationIntake, T3NativeExecutionOperationResult }
+  from '@nessie/executor-protocol/t3-session'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
 
@@ -44,6 +46,8 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
+  nativeExecution: (baseUrl: string, input: T3NativeExecutionOperationIntake,
+    options?: ExecutorSyncRequestOptions) => Promise<T3NativeExecutionOperationResult>
   publishT3Catalog: (baseUrl: string, input: T3CatalogPublicationExchange,
     options?: ExecutorSyncRequestOptions) => Promise<T3CatalogPublicationReceipt>
   t3EffectIssuerKeys: (baseUrl: string, options?: ExecutorSyncRequestOptions) => Promise<unknown>
@@ -223,6 +227,30 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
+    nativeExecution: (baseUrl, input, options) => {
+      const body = JSON.stringify(input)
+      if (Buffer.byteLength(body) > 65_536) throw new ExecutorApiError('T3 native request exceeds its bound.')
+      return request(normalizeUrl(baseUrl, '/api/executor-daemon/t3/native-execution'), {
+        body, headers: { 'content-type': 'application/json' }, method: 'POST', redirect: 'error',
+      }, options?.timeoutMs ?? 5_000, async response => {
+        if (!response.body) throw new ExecutorApiError('T3 native response is missing.')
+        const reader = response.body.getReader()
+        const chunks: Uint8Array[] = []
+        let length = 0
+        try {
+          for (;;) {
+            const chunk = await reader.read()
+            if (chunk.done) break
+            length += chunk.value.byteLength
+            if (length > 65_536) throw new ExecutorApiError('T3 native response exceeds its bound.')
+            chunks.push(chunk.value)
+          }
+          return readData<T3NativeExecutionOperationResult>(new Response(Buffer.concat(chunks), {
+            status: response.status, statusText: response.statusText,
+          }))
+        } finally { await reader.cancel().catch(() => undefined) }
+      }, options?.signal)
+    },
     publishT3Catalog: (baseUrl, input, options) =>
       post(baseUrl, '/api/executor-daemon/t3/catalog', input, options?.timeoutMs, options?.signal),
     t3EffectIssuerKeys: (baseUrl, options) => request(normalizeUrl(baseUrl, '/.well-known/jwks.json'),
