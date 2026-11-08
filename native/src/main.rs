@@ -390,7 +390,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
 /// unparsable argv keeps answering in the promotion shape, as it always has.
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
-        Some(Command::T3Execution(_)) => {
+        Some(Command::T3Execution(_) | Command::T3ExecutionStart(_) | Command::T3ExecutionSessionHost(_)) => {
             eprintln!("{}", serde_json::json!({"error":error.code}));
         }
         Some(

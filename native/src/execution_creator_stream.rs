@@ -23,8 +23,8 @@ use std::{
 };
 const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 fn send(output: &Arc<Mutex<File>>, value: &serde_json::Value) -> Result<(), String> {
-    protected_pipe::write(&mut output.lock().map_err(|_| REJECTED)?, value)
-        .map_err(|_| REJECTED.into())
+    let mut guard = output.lock().map_err(|_| REJECTED)?;
+    protected_pipe::write(&mut guard, value).map_err(|_| REJECTED.into())
 }
 pub fn run(
     mut file: File,
@@ -47,6 +47,9 @@ pub fn run(
         let done = done.clone();
         let writing = writing.clone();
         std::thread::spawn(move || {
+            // Move the owning Send wrapper, keeping its handle alive until the
+            // watchdog exits instead of capturing only its raw pointer field.
+            let owned_job = job;
             while !done.load(Ordering::Acquire) {
                 let pending = writing.load(Ordering::Acquire);
                 if stopped.load(Ordering::Acquire)
@@ -56,7 +59,7 @@ pub fn run(
                     || (pending > 0 && started.elapsed().as_millis() as u64 > pending + 5000)
                 {
                     unsafe {
-                        windows_sys::Win32::System::JobObjects::TerminateJobObject(job.0, 125)
+                        windows_sys::Win32::System::JobObjects::TerminateJobObject(owned_job.0, 125)
                     };
                     break;
                 }
