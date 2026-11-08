@@ -172,8 +172,9 @@ final class ExecutorConnections: ObservableObject {
 
     /// Starts a team that appeared in a state folder since the last look.
     func adoptNewTeams() {
-        guard case let .success(directories) = ExecutorPaths.discover(isDevelopmentBuild: isDevelopmentBuild) else { return }
-        for directory in ExecutorStateDiscovery.unclaimedTeams(in: directories, known: controllers.map(\.stateDirectory)) {
+        guard case let .success(found) = ExecutorPaths.discover(isDevelopmentBuild: isDevelopmentBuild) else { return }
+        let known = controllers.map(\.stateDirectory)
+        for directory in ExecutorStateDiscovery.unclaimedTeams(in: found, known: known) {
             let controller = ExecutorController(isDevelopmentBuild: isDevelopmentBuild, stateDirectory: directory)
             controllers.append(controller)
             observe(controller)

@@ -28,7 +28,8 @@ final class ExecutorStateDiscoveryTests: XCTestCase {
             try paired(waiting, pending: true)
             try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
             let found = [known.path, connected.path, waiting.path, empty.path]
-            XCTAssertEqual(ExecutorStateDiscovery.unclaimedTeams(in: found, known: [known.path + "/"]), [connected.path])
+            let unclaimed = ExecutorStateDiscovery.unclaimedTeams(in: found, known: [known.path + "/"])
+            XCTAssertEqual(unclaimed, [connected.path])
             XCTAssertEqual(ExecutorStateDiscovery.unclaimedTeams(in: found, known: [known.path, connected.path]), [])
         }
     }
