@@ -30,7 +30,8 @@ export const logLocations = (context: Pick<CliContext, 'platform' | 'home'>, tea
 }
 
 const restartRows = async (teams: readonly LabelledTeam[]) => Promise.all(teams.filter((team) => team.cliService)
-  .map(async (team) => ({ executorId: team.executorId, label: team.label, autoRestart: await serviceAutoRestartEnabled(team.stateDir) })))
+  .map(async (team) => ({ executorId: team.executorId, label: team.label,
+    autoRestart: await serviceAutoRestartEnabled(team.stateDir) })))
 
 const autoRestart = async (run: CliRun, choice: string | undefined): Promise<void> => {
   if (run.context.platform === 'win32') {

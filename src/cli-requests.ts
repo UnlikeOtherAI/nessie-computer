@@ -83,7 +83,8 @@ export const runRequests = async (run: CliRun): Promise<void> => {
   const request = findRequest(await requestsOf(selectTeams(all, run.options.team, 'requests', true)), id)
   const state = await loadExecutorState(request.team.stateDir)
   let printed = ''
-  await answerProgramRequest(request.team.stateDir, state, { answer, id: request.id, json: false }, (text) => { printed += text })
+  await answerProgramRequest(request.team.stateDir, state, { answer, id: request.id, json: false },
+    (text) => { printed += text })
   if (run.options.json) printJson(run.context, { ...asJson(request), answer })
   else run.context.out(printed)
 }

@@ -47,6 +47,7 @@ export const saveAccess = async (stateDir: string, change: AccessChange): Promis
   const state = await loadExecutorState(stateDir)
   return configureExecutorLocalPolicy(stateDir, state, state.descriptor.operationKeys, undefined, undefined,
     change.workspaceFolders ?? state.workspaceFolders, undefined,
-    change.mcpServerRemovals ? requestedMcpServers(state.mcpServers, { mcpServerRemovals: change.mcpServerRemovals }) : undefined,
+    change.mcpServerRemovals
+      ? requestedMcpServers(state.mcpServers, { mcpServerRemovals: change.mcpServerRemovals }) : undefined,
     {}, change.commandPolicy, change.settings ?? {})
 }

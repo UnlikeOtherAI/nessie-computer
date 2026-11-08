@@ -105,7 +105,8 @@ export const listed = (items: readonly string[], empty = 'none'): string => {
 
 /** Rows as aligned columns, two spaces apart. */
 export const columns = (rows: readonly (readonly string[])[], indent = ''): string => {
-  const widths = rows.reduce<number[]>((found, row) => row.map((cell, index) => Math.max(found[index] ?? 0, cell.length)), [])
+  const widths = rows.reduce<number[]>((found, row) => row.map((cell, index) => (
+    Math.max(found[index] ?? 0, cell.length))), [])
   return rows.map((row) => `${indent}${row.map((cell, index) => (index === row.length - 1 ? cell
     : cell.padEnd(widths[index]!))).join('  ')}`.trimEnd()).join('\n')
 }

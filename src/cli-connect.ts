@@ -31,7 +31,8 @@ const label = (view: PairingCodeView): string => labelFor(
 /** What runs a newly connected team: the user's systemd or launchd service, as `login` sets up. */
 const startService = async (context: CliContext, executorId: string): Promise<string> => {
   if (context.platform === 'linux') {
-    await enableExecutorService({ executorId, assumeYes: true }, { ...createExecutorServiceEnvironment(), write: () => undefined })
+    await enableExecutorService({ executorId, assumeYes: true },
+      { ...createExecutorServiceEnvironment(), write: () => undefined })
     return 'It starts at boot and keeps running after you log out.'
   }
   if (context.platform === 'darwin') {

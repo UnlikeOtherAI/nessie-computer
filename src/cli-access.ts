@@ -134,7 +134,8 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
   if (value !== undefined) throw new CliUsageError(`access coding-assistants ${action} takes nothing after it.`, 'access coding-assistants')
   const description = await describe(team)
   if (action === 'show') {
-    if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: description.existingCodingSessionsEnabled })
+    const enabled = description.existingCodingSessionsEnabled
+    if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: enabled })
     else run.context.out(`Agents in ${team.label} ${description.existingCodingSessionsEnabled ? CODING_ON : CODING_OFF}.\n`)
     return
   }

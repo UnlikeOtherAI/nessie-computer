@@ -101,7 +101,8 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
       found ??= findTeams(context).then((list) => describeTeams(list, dependencies.nameLookup))
       return found
     }
-    await handler({ context, options, command, teams, team: async () => selectTeam(await teams(), options.team, command) })
+    const team = async () => selectTeam(await teams(), options.team, command)
+    await handler({ context, options, command, teams, team })
     return EXIT.ok
   } catch (error) {
     return reportFailure(context, json, error)

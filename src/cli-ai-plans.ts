@@ -36,7 +36,9 @@ const UNAVAILABLE: Record<string, string> = {
 const UNAVAILABLE_OTHER = 'ChatGPT plans are unavailable for this team. Check your server connection and update Nessie Computer.'
 
 /** Runs one operation through the plumbing verb, passing each status it publishes to `seen`. */
-const operate = (team: LabelledTeam, operation: Record<string, unknown>, seen: (status: PlanStatus) => void): Promise<PlanStatus> => {
+const operate = (
+  team: LabelledTeam, operation: Record<string, unknown>, seen: (status: PlanStatus) => void,
+): Promise<PlanStatus> => {
   const [command, ...args] = executorChildCommand({ execPath: process.execPath, execArgv: process.execArgv,
     entry: process.argv[1]!, packaged: process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' },
   ['personal-chatgpt-local', '--operation-stdin', '--state-dir', team.stateDir])
@@ -71,8 +73,9 @@ const planName = (plan: PersonalChatgptProfileStatus, index: number): string => 
 
 const findPlan = (plans: readonly PersonalChatgptProfileStatus[], query: string): PersonalChatgptProfileStatus => {
   const wanted = query.trim().toLowerCase()
-  const exact = plans.filter((plan, index) => plan.profileId === wanted || planName(plan, index).toLowerCase() === wanted)
-  const matches = exact.length ? exact : plans.filter((plan, index) => planName(plan, index).toLowerCase().includes(wanted)
+  const named = (plan: PersonalChatgptProfileStatus, index: number) => planName(plan, index).toLowerCase()
+  const exact = plans.filter((plan, index) => plan.profileId === wanted || named(plan, index) === wanted)
+  const matches = exact.length ? exact : plans.filter((plan, index) => named(plan, index).includes(wanted)
     || (wanted.length >= 4 && plan.profileId.startsWith(wanted)))
   if (matches.length === 1) return matches[0]!
   if (matches.length > 1) throw new CliUsageError(`"${query}" matches more than one plan.`, 'ai plans')

@@ -140,7 +140,9 @@ export type NameLookup = (stateDir: string) => Promise<Pick<PairingCodeView, 'te
 const NAME_TIMEOUT_MS = 4_000
 
 /** The team and organisation names, read from Nessie as the apps read them; null when Nessie can't say. */
-export const readTeamNames = async (team: CliTeam, lookup: NameLookup = pairingCodeStatus): Promise<TeamNames | null> => {
+export const readTeamNames = async (
+  team: CliTeam, lookup: NameLookup = pairingCodeStatus,
+): Promise<TeamNames | null> => {
   let timer: NodeJS.Timeout | undefined
   try {
     const view = await Promise.race([lookup(team.stateDir), new Promise<never>((_, reject) => {
@@ -205,7 +207,9 @@ const choices = (teams: readonly LabelledTeam[]): string => listed(teams.map((te
  * The team `--team` names: its id, its label, or a unique part of the label
  * (any case). Without `--team` the only team, when there is just one.
  */
-export const selectTeam = (teams: readonly LabelledTeam[], query: string | undefined, command: string): LabelledTeam => {
+export const selectTeam = (
+  teams: readonly LabelledTeam[], query: string | undefined, command: string,
+): LabelledTeam => {
   if (teams.length === 0) {
     throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer. Run nessie-computer connect first.')
   }
