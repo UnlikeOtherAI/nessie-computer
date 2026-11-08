@@ -1,9 +1,7 @@
 import { createHash } from 'node:crypto'
 import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
-import { loadExecutorState } from '../../state-store.js'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
-import { parseT3Homes } from './configuration.js'
 import { openNativeT3ExecutionResources } from './native.js'
 
 export interface T3ExecutionResourceScope {
@@ -30,11 +28,12 @@ export async function recognizeT3ExecutionResource(scope: T3ExecutionResourceSco
   const recheck = scopes.get(scope)
   requireCapture(recheck, 't3_execution_resource_not_issued')
   await recheck()
+  requireCapture(scopes.get(scope) === recheck && !scope.signal.aborted, 't3_execution_resource_closed')
   return scope.receipt
 }
 
-/** Fixed T3SessionGraph entrypoint only. A path selects local configuration;
- * native graph custody, held source and service-issued handles supply proof.
+/** Fixed T3SessionGraph entrypoint only. Native resolves existing registration;
+ * graph custody, held source and service-issued handles supply proof.
  * This neither consumes nor extends a retained-import grant. */
 export async function withT3ExecutionResources<A>(input: {
   readonly stateDirectory: string
@@ -44,14 +43,11 @@ export async function withT3ExecutionResources<A>(input: {
 }, use: (scope: T3ExecutionResourceScope) => Promise<A>): Promise<A> {
   requireCapture(process.platform === 'win32' && process.arch === 'x64', 't3_execution_resource_platform_unsupported')
   input.signal?.throwIfAborted()
-  const state = await loadExecutorState(input.stateDirectory)
-  requireCapture(state.executorId === input.executorId, 't3_execution_resource_executor_changed')
-  const homes = parseT3Homes(state.t3SourceHomes ?? [])
-  requireCapture(homes.some(home => home.admittedRootKey === input.admittedRootKey), 'source_not_in_manifest')
-  const manifest = { revision: String(state.descriptor.revision),
-    homes: homes.map(({ admittedRootKey, kind }) => ({ admittedRootKey, kind })) }
-  const native = await openNativeT3ExecutionResources({ stateDirectory: input.stateDirectory,
-    executorId: input.executorId, admittedRootKey: input.admittedRootKey, manifest })
+  // stateDirectory is an enrolled startup reference only. The user graph must
+  // never open service state or receive its machine keys. Native resolves the
+  // actual-token user registration and service verifies its explicit link.
+  const native = await openNativeT3ExecutionResources({ executorId: input.executorId,
+    admittedRootKey: input.admittedRootKey }, input.signal)
   const abort = new AbortController()
   let live = true
   let bytes: Buffer | undefined

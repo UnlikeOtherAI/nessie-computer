@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::{io::{Read, Seek, SeekFrom}, path::{Path, PathBuf}, sync::Arc};
 
 struct ConfigurationObservation { path: PathBuf, identity: String, digest: Vec<u8> }
-fn configuration_bytes(file: &mut Held) -> Result<Vec<u8>, NativeError> {
+pub(super) fn configuration_bytes(file: &mut Held) -> Result<Vec<u8>, NativeError> {
     let mut bytes = Vec::new();
     (&mut file.file).take(256 * 1024 + 1).read_to_end(&mut bytes).map_err(|_| fail())?;
     if bytes.len() > 256 * 1024 { return Err(fail()); }

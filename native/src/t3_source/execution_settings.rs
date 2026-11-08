@@ -34,10 +34,15 @@ impl Settings {
             if instances.len() > 64 { return Err(fail()); }
             for (id, instance) in instances {
                 if instance["enabled"] == false { continue; }
-                let driver = instance["driver"].as_str().ok_or_else(fail)?;
-                if !["codex", "claude"].contains(&driver) { continue; }
+                let original_driver = instance["driver"].as_str().ok_or_else(fail)?;
+                // Pinned ClaudeDriver uses claudeAgent. Normalize only the
+                // execution wire; a source driver literally named claude is
+                // unknown and must never acquire the original driver's homes.
+                let driver = match original_driver {
+                    "codex" => "codex", "claudeAgent" => "claude", _ => continue,
+                };
                 let config = &instance["config"];
-                if config["enabled"] == false || config["setupMode"] == "managed" { continue; }
+                if config["enabled"] == false || (original_driver == "codex" && config["setupMode"] == "managed") { continue; }
                 let Some(home) = config["homePath"].as_str().filter(|s| !s.trim().is_empty()) else { continue; };
                 let history = result.hold_home(home.trim())?;
                 let credential = match config["shadowHomePath"].as_str().filter(|s| !s.trim().is_empty()) {

@@ -52,9 +52,9 @@ fn only_explicit_original_homes_issue_opaque_refs_and_shadow_does_not_change_his
     fs::write(shadow.join("auth.json"), "SECRET_SENTINEL_NOT_A_SETTINGS_DTO").unwrap();
     settings(&f, json!({"providerInstances":{
         "original-alias": {"driver":"codex","config":{"homePath":shared,"shadowHomePath":shadow}},
-        "default": {"driver":"claude","config":{}},
+        "default": {"driver":"claudeAgent","config":{}},
         "managed": {"driver":"codex","config":{"setupMode":"managed","homePath":shared}},
-        "disabled": {"driver":"claude","enabled":false,"config":{"homePath":shared}}
+        "disabled": {"driver":"claudeAgent","enabled":false,"config":{"homePath":shared}}
     }}));
     let source = Resource::open(&f.request).unwrap();
     let held = Settings::open(source.execution_root().unwrap()).unwrap();
@@ -69,6 +69,37 @@ fn only_explicit_original_homes_issue_opaque_refs_and_shadow_does_not_change_his
     assert!(!serialized.contains("SECRET_SENTINEL"));
     assert!(!serialized.contains("codex-explicit"));
     assert!(!serialized.contains("codex-account"));
+}
+#[test]
+fn original_driver_codec_fixture_binds_claude_agent_home_and_normalizes_only_receipt() {
+    let f = Fixture::new(true);
+    // The same fixture is decoded with the actual pinned ServerSettings,
+    // ProviderInstanceConfigMap, CodexSettings and ClaudeSettings in the JS lane.
+    let mut original: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../test/t3-session-source/fixtures/execution-settings.json")).unwrap();
+    let shared = f.temporary.path().join("codex-shared"); directory(&shared);
+    let shadow = f.temporary.path().join("codex-shadow"); directory(&shadow);
+    let claude = f.temporary.path().join("claude-explicit"); directory(&claude);
+    let entries = &mut original["providerInstances"];
+    entries["codex-original"]["config"]["homePath"] = json!(shared);
+    entries["codex-original"]["config"]["shadowHomePath"] = json!(shadow);
+    entries["claude-original"]["config"]["homePath"] = json!(claude);
+    // These fields belong to Codex, not ClaudeSettings. Claude must ignore them.
+    entries["claude-original"]["config"]["shadowHomePath"] = json!(shadow);
+    entries["claude-original"]["config"]["setupMode"] = json!("managed");
+    entries["wire-name-is-not-original"] = json!({"driver":"claude","config":{"homePath":claude}});
+    settings(&f, original);
+    let source = Resource::open(&f.request).unwrap();
+    let mut held = Settings::open(source.execution_root().unwrap()).unwrap();
+    assert_eq!(held.references().len(), 6);
+    let claude_refs = held.references().iter().filter(|r| r.instance_id == "claude-original").collect::<Vec<_>>();
+    assert_eq!(claude_refs.len(), 3);
+    let identity = super::handles::chain(&claude).unwrap().last().unwrap().identity.clone();
+    assert!(claude_refs.iter().all(|r| r.driver == "claude" && r.identity == identity));
+    for role in ["history", "continuation", "credential"] { assert!(claude_refs.iter().any(|r| r.role == role)); }
+    assert!(held.references().iter().all(|r| r.instance_id != "wire-name-is-not-original"));
+    let bytes: serde_json::Value = serde_json::from_slice(&held.bytes().unwrap()).unwrap();
+    assert_eq!(bytes["providerInstances"]["claude-original"]["driver"], "claudeAgent");
 }
 #[test]
 fn unavailable_traversal_reparse_and_oversized_settings_refuse() {

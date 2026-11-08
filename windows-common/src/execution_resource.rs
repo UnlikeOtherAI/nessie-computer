@@ -56,6 +56,8 @@ pub struct Object {
 #[serde(tag = "operation", rename_all = "camelCase", rename_all_fields = "camelCase", deny_unknown_fields)]
 pub enum Request {
     Authorize { executor_id: String },
+    ReviewRegistration { executor_id: String, review_id: String, admitted_root_key: String, configuration: Object, source_root: Object },
+    LinkRegistration { executor_id: String, review_id: String, review_digest: String },
     Register { executor_id: String, resource_id: String, evidence: Evidence, objects: Vec<Object>, watches: Vec<u64> },
     Recheck { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
@@ -64,7 +66,8 @@ impl Request {
     pub fn executor(&self) -> &str {
         match self {
             Self::Authorize { executor_id } | Self::Register { executor_id, .. }
-            | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. } => executor_id,
+            | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. }
+            | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -72,6 +75,16 @@ impl Request {
         if !id(self.executor()) { return Err(REJECTED.into()); }
         match self {
             Self::Authorize { .. } => (),
+            Self::ReviewRegistration { review_id, admitted_root_key, configuration, source_root, .. } => {
+                if !valid_nonce(review_id) || !id(admitted_root_key) || configuration.handle == 0
+                    || configuration.kind != "configuration" || !configuration.private || !id(&configuration.identity)
+                    || source_root.kind != "source-root" || source_root.handle == 0 || !source_root.private || !id(&source_root.identity) {
+                    return Err(REJECTED.into());
+                }
+            }
+            Self::LinkRegistration { review_id, review_digest, .. } => {
+                if !valid_nonce(review_id) || !valid_nonce(review_digest) { return Err(REJECTED.into()); }
+            }
             Self::Close { resource_id, .. } | Self::Recheck { resource_id, .. } => {
                 if !valid_nonce(resource_id) { return Err(REJECTED.into()); }
             }
@@ -88,8 +101,10 @@ impl Request {
                     return Err(REJECTED.into());
                 }
                 let mut refs = std::collections::HashSet::new();
+                let mut roles = std::collections::HashSet::new();
                 for r in &e.provider_references {
                     if !valid_nonce(&r.reference_id) || !refs.insert(&r.reference_id)
+                        || !roles.insert((&r.instance_id, &r.role))
                         || !id(&r.instance_id) || !id(&r.identity)
                         || !["codex", "claude"].contains(&r.driver.as_str())
                         || !["continuation", "history", "credential"].contains(&r.role.as_str()) {
@@ -101,8 +116,61 @@ impl Request {
                         .contains(&o.kind.as_str()) || (o.kind != "directory" && !o.private)) {
                     return Err(REJECTED.into());
                 }
+                for kind in ["source-root", "settings", "database", "environment", "configuration"] {
+                    if objects.iter().filter(|o| o.kind == kind).count() != 1 { return Err(REJECTED.into()); }
+                }
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    fn registration() -> Request {
+        Request::Register { executor_id: "executor".into(), resource_id: "a".repeat(64),
+            evidence: Evidence { source: Source { executor_id: "executor".into(), admitted_root_key: "original".into(),
+                physical_root_key: format!("windows-file-id:{}", "b".repeat(64)), environment_id: "env:雪".into(),
+                database_identity: "volume:db".into(), environment_identity: "volume:env".into(),
+                layout: "v2-80".into(), database_role: "authoritative-v2".into() },
+                settings_identity: "volume:settings".into(), settings_digest: "c".repeat(64), settings_length: 2,
+                provider_references: vec![ProviderReference { reference_id: "d".repeat(64),
+                    instance_id: "original-instance".into(), driver: "codex".into(), role: "history".into(), identity: "volume:home".into() }] },
+            objects: ["source-root", "settings", "database", "environment", "configuration"].into_iter().enumerate()
+                .map(|(i, kind)| Object { handle: (i + 1) as u64, identity: format!("codec:{i}"), kind: kind.into(), private: true }).collect(),
+            watches: vec![7] }
+    }
+    #[test]
+    fn strict_wire_acceptance_is_not_handle_or_custody_admission() {
+        let value = registration(); value.validate().unwrap(); // Shape only; fake handles cannot be duplicated.
+        let mut raw = serde_json::to_value(&value).unwrap();
+        raw["settingsBytes"] = json!("must never cross this wire");
+        assert!(serde_json::from_value::<Request>(raw).is_err());
+        for mutation in 0..5 {
+            let mut value = registration();
+            if let Request::Register { evidence, objects, watches, .. } = &mut value {
+                match mutation {
+                    0 => evidence.settings_length = SETTINGS_LIMIT + 1,
+                    1 => evidence.provider_references.push(evidence.provider_references[0].clone()),
+                    2 => objects.push(objects[1].clone()),
+                    3 => watches.clear(),
+                    _ => evidence.source.database_role = "sole-legacy".into(),
+                }
+            }
+            assert!(value.validate().is_err());
+        }
+    }
+    #[test]
+    fn source_link_wire_cannot_accept_an_approval_boolean_or_an_unheld_root() {
+        let confirm = json!({"operation":"linkRegistration","executorId":"executor",
+            "reviewId":"a".repeat(64),"reviewDigest":"b".repeat(64),"approved":true});
+        assert!(serde_json::from_value::<Request>(confirm).is_err());
+        let review = Request::ReviewRegistration { executor_id:"executor".into(),review_id:"a".repeat(64),
+            admitted_root_key:"source".into(),configuration:Object {handle:1,identity:"fixture:config".into(),
+                kind:"configuration".into(),private:true},source_root:Object {handle:0,identity:"fixture:root".into(),
+                kind:"source-root".into(),private:true} };
+        assert!(review.validate().is_err());
     }
 }
