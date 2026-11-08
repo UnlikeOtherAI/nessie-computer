@@ -191,3 +191,29 @@ test('an added account is its own model, named by the owner, never by its email'
   assert.equal(model?.displayName, 'Codex · Work')
   assert.equal(JSON.stringify(model).includes('person@example.com'), false)
 })
+
+test('Codex: a notice item is not a tool, a tool item ends the turn incomplete', async () => {
+  const codexTurn = async (items: unknown[]) => {
+    const control = createCodingProcessControl(process.platform, { packaged: false })
+    const events = [{ type: 'thread.started' }, ...items.map((item) => ({ type: 'item.completed', item })),
+      { type: 'turn.completed', usage: { input_tokens: 3, output_tokens: 1 } }]
+    const backend = createLocalCliEngineBackend({ engine: 'codex', profileId: null, name: null,
+      detect: async () => ({ ...detection(), engine: 'codex' }) }, { run: fakeRun(), control: () => ({ ...control,
+      spawnAgent: (_program, args, options) => {
+        assert.ok(args.includes('--ephemeral') && args.includes('features.shell_tool=false'))
+        return spawn(process.execPath, ['-e', claudeFixture(events.map((event) => [0, event]))],
+          { ...options, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
+      } }) })
+    const attempt = await attemptFor(backend as ReturnType<typeof setUp>['backend'], { tools: [] })
+    const texts: string[] = []
+    for await (const event of backend.stream({ attempt, origin: 'x', signal: new AbortController().signal, think: false })) {
+      if (event.text) texts.push(event.text)
+    }
+    return texts.join('')
+  }
+  assert.equal(await codexTurn([{ type: 'error', message: 'Under-development features enabled' },
+    { type: 'agent_message', text: 'ready' }]), 'ready')
+  await assert.rejects(codexTurn([{ type: 'command_execution', command: 'ls', status: 'completed' },
+    { type: 'agent_message', text: 'done' }]), (error: unknown) =>
+    error instanceof LocalCliEngineError && error.code === 'inference_incomplete')
+})

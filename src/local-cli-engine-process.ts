@@ -142,7 +142,9 @@ export const runCliEngineTurn = async (input: {
         const parsed = JSON.parse(line) as unknown
         if (!record(parsed)) throw new Error('INFERENCE_INCOMPLETE')
         if (engine === 'codex') {
-          if (record(parsed.item) && !['agent_message', 'reasoning'].includes(String(parsed.item.type))) {
+          // An error item is a notice (Codex 0.167 reports unstable features this way); a failed turn
+          // still ends as turn.failed. Any other item is a tool the CLI must never run here.
+          if (record(parsed.item) && !['agent_message', 'reasoning', 'error'].includes(String(parsed.item.type))) {
             throw new Error('INFERENCE_INCOMPLETE')
           }
           if (parsed.type === 'item.completed' && record(parsed.item) && parsed.item.type === 'agent_message') {
