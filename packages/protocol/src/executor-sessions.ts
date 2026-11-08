@@ -14,6 +14,7 @@ import { createUuidBrandSchema } from './schema-primitives.js'
  * answer that carry them are in `executor.ts`.
  */
 
+/** Nessie's executor session (`ExecutorSessionSummaryResponse.id`), which a run's commands now carry. */
 export const ExecutorSessionIdSchema = createUuidBrandSchema<'ExecutorSessionId'>()
 export type ExecutorSessionId = z.infer<typeof ExecutorSessionIdSchema>
 

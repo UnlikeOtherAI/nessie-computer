@@ -66,8 +66,9 @@ export type ExecutorEnrollmentId = z.infer<typeof ExecutorEnrollmentIdSchema>
 export const ExecutorBindingIdSchema = createUuidBrandSchema<'ExecutorBindingId'>()
 export type ExecutorBindingId = z.infer<typeof ExecutorBindingIdSchema>
 
-export const ExecutorSessionIdSchema = createUuidBrandSchema<'ExecutorSessionId'>()
-export type ExecutorSessionId = z.infer<typeof ExecutorSessionIdSchema>
+// The session a run's work on the computer belongs to (contract §11); its
+// schema lives with the rest of the session wire contract.
+export { ExecutorSessionIdSchema, type ExecutorSessionId } from './executor-sessions.js'
 
 export const ExecutorCommandIdSchema = createUuidBrandSchema<'ExecutorCommandId'>()
 export type ExecutorCommandId = z.infer<typeof ExecutorCommandIdSchema>
