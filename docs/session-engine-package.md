@@ -406,3 +406,10 @@ package paths, traversal, replacement and replay refuse. Fifteen source-producer
 14 privacy and 34 actual-source fixture cases passed on Maxis/Node 24.19.0.
 The normal compiler, packaged declaration consumer and installed runtime still
 need qualification; these source checks do not establish their success.
+
+The pinned `remark-math` 6.0.0 npm tarball omits its monorepo license.
+`notices/remark-math-6.0.0.LICENSE` retains the exact upstream `license` from
+the release's npm `gitHead`, `d5d0660b150810a535bbb07eac6cc96a4510aa24`.
+Notice generation verifies its SHA-256 and the pinned package integrity, then
+records that source alongside the full notice in `engine.licenses.json`.
+Other missing dependency notices still refuse packaging.

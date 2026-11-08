@@ -16,6 +16,18 @@ import { assertSessionEngineSourceGraph } from './graph.mjs'
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 
+// This exact npm release omits its monorepo's license from the tarball.
+// Keep the release's actual upstream notice, rather than substituting SPDX text.
+const pinnedDependencyNotices = {
+  'remark-math@6.0.0': {
+    repository: 'https://github.com/remarkjs/remark-math',
+    commit: 'd5d0660b150810a535bbb07eac6cc96a4510aa24', path: 'license',
+    packageIntegrity: 'sha512-MMqgnP74Igy+S3WwnhQ7kqGlEerTETXMvJhrUzDikVZ2/uogJCb+WHUg97hK9/jcfc0dkD73s3LN8zU49cTEtA==',
+    sha256: 'cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9',
+    localFile: 'notices/remark-math-6.0.0.LICENSE', license: 'MIT',
+  },
+}
+
 const writeImmutable = async (path, bytes) => {
   const existing = await readFile(path).catch(error => {
     if (error.code !== 'ENOENT') throw error
@@ -45,13 +57,27 @@ export const sessionDependencyNotices = async inputs => {
         }
         if (!packages.has(manifest.name)) {
           let notice
+          let noticeSource
           for (const name of ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'LICENSE-MIT', 'LICENCE']) {
             notice = await readFile(resolve(directory, name), 'utf8').catch(() => undefined)
             if (notice) break
           }
+          if (!notice) {
+            const pinned = pinnedDependencyNotices[`${manifest.name}@${manifest.version}`]
+            if (pinned && manifest.license === pinned.license) {
+              const bytes = await readFile(resolve(tools, pinned.localFile))
+              const lock = await readFile(resolve(tools, 'pnpm-lock.yaml'), 'utf8')
+              if (hash(bytes) !== pinned.sha256 || !lock.includes(`integrity: ${pinned.packageIntegrity}`)) {
+                throw new SessionEngineSourceError('SESSION_ENGINE_DEPENDENCY_LICENSE_IDENTITY_MISMATCH')
+              }
+              notice = bytes.toString('utf8')
+              noticeSource = pinned
+            }
+          }
           if (!notice) throw new SessionEngineSourceError('SESSION_ENGINE_DEPENDENCY_LICENSE_ABSENT')
           packages.set(manifest.name, {
             name: manifest.name, version: manifest.version, license: manifest.license, notice,
+            ...(noticeSource ? { noticeSource } : {}),
           })
         }
         break

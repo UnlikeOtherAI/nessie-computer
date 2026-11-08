@@ -118,6 +118,11 @@ test('runtime/type/notices provenance binds generated package files and excludes
   const notices = JSON.parse(await readFile(resolve(dist, 'engine.licenses.json'), 'utf8'))
   assert.ok(notices.upstream.license.includes('MIT License'))
   assert.ok(notices.dependencies.some(item => item.name === 'effect' && item.version === '4.1.2'))
+  const mathNotice = notices.dependencies.find(item => item.name === 'remark-math')
+  assert.equal(mathNotice.version, '6.0.0')
+  assert.equal(mathNotice.noticeSource.commit, 'd5d0660b150810a535bbb07eac6cc96a4510aa24')
+  assert.equal(hash(mathNotice.notice), mathNotice.noticeSource.sha256)
+  assert.equal(mathNotice.noticeSource.sha256, 'cb992262f361a5359e6771c28740d33c7041e15332ae8537fae40538992591a9')
   assert.throws(() => assertLibraryAuthoredInputs(['src/t3-session/import/unregistered.ts'], provenance.registration))
   assert.throws(() => assertLibraryAuthoredInputs([], { ...provenance.registration,
     authoredInputs: ['../sibling.ts'] }))
