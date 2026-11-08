@@ -40,7 +40,7 @@ adversarial UX reviews of revision 30ba47d.
 |---|---|---|
 | The app / CLI | Nessie Computer / `nessie-computer` | Nessie Executor, executor, tray, daemon |
 | A paired team on this computer | team | connection, executor, pairing (except "pairing code") |
-| Pair (on the computer, app and CLI) | **Add this computer** (menu: "Add this computer…"; CLI `nessie-computer add`, `connect` kept as an alias) | Connect a team, Add team, Pair this Mac |
+| Pair (on the computer, app and CLI) | **Add this computer** (menu: "Add this computer…"; CLI `nessie-computer add`, `connect` kept as an alias) | Add this computer, Add team, Pair this Mac |
 | Pair a computer (in Nessie web) | **Add a computer** | Pair a computer |
 | The code | pairing code (8 digits) | invitation, enrollment |
 | Unpair | **Disconnect** {team} | Remove team, sign off |
@@ -77,6 +77,7 @@ Pause  |  Resume                           all teams, durable; with >1 team a su
                                            "All teams", then one line per team label (✓ = paused)
 ──────────
 Open Nessie Computer…                      the window, on Overview
+Add this computer…                         the window, straight onto a new code
 Open Nessie                                the paired server's Computers page
 ──────────
 Quit Nessie Computer                       when work is running, macOS adds: " — agents stop until you open it again"
@@ -106,9 +107,9 @@ service cannot be reached). Starting/stopping/connecting are never amber.
   one-line access summary ("2 folders · UnlikeOtherAI apps, Claude Code, Codex,
   T3 Code · all local apps · no websites"), "Who can send work here" (agents,
   people, projects; from `audience`), buttons **Change access**, **Pause/Resume**,
-  **Disconnect…**; **Connect a team**. First run (no team): a welcome — "Nessie
+  **Disconnect…**; **Add this computer**. First run (no team): a welcome — "Nessie
   Computer lets agents in your Nessie team use this computer. Nothing is shared
-  until you connect a team." — with one button, **Connect a team**.
+  until you connect a team." — with one button, **Add this computer**.
 - **Access** (per team, dropdown): sections Folders · Programs · Websites ·
   Local apps · Coding assistants (the last collapsed under "For developers",
   holding existing-session access and the Claude Code channel recipe). Programs
@@ -144,7 +145,7 @@ Nessie's **Add a computer** box. The server address is optional and only for
 an organisation that runs its own Nessie.
 
 
-1. **Connect a team** opens the dialog and immediately requests a code for
+1. **Add this computer** opens the dialog and immediately requests a code for
    `https://api.nessie.works` (the advanced server link re-requests for another
    address). No URL field by default. No fingerprint. No ChatGPT checkbox.
 2. Shows the 8-digit code (Copy), the countdown, and "In Nessie, open Computers
@@ -279,7 +280,7 @@ failures itself (one translator, keyed by `code`, all locales); the Swift
 
 ### 5.2 Section events
 `tray://section/<overview|access|documents|ai|settings>` with optional
-`{ executorId }`; `tray://connect` opens Connect a team.
+`{ executorId }`; `tray://connect` opens Add this computer.
 
 ### 5.3 Shared console API (tranche E1 provides, E2 uses)
 `window.nc = { byId, invoke, listen, attempt, t, words, team, view, dialogs }`:
@@ -313,7 +314,7 @@ hard-coded host), at `/admin/computers` or, while pairing,
 - Claude Code, Codex and T3 Code resolve by name through the owner's PATH to an
   absolute executable at launch, as other rules do.
 - Pairing: Nessie shows the computer's name and OS and asks **Connect** before
-  claiming; codes stay one-use, 10-minute, never persisted in history.
+  claiming; codes stay one-use, 5-minute, never persisted in history.
 - Program requests can be answered only on the computer, by its owner.
 - Keep custody fences, signed descriptors, revision monotonicity, LAN checks,
   update authenticity, sync conflict preservation and held-deletion approval.
