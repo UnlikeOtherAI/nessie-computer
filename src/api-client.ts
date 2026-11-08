@@ -50,6 +50,7 @@ export type ExecutorApiClient = {
   checkT3EffectAuthority: (baseUrl: string, input: T3EffectAuthorityCheck,
     options?: ExecutorSyncRequestOptions) => Promise<T3EffectAuthorityChecked>
   exchangeT3SessionOperations: (baseUrl: string, input: T3LaneExchange) => Promise<T3LaneExchangeResult>
+  retainedImport: (baseUrl: string, input: unknown) => Promise<unknown>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -244,6 +245,7 @@ export const createExecutorApi = (options: {
     checkT3EffectAuthority: (baseUrl, input, options) =>
       post(baseUrl, '/api/executor-daemon/t3/effect-authority', input, options?.timeoutMs, options?.signal),
     exchangeT3SessionOperations: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/t3/operations', input),
+    retainedImport: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/retained-import', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,
