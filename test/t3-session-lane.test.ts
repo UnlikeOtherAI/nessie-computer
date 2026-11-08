@@ -84,3 +84,28 @@ test('epoch change discards old demand without dispatching it twice', async () =
   assert.equal(lane.hot(), false)
   lane.close()
 })
+
+test('authenticated offer carries original provenance separately and refuses changed initiation on replay', async t => {
+  const f = fixture()
+  const provenance = { createdBy: 'agent', creationSource: 'mcp' } as const
+  const requestDigest = `hmac-sha256:${'b'.repeat(64)}`
+  let calls = 0
+  let offer: T3LaneExchangeResult['offers'][number] = { request: f.wire, provenance, requestDigest,
+    expiresAt: new Date(Date.now() + 50_000).toISOString() }
+  const lane = createT3SessionLane({ describe: async () => [], async *open(request, _signal, delivery) {
+    calls++
+    assert.deepEqual(request, f.request)
+    assert.deepEqual(delivery, { requestDigest, provenance })
+    assert.equal(Object.isFrozen(delivery), true)
+    assert.equal(Object.isFrozen(delivery.provenance), true)
+    yield f.reply
+  } }, { exchangeT3SessionOperations: async () => ({ acknowledged: [], controls: [], offers: [offer] }) })
+  t.after(() => { lane.close() })
+  await lane.exchangeT3SessionOperations(f.state)
+  await setImmediate()
+  await lane.exchangeT3SessionOperations(f.state)
+  assert.equal(calls, 1)
+  offer = { ...offer, provenance: { createdBy: 'user', creationSource: 'web' } }
+  await assert.rejects(lane.exchangeT3SessionOperations(f.state), /T3_LANE_CORRELATION/u)
+  assert.equal(calls, 1)
+})

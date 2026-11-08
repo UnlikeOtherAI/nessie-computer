@@ -1,5 +1,7 @@
 import * as Schema from 'effect/Schema'
 import { isStreamSchema } from 'effect/rpc/RpcSchema'
+import { OrchestrationV2Actor, OrchestrationV2CreationSource } from '@nessie/t3-session-source/contracts'
+import type { Threads } from '@nessie/t3-session-source/engine'
 import { ExecutorT3Request } from './request.js'
 import { ExecutorT3Result, ExecutorT3Error } from './reply.js'
 import { ExecutorT3HttpRequest, ExecutorT3HttpReply, ExecutorT3HttpFailure } from './http-transport.js'
@@ -26,6 +28,18 @@ export const decodeExecutorT3LaneReply = Schema.decodeUnknownSync(Schema.toCodec
 export const isExecutorT3Stream = (request: ExecutorT3LaneOperation): boolean =>
   request.kind === 'request' && isStreamSchema(ExecutorT3Descriptors[request.method].successSchema)
 
+/** Prospective initiating actor from authenticated ingress, not historical
+ * authorship or native effect authority. It stays outside the original request.
+ */
+export type T3LaneProvenance = Threads.ThreadManagementProvenance
+export const decodeT3LaneProvenance = Schema.decodeUnknownSync(Schema.Struct({
+  createdBy: OrchestrationV2Actor, creationSource: OrchestrationV2CreationSource,
+}), { onExcessProperty: 'error' })
+export type ExecutorT3LaneDelivery = {
+  readonly requestDigest: string;
+  readonly provenance?: T3LaneProvenance;
+}
+
 export const T3_LANE_LIMITS = Object.freeze({
   active: 64, exchangeFrames: 8, requestBytes: 1024 * 1024,
   frameBytes: 8 * 1024 * 1024, bufferedBytes: 32 * 1024 * 1024, leaseMs: 60_000, pollMs: 250,
@@ -50,7 +64,7 @@ export type T3LaneExchange = {
 }
 export type T3LaneExchangeResult = {
   acknowledged: { environmentId: string; correlationId: string; ordinal: number }[];
-  offers: { request: ExecutorT3LaneOperationEncoded; requestDigest: string; expiresAt: string }[];
+  offers: (ExecutorT3LaneDelivery & { request: ExecutorT3LaneOperationEncoded; expiresAt: string })[];
   controls: { environmentId: string; correlationId: string; state: 'credit' | 'hold' | 'cancel';
     nextOrdinal: number; expiresAt?: string }[];
 }
