@@ -11,7 +11,7 @@ import {
   addLocalCliAccount, findLocalCliAccount, localCliAccountDirectory, readLocalCliAccounts,
 } from '../src/local-cli-engine-accounts.js'
 import { applyLocalCliEngineOperation, localCliEngineRows } from '../src/local-cli-engine-cli.js'
-import { detectLocalCliEngines, type LocalCliProbes } from '../src/local-cli-engine-detect.js'
+import { codexAccountStatus, detectLocalCliEngines, type LocalCliProbes } from '../src/local-cli-engine-detect.js'
 import { registerLocalCliHost } from '../src/local-cli-engine-host.js'
 import { createLocalCliEngineManager } from '../src/local-cli-engine-manager.js'
 import { readLocalCliStatus, setLocalCliAvailability, writeLocalCliStatus } from '../src/local-cli-engine-settings.js'
@@ -52,6 +52,18 @@ test('detection reports installed, signed in and the account, for each account',
     assert.equal(row('codex', work.id).env.CODEX_HOME, localCliAccountDirectory(dirs.accounts, work.id))
     assert.equal(row('codex', null).env.CODEX_HOME, undefined)
   } finally { await dirs.done() }
+})
+
+test('Codex is signed in when its own login status says so; the account name is optional', async () => {
+  const ran: string[][] = []
+  const run = (code: number) => async (_file: string, args: string[]) => {
+    ran.push(args)
+    return { code, missing: false, stdout: code === 0 ? 'Logged in using ChatGPT' : 'Not logged in' }
+  }
+  assert.deepEqual(await codexAccountStatus('/opt/codex', {}, run(1)), { signedIn: false })
+  // A program that cannot answer account/read still counts as signed in.
+  assert.deepEqual(await codexAccountStatus(process.execPath, {}, run(0)), { signedIn: true })
+  assert.deepEqual(ran, [['login', 'status'], ['login', 'status']])
 })
 
 test('Make available is per team, and only for an installed program', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {

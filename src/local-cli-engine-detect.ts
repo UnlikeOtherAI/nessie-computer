@@ -43,22 +43,28 @@ export const claudeAuthStatus = async (
   return { signedIn: true, ...(account ? { account } : {}) }
 }
 
+/**
+ * Signed in is `codex login status` (the probe DeepTest inference uses); the
+ * app-server's `account/read` only names the account, because it can answer
+ * `account: null` for a CLI that is signed in with ChatGPT.
+ */
 export const codexAccountStatus = async (
-  program: string, env: NodeJS.ProcessEnv,
+  program: string, env: NodeJS.ProcessEnv, run: CommandRunner = runCommand,
 ): Promise<{ signedIn: boolean; account?: string }> => {
+  const status = await run(program, ['login', 'status'], { env, timeoutMs: 10_000, maxBytes: 16 * 1024 })
+  if (status.code !== 0) return { signedIn: false }
   const rpc = new CodexRpc(program, env)
   try {
     const value = await rpc.call('account/read', {})
-    if (!record(value) || !record(value.account)) return { signedIn: false }
-    const account = email(value.account.email)
+    const account = record(value) && record(value.account) ? email(value.account.email) : undefined
     return { signedIn: true, ...(account ? { account } : {}) }
-  } catch { return { signedIn: false } } finally { rpc.close() }
+  } catch { return { signedIn: true } } finally { rpc.close() }
 }
 
 export const defaultLocalCliProbes: LocalCliProbes = {
   findProgram: (engine, env) => findProviderProgram(engine === 'claude-code' ? 'claude' : 'codex', env),
   claudeStatus: (program, env) => claudeAuthStatus(program, env),
-  codexStatus: codexAccountStatus,
+  codexStatus: (program, env) => codexAccountStatus(program, env),
 }
 
 /** The owner's own environment, as the coding-session and quota readers build it. */
