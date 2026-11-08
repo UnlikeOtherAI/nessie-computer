@@ -38,5 +38,6 @@ test('interrupted fetch and later pinned objects recover in the same cache witho
   assert.equal(git(repository, ['cat-file', '-t', second]), 'commit')
   assert.equal(await readFile(resolve(repository, 'failed-work-item'), 'utf8'), 'preserve')
   const blob = git(upstream, ['rev-parse', 'HEAD:source.txt'])
-  await assert.rejects(ensurePinnedSourceObject({ repository, upstream, commit: blob }), /CONTRACT_COMMITTED_OBJECT_REQUIRED/)
+  await assert.rejects(ensurePinnedSourceObject({ repository, upstream, commit: blob }),
+    /CONTRACT_COMMITTED_OBJECT_REQUIRED/)
 })
