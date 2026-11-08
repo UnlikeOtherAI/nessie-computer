@@ -99,7 +99,7 @@ try {
     await page.getByRole('button', { name: 'Get new code' }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
-    await page.waitForSelector('.connection-row')
+    await page.waitForSelector('#tab-teams .connection-row')
     assert.equal(await page.locator('#pair-dialog').evaluate((dialog) => dialog.open), false)
     await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_notify'))
     assert.deepEqual((await lastCall(page, 'executor_notify')).args, { title: 'Connected',
@@ -109,7 +109,7 @@ try {
     await page.getByRole('dialog').getByRole('button', { name: 'Get pairing code' }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
-    await page.waitForFunction(() => document.querySelectorAll('.connection-row').length === 2)
+    await page.waitForFunction(() => document.querySelectorAll('#tab-teams .connection-row').length === 2)
     // The poll that finds it paired selects the new team, then announces it; wait for both.
     await page.waitForFunction(() => window.calls.filter((call) => call.command === 'executor_notify').length === 2)
     assert.equal(await page.locator('#connection option').count(), 2)
@@ -285,7 +285,7 @@ try {
     assert.match(await page.locator('#remove-summary').textContent(), /UnlikeOtherAI \/ Platform/)
     await page.screenshot({ path: join(output, `${host}-remove.png`), fullPage: true })
     await page.getByRole('button', { name: 'Remove team' }).click()
-    await page.waitForFunction(() => document.querySelectorAll('.connection-row').length === 1)
+    await page.waitForFunction(() => document.querySelectorAll('#tab-teams .connection-row').length === 1)
     assert.equal(await page.getByRole('button', { name: 'Try again' }).isHidden(), true)
     assert.doesNotMatch(await status(), /weren’t saved/)
     assert.deepEqual((await lastCall(page, 'executor_remove')).args, { executorId: 'team-0' })
