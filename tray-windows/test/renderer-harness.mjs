@@ -22,7 +22,7 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
 const browser = await chromium.launch({ executablePath, headless: true })
 const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
 try {
-  if (process.argv.includes('--updates-only') || process.argv.includes('--updates-bootstrap-only')
+  if (process.argv.includes('--updates-only') || process.argv.includes('--updates-copy-only') || process.argv.includes('--updates-bootstrap-only')
     || process.argv.some((arg) => arg.startsWith('--updates-before='))) {
     await verifySoftwareUpdates(browser, ui, files, root)
     process.exit(0)

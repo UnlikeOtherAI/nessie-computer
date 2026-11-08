@@ -7,9 +7,10 @@ import { installRendererHost } from './renderer-host.mjs'
 
 export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   const before = process.argv.find((arg) => arg.startsWith('--updates-before='))?.split('=')[1]
+  const copyOnly = process.argv.includes('--updates-copy-only')
   const bootstrapOnly = process.argv.includes('--updates-bootstrap-only')
   const setupOnly = process.argv.includes('--updates-setup-only')
-  const output = join(root, setupOnly ? '.artifacts/executor-console-setup'
+  const output = join(root, copyOnly ? '.artifacts/executor-console-copy' : setupOnly ? '.artifacts/executor-console-setup'
     : bootstrapOnly ? '.artifacts/executor-console-bootstrap' : '.artifacts/executor-console-updates',
     before ? 'before' : 'after')
   await mkdir(output, { recursive: true })
@@ -47,20 +48,22 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         : file.endsWith('.css') ? 'text/css' : 'text/html' })
     })
     await page.goto('http://localhost:5875')
-    if (state === 'prompt' && !before) {
+    if (state === 'prompt' && (!before || copyOnly)) {
       // The native notification opens Settings before presenting the alert.
       await page.evaluate(() => window.emitTray('tray://section/settings'))
     } else await page.getByRole('tab', { name: 'Settings', exact: true }).click()
-    if (!before) await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_update_control'))
+    if (!before || copyOnly) await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_update_control'))
     return { context, page, errors }
   }
   for (const host of setupOnly ? ['macos'] : ['windows', 'macos']) {
     for (const width of [640, 440]) {
-      const states = setupOnly ? [before ? 'unavailable' : 'setup'] : bootstrapOnly ? ['bootstrap'] : before ? ['idle']
+      const states = copyOnly ? ['prompt', 'unavailable'] : setupOnly ? [before ? 'unavailable' : 'setup'] : bootstrapOnly ? ['bootstrap'] : before ? ['idle']
         : ['idle', 'available', 'prompt', 'downloading', 'waiting', 'installing',
         'restarting', 'failed', 'unsupported', 'unavailable']
       for (const state of states) {
         const { context, page, errors } = await open({ host, width, state })
+        if (copyOnly && state === 'unavailable') await page.locator('#update-error').waitFor()
+        if (copyOnly && state === 'prompt') await page.locator('#update-dialog[open]').waitFor()
         if (!before) {
           if (state === 'unavailable') await page.locator('#update-error').waitFor()
           else if (state === 'setup') await page.locator('#update-version').getByText('Version unavailable', { exact: true }).waitFor()
@@ -125,7 +128,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     }
   }
   if (!before) {
-    for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
+    if (!copyOnly) for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
       const { context, page, errors } = await open({ host: 'macos', width: 440, locale, state: 'setup' })
       await page.locator('#update-setup').waitFor()
       assert.equal(await page.locator('#update-policy').isVisible(), false)

@@ -198,6 +198,8 @@ translated into all seven supported locales. The local headless renderer
 journey is `node tray-windows/test/renderer-harness.mjs --updates-only`; it is
 not a CI job. Matching base screenshots can be captured with
 `--updates-before=<base-commit>` from actual Git objects without changing UI.
+For reminder and retry copy, add `--updates-copy-only` to both runs; it visits
+only the changed offer and service-unavailable states.
 
 Windows observes exited generations and empty Job Objects independently of
 stale service records; it never deletes that journal or its credential fences
