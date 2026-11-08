@@ -103,6 +103,17 @@
       </div>
     </section>
     <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
+      <section id="retained-import" hidden aria-labelledby="retained-title">
+        <h2 id="retained-title"></h2>
+        <p id="retained-baseline" class="hint"></p>
+        <label id="retained-root-label" for="retained-root"></label>
+        <select id="retained-root"></select>
+        <div class="actions"><button id="retained-offer" type="button"></button><button id="retained-refresh" type="button"></button></div>
+        <div id="retained-requests"></div>
+        <p id="retained-status" role="status"></p>
+        <button id="retained-revoke" type="button" hidden></button>
+        <p id="retained-error" role="alert" hidden></p>
+      </section>
       <label class="toggle"><input type="checkbox" id="autostart"> Open Nessie Executor when I log in</label>
       <label class="toggle"><input type="checkbox" id="auto-restart" aria-describedby="auto-restart-hint"> Restart a connection if it stops</label>
       <p id="auto-restart-hint" class="hint">If a team’s connection stops without you stopping it, Nessie Executor starts it again.</p>
@@ -223,5 +234,6 @@
     <div class="actions"><button type="button" id="sync-deleted-open"></button><button type="button" id="sync-deleted-close" class="dialog-close"></button></div>
   </dialog>
   <script src="native.js"></script><script src="updates-words.js"></script><script src="updates.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="chatgpt.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
+  <script src="retained-import.js"></script>
 </body>
 </html>

@@ -146,7 +146,10 @@ admitted installation signer with an actual trusted verification authority.
 Unsigned sibling JSON is not attestation. This cannot certify existing copies.
 Those need an explicit canonical migration/admission decision accepting an
 *unattested historical baseline*, with that distinction retained. Neither decision
-nor original-client extension is implemented here.
+nor original-client extension was part of the initial physical checkpoint. The
+subsequent explicitly authorized prospective policy accepts an unattested baseline
+without asserting historical provenance; [source consent](t3-source-consent.md)
+records its native issuer implementation and remaining qualification/composition.
 
 ## Remaining canonical boundaries
 
@@ -190,7 +193,7 @@ do not treat this status as a successful first-baseline attestation.
 This source/tiny lane ran source reads/edits, whitespace and parser-only checks. No
 dependency install, compiler, runtime test, SQLite fixture, native build,
 provider, personal session or installed-state operation ran.
-The final source-only pass parsed 16 TypeScript files and three JSON files,
+The physical-only `8dad49e` source pass parsed 16 TypeScript files and three JSON files,
 checked syntax for the three changed JavaScript test/helper files, and passed
 `git diff --check`. It executed no implementation modules. Thirteen native cases,
 three adapter cases and seven installed cases are authored, all unrun. The adapter
