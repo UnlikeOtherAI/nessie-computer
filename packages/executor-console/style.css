@@ -116,3 +116,9 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 #sync-load-error button { padding: 2px 8px; font-size: 12px; }
 @media (max-width: 470px) { main, header { padding-left: 16px; padding-right: 16px; } .tabs { margin: 0 16px; } .connection-row { flex-wrap: wrap; } .connection-name { flex-basis: 100%; }
   .sync-actions button, #sync-choose, #sync-deleted-dialog button { min-height: 44px; } }
+
+/* Native application labels do not become browser selections while operating controls. */
+body { -webkit-user-select: none; user-select: none; }
+input, textarea, [contenteditable=true], .pairing-code, #pairing-code, #claude-channel-config {
+  -webkit-user-select: text; user-select: text;
+}

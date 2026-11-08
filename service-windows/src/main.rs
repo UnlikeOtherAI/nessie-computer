@@ -23,6 +23,7 @@
 #![cfg_attr(not(windows), allow(dead_code))]
 
 mod control;
+mod inference_connections;
 mod helper;
 mod hyperv;
 use nessie_windows_common::lease;

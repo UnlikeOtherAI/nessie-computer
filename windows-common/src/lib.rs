@@ -18,6 +18,7 @@ pub mod custody_store;
 #[cfg(windows)]
 pub mod custody_observation;
 pub mod lease;
+pub mod inference_control;
 #[cfg(windows)]
 pub mod process;
 #[cfg(windows)]

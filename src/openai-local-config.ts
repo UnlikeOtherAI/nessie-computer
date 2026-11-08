@@ -3,6 +3,7 @@ import { isAbsolute, join } from 'node:path'
 
 import { replaceOwnerOnlyJson } from './owner-only-json.js'
 import { assertOwnerOnlyStatePath } from './state-security.js'
+import { inferenceEndpointUrl } from './inference-endpoint-network.js'
 
 export const OPENAI_ENDPOINT_FILE = 'local-openai-endpoint.json'
 
@@ -13,8 +14,8 @@ export const OPENAI_ENDPOINT_FILE = 'local-openai-endpoint.json'
 export type LocalOpenAiConfig = {
   baseUrl: string
   apiKey?: string
-  localServiceConfirmed: true
-}
+} & ({ localServiceConfirmed: true; networkServiceConfirmed?: never }
+  | { networkServiceConfirmed: true; localServiceConfirmed?: never })
 
 /**
  * Earlier releases asked the owner to describe each model by hand. The server's
@@ -54,11 +55,15 @@ export const localModelServerOrigin = (config: LocalOpenAiConfig): string => new
 
 export const parseLocalOpenAiConfig = (input: unknown): LocalOpenAiConfig => {
   if (!record(input) || Object.keys(input).some((key) =>
-    !['baseUrl', 'apiKey', 'localServiceConfirmed', ...SUPERSEDED_KEYS].includes(key))
-    || typeof input.baseUrl !== 'string' || input.baseUrl.length > 512 || input.localServiceConfirmed !== true
+    !['baseUrl', 'apiKey', 'localServiceConfirmed', 'networkServiceConfirmed', ...SUPERSEDED_KEYS].includes(key))
+    || typeof input.baseUrl !== 'string' || input.baseUrl.length > 512
+    || !((input.localServiceConfirmed === true && input.networkServiceConfirmed === undefined)
+      || (input.networkServiceConfirmed === true && input.localServiceConfirmed === undefined))
     || input.apiKey !== undefined && (typeof input.apiKey !== 'string' || input.apiKey.length > 4096
       || /[\r\n]/.test(input.apiKey))) return invalid()
-  return { baseUrl: localOpenAiBaseUrl(input.baseUrl as string), localServiceConfirmed: true,
+  return { ...(input.networkServiceConfirmed === true
+    ? { baseUrl: inferenceEndpointUrl(input.baseUrl as string), networkServiceConfirmed: true as const }
+    : { baseUrl: localOpenAiBaseUrl(input.baseUrl as string), localServiceConfirmed: true as const }),
     ...(typeof input.apiKey === 'string' && input.apiKey ? { apiKey: input.apiKey } : {}) }
 }
 

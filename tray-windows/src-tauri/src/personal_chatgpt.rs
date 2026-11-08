@@ -19,6 +19,15 @@ pub enum Operation {
         profile_id: Option<String>,
         #[serde(rename = "acknowledgeHostRestriction")]
         acknowledge_host_restriction: bool,
+        #[serde(rename = "newProfileId", skip_serializing_if = "Option::is_none")]
+        new_profile_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        label: Option<String>,
+    },
+    Rename {
+        #[serde(rename = "profileId")]
+        profile_id: String,
+        label: String,
     },
     Cancel {
         #[serde(rename = "operationId")]
@@ -45,7 +54,8 @@ fn public_operation(value: serde_json::Value) -> Result<serde_json::Value, Strin
             profile_id.as_ref()
         }
         Operation::Cancel { operation_id } => Some(operation_id),
-        Operation::Disconnect { profile_id } | Operation::BackgroundConsent { profile_id, .. } => {
+        Operation::Disconnect { profile_id } | Operation::BackgroundConsent { profile_id, .. }
+        | Operation::Rename { profile_id, .. } => {
             Some(profile_id)
         }
     };
@@ -53,6 +63,16 @@ fn public_operation(value: serde_json::Value) -> Result<serde_json::Value, Strin
         .is_some_and(|id| id.len() != 36 || !id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-'))
     {
         return Err("Invalid local sign-in identity.".into());
+    }
+    let (new_id, label) = match &operation {
+        Operation::Start { new_profile_id, label, .. } => (new_profile_id.as_ref(), label.as_ref()),
+        Operation::Rename { label, .. } => (None, Some(label)),
+        _ => (None, None),
+    };
+    if new_id.is_some_and(|id| id.len() != 36 || !id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-'))
+        || label.is_some_and(|label| label.trim().is_empty() || label.chars().count() > 80)
+    {
+        return Err("Invalid local connection name or identity.".into());
     }
     if let Operation::BackgroundConsent {
         expected_revision, ..

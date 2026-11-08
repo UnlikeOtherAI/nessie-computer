@@ -227,6 +227,15 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
                 ExecutorCLI.describe(stateDirectory: controller.stateDirectory), controller: controller
             )
         case "executor_configure": return try await configure(args, controller: controller)
+        case "executor_inference_connections":
+            guard args["executorId"] as? String == controller.model.description?.executorId,
+                  let operation = args["operation"] as? [String: Any] else {
+                throw ExecutorRefusal("Choose a paired team and inference connection action.")
+            }
+            let data = try JSONSerialization.data(withJSONObject: operation)
+            guard data.count <= 16 * 1024 else { throw ExecutorRefusal("Invalid inference connection action.") }
+            return try await json(ExecutorCLIInvocation(arguments: ["local-inference", "connections",
+                "--operation-stdin", "--state-dir", controller.stateDirectory], standardInput: data), controller: controller)
         case "executor_personal_chatgpt":
             guard args["executorId"] as? String == controller.model.description?.executorId,
                   let operation = args["operation"] as? [String: Any] else {
