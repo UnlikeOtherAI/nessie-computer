@@ -37,7 +37,7 @@ control from the command line.
 
 | | By default | You can |
 |---|---|---|
-| **Folders** | A *Nessie* folder in your home folder, and the computer's shared folder | Add or remove folders |
+| **Folders** | A *Nessie* folder in your home folder | Add or remove folders |
 | **Programs** | Apps from UnlikeOtherAI, Claude Code, Codex and T3 Code | Allow more, block some, or allow none |
 | **Other programs** | Agents ask first. You choose **Allow once**, **Always allow** or **Don't allow** | Answer on the computer |
 | **Local apps** | Every app on this computer that agents can talk to (MCP servers) | Switch any off |

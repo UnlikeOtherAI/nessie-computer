@@ -47,7 +47,7 @@ Needs you: Sales agent wants to run `npm test` (Sales · Acme)
 ```sh
 $ nessie-computer access show --team Sales
 Sales · Acme can use:
-  Folders     nessie (~/Nessie), shared (/Users/Shared)
+  Folders     nessie (~/Nessie)
   Programs    Only these: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code
   Websites    none
   Local apps  all installed (kelpie)

@@ -142,13 +142,12 @@ then takes its own list and the earlier one goes. `describe.reach.allowedOrigins
 is the effective list and `sandbox.browserConfigured` says whether the browser
 can open them yet.
 
-The default folders affect websites. A new pairing gets two folders on macOS
-and Windows (`nessie` and the shared folder) and one on Linux without a public
-share. A guest VM mounts one folder, so with two `describe.reach.guestSessions`
-is `refused_multiple_folders` and `browser.open`, guest `command.run` and
-`coding.launch` refuse with `EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED`. Host
-terminal sessions, local apps and the workspace file operations are not
-affected.
+The folders affect websites. A new pairing gets one folder, `nessie`, because
+a guest VM mounts exactly one. Once the owner adds a second,
+`describe.reach.guestSessions` is `refused_multiple_folders` and
+`browser.open`, guest `command.run` and `coding.launch` refuse with
+`EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED`. Host terminal sessions, local apps and
+the workspace file operations are not affected.
 
 ## Who can send work here
 

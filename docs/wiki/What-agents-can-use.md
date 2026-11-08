@@ -8,13 +8,13 @@ Access has five parts:
 
 | Part | What it means | New team gets |
 |---|---|---|
-| [Folders](#folders) | Folders agents can read, and prepare changes to | *Nessie* folder and the shared folder |
+| [Folders](#folders) | Folders agents can read, and prepare changes to | The *Nessie* folder |
 | [Programs](Programs) | Programs agents can start | Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code |
 | [Websites](#websites) | Sites the agents' own browser may open | None |
 | [Local apps](#local-apps) | Apps on this computer agents can talk to (MCP servers) | All of them |
 | [Coding assistants](#coding-assistants) | Your existing Claude Code and Codex conversations | As set when you connected |
 
-**Overview** sums this up on each team's card, for example *"2 folders · Apps
+**Overview** sums this up on each team's card, for example *"1 folder · Apps
 from UnlikeOtherAI, Claude Code, Codex, T3 Code · all local apps · no websites"*.
 
 Changes take effect straight away. Agents already working keep going under the
@@ -38,6 +38,10 @@ change to a real file is shown to you for approval first.
 - **Remove** stops sharing a folder. The folder and its files stay where they are.
 - Each row shows the name agents use for the folder (for example `nessie` or
   `projects`), so you can recognise it in an agent's message.
+
+Agents' own browser, sandboxed commands and Codex sessions work with exactly
+one folder. With two or more, those refuse to start until you remove the
+extras. Reading files, terminals and local apps keep working.
 
 Folders are not the same as [Documents](Documents). Folders are your files,
 shared with agents. Documents is a copy of your team's Nessie documents kept on
