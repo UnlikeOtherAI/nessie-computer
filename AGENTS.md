@@ -65,6 +65,7 @@ The Windows tray's bounded inherited-pipe handoff, existing-daemon registry, who
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
 Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).
 Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
+Execution-only held settings, opaque provider homes and the protected graph/service duplication contract follow [execution resources](docs/t3-execution-resources.md); retained read consent grants no execution authority.
 Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.
 Prospective source issuer enrollment, protected local review, online receipt consumption and the unqualified Windows tray/service gates follow [source consent](docs/t3-source-consent.md).
 
