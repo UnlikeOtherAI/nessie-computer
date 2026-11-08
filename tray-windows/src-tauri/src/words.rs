@@ -11,6 +11,9 @@ use std::sync::OnceLock;
 
 pub use crate::words_tables::Words;
 
+/// The product's name, the same in every language.
+pub const APP_NAME: &str = "Nessie Computer";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Locale {
     EnGb,

@@ -225,13 +225,15 @@ fn handle_menu(app: &AppHandle, id: &str) {
     }
 }
 
+/// The icon appears before the first read of the teams, so it starts idle and
+/// says only the product's name; the first poll replaces both. Windows keeps
+/// this first tooltip as the icon's name in its settings.
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let view = ServiceView::Reachable { executors: Vec::new() };
-    let overview = overview(&view);
+    let unread = overview::Overview::unread();
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(Image::from_bytes(tray_state(&view, false).icon_bytes())?)
-        .tooltip(&overview.status)
-        .menu(&menu::build(app, &overview, words::words())?)
+        .icon(Image::from_bytes(state::TrayState::Idle.icon_bytes())?)
+        .tooltip(unread.tooltip())
+        .menu(&menu::build(app, &unread, words::words())?)
         // Without this, a left-click opens the menu and the window is unreachable.
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| handle_menu(app, event.id.as_ref()))
