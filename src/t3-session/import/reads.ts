@@ -28,6 +28,7 @@ async function readPage<A>(ports: RetainedCapturePorts, manifest: T3SourceManife
         'capture_history_not_ready')
       const root = ports.journal.root(source.physicalRootKey)
       requireCapture(root?.environment_id === source.environmentId && root.conflict === 0, 'capture_history_source_conflict')
+      ports.journal.requirePublished(source.physicalRootKey, generation)
       const identity = ports.journal.catalog(source.physicalRootKey).find(row => row.thread_id === threadId)
       requireCapture(identity && identity.source_state !== 'deleted', 'capture_history_tombstoned_or_unknown')
       const stage = await ports.workspace.reopenGeneration(job.stage_ref)
@@ -41,8 +42,7 @@ async function readPage<A>(ports: RetainedCapturePorts, manifest: T3SourceManife
       await lease.recheckSource()
       await recheck()
       // A concurrent refresh/conflict cannot publish through an obsolete page.
-      const latest = ports.journal.root(source.physicalRootKey)
-      requireCapture(latest?.generation === root.generation && latest?.conflict === 0, 'capture_history_generation_changed')
+      ports.journal.requirePublished(source.physicalRootKey, generation)
       return result
     }))
 }

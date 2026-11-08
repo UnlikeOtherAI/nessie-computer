@@ -19,7 +19,7 @@ export const syntheticOwner = { withReadScope: async (_input, use) => use({
   recheckSource: async () => {}, recheckThread: async () => {},
 }) }
 
-export async function engineFixture({ threads = 3, messages = 360 } = {}) {
+export async function engineFixture({ threads = 3, messages = 360, legacy = false } = {}) {
   const directory = resolve('.artifacts/t04-engine', randomUUID())
   mkdirSync(directory, { recursive: true })
   const path = join(directory, 'synthetic-source.sqlite')
@@ -50,17 +50,21 @@ export async function engineFixture({ threads = 3, messages = 360 } = {}) {
   // marker. The capture must invalidate it when later legacy messages arrive.
   const state = createSessionStateLayers()
   const reads = createSessionReadLayers(state)
-  await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+  if (!legacy) await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
     const importer = yield* LegacyImporter.LegacyV1ThreadImporter
     yield* importer.reconcileShells
     yield* importer.ensureTranscript(S.ThreadId.make(ids[0]))
   }).pipe(Effect.provide(reads.layer.pipe(Layer.provideMerge(sqlLayer(path)))))))
   const writer = new DatabaseSync(path)
+  // Synthetic legacy-54 admission fixture: original migrated legacy tables,
+  // no V2 hydration. Extra V2 tables are deliberately excluded by the reader.
+  if (legacy) writer.exec('DELETE FROM effect_sql_migrations WHERE migration_id > 54')
   writer.exec('PRAGMA journal_mode = WAL; PRAGMA wal_autocheckpoint = 0')
   writer.exec("CREATE TABLE synthetic_excluded_credentials (value TEXT); INSERT INTO synthetic_excluded_credentials VALUES ('never-read')")
   const physical = statSync(realpathSync(path))
   const source = { admittedRootKey: 'fixture:admitted', physicalRootKey: `fixture:${physical.dev}:${physical.ino}`,
-    environmentId: S.EnvironmentId.make('fixture:environment'), layout: 'v2-80', databaseRole: 'authoritative-v2' }
+    environmentId: S.EnvironmentId.make('fixture:environment'), layout: legacy ? 'legacy-54' : 'v2-80',
+    databaseRole: legacy ? 'sole-legacy' : 'authoritative-v2' }
   const sourcePort = { withReadonlySource: async (_manifest, key, use) => {
     assert.equal(key, source.admittedRootKey)
     const database = new DatabaseSync(path, { readOnly: true })

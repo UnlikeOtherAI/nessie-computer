@@ -16,7 +16,7 @@ import { addQuestion, addAnswer, addEvent, assertDestinationsClean,
 const capture = f => captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
 const resume = (f, generation) => resumeRetainedT3(f.ports, f.manifest, f.source.admittedRootKey, generation)
 
-test('actual capture redacts before SQLite, caches, original replay/export, resume and legacy refresh', async t => {
+test('actual capture redacts before SQLite, caches, original replay/export, resume and V2 refresh', async t => {
   const f = await engineFixture({ messages: 4 })
   const logs = []
   for (const method of ['log', 'warn', 'error', 'info', 'debug']) {
@@ -60,19 +60,16 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
       }
     }).pipe(Effect.provide(reads.layer.pipe(Layer.provideMerge(sqlLayer(f.destination(first.generation))))))))
     await resume(f, first.generation)
-    // A later answer and fresh legacy history must be classified again on refresh.
+    // A later V2 answer must be classified again on refresh.
     addQuestion(f, { request: 'request:late', ordinal: 1003 })
     addAnswer(f, { request: 'request:late' })
-    f.writer.prepare(`INSERT INTO projection_thread_messages
-      (message_id, thread_id, role, text, is_streaming, created_at, updated_at) VALUES (?, ?, 'user', ?, 0, ?, ?)`)
-      .run('legacy:after', f.ids[0], ordinary, '2021-01-01T00:00:00.000Z', '2021-01-01T00:00:00.000Z')
     const next = await capture(f)
     assert.notEqual(next.generation, first.generation)
     const full = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
       next.generation, S.ThreadId.make(f.ids[0]))
-    assert.deepEqual(full.messages.filter(message => message.id !== 'legacy:after').map(message => message.text),
+    assert.deepEqual(full.messages.map(message => message.text),
       Array.from({ length: 4 }, (_, index) => `ordinary transcript ${index} 雪`))
-    assert.equal(full.messages.find(message => message.id === 'legacy:after').text, ordinary)
+    assert.ok(JSON.stringify(full).includes(ordinary))
     assert.equal(JSON.stringify(full).includes(canary), false)
     assertDestinationsClean(f)
     assert.equal(logs.join('\n').includes(canary), false)

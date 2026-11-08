@@ -49,17 +49,15 @@ test('normal package/original importer retains complete old catalog, original op
       }
     } finally { destination.close() }
     assert.deepEqual({ main: digest(f.path), wal: digest(`${f.path}-wal`) }, before)
-    // Source hydration is complete, then source legacy history advances. The
-    // next generation resets durable markers AND original process caches.
-    f.writer.prepare(`INSERT INTO projection_thread_messages
-      (message_id, thread_id, role, text, is_streaming, created_at, updated_at) VALUES (?, ?, 'user', ?, 0, ?, ?)`)
-      .run('later:message', f.ids[0], 'after completed hydration', '2021-01-01T00:00:00.000Z', '2021-01-01T00:00:00.000Z')
+    // V2 projection advancement does not mutate its frozen legacy source copy.
+    f.writer.prepare(`UPDATE orchestration_v2_projection_messages
+      SET payload_json = json_set(payload_json, '$.text', 'current V2 text') WHERE message_id = 'message:0'`).run()
     const next = await capture(f)
     assert.notEqual(next.generation, first.generation)
-    assert.equal((await projection(f, next.generation)).messages.length, 361)
+    assert.equal((await projection(f, next.generation)).messages.length, 360)
     await resumeRetainedT3(f.ports, f.manifest, f.source.admittedRootKey, next.generation)
     const full = await projection(f, next.generation)
-    assert.equal(full.messages.filter(message => message.id === 'later:message').length, 1)
+    assert.equal(full.messages.find(message => message.id === 'message:0').text, 'current V2 text')
     const own = new DatabaseSync(f.destination(next.generation), { readOnly: true })
     try {
       assert.equal(own.prepare('SELECT COUNT(*) AS n FROM orchestration_v2_effect_outbox').get().n, 0)

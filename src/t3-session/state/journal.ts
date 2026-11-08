@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { journalTransaction, requireCapture } from './sqlite.js'
 import type { CaptureDatabase, SqlRow } from './sqlite.js'
 import type { ProvenT3Source } from '../import/manifest.js'
@@ -38,7 +39,38 @@ export class T3CaptureJournal {
         continuation_home TEXT NOT NULL, history_home TEXT NOT NULL, home_proof TEXT NOT NULL,
         PRIMARY KEY (physical_root, thread_id, provider_thread_id, driver, native_id, continuation_home, history_home)
       );
+      CREATE TABLE IF NOT EXISTS t3_capture_snapshot_key (id INTEGER PRIMARY KEY CHECK (id = 1), key TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS t3_capture_snapshots (
+        generation TEXT PRIMARY KEY, digest TEXT NOT NULL, legacy_digest TEXT NOT NULL, layout TEXT NOT NULL
+      );
     `)
+    ownedDatabase.prepare('INSERT OR IGNORE INTO t3_capture_snapshot_key VALUES (1, ?)').run(randomBytes(32).toString('hex'))
+  }
+
+  snapshotKey(): string {
+    return this.database.prepare('SELECT key FROM t3_capture_snapshot_key WHERE id = 1').get()?.key as string
+  }
+
+  recordSnapshot(generation: string, digest: string, legacyDigest: string, layout: string): void {
+    this.database.prepare('INSERT INTO t3_capture_snapshots VALUES (?, ?, ?, ?)')
+      .run(generation, digest, legacyDigest, layout)
+  }
+
+  snapshot(generation: string): SqlRow | undefined {
+    return this.database.prepare('SELECT * FROM t3_capture_snapshots WHERE generation = ?').get(generation)
+  }
+
+  baseline(physicalRoot: string): SqlRow | undefined {
+    return this.database.prepare(`SELECT snapshot.* FROM t3_capture_snapshots AS snapshot
+      JOIN t3_capture_generations AS job USING (generation) WHERE job.physical_root = ?
+      ORDER BY snapshot.rowid LIMIT 1`).get(physicalRoot)
+  }
+
+  requirePublished(physicalRootKey: string, generation: string): void {
+    this.requireCurrent(physicalRootKey, generation)
+    const root = this.root(physicalRootKey)
+    requireCapture(root?.catalog_generation === generation && root.hydrated_generation === generation &&
+      this.generation(generation)?.phase === 'ready', 'capture_history_not_published')
   }
 
   begin(source: ProvenT3Source, generation: string, stageReference: string): void {

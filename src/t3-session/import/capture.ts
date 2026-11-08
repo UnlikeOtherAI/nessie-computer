@@ -28,8 +28,16 @@ export async function captureRetainedT3(ports: RetainedCapturePorts,
       async (snapshot, reads) => {
       proven = snapshot.source
       const stage = await ports.workspace.createGeneration(generation)
+      const priorGeneration = ports.journal.root(snapshot.source.physicalRootKey)?.last_ready_generation
+      const prior = ports.journal.baseline(snapshot.source.physicalRootKey)
       ports.journal.begin(snapshot.source, generation, stage.reference)
+      const fingerprint = snapshot.fingerprint(ports.journal.snapshotKey())
+      requireCapture(!priorGeneration || prior, 'capture_requires_versioned_baseline')
+      requireCapture(!prior || prior.layout === snapshot.source.layout, 'capture_source_layout_changed')
+      requireCapture(snapshot.source.layout !== 'v2-80' || !prior || prior.legacy_digest === fingerprint.legacyDigest,
+        'capture_frozen_legacy_diverged')
       await materializeSnapshot(snapshot, stage, reads)
+      ports.journal.recordSnapshot(generation, fingerprint.digest, fingerprint.legacyDigest, snapshot.source.layout)
       return { source: snapshot.source, highWater: snapshot.sourceHighWater, reference: stage.reference }
     }, async (captured, reads, recheck) => {
       // The source transaction has committed; the physical and original-human
@@ -63,6 +71,9 @@ export async function resumeRetainedT3(ports: RetainedCapturePorts,
       requireCapture(job.phase === 'captured' || job.phase === 'ready', 'capture_requires_fresh_snapshot')
       requireCapture(typeof job.stage_ref === 'string', 'capture_stage_missing')
       requireCapture(snapshot.sourceHighWater === job.source_high_water, 'capture_source_advanced_requires_refresh')
+      const prior = ports.journal.snapshot(generation)
+      requireCapture(prior && prior.layout === source.layout &&
+        prior.digest === snapshot.fingerprint(ports.journal.snapshotKey()).digest, 'capture_snapshot_changed_requires_refresh')
       ports.journal.recover(source, generation)
       ports.journal.requireCurrent(source.physicalRootKey, generation)
       return { source, reference: job.stage_ref }
@@ -90,9 +101,12 @@ async function finishStage(ports: RetainedCapturePorts, source: ProvenT3Source, 
   // This is local data completion only; it grants no current human access.
   ports.journal.complete(source, generation, result.identities, result.aliases)
   const captured = ports.journal.generation(generation)
+  const snapshot = ports.journal.snapshot(generation)
   requireCapture(captured && typeof captured.source_high_water === 'number', 'capture_watermark_missing')
+  requireCapture(snapshot && typeof snapshot.digest === 'string', 'capture_snapshot_provenance_missing')
   return { generation, localState: 'ready' as const, nativeHomes: result.nativeHomes,
     source: { ...source }, watermark: { generation, sequence: captured.source_high_water },
+    sourceSnapshot: { version: 1 as const, digest: snapshot.digest },
     serverCatalog: 'required_unbound' as const, ownerReadAdmission: 'required_unbound' as const,
     control: 'unavailable' as const }
 }

@@ -105,6 +105,14 @@ lineage, delegatedFrom and remoteChild remain independent original data.
 `readRetainedHistoryPage` use original services under fresh callback admission.
 T07/T09 still own entitled transport projection and publication.
 
+All three read wrappers mean the latest **locally published capture**, not the
+live source at call time. At entry and immediately before returning they require
+the requested generation to be ready, available, nonconflicting and equal to the
+root's current, catalog and hydrated generations. An in-progress or failed
+refresh makes prior captures unavailable through these wrappers. Advancement or
+revocation during an await rejects the result. There is no historical-generation
+read API and no fallback to `last_ready_generation`.
+
 Successful capture/resume returns the admitted source descriptor and the original
 source watermark `{ generation, sequence }` alongside local readiness. The
 sequence is the journal's captured source high-water, not a destination sequence
@@ -112,6 +120,39 @@ created by legacy hydration. Physical root, environment and capture generation
 must accompany every parity observation. The producer must still prove its
 actual source revision and installation coverage; a supported layout is not
 revision evidence and this return value grants no authority.
+
+`sourceSnapshot` also returns a versioned keyed digest of the admitted ordered
+rows in the pinned transaction. The owned journal stores the digest, layout and
+a random journal-local HMAC key; it stores no raw row values. The fingerprint
+covers all admitted columns, including non-event tables. Resume requires an
+exact match with a fresh pinned snapshot, in addition to source identity and
+event high-water. Legacy sequence zero alone proves nothing about contents.
+This is snapshot equality, not an authority token or a claim that the live
+source cannot advance after the read transaction. Old journal generations with
+no fingerprint cannot resume or establish a versioned refresh baseline.
+
+For `v2-80`, the original client's legacy tables are a frozen copy. The first
+materialized snapshot establishes a journal baseline for the complete fixed
+legacy thread/message/pull-request tables, including currently ineligible rows.
+Every later capture requires that baseline unchanged, even after a failed
+refresh. Additions (including chronological appends), edits and deletions refuse
+with `capture_frozen_legacy_diverged`; no row is omitted or renumbered. The first
+baseline cannot prove earlier source provenance or exclude prior external
+mutation. The physical producer must still prove original frozen-copy semantics;
+that admission remains unbound. V2 event/projection changes are recaptured into
+a new destination and do not require legacy changes.
+
+For `legacy-54`, each fresh capture has no copied V2 positions. The original
+importer orders all messages by `(created_at, message_id)`, including backdated
+and equal-timestamp insertions. Changed legacy contents require fresh capture,
+never resume of the prior stage. No timestamp rewriting, arbitrary ordinal
+assignment or omission is used. These are separate source-layout contracts.
+
+Historical original question codecs may erase `isSecret` everywhere in a
+snapshot. Such sessions still refuse capture. Recoverable authoritative
+classification or a justified safe representation is an **ALL-session blocker**,
+owned separately from this currentness correction; green synthetic marker
+fixtures do not discharge it.
 
 Each refresh allocates a new staging generation and resets destination legacy
 completion markers. Fresh original read/import services invalidate process
