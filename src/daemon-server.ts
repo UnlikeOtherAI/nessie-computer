@@ -260,7 +260,7 @@ export const serveExecutor = async (
       shuttingDown = true
       localMcp.stop()
       doorbell.stop()
-      t3Lane?.close()
+      await t3Lane?.close()
       // Capture, publication, read demand and native/server withdrawal join
       // before global API cancellation and physical source owner release.
       await closeRetained()
