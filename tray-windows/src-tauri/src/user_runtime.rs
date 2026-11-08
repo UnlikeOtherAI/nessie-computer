@@ -154,10 +154,11 @@ pub fn run(
     if bytes.len() > 1_048_576 {
         return Err("The executor response was too large.".into());
     }
-    // connect/configure print human-readable acknowledgements; only their success matters.
+    // connect, configure, pause, resume and answers print acknowledgements; only their success matters.
     if !matches!(
         arguments.first().map(String::as_str),
-        Some("describe" | "pairing-start" | "pairing-status" | "pairing-cancel" | "unpair" | "sync" | "local-inference")
+        Some("describe" | "pairing-start" | "pairing-status" | "pairing-cancel" | "unpair" | "sync" | "local-inference"
+            | "program-requests" | "audience")
     ) {
         return Ok(serde_json::Value::Null);
     }

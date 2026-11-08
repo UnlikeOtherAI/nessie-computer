@@ -97,6 +97,29 @@ if (-not $run.NessieExecutorTray) {
 }
 
 $trayPath = Join-Path $env:ProgramFiles 'Nessie Executor\nessie-executor-tray.exe'
+
+# The product is Nessie Computer wherever a person sees it; the service keeps
+# its name, and the Start menu shortcut carries the app's toast identity.
+$service = Get-CimInstance Win32_Service -Filter "Name='NessieExecutor'"
+if ($service.DisplayName -ne 'Nessie Computer') {
+  throw "the service is displayed as '$($service.DisplayName)'"
+}
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Nessie Computer.lnk'
+if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
+  throw 'the Nessie Computer Start menu shortcut is missing'
+}
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+if ($shortcut.TargetPath -ne $trayPath) {
+  throw "the Start menu shortcut opens '$($shortcut.TargetPath)'"
+}
+$linkCommand = (Get-ItemProperty 'HKCU:\Software\Classes\nessie-computer\shell\open\command').'(default)'
+if ($linkCommand -ne "`"$trayPath`" `"%1`"") {
+  throw "nessie-computer links open '$linkCommand'"
+}
+if ($null -eq (Get-ItemProperty 'HKCU:\Software\Classes\nessie-computer' -Name 'URL Protocol' -ErrorAction SilentlyContinue)) {
+  throw 'nessie-computer is not registered as a link scheme'
+}
+
 $tray = Start-Process -FilePath $trayPath -PassThru
 try {
   Start-Sleep -Seconds 10
@@ -128,6 +151,12 @@ if (Get-Service NessieExecutor -ErrorAction SilentlyContinue) {
 }
 if (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name NessieExecutorTray -ErrorAction SilentlyContinue) {
   throw 'the tray autostart entry was not removed'
+}
+if (Test-Path -LiteralPath $shortcutPath) {
+  throw 'the Start menu shortcut was not removed'
+}
+if (Test-Path 'HKCU:\Software\Classes\nessie-computer') {
+  throw 'the nessie-computer link registration was not removed'
 }
 
 # A pairing is a machine key and a signed policy revision, and uninstalling a

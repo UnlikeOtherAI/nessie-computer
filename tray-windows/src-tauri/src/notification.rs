@@ -9,9 +9,10 @@
 //! displayed it (Focus Assist, for one, suppresses it without an error).
 //!
 //! An unpackaged Win32 app's toasts are shown under an application identity
-//! Windows knows about. The executor's installer creates no Start menu
-//! shortcut to carry one, so the tray registers its own identity for this
-//! person under `HKCU\Software\Classes\AppUserModelId` before its first toast.
+//! Windows knows about. The installer's **Nessie Computer** Start menu
+//! shortcut carries it (`System.AppUserModel.ID`). A build run without the
+//! installer has no shortcut, so the tray also names its identity for this
+//! person under `HKCU\Software\Classes\AppUserModelId` before a toast.
 
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_notification::NotificationExt;
@@ -39,14 +40,14 @@ pub fn validate(title: &str, body: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Names this app's toasts "Nessie Executor" in Windows's notification list.
+/// Names this app's toasts "Nessie Computer" in Windows's notification list.
 /// Written every time rather than once: it is idempotent, and a person who
 /// cleared it must not lose every later toast without a trace.
 #[cfg(windows)]
 fn register_identity(identifier: &str) -> Result<(), String> {
     use windows_sys::Win32::System::Registry::HKEY_CURRENT_USER;
     let key = format!("Software\\Classes\\AppUserModelId\\{identifier}");
-    crate::registry::write_string(HKEY_CURRENT_USER, &key, Some("DisplayName"), "Nessie Executor")
+    crate::registry::write_string(HKEY_CURRENT_USER, &key, Some("DisplayName"), "Nessie Computer")
         .map_err(|status| format!("Windows could not register this app's notifications (error {status})."))
 }
 

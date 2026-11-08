@@ -1,60 +1,61 @@
 //! What the tray can do, in one place.
 //!
-//! The right-click menu and the status window are two ways of reaching the same
+//! The right-click menu and the window are two ways of reaching the same
 //! actions, so they call these functions rather than each carrying their own
-//! copy — a second implementation of "stop this executor" is exactly the kind
-//! of fork that ends with two surfaces disagreeing about what a confirmation
-//! says.
-//!
-//! The CLI is the only reader and writer of private executor state. New
-//! connections run under this user's account; existing service connections
-//! are addressed through the authenticated pipe. Resource edits live in
-//! console_commands and use the CLI's complete local configuration contract.
+//! copy. The CLI is the only reader and writer of private executor state. Teams
+//! this app connects run under this person's account; the service's own teams
+//! are addressed through its authenticated pipe. Resource edits live in
+//! `console_commands`, the owner's controls in `owner_commands`.
 
 use nessie_windows_common::LOGS_DIRECTORY;
 use tauri::{AppHandle, Manager, Runtime};
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
 
 use crate::{
     nessie_desktop, pairing_origin,
     pipe_client::{call, ServiceResponse},
-    service_identity::{executors_url_for_api, service_root},
-    state::{short_id, ExecutorStatus, ServiceView},
-    user_connections::RUNNING_ELSEWHERE,
+    service_identity::{console_url, service_root},
+    state::{Connection, ServiceView},
+    team_names::{self, same_team, Entry},
 };
+
+const UNREADABLE: &str = "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.";
+
+/// On a team this app runs, names the service connection to the same team
+/// that holds its ChatGPT plans, from the names already read.
+fn link_chatgpt_connections(view: &mut ServiceView) {
+    let ServiceView::Reachable { executors } = view else { return };
+    let names = team_names::snapshot();
+    let known = |id: &str| match names.get(id) {
+        Some(Entry::Known(identity)) => Some(identity.clone()),
+        _ => None,
+    };
+    let services: Vec<(String, team_names::TeamIdentity)> = executors.iter()
+        .filter(|executor| executor.connection == Connection::Service)
+        .filter_map(|executor| known(&executor.executor_id).map(|identity| (executor.executor_id.clone(), identity)))
+        .collect();
+    for executor in executors.iter_mut().filter(|executor| executor.connection == Connection::User) {
+        executor.chatgpt_connection_id = known(&executor.executor_id).and_then(|mine| {
+            services.iter().find(|(_, theirs)| same_team(&mine, theirs)).map(|(id, _)| id.clone())
+        });
+    }
+}
 
 /// The service's answer, with a failure turned into the view that says so
 /// rather than into an empty list.
 pub fn view() -> ServiceView {
-    match call(&serde_json::json!({ "command": "status" })) {
+    let mut view = match call(&serde_json::json!({ "command": "status" })) {
         Ok(ServiceResponse::Status(executors)) => ServiceView::Reachable { executors },
-        Ok(_) => ServiceView::Unreachable {
-            reason: "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned(),
-        },
+        Ok(_) => ServiceView::Unreachable { reason: UNREADABLE.to_owned() },
         Err(reason) => ServiceView::Unreachable { reason },
-    }
+    };
+    link_chatgpt_connections(&mut view);
+    view
 }
 
-async fn confirm<R: Runtime>(
-    app: AppHandle<R>,
-    title: &'static str,
-    message: String,
-    action: &'static str,
-) -> Result<bool, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        app.dialog()
-            .message(message)
-            .title(title)
-            .buttons(MessageDialogButtons::OkCancelCustom(action.to_owned(), "Cancel".to_owned()))
-            .blocking_show()
-    })
-    .await
-    .map_err(|_| "Nessie Executor could not show its confirmation dialog.".to_owned())
-}
-
-/// A refusal a person did not ask for by clicking something in a window still
-/// has to reach them; the menu has nowhere to render one.
+/// A refusal a person did not ask for by clicking something in the window
+/// still has to reach them; the menu has nowhere to render one.
 pub fn notify<R: Runtime>(app: &AppHandle<R>, title: &'static str, message: String) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
@@ -62,96 +63,36 @@ pub fn notify<R: Runtime>(app: &AppHandle<R>, title: &'static str, message: Stri
     });
 }
 
-pub async fn start<R: Runtime>(app: AppHandle<R>, executor_id: String) -> Result<ServiceView, String> {
-    if !confirm(
-        app,
-        "Start Nessie executor",
-        "Start this locally paired executor with the permissions configured on this computer."
-            .to_owned(),
-        "Start executor",
-    )
-    .await?
-    {
-        return Err("Starting the executor was cancelled.".to_owned());
+/// The server Open Nessie goes to when no team is named: the first listed
+/// team's, or this build's default when nothing is connected yet.
+pub fn default_server() -> String {
+    let names = team_names::snapshot();
+    if let ServiceView::Reachable { executors } = view() {
+        for executor in executors {
+            if let Some(Entry::Known(identity)) = names.get(&executor.executor_id) {
+                return identity.api_base_url.clone();
+            }
+        }
     }
-    let response = tauri::async_runtime::spawn_blocking(move || {
-        call(&serde_json::json!({ "command": "start", "executorId": executor_id }))
-    }).await.map_err(|error| error.to_string())??;
-    match response {
-        ServiceResponse::Status(executors) => Ok(ServiceView::Reachable { executors }),
-        _ => Err("Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
+    pairing_origin::default_origin(cfg!(debug_assertions)).to_owned()
+}
+
+/// The server a team is paired with, as Nessie named it.
+pub fn team_server(executor_id: &str) -> Result<String, String> {
+    match team_names::snapshot().get(executor_id) {
+        Some(Entry::Known(identity)) => Ok(identity.api_base_url.clone()),
+        _ => Err("Nessie hasn’t answered for this team yet. Try again in a moment.".to_owned()),
     }
 }
 
-pub async fn stop<R: Runtime>(app: AppHandle<R>, executor_id: String) -> Result<ServiceView, String> {
-    if !confirm(
-        app,
-        "Stop Nessie executor",
-        "Stopping this executor ends its daemon connection and asks every active browser or \
-         coding sandbox to tear down."
-            .to_owned(),
-        "Stop executor",
-    )
-    .await?
-    {
-        return Err("Stopping the executor was cancelled.".to_owned());
-    }
-    let response = tauri::async_runtime::spawn_blocking(move || {
-        call(&serde_json::json!({ "command": "stop", "executorId": executor_id }))
-    }).await.map_err(|error| error.to_string())??;
-    match response {
-        ServiceResponse::Status(executors) => Ok(ServiceView::Reachable { executors }),
-        _ => Err("Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
-    }
-}
-
-/// Applies one switch to every connection, attempting all of them before
-/// answering. A connection another app or CLI runs is that app's to control,
-/// so it is skipped rather than reported. `act` is the per-connection start or
-/// stop, passed in so the policy is tested without a service.
-fn apply_to_every_connection(
-    executors: &[ExecutorStatus],
-    running: bool,
-    mut act: impl FnMut(&str) -> Result<(), String>,
-) -> Result<(), String> {
-    let failures: Vec<String> = executors
-        .iter()
-        .filter(|executor| executor.daemon_status != RUNNING_ELSEWHERE)
-        .filter_map(|executor| {
-            act(&executor.executor_id)
-                .err()
-                .map(|reason| format!("Connection {}: {reason}", short_id(&executor.executor_id)))
-        })
-        .collect();
-    if failures.is_empty() {
-        return Ok(());
-    }
-    let verb = if running { "started" } else { "stopped" };
-    Err(format!("Some teams could not be {verb}. {}", failures.join(" ")))
-}
-
-/// The console's global switch. The switch itself is the person's
-/// confirmation, so unlike the menu's per-team Start and Stop there is no
-/// dialog. Nothing is remembered: the next launch starts every paired
-/// connection, as it always has.
-pub fn set_running(running: bool) -> Result<ServiceView, String> {
-    let executors = match view() {
-        ServiceView::Reachable { executors } => executors,
-        ServiceView::Unreachable { reason } => return Err(reason),
-    };
-    let command = if running { "start" } else { "stop" };
-    apply_to_every_connection(&executors, running, |executor_id| {
-        call(&serde_json::json!({ "command": command, "executorId": executor_id })).map(|_| ())
-    })?;
-    Ok(view())
-}
-
-/// Production Nessie opens in Nessie Desktop when this person has it
-/// installed; everything else opens the web console. Which branch fired, and
-/// why, is logged: a person asking why the browser opened deserves an answer.
-pub fn open_nessie<R: Runtime>(app: &AppHandle<R>, backend: &str) -> Result<(), String> {
-    let origin = pairing_origin::resolve(backend, None, cfg!(debug_assertions))?.origin;
-    if origin == pairing_origin::NESSIE_PRESET_ORIGIN {
+/// Opens the Computers page of the given server. Hosted Nessie opens in
+/// Nessie Desktop when this person has it, unless a pairing code has to reach
+/// the page, which only the browser can be given. Which branch fired, and
+/// why, is logged.
+pub fn open_nessie<R: Runtime>(app: &AppHandle<R>, server: &str, code: Option<&str>) -> Result<(), String> {
+    let origin = pairing_origin::approve(server, cfg!(debug_assertions))?.origin;
+    let url = console_url(&origin, cfg!(debug_assertions), code)?;
+    if origin == pairing_origin::NESSIE_PRESET_ORIGIN && code.is_none() {
         match nessie_desktop::installed().and_then(|executable| {
             nessie_desktop::launch(&executable).map(|()| executable)
         }) {
@@ -159,16 +100,12 @@ pub fn open_nessie<R: Runtime>(app: &AppHandle<R>, backend: &str) -> Result<(), 
                 eprintln!("Open Nessie: launched Nessie Desktop at {}.", executable.display());
                 return Ok(());
             }
-            // The web console is the same destination, so a person who asked
-            // to open Nessie still gets there when Desktop cannot be used.
             Err(reason) => eprintln!("Open Nessie: opening the web console. {reason}"),
         }
-    } else {
-        eprintln!("Open Nessie: opening the web console for {origin}; Nessie Desktop serves production only.");
     }
     app.opener()
-        .open_url(executors_url_for_api(&origin)?, None::<&str>)
-        .map_err(|_| "Nessie Executor could not open your browser.".to_owned())
+        .open_url(url, None::<&str>)
+        .map_err(|_| "Nessie Computer could not open your browser.".to_owned())
 }
 
 pub fn open_logs<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
@@ -176,17 +113,17 @@ pub fn open_logs<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
     // The service creates the folder when it first writes to it; opening a path
     // that is not there yet would show a shell error instead of an explanation.
     if !logs.is_dir() {
-        return Err("The Nessie Executor service has not written any logs yet.".to_owned());
+        return Err("The Nessie Computer service has not written any logs yet.".to_owned());
     }
     app.opener()
         .open_path(logs.display().to_string(), None::<&str>)
-        .map_err(|_| "Nessie Executor could not open the logs folder.".to_owned())
+        .map_err(|_| "Nessie Computer could not open the logs folder.".to_owned())
 }
 
-/// The status window is created hidden at launch so a left-click shows it
-/// immediately; there is no main window at any point.
+/// The window is created hidden at launch so a left-click shows it at once.
 pub fn show_status<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("status") {
+        let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -197,12 +134,12 @@ pub async fn choose_folder<R: Runtime>(app: AppHandle<R>) -> Result<Option<Strin
         let file_path = app
             .dialog()
             .file()
-            .set_title("Choose a folder this executor may read")
+            .set_title("Choose a folder this team may read")
             .blocking_pick_folder()?;
         file_path.into_path().ok().map(|path| resolved_folder(&path))
     })
     .await
-    .map_err(|_| "Nessie Executor could not open its folder picker.".to_owned())?)
+    .map_err(|_| "Nessie Computer could not open its folder picker.".to_owned())?)
 }
 
 /// The path the runtime will store for a chosen folder: fully resolved, as
@@ -223,129 +160,31 @@ fn without_verbatim_prefix(path: &str) -> String {
     path.strip_prefix(r"\\?\").unwrap_or(path).to_owned()
 }
 
-#[cfg(test)]
-mod resolved_folder_tests {
-    use super::without_verbatim_prefix;
-
-    #[test]
-    fn a_resolved_folder_reads_as_the_runtime_stores_it() {
-        assert_eq!(without_verbatim_prefix(r"\\?\C:\Users\Person\Nessie"), r"C:\Users\Person\Nessie");
-        assert_eq!(without_verbatim_prefix(r"\\?\UNC\server\share\work"), r"\\server\share\work");
-        assert_eq!(without_verbatim_prefix("/Users/person/Nessie"), "/Users/person/Nessie");
-    }
-}
-
 #[tauri::command]
 pub async fn executor_view() -> Result<ServiceView, String> {
     tauri::async_runtime::spawn_blocking(view).await.map_err(|error| error.to_string())
 }
 
+/// Opens the Computers page of the server a team is paired with, of a server
+/// being paired with (with its pairing code), or of the first team's server.
 #[tauri::command]
-pub async fn executor_start(app: AppHandle, executor_id: String) -> Result<ServiceView, String> {
-    start(app, executor_id).await
-}
-
-#[tauri::command]
-pub async fn executor_stop(app: AppHandle, executor_id: String) -> Result<ServiceView, String> {
-    stop(app, executor_id).await
-}
-
-/// One team back on, with no dialog: the console's Try again after a saved
-/// change whose connection dropped. The team's own start, nothing else.
-#[tauri::command]
-pub async fn executor_reconnect(executor_id: String) -> Result<ServiceView, String> {
+pub async fn executor_open_nessie(
+    app: AppHandle,
+    executor_id: Option<String>,
+    api_base_url: Option<String>,
+    code: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        call(&serde_json::json!({ "command": "start", "executorId": executor_id }))?;
-        Ok(view())
+        let server = match (executor_id, api_base_url) {
+            (Some(executor_id), None) => team_server(&executor_id)?,
+            (None, Some(server)) => server,
+            (None, None) => default_server(),
+            (Some(_), Some(_)) => return Err("Name a team or a server, not both.".to_owned()),
+        };
+        open_nessie(&app, &server, code.as_deref())
     })
     .await
     .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-pub async fn executor_set_running(running: bool) -> Result<ServiceView, String> {
-    tauri::async_runtime::spawn_blocking(move || set_running(running))
-        .await
-        .map_err(|error| error.to_string())?
-}
-
-#[tauri::command]
-pub fn executor_open_nessie(app: AppHandle, api_base_url: String) -> Result<(), String> {
-    open_nessie(&app, &api_base_url)
-}
-
-#[cfg(test)]
-mod open_nessie_tests {
-    use crate::{pairing_origin, service_identity::executors_url_for_api};
-
-    /// The console may send the preset id or the origin; both resolve to the
-    /// production origin, which is the one Nessie Desktop is chosen for.
-    #[test]
-    fn the_status_window_nessie_preset_resolves_before_opening() {
-        for backend in ["nessie", "https://api.nessie.works"] {
-            let origin = pairing_origin::resolve(backend, None, false).expect("production resolves").origin;
-            assert_eq!(origin, pairing_origin::NESSIE_PRESET_ORIGIN);
-            assert_eq!(executors_url_for_api(&origin), Ok("https://app.nessie.works/admin/computers"));
-        }
-        let deeptest = pairing_origin::resolve("deeptest", None, false).expect("DeepTest resolves").origin;
-        assert_ne!(deeptest, pairing_origin::NESSIE_PRESET_ORIGIN);
-    }
-}
-
-#[cfg(test)]
-mod set_running_tests {
-    use super::apply_to_every_connection;
-    use crate::state::ExecutorStatus;
-
-    fn connection(id: &str, daemon_status: &str) -> ExecutorStatus {
-        ExecutorStatus {
-            daemon_status: daemon_status.to_owned(),
-            executor_id: id.to_owned(),
-            workspace_configured: true,
-        }
-    }
-
-    #[test]
-    fn every_connection_this_app_controls_is_switched_and_one_run_elsewhere_is_left_alone() {
-        let executors = [
-            connection("aaaaaaaa-0000-4000-8000-000000000001", "stopped"),
-            connection("bbbbbbbb-0000-4000-8000-000000000002", "running elsewhere"),
-            connection("cccccccc-0000-4000-8000-000000000003", "running"),
-        ];
-        let mut switched = Vec::new();
-        assert_eq!(
-            apply_to_every_connection(&executors, true, |id| {
-                switched.push(id.to_owned());
-                Ok(())
-            }),
-            Ok(()),
-        );
-        assert_eq!(
-            switched,
-            ["aaaaaaaa-0000-4000-8000-000000000001", "cccccccc-0000-4000-8000-000000000003"],
-        );
-    }
-
-    #[test]
-    fn a_failure_does_not_stop_the_rest_and_every_failure_is_named() {
-        let executors = [
-            connection("aaaaaaaa-0000-4000-8000-000000000001", "running"),
-            connection("bbbbbbbb-0000-4000-8000-000000000002", "running"),
-            connection("cccccccc-0000-4000-8000-000000000003", "running"),
-        ];
-        let mut attempted = 0;
-        let outcome = apply_to_every_connection(&executors, false, |id| {
-            attempted += 1;
-            if id.starts_with('b') { Ok(()) } else { Err("The executor is still stopping.".to_owned()) }
-        });
-        assert_eq!(attempted, 3);
-        assert_eq!(
-            outcome,
-            Err("Some teams could not be stopped. Connection aaaaaaaa: The executor is still stopping. \
-                 Connection cccccccc: The executor is still stopping."
-                .to_owned()),
-        );
-    }
 }
 
 #[tauri::command]
@@ -359,13 +198,18 @@ pub fn executor_open_logs(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn executor_hide_status(app: AppHandle) {
-    if let Some(window) = app.get_webview_window("status") {
-        let _ = window.hide();
-    }
-}
-
-#[tauri::command]
 pub async fn executor_choose_folder(app: AppHandle) -> Result<Option<String>, String> {
     choose_folder(app).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::without_verbatim_prefix;
+
+    #[test]
+    fn a_resolved_folder_reads_as_the_runtime_stores_it() {
+        assert_eq!(without_verbatim_prefix(r"\\?\C:\Users\Person\Nessie"), r"C:\Users\Person\Nessie");
+        assert_eq!(without_verbatim_prefix(r"\\?\UNC\server\share\work"), r"\\server\share\work");
+        assert_eq!(without_verbatim_prefix("/Users/person/Nessie"), "/Users/person/Nessie");
+    }
 }

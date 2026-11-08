@@ -160,7 +160,7 @@ mod tests {
         let mut host = supervisor(root.path());
         let refusal = Err("This executor has not been paired on this computer.".to_owned());
         assert_eq!(host.set_paused(TEAM, true), refusal);
-        assert_eq!(host.audience(TEAM), refusal);
+        assert_eq!(host.audience(TEAM).map(|_| ()), refusal);
         assert_eq!(host.program_requests(TEAM, Some("S-1-5-21-1")).map(|_| ()), refusal);
     }
 

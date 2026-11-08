@@ -227,7 +227,7 @@ fn open_location(
     // A file is shown selected in Explorer, never opened: it may be a program.
     if location == "file" {
         let path = listed_file(&state, rel_path.ok_or(SYNC_INVALID)?)?;
-        return app.opener().reveal_item_in_dir(path).map_err(|_| "Nessie Executor could not show that file.".into());
+        return app.opener().reveal_item_in_dir(path).map_err(|_| "Nessie Computer could not show that file.".into());
     }
     let folder = match location {
         "root" => local_folder(&state, "root", "The sync folder is missing. Choose it again.")?,
@@ -235,7 +235,7 @@ fn open_location(
         _ => return Err(SYNC_INVALID.into()),
     };
     app.opener().open_path(folder.display().to_string(), None::<&str>)
-        .map_err(|_| "Nessie Executor could not open that folder.".into())
+        .map_err(|_| "Nessie Computer could not open that folder.".into())
 }
 
 /// Opens this computer's Sync tab in Nessie at the address the CLI's handshake
@@ -250,7 +250,7 @@ fn open_manage(app: &AppHandle, executor_id: &str) -> Result<(), String> {
     if !(url.scheme() == "https" || local) || !url.username().is_empty() || url.password().is_some() {
         return Err("Nessie gave an address this app does not open.".into());
     }
-    app.opener().open_url(url.as_str(), None::<&str>).map_err(|_| "Nessie Executor could not open Nessie.".into())
+    app.opener().open_url(url.as_str(), None::<&str>).map_err(|_| "Nessie Computer could not open Nessie.".into())
 }
 
 async fn blocking<T: Send + 'static>(

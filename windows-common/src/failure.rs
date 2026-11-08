@@ -13,14 +13,14 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const MAX_MESSAGE_CHARACTERS: usize = 400;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Failure {
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
     pub message: String,
 }
