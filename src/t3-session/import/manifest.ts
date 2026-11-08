@@ -19,7 +19,7 @@ export interface ProvenT3Source {
   readonly databaseRole: 'authoritative-v2' | 'sole-legacy'
 }
 
-/** REQUIRED, UNBOUND. Implement in the existing admitted local-resource boundary.
+/** Windows implementation: daemon-owned source/owner.ts and the held native reader.
  * The producer owns OS file identity, alias equivalence, replacement/symlink fencing,
  * owner-only access and the persisted environment-id file. Paths/IDs cannot mint proof.
  */
@@ -45,7 +45,7 @@ export interface T3CatalogPublicationPort {
 }
 
 export const retainedCaptureBindings = Object.freeze({
-  localResourceProducer: 'required_unbound',
+  localResourceProducer: 'windows_source_implemented_unqualified',
   originalOwnerContinuityProducer: 'required_unbound',
   serverCatalogPublication: 'required_unbound',
   execution: 'unavailable',

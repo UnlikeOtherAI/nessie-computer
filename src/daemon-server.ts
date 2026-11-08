@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream'
+import { registerMachineT3Sources } from './t3-session/source/owner.js'
 import { enableLocalSessionBridge } from './local-session-bridge.js'
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
 import { createSessionAuthorityClient } from './session-authority-client.js'
@@ -59,6 +60,7 @@ export const serveExecutor = async (
 ): Promise<void> => {
   const daemonLease = await acquireExecutorDaemonLease(stateDir)
   let protectionRuntime: Awaited<ReturnType<PersonalInferenceGuard['registerRuntime']>> | null = null
+  let releaseT3Sources: (() => void) | undefined
   try {
     if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
       protectionRuntime = await PersonalInferenceGuard.open().registerRuntime(`executor:${state.executorId}`)
@@ -66,6 +68,7 @@ export const serveExecutor = async (
     let live = await claimExecutor(stateDir, await enableLocalSessionBridge(stateDir, state, options.runtime))
     const localInference = await startExecutorLocalInferenceSupervisor(stateDir, live)
     live = localInference.state
+    releaseT3Sources = registerMachineT3Sources(stateDir, live.executorId)
     const browserSessions = createExecutorBrowserSessionManager(stateDir, live)
     const commandSessions = createExecutorCommandSessionManager(stateDir, live)
     const codingSessions = createExecutorCodingSessionManager(stateDir, live)
@@ -259,6 +262,7 @@ export const serveExecutor = async (
       ])
     }
   } finally {
+    releaseT3Sources?.()
     try { await protectionRuntime?.release() } finally { await daemonLease.release() }
   }
 }

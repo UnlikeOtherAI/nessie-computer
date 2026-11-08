@@ -18,8 +18,13 @@ still withdraw the observed publication. These changes remain source-only until
 the coordinator's combined normal-engine qualification; no separate install is
 required or authorized by this note.
 
-This is a machine-only, unbound passive importer. It adds no daemon capability,
-bridge adoption, provider, lifecycle, transport, native payload or UI. It does not
+The [physical-source reader](t3-physical-source.md) now has a Windows native/source
+implementation and daemon registration, pending compilation and installed
+qualification. Historical-human admission and server publication remain unbound;
+the implementation does not establish retrospective legacy-copy provenance.
+
+This is a machine-only passive importer with unbound human/server consumers.
+Capture adds no bridge adoption, provider lifecycle, entitled transport or UI. It does not
 make retained sessions reachable in Nessie. Local data completion does not mean
 server catalog completion, current read entitlement or execution custody.
 
@@ -51,7 +56,8 @@ arbitrary caller functions can construct that binding. Rechecks must enforce
 current revocation and read freshness at most 60 seconds; the lease expires at
 callback exit. T04 creates no global owner cache or receipt authority.
 
-Both producers are REQUIRED and unbound. Missing producers deny before capture
+Both producers are REQUIRED. The Windows physical producer is implemented but
+unqualified; the historical-human producer remains unbound. Missing producers deny before capture
 or history reads. T03C's immutable accepted managed-start ownership is not
 original-owner continuity for native, external or legacy retained sessions.
 Today's login, computer administration, assignment, ownerKey, namespace,

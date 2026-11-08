@@ -1,5 +1,6 @@
 mod chatgpt_browser;
 mod command;
+mod t3_source;
 mod job_run;
 mod kernel_context;
 #[cfg(target_os = "macos")]
@@ -159,6 +160,7 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
+        Command::T3SourceRead => t3_source::run(),
         Command::BuildInfo => {
             println!(
                 "{}",
@@ -379,7 +381,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             run_id: String::new(),
             status: PreflightStatus::Rejected,
         }),
-        Some(Command::PersonalChatgptBrowser)
+        Some(Command::T3SourceRead)
+        | Some(Command::PersonalChatgptBrowser)
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)
         | Some(Command::ManagedInventoryBarrier(_))
