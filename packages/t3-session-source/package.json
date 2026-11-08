@@ -29,8 +29,8 @@
   },
   "scripts": {
     "prepare:engine": "node prepare.mjs && pnpm --dir ../../packaging/session-engine install --frozen-lockfile --ignore-workspace --ignore-scripts --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
-    "build": "node --max-old-space-size=5120 build.mjs",
-    "typecheck": "node --max-old-space-size=5120 build.mjs --check",
+    "build": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs",
+    "typecheck": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs --check",
     "lint": "node --check build.mjs && node --check input.mjs && node --check cache.mjs && node --check routes.mjs && node --check prepare.mjs",
     "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs",
     "test:t3-session-engine": "node --test --test-concurrency=1 test/engine/*.test.mjs",

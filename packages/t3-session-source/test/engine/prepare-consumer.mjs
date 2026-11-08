@@ -12,10 +12,11 @@ const destination = resolve(directory)
 await mkdir(destination, { recursive: true })
 await writeFile(resolve(destination, 'package.json'), `${JSON.stringify({
   name: 'normal-t3-session-engine-consumer', private: true, type: 'module', packageManager: 'pnpm@10.22.0',
-  dependencies: { '@nessie/t3-session-source': `file:${resolve(archive).replaceAll('\\', '/')}`, effect: '4.1.2' },
-  devDependencies: { typescript: '5.9.3', '@types/node': '24.12.4' },
+  dependencies: { '@nessie/t3-session-source': `file:${resolve(archive).replaceAll('\\', '/')}`,
+    effect: '4.1.2', '@effect/platform-node': '4.1.2' },
+  devDependencies: { typescript: '5.9.3', '@types/node': '24.12.4', esbuild: '0.25.12' },
 }, null, 2)}\n`, { flag: 'wx' })
-for (const file of ['runtime.mjs', 'consumer.mts']) {
+for (const file of ['runtime.mjs', 'consumer.mts', 'containment.mjs', 'check-types.mjs', 'build-helper.mjs']) {
   await writeFile(resolve(destination, file), await readFile(resolve(import.meta.dirname, file)), { flag: 'wx' })
 }
 await preparePackageHistoryFixture(resolve(destination, 'history'), resolve(root, '../..'))

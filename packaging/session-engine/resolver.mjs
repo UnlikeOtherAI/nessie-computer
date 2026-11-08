@@ -1,9 +1,8 @@
-import { builtinModules } from 'node:module'
+import { isBuiltin } from 'node:module'
 import { isAbsolute, posix, resolve } from 'node:path'
 
 import { SessionEngineSourceError } from './source.mjs'
 
-const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]))
 const contractAliases = new Map([
   ['@nessie/t3-session-source/contracts', 'packages/contracts/src/index.ts'],
   ['@nessie/t3-session-source/contracts/settings', 'packages/contracts/src/settings.ts'],
@@ -39,7 +38,7 @@ export const createSessionEngineSourceResolver = snapshot => {
   }
   return Object.freeze({
     resolve: (specifier, importer) => {
-      if (builtins.has(specifier)) return { kind: 'builtin', path: specifier }
+      if (isBuiltin(specifier)) return { kind: 'builtin', path: specifier }
       if (contractAliases.has(specifier)) return source(contractAliases.get(specifier))
       if (specifier.startsWith('t3-source:')) return source(specifier.slice('t3-source:'.length))
       if (specifier.startsWith('.')) {

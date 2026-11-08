@@ -28,7 +28,8 @@ const original = await readSessionEngineSnapshot(archive)
 const prepared = await prepareLibrarySnapshot(original)
 const { snapshot } = prepared
 const resolver = createSessionEngineSourceResolver(snapshot)
-const rawHttpRoutes = extractT3RawHttp(snapshot)
+// The protocol ledger binds the original application's declarations, not extracted server line shifts.
+const rawHttpRoutes = extractT3RawHttp(original)
 
 // TypeScript's parser follows imports, exports and import types; comments and
 // strings that merely resemble imports cannot widen the source selection.
@@ -134,6 +135,7 @@ const provenance = {
   coBuildAdapterSha256: digest(await readFile(resolve(root, 'input.mjs'))),
   cacheAdapterSha256: digest(await readFile(resolve(root, 'cache.mjs'))),
   rawHttpRoutesSha256: digest(JSON.stringify(rawHttpRoutes)),
+  rawHttpSource: 'original-committed-capsule',
   routeAdapterSha256: digest(await readFile(resolve(root, 'routes.mjs'))),
 }
 await writeFile(resolve(output, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`)

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { builtinModules } from 'node:module'
+import { isBuiltin } from 'node:module'
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,7 +15,6 @@ const tools = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(tools, '../..')
 const slash = path => path.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]))
 const externalPackages = ['effect', '@effect/platform-node', '@effect/platform-node-shared']
 const external = name => externalPackages.some(pkg => name === pkg || name.startsWith(`${pkg}/`))
 
@@ -55,7 +54,8 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
   const entry = resolve(root, registration.entryPoint)
   assertLibraryAuthoredInputs([registration.entryPoint], registration)
   const typecheck = await typecheckSessionState(snapshot, entry,
-    check ? {} : { declarationDirectory: resolve(outputDirectory, 'engine-types'), sharedContracts: true })
+    { ...(check ? {} : { declarationDirectory: resolve(outputDirectory, 'engine-types'), sharedContracts: true }),
+      assertAuthoredInputs: paths => assertLibraryAuthoredInputs(paths, registration) })
   if (check) return { typecheck }
   const manifest = JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8'))
   const result = await build({
@@ -81,7 +81,7 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
     throw new Error('SESSION_ENGINE_LIBRARY_EMBEDDED_EFFECT_REFUSED')
   }
   for (const output of Object.values(result.metafile.outputs)) for (const imported of output.imports) {
-    if (imported.external && !builtins.has(imported.path) && !external(imported.path)) {
+    if (imported.external && !isBuiltin(imported.path) && !external(imported.path)) {
       throw new Error('SESSION_ENGINE_LIBRARY_EXTERNAL_REFUSED')
     }
   }

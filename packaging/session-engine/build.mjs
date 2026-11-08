@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { builtinModules } from 'node:module'
+import { isBuiltin } from 'node:module'
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises'
 import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -15,7 +15,6 @@ import { assertSessionEngineSourceGraph } from './graph.mjs'
 
 const tools = fileURLToPath(new URL('.', import.meta.url))
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const builtins = new Set(builtinModules.flatMap(name => [name, `node:${name}`]))
 
 const writeImmutable = async (path, bytes) => {
   const existing = await readFile(path).catch(error => {
@@ -105,7 +104,9 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
     }
   }
   for (const output of Object.values(result.metafile.outputs)) for (const imported of output.imports) {
-    if (imported.external && !builtins.has(imported.path)) throw new SessionEngineSourceError('SESSION_ENGINE_EXTERNAL_RUNTIME_DEPENDENCY')
+    if (imported.external && !isBuiltin(imported.path)) {
+      throw new SessionEngineSourceError('SESSION_ENGINE_EXTERNAL_RUNTIME_DEPENDENCY')
+    }
   }
   const bytes = result.outputFiles[0].contents
   const notices = {
