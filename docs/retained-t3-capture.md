@@ -1,4 +1,4 @@
-# Retained T3 capture: source checkpoint
+# Retained T3 capture
 
 This is a machine-only, unbound passive importer. It adds no daemon capability,
 bridge adoption, provider, lifecycle, transport, native payload or UI. It does not
@@ -163,16 +163,17 @@ actual original legacy importer and real disposable SQL. It covers >5000 old
 catalog rows, opaque Unicode IDs, archives/tombstones, >200 history rows/paging,
 source refresh after completed hydration, interrupted importer recovery,
 cross-record secret canaries and exhaustion, inert callbacks, independent family
-edges/orphans and retained native overlay/tombstone aliases. It has NOT RUN in
-this source lane. The added `privacy-destination.test.mjs` uses original package
+edges/orphans and retained native overlay/tombstone aliases. The initial source
+checkpoint left these unrun; the independent qualification below supersedes that
+status. `privacy-destination.test.mjs` uses original package
 state/read/importer interfaces and the supported readonly capture port. It
 asserts masked defaults/options/answers are absent from all destination SQLite
 exports and main/WAL/journal files, original event replay, repeated cached reads,
 bounded wire exports, diagnostics, resume and refreshed legacy history. It also
 asserts missing/unknown/conflicting masks, orphan answers and capacity exhaustion
-retain the prior catalog instead of reporting success. These tests are authored,
-NOT EXECUTED. Full attachment delivery, strict consumer
-qualification and separate Node 22 readonly-capture execution remain required.
+retain the prior catalog instead of reporting success. These tests now pass on
+Node 22, including masked-attachment refusal before insertion. Full attachment
+delivery and the real producers remain unbound.
 The new privacy namespace export changes runtime/types/provenance;
 the prior 5013e582 normal-package qualification is historical input evidence.
 
@@ -183,8 +184,8 @@ Importer files remain ordinary executor consumers, outside the generated engine
 graph; only the already registered `core/Engine.ts` gains the privacy namespace.
 No authored-input wildcard or unrelated lock resolution is added.
 
-No compiler, install, Node 22 candidate, PostgreSQL, native, browser, service or
-provider job ran here. Private lock integration belongs to root: preserve private
+The initial source checkpoint ran no compiler, install or runtime gate. Private
+lock integration belongs to root: preserve private
 pins and use pinned 10.22 frozen metadata validation plus full dependency-reference
 and integrity checks. Public lock edits change only this consumer importer; no
 package/snapshot resolution records are repinned. T07's actual PostgreSQL
@@ -204,4 +205,58 @@ existing history. The prior backdated fixture and failed gate logs are retained.
 A valid masked attachment exercises refusal in the projected preflight, with
 explicit zero-row assertions across destination session tables. These synthetic
 fixtures do not bind either production authority producer.
+
+## Independent Maxis qualification — 8 November 2026
+
+Code checkpoint `c1f4556b251af2d88cd3ef6b179a830257486c7d` was exercised in
+`C:/Users/ondre/.t3/worktrees/Nessie/t3-27e962ac/executor`, branch
+`t3/t04-retained-session-qualification`. The parent gitlink remains `5688c25`.
+All runtime gates used independently downloaded, checksum- and signature-verified
+Node 22.23.1, pnpm 10.22.0 and TypeScript 5.9.3, sequentially on Maxis. No native,
+provider, personal-history, server, PostgreSQL or production-authority work ran.
+
+- Normal engine and executor build/typecheck passed without relaxing the executor's
+  ES2022, Node 20 typings or unused-symbol settings. The generated engine closure
+  now consists of real compiler declarations; shared contract source types retain
+  their documented representation. Strict consumers keep library checks enabled.
+- The registered source gate passed 11 cases; importer gate passed 12; engine
+  gate passed six. Request privacy passed 14 source and 27 overlapping fixture
+  cases. Every listed gate reported zero skips. Scoped first-party lint passed.
+- The importer compared all 5,007 original catalog identities/states and complete
+  thread/message/turn-item records in source order, plus 360-message history,
+  pagination, interruption/resume, appended legacy refresh, lineage and aliases.
+  Masked defaults/options/answers were absent from SQLite main/WAL/journal/export,
+  caches, replay, bounded exports and captured diagnostics. Unknown/conflicting
+  classifications, orphan answers, exhaustion and masked attachments refused.
+  Failed preflight left every destination session table empty.
+- A fresh packed consumer passed runtime codec/Context identity, zero import/factory
+  effects, strict ES2022 Bundler/NodeNext checks over 583 contained files, original
+  SQLite history/replay/pruning/reopen and the packed source/build helper. Runtime
+  and history used 323 and 324 contained module files. All 396 installed output
+  hashes matched the qualified distribution.
+- Two separate normal builds reproduced all 396 distribution files, and two
+  ordinary packs produced identical 1,363,610-byte archives. Source/input maps
+  include all changed authored files, every patch, compiler declarations and
+  producer inputs; no lock resolution or original codec was replaced.
+
+| Output | SHA-256 |
+| --- | --- |
+| Distribution file map | `e1a03d84639d83cf25b104681aed44b0fe7312a3d1b0ea0e52ac42ff049071b6` |
+| Engine entry | `9bbd362cac09c4ef3738f8c6b529fddb55f429af61330a50da06329f58e6b51d` |
+| Engine module map | `1e8645bfe50e0f8d7d22d72b258efa0ec43c71ac7f698d549b0e289a25d62c56` |
+| Engine declaration map | `5404a594f8a8ef223d935a450442eced4626a8992ebc70937f3893aeb98f27f1` |
+| Engine provenance | `e92026dde457c934a113eef00dac20fe821eb49f9329449cb3fbef473e1c6dd0` |
+| Packed archive | `353561ffa84a805888f47158befafaa561592c62b58f3503554cba29a57adfc4` |
+
+Failures remain preserved in the owning worktree's ignored qualification logs:
+the initial compiler heap exhaustion, 175 consumer diagnostics, five unresolved
+generated directory imports, incorrect replay-envelope fixture, backdated append
+fixture, initially invalid attachment fixture ID and scoped lint findings. No
+failed check is counted as a pass. A backdated legacy insertion remains an
+original-importer failure, not qualified refresh behavior.
+
+This qualifies synthetic passive capture and the generated package, not live
+parity. Original-human and physical-source producers, installation coverage,
+native history-home custody, canonical vault delivery, T07 publication races and
+the entitled gateway/client journey remain required and unverified.
 
