@@ -104,7 +104,8 @@ test('a Nessie that refuses the organisation field: the handshake asks again wit
 })
 
 test('only a validation refusal naming the field reads as an older Nessie', () => {
-  const refusal = (status: number, code: string, details: unknown) => new ExecutorApiError(code, { status, code, details })
+  const refusal = (status: number, code: string, details: unknown) => (
+    new ExecutorApiError(code, { status, code, details }))
   assert.equal(organizationNameFieldRefused(refusal(400, 'VALIDATION_ERROR', [{ keys: ['wantsOrganizationName'] }])), true)
   assert.equal(organizationNameFieldRefused(refusal(400, 'VALIDATION_ERROR', [{ keys: ['requested'] }])), false)
   assert.equal(organizationNameFieldRefused(refusal(403, 'VALIDATION_ERROR', [{ keys: ['wantsOrganizationName'] }])), false)
