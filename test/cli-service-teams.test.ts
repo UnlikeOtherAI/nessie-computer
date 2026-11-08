@@ -66,7 +66,7 @@ const fakeService = () => {
         rows.find((row) => row.executorId === id)!.paused = request.paused as boolean
         return { status: 'ok', executors: rows }
       }
-      case 'programRequests': return { status: 'programRequests', requests }
+      case 'programRequests': return { status: 'programRequests', requests: id === OPS ? requests : [] }
       case 'answerProgramRequest': {
         requests = requests.filter((entry) => entry.id !== request.id)
         return { status: 'programRequests', requests }
