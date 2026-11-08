@@ -6,7 +6,8 @@ import { captureRetainedT3 } from '../../dist/t3-session/import/capture.js'
 import { readRetainedProjection } from '../../dist/t3-session/import/reads.js'
 import { UNKNOWN_QUESTION_VALUE } from '../../dist/t3-session/import/questions.js'
 import { engineFixture } from './engine-fixture.mjs'
-import { addQuestion, addAnswer, addEvent, assertDestinationsClean, canary, ordinary } from './privacy-fixture.mjs'
+import { addQuestion, addAnswer, addEvent, assertDestinationsClean, assertGenerationEmpty,
+  canary, ordinary } from './privacy-fixture.mjs'
 
 const encode = (schema, value) => Schema.encodeSync(schema)(Schema.decodeUnknownSync(schema)(value))
 const saveItem = (f, item) => f.writer.prepare(
@@ -97,3 +98,41 @@ test('original codec history retains exact catalog/order and withholds question 
     assertDestinationsClean(f)
   } finally { f.close() }
 })
+
+test('exact observed request redacts its legacy message copy before original hydration and replay', async () => {
+  const request = 'request:legacy'
+  const messageId = `async-answer:${request}`
+  const f = await engineFixture({ messages: 4, firstMessageId: messageId, firstMessageText: canary })
+  try {
+    const question = addQuestion(f, { request, codecStored: true })
+    question.responseMode = 'message'
+    saveItem(f, encode(S.OrchestrationV2TurnItemJson, question))
+    addAnswer(f, { request })
+    const receipt = await captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
+    const full = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
+      receipt.generation, S.ThreadId.make(f.ids[0]))
+    assert.equal(full.messages.find(value => value.id === messageId).text, UNKNOWN_QUESTION_VALUE)
+    assert.equal(full.messages.length, 4)
+    assertDestinationsClean(f)
+  } finally { f.close() }
+})
+
+for (const mismatch of ['thread', 'request', 'item']) {
+  test(`original valid codec with inconsistent ${mismatch} identity refuses before capture inserts`, async () => {
+    const f = await engineFixture({ messages: 4 })
+    try {
+      const question = addQuestion(f, { codecStored: true })
+      const originalId = question.id
+      if (mismatch === 'thread') question.threadId = f.ids[1]
+      if (mismatch === 'request') question.questionAnswer.requestId = 'request:other'
+      if (mismatch === 'item') question.id = 'item:other'
+      f.writer.prepare('UPDATE orchestration_v2_projection_turn_items SET payload_json = ? WHERE turn_item_id = ?')
+        .run(JSON.stringify(encode(S.OrchestrationV2TurnItemJson, question)), originalId)
+      await assert.rejects(captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey),
+        /capture_question_provenance_conflict/u)
+      const root = f.ports.journal.root(f.source.physicalRootKey)
+      assertGenerationEmpty(f, root.generation)
+      assertDestinationsClean(f)
+    } finally { f.close() }
+  })
+}

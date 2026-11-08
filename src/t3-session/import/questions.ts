@@ -188,7 +188,8 @@ export class CaptureQuestions {
       const result = new Map<string, unknown>()
       for (const [key, nested] of Object.entries(record)) {
         if (projectQuestion && ((questionItem && key === 'title') ||
-          (runtimeRequest && record.kind === 'user_input' && key === 'feedback')) && nested !== null) {
+          (runtimeRequest && key === 'feedback' && this.requestDeclarations.has(JSON.stringify([scope, request])))) &&
+          nested !== null) {
           result.set(key, this.requestMarker(JSON.stringify([scope, request])) ?? nested)
         } else if (key === 'questions' && questionItem) {
           requireCapture(Array.isArray(nested), 'capture_question_provenance_unknown')

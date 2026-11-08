@@ -142,14 +142,19 @@ export class CapturePrivacy {
       row.last_error = null
     }
     if (entry.name === 'projection_thread_messages') {
+      // The legacy importer preserves message_id verbatim. Only an exact
+      // observed message-mode request may classify a legacy answer copy.
+      const message = recordOf(classify({ id: row.message_id, role: row.role, text: row.text,
+        ...(typeof row.context_json === 'string' ? { context: this.legacyContext(row) } : {}) }))
+      requireCapture(message && typeof message.text === 'string', 'capture_privacy_incomplete')
+      row.text = message.text
       if (typeof row.attachments_json === 'string') {
         row.attachments_json = JSON.stringify(attachmentArrayCodec(
           this.questions.projectAttachments(JSON.parse(row.attachments_json), this.scope(entry, row))))
       }
       if (typeof row.context_json === 'string') {
-        const context = this.projectEntity(this.questions.projectContext(
-          classify(this.legacyContext(row)), this.scope(entry, row)), project)
-        row.context_json = JSON.stringify(messageContextCodec(context))
+        row.context_json = message.context === undefined ? null
+          : JSON.stringify(messageContextCodec(this.projectEntity(message.context, project)))
       }
     }
     return row
