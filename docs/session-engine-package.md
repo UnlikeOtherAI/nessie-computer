@@ -1,5 +1,25 @@
 # Generated session-engine package
 
+## Combined integration build
+
+The 8 November coordinator build on Maxis now passes for the integrated ten
+patch families, using Node 24.19.0, pnpm 10.22.0 and TypeScript 5.9.3. The normal
+Turbo build checked 1,149 source files with library checks enabled and emitted
+the engine, browser client, contracts and portable declarations. Its ordered
+patch digest is `708fc13ba1b5bda4231ac7b82563e54e1fd92eea8a0eb0de48a38d6b8189fe03`.
+
+Compilation exposed missing shared Git/checkpoint declarations, an asset import
+that retained application startup, browser socket option typing and unnamed
+large HTTP/RPC factory types. The corrected extraction preserves original tags,
+codecs and generic Effect signatures, uses the browser constructor's supported
+global layer, and keeps application policy/provider owners outside the graph.
+Media errors retain named declarations; launch file-boundary failures map into
+the original launch error. Persistent cleanup still joins every failure before
+retry. Strictness and library checking remain enabled.
+
+This checkpoint proves the package build only. Focused package tests, installed
+runtime, native custody, database and browser journeys remain separate gates.
+
 The [T12 control source](t3-session-control.md) adds `SessionControl` and the
 required `ScheduledTasks` port through `core/Control.ts`, registered in the exact
 authored-input list. It adds the `session-control` patch family before request

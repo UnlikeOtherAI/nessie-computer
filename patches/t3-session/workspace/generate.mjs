@@ -86,7 +86,7 @@ export const generateWorkspaceManifest = snapshot => {
       + 'export { GIT_INDEX_LOCKED_DETAIL };\n\n', 'workspace-share-git-lock-message')
 
   // These original implementations have no process owner or filesystem default after redirection.
-  for (const file of ['git/GitWorkflowService.ts', 'review/ReviewService.ts',
+  for (const file of ['git/GitWorkflowService.ts', 'review/ReviewService.ts', 'assets/AssetAccess.ts',
     'checkpointing/CheckpointStore.ts', 'checkpointing/CheckpointDiffQuery.ts', 'vcs/VcsProvisioningService.ts',
     'git/linkCreatedPullRequest.ts', 'git/refreshPushedPullRequests.ts', 'worktreesDirectory.ts',
     'orchestration-v2/CheckpointRollbackService.ts', 'orchestration-v2/CheckpointRollbackService.session-port.ts']) {

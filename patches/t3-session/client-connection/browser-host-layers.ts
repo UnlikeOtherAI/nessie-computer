@@ -24,7 +24,7 @@ const events = <A>(target: EventTarget, names: ReadonlyArray<string>, value: () 
 /** Browser primitives only. No Clerk, relay discovery, provider or server services. */
 export const browserHostPlatform = () => Layer.mergeAll(
   FetchHttpClient.layer,
-  Layer.succeed(Socket.WebSocketConstructor, (url, protocols) => new WebSocket(url, protocols)),
+  Socket.layerWebSocketConstructorGlobal,
   Layer.succeed(Capabilities.ClientPresentation, { metadata: { label: 'Nessie' } }),
   Connectivity.layer({ status: Effect.sync(() => navigator.onLine ? 'online' : 'offline'),
     changes: events(window, ['online', 'offline'], () => navigator.onLine ? 'online' as const : 'offline' as const) }),

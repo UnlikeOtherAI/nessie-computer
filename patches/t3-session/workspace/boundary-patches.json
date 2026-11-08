@@ -163,15 +163,15 @@
           "end": 926,
           "sha256": "b45a14bcd4611d3ec54a03d6565c7daf2ac04b057e6bb9886ad70c32d9e8f33b",
           "sourceStage": "current",
-          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+          "sourceSha256": "f448f3cb825d6e5678b2c3590ba0879505612fe764fc59ad4032d1040e740b51"
         },
         {
           "sourceFile": "apps/server/src/orchestration-v2/CheckpointService.ts",
-          "start": 1482,
-          "end": 2042,
+          "start": 1534,
+          "end": 2094,
           "sha256": "56381f5306747f0a3614cfc105204b6830094dfdd3c5da66280892ab93da0f5b",
           "sourceStage": "current",
-          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+          "sourceSha256": "f448f3cb825d6e5678b2c3590ba0879505612fe764fc59ad4032d1040e740b51"
         }
       ],
       "beforeSha256": null,
@@ -182,8 +182,8 @@
       "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
       "from": "export const checkpointRefForScopeOrdinal = Effect.fn(\"checkpointRefForScopeOrdinal\")(\n  function* (input: { readonly scopeId: CheckpointScopeId; readonly ordinalWithinScope: number }) {\n    const crypto = yield* Digest.Digest;\n    const digest = yield* crypto\n      .digest(Digest.sha256, new TextEncoder().encode(input.scopeId))\n      .pipe(Effect.orDie);\n    const scopeKey = Hex.encode(digest).slice(0, 32);\n    return CheckpointRef.make(\n      `${CHECKPOINT_REFS_PREFIX}/${Base64Url.encode(scopeKey)}/ordinal/${input.ordinalWithinScope}`,\n    );\n  },\n);\n\n",
       "to": "import { checkpointRefForScopeOrdinal } from \"./CheckpointService.session-ref.ts\";\nexport { checkpointRefForScopeOrdinal };\n\n",
-      "beforeSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427",
-      "afterSha256": "a1d690421aeeb34c71158b256cea698550cd7f6d7e430fb84d6537bc814eea38"
+      "beforeSha256": "f448f3cb825d6e5678b2c3590ba0879505612fe764fc59ad4032d1040e740b51",
+      "afterSha256": "4aeeca4f558b356c1324188fa8dc6a058d746fc0ed2716fa49c523895371bca0"
     },
     {
       "id": "workspace-git-lock-message",
@@ -264,6 +264,14 @@
       "to": "from \"../workspace/KnownWorkspaces.session-port.ts\"",
       "beforeSha256": "52d9ae5bcf366eca60052596cbd0372dfc1185d3a2e8ed25276b55da1863e740",
       "afterSha256": "b98bf608650b90ab915c96beb56e5d68b9271c1cafebe2083b8d11c832c73e2e"
+    },
+    {
+      "id": "workspace-import:assets/AssetAccess.ts:workspace/KnownWorkspaces.ts",
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "from": "from \"../workspace/KnownWorkspaces.ts\"",
+      "to": "from \"../workspace/KnownWorkspaces.session-port.ts\"",
+      "beforeSha256": "13e323170c008d118be2c99736c6d773732643cf58efaf45f57656ecc09a0669",
+      "afterSha256": "611fc466fed191088ab0c55a43f3a07b59c6aa6842f4f41800a16d2eb8efeb60"
     },
     {
       "id": "workspace-import:checkpointing/CheckpointStore.ts:vcs/VcsDriverRegistry.ts",

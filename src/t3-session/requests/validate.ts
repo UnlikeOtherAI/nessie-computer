@@ -14,7 +14,7 @@ export class T3AnswerValidationError extends Error {
     this.name = 'T3AnswerValidationError'
   }
 }
-const refuse = (code: T3AnswerValidationError['code'] = 'answer_invalid'): never => {
+function refuse(code: T3AnswerValidationError['code'] = 'answer_invalid'): never {
   throw new T3AnswerValidationError(code)
 }
 

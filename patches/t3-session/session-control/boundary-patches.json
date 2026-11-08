@@ -60,35 +60,35 @@
           "sourceSha256": "10984a5143af77b8e988818a263abad9ce2953196e758d35df0a006f90e5f581"
         },
         {
-          "text": ");\n"
+          "text": "Effect.catchTag(\"FileBoundaryError\", (cause) => new OrchestrationV2ThreadLaunchError({\n  commandId: input.commandId, projectId: input.projectId, message: \"Failed to access launch files\", cause,\n})),\n);\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "1814ac8e803a3b9e9daa2dd3251d798073082d683cb38982c3b432f877e37f4b"
+      "afterSha256": "1dbaf40db32056a1a7e1ebefce7bbf13c524c04a17df2c32bc6b431cbf591765"
     },
     {
       "id": "control-dispatch-provenance",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "createdBy: \"user\",\n                          creationSource:\n                            \"creationSource\" in command ? command.creationSource : \"web\",",
       "to": "...provenance,",
-      "beforeSha256": "1814ac8e803a3b9e9daa2dd3251d798073082d683cb38982c3b432f877e37f4b",
-      "afterSha256": "26a3aed349a1c82938f193ac7786fa1bf7345d2ae19c180d4f78e573012b1cc0"
+      "beforeSha256": "1dbaf40db32056a1a7e1ebefce7bbf13c524c04a17df2c32bc6b431cbf591765",
+      "afterSha256": "b18e02d3d17077701215ae6b9c64eba4f92bfc51479e3379ba642ac902546e76"
     },
     {
       "id": "control-launch-provenance",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "createdBy: \"user\",\n                    creationSource: input.creationSource ?? \"web\",",
       "to": "...provenance,",
-      "beforeSha256": "26a3aed349a1c82938f193ac7786fa1bf7345d2ae19c180d4f78e573012b1cc0",
-      "afterSha256": "1ae0f10c817d52ab84a0bf17e31bbb527b7aa1c45e29d26ab2579dc320e00f94"
+      "beforeSha256": "b18e02d3d17077701215ae6b9c64eba4f92bfc51479e3379ba642ac902546e76",
+      "afterSha256": "90c833e70488366b586d49439af056202a8f72dbbb771ab4a4941435362db7b2"
     },
     {
       "id": "control-executor-startup-boundary",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "                    ServerRuntimeStartupError: (cause) =>\n                      new OrchestrationV2ThreadLaunchError({\n                        commandId: input.commandId,\n                        projectId: input.projectId,\n                        message: \"Failed to launch thread\",\n                        cause,\n                      }),\n",
       "to": "",
-      "beforeSha256": "1ae0f10c817d52ab84a0bf17e31bbb527b7aa1c45e29d26ab2579dc320e00f94",
-      "afterSha256": "0d5a326d56e7032ecd6e3764c6430643539c719a5333f1f9e32061fc923ef7d6"
+      "beforeSha256": "90c833e70488366b586d49439af056202a8f72dbbb771ab4a4941435362db7b2",
+      "afterSha256": "ff33ecd93808151148f4e9a05388024e8c5d3e0c561289ae622ce779aa924438"
     },
     {
       "id": "extract-schedule-control-port",
