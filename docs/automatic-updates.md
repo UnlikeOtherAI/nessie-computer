@@ -389,7 +389,9 @@ executor. Previously the runner set `NESSIE_EXECUTOR_PACKAGED_CLI=1` solely to
 reach the helper; that also activated installed-only custody and stranded source
 MCP teardown on proof the uncontained test process could not provide.
 
-The ACL transport and runtime admission are now separate. A missing or symlinked
+The ACL transport and runtime admission are now separate. State-test prerequisite
+checks use the sibling helper, so unmarked source runs retain real DACL coverage.
+Guest artifact tests still require installed package resources. A missing or symlinked
 helper still refuses; there is no PATH search or helper environment override.
 Installed-only updater and credential commands retain their own package, publisher
 and native factory requirements. The real Windows regression verifies owner-only
