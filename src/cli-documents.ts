@@ -5,8 +5,9 @@ import type { FolderSyncConsoleState } from '@nessie/executor-protocol'
 import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, printJson } from './cli-output.js'
 import type { CliRun } from './cli-user.js'
-import { defaultFolderSyncRoot, loadFolderSyncConfig } from './folder-sync/config.js'
+import { loadFolderSyncConfig } from './folder-sync/config.js'
 import { readConsoleState } from './folder-sync/console-state.js'
+import { suggestedMainFolder } from './folder-sync/main-folder.js'
 import { folderSyncPaths } from './folder-sync/state-files.js'
 import { runConsoleCommand, type RestoreTrashCommand, type SyncCommandContext, type SyncConsoleResult } from './folder-sync/sync-command.js'
 import { listTrash } from './folder-sync/trash-book.js'
@@ -89,11 +90,13 @@ export const runDocuments = async (run: CliRun): Promise<void> => {
     }
     case 'on':
       none()
-      return configure(run.options.values.get('--folder') ?? config.root ?? defaultFolderSyncRoot(run.context.home), true,
-        run.options.flags.has('--add-existing-files'), `Documents are on for ${team.label}.`)
+      // The same main folder the app offers: the one other teams here already use.
+      return configure(
+        run.options.values.get('--folder') ?? config.root ?? await suggestedMainFolder(team.stateDir, run.context.home),
+        true, run.options.flags.has('--add-existing-files'), `Documents are on for ${team.label}.`)
     case 'off':
       none()
-      return configure(config.root ?? defaultFolderSyncRoot(run.context.home), false, false,
+      return configure(config.root ?? await suggestedMainFolder(team.stateDir, run.context.home), false, false,
         `Documents are off for ${team.label}. The folder and its files stay on this computer.`)
     case 'folder':
       if (rest.length !== 1) throw new CliUsageError('Give the folder: nessie-computer documents folder <path>.', 'documents')
