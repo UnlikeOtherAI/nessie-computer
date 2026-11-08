@@ -727,6 +727,14 @@ export const ExecutorDaemonHeartbeatRequestSchema = z.object({
    * exactly when it is present, so an older daemon's signature still verifies.
    */
   localMcp: ExecutorLocalMcpReportSchema.optional(),
+  /**
+   * Present, and `true`, exactly while the computer's owner has paused this
+   * team on the computer itself. The daemon stays connected, refuses new work
+   * (`EXECUTOR_OWNER_PAUSED`) and keeps reporting, so Nessie can show "Paused
+   * on the computer" instead of "offline". Absent means not paused, which keeps
+   * an unpaused daemon's signed payload byte-identical to an older daemon's.
+   */
+  ownerPaused: z.literal(true).optional(),
   software: ExecutorSoftwareStatusSchema.optional(),
   observedAt: TimestampSchema,
   signature: ExecutorDaemonSignatureSchema,
@@ -796,6 +804,8 @@ export const ExecutorAvailabilityReasonSchema = z.enum([
   'descriptor_unreviewed',
   'local_policy_denied',
   'credential_unavailable',
+  /** The computer's owner paused this team on the computer (heartbeat `ownerPaused`). */
+  'owner_paused',
 ])
 export type ExecutorAvailabilityReason = z.infer<
   typeof ExecutorAvailabilityReasonSchema
