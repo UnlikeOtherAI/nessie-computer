@@ -9,8 +9,9 @@ use windows_sys::Win32::{
         },
         GetKernelObjectSecurity, GetSecurityDescriptorDacl, InitializeSecurityDescriptor,
         SetKernelObjectSecurity, SetSecurityDescriptorDacl, ACL, DACL_SECURITY_INFORMATION,
-        NO_INHERITANCE, READ_CONTROL, SECURITY_DESCRIPTOR, TOKEN_QUERY, WRITE_DAC,
+        NO_INHERITANCE, SECURITY_DESCRIPTOR, TOKEN_QUERY,
     },
+    Storage::FileSystem::{READ_CONTROL, WRITE_DAC},
     System::Threading::{
         GetCurrentProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
     },
