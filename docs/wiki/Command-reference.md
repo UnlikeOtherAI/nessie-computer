@@ -35,6 +35,8 @@ List connected teams: label, status, server and id.
 ```sh
 nessie-computer teams [--json]
 ```
+Names are kept on this computer and read again from Nessie once they are an
+hour old, so a team keeps its name while Nessie can't be reached.
 
 ### `who`
 Who can send work to this computer for a team: agents, people and projects.
@@ -312,6 +314,7 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 | `local-inference engines …` | The app's Claude Code and Codex rows |
 | `personal-chatgpt-local --state-dir <dir>` | The app's ChatGPT plans |
 | `unpair --state-dir <dir>` | The app's Disconnect |
+| `team-names --state-dir <dir> …` | The apps' team names: one request per server for every team listed |
 | `enable`, `disable`, `autorestart` | The Linux service |
 | `configure-browser`, `configure-codex` | Setting up the agents' browser and sandbox |
 | `serve-*`, `coding-session-host`, `deeptest-*` | Started by Nessie Computer itself |

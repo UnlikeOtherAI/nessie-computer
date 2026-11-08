@@ -25,6 +25,7 @@ import { runMacServiceCli } from './service-macos.js'
 import { runServiceRestartCli } from './service-restart-cli.js'
 import { runPairingCodeCli } from './pairing-code-cli.js'
 import { runLocalSettingsCli } from './local-settings-cli.js'
+import { runTeamNamesCli } from './team-names-cli.js'
 import { serveDeepTestSourceAdapter } from './deeptest-source-adapter.js'
 import { serveDeepTestExecutionAdapter } from './deeptest-execution-adapter.js'
 import { serveDeepTestInferenceAdapter } from './deeptest-inference-adapter.js'
@@ -197,6 +198,7 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
   if (await runLocalSettingsCli(args)) return
+  if (await runTeamNamesCli(args)) return
   let command: ParsedCommand
   try {
     command = parseCommand(args)

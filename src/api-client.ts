@@ -5,11 +5,13 @@ import type {
   ExecutorDaemonCommandPollResponse,
   ExecutorCommandReceipt,
   ExecutorDaemonCommandAttachmentResponse,
+  ExecutorDaemonTeamsRequest,
   ExecutorSessionViewExchange,
   ExecutorSessionViewRequest,
   ExecutorSoftwareStatus,
   ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
+import { EXECUTOR_DAEMON_TEAMS_PATH } from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
@@ -117,6 +119,8 @@ export type ExecutorApiClient = {
     baseUrl: string,
     input: { connectionEpoch: string; descriptor: unknown; executorId: string },
   ) => Promise<{ reviewStatus: string; revision: number }>
+  /** The names of this computer's teams on one server, each entry signed by its team (`team-names.ts`). */
+  teams: (baseUrl: string, input: ExecutorDaemonTeamsRequest) => Promise<unknown>
   submitEnrollment: (
     baseUrl: string,
     input: unknown,
@@ -253,6 +257,7 @@ export const createExecutorApi = (options: {
     }, options.timeoutMs ?? requestTimeoutMs, readData<T>, options.signal),
     submitDescriptor: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/descriptor', input),
     submitEnrollment: (baseUrl, input) => post(baseUrl, '/api/executor-enrollments/submit', input),
+    teams: (baseUrl, input) => post(baseUrl, EXECUTOR_DAEMON_TEAMS_PATH, input),
     uploadBrowserCookieImport: (baseUrl, input) =>
       post(baseUrl, '/api/executor-daemon/browser-cookie-imports/upload', input),
   }

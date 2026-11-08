@@ -44,6 +44,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
   {
     command: 'teams', summary: 'List connected teams: label, status, server and id.',
     usage: ['nessie-computer teams [--json]'],
+    notes: ['Names are kept on this computer and read again from Nessie once they are an hour old.'],
     examples: ['nessie-computer teams', 'nessie-computer teams --json'],
   },
   {

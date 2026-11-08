@@ -92,13 +92,26 @@ export const expectAnswer = (answer: ServiceAnswer, status: string): ServiceAnsw
   return answer
 }
 
-/** One team as the service reports it: its daemon, pause, failure and waiting requests. Never a path. */
+/** A service team's saved label, as the service read it from the team's folder. */
+export type ServiceTeamNames = { organizationName: string; teamName: string | null; apiBaseUrl: string }
+
+/** One team as the service reports it: its daemon, pause, failure, waiting requests and names. Never a path. */
 export type ServiceTeamStatus = {
   executorId: string
   daemonStatus: string
   paused: boolean
   pendingProgramRequests: number
   failure?: { code?: string; message: string }
+  /** Absent from a service that predates labels, and for a team that has never had a name. */
+  names?: ServiceTeamNames
+}
+
+/** A label only when it is whole; anything else reads as no name yet. */
+const rowNames = (value: unknown): { names?: ServiceTeamNames } => {
+  const names = value as Partial<ServiceTeamNames> | null | undefined
+  if (!names || typeof names.organizationName !== 'string' || !names.organizationName.trim()
+    || typeof names.apiBaseUrl !== 'string' || (names.teamName !== null && typeof names.teamName !== 'string')) return {}
+  return { names: { organizationName: names.organizationName, teamName: names.teamName ?? null, apiBaseUrl: names.apiBaseUrl } }
 }
 
 const statusRow = (value: unknown): ServiceTeamStatus => {
@@ -109,7 +122,7 @@ const statusRow = (value: unknown): ServiceTeamStatus => {
   }
   const failure = row.failure && typeof row.failure.message === 'string' ? { failure: row.failure } : {}
   return { executorId: row.executorId, daemonStatus: row.daemonStatus, paused: row.paused,
-    pendingProgramRequests: row.pendingProgramRequests, ...failure }
+    pendingProgramRequests: row.pendingProgramRequests, ...failure, ...rowNames(row.names) }
 }
 
 /** The service's list after a status check or a change: `{ status: 'ok', executors }`. */
@@ -135,7 +148,7 @@ export const serviceRequests = {
   inference: (executorId: string, operation: unknown): ServiceRequest => (
     { command: 'inferenceConnections', executorId, operation }),
   remove: (executorId: string): ServiceRequest => ({ command: 'remove', executorId }),
-  /** A connected team's names, or with no id the pairing the service has open. */
+  /** A connected team's pairing status, or with no id the pairing the service has open. */
   pairingStatus: (executorId?: string): ServiceRequest => ({ command: 'pairingStatus', executorId: executorId ?? null }),
   pairingStart: (apiBaseUrl: string, workspaceRoot: string): ServiceRequest => (
     { command: 'pairingStart', apiBaseUrl, workspaceRoot, replace: false }),

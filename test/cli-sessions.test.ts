@@ -14,6 +14,7 @@ import { writeSessionsFile, type SessionView } from '../src/session-snapshot.js'
 import { listSessionStops } from '../src/session-stops.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import { saveExecutorState } from '../src/state-store.js'
+import { fakeTeamNames } from './support/fake-team-names.js'
 import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 
 /**
@@ -62,7 +63,7 @@ const run = async (home: string, args: string[]) => {
     stdin: Readable.from([]), interactive: false, ask: async () => '', platform: process.platform, home,
     now: () => new Date(), sleep: async () => undefined }
   const exit = await runUserCli(args, {
-    context, nameLookup: async () => ({ teamName: 'Sales', organizationName: 'Acme' }),
+    context, namesApi: fakeTeamNames({ names: { [SALES]: { teamName: 'Sales', organizationName: 'Acme' } } }).api,
   })
   return { exit, out, err }
 }
