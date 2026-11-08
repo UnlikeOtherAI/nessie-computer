@@ -183,8 +183,8 @@
     const pendingSwitch = switchPending?.executorId === executorId ? switchPending.enabled : null
     const refused = refusal?.executorId === executorId ? refusal.reason : null
     const team = executorId ? nc.team.label(executorId) : ''
-    const signature = JSON.stringify([executorId, team, document.documentElement.lang, state, failure, pendingSwitch, refused,
-      [...busy]])
+    const signature = JSON.stringify([executorId, team, document.documentElement.lang, state, failure, pendingSwitch,
+      refused, [...busy]])
     if (signature === painted) return
     painted = signature
     renderWords(team)

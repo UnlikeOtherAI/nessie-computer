@@ -55,8 +55,8 @@
     access.render()
   }
   const setTrusted = (key, on) => change((draft) => {
-    draft.trusted = Object.fromEntries(BUILTINS.map((name) => [name, name === key ? on : Boolean(draft.trusted?.[name])]),
-    )
+    draft.trusted = Object.fromEntries(BUILTINS.map((name) => [name,
+      name === key ? on : Boolean(draft.trusted?.[name])]))
   })
 
   const build = (node) => {
@@ -156,7 +156,8 @@
         disabled: !listed || !entry.available, onchange: (on) => setTrusted(key, on) })
       const detail = [entry.verifiedBy === 'signature' ? t('programs.signed') : null, entry.available ? null : t('programs.unavailable')]
         .filter(Boolean).join(' ')
-      list.append(access.row({ name, detail: detail || undefined, control: toggle, key, disabled: !listed || !entry.available }))
+      list.append(access.row({ name, detail: detail || undefined, control: toggle, key,
+        disabled: !listed || !entry.available }))
     }
     for (const rule of draft.allowlist) {
       const program = programOf(rule) ?? rule

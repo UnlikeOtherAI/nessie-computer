@@ -98,7 +98,7 @@ window.aiTab = (() => {
   }
   const shown = () => nc.view.current() === 'ai' && Boolean(nc.team.current())
   const refresh = () => { if (shown()) nc.attempt(load) }
-  /** The first plan on a team this Windows app runs first connects the service to the team; then the plan is named and signed in. */
+  /** On a team this Windows app runs, the first plan first connects the service; then the plan is named and signed in. */
   const addPlan = async () => {
     const executorId = nc.team.current()
     const plansOn = planConnection() ?? await window.aiConnection.connect(executorId)

@@ -149,7 +149,7 @@
     const summary = document.createElement('p')
     summary.className = 'team-summary'
     summary.textContent = summaries.get(team.executorId) ?? t('overview.summaryLoading')
-    // On Windows the team's ChatGPT plans run on a second, service-owned connection; its state belongs on the team's card.
+    // On Windows the team's ChatGPT plans run on a second, service-owned connection; its state sits on the team's card.
     const planLine = document.createElement('p')
     planLine.className = 'team-summary'
     planLine.hidden = !team.chatgptConnectionId

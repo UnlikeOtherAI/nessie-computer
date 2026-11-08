@@ -73,7 +73,7 @@ window.aiConnection = (() => {
     byId('ai-connection-title').focus()
   }
 
-  /** Connects the service to the team; answers the plan connection's id once Nessie claims it, or null when cancelled. */
+  /** Connects the service to the team; answers the plan connection's id once Nessie claims it, null when cancelled. */
   const connect = (team) => new Promise((resolve) => {
     executorId = team
     settle = resolve

@@ -4,7 +4,8 @@
   const nc = window.nc
   const access = window.accessTab
   const t = access.t
-  // Where the runtime found a local app (`LOCAL_APP_SOURCES` in src/mcp-servers.ts), or `configured` when the owner named it.
+  // Where the runtime found a local app (`LOCAL_APP_SOURCES` in src/mcp-servers.ts);
+  // `configured` means the owner named it.
   const LOCAL_APP_SOURCES = { unlikeotherai: 'unlikeotherai', 'claude-code': 'claudeCode', codex: 'codex' }
   const setText = (id, text) => { nc.byId(id).textContent = text }
   // A folder is shown by its own name, as the person's file manager shows it.
@@ -124,7 +125,8 @@
         }, () => add)
         last.textContent = t('folders.last')
         last.hidden = input.workspaceFolders.length !== 1
-        // The agent browser, sandboxed commands and coding sessions need exactly one folder (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
+        // The agent browser, sandboxed commands and coding sessions need exactly one folder
+        // (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
         several.textContent = t('folders.multiple')
         several.hidden = input.workspaceFolders.length < 2
       },
@@ -193,14 +195,17 @@
   access.register('localApps', (() => {
     let list; let intro; let empty
     const inForce = (input, saved) => t('save.inForce.localApps', { list: access.list((saved?.localApps ?? [])
-      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name) && !input.mcpServers?.every((server) => server.name !== app.name))
+      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name)
+        && !input.mcpServers?.every((server) => server.name !== app.name))
       .map((app) => app.name)) })
     /** Removing an owner-named app sends the owner's list without it; the discovered ones are the runtime's to keep. */
     const removeConfigured = (app, saved) => access.edit({ section: 'localApps', target: list, inForce: (draft) => inForce(draft, saved),
       mutate: (draft) => {
-        const owned = (saved.reach.mcpServers ?? []).filter((server) => server.source === undefined && server.name !== app.name)
-        if (owned.length === (saved.reach.mcpServers ?? []).filter((server) => server.source === undefined).length) return false
-        draft.mcpServers = owned.map((server) => ({ name: server.name, command: [...server.command], ...(server.cwd ? { cwd: server.cwd } : {}) }))
+        const named = (saved.reach.mcpServers ?? []).filter((server) => server.source === undefined)
+        const owned = named.filter((server) => server.name !== app.name)
+        if (owned.length === named.length) return false
+        draft.mcpServers = owned.map((server) => ({ name: server.name, command: [...server.command],
+          ...(server.cwd ? { cwd: server.cwd } : {}) }))
       } })
     return {
       build: (node) => {

@@ -83,7 +83,10 @@
     current: () => note,
     problem: (group, problem) => { problems.delete(group); if (problem) problems.set(group, problem); renderFooter() },
     problems: () => [...problems.keys()],
-    forget: (prefix) => { for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group); renderFooter() },
+    forget: (prefix) => {
+      for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group)
+      renderFooter()
+    },
   }
 
   /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */

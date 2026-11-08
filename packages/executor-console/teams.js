@@ -41,7 +41,7 @@
     const shared = teams().some((team) => team.executorId !== executorId && ownLabel(team.executorId) === own)
     return shared && host(executorId) ? `${own} (${host(executorId)})` : own
   }
-  /** The connection that holds a team's ChatGPT plans: a service row itself, its plan connection, or null while none exists. */
+  /** The connection holding a team's ChatGPT plans: a service row itself, its plan connection, or null while none exists. */
   const planConnectionOf = (executorId) => {
     const team = executors.find((row) => row.executorId === executorId)
     if (!team) return null
