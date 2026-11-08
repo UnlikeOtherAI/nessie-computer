@@ -196,6 +196,15 @@ impl Connections {
                 Ok(ServiceResponse::Status(self.statuses()?))
             }
             "remove" => Ok(ServiceResponse::Removed { signed_off: self.remove(id.ok_or("Select a paired team.")?)? }),
+            "inferenceConnections" => {
+                let id = id.ok_or("Select a paired team.")?;
+                if !owns(id) { return Err("This team is not paired under this account.".into()); }
+                let operation = nessie_windows_common::inference_control::validate(request["operation"].clone())?;
+                let path = directory(id)?.display().to_string();
+                Ok(ServiceResponse::InferenceConnections(user_runtime::run(
+                    &["local-inference".into(), "connections".into(), "--operation-stdin".into(),
+                        "--state-dir".into(), path], Some(&operation))?))
+            }
             "describe" | "configureInput" => {
                 let id = id.ok_or("Select a paired team.")?;
                 let path = directory(id)?.display().to_string();

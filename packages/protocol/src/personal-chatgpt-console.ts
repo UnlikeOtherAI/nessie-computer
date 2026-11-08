@@ -3,6 +3,8 @@ import { z } from 'zod'
 /** The SIWC cookbook's ChatGPT Settings → Usage doorway. No credentials travel in this URL. */
 export const CHATGPT_MANAGE_USAGE_URL = 'https://chatgpt.com/settings/usage'
 
+const ConnectionName = z.string().trim().min(1).max(80)
+
 const ApiOrigin = z.string().url().max(2048).superRefine((value, context) => {
   try {
     const url = new URL(value)
@@ -37,6 +39,7 @@ export const PersonalChatgptProfileStatusSchema = z.object({
   reason: PersonalChatgptUnavailableReasonSchema.nullable(), planEnabled: z.boolean(),
   hostExecutionRestricted: z.boolean(), operationId: z.string().uuid().nullable(),
   backgroundConsentRevision: z.number().int().positive().nullable().default(null),
+  label: ConnectionName.optional(),
 }).strict()
 export type PersonalChatgptProfileStatus = z.infer<typeof PersonalChatgptProfileStatusSchema>
 
@@ -50,7 +53,11 @@ export const PersonalChatgptConsoleStatusSchema = z.object({ version: z.literal(
 export const PersonalChatgptConsoleOperationSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), intent: PersonalChatgptConnectIntentSchema }).strict(),
   z.object({ operation: z.literal('start'), intent: PersonalChatgptConnectIntentSchema,
-    acknowledgeHostRestriction: z.boolean().optional() }).strict(),
+    acknowledgeHostRestriction: z.boolean().optional(), newProfileId: z.string().uuid().optional(),
+    label: ConnectionName.optional() }).strict(),
+  z.object({ operation: z.literal('rename'), intent: PersonalChatgptConnectIntentSchema.extend({
+    profileId: z.string().uuid(),
+  }), label: ConnectionName }).strict(),
   z.object({ operation: z.literal('cancel'), operationId: z.string().uuid() }).strict(),
   z.object({ operation: z.literal('disconnect'), intent: PersonalChatgptConnectIntentSchema.extend({
     profileId: z.string().uuid(),
@@ -64,7 +71,9 @@ export const PersonalChatgptConsoleOperationSchema = z.discriminatedUnion('opera
 export const PersonalChatgptLocalOperationSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), profileId: z.string().uuid().optional() }).strict(),
   z.object({ operation: z.literal('start'), profileId: z.string().uuid().optional(),
-    acknowledgeHostRestriction: z.boolean() }).strict(),
+    acknowledgeHostRestriction: z.boolean(), newProfileId: z.string().uuid().optional(),
+    label: ConnectionName.optional() }).strict(),
+  z.object({ operation: z.literal('rename'), profileId: z.string().uuid(), label: ConnectionName }).strict(),
   z.object({ operation: z.literal('cancel'), operationId: z.string().uuid() }).strict(),
   z.object({ operation: z.literal('disconnect'), profileId: z.string().uuid() }).strict(),
   z.object({ operation: z.literal('background-consent'), profileId: z.string().uuid(),

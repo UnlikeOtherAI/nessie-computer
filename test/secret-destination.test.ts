@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import test from 'node:test'
 
 import { SecretDestinationError, writeSecretToFolder } from '../src/coding-session/secret-destination.js'
-import type { StateSecurityCommand } from '../src/state-security.js'
+import { assertOwnerOnlyStatePath, type StateSecurityCommand } from '../src/state-security.js'
 
 /**
  * The secret writer runs unsandboxed beside an agent that can write in the
@@ -46,11 +46,11 @@ test('a secret is written only as a file directly in the session folder, owner-o
     await refused('dir')
     assert.deepEqual(await writeSecretToFolder({ folder, destination: 'token.txt', value: 's3cret' }), { destination: 'token.txt' })
     assert.equal(await readFile(join(folder, 'token.txt'), 'utf8'), 's3cret')
-    if (process.platform !== 'win32') assert.equal((await stat(join(folder, 'token.txt'))).mode & 0o777, 0o600)
+    await assertOwnerOnlyStatePath(join(folder, 'token.txt'), 'file')
     await writeFile(join(folder, '.env'), 'A=1\nexport TOKEN=old\n# keep me\nTOKEN=dup\n', { mode: 0o644 })
     await writeSecretToFolder({ folder, destination: './.env', value: 'new value "quoted"', envName: 'TOKEN' })
     assert.equal(await readFile(join(folder, '.env'), 'utf8'), 'A=1\nTOKEN="new value \\"quoted\\""\n# keep me\n')
-    if (process.platform !== 'win32') assert.equal((await stat(join(folder, '.env'))).mode & 0o777, 0o600)
+    await assertOwnerOnlyStatePath(join(folder, '.env'), 'file')
     assert.equal(await readFile(join(outside, 'shared'), 'utf8'), 'x', 'nothing outside the folder changed')
   } finally {
     await rm(dir, { recursive: true, force: true })
@@ -110,11 +110,17 @@ test('on Windows the file is made owner-only by the state-security helper and pr
   try {
     const asked: { command: StateSecurityCommand; size: number }[] = []
     const helper = async (command: StateSecurityCommand, path: string): Promise<void> => {
-      asked.push({ command, size: (await stat(path)).size })
+      const entry = await stat(path)
+      asked.push({ command, size: entry.isFile() ? entry.size : 0 })
     }
     await writeSecretToFolder({ folder, destination: '.env.local', value: 'v4lue-v4lue', envName: 'KEY',
       security: { platform: 'win32', helper } })
-    assert.deepEqual(asked, [{ command: 'secure-owner-only-file', size: 0 }, { command: 'verify-owner-only-file', size: 0 }])
+    assert.deepEqual(asked, [
+      { command: 'secure-directory', size: 0 },
+      { command: 'secure-owner-only-file', size: 0 },
+      { command: 'verify-owner-only-file', size: 0 },
+      { command: 'verify-owner-only-file', size: (await stat(join(folder, '.env.local'))).size },
+    ])
     const failing = async (command: StateSecurityCommand): Promise<void> => {
       if (command === 'verify-owner-only-file') throw new Error('not owner-only')
     }

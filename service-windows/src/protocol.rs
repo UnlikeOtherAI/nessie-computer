@@ -64,6 +64,10 @@ pub enum Command {
     Describe {
         executor_id: String,
     },
+    InferenceConnections {
+        executor_id: String,
+        operation: serde_json::Value,
+    },
     EnrollControlClient,
     Pair(PairCommand),
     PairingStart {
@@ -132,6 +136,10 @@ enum Request {
     Describe {
         executor_id: String,
     },
+    InferenceConnections {
+        executor_id: String,
+        operation: serde_json::Value,
+    },
     EnrollControlClient {},
     Pair {
         api_base_url: String,
@@ -188,6 +196,9 @@ pub enum Response {
     },
     PersonalAttestation {
         authority: serde_json::Value,
+    },
+    InferenceConnections {
+        connections: serde_json::Value,
     },
     Error {
         reason: String,
@@ -386,6 +397,10 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
         } => Ok(Command::ConfigureInput {
             executor_id: identifier(executor_id, "executor id")?,
             configuration_input,
+        }),
+        Request::InferenceConnections { executor_id, operation } => Ok(Command::InferenceConnections {
+            executor_id: identifier(executor_id, "executor id")?,
+            operation: nessie_windows_common::inference_control::validate(operation)?,
         }),
         Request::Describe { executor_id } => Ok(Command::Describe {
             executor_id: identifier(executor_id, "executor id")?,

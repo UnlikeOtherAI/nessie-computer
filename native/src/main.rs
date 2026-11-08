@@ -7,6 +7,8 @@ mod kernel_context;
 mod macos_processes;
 #[cfg(target_os = "macos")]
 mod macos_provenance;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix_account_state;
 #[cfg(target_os = "linux")]
 mod managed_installed;
 #[cfg(target_os = "linux")]

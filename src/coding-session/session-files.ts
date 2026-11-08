@@ -88,8 +88,8 @@ export const ensurePrivateDir = async (path: string): Promise<void> => {
   await mkdir(path, { recursive: true, mode: 0o700 })
 }
 
-const RETRIED_RENAME_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
-const RENAME_RETRY_MS = 2_000
+const WINDOWS_BUSY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FILE_RETRY_MS = 2_000
 
 const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
 
@@ -99,13 +99,13 @@ const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeou
  * moment, so those are retried for up to two seconds.
  */
 export const renameWithRetry = async (from: string, to: string): Promise<void> => {
-  const deadline = Date.now() + RENAME_RETRY_MS
+  const deadline = Date.now() + FILE_RETRY_MS
   for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
     try {
       await rename(from, to)
       return
     } catch (error) {
-      if (!RETRIED_RENAME_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
+      if (!WINDOWS_BUSY_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
       await delay(wait)
     }
   }
@@ -133,13 +133,21 @@ export const createJsonExclusive = async (
   path: string, value: unknown, effect?: SessionEffectAuthority,
 ): Promise<boolean> => {
   let handle
-  try {
-    await effect?.consume()
-    effect?.assertLive()
-    handle = await open(path, 'wx', 0o600)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
-    throw error
+  const deadline = Date.now() + FILE_RETRY_MS
+  for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
+    try {
+      await effect?.consume()
+      effect?.assertLive()
+      handle = await open(path, 'wx', 0o600)
+      break
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (code === 'EEXIST') return false
+      // Windows may retain a deleted claim until its last handle closes.
+      // Retry exclusive creation under fresh authority without replacing it.
+      if (process.platform !== 'win32' || !WINDOWS_BUSY_CODES.has(code) || Date.now() >= deadline) throw error
+      await delay(wait)
+    }
   }
   try {
     await effect?.consume()

@@ -5,6 +5,14 @@ ceremony, installed daemon, source database or user session was opened for this
 checkpoint. The real Windows journey and normal combined graph qualification
 remain required.
 
+The integration candidate includes public `main` at
+`30ba47df332308c457c5c4a9db7960c102f01ab2`, including the installed
+`e799a7aa3dc53d8430a925ba3027b2039adca7ae` security/update baseline.
+Conflict resolution preserves runtime peer-verification permission, separate
+source-consent intake, fresh effect checks during exclusive file-create retries,
+secret staging checks and both retained-import and local-inference tray output.
+Source syntax checks do not qualify the combined native implementation.
+
 ## Home and protected local channel
 
 The existing Windows executor console Settings review is the human doorway.

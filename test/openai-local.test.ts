@@ -4,16 +4,36 @@ import {
   LOCAL_INFERENCE_MALFORMED_ARGUMENTS_KEY, LocalInferenceAttemptRequestSchema, ObservedLocalModelSchema,
 } from '@nessie/executor-protocol'
 import { LocalInferenceHostLoop } from '../src/local-inference-host.js'
-import { localOpenAiBaseUrl, localOpenAiManifestDigest, parseLocalOpenAiConfig } from '../src/openai-local-config.js'
-import { createLocalOpenAiBackend, observeLocalOpenAiModels, type LocalOpenAiFetch } from '../src/openai-local-observed.js'
+import { localOpenAiBaseUrl, parseLocalOpenAiConfig } from '../src/openai-local-config.js'
+import {
+  createLocalOpenAiBackend, observeLocalOpenAiModels, readReportedModels, reportedModelDigest, type LocalOpenAiFetch,
+} from '../src/openai-local-observed.js'
 import { messageForLocalOpenAi, streamLocalOpenAiChat } from '../src/openai-local-chat.js'
 import { knownCapabilities, capabilityFor } from '../src/local-inference-host-model.js'
 import { apiFor, attempt, coordinatorFixture, HOST_ID, ORG_ID, machineKeys, receiptJournal } from './fixtures/local-inference-host.js'
 
-const config = () => parseLocalOpenAiConfig({
-  baseUrl: 'http://localhost:8080/v1', localServiceConfirmed: true,
-  models: [{ id: 'local:latest', revision: 'weights-revision-1', contextLength: 262144, maxOutputTokens: 8192, tools: true, thinking: true }],
-})
+const config = () => parseLocalOpenAiConfig({ baseUrl: 'http://localhost:8080/v1', localServiceConfirmed: true })
+/** What Strata and llama.cpp report about the one model they serve. */
+const strataProps = {
+  default_generation_settings: { n_ctx: 262144, params: { n_predict: -1 } }, model_alias: 'local:latest',
+  chat_template_caps: { supports_tools: true }, modalities: { vision: true },
+  chat_template: '{%- if enable_thinking is defined and enable_thinking is false %}', model_path: 'C:/models/a.gguf',
+}
+const strataListing = [{ id: 'local:latest', meta: { n_ctx: 262144 },
+  architecture: { input_modalities: ['text', 'image'], output_modalities: ['text'] } }]
+const notFound = () => new Response('{"error":{"message":"not found"}}', { status: 404 })
+/** A local server: its listing, its props (null when it has none), and its chat answer. */
+const server = (listing: unknown[] = strataListing, props: unknown = strataProps,
+  chat?: (url: string, init: RequestInit) => Promise<Response>): LocalOpenAiFetch => async (url, init) => {
+  if (url.endsWith('/models')) return new Response(JSON.stringify({ data: listing }))
+  if (url.endsWith('/props')) return props === null ? notFound() : new Response(JSON.stringify(props))
+  if (chat && url.endsWith('/chat/completions')) return chat(url, init)
+  throw new Error(`unexpected request ${url}`)
+}
+const strataDigest = async (fetchImpl: LocalOpenAiFetch = server()) => {
+  const [model] = await readReportedModels(config(), fetchImpl)
+  return reportedModelDigest(config(), model!)
+}
 const sse = (frames: unknown[], complete = true) => new Response(
   frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join('') + (complete ? 'data: [DONE]\n\n' : ''),
   { headers: { 'content-type': 'text/event-stream' } },
@@ -38,52 +58,76 @@ test('endpoint admission supports arbitrary loopback ports and paths without DNS
   }
 })
 
-test('configuration requires owner locality confirmation, immutable revision and explicit capabilities', () => {
+test('configuration names only the address and the owner\'s locality confirmation', () => {
   assert.throws(() => parseLocalOpenAiConfig({ ...config(), localServiceConfirmed: false }))
-  assert.throws(() => parseLocalOpenAiConfig({ ...config(), models: [{ ...config().models[0], revision: '' }] }))
   assert.throws(() => parseLocalOpenAiConfig({ ...config(), headers: { Authorization: 'unreviewed' } }))
   assert.throws(() => parseLocalOpenAiConfig({ ...config(), apiKey: 'bad\r\nheader' }))
-  const a = config()
-  assert.equal(localOpenAiManifestDigest(a, a.models[0]!), localOpenAiManifestDigest({ ...a, apiKey: 'private' }, a.models[0]!))
-  assert.notEqual(localOpenAiManifestDigest(a, a.models[0]!),
-    localOpenAiManifestDigest({ ...a, baseUrl: 'http://127.0.0.1:9999/v1' }, a.models[0]!))
-  assert.notEqual(localOpenAiManifestDigest(a, a.models[0]!),
-    localOpenAiManifestDigest(a, { ...a.models[0]!, revision: 'weights-revision-2' }))
+  // A model list saved by an earlier release is read past: the server now describes its models.
+  assert.deepEqual(parseLocalOpenAiConfig({ ...config(), models: [{ id: 'local:latest', contextLength: 8192 }] }),
+    config())
+  assert.deepEqual(parseLocalOpenAiConfig({ baseUrl: 'http://localhost:8080', localServiceConfirmed: true }),
+    { baseUrl: 'http://127.0.0.1:8080', localServiceConfirmed: true })
 })
 
-test('discovery publishes only configured models and marks owner-derived identity truthfully', async () => {
-  let observedUrl = ''
+test('discovery publishes every model with the context and capabilities its server reports', async () => {
+  const requested: string[] = []
   let observedInit: RequestInit = {}
   const models = await observeLocalOpenAiModels(config(), async (url, init) => {
-    observedUrl = url; observedInit = init
-    return new Response(JSON.stringify({ data: [{ id: 'local:latest' }, { id: 'unconsented-model' }] }))
+    requested.push(url); observedInit = init
+    return server()(url, init)
   })
-  assert.equal(observedUrl, 'http://127.0.0.1:8080/v1/models')
+  assert.deepEqual(requested, ['http://127.0.0.1:8080/v1/models', 'http://127.0.0.1:8080/props'])
   assert.equal(observedInit.redirect, 'error')
   assert.equal(models.length, 1)
   assert.equal(models[0]?.identitySource, 'owner_configuration')
   assert.equal(models[0]?.numCtxCap, 262144)
-  assert.equal(models[0]?.maxOutputTokens, 8192)
-  assert.equal(models[0]?.modelRevision, 'weights-revision-1')
+  assert.equal(models[0]?.maxOutputTokens, undefined)
+  assert.deepEqual(models[0]?.capabilities, ['completion', 'tools', 'thinking', 'vision'])
+  assert.deepEqual(knownCapabilities(models[0]!), ['text', 'tools', 'thinking', 'vision'])
   assert.ok(ObservedLocalModelSchema.safeParse({ ...models[0], capabilities: ['text', 'tools'],
     reportedAt: new Date().toISOString() }).success)
   assert.equal(ObservedLocalModelSchema.safeParse({ ...models[0], capabilities: ['text'],
     maxOutputTokens: 262144, reportedAt: new Date().toISOString() }).success, false)
+  // A server that reports no context publishes it unknown, for Nessie to ask its owner.
+  const unknown = await observeLocalOpenAiModels(config(), server([{ id: 'plain' }], null))
+  assert.deepEqual(unknown.map((model) => [model.numCtxCap, model.capabilities]), [[null, ['completion']]])
+  assert.ok(ObservedLocalModelSchema.safeParse({ ...unknown[0], capabilities: ['text'],
+    reportedAt: new Date().toISOString() }).success)
   assert.ok(LocalInferenceAttemptRequestSchema.safeParse({ ...attempt(), numCtx: 262144 }).success)
   assert.equal(LocalInferenceAttemptRequestSchema.safeParse({ ...attempt(), numCtx: 1000001 }).success, false)
-  assert.deepEqual(await observeLocalOpenAiModels(config(), async () =>
-    new Response(JSON.stringify({ data: [{ id: 'other' }] }))), [])
   await assert.rejects(observeLocalOpenAiModels(config(), async () => new Response('bad')))
+  await assert.rejects(observeLocalOpenAiModels(config(), server([{ id: 'twice' }, { id: 'twice' }])))
 })
 
-test('a Strata served context below the owner configuration fences discovery instead of advertising a false window', async () => {
-  await assert.rejects(observeLocalOpenAiModels(config(), async () =>
-    new Response(JSON.stringify({ data: [{ id: 'local:latest', meta: { n_ctx: 8192 } }] }))),
-  /endpoint_context_exceeds_served/)
-  assert.equal((await observeLocalOpenAiModels(config(), async () =>
-    new Response(JSON.stringify({ data: [{ id: 'local:latest', meta: { n_ctx: 262144 } }] }))))[0]?.numCtxCap, 262144)
-  await assert.rejects(observeLocalOpenAiModels(config(), async () =>
-    new Response(JSON.stringify({ data: [{ id: 'local:latest' }, { id: 'local:latest' }] }))))
+test('the served context is bounded by the model\'s own, and other servers\' listings are read too', async () => {
+  const context = async (listing: unknown[], props: unknown = null) =>
+    (await observeLocalOpenAiModels(config(), server(listing, props))).map((model) => model.numCtxCap)
+  // llama.cpp serves what it allocated, never beyond what the model was trained for.
+  assert.deepEqual(await context([{ id: 'a', meta: { n_ctx_train: 131072 } }],
+    { ...strataProps, model_alias: 'a' }), [131072])
+  assert.deepEqual(await context([{ id: 'a', meta: { n_ctx_train: 131072, n_ctx: 32768 } }]), [32768])
+  // The training context alone is not what the server allocated.
+  assert.deepEqual(await context([{ id: 'a', meta: { n_ctx_train: 131072 } }]), [null])
+  assert.deepEqual(await context([{ id: 'vllm', max_model_len: 40960 }]), [40960])
+  assert.deepEqual(await context([{ id: 'router', context_length: 65536, supported_parameters: ['tools'] }]), [65536])
+  assert.deepEqual(await context([{ id: 'huge', meta: { n_ctx: 4_000_000 } }]), [1_000_000])
+  // An embedding model produces no text and is not a chat model.
+  assert.deepEqual(await context([{ id: 'embed', architecture: { output_modalities: ['embeddings'] } }]), [])
+  // Props describe the one loaded model; a router's other models get the listing alone.
+  const routed = await observeLocalOpenAiModels(config(), server([{ id: 'local:latest' }, { id: 'other' }]))
+  assert.deepEqual(routed.map((model) => [model.name, model.numCtxCap, model.capabilities.length]),
+    [['local:latest', 262144, 4], ['other', null, 1]])
+  // A positive generation limit is the server's output limit.
+  const limited = await observeLocalOpenAiModels(config(), server(strataListing,
+    { ...strataProps, default_generation_settings: { n_ctx: 262144, params: { n_predict: 8192 } } }))
+  assert.equal(limited[0]?.maxOutputTokens, 8192)
+})
+
+test('a server named by its port alone is asked under /v1 and described at its own root', async () => {
+  const requested: string[] = []
+  const portOnly = parseLocalOpenAiConfig({ baseUrl: 'http://127.0.0.1:8080', localServiceConfirmed: true })
+  await observeLocalOpenAiModels(portOnly, async (url, init) => { requested.push(url); return server()(url, init) })
+  assert.deepEqual(requested, ['http://127.0.0.1:8080/v1/models', 'http://127.0.0.1:8080/props'])
 })
 
 test('chat preserves assistant/tool IDs and accumulates content, reasoning and terminal usage', async () => {
@@ -105,24 +149,25 @@ test('chat preserves assistant/tool IDs and accumulates content, reasoning and t
     { role: 'tool', content: 'result', tool_call_id: 'invocation:openai-1' })
 })
 
-test('image bytes require an explicit vision declaration, survive the host, and never fetch a new URL', async () => {
-  const c = config()
-  const originalDigest = localOpenAiManifestDigest(c, c.models[0]!)
-  c.models[0]!.vision = true
-  assert.notEqual(localOpenAiManifestDigest(c, c.models[0]!), originalDigest)
-  assert.throws(() => parseLocalOpenAiConfig({ ...c, models: [{ ...c.models[0], vision: 'yes' }] }))
-  const observed = (await observeLocalOpenAiModels(c, async () =>
-    new Response(JSON.stringify({ data: [{ id: 'local:latest' }] }))))[0]!
+test('images go to a model whose server reports vision, survive the host, and never fetch a new URL', async () => {
+  const textProps = { ...strataProps, modalities: { vision: false } }
+  const textOnly = [{ id: 'local:latest', meta: { n_ctx: 262144 } }]
+  const visionDigest = await strataDigest()
+  const textDigest = await strataDigest(server(textOnly, textProps))
+  assert.notEqual(visionDigest, textDigest)
+  const observed = (await observeLocalOpenAiModels(config(), server()))[0]!
   assert(knownCapabilities(observed).includes('vision'))
   assert(capabilityFor(attempt(), observed, new Date()).supportsVision)
-  assert(!knownCapabilities({ ...observed, identitySource: undefined }).includes('vision'))
+  assert.equal(capabilityFor(attempt(), observed, new Date()).source, 'live')
+  // An observed Ollama model that reports vision is published with it too; its transport carries images.
+  assert(knownCapabilities({ ...observed, identitySource: undefined }).includes('vision'))
   const request = attempt()
-  request.modelDigest = localOpenAiManifestDigest(c, c.models[0]!)
+  request.modelDigest = visionDigest
   request.messages = [{ role: 'user', content: [
     { type: 'text', text: 'Read the hours' }, { type: 'image', imageUrl: 'data:image/jpeg;base64,YWJj' },
   ] }]
   let posts = 0
-  const backend = createLocalOpenAiBackend(async () => c, async (_url, init) => {
+  const backend = createLocalOpenAiBackend(async () => config(), server(undefined, undefined, async (_url, init) => {
     posts++
     const body = JSON.parse(String(init.body)) as { messages: unknown[] }
     assert.deepEqual(body.messages, [{ role: 'user', content: [
@@ -130,13 +175,14 @@ test('image bytes require an explicit vision declaration, survive the host, and 
       { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,YWJj' } },
     ] }])
     return sse([delta('09:00'), terminal])
-  })
+  }))
   const events = await collect(backend.stream({ ...input(), attempt: request }))
   assert.equal(events[0]?.text, '09:00')
   assert.equal(posts, 1)
-  await assert.rejects(collect(createLocalOpenAiBackend(async () => config(), async () => {
+  // A model whose server reports no vision refuses the image before anything is sent.
+  await assert.rejects(collect(createLocalOpenAiBackend(async () => config(), server(textOnly, textProps, async () => {
     throw new Error('Text-only selection must not invoke the endpoint')
-  }).stream({ ...input(), attempt: { ...request, modelDigest: originalDigest } })), /unsupported_capability/)
+  })).stream({ ...input(), attempt: { ...request, modelDigest: textDigest } })), /unsupported_capability/)
   assert.throws(() => messageForLocalOpenAi(request.messages[0]!), /unsupported_capability/)
   for (const imageUrl of ['https://example.com/image.jpg', 'http://127.0.0.1/private',
     'file:///C:/private.jpg', 'data:text/plain;base64,YWJj', 'data:image/png;base64,invalid!']) {
@@ -189,7 +235,7 @@ test('a model\'s slips reach the worker as tool calls it can answer, never as a 
   assert.equal(last?.outputTokens, 9)
 })
 
-test('the thinking switch follows the turn and the owner\'s declaration of the model', async () => {
+test('the thinking switch follows the turn and whether the server\'s template takes it', async () => {
   const bodyFor = async (overrides: { think: boolean; thinkingModel?: boolean; effort?: 'low' | 'high' }) => {
     const a = input()
     a.think = overrides.think
@@ -211,21 +257,27 @@ test('the thinking switch follows the turn and the owner\'s declaration of the m
   assert.equal(silent.reasoning_effort, undefined)
   // A shown turn without an effort leaves the server's own default in place.
   assert.equal((await bodyFor({ think: true, thinkingModel: true })).reasoning_effort, undefined)
-  // A model the owner did not declare as thinking gets neither field.
+  // A model whose template takes no thinking switch gets neither field.
   const plain = await bodyFor({ think: false, thinkingModel: false, effort: 'high' })
   assert.equal(plain.reasoning_effort, undefined)
   assert.equal(plain.chat_template_kwargs, undefined)
-  // The backend passes the declaration through from the owner's manifest.
-  const c = config()
+  // The backend switches thinking only for a model whose chat template takes the switch.
   const a = input()
-  a.attempt.modelDigest = localOpenAiManifestDigest(c, c.models[0]!)
+  a.attempt.modelDigest = await strataDigest()
   a.attempt.reasoningEffort = 'high'
   let seen: Record<string, unknown> = {}
-  await collect(createLocalOpenAiBackend(async () => c, async (_url, init) => {
+  await collect(createLocalOpenAiBackend(async () => config(), server(undefined, undefined, async (_url, init) => {
     seen = JSON.parse(String(init.body)) as Record<string, unknown>
     return sse([delta('ok'), terminal])
-  }).stream(a))
+  })).stream(a))
   assert.equal(seen.reasoning_effort, 'high')
+  const plainProps = { ...strataProps, chat_template: '{{ messages }}' }
+  a.attempt.modelDigest = await strataDigest(server(undefined, plainProps))
+  await collect(createLocalOpenAiBackend(async () => config(), server(undefined, plainProps, async (_url, init) => {
+    seen = JSON.parse(String(init.body)) as Record<string, unknown>
+    return sse([delta('ok'), terminal])
+  })).stream(a))
+  assert.equal(seen.reasoning_effort, undefined)
   assert.ok(LocalInferenceAttemptRequestSchema.safeParse({ ...attempt(), reasoningEffort: 'medium' }).success)
   assert.equal(LocalInferenceAttemptRequestSchema.safeParse({ ...attempt(), reasoningEffort: 'xhigh' }).success, false)
 })
@@ -253,28 +305,31 @@ test('blocked request aborts without another request or fallback', async () => {
   assert.equal(calls, 1)
 })
 
-test('a configuration edit fences a previously consented endpoint/model manifest before invocation', async () => {
+test('a server that changes the model behind a name fences the consented pin before invocation', async () => {
   const a = input()
-  a.attempt.modelDigest = localOpenAiManifestDigest(a.config, a.config.models[0]!)
-  const backend = createLocalOpenAiBackend(async () => ({
-    ...a.config, models: [{ ...a.config.models[0]!, revision: 'new-weights' }],
-  }), async () => { throw new Error('must not call model') })
-  await assert.rejects(collect(backend.stream(a)), /endpoint_model_changed/)
+  a.attempt.modelDigest = await strataDigest()
+  for (const props of [{ ...strataProps, model_path: 'C:/models/b.gguf' },
+    { ...strataProps, default_generation_settings: { n_ctx: 65536, params: {} } }]) {
+    const backend = createLocalOpenAiBackend(async () => config(), server([{ id: 'local:latest' }], props, async () => {
+      throw new Error('must not call model')
+    }))
+    await assert.rejects(collect(backend.stream(a)), /endpoint_model_changed/)
+  }
+  await assert.rejects(collect(createLocalOpenAiBackend(async () => null, server()).stream(a)),
+    /endpoint_model_changed/)
 })
 
 test('the signed executor host carries OpenAI inference through ordinary admissions, frames and receipts', async (t) => {
-  const c = config()
   const request = attempt()
-  request.modelDigest = localOpenAiManifestDigest(c, c.models[0]!)
+  request.modelDigest = await strataDigest()
   let generations = 0
-  const fetchImpl: LocalOpenAiFetch = async (url) => {
-    if (url.endsWith('/models')) return new Response(JSON.stringify({ data: [{ id: 'local:latest' }] }))
+  const fetchImpl = server(undefined, undefined, async () => {
     generations++
     return sse([delta('hello from endpoint'), terminal])
-  }
+  })
   const { api, calls } = apiFor(request)
   const loop = new LocalInferenceHostLoop({
-    transport: api, backend: createLocalOpenAiBackend(async () => c, fetchImpl),
+    transport: api, backend: createLocalOpenAiBackend(async () => config(), fetchImpl),
     coordinator: await coordinatorFixture(t), journal: receiptJournal().journal,
     identity: { connectionEpoch: '1', hostId: HOST_ID, machinePrivateKey: machineKeys().privateKey, organizationId: ORG_ID },
     isPaused: () => false, origin: 'http://127.0.0.1:8080',
@@ -284,7 +339,7 @@ test('the signed executor host carries OpenAI inference through ordinary admissi
   assert.equal(generations, 1)
   assert.equal(calls.results[0]?.receipt.result.content, 'hello from endpoint')
   assert.equal(calls.results[0]?.receipt.result.modelDigest, request.modelDigest)
-  assert.equal(calls.results[0]?.receipt.result.capability.source, 'manual')
+  assert.equal(calls.results[0]?.receipt.result.capability.source, 'live')
   assert.equal(calls.results[0]?.receipt.result.usage.outputTokens, 3)
   assert.ok(calls.frames.length > 0)
 })

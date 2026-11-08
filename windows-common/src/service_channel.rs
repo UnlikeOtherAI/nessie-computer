@@ -15,7 +15,13 @@ pub fn call(
         System::Pipes::WaitNamedPipeW,
     };
     crate::custody::validate(operation)?;
-    let name: Vec<u16> = std::ffi::OsStr::new(r"\\.\pipe\NessieExecutor")
+    let observer = service_account_sid()?;
+    crate::peer_inspection::allow_process_for(
+        unsafe { windows_sys::Win32::System::Threading::GetCurrentProcess() },
+        &observer,
+    )
+    .map_err(str::to_owned)?;
+    let name: Vec<u16> = std::ffi::OsStr::new(crate::CUSTODY_PIPE_NAME)
         .encode_wide()
         .chain(Some(0))
         .collect();
@@ -146,7 +152,9 @@ fn verify_named(
             }
             let sid = unsafe { (*bytes.as_ptr().cast::<TOKEN_USER>()).User.Sid };
             if unsafe { IsWellKnownSid(sid, WinLocalSystemSid) } == 0 {
-                if system_only { return Err(refused()); }
+                if system_only {
+                    return Err(refused());
+                }
                 let actual = crate::sid_to_string(sid).ok_or_else(refused)?;
                 // The virtual account's SID is derived by Windows, not by a
                 // caller's asserted administrator role or an environment value.

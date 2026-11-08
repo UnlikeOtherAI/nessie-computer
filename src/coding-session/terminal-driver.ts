@@ -71,7 +71,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     const argv = [...context.agent.command, ...context.agent.args]
     if (globalThis.process.platform === 'win32') {
       const helper = packagedJobHelper() ?? (globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
-        ? undefined : fileURLToPath(new URL('../../native/target/release/nessie-executor-native.exe', import.meta.url)))
+        ? undefined : fileURLToPath(new URL('../../native/target/debug/nessie-executor-native.exe', import.meta.url)))
       if (!helper) throw new AgentStartError('terminal_helper_missing')
       argv.unshift(helper, effect ? 'terminal-run-authorized' : 'terminal-run', '--')
     }

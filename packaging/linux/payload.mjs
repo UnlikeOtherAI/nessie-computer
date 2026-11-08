@@ -14,6 +14,7 @@ import { promisify } from 'node:util'
 
 import { PERSONAL_INFERENCE_GUARD_VERSION } from '@nessie/executor-protocol'
 import { prepareExecutorRuntime } from '../../scripts/prepare-runtime.mjs'
+import { linuxConsoleDesktop, linuxConsoleLauncher, stageLinuxConsole } from './console/stage.mjs'
 
 const run = promisify(execFile)
 
@@ -104,8 +105,8 @@ const downloadPinned = async (url, destination, expected, label) => {
 }
 
 /**
- * Downloads and verifies the pinned Firecracker release, then lays its two
- * binaries down under their unversioned names. dpkg makes them root-owned;
+ * Downloads and verifies the pinned Firecracker release, then stages its binary
+ * and licence. The package assigns their installed root ownership;
  * 0755 keeps them readable and executable by the daemon's own user while only
  * an administrator can replace them, which is what makes the packaged copy a
  * trust root rather than a self-attestation.
@@ -116,7 +117,10 @@ const stageFirecracker = async (destination) => {
   await downloadPinned(FIRECRACKER_URL, archive, FIRECRACKER_ARCHIVE_SHA256, 'Firecracker release archive')
   const unpacked = join(destination, 'unpacked')
   await mkdir(unpacked, { mode: 0o755, recursive: true })
-  await run('tar', ['--extract', '--gzip', '--file', archive, '--directory', unpacked])
+  // Archive UIDs are build metadata; nFPM assigns installed root ownership.
+  await run('tar', [
+    '--extract', '--gzip', '--no-same-owner', '--file', archive, '--directory', unpacked,
+  ])
   const releaseDirectory = join(unpacked, `release-${FIRECRACKER_VERSION}-${FIRECRACKER_MACHINE}`)
   for (const binary of FIRECRACKER_BINARIES) {
     await copyFile(
@@ -231,6 +235,7 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await mkdir(resourcesDirectory, { mode: 0o755, recursive: true })
   await stageFirecracker(join(resourcesDirectory, 'firecracker'))
   await stageGuest(join(resourcesDirectory, 'guest'))
+  await stageLinuxConsole(executorDirectory, resourcesDirectory)
   await writeFile(
     join(resourcesDirectory, 'manifest.json'),
     `${JSON.stringify(await resourceManifest(resourcesDirectory), null, 2)}\n`,
@@ -252,6 +257,11 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await symlink(`releases/${releaseDigest}`, join(stagingDirectory, INSTALL_PREFIX, 'current'))
   await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor'), linuxManagedLauncher(releaseDigest), { mode: 0o755 })
   await chmod(join(stagingDirectory, 'usr/bin/nessie-executor'), 0o755)
+  await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor-app'),
+    linuxConsoleLauncher(`/${INSTALL_PREFIX}/releases/${releaseDigest}`), { mode: 0o755 })
+  await mkdir(join(stagingDirectory, 'usr/share/applications'), { recursive: true })
+  await writeFile(join(stagingDirectory, 'usr/share/applications/works.nessie.Executor.desktop'), linuxConsoleDesktop())
+  await writeFile(join(stagingDirectory, 'nessie-executor-autostart.desktop'), linuxConsoleDesktop(true))
   // Root-owned durable custody lock is not package content: postinstall creates
   // it once, verifies it on upgrade, and package removal never deletes it.
   await writeFile(join(stagingDirectory, 'install-custody-barrier.sh'), [

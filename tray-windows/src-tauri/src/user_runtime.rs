@@ -157,7 +157,7 @@ pub fn run(
     // connect/configure print human-readable acknowledgements; only their success matters.
     if !matches!(
         arguments.first().map(String::as_str),
-        Some("describe" | "pairing-start" | "pairing-status" | "pairing-cancel" | "unpair" | "sync" | "t3-retained")
+        Some("describe" | "pairing-start" | "pairing-status" | "pairing-cancel" | "unpair" | "sync" | "local-inference" | "t3-retained")
     ) {
         return Ok(serde_json::Value::Null);
     }

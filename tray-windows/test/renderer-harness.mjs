@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { installRendererHost } from './renderer-host.mjs'
+import { verifyAiConnections } from './ai-renderer.mjs'
 import { verifyChatgptLocales } from './chatgpt-renderer.mjs'
 import { verifyPersonalPlanPairing } from './personal-pairing-renderer.mjs'
 import { verifySyncTab } from './sync-renderer.mjs'
@@ -14,15 +15,21 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ui = join(root, 'packages/executor-console')
 const output = join(root, '.artifacts/executor-console')
 const files = ['index.html', 'style.css', 'native.js', 'autosave.js', 'main.js', 'chatgpt-words.js', 'chatgpt.js',
-  'teams.js', 'team-drafts.js', 'pairing-words.js', 'pairing.js', 'permissions.js',
+  'ai-words.js', 'ai.js', 'inference-endpoints.js', 'teams.js', 'team-drafts.js', 'pairing-words.js', 'pairing.js', 'permissions.js',
   'sync-reasons-words.js', 'sync-words.js', 'sync.js', 'updates-words.js', 'updates.js']
 await mkdir(output, { recursive: true })
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
   ?? (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined)
 const browser = await chromium.launch({ executablePath, headless: true })
-const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
+const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name
+  && (name !== 'executor_personal_chatgpt' || call.args.operation.operation !== 'status')).at(-1), command)
 try {
-  if (process.argv.includes('--updates-only') || process.argv.includes('--updates-bootstrap-only')
+  if (process.argv.includes('--ai-only')) {
+    await verifyAiConnections(browser, ui, output, files)
+    await verifyChatgptLocales(browser, ui, output, files)
+    process.exit(0)
+  }
+  if (process.argv.includes('--updates-only') || process.argv.includes('--updates-copy-only') || process.argv.includes('--updates-bootstrap-only')
     || process.argv.some((arg) => arg.startsWith('--updates-before='))) {
     await verifySoftwareUpdates(browser, ui, files, root)
     process.exit(0)
@@ -92,7 +99,7 @@ try {
     await page.getByRole('button', { name: 'Get new code' }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
-    await page.waitForSelector('.connection-row')
+    await page.waitForSelector('#tab-teams .connection-row')
     assert.equal(await page.locator('#pair-dialog').evaluate((dialog) => dialog.open), false)
     await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_notify'))
     assert.deepEqual((await lastCall(page, 'executor_notify')).args, { title: 'Connected',
@@ -102,7 +109,7 @@ try {
     await page.getByRole('dialog').getByRole('button', { name: 'Get pairing code' }).click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
     await page.evaluate(() => window.claimInNessie())
-    await page.waitForFunction(() => document.querySelectorAll('.connection-row').length === 2)
+    await page.waitForFunction(() => document.querySelectorAll('#tab-teams .connection-row').length === 2)
     // The poll that finds it paired selects the new team, then announces it; wait for both.
     await page.waitForFunction(() => window.calls.filter((call) => call.command === 'executor_notify').length === 2)
     assert.equal(await page.locator('#connection option').count(), 2)
@@ -110,7 +117,8 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Remove UnlikeOtherAI / Research from this computer' }).count(), 1)
     await page.screenshot({ path: join(output, `${host}-teams.png`), fullPage: true })
 
-    await page.getByRole('button', { name: 'ChatGPT · UnlikeOtherAI / Platform', exact: true }).click()
+    await page.getByRole('button', { name: 'AI · UnlikeOtherAI / Platform', exact: true }).click()
+        await page.locator('#ai-chatgpt-list button').first().click()
     await page.locator('#chatgpt-status').getByText('Not signed in', { exact: true }).waitFor()
     assert.equal(await page.locator('#chatgpt-start').isDisabled(), true)
     await page.locator('#chatgpt-restriction').check()
@@ -277,7 +285,7 @@ try {
     assert.match(await page.locator('#remove-summary').textContent(), /UnlikeOtherAI \/ Platform/)
     await page.screenshot({ path: join(output, `${host}-remove.png`), fullPage: true })
     await page.getByRole('button', { name: 'Remove team' }).click()
-    await page.waitForFunction(() => document.querySelectorAll('.connection-row').length === 1)
+    await page.waitForFunction(() => document.querySelectorAll('#tab-teams .connection-row').length === 1)
     assert.equal(await page.getByRole('button', { name: 'Try again' }).isHidden(), true)
     assert.doesNotMatch(await status(), /weren’t saved/)
     assert.deepEqual((await lastCall(page, 'executor_remove')).args, { executorId: 'team-0' })

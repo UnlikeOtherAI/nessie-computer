@@ -181,6 +181,7 @@ mod imp {
             .and_then(|executable| executable.parent().map(std::path::Path::to_path_buf))
             .ok_or_else(|| "Nessie Executor could not locate its packaged runtime.".to_owned())?;
         let runtime = verify_packaged_runtime(&runtime_root)?;
+        nessie_windows_common::peer_inspection::allow_verification().map_err(str::to_owned)?;
         for directory in [root.to_path_buf(), executors_root(root), pending_root(root)] {
             secure_directory(&runtime.native_helper, &directory)?;
         }

@@ -5,7 +5,7 @@ use crate::protocol::{DigestEntry, NativeError};
 use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd, RawFd};
 use std::os::unix::fs::MetadataExt;
 
 const COPY_BUFFER_BYTES: usize = 65_536;
@@ -234,13 +234,13 @@ pub(crate) fn remove_file_if_matches(
 }
 
 pub(crate) fn directory_entries(fd: RawFd) -> Result<Vec<String>, NativeError> {
-    let duplicated = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 3) };
-    if duplicated < 0 {
-        return Err(NativeError::new("EXECUTOR_PROMOTION_IO_FAILURE"));
-    }
-    let directory = unsafe { libc::fdopendir(duplicated) };
+    // A duplicated descriptor shares its directory cursor with the caller.
+    // Open the same directory independently so every recovery scan starts fresh.
+    let (_, device) = ordinary_directory(fd, None)?;
+    let descriptor = open_directory_at(fd, ".", device)?.into_raw_fd();
+    let directory = unsafe { libc::fdopendir(descriptor) };
     if directory.is_null() {
-        unsafe { libc::close(duplicated) };
+        unsafe { libc::close(descriptor) };
         return Err(NativeError::new("EXECUTOR_PROMOTION_IO_FAILURE"));
     }
     let mut entries = Vec::new();
@@ -258,4 +258,27 @@ pub(crate) fn directory_entries(fd: RawFd) -> Result<Vec<String>, NativeError> {
     }
     unsafe { libc::closedir(directory) };
     Ok(entries)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn directory_scans_include_entries_added_after_an_earlier_scan() {
+        let root = tempfile::tempdir().expect("directory fixture");
+        let directory = File::open(root.path()).expect("directory descriptor");
+        fs::write(root.path().join("first"), b"first").expect("first entry");
+        assert_eq!(
+            directory_entries(directory.as_raw_fd()).expect("first scan"),
+            vec!["first"]
+        );
+        fs::write(root.path().join("second"), b"second").expect("second entry");
+        for _ in 0..2 {
+            let mut entries = directory_entries(directory.as_raw_fd()).expect("repeated scan");
+            entries.sort();
+            assert_eq!(entries, vec!["first", "second"]);
+        }
+    }
 }

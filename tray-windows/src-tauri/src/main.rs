@@ -25,6 +25,7 @@ mod companion_attestation;
 mod console_commands;
 mod custody_cleanup;
 mod grant;
+mod inference_connections;
 mod menu;
 mod nessie_desktop;
 mod notification;
@@ -263,6 +264,7 @@ fn main() {
             console_commands::executor_open_path,
             console_commands::executor_sync_open_nessie,
             personal_chatgpt::executor_personal_chatgpt,
+            inference_connections::executor_inference_connections,
             personal_chatgpt::executor_chatgpt_usage,
             commands::executor_choose_folder,
             commands::executor_hide_status,

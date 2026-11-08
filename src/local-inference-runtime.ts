@@ -11,9 +11,8 @@ import { startLocalInferenceHostSession, type LocalInferenceHostSession } from '
 import { LocalInferenceCoordinator } from './local-inference-coordinator.js'
 import { EncryptedLocalInferenceReceiptJournal } from './local-inference-receipts.js'
 import { DEFAULT_OLLAMA_ORIGIN } from './ollama-client.js'
-import { readLocalOpenAiConfig } from './openai-local-config.js'
-import { createLocalOpenAiBackend } from './openai-local-observed.js'
-import { createOllamaBackend } from './local-inference-backend.js'
+import { readInferenceEndpoints } from './inference-endpoints.js'
+import { createInferenceEndpointBackend } from './inference-endpoint-backend.js'
 import {
   ensureExecutorRuntimeDirectory,
   newLocalInferenceReceiptJournalKey,
@@ -142,9 +141,7 @@ export const connectExecutorLocalInference = async (
     }) },
     write: (value) => replaceReceiptFile(path, value),
   }, Buffer.from(connected.localInference.receiptJournalKey, 'base64url'))
-  const endpoint = await readLocalOpenAiConfig(stateDir)
-  const localBackend = endpoint ? createLocalOpenAiBackend(() => readLocalOpenAiConfig(stateDir))
-    : createOllamaBackend(DEFAULT_OLLAMA_ORIGIN)
+  const localBackend = createInferenceEndpointBackend(() => readInferenceEndpoints(stateDir))
   return {
     session: startLocalInferenceHostSession({
       apiBaseUrl: connected.apiBaseUrl,

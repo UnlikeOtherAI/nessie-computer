@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
  * `process.getuid` does not exist — so the same two checks there would either
  * fail closed on every load or pass vacuously. Privacy on Windows is a DACL,
  * and reading one needs Win32, so the state directory is created and verified
- * through the packaged native helper.
+ * through the fixed native helper beside the running Node binary.
  *
  * The platform is a parameter rather than a read of `process.platform`, so both
  * arms are exercised from one host and neither can drift untested.
@@ -41,22 +41,21 @@ const currentOwnerId = (): number | undefined => process.getuid?.()
 
 /**
  * The helper ships inside the packaged runtime, beside the Node binary running
- * this process — the same directory the desktop shell verified against the hash
- * manifest before it spawned us. A development run has no packaged runtime and
- * therefore no verified helper, so it refuses rather than reaching for whatever
- * executable happens to sit next to a development Node.
+ * this process. Installed launchers verify that directory against their release
+ * manifest. A Windows source-test Node uses the same sibling ACL helper without
+ * claiming an installed runtime. Resolving this path grants no release trust,
+ * credential custody, update authority or permission to substitute a PATH tool.
  */
 export const packagedNativeHelperPath = (): string => join(dirname(process.execPath),
   process.platform === 'win32' ? HELPER_EXECUTABLE : 'nessie-executor-native')
 
 const helperUnavailable = (): Error => new Error(
-  'Executor state security on Windows needs the packaged native helper. '
-  + 'Run the executor from its installed package, which ships the helper beside its Node runtime.',
+  'Executor state security on Windows needs the native helper beside its Node runtime. '
+  + 'Use the installed package, or the repository Windows test runner with its built native ACL helper.',
 )
 
-/** Spawns the packaged helper and turns its one-line JSON answer into a verdict. */
-export const spawnPackagedStateSecurityHelper: StateSecurityHelper = async (command, path) => {
-  if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') throw helperUnavailable()
+/** Fixed sibling transport for public ACL operations, independent of installed-runtime admission. */
+export const spawnStateSecurityHelper: StateSecurityHelper = async (command, path) => {
   const helperPath = packagedNativeHelperPath()
   const entry = await lstat(helperPath).catch(() => undefined)
   if (!entry?.isFile() || entry.isSymbolicLink()) throw helperUnavailable()
@@ -100,7 +99,7 @@ const runHelper = async (
   deps: StateSecurityDeps,
   command: StateSecurityCommand,
   path: string,
-): Promise<void> => (deps.helper ?? spawnPackagedStateSecurityHelper)(command, path)
+): Promise<void> => (deps.helper ?? spawnStateSecurityHelper)(command, path)
 
 const platformOf = (deps: StateSecurityDeps): StateSecurityPlatform => deps.platform ?? process.platform
 

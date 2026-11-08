@@ -12,8 +12,16 @@ export const resolveChatgptLocalOperation = async (stateDirectory: string, input
   const store = new ChatgptProfileStore()
   const state = await readChatgptPairingReference(stateDirectory)
   const apiOrigin = new URL(state.apiBaseUrl).origin
+  if (operation.operation === 'start' && operation.profileId && operation.newProfileId) {
+    throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
+  }
+  const wanted = 'profileId' in operation ? operation.profileId
+    ?? (operation.operation === 'start' ? operation.newProfileId : undefined) : undefined
   const selected = operation.operation === 'cancel' ? await store.operation(operation.operationId)
-    : 'profileId' in operation && operation.profileId ? await store.read(operation.profileId) : null
+    : wanted ? await store.read(wanted) : null
+  if (selected && (selected.executorId !== state.executorId || selected.apiOrigin !== apiOrigin)) {
+    throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')
+  }
   if (operation.operation === 'cancel' || ('profileId' in operation && operation.profileId)) {
     if (!selected || selected.executorId !== state.executorId || selected.apiOrigin !== apiOrigin) {
       throw new PersonalInferenceProtectionError('chatgpt_operation_fenced')

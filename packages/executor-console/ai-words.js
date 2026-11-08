@@ -1,0 +1,70 @@
+const aiKeys = ['addChatgpt', 'endpointsTitle', 'addEndpoint', 'endpointsHint', 'emptyChatgpt', 'emptyEndpoints',
+  'manage', 'refresh', 'loading', 'failed', 'name', 'rename', 'endpointTitle', 'address', 'scope', 'local', 'network',
+  'key', 'keyHint', 'clearKey', 'remove', 'close', 'save', 'online', 'offline', 'noModels']
+const aiTranslations = {
+  en: ['Add ChatGPT connection', 'Local and network models', 'Add server',
+    'Connect to Strata or another OpenAI-compatible server. Only this computer needs Nessie Executor.',
+    'No ChatGPT connections yet.', 'No model servers saved.', 'Manage', 'Check connections', 'Checking connections…',
+    'Could not check these connections. Try again.', 'Connection name', 'Save name', 'Model server', 'Server address',
+    'Where it runs', 'On this computer', 'On my local network', 'API key (optional)',
+    'Leave blank to keep a saved key at the same address. Changing the address clears the saved key.',
+    'Remove saved API key', 'Remove connection', 'Close', 'Save connection', 'Online', 'Offline', 'No models reported'],
+  cs: ['Přidat připojení ChatGPT', 'Místní a síťové modely', 'Přidat server',
+    'Připojte Stratu nebo jiný server kompatibilní s OpenAI. Nessie Executor stačí na tomto počítači.',
+    'Zatím žádná připojení ChatGPT.', 'Žádné uložené servery modelů.', 'Spravovat', 'Ověřit připojení', 'Ověřování připojení…',
+    'Připojení se nepodařilo ověřit. Zkuste to znovu.', 'Název připojení', 'Uložit název', 'Server modelů', 'Adresa serveru',
+    'Kde běží', 'Na tomto počítači', 'V místní síti', 'Klíč API (volitelný)',
+    'Prázdné pole zachová uložený klíč pro stejnou adresu. Změna adresy uložený klíč odstraní.',
+    'Odstranit uložený klíč API', 'Odebrat připojení', 'Zavřít', 'Uložit připojení', 'Online', 'Offline', 'Server nehlásí žádné modely'],
+  de: ['ChatGPT-Verbindung hinzufügen', 'Lokale und Netzwerkmodelle', 'Server hinzufügen',
+    'Verbinden Sie Strata oder einen anderen OpenAI-kompatiblen Server. Nur dieser Computer benötigt Nessie Executor.',
+    'Noch keine ChatGPT-Verbindungen.', 'Keine Modellserver gespeichert.', 'Verwalten', 'Verbindungen prüfen', 'Verbindungen werden geprüft…',
+    'Die Verbindungen konnten nicht geprüft werden. Versuchen Sie es erneut.', 'Verbindungsname', 'Namen speichern', 'Modellserver', 'Serveradresse',
+    'Standort', 'Auf diesem Computer', 'In meinem lokalen Netzwerk', 'API-Schlüssel (optional)',
+    'Leer lassen, um den gespeicherten Schlüssel für dieselbe Adresse zu behalten. Eine neue Adresse entfernt den gespeicherten Schlüssel.',
+    'Gespeicherten API-Schlüssel entfernen', 'Verbindung entfernen', 'Schließen', 'Verbindung speichern', 'Online', 'Offline', 'Keine Modelle gemeldet'],
+  es: ['Añadir conexión ChatGPT', 'Modelos locales y de red', 'Añadir servidor',
+    'Conecta Strata u otro servidor compatible con OpenAI. Solo este ordenador necesita Nessie Executor.',
+    'Todavía no hay conexiones ChatGPT.', 'No hay servidores de modelos guardados.', 'Gestionar', 'Comprobar conexiones', 'Comprobando conexiones…',
+    'No se pudieron comprobar las conexiones. Inténtalo de nuevo.', 'Nombre de la conexión', 'Guardar nombre', 'Servidor de modelos', 'Dirección del servidor',
+    'Dónde se ejecuta', 'En este ordenador', 'En mi red local', 'Clave API (opcional)',
+    'Déjalo vacío para conservar la clave guardada para la misma dirección. Cambiar la dirección elimina la clave guardada.',
+    'Eliminar clave API guardada', 'Eliminar conexión', 'Cerrar', 'Guardar conexión', 'En línea', 'Sin conexión', 'No se han informado modelos'],
+  fr: ['Ajouter une connexion ChatGPT', 'Modèles locaux et réseau', 'Ajouter un serveur',
+    'Connectez Strata ou un autre serveur compatible OpenAI. Seul cet ordinateur a besoin de Nessie Executor.',
+    'Aucune connexion ChatGPT pour le moment.', 'Aucun serveur de modèles enregistré.', 'Gérer', 'Vérifier les connexions', 'Vérification des connexions…',
+    'Impossible de vérifier les connexions. Réessayez.', 'Nom de la connexion', 'Enregistrer le nom', 'Serveur de modèles', 'Adresse du serveur',
+    'Emplacement', 'Sur cet ordinateur', 'Sur mon réseau local', 'Clé API (facultative)',
+    'Laissez vide pour conserver la clé de la même adresse. Changer l’adresse supprime la clé enregistrée.',
+    'Supprimer la clé API enregistrée', 'Supprimer la connexion', 'Fermer', 'Enregistrer la connexion', 'En ligne', 'Hors ligne', 'Aucun modèle signalé'],
+  it: ['Aggiungi connessione ChatGPT', 'Modelli locali e di rete', 'Aggiungi server',
+    'Collega Strata o un altro server compatibile con OpenAI. Solo questo computer richiede Nessie Executor.',
+    'Nessuna connessione ChatGPT ancora.', 'Nessun server di modelli salvato.', 'Gestisci', 'Verifica connessioni', 'Verifica delle connessioni…',
+    'Impossibile verificare le connessioni. Riprova.', 'Nome della connessione', 'Salva nome', 'Server di modelli', 'Indirizzo del server',
+    'Dove viene eseguito', 'Su questo computer', 'Sulla mia rete locale', 'Chiave API (facoltativa)',
+    'Lascia vuoto per mantenere la chiave salvata per lo stesso indirizzo. Cambiare indirizzo elimina la chiave salvata.',
+    'Rimuovi chiave API salvata', 'Rimuovi connessione', 'Chiudi', 'Salva connessione', 'Online', 'Offline', 'Nessun modello segnalato'],
+}
+const aiLanguage = navigator.language.toLowerCase().split('-')[0]
+const aiValues = aiTranslations[aiLanguage] ?? aiTranslations.en
+window.aiConsoleWords = Object.fromEntries(aiKeys.map((key, index) => [key, aiValues[index]]))
+
+const restoreTeamNames = {
+  "en": "Open Nessie → Computers and confirm this computer’s owner to restore its team name.",
+  "cs": "V Nessie otevřete Počítače a potvrďte vlastníka tohoto počítače. Název týmu se obnoví.",
+  "de": "Öffnen Sie in Nessie „Computer“ und bestätigen Sie den Besitzer dieses Computers, um den Teamnamen wiederherzustellen.",
+  "es": "Abre Ordenadores en Nessie y confirma al propietario de este ordenador para recuperar el nombre del equipo.",
+  "fr": "Ouvrez Ordinateurs dans Nessie et confirmez le propriétaire de cet ordinateur pour rétablir le nom de l’équipe.",
+  "it": "Apri Computer in Nessie e conferma il proprietario di questo computer per ripristinare il nome del team."
+}
+window.aiConsoleWords.restoreNames = restoreTeamNames[aiLanguage] ?? restoreTeamNames.en
+
+const changeConnectionFailed = {
+  en: 'Could not update this connection. Your changes are still here. Try again.',
+  cs: 'Připojení se nepodařilo upravit. Vaše změny zůstaly ve formuláři. Zkuste to znovu.',
+  de: 'Die Verbindung konnte nicht aktualisiert werden. Ihre Änderungen bleiben im Formular. Versuchen Sie es erneut.',
+  es: 'No se pudo actualizar la conexión. Tus cambios siguen aquí. Inténtalo de nuevo.',
+  fr: 'Impossible de modifier cette connexion. Vos changements sont conservés dans le formulaire. Réessayez.',
+  it: 'Impossibile aggiornare la connessione. Le modifiche sono ancora nel modulo. Riprova.',
+}
+window.aiConsoleWords.changeFailed = changeConnectionFailed[aiLanguage] ?? changeConnectionFailed.en

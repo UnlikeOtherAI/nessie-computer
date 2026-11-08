@@ -17,12 +17,12 @@ use windows_sys::Win32::{
     Foundation::{LocalFree, HANDLE},
     Security::{
         Authorization::{GetSecurityInfo, SE_FILE_OBJECT},
-        GetAce, ACCESS_ALLOWED_ACE, ACL, DACL_SECURITY_INFORMATION, OWNER_SECURITY_INFORMATION,
+        GetAce, ACCESS_ALLOWED_ACE, ACL, DACL_SECURITY_INFORMATION, INHERIT_ONLY_ACE, OWNER_SECURITY_INFORMATION,
     },
     Storage::FileSystem::{
         GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_REPARSE_POINT,
         FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_READ_ATTRIBUTES,
-        FILE_SHARE_READ, FILE_SHARE_WRITE,
+        FILE_SHARE_READ, FILE_SHARE_WRITE, READ_CONTROL,
     },
 };
 
@@ -122,6 +122,11 @@ fn secure(handle: HANDLE) -> Result<(), String> {
             if ace.Header.AceType != 0 {
                 return Err(REJECTED.into());
             }
+            // Inherit-only entries grant no access to this object. Every
+            // executable input is pinned separately with its effective DACL.
+            if u32::from(ace.Header.AceFlags) & INHERIT_ONLY_ACE != 0 {
+                continue;
+            }
             if ace.Mask & writes != 0 {
                 let sid = crate::sid_to_string((&ace.SidStart as *const u32).cast_mut().cast())
                     .ok_or(REJECTED)?;
@@ -139,7 +144,7 @@ fn pin(path: &Path, directory: bool, protected: bool) -> Result<File, String> {
     let mut options = OpenOptions::new();
     if directory {
         options
-            .access_mode(FILE_READ_ATTRIBUTES)
+            .access_mode(FILE_READ_ATTRIBUTES | if protected { READ_CONTROL } else { 0 })
             .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE);
     } else {
         options.read(true).share_mode(FILE_SHARE_READ);
@@ -264,6 +269,10 @@ pub fn load_at(executable: &Path, pin_eku: Option<&str>) -> Result<Release, Stri
         _pins: pins,
     })
 }
+
+#[cfg(test)]
+#[path = "release_directory_tests.rs"]
+mod directory_tests;
 
 #[cfg(test)]
 mod tests {

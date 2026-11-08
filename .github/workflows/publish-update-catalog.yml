@@ -1,7 +1,8 @@
 name: Publish Update Catalogue
 
 # Signs metadata for packages already attached to an immutable executor-v<version>
-# release and replaces that channel's catalogue. Only protected main may sign.
+# release, archives the signed bytes immutably, then advances the existing mutable
+# channel. Only protected main with green source CI may sign.
 on:
   workflow_dispatch:
     inputs:
@@ -44,28 +45,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
+          SOURCE_COMMIT: ${{ inputs.source_commit }}
         run: |
+          release_commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/executor-v$VERSION" --jq .sha)
+          if [ "$release_commit" != "$SOURCE_COMMIT" ]; then
+            echo "The release tag does not match the requested source revision." >&2
+            exit 1
+          fi
           mkdir -p "$RUNNER_TEMP/assets"
           gh release download "executor-v$VERSION" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/assets" \
-            --pattern '*.dmg' --pattern '*.msi' --pattern '*.deb' --pattern '*.rpm'
-      - name: Compose and sign
+            --pattern '*.dmg' --pattern '*.msi' --pattern '*.deb' --pattern '*.rpm' \
+            --pattern '*.deb.asc' --pattern '*.rpm.asc'
+      - name: Archive and publish the signed catalogue
         env:
+          GH_TOKEN: ${{ github.token }}
           CHANNEL: ${{ inputs.channel }}
           VERSION: ${{ inputs.version }}
           SOURCE_COMMIT: ${{ inputs.source_commit }}
           SEQUENCE: ${{ inputs.sequence }}
           EXECUTOR_UPDATE_SIGNING_KEY: ${{ secrets.EXECUTOR_UPDATE_SIGNING_KEY }}
-        run: |
-          node packaging/updates/compose-catalog.mjs "$RUNNER_TEMP/assets" "$RUNNER_TEMP/manifest.json"
-          cat "$RUNNER_TEMP/manifest.json"
-          pnpm exec tsx packaging/updates/sign-catalog.mjs "$RUNNER_TEMP/manifest.json" "$RUNNER_TEMP/catalog.json"
-      - name: Replace the channel catalogue
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: update-catalog-${{ inputs.channel }}
-        run: |
-          if ! gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
-              --title "Executor update catalogue ($TAG)" --notes "Signed update metadata. Not an installer."
-          fi
-          gh release upload "$TAG" "$RUNNER_TEMP/catalog.json" --repo "$GITHUB_REPOSITORY" --clobber
+        run: pnpm exec tsx packaging/updates/publish-catalog.mjs "$RUNNER_TEMP/assets" "$RUNNER_TEMP/publication"

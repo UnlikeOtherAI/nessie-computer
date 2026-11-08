@@ -30,6 +30,8 @@ export class OllamaObservationError extends Error {
 const MAX_JSON_BYTES = 256 * 1024
 const MODEL_NAME_MAX = 200
 const SHA256 = /^[a-f0-9]{64}$/
+/** `ObservedLocalModelSchema` refuses a local model reporting more than this. */
+const LOCAL_CONTEXT_BOUND = 1_000_000
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -90,9 +92,19 @@ const modelFrom = (tag: Record<string, unknown>, show: Record<string, unknown>):
   const architectureContext = architecture && /^[A-Za-z0-9_]+$/u.test(architecture)
     ? modelInfo[`${architecture}.context_length`] : undefined
   const numCtxRaw = modelInfo['general.context_length'] ?? architectureContext
-  const numCtxCap = typeof numCtxRaw === 'number' && Number.isSafeInteger(numCtxRaw) && numCtxRaw > 0
+  const supported = typeof numCtxRaw === 'number' && Number.isSafeInteger(numCtxRaw) && numCtxRaw > 0
     ? numCtxRaw
     : null
+  // A context the owner set for this model in Ollama (`PARAMETER num_ctx`) is what they chose to
+  // serve; it never exceeds what the model supports.
+  const configuredRaw = typeof show.parameters === 'string'
+    ? /^num_ctx\s+(\d{1,7})\s*$/mu.exec(show.parameters)?.[1] : undefined
+  const configured = configuredRaw === undefined ? null : Number(configuredRaw)
+  const chosen = configured !== null && configured > 0
+    ? (supported === null ? configured : Math.min(configured, supported))
+    : supported
+  // The protocol's local bound; a larger report would make the server refuse the whole inventory.
+  const numCtxCap = chosen === null ? null : Math.min(chosen, LOCAL_CONTEXT_BOUND)
   const sizeBytes = typeof tag.size === 'number' && Number.isSafeInteger(tag.size) && tag.size >= 0
     ? tag.size
     : null

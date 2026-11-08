@@ -386,9 +386,8 @@ test('a packaged Windows runtime without its job helper starts no agent', () => 
 })
 
 const NATIVE = fileURLToPath(new URL('../native/target/', import.meta.url))
-const builtHelper = ['release', 'debug']
-  .map((profile) => join(NATIVE, profile, 'nessie-executor-native.exe'))
-  .find((path) => existsSync(path))
+const sourceHelper = join(NATIVE, 'debug', 'nessie-executor-native.exe')
+const builtHelper = existsSync(sourceHelper) ? sourceHelper : undefined
 
 /** An agent that starts a child, which starts a grandchild and exits: an orphan `taskkill /T` cannot find. */
 const ORPHANING_AGENT = `

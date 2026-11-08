@@ -106,7 +106,8 @@ export const run = async (args: string[]): Promise<void> => {
   if (await (await import('./personal-chatgpt-cli.js')).runPersonalChatgptCli(args)) return
   if (await (await import('./chatgpt-credential-runtime.js')).runChatgptCredentialRuntime(args)) return
   if (runDistributionCli(args) || await runUpdateCli(args)) return
-  if (await offerUpdateAtLaunch(args) || await runMacServiceCli(args)) return
+  offerUpdateAtLaunch(args)
+  if (await runMacServiceCli(args)) return
   if (await runServiceRestartCli(args)) return
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return

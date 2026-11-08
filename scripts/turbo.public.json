@@ -134,6 +134,18 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:windows-source": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:ai-connections": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

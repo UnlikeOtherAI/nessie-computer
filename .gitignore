@@ -11,3 +11,6 @@ dist/
 /packaging/session-engine/.npmrc
 /menubar-macos/*.xcodeproj/
 /menubar-macos/build/
+
+__pycache__/
+*.pyc

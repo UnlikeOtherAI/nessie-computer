@@ -31,6 +31,7 @@ pub const NOT_ADMITTED: &str =
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServiceResponse {
     PersonalAttestation(serde_json::Value),
+    InferenceConnections(serde_json::Value),
     Status(Vec<ExecutorStatus>),
     Pair { executor_id: String, fingerprint: String },
     Describe(serde_json::Value),
@@ -199,6 +200,8 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
     let parsed: serde_json::Value = serde_json::from_str(answer.trim())
         .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
     match parsed.get("status").and_then(serde_json::Value::as_str) {
+        Some("inferenceConnections") => parsed.get("connections").cloned().map(ServiceResponse::InferenceConnections)
+            .ok_or_else(|| "No inference connections were returned.".to_owned()),
         Some("personalAttestation") => parsed.get("authority").cloned().map(ServiceResponse::PersonalAttestation)
             .ok_or_else(|| "The service returned no personal authority.".to_owned()),
         Some("pairing") => parsed.get("pairing").cloned().map(ServiceResponse::Pairing)

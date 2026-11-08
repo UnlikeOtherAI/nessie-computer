@@ -134,21 +134,10 @@ impl MachineBarrier {
 }
 
 fn check_home(home: &Path, uid: u32) -> Result<(), NativeError> {
-    let entry = match fs::symlink_metadata(home) {
-        Ok(entry) => entry,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(_) => return Err(refused()),
-    };
-    // Accounts sharing another UID's home cannot establish an owner-only
-    // native credential root there. The actual owner is scanned separately.
-    if entry.uid() != uid {
+    if !crate::unix_account_state::needs_custody_inspection(home, uid).map_err(|_| refused())? {
         return Ok(());
     }
-    if !entry.is_dir()
-        || entry.file_type().is_symlink()
-        || entry.mode() & 0o022 != 0
-        || fs::canonicalize(home).map_err(|_| refused())? != home
-    {
+    if fs::canonicalize(home).map_err(|_| refused())? != home {
         return Err(refused());
     }
     let root = home.join(".nessie").join("personal-inference");

@@ -28,7 +28,9 @@
 
     <!-- Same UpgradeCode, higher version: an upgrade replaces the files and
          re-registers the service, and never touches the state root. -->
-    <MajorUpgrade DowngradeErrorMessage="A newer Nessie Executor is already installed." />
+    <!-- Removal belongs to the transaction: a failed upgrade restores the previous product. -->
+    <MajorUpgrade Schedule="afterInstallInitialize"
+                  DowngradeErrorMessage="A newer Nessie Executor is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- A person double-clicking this package sees a product, not Windows
@@ -99,6 +101,11 @@
       </Component>
       <Component>
         <File Id="TrayExe" Source="$(var.StagingDir)\nessie-executor-tray.exe" KeyPath="yes" />
+      </Component>
+      <Component>
+        <File Id="CliCommand" Source="$(var.StagingDir)\nessie-executor.cmd" KeyPath="yes" />
+        <Environment Id="ExecutorCliPath" Name="PATH" Value="[INSTALLFOLDER]"
+                     Action="set" Part="last" Permanent="no" System="yes" />
       </Component>
     </ComponentGroup>
 

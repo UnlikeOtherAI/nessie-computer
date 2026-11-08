@@ -11,17 +11,20 @@ them, and use a pull request. Merge only after the required checks pass.
 
 Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
-prerequisites. Windows state tests require the real native ACL helper beside
-their test Node. Native and installed verification run on their actual OS.
+prerequisites. Windows source tests use the Debug native helper beside an
+unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
+claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
 Session tool schemas, retained metadata projections/navigation, shared input-dependent receipt policy and admission boundaries follow [MCP adapters](docs/session-mcp-adapters.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
-The shared local Settings/update popup has a headless `--updates-only` renderer journey documented there; keep it out of CI.
+Stable catalogues require Windows, macOS, DEB and RPM together, including Linux detached signatures; preview may contain a complete subset. Catalog publication archives immutable signed bytes before advancing an existing mutable channel; see the same guide.
+The shared local Settings/update popup and Linux settings entry have local headless renderer journeys documented there; keep them out of CI. CLI launch checks never hold ordinary commands open.
 The macOS signed DMG carries the app and protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
+Linux archive staging keeps builder ownership for rootless containers; nFPM supplies installed root ownership.
 macOS uses the existing Developer ID Application identity, notarized DMG and approved app-bundled helper; follow [that trust contract](docs/macos-update-helper.md).
 
 Public contribution CI has no production signing credentials. Build candidates
@@ -30,7 +33,8 @@ publisher identities and protected release environments. Never publish an
 unsigned development artifact or weaken custody to make a fixture pass.
 
 The local console in `packages/executor-console` is shared by Windows and
-macOS. Reuse it. Every visible change needs all supported translations, a local
+macOS; Linux local update settings reuse its software section and translations
+through `packaging/linux/console`. Reuse it. Every visible change needs all supported translations, a local
 headless browser journey and matching before/after captures. Browser and native
 UI automation stay out of CI. Manually use every changed capability through its
 real entry point before claiming completion.
@@ -44,8 +48,9 @@ intent belongs to a model; deterministic code acts on structural protocol facts.
 Keep documentation synchronized with implemented behaviour and state concrete
 verification limits.
 
-Computer telemetry, Claude/Codex account probes, native history and human input follow
+Computer telemetry, provider quotas, owner-only CI, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
+All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
 Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
@@ -62,3 +67,11 @@ Managed-start target evidence, purpose-bound bridge scopes and legacy/native ref
 Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
 Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.
 Prospective source issuer enrollment, protected local review, online receipt consumption and the unqualified Windows tray/service gates follow [source consent](docs/t3-source-consent.md).
+
+Linux updater images use root-owned immutable libexec paths with the standard SELinux executable label; retain journals and legacy protected images during recovery. See [Fedora service execution](docs/automatic-updates.md#fedora-service-execution).
+
+Windows runtime admission uses its own fixed local pipe; keep pairing-control ACLs and kernel custody proofs separate. See [runtime admission](docs/automatic-updates.md#runtime-admission-and-pairing-control).
+
+The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
+[local AI connections](docs/local-ai-connections.md); use the public Turbo
+`test:ai-connections` gate and local `renderer-harness.mjs --ai-only` journey.

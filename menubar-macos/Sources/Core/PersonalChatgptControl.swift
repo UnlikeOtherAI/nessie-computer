@@ -11,10 +11,11 @@ public enum PersonalChatgptControl {
         switch action {
         case "status": fields = ["operation", "profileId"]
         case "start":
-            fields = ["operation", "profileId", "acknowledgeHostRestriction"]
+            fields = ["operation", "profileId", "acknowledgeHostRestriction", "newProfileId", "label"]
             guard operation["acknowledgeHostRestriction"] is Bool else {
                 throw ExecutorRefusal("Confirm the computer restriction.")
             }
+        case "rename": fields = ["operation", "profileId", "label"]
         case "cancel": fields = ["operation", "operationId"]
         case "disconnect": fields = ["operation", "profileId"]
         case "background-consent":
@@ -27,13 +28,17 @@ public enum PersonalChatgptControl {
         guard Set(operation.keys).isSubset(of: fields) else {
             throw ExecutorRefusal("Invalid local account action.")
         }
-        for key in ["profileId", "operationId"] where operation[key] != nil {
+        for key in ["profileId", "operationId", "newProfileId"] where operation[key] != nil {
             guard let identifier = operation[key] as? String, UUID(uuidString: identifier) != nil else {
                 throw ExecutorRefusal("Invalid local sign-in identity.")
             }
         }
+        if let label = operation["label"] {
+            guard let text = label as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                text.count <= 80 else { throw ExecutorRefusal("Name this connection.") }
+        } else if action == "rename" { throw ExecutorRefusal("Name this connection.") }
         if action == "cancel" && operation["operationId"] == nil
-            || ["disconnect", "background-consent"].contains(action) && operation["profileId"] == nil {
+            || ["disconnect", "background-consent", "rename"].contains(action) && operation["profileId"] == nil {
             throw ExecutorRefusal("Choose the local sign-in.")
         }
         return ExecutorCLIInvocation(

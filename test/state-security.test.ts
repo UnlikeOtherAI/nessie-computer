@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -10,7 +13,6 @@ import {
   ensureOwnerOnlyStateDirectory,
   packagedNativeHelperPath,
   secureOwnerOnlyStateFile,
-  spawnPackagedStateSecurityHelper,
   type StateSecurityCommand,
 } from '../src/state-security.js'
 import { WINDOWS_SYMLINK_SKIP } from './windows-prerequisites.js'
@@ -194,18 +196,26 @@ test('a symlinked or wrongly-shaped state path is refused on either host', { ski
   })
 })
 
-test('a Windows run with no packaged runtime fails closed and names the remedy', async () => {
-  const previous = process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-  delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
+test('a missing sibling helper fails closed even when an environment marker claims a package', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-no-state-helper-'))
+  const runtime = join(directory, process.platform === 'win32' ? 'node.exe' : 'node')
   try {
-    await assert.rejects(
-      spawnPackagedStateSecurityHelper('verify-owner-only', join(tmpdir(), 'executors', 'one')),
-      /packaged native helper/,
-    )
-  } finally {
-    if (previous === undefined) delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-    else process.env.NESSIE_EXECUTOR_PACKAGED_CLI = previous
-  }
+    await copyFile(process.execPath, runtime)
+    await chmod(runtime, 0o700)
+    const source = new URL('../src/state-security.ts', import.meta.url).href
+    const script = `import { spawnStateSecurityHelper } from ${JSON.stringify(source)};
+try { await spawnStateSecurityHelper('verify-owner-only', ${JSON.stringify(directory)}); }
+catch(error) { process.stdout.write(JSON.stringify({message:error.message})); process.exitCode=7; }`
+    await assert.rejects(promisify(execFile)(runtime, ['--import', 'tsx', '--input-type=module', '--eval', script], {
+      cwd: fileURLToPath(new URL('..', import.meta.url)),
+      env: { ...process.env, NESSIE_EXECUTOR_PACKAGED_CLI: '1' }, windowsHide: true, timeout: 30_000,
+    }), (error: unknown) => {
+      const failed = error as { code: number; stdout: string }
+      assert.equal(failed.code, 7)
+      assert.match((JSON.parse(failed.stdout) as { message: string }).message, /native helper beside/u)
+      return true
+    })
+  } finally { await rm(directory, { recursive: true, force: true }) }
 })
 
 test('the helper is resolved from the packaged runtime directory, never from PATH', () => {

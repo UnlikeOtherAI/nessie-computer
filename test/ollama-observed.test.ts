@@ -100,3 +100,17 @@ test('a malformed or oversized inventory fails closed rather than becoming an em
     OllamaObservationError,
   )
 })
+
+test('context is the model\'s own limit, or the owner\'s Ollama num_ctx when lower, within the protocol bound', async () => {
+  const observe = async (show: Record<string, unknown>) => (await observeOllamaInventory(undefined,
+    async (url, init) => url.endsWith('/api/show')
+      ? json({ capabilities: ['completion'], details: { family: 'gemma4' }, ...show })
+      : inventoryFetch()(url, init))).models[0]?.numCtxCap
+  const gemma = { model_info: { 'general.architecture': 'gemma4', 'gemma4.context_length': 262_144 } }
+  assert.equal(await observe(gemma), 262_144)
+  assert.equal(await observe({ ...gemma, parameters: 'stop "<eos>"\nnum_ctx 32768\ntemperature 1' }), 32_768)
+  assert.equal(await observe({ ...gemma, parameters: 'num_ctx 999999' }), 262_144, 'never above the model')
+  assert.equal(await observe({ model_info: {}, parameters: 'num_ctx 16384' }), 16_384)
+  assert.equal(await observe({ model_info: {} }), null, 'unknown stays unknown, for the owner to enter')
+  assert.equal(await observe({ model_info: { 'general.context_length': 10_000_000 } }), 1_000_000)
+})
