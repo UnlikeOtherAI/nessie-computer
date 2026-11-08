@@ -236,7 +236,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await shot('welcome-cs')
     await page.getByRole('button', { name: 'Připojit tým', exact: true }).first().click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
-    await page.getByText('V Nessie otevřete Počítače a zvolte Přidat počítač.').waitFor()
+    await page.locator('#pairing-instruction').getByText('V Nessie otevřete Počítače a zvolte Přidat počítač.').waitFor()
     await shot('connect-cs')
     await page.evaluate(() => window.claimInNessie())
     await page.locator('#connected-body').getByText('2 složky · aplikace UnlikeOtherAI, Claude Code, Codex, T3 Code · všechny místní aplikace · žádné weby').waitFor()
