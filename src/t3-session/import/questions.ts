@@ -83,16 +83,19 @@ export class CaptureQuestions {
     }
   }
 
+  private attachmentMarker(scope: string, id: unknown): string | undefined {
+    const keys = this.attachments.get(JSON.stringify([scope, id]))
+    const masks = keys ? [...keys].map(key => this.masks.get(key)) : []
+    return masks.includes(undefined) ? UNKNOWN_QUESTION_VALUE : masks.includes(true) ? '[REDACTED]' : undefined
+  }
+
   /** Fixed descriptor slots only; opaque references remain inert. */
   projectAttachments(value: unknown, scope: string, marker?: string): unknown {
     requireCapture(Array.isArray(value), 'capture_question_provenance_unknown')
     return value.map(attachment => {
       const fields = recordOf(attachment)
       requireCapture(fields, 'capture_question_provenance_unknown')
-      const keys = this.attachments.get(JSON.stringify([scope, fields.id]))
-      const masks = keys ? [...keys].map(key => this.masks.get(key)) : []
-      const withheld = marker ?? (masks.includes(undefined) ? UNKNOWN_QUESTION_VALUE
-        : masks.includes(true) ? '[REDACTED]' : undefined)
+      const withheld = marker ?? this.attachmentMarker(scope, fields.id)
       if (!withheld) return attachment
       requireCapture(fields.type === 'file' || fields.type === 'image', 'capture_masked_attachment_unsupported')
       return { type: fields.type, id: fields.id, sizeBytes: fields.sizeBytes, name: withheld,
@@ -106,11 +109,12 @@ export class CaptureQuestions {
     return { ...context, records: context.records.map(value => {
       const record = recordOf(value)
       if (!record || (record.kind !== 'file' && record.kind !== 'image')) return value
-      const [descriptor] = this.projectAttachments([{ type: record.kind, id: record.attachmentId,
-        name: record.name, mimeType: record.mimeType, sizeBytes: record.sizeBytes }], scope) as Record<string, unknown>[]
-      requireCapture(descriptor, 'capture_question_provenance_unknown')
-      if (descriptor.name === record.name && descriptor.mimeType === record.mimeType) return value
-      return { ...record, label: descriptor.name, name: descriptor.name, mimeType: descriptor.mimeType }
+      const marker = this.attachmentMarker(scope, record.attachmentId)
+      if (!marker) return value
+      // Classification covers every descriptor slot, even when name/MIME already
+      // equal the sentinel. An independent label can still contain the value.
+      return { ...record, label: marker, name: marker,
+        mimeType: record.kind === 'image' ? 'image/x-withheld' : 'application/x-withheld' }
     }) }
   }
 

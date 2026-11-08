@@ -1,0 +1,449 @@
+[
+  {
+    "name": "projection_threads",
+    "columns": [
+      "thread_id",
+      "project_id",
+      "title",
+      "model_selection_json",
+      "runtime_mode",
+      "interaction_mode",
+      "branch",
+      "worktree_path",
+      "created_at",
+      "updated_at",
+      "archived_at",
+      "settled_override",
+      "settled_at",
+      "unsettled_at",
+      "snoozed_until",
+      "snoozed_at",
+      "pinned_at",
+      "auto_settle_disabled_at",
+      "pin_order_key",
+      "linked_pull_request_json",
+      "branch_pull_request_json",
+      "active_order_key",
+      "deleted_at"
+    ],
+    "order": "thread_id",
+    "scope": "thread_id"
+  },
+  {
+    "name": "projection_thread_messages",
+    "columns": [
+      "message_id",
+      "thread_id",
+      "role",
+      "text",
+      "attachments_json",
+      "context_json",
+      "is_streaming",
+      "created_at",
+      "updated_at"
+    ],
+    "order": "thread_id, created_at, message_id",
+    "scope": "thread_id"
+  },
+  {
+    "name": "projection_thread_pull_requests",
+    "columns": [
+      "thread_id",
+      "host",
+      "repository",
+      "number",
+      "url",
+      "source",
+      "linked_at",
+      "snapshot_json",
+      "stack_json"
+    ],
+    "order": "thread_id, host, repository, number",
+    "scope": "thread_id"
+  },
+  {
+    "name": "projection_projects",
+    "columns": [
+      "project_id",
+      "title",
+      "workspace_root",
+      "default_model_selection_json",
+      "default_thread_env_mode",
+      "auto_pull",
+      "favicon_path",
+      "project_icon_json",
+      "scripts_json",
+      "created_at",
+      "updated_at",
+      "deleted_at"
+    ],
+    "order": "project_id"
+  },
+  {
+    "name": "orchestration_v2_projection_threads",
+    "columns": [
+      "thread_id",
+      "project_id",
+      "title",
+      "default_provider",
+      "runtime_mode",
+      "interaction_mode",
+      "active_provider_thread_id",
+      "created_at",
+      "updated_at",
+      "archived_at",
+      "deleted_at",
+      "provider_instance_id",
+      "payload_json"
+    ],
+    "order": "thread_id",
+    "codec": "OrchestrationV2AppThreadJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_runs",
+    "columns": [
+      "run_id",
+      "thread_id",
+      "ordinal",
+      "provider",
+      "provider_thread_id",
+      "status",
+      "requested_at",
+      "completed_at",
+      "provider_instance_id",
+      "payload_json"
+    ],
+    "order": "thread_id, ordinal",
+    "codec": "OrchestrationV2RunJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_run_attempts",
+    "columns": [
+      "attempt_id",
+      "thread_id",
+      "run_id",
+      "attempt_ordinal",
+      "root_node_id",
+      "provider",
+      "provider_thread_id",
+      "provider_turn_id",
+      "status",
+      "provider_instance_id",
+      "payload_json"
+    ],
+    "order": "thread_id, run_id, attempt_ordinal",
+    "codec": "OrchestrationV2RunAttemptJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_nodes",
+    "columns": [
+      "node_id",
+      "thread_id",
+      "run_id",
+      "parent_node_id",
+      "root_node_id",
+      "kind",
+      "status",
+      "provider_thread_id",
+      "provider_turn_id",
+      "runtime_request_id",
+      "checkpoint_scope_id",
+      "started_at",
+      "completed_at",
+      "payload_json"
+    ],
+    "order": "thread_id, node_id",
+    "codec": "OrchestrationV2ExecutionNodeJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_subagents",
+    "columns": [
+      "subagent_id",
+      "thread_id",
+      "run_id",
+      "parent_node_id",
+      "provider",
+      "provider_thread_id",
+      "child_thread_id",
+      "origin",
+      "status",
+      "started_at",
+      "completed_at",
+      "updated_at",
+      "driver",
+      "provider_instance_id",
+      "completion_delivery_state",
+      "payload_json"
+    ],
+    "order": "thread_id, subagent_id",
+    "codec": "OrchestrationV2SubagentJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_provider_sessions",
+    "columns": [
+      "provider_session_id",
+      "thread_id",
+      "provider",
+      "status",
+      "model",
+      "updated_at",
+      "driver",
+      "provider_instance_id",
+      "payload_json"
+    ],
+    "order": "provider_session_id",
+    "codec": "OrchestrationV2ProviderSessionJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_provider_session_bindings",
+    "columns": [
+      "provider_session_id",
+      "thread_id"
+    ],
+    "order": "provider_session_id, thread_id",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_provider_threads",
+    "columns": [
+      "provider_thread_id",
+      "thread_id",
+      "owner_node_id",
+      "provider",
+      "provider_session_id",
+      "status",
+      "first_run_ordinal",
+      "last_run_ordinal",
+      "updated_at",
+      "driver",
+      "provider_instance_id",
+      "payload_json"
+    ],
+    "order": "provider_thread_id",
+    "codec": "OrchestrationV2ProviderThreadJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_provider_turns",
+    "columns": [
+      "provider_turn_id",
+      "thread_id",
+      "provider_thread_id",
+      "node_id",
+      "run_attempt_id",
+      "ordinal",
+      "status",
+      "started_at",
+      "completed_at",
+      "payload_json"
+    ],
+    "order": "provider_thread_id, ordinal",
+    "codec": "OrchestrationV2ProviderTurnJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_runtime_requests",
+    "columns": [
+      "runtime_request_id",
+      "thread_id",
+      "node_id",
+      "provider_turn_id",
+      "kind",
+      "status",
+      "created_at",
+      "resolved_at",
+      "payload_json"
+    ],
+    "order": "thread_id, runtime_request_id",
+    "codec": "OrchestrationV2RuntimeRequestJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_messages",
+    "columns": [
+      "message_id",
+      "thread_id",
+      "run_id",
+      "node_id",
+      "role",
+      "streaming",
+      "created_at",
+      "updated_at",
+      "payload_json"
+    ],
+    "order": "thread_id, created_at, message_id",
+    "codec": "OrchestrationV2ConversationMessageJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_plans",
+    "columns": [
+      "plan_id",
+      "thread_id",
+      "run_id",
+      "node_id",
+      "kind",
+      "status",
+      "payload_json"
+    ],
+    "order": "thread_id, plan_id",
+    "codec": "OrchestrationV2PlanArtifact",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_turn_items",
+    "columns": [
+      "turn_item_id",
+      "thread_id",
+      "run_id",
+      "node_id",
+      "provider_thread_id",
+      "provider_turn_id",
+      "parent_item_id",
+      "ordinal",
+      "type",
+      "status",
+      "updated_at",
+      "payload_json"
+    ],
+    "order": "thread_id, ordinal, turn_item_id",
+    "codec": "OrchestrationV2TurnItemJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_checkpoint_scopes",
+    "columns": [
+      "scope_id",
+      "thread_id",
+      "run_id",
+      "node_id",
+      "parent_scope_id",
+      "provider_thread_id",
+      "kind",
+      "ordinal_within_parent",
+      "advances_app_run_count",
+      "created_at",
+      "payload_json"
+    ],
+    "order": "thread_id, scope_id",
+    "codec": "OrchestrationV2CheckpointScopeJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_checkpoints",
+    "columns": [
+      "checkpoint_id",
+      "thread_id",
+      "scope_id",
+      "run_id",
+      "node_id",
+      "parent_checkpoint_id",
+      "ordinal_within_scope",
+      "app_run_ordinal",
+      "status",
+      "captured_at",
+      "payload_json"
+    ],
+    "order": "thread_id, checkpoint_id",
+    "codec": "OrchestrationV2CheckpointJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_context_handoffs",
+    "columns": [
+      "context_handoff_id",
+      "thread_id",
+      "target_run_id",
+      "to_provider_thread_id",
+      "strategy",
+      "status",
+      "updated_at",
+      "payload_json"
+    ],
+    "order": "thread_id, context_handoff_id",
+    "codec": "OrchestrationV2ContextHandoffJson",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_context_transfers",
+    "columns": [
+      "context_transfer_id",
+      "source_thread_id",
+      "target_thread_id",
+      "target_run_id",
+      "type",
+      "status",
+      "source_provider",
+      "target_provider",
+      "updated_at",
+      "source_provider_instance_id",
+      "target_provider_instance_id",
+      "payload_json"
+    ],
+    "order": "context_transfer_id",
+    "codec": "OrchestrationV2ContextTransferJson",
+    "scope": "source_thread_id"
+  },
+  {
+    "name": "orchestration_v2_turn_item_positions",
+    "columns": [
+      "thread_id",
+      "turn_item_id",
+      "ordinal"
+    ],
+    "order": "thread_id, ordinal",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_v2_projection_metadata",
+    "columns": [
+      "projection_name",
+      "schema_version",
+      "last_sequence",
+      "updated_at"
+    ],
+    "order": "projection_name"
+  },
+  {
+    "name": "orchestration_v2_legacy_imports",
+    "columns": [
+      "thread_id",
+      "source_updated_at",
+      "shell_imported_at",
+      "transcript_imported_at",
+      "imported_message_count",
+      "last_error"
+    ],
+    "order": "thread_id",
+    "scope": "thread_id"
+  },
+  {
+    "name": "orchestration_events",
+    "columns": [
+      "sequence",
+      "event_id",
+      "aggregate_kind",
+      "stream_id",
+      "stream_version",
+      "event_type",
+      "occurred_at",
+      "command_id",
+      "causation_event_id",
+      "correlation_id",
+      "actor_kind",
+      "payload_json",
+      "metadata_json",
+      "application_event_version"
+    ],
+    "order": "sequence",
+    "codec": "application-event",
+    "scope": "stream_id",
+    "where": "application_event_version = 2 AND aggregate_kind IN ('thread', 'project')"
+  }
+]

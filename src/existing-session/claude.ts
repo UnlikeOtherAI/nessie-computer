@@ -14,12 +14,13 @@ export const claudeAgents = async (program: string, env: NodeJS.ProcessEnv): Pro
   const result = await runCommand(program, ['agents', '--json'], { env, timeoutMs: 10_000, maxBytes: 256 * 1024 })
   if (result.code !== 0) throw new Error('Claude active-session discovery is unavailable.')
   const value: unknown = JSON.parse(result.stdout)
-  return (Array.isArray(value) ? value : []).slice(0, 128).map(objectOf)
+  if (!Array.isArray(value)) throw new Error('Claude active-session discovery is unavailable.')
+  return value.map(objectOf)
 }
 
 export class ExistingClaude {
   readonly profile: string
-  private transcriptPaths = new Map<string, string>()
+  private transcriptPaths = new Map<string, string[]>()
   constructor(
     readonly program: ProviderProgram, private readonly env: NodeJS.ProcessEnv, private readonly stateDir: string,
   ) {
@@ -28,9 +29,14 @@ export class ExistingClaude {
 
   async list(): Promise<ExistingSession[]> {
     const [agents, saved] = await Promise.all([
-      claudeAgents(this.program.path, this.env).catch(() => []), listSavedClaudeSessions(this.profile),
+      claudeAgents(this.program.path, this.env), listSavedClaudeSessions(this.profile),
     ])
-    this.transcriptPaths = new Map(saved.map((row) => [row.session.sessionId, row.path]))
+    this.transcriptPaths = new Map()
+    for (const row of saved) {
+      const paths = this.transcriptPaths.get(row.session.sessionId) ?? []
+      paths.push(row.path)
+      this.transcriptPaths.set(row.session.sessionId, paths)
+    }
     const rows: ExistingSession[] = []
     for (const agent of agents) {
       if (!nativeIdIsValid(agent.sessionId) || typeof agent.pid !== 'number' || !agent.startedAt) continue
@@ -50,18 +56,23 @@ export class ExistingClaude {
     }
     const active = new Set(rows.map((row) => row.sessionId))
     return [...rows, ...saved.filter((row) => !active.has(row.session.sessionId)).map((row) => row.session)]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5000)
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.sessionId.localeCompare(b.sessionId))
   }
 
   async read(session: ExistingSession, includeText: boolean): Promise<Record<string, unknown>> {
-    const filename = this.transcriptPaths.get(session.sessionId)
+    const candidates = this.transcriptPaths.get(session.sessionId) ?? []
+    if (includeText && candidates.length > 1) {
+      return { ...session, origin: 'external', historyAvailable: false, historyState: 'ambiguous',
+        historyCandidateCount: candidates.length, observedAt: new Date().toISOString() }
+    }
+    const filename = candidates[0]
     const conversation = includeText && filename
       ? await readNativeTranscript('claude', join(this.profile, 'projects'), filename, session.nativeId) : null
     return { ...session, ...(conversation ? { conversation: { ...conversation, capturedAt: new Date().toISOString(),
       sendMode: session.capabilities.push ? 'push' : null, canInterrupt: false } } : {}), origin: 'external', observedAt: new Date().toISOString(),
       providerVersion: this.program.version, observation: 'Claude native active-session registry.',
-      ...(includeText ? await readClaudeRecentMessages(
-        this.profile, session, this.transcriptPaths.get(session.sessionId),
+      ...(includeText && filename ? await readClaudeRecentMessages(
+        this.profile, session, filename,
       ) : {}) }
   }
 }

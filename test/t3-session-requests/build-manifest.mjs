@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
 
 import { readSessionEngineSnapshot } from '../../packaging/session-engine/snapshot.mjs'
+import { patchQuestionAnswers } from '../../patches/t3-session/requests/question-patches.mjs'
 
 const hash = value => createHash('sha256').update(value).digest('hex')
 const shared = 'packages/shared/src/t3McpToolPresentation.ts'
@@ -117,6 +118,7 @@ export const buildRequestPrivacyManifest = snapshot => {
       : `        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, ${projection}).pipe(Effect.asVoid);`
     patch(`${name}-private-tool-before-publication`, file, seam, to)
   }
+  patchQuestionAnswers(patch)
   return Buffer.from(`${JSON.stringify({ format: 1, sourceCommit: snapshot.identity.commit, patches }, null, 2)}\n`)
 }
 

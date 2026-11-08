@@ -74,6 +74,16 @@ pub fn verify_owner_only_file(path: &str) -> Result<(), NativeError> {
     imp::verify_owner_only_file(path)
 }
 
+#[cfg(windows)]
+pub fn verify_owner_only_handle(handle: windows_sys::Win32::Foundation::HANDLE) -> Result<(), NativeError> {
+    imp::verify_owner_only_handle(handle)
+}
+
+#[cfg(windows)]
+pub fn private_pipe_descriptor() -> Result<windows_sys::Win32::Security::PSECURITY_DESCRIPTOR, NativeError> {
+    imp::private_pipe_descriptor()
+}
+
 /// A private file written by this token must keep the account as its owner
 /// when a later ordinary tray reads what an elevated CLI wrote.
 pub fn secure_owner_only_file(path: &str) -> Result<(), NativeError> {

@@ -235,6 +235,7 @@ export const run = async (args: string[]): Promise<void> => {
       input.mcpServers,
       'codingSessions' in input ? { requested: input.codingSessions } : {},
       input.commandPolicy,
+      input.t3SourceHomes,
     )
     if (input.existingCodingSessionsEnabled !== undefined) {
       await setExistingSessionsEnabled(command.stateDir, input.existingCodingSessionsEnabled)

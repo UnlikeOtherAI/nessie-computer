@@ -58,7 +58,7 @@ test('an answer must fit its request: pending, answerable, and of its own shape'
   assert.equal(book.get(asked.id)?.decision, undefined, 'an answered question carries no decision')
 })
 
-test('the book lists pending first, keeps the most recent settled within the cap, and forgets the rest', () => {
+test('the book lists pending first, keeps the most recent settled within the cap, and forgets the rest', async () => {
   const published: ExecutorSessionRequest[][] = []
   const book = new SessionRequestBook((list) => published.push(list))
   const answered: string[] = []
@@ -73,23 +73,23 @@ test('the book lists pending first, keeps the most recent settled within the cap
   assert.deepEqual(list.slice(2).map((entry) => entry.id), answered.slice(-14), 'the newest settled, newest last')
   assert.ok(ExecutorSessionRequestListSchema.safeParse(list).success)
   assert.equal(book.get(answered[0]!), undefined, 'an aged-out request is forgotten')
-  assert.equal(book.withdrawAll('cancelled', 'turn_interrupted'), 2)
+  assert.equal(await book.withdrawAll('cancelled', 'turn_interrupted'), 2)
   assert.equal(book.hasPending(), false)
   assert.deepEqual(book.list().slice(-2).map((entry) => [entry.status, entry.reason]),
     [['cancelled', 'turn_interrupted'], ['cancelled', 'turn_interrupted']])
   assert.equal(published.at(-1)?.length, 16, 'every change is published')
 })
 
-test('a responder hears the answer or why the request ended, once', () => {
+test('a responder hears the answer or why the request ended, once', async () => {
   const heard: string[] = []
   const book = new SessionRequestBook(() => undefined)
   const one = book.open(approval, { answer: (answer) => heard.push(`answer:${answer.decision}`),
     withdraw: (status, reason) => heard.push(`${status}:${reason}`) })!
   const two = book.open(approval, { answer: () => heard.push('never'), withdraw: (status, reason) => heard.push(`${status}:${reason}`) })!
   book.answer({ requestId: one.id, decision: 'accept' })
-  book.withdraw(two.id, 'cancelled', 'provider_cancelled')
-  book.withdraw(two.id, 'expired', 'provider_exited')
-  book.withdrawAll('expired', 'provider_exited')
+  await book.withdraw(two.id, 'cancelled', 'provider_cancelled')
+  await book.withdraw(two.id, 'expired', 'provider_exited')
+  await book.withdrawAll('expired', 'provider_exited')
   assert.deepEqual(heard, ['answer:accept', 'cancelled:provider_cancelled'])
   assert.equal(book.open({ ...approval, title: '' }, silent), undefined, 'a draft the protocol refuses opens nothing')
   assert.equal(book.open({ ...approval, files: Array.from({ length: 65 }, () => ({ path: 'a', change: 'add' as const })) },

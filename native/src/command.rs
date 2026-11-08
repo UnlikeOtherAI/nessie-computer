@@ -13,6 +13,7 @@ pub const MAX_JOB_ARGUMENT_LENGTH: usize = 32_767;
 /// only the bodies behind the workspace commands are POSIX-only.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
+    T3SourceRead,
     BuildInfo,
     UpdateControl,
     UpdateService,
@@ -27,6 +28,7 @@ pub enum Command {
     /// with the program's own code. The argv after `--` is the program and its
     /// arguments, exactly as given.
     JobRun(Vec<String>),
+    JobRunAuthorized(Vec<String>),
     ManagedRuntime(Vec<String>),
     ManagedCustodyInstall,
     ManagedInventoryBarrier(String),
@@ -37,6 +39,7 @@ pub enum Command {
     ManagedProtectionRevoke(String),
     ManagedProtectionClear(String),
     TerminalRun(Vec<String>),
+    TerminalRunAuthorized(Vec<String>),
     /// Create the executor's private state directory if absent and give it an
     /// owner-only, non-inherited DACL.
     SecureDirectory(String),
@@ -108,6 +111,7 @@ fn job_argv(values: &[String]) -> Result<Vec<String>, NativeError> {
 
 pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
     match arguments {
+        [command] if command == "t3-source-read" => Ok(Command::T3SourceRead),
         [command] if command == "build-info" => Ok(Command::BuildInfo),
         [command] if command == "update-control" => Ok(Command::UpdateControl),
         [command] if command == "update-service" => Ok(Command::UpdateService),
@@ -155,6 +159,14 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
             } else {
                 Command::ManagedProtectionClear(epoch.clone())
             })
+        }
+        [command, separator, rest @ ..] if command == "job-run-authorized" && separator == "--" => {
+            Ok(Command::JobRunAuthorized(job_argv(rest)?))
+        }
+        [command, separator, rest @ ..]
+            if command == "terminal-run-authorized" && separator == "--" =>
+        {
+            Ok(Command::TerminalRunAuthorized(job_argv(rest)?))
         }
         [command, separator, rest @ ..] if command == "job-run" && separator == "--" => {
             Ok(Command::JobRun(job_argv(rest)?))

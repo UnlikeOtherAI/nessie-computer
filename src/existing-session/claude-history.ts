@@ -6,8 +6,8 @@ import { objectOf, textOf, type ExistingSession } from './types.js'
 
 /** Experimental native transcript format. Read only a bounded tail, and only on an explicit detail request. */
 export const readClaudeRecentMessages = async (profile: string, session: ExistingSession, transcriptPath?: string) => {
-  const project = session.cwd.replace(/[^A-Za-z0-9]/gu, '-')
-  const path = transcriptPath ?? join(profile, 'projects', project, `${session.nativeId}.jsonl`)
+  if (!transcriptPath) return { recentMessages: [], historyAvailable: false }
+  const path = transcriptPath
   const canonical = await realpath(path).catch(() => undefined)
   const root = await realpath(join(profile, 'projects')).catch(() => undefined)
   const local = root && canonical ? relative(root, canonical) : undefined
