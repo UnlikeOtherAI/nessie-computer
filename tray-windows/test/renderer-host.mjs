@@ -103,7 +103,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     }
   }
   const pairingView = (status, executorId) => ({ status, code: '01234567',
-    expiresAt: window.expiresAt ?? new Date(Date.now() + 590000).toISOString(), machineName: 'My computer',
+    expiresAt: window.expiresAt ?? new Date(Date.now() + 290000).toISOString(), machineName: 'My computer',
     ...(executorId ? { executorId } : {}), apiBaseUrl: window.pairServer ?? 'https://api.nessie.works' })
   /** The service-owned connection a ChatGPT plan needs on Windows: one more pairing code for the same team. */
   const planConnection = (command, id) => {

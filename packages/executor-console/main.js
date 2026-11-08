@@ -1,6 +1,6 @@
 // The window itself: tabs, the team row, errors beside their control, the
 // footer line, dialogs and the events the native host sends. Teams, Overview,
-// Connect a team, Settings and the team tabs each build on `window.nc`
+// Add this computer, Settings and the team tabs each build on `window.nc`
 // (documented in README.md).
 (() => {
   const nc = window.nc
@@ -169,7 +169,7 @@
   byId('team-select-label').textContent = t('shell.team')
   byId('open-nessie').textContent = t('shell.openNessie')
   byId('no-team-text').textContent = t('shell.noTeam')
-  byId('no-team-connect').textContent = t('shell.connectTeam')
+  byId('no-team-connect').textContent = t('shell.addComputer')
 
   Object.assign(nc, {
     byId, invoke, listen, attempt, reportError, clearError, footer, keepFocus, dialogs,
@@ -183,8 +183,8 @@
 
   /**
    * The menu bar and notification area open a tab with `tray://section/<name>`;
-   * the payload may name the team to show first. `tray://connect` opens Connect
-   * a team. A team this window does not list is ignored, and the tab still opens.
+   * the payload may name the team to show first. `tray://connect` opens Add
+   * this computer. A team this window does not list is ignored, and the tab still opens.
    */
   const openSection = async (tab, target) => {
     const executorId = typeof target?.executorId === 'string' ? target.executorId : null
