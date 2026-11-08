@@ -519,3 +519,31 @@ inspection requires SQL/settings but not provider directory/session/cleanup.
 All new fixtures are unrun. Builtin parsing at 256 MiB parsed 123 composed patched
 modules and 11 changed local modules without linking or evaluating application
 code. No compiler, tests, SQL, native launch or manual journey ran for this split.
+
+`prepareSessionExecutionGraph(request, delivery, source)` now binds that pure
+selection to an actual `T3ExecutionResourceScope`. It checks the full original
+request SHA, keyed relay digest, epoch/incarnation, all original targets and
+the signed challenge deadline. It decodes the held settings bytes with original
+`ServerSettings`, compares them with the selection's live settings and selects
+only the service-issued continuation/history/credential HOME references for the
+exact original instance and driver. It rechecks before and after dependent
+awaits. No home path or credential content is emitted.
+
+The producer calls `createT3ExecutionNativeClient.graph` directly. The native
+service must authenticate its protected graph peer, current source resources,
+backend challenge and enrolled signing key. Returned signature, custody and
+payload must match the exact requested graph. The opaque `HeldSessionExecutionGraph`
+retains the receipt and original selection only in its owner scope.
+`recognizeSessionExecutionGraph` compares the later admitted delivery's exact
+receipt, HMAC and full request, then rechecks the source/settings/ID selection.
+It does not renew receipt expiry or consume reserve/launch authority. Two
+additional refusal fixtures reject serialized graph objects and callback-asserted
+resource scopes; they are authored and unrun.
+
+This receipt producer is not yet registered as an executing lane. The protected
+startup parser/companion creator and corrected source loader still await parent
+integration. The executing resource port also needs read access to its already
+held source database for the original cold SQL graph. The passive retained
+capture is not promoted to a writer. The executing state import/writer, admitted
+provider serialization and immutable history child remain required before any
+production execution or installed journey can be claimed.

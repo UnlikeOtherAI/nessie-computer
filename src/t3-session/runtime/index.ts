@@ -16,3 +16,5 @@ export { withRetainedCaptureWorkspace, type RetainedCaptureWorkspace } from './c
 export { withCapturedRetainedRuntime, type CapturedRetainedRuntime } from './retained-capture.js'
 export { prepareSessionLaunchTarget, recheckSessionLaunchTarget, PreparedSessionLaunchTarget,
   SessionLaunchTargetRefused } from './launch-target.js'
+export { prepareSessionExecutionGraph, recognizeSessionExecutionGraph, HeldSessionExecutionGraph,
+  SessionExecutionGraphRefused } from './execution-graph.js'
