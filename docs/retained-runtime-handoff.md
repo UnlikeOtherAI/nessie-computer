@@ -6,7 +6,7 @@ checkpoint. The real Windows journey and normal combined graph qualification
 remain required.
 
 The integration candidate includes public `main` at
-`30ba47df332308c457c5c4a9db7960c102f01ab2`, including the installed
+`30ba47d5bef31b0960b77215b468d9ca7277c0d3`, including the installed
 `e799a7aa3dc53d8430a925ba3027b2039adca7ae` security/update baseline.
 Conflict resolution preserves runtime peer-verification permission, separate
 source-consent intake, fresh effect checks during exclusive file-create retries,

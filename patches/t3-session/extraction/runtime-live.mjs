@@ -37,7 +37,8 @@ export const extractRuntimeLive = (author, redirects) => {
   const background = 'apps/server/src/background/BackgroundPolicy.ts'
   const backgroundTarget = `${orchestration}SessionBackgroundPolicy.ts`
   const backgroundPort = author.between(background, 'export class BackgroundPolicy extends', 'const DEFAULT_LEASE_TTL_MS')
-  author.derive(backgroundTarget, [selectedImports(author.read(background), backgroundPort, background, backgroundTarget),
+  author.derive(backgroundTarget, [
+    selectedImports(author.read(background), backgroundPort, background, backgroundTarget),
     author.sourcePart(background, backgroundPort)], 'runtime-background-policy-port')
   author.replace(background, backgroundPort,
     'import { BackgroundPolicy } from "../orchestration-v2/SessionBackgroundPolicy.ts";\nexport { BackgroundPolicy };\n\n',
