@@ -406,3 +406,14 @@ The optional `--peer-facts` flag reports read-only Windows API failures, session
 SYSTEM identity and publisher/namespace results on a separate connection. It
 exits unsuccessfully even when those probes pass; the independent facts never
 substitute for authenticated status or grant authority.
+
+Windows broker startup publishes read-only process and token metadata to
+authenticated local users before opening its control pipe. Windows otherwise
+refuses an ordinary desktop token even `PROCESS_QUERY_LIMITED_INFORMATION` on
+the SYSTEM service (confirmed with signed 1.0.6). The broker merges only process
+query/synchronize and token-query rights into the existing kernel DACLs. It
+preserves existing permissions and grants no process control, memory access,
+token duplication, impersonation or ACL writes. Client authentication still
+requires the retained live process, SYSTEM/session 0, exact signed role and
+protected installed image. A real suspended process and private duplicate token
+regression assert the exact authenticated-user masks and retained SYSTEM access.
