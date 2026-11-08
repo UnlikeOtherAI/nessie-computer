@@ -602,3 +602,13 @@ fixes from approved parent `ea74232e550657a57efc9169d0d198ef40e094e5` are preser
 Two added fixtures check the shared clone map and forged-settings refusal. They
 are unrun. All 149 patched modules parsed without evaluation; combined manifest
 SHA-256 is `345b17a5cbf8913815ac1b482393e72d7612994e0b905bea9d2c1fe14323b9be`.
+
+`makeSessionInspectionContext(source, heldState)` now builds the real cold
+original services over the existing destination SQL layer and protected settings
+reader. It captures one `makeSessionEngineGraph` owner, returning scoped inspect/
+recognize Effects plus that same owner for later admitted activation. It does not
+build another engine, clone the source connection or convert passive state into
+an executing graph. Inspection selections must retain their own caller Scope
+through normal admitted dispatch; a finite pipe call cannot close that Scope
+immediately after returning its graph receipt. No lane or CLI registration is
+claimed by this internal composition.
