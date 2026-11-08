@@ -3,6 +3,10 @@ import { createPrivateKey, sign } from 'node:crypto'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 export type ExecutorDaemonSignatureDomain =
+  | 't3_effect_authority'
+  | 't3_operations'
+  | 't3_receipt'
+  | 't3_catalog'
   | 'session_view'
   | 'attachment'
   | 'browser_cookie_import.poll'
