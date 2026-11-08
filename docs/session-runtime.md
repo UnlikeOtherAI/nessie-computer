@@ -97,8 +97,27 @@ The exported lock kernel is not path admission. Production callers use the
 executor wrapper after native custody admission. A free SQLite lock says nothing
 about descendants left by a previous runtime: recovery is forbidden until the
 native owner independently proves their clearance. Transport EOF never releases
-custody. These functions mint no runtime generation, rewrite no environment ID,
+custody. These functions rewrite no environment ID,
 stamp no historical human ownership and adopt no native home.
+
+`withOwnedSessionState` now provides `SessionStateOwner` to that same graph.
+Its `runtimeGeneration` is a new UUID for each successful exclusive writer and
+database-file acquisition. It is minted inside the acquisition scope, never
+by canonical routing or from a capture/provider ID. `assertCurrent` rechecks the
+actual lock and database identity; observed loss is sticky and closed ownership
+always refuses. The scope must not publish this incarnation before SQL and the
+complete graph acquire successfully. The UUID is not native custody, source
+identity, a readiness claim or effect authority.
+
+T07's required `describe()` must compose that held incarnation with the actual
+source binding: recognized physical source and exact recheck, current source
+owner lease, original environment ID, and the journal's published capture
+generation. Those producers must bind the **same** graph. Executing-graph
+readiness also requires `SessionEngineLifecycle.phase === "running"` and a
+current writer. No complete source-to-writer binding is instantiated on this
+checkpoint; therefore no ready announcement is emitted. Missing source identity
+cannot be filled with a storage path, random root key, capture guess or a
+`VerifiedT3EffectGrant` that already assumes a runtime generation.
 
 ## Required integration
 
@@ -198,6 +217,11 @@ pnpm.cmd exec turbo run test:t3-session-runtime --root-turbo-json=scripts/turbo.
 The coordinator owns the combined family order, authoritative hashes and frozen
 producer preparation. This worker's extraction manifest is an authored source
 checkpoint, not qualified evidence for the final combined graph.
+The real writer-incarnation fixture additionally requires
+`T3_RUNTIME_FIXTURE_ROOT`, a coordinator-approved private artifact directory
+outside all checkouts and durable user state. It uses actual file-backed SQLite
+and the existing permission helper, preserves its files, and fails explicitly
+when the prerequisite is absent. It has not run.
 Compiler commands retain their explicit 5120 MiB limit; test processes use at
 most 512 MiB. Check the reservation and at least 12 GiB free on Maxis before each
 heavy command. This first batch requires no database service, native build,
