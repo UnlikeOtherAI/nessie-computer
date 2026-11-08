@@ -367,3 +367,16 @@ rejects public write access; run the native Windows tests elevated as in CI.
 The MSI uses [afterInstallInitialize](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/)
 so old-product removal participates in rollback. Corrected signed installation
 and failed-upgrade rollback remain installed acceptance work.
+
+The 2fcf592 signed 1.0.4 candidate passed 36 Windows native tests, source gates
+and a forced MSI rollback: edge 0.0.2179 and its running service were restored
+automatically. Normal installation still failed. A diagnostic transform ran
+the exact signed native setup inside the deferred action, captured only public
+runtime hashes/signatures and process identity, and always rolled back. Its
+actual identity was SYSTEM in session 1; all runtime hashes and publishers matched.
+
+MSI setup/removal and protected-image staging now require the real SYSTEM SID
+without restricting the installing session. They still verify the fixed installed
+release, publishers, hashes and protected namespace. Live updater worker/service
+execution retains the separate SYSTEM-and-session-0 requirement. The correction
+needs a fresh signed candidate and real installation before acceptance.
