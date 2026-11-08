@@ -11,7 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 export async function prepareTinySources() {
   const directory = join(root, '.artifacts/t04-import', randomUUID())
   const files = ['state/sqlite', 'state/journal', 'ownership/continuity', 'import/manifest', 'import/layout',
-    'import/snapshot', 'import/questions']
+    'import/snapshot', 'import/questions', 'source/configuration', 'source/database']
   for (const file of files) {
     const target = join(directory, `${file}.js`)
     await mkdir(dirname(target), { recursive: true })
@@ -20,6 +20,8 @@ export async function prepareTinySources() {
   }
   await writeFile(join(directory, 'import/migration-manifest.json'),
     await readFile(join(root, 'src/t3-session/import/migration-manifest.json')))
+  await writeFile(join(directory, 'source/tables.json'),
+    await readFile(join(root, 'src/t3-session/source/tables.json')))
   const load = file => import(pathToFileURL(join(directory, `${file}.js`)).href)
   return { directory, root, load }
 }
