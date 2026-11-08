@@ -4,6 +4,8 @@ import { applySessionEngineBoundaryPatches, composeSessionEnginePatchManifests }
 const families = [
   ['state', './boundary-patches.json'],
   ['client-connection', '../../patches/t3-session/client-connection/boundary-patches.json'],
+  ['client-registry', '../../patches/t3-session/client-connection/registry-patches.json'],
+  ['client-host', '../../patches/t3-session/client-connection/host-patches.json'],
   ['extraction', '../../patches/t3-session/extraction/boundary-patches.json'],
   ['catalog', '../../patches/t3-session/catalog/boundary-patches.json'],
   ['files', '../../patches/t3-session/files/boundary-patches.json'],

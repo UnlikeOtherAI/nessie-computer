@@ -84,7 +84,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '4c923f711eccd2309209f052cc508119229284f40aa348f12da23d60ee72b754')
+    'ee31451828ab5dc42b49ed53fc78f0bc38223908bb8e9069f3096115e8dc2303')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   for (const file of provenance.modules) {
     const bytes = await readFile(resolve(dist, file.path))
