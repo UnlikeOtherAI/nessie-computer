@@ -3,7 +3,7 @@ import { isStreamSchema } from 'effect/rpc/RpcSchema'
 import { ExecutorT3Request } from './request.js'
 import { ExecutorT3Result, ExecutorT3Error } from './reply.js'
 import { ExecutorT3HttpRequest, ExecutorT3HttpReply, ExecutorT3HttpFailure } from './http-transport.js'
-import { ExecutorT3TransportError } from './routing.js'
+import { ExecutorT3TransportError, type T3_SOURCE_COMMIT } from './routing.js'
 import { ExecutorT3Descriptors } from './methods.js'
 
 /** One daemon lane carries the original envelopes, without native conversation DTOs. */
@@ -35,15 +35,21 @@ export type T3LaneFrame = {
   environmentId: string; correlationId: string; runtimeGeneration: string;
   ordinal: number; final: boolean; reply?: ExecutorT3LaneReplyEncoded;
 }
+/** Signed runtime readiness, not source consent or execution authority. */
+export type T3RuntimeAnnouncement = {
+  environmentId: string; runtimeGeneration: string; sourceRevision: typeof T3_SOURCE_COMMIT;
+  physicalRootKey: string; captureGeneration: string; state: 'ready' | 'unavailable';
+}
 export type T3LaneExchange = {
   operation: 't3.operations.exchange'; executorId: string; connectionEpoch: string;
   observedAt: string; signature: string; frames: readonly T3LaneFrame[];
+  runtimes: readonly T3RuntimeAnnouncement[];
   /** Exact active attempts, for cancellation and credit reconciliation. */
   active: readonly { environmentId: string; correlationId: string; runtimeGeneration: string }[];
 }
 export type T3LaneExchangeResult = {
   acknowledged: { environmentId: string; correlationId: string; ordinal: number }[];
-  offers: { request: ExecutorT3LaneOperationEncoded; expiresAt: string }[];
+  offers: { request: ExecutorT3LaneOperationEncoded; requestDigest: string; expiresAt: string }[];
   controls: { environmentId: string; correlationId: string; state: 'credit' | 'hold' | 'cancel';
     nextOrdinal: number; expiresAt?: string }[];
 }

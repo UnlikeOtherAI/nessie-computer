@@ -13,6 +13,7 @@
     "//#test:t3-physical-source": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-physical-source-installed": { "dependsOn": ["//#build"], "cache": false,
       "env": ["NESSIE_EXECUTOR_PACKAGED_CLI"] },
+    "//#test:t3-session-broker": { "dependsOn": ["//#build"], "cache": false },
     "test:t3-session-source": { "dependsOn": [], "cache": false },
     "//#test:t3-session-interactive": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-session-import-source": { "dependsOn": [], "cache": false,
