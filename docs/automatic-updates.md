@@ -547,3 +547,6 @@ ALLUSERSPROFILE and ProgramData alongside SystemRoot before launch. A real child
 process verifies the same machine paths and state root under that exact whitelist.
 No caller paths, inherited environment, authorization overrides or journal resets
 are introduced. Fresh signed installation/control/worker acceptance is still required.
+The real child test also requires SystemDrive, derived from the OS Windows
+directory prefix; ProgramData variables alone do not satisfy the folder resolver.
+The worker whitelist includes that drive and still inherits no caller environment.

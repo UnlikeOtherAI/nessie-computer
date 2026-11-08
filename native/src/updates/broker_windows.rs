@@ -300,7 +300,8 @@ fn worker_environment(command: &mut Command) -> Result<(), String> {
     use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramData, FOLDERID_Windows};
     let windows = known_folder(&FOLDERID_Windows)?;
     let data = known_folder(&FOLDERID_ProgramData)?;
-    command.env_clear().env("SystemRoot", windows)
+    let drive = windows.components().next().ok_or(ERROR)?.as_os_str().to_owned();
+    command.env_clear().env("SystemRoot", windows).env("SystemDrive", drive)
         .env("ALLUSERSPROFILE", &data).env("ProgramData", data);
     Ok(())
 }
