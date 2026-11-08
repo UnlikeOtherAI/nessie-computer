@@ -45,6 +45,14 @@ encoding. Native must reproduce those encodings before attesting equality.
 planDigest binds the exact ordered references and destination slots, including
 the original configuration digests. No value or hash of a secret value is evidence.
 
+The shared `test/t3-session-source/fixtures/execution-secret-plan.json` is decoded
+and encoded by the actual pinned original codecs in the runtime gate. Its
+expected digests and ordered slots are also checked by the Windows common suite,
+including duplicate references, wire defaults, trimmed values and UTF16 key
+ordering. After the supported Turbo build, regenerate its expected metadata with
+`node test/t3-session-source/generate-secret-plan-fixture.mjs`. This exercises no
+secret read, process creator, grant or value delivery.
+
 ## Proposed native transitions
 
 These are design names, not exported APIs or frozen wire schemas:

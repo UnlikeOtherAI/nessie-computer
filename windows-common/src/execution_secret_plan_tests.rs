@@ -1,6 +1,19 @@
 use super::*;
 
 #[test]
+fn native_projection_matches_the_actual_original_codec_fixture() {
+    let source = include_bytes!("../../test/t3-session-source/fixtures/execution-secret-plan.json");
+    let expected: Value = serde_json::from_str(include_str!(
+        "../../test/t3-session-source/fixtures/execution-secret-plan-expected.json"
+    )).unwrap();
+    let actual = observe(source, "chosen", "codex").unwrap();
+    assert_eq!(actual.provider_config_digest, expected["providerConfigDigest"].as_str().unwrap());
+    assert_eq!(actual.secret_providers_digest, expected["secretProvidersDigest"].as_str().unwrap());
+    assert_eq!(serde_json::to_value(actual.selection).unwrap(), expected["selection"]);
+    assert_eq!(serde_json::to_value(actual.accounts).unwrap(), expected["accounts"]);
+}
+
+#[test]
 fn original_wire_defaults_and_duplicate_reference_positions_are_preserved() {
     let reference = json!({"provider":" vault ","reference":" op://vault/item/field "});
     let source = json!({"providerInstances":{"chosen":{"driver":"codex","displayName":" Display ",

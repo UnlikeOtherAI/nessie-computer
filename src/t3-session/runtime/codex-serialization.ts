@@ -128,7 +128,7 @@ export function createProtectedCodexSerialization(provider: ProtectedT3Provider,
     }, refused)
     return Object.freeze({ write, discard: Effect.promise(() => owner.discard()) })
   }
-  const output: CodexSerializedOutput = Object.freeze({
+  const output = Object.freeze<CodexSerializedOutput>({
     capture: encoded => Effect.try({ try: () => capture(encoded), catch: refused }),
     // No error body is accepted. Native requires an actual outstanding request
     // observed on provider stdout and builds only its fixed unsupported answer.
