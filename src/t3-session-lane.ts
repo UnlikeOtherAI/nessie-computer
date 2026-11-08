@@ -217,6 +217,9 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         : runtimes.some(row => row.state === 'ready' && row.environmentId === request.environmentId
           && row.runtimeGeneration === request.runtimeGeneration && row.sourceRevision === request.sourceRevision)
       if (!announced) throw new Error('T3_RUNTIME_UNAVAILABLE')
+      // A lost acceptance response may race its later command offer. Preserve
+      // that offer for a later exchange; never open an unretained selection.
+      if (isT3NativeLaunchOperation(request) && !inspections.hasAccepted(request)) continue
       const old = attempts.get(key(request))
       if (old) {
         if (old.request.runtimeGeneration !== request.runtimeGeneration
@@ -226,7 +229,11 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         }
         continue // Never invoke the engine twice for an already active offer.
       }
-      if (attempts.size + inspections.size() >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
+      // The accepted inspection and this exact command reuse one held graph.
+      // This is local retention accounting, never permission to execute it.
+      if (attempts.size + inspections.size() >= T3_LANE_LIMITS.active && !inspections.hasAccepted(request)) {
+        throw new Error('T3_LANE_CAPACITY')
+      }
       const expiresAt = t3LaneDeliveryExpiry(delivery, Date.parse(offer.expiresAt))
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()
         || expiresAt > Date.now() + T3_LANE_LIMITS.leaseMs) continue

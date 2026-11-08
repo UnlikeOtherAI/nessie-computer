@@ -41,6 +41,14 @@ export function createT3InspectionPump(runtime: T3SessionLaneRuntime) {
   }
   return {
     size: () => jobs.size,
+    hasAccepted(request: ExecutorT3LaneOperation): boolean {
+      const requestSha256 = 'sha256:' + createHash('sha256')
+        .update(JSON.stringify(encodeExecutorT3LaneOperation(request)), 'utf8').digest('hex')
+      return [...jobs.values()].some(job => !job.abort.signal.aborted && job.expiresAt > Date.now()
+        && job.accepted?.requestSha256 === requestSha256 && job.accepted.executorId === request.executorId
+        && job.accepted.environmentId === request.environmentId && job.accepted.correlationId === request.correlationId
+        && job.accepted.runtimeGeneration === request.runtimeGeneration)
+    },
     frames(): T3LaneInspectionReceipt[] {
       return [...jobs.values()].flatMap(job => !job.abort.signal.aborted && job.receipt
         && !job.accepted && job.expiresAt > Date.now() ? [job.receipt] : []).slice(0, T3_LANE_LIMITS.exchangeFrames)

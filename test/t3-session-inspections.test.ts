@@ -91,12 +91,15 @@ test('late accepted ACK preserves same graph signal, cannot extend parent, and j
   await pump.accept(f.request.executorId, '1', [f.runtime], [], [f.accepted], sent, 64)
   assert.equal(parent?.aborted, false)
   assert.deepEqual(pump.frames(), [])
+  assert.equal(pump.hasAccepted(f.request), true)
+  assert.equal(pump.hasAccepted({ ...f.request, correlationId: 'different-attempt' }), false)
   await pump.accept(f.request.executorId, '1', [f.runtime], [], [f.accepted], [], 64)
   assert.equal(accepts, 1)
   await assert.rejects(pump.accept(f.request.executorId, '1', [f.runtime], [],
     [{ ...f.accepted, expiresAt: new Date(now + 19000).toISOString() }], [], 64), /REPLAY_CONFLICT/u)
   t.mock.timers.tick(6000)
   assert.equal(parent?.aborted, true)
+  assert.equal(pump.hasAccepted(f.request), false)
   let closed = false
   const close = pump.close().then(() => { closed = true })
   await flush()

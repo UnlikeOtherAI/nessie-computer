@@ -30,10 +30,12 @@ shortens retention to the exact backend parent deadline. Exact duplicate ACKs
 do nothing; changed metadata or extended deadlines refuse.
 
 An accepted ACK drops the receipt job without aborting its graph parent signal.
-Expiry, source descriptor withdrawal, connection loss or lane close aborts and
+Expiry, source descriptor withdrawal, connection replacement or lane close aborts and
 joins `releaseInspection`; capacity remains occupied until cleanup completes.
 The same held graph must still consume the independent signed original
 reserve/launch/open authority. Acceptance is never a ready announcement.
+The accepted inspection and its exact later command share one capacity slot;
+unrelated requests cannot use that accounting to bypass the lane limit.
 
 Transport fixtures cover late ACK after the five-second signature window,
 same-signal retention, immutable replay, digest/source/runtime substitution,
