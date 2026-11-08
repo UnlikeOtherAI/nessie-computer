@@ -132,10 +132,11 @@ The authored engine gate uses the normal built package, original migrations,
 actual original legacy importer and real disposable SQL. It covers >5000 old
 catalog rows, opaque Unicode IDs, archives/tombstones, >200 history rows/paging,
 source refresh after completed hydration, interrupted importer recovery,
-cross-record secret canaries and exhaustion. It has NOT RUN in this source lane.
-Further original family/provider-home/attachment/request-state fixtures, strict
-consumer qualification and separate Node 22 readonly-capture execution remain
-required. The new privacy namespace export changes runtime/types/provenance;
+cross-record secret canaries and exhaustion, inert callbacks, independent family
+edges/orphans and retained native overlay/tombstone aliases. It has NOT RUN in
+this source lane. Full attachment/sensitive-question fixtures, strict consumer
+qualification and separate Node 22 readonly-capture execution remain required.
+The new privacy namespace export changes runtime/types/provenance;
 the prior 5013e582 normal-package qualification is historical input evidence.
 
 No compiler, install, Node 22 candidate, PostgreSQL, native, browser, service or
