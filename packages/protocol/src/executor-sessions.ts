@@ -19,7 +19,7 @@ export const ExecutorSessionIdSchema = createUuidBrandSchema<'ExecutorSessionId'
 export type ExecutorSessionId = z.infer<typeof ExecutorSessionIdSchema>
 
 /** The concurrency protocol version a daemon speaks. Only 1 exists. */
-export const EXECUTOR_COMMAND_CONCURRENCY_VERSION = 1
+export const EXECUTOR_COMMAND_CONCURRENCY_VERSION = 1 as const
 
 /** How many commands one concurrent poll answer may hand out, and how many a poll may name as active. */
 export const EXECUTOR_CONCURRENT_COMMANDS_MAXIMUM = 64

@@ -87,6 +87,8 @@ export const advanceExecutorCommand = async (
 ): Promise<void> => {
   const now = lifecycle.now ?? (() => new Date())
   let record = initial
+  // Read through a call: `move` replaces `record`, which narrowing cannot see.
+  const phase = (): ExecutorCommandRecord['phase'] => record.phase
   let executionStartedHere = false
   let admission: ExecutorCommandAdmission | undefined
   const move = async (next: ExecutorCommandRecord): Promise<void> => {
@@ -111,18 +113,18 @@ export const advanceExecutorCommand = async (
   }
 
   try {
-    if (record.phase === 'accepted_pending') await send('accepted', { ...record, phase: 'waiting' })
+    if (phase() === 'accepted_pending') await send('accepted', { ...record, phase: 'waiting' })
 
-    if (record.phase === 'waiting' || record.phase === 'started_pending') {
+    if (phase() === 'waiting' || phase() === 'started_pending') {
       admission = await lifecycle.admit(record)
-      if (record.phase === 'waiting') {
+      if (phase() === 'waiting') {
         await move({ ...record, phase: 'started_pending', startedAt: now().toISOString() })
       }
       await send('started', { ...record, phase: 'executing' })
-      executionStartedHere = record.phase === 'executing'
+      executionStartedHere = phase() === 'executing'
     }
 
-    if (record.phase === 'executing') {
+    if (phase() === 'executing') {
       const result = !executionStartedHere ? { ...EXECUTOR_COMMAND_UNKNOWN_OUTCOME_RESULT }
         : admission?.result ?? await lifecycle.execute(record)
       admission?.release?.()
@@ -133,7 +135,7 @@ export const advanceExecutorCommand = async (
     admission?.release?.()
   }
 
-  if (record.phase !== 'result_pending' || !record.result) return
+  if (phase() !== 'result_pending' || !record.result) return
   // The images a result references reach Nessie before the receipt does,
   // from sidecars written before this entry was journaled. A restart here
   // uploads again whatever Nessie had not yet answered for; the control

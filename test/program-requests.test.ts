@@ -79,24 +79,29 @@ const ownerAnswers = async (
   throw new Error('No program request appeared.')
 }
 
-/** A command session manager that, like the real one, checks the rules again — through the daemon's view. */
-const sessionsOver = (live: ReturnType<typeof createDaemonLiveState>) => {
+/**
+ * A command session manager that, like the real one, checks the rules again:
+ * the saved ones through the daemon's view, or the ones this launch was
+ * admitted with. `hold` keeps a launch running until the test lets it go.
+ */
+const sessionsOver = (live: ReturnType<typeof createDaemonLiveState>, hold?: Promise<void>) => {
   const ran: string[] = []
   const sessions = {
-    run: async (command: ExecutorCommandEnvelope) => {
+    run: async (command: ExecutorCommandEnvelope, _runId: string, admitted?: LocalCommandPolicy) => {
       const { program, args } = command.payload.args as { program: string; args: string[] }
-      if (!localCommandPolicyPermits(live.view, program, args)) return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
+      const view = admitted ? { ...live.view, commandPolicy: admitted } : live.view
+      if (!localCommandPolicyPermits(view, program, args)) return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
       ran.push([program, ...args].join(' '))
+      await hold
       return { exitCode: 0, success: true }
     },
   } as unknown as ExecutorCommandSessionManager
   return { ran, sessions }
 }
 
-const admissionFor = (stateDir: string, live: ReturnType<typeof createDaemonLiveState>, now?: () => number) => ({
+const admissionFor = (stateDir: string, now?: () => number) => ({
   gate: createProgramRequestGate({ store: openProgramRequestStore(stateDir), pollMs: 10, ...(now ? { now } : {}),
     log: () => undefined }),
-  allowOnce: live.allowOnce,
 })
 
 test('a command refused only as not allowed runs once when the owner allows it once, and nothing is saved', { skip }, async () => {
@@ -105,17 +110,44 @@ test('a command refused only as not allowed runs once when the owner allows it o
     const live = createDaemonLiveState(stateWith(rules(['git *'])))
     const { ran, sessions } = sessionsOver(live)
     const result = executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: ['-la'] }), {
-      commandSessions: sessions, programRequests: admissionFor(stateDir, live),
+      commandSessions: sessions, programRequests: admissionFor(stateDir),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
     assert.equal(request.program, 'ls')
     assert.deepEqual(request.args, ['-la'])
-    assert.ok(Date.parse(request.expiresAt) - Date.parse(request.requestedAt) <= 120_000)
+    assert.ok(Date.parse(request.expiresAt) - Date.parse(request.requestedAt) <= 15 * 60_000)
     assert.deepEqual(await result, { exitCode: 0, success: true })
     assert.deepEqual(ran, ['ls -la'])
-    // The loan ended with the launch, and the request is gone.
+    // The allowance was this launch's alone, and the request is gone.
     assert.deepEqual(live.commandRules.allowlist, ['git *'])
     assert.deepEqual(await readdir(join(stateDir, 'program-requests')), [])
+  } finally {
+    await rm(stateDir, { force: true, recursive: true })
+  }
+})
+
+test('allow once lets only the asking launch run: the same program launched beside it is asked about again', { skip }, async () => {
+  const stateDir = await stateDirectory()
+  try {
+    const live = createDaemonLiveState(stateWith(rules(['git *'])))
+    let finish!: () => void
+    const { ran, sessions } = sessionsOver(live, new Promise<void>((resolve) => { finish = resolve }))
+    const first = executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: ['-la'] }), {
+      commandSessions: sessions, programRequests: admissionFor(stateDir),
+    })
+    await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
+    for (let attempt = 0; attempt < 200 && ran.length === 0; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 10))
+    assert.deepEqual(ran, ['ls -la'], 'the first launch runs')
+    // While it still runs, the same program from another command is not covered by its allowance.
+    const second = executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: [] }), {
+      commandSessions: sessions, programRequests: admissionFor(stateDir),
+    })
+    const asked = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'deny'))
+    assert.deepEqual(asked.args, [])
+    assert.equal((await second).reason, 'owner_declined')
+    assert.deepEqual(ran, ['ls -la'])
+    finish()
+    assert.deepEqual(await first, { exitCode: 0, success: true })
   } finally {
     await rm(stateDir, { force: true, recursive: true })
   }
@@ -127,7 +159,7 @@ test('the owner declining refuses the launch and it never reaches a session', { 
     const live = createDaemonLiveState(stateWith(rules(['git *'])))
     const { ran, sessions } = sessionsOver(live)
     const result = executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: [] }), {
-      commandSessions: sessions, programRequests: admissionFor(stateDir, live),
+      commandSessions: sessions, programRequests: admissionFor(stateDir),
     })
     await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'deny'))
     const refused = await result
@@ -144,10 +176,10 @@ test('no answer before the hold ends refuses the launch as owner_did_not_answer'
   try {
     const live = createDaemonLiveState(stateWith(rules([])))
     const { ran, sessions } = sessionsOver(live)
-    // Each look at the clock moves it a minute on: the 120-second cap passes on the third.
+    // Each look at the clock moves it a minute on: the 15-minute cap passes after sixteen.
     let clock = Date.now()
     const result = await executeExecutorCommand(stateDir, live.current, envelope('command.run', { program: 'ls', args: [] }), {
-      commandSessions: sessions, programRequests: admissionFor(stateDir, live, () => (clock += 60_000) - 60_000),
+      commandSessions: sessions, programRequests: admissionFor(stateDir, () => (clock += 60_000) - 60_000),
     })
     assert.equal(result.code, 'EXECUTOR_COMMAND_DENIED')
     assert.equal(result.reason, 'owner_did_not_answer')
@@ -163,7 +195,7 @@ test('a denied program, or a command about to expire, is refused at once and nob
   try {
     const live = createDaemonLiveState(stateWith(rules([], ['rm *'])))
     const { sessions } = sessionsOver(live)
-    const options = { commandSessions: sessions, programRequests: admissionFor(stateDir, live) }
+    const options = { commandSessions: sessions, programRequests: admissionFor(stateDir) }
     assert.deepEqual(await executeExecutorCommand(stateDir, live.current,
       envelope('command.run', { program: 'rm', args: ['-rf', 'x'] }), options),
     { code: 'EXECUTOR_COMMAND_DENIED', success: false })
@@ -253,7 +285,7 @@ test('a terminal launch refused as not allowlisted is asked about, and the bridg
     const launched: string[][] = []
     const result = executeExecutorCommand(stateDir, live.current, terminalCall(['htop', '-d', '5']), {
       mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
-      programRequests: admissionFor(stateDir, live),
+      programRequests: admissionFor(stateDir),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
     assert.deepEqual([request.program, ...request.args], ['htop', '-d', '5'])
@@ -275,13 +307,13 @@ test('a terminal program named by its path is asked about and runs once; always 
     const program = process.execPath
     const result = executeExecutorCommand(stateDir, live.current, terminalCall([program, '--version']), {
       mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
-      programRequests: admissionFor(stateDir, live),
+      programRequests: admissionFor(stateDir),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
     assert.equal(request.program, program)
     assert.deepEqual(await result, { success: true })
     assert.deepEqual(launched, [[program, '--version']])
-    assert.equal(live.commandRules.mode, 'allowlist', 'the loan ended with the launch')
+    assert.equal(live.commandRules.mode, 'allowlist', 'the allowance was that launch\'s alone')
   } finally {
     await rm(stateDir, { force: true, recursive: true })
   }

@@ -64,7 +64,7 @@ const processIsLive = (pid: number): boolean => {
 export const writeSessionsFile = (
   stateDir: string, sessions: readonly SessionView[], now: () => Date = () => new Date(),
 ): Promise<void> => replaceOwnerOnlyJson(sessionsPath(stateDir), {
-  version: 1, daemonPid: process.pid, updatedAt: now().toISOString(), sessions,
+  version: 1, daemonPid: process.pid, updatedAt: now().toISOString(), sessions: [...sessions],
 } satisfies SessionsFile)
 
 export const removeSessionsFile = (stateDir: string): Promise<void> =>
