@@ -1,5 +1,11 @@
 # Generated session-engine package
 
+The [T12 control source](t3-session-control.md) adds `SessionControl` and the
+required `ScheduledTasks` port through `core/Control.ts`, registered in the exact
+authored-input list. It adds the `session-control` patch family before request
+privacy. This five-family source needs fresh normal package, consumer and privacy
+qualification; the historical four-family results below do not qualify it.
+
 T02C owns private worktree `C:/Users/ondre/.t3/worktrees/Nessie/t3-a1536d78`,
 branch `t3/session-engine-runtime-package`, from exact private base
 `8eb6f35ddbeb8805130f8ec3b48a149fc6fce6e2`. Its public branch is
