@@ -169,7 +169,7 @@ impl Store {
         Ok(value.digest)
     }
 
-    fn read<T: DeserializeOwned>(&self, name: &str) -> UpdateResult<Option<T>> {
+    pub(crate) fn read<T: DeserializeOwned>(&self, name: &str) -> UpdateResult<Option<T>> {
         let path = self.root.join(name);
         let metadata = match fs::symlink_metadata(&path) {
             Ok(value) => value,
@@ -211,7 +211,7 @@ impl Store {
         Ok(value)
     }
 
-    fn write<T: Serialize>(&self, name: &str, value: &T) -> UpdateResult<()> {
+    pub(crate) fn write<T: Serialize>(&self, name: &str, value: &T) -> UpdateResult<()> {
         let nonce = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| "update.state_unavailable")?

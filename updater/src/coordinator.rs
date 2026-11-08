@@ -184,6 +184,7 @@ impl Coordinator<'_> {
 
     pub fn advance(&self, now: u64) -> UpdateResult<()> {
         self.supersede(now)?;
+        self.retire_obsolete(now)?;
         let preferences = self.store.preferences()?;
         let journal = self.store.journal()?;
         if journal.pending.is_none() {
@@ -260,7 +261,13 @@ impl Coordinator<'_> {
             }
             Phase::Waiting | Phase::Installing => {
                 // Re-read policy after the download; disabling automatic updates wins.
-                if !journal.manual && !self.store.preferences()?.automatic {
+                let preferences = self.store.preferences()?;
+                if !journal.manual && !preferences.automatic {
+                    return Ok(());
+                }
+                // Between bounded drain attempts teams start normally, so the
+                // machine is not offered for replacement until the next window.
+                if !self.store.draining(&preferences, &journal, now)? {
                     return Ok(());
                 }
                 for asset in assets {

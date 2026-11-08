@@ -1,9 +1,11 @@
 pub mod catalog;
 pub mod control;
 pub mod coordinator;
+pub mod drain;
 pub mod network;
 pub mod policy;
 pub mod protocol;
+pub mod recovery;
 pub mod service;
 pub mod status;
 pub mod storage;
