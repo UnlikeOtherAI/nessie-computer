@@ -144,6 +144,36 @@ fn service_duplicates_real_handles_and_keeps_settings_pinned_after_native_drop()
     fs::write(f.root.join("settings.json"), "{}").unwrap();
 }
 #[test]
+fn service_duplicates_provider_home_chain_and_pins_every_name_until_last_close() {
+    let f = Fixture::new(true);
+    let parent = f.temporary.path().join("provider-parent"); directory(&parent);
+    let home = parent.join("home"); directory(&home);
+    settings(&f, json!({"providerInstances":{"original-claude":{
+        "driver":"claudeAgent","config":{"homePath":home}
+    }}}));
+    let source = Resource::open(&f.request).unwrap();
+    let held = Settings::open(source.execution_root().unwrap()).unwrap();
+    let caller = Process::open(std::process::id()).unwrap();
+    let duplicate = Duplicator::new(&caller).unwrap();
+    let objects = held.objects().iter().map(|o| duplicate.file(o, &caller.sid).unwrap()).collect::<Vec<_>>();
+    let identity = held.references()[0].identity.clone();
+    let home_object = objects.iter().find(|o| o.description.kind == "provider-home").unwrap();
+    assert_eq!(home_object.description.identity, identity);
+    let canonical = home_object.directory_path(&caller.sid).unwrap();
+    drop(held); drop(source);
+    // Only receiver duplicates remain. Do not use recheck to close a path race:
+    // replacement must already be impossible during each consumer phase.
+    for _ in ["prepare", "selection", "register", "resume", "frame", "teardown"] {
+        for path in [&home, &parent, &canonical] {
+            assert!(fs::rename(path, path.with_extension("replacement")).is_err());
+        }
+        for object in &objects { object.recheck(&caller.sid).unwrap(); }
+    }
+    drop(objects);
+    fs::rename(&home, home.with_extension("replacement")).unwrap();
+    fs::rename(&parent, parent.with_extension("replacement")).unwrap();
+}
+#[test]
 fn settings_security_change_is_sticky_even_after_acl_restore() {
     use windows_sys::Win32::Security::Authorization::{SetNamedSecurityInfoW, SE_FILE_OBJECT};
     use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;

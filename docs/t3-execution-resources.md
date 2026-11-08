@@ -184,7 +184,7 @@ wire schema; no paths or keys reach the graph or ordinary daemon.
 The matcher requires `actual_graph.generation == descriptor.custody.runtime`.
 It opens that retained process's actual token with TOKEN_QUERY|TOKEN_DUPLICATE,
 duplicates a scoped impersonation token, verifies its source-owner SID, and
-impersonates only while opening directory metadata. Existing thread impersonation
+impersonates only while opening the directory chain. Existing thread impersonation
 refuses. It never changes token/process ACLs or enables privileges. The protected
 creator's existing SYSTEM/service-only token rights supply this access; ordinary
 daemon tokens cannot substitute. RAII restores the service identity before any
@@ -194,6 +194,12 @@ rather than continuing under the wrong principal.
 The candidate's whole absolute local directory chain excludes write/delete sharing
 and all reparse points. Its final file ID and owner ACL must match the resolved
 reference. Retained security notifications make ACL change-and-restore sticky.
+Each directory open requests `FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES |
+READ_CONTROL`, with `FILE_SHARE_READ` only. `FILE_LIST_DIRECTORY` engages Windows
+share-access accounting; attributes/security-only opens do not establish this
+exclusion. The native source registration, SQLite namespace and provider-home
+chains use the same directory access rule. No ACL is widened. An owner lacking
+directory-list access receives a refusal; there is no metadata-only fallback.
 No auth.json, history file, secret or other directory child is read. The guard
 retains the chain and graph handle until the consumer drops it; `recheck()` checks
 both candidate objects and the current accepted resource/Graph. Unsupported paths,
@@ -241,6 +247,28 @@ produce no executable refs; explicit missing/relative/tilde/traversal/reparse
 homes refuse. No scan, original file change or provider setup occurs.
 
 ## Integration and qualification
+
+Root's Maxis qualification on public
+`a8c282ad3d8666396262c2383391c6ce60eae88c` passed service/helper cargo checks and
+54 common tests, but service tests reported 62 passed / 1 failed:
+`execution_resource_candidate_keeps_real_directory_identity_across_volume_aliases`.
+Its real rename succeeded while both candidate guards were held. The directory
+opens requested only attributes/security access, so their share flags did not
+pin the namespace. This invalidated the previous directory exclusion claim;
+later path rechecks cannot repair that gap.
+
+The correction requests directory data/list access at both actual open sites,
+while retaining no-write/no-delete sharing, canonical volume paths and exact
+file-ID/owner checks. It does not enumerate directory contents or change the
+file/WAL access policy. The original failing assertion remains. Added cases
+exercise ancestor and leaf rename/delete attempts without intervening rechecks,
+simultaneous volume aliases, preexisting/later DELETE and write handles, and
+last-handle release. Native cases extend registration/source wait boundaries
+and duplicate the actual settings/home chain into the receiver before dropping
+the producer, then require both home and ancestor replacement to stay denied.
+These corrected sources and new cases are **not yet compiler/native qualified**;
+root must rerun the combined revision in its reserved lane. Source-only
+`git diff --check` is not Windows namespace proof.
 
 Native16 public `27649f3efc28b637a58e9820e5017f75095bebd9` defines execution/Custody/Graph
 wire; `62f36dd0dfa9dad65a4e6f18ee8cf232c924f104` supplies the refusing protected-process

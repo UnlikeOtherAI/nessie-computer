@@ -7,7 +7,7 @@ use windows_sys::Win32::{Foundation::{LocalFree, INVALID_HANDLE_VALUE},
     Security::{Authorization::ConvertStringSecurityDescriptorToSecurityDescriptorW,
         SetFileSecurityW, OWNER_SECURITY_INFORMATION, DACL_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION},
     Storage::FileSystem::{CreateFileW, GetFileInformationByHandleEx, FileIdInfo, FILE_ID_INFO,
-        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, OPEN_EXISTING}};
+        FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT, FILE_LIST_DIRECTORY, FILE_SHARE_READ, OPEN_EXISTING}};
 
 fn open(path: &Path, directory: bool, sid: &str, kind: &str) -> (File, Object) {
     let wide: Vec<u16> = path.to_str().unwrap().encode_utf16().chain(Some(0)).collect();
@@ -18,7 +18,7 @@ fn open(path: &Path, directory: bool, sid: &str, kind: &str) -> (File, Object) {
     assert_ne!(unsafe { SetFileSecurityW(wide.as_ptr(), OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION
         | PROTECTED_DACL_SECURITY_INFORMATION, descriptor) }, 0);
     unsafe { LocalFree(descriptor); }
-    let raw = unsafe { CreateFileW(wide.as_ptr(), 0x0002_0080 | if directory {0} else {0x8000_0000},
+    let raw = unsafe { CreateFileW(wide.as_ptr(), 0x0002_0080 | if directory {FILE_LIST_DIRECTORY} else {0x8000_0000},
         FILE_SHARE_READ, std::ptr::null(), OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
         std::ptr::null_mut()) };
     assert_ne!(raw, INVALID_HANDLE_VALUE);
@@ -106,7 +106,8 @@ fn execution_resource_receiver_expiry_and_unlinked_registration_never_recover() 
 fn execution_resource_candidate_keeps_real_directory_identity_across_volume_aliases() {
     use nessie_windows_common::execution_resource_handles::HeldCandidateDirectory;
     let root = tempfile::tempdir().unwrap();
-    let directory = root.path().join("provider-home"); fs::create_dir(&directory).unwrap();
+    let ancestor = root.path().join("provider-parent"); fs::create_dir(&ancestor).unwrap();
+    let directory = ancestor.join("provider-home"); fs::create_dir(&directory).unwrap();
     let owner = Process::open(std::process::id()).unwrap();
     let (original, expected) = open(&directory, true, &owner.sid, "provider-home");
     let copied = Duplicator::new(&owner).unwrap().file(&expected, &owner.sid).unwrap();
@@ -118,12 +119,80 @@ fn execution_resource_candidate_keeps_real_directory_identity_across_volume_alia
     assert_eq!(alias.identity(), expected.identity);
     assert_eq!(guard.canonical_path().unwrap(), canonical);
     assert!(fs::rename(&directory, directory.with_extension("replacement")).is_err());
+    assert!(fs::rename(&ancestor, ancestor.with_extension("replacement")).is_err());
+    // Race attempts run without calling recheck: exclusion must come from the
+    // live handles, not a later observation between check and provider open.
+    std::thread::scope(|scope| {
+        let racing = scope.spawn(|| {
+            for _ in 0..32 {
+                for path in [&directory, &ancestor] {
+                    assert!(fs::rename(path, path.with_extension("replacement")).is_err());
+                }
+                assert!(fs::remove_dir(&directory).is_err());
+            }
+        });
+        racing.join().unwrap();
+    });
     guard.recheck().unwrap(); alias.recheck().unwrap();
     let other = root.path().join("other"); fs::create_dir(&other).unwrap();
     let (other_pin, other_id) = open(&other, true, &owner.sid, "provider-home");
     assert_ne!(other_id.identity, guard.identity()); drop(other_pin);
     // A candidate cannot turn an administrator/SYSTEM claim into OS ownership.
     assert!(HeldCandidateDirectory::open(&directory, "S-1-5-18").is_err());
+    drop(guard);
+    assert!(fs::rename(&directory, directory.with_extension("replacement")).is_err());
+    assert!(fs::rename(&ancestor, ancestor.with_extension("replacement")).is_err());
+    alias.recheck().unwrap();
+    drop(alias);
+    // Prove both operations were otherwise permitted, and teardown releases them.
+    fs::rename(&directory, directory.with_extension("replacement")).unwrap();
+    fs::rename(&ancestor, ancestor.with_extension("replacement")).unwrap();
+}
+
+#[test]
+fn execution_resource_candidate_excludes_preexisting_and_later_mutation_handles() {
+    use nessie_windows_common::execution_resource_handles::HeldCandidateDirectory;
+    use windows_sys::Win32::{Foundation::ERROR_SHARING_VIOLATION,
+        Storage::FileSystem::{FILE_SHARE_WRITE, FILE_SHARE_DELETE}};
+    let root = tempfile::tempdir().unwrap();
+    let ancestor = root.path().join("parent"); fs::create_dir(&ancestor).unwrap();
+    let directory = ancestor.join("home"); fs::create_dir(&directory).unwrap();
+    let owner = Process::open(std::process::id()).unwrap();
+    let (pin, _) = open(&directory, true, &owner.sid, "provider-home"); drop(pin);
+    let mutation_handle = |path: &Path, access| -> std::io::Result<File> {
+        let wide: Vec<u16> = path.to_str().unwrap().encode_utf16().chain(Some(0)).collect();
+        let raw = unsafe { CreateFileW(wide.as_ptr(), access,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, std::ptr::null(), OPEN_EXISTING,
+            FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, std::ptr::null_mut()) };
+        if raw == INVALID_HANDLE_VALUE { return Err(std::io::Error::last_os_error()); }
+        Ok(unsafe { File::from_raw_handle(raw) })
+    };
+    for path in [&ancestor, &directory] {
+        for access in [0x0001_0000, 0x4000_0000] { // DELETE / GENERIC_WRITE
+            let prior = mutation_handle(path, access).unwrap();
+            assert!(HeldCandidateDirectory::open(&directory, &owner.sid).is_err());
+            drop(prior);
+            let guard = HeldCandidateDirectory::open(&directory, &owner.sid).unwrap();
+            assert_eq!(mutation_handle(path, access).unwrap_err().raw_os_error(), Some(ERROR_SHARING_VIOLATION as i32));
+            guard.recheck().unwrap();
+            drop(guard);
+            drop(mutation_handle(path, access).unwrap());
+        }
+    }
+}
+
+#[test]
+fn execution_resource_duplicated_directory_keeps_namespace_after_producer_close() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("home"); fs::create_dir(&directory).unwrap();
+    let owner = Process::open(std::process::id()).unwrap();
+    let (original, description) = open(&directory, true, &owner.sid, "provider-home");
+    let copied = Duplicator::new(&owner).unwrap().file(&description, &owner.sid).unwrap();
+    drop(original);
+    assert!(fs::rename(&directory, directory.with_extension("replacement")).is_err());
+    copied.recheck(&owner.sid).unwrap();
+    drop(copied);
+    fs::rename(&directory, directory.with_extension("replacement")).unwrap();
 }
 
 #[test]

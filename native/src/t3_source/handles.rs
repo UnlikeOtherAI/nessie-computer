@@ -3,7 +3,7 @@ use std::{fs::File, os::windows::{ffi::OsStrExt, io::{AsRawHandle, FromRawHandle
 use windows_sys::Win32::{Foundation::{HANDLE, INVALID_HANDLE_VALUE}, Storage::FileSystem::{
     CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_DIRECTORY,
     FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-    FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_READ_ATTRIBUTES,
+    FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, FILE_READ_ATTRIBUTES, FILE_LIST_DIRECTORY,
     FindFirstChangeNotificationW, FindCloseChangeNotification, GetFileInformationByHandleEx,
     FileIdInfo, FILE_ID_INFO, GetDriveTypeW, GetFinalPathNameByHandleW,
     FILE_NOTIFY_CHANGE_FILE_NAME, FILE_NOTIFY_CHANGE_DIR_NAME, FILE_NOTIFY_CHANGE_SECURITY,
@@ -35,8 +35,12 @@ impl Held {
         Ok(PathBuf::from(path))
     }
     pub fn open(path: &Path, directory: bool, writable: bool, private: bool) -> Result<Self, NativeError> {
+        // Metadata-only directory opens bypass share-access accounting. Request
+        // LIST_DIRECTORY (READ_DATA for directories) so the omitted WRITE/DELETE
+        // sharing pins every name component, including registration/home roots.
+        // No listing is performed; files retain their existing read/WAL policy.
         let handle = unsafe { CreateFileW(wide(path).as_ptr(),
-            FILE_READ_ATTRIBUTES | 0x0002_0000 | if directory { 0 } else { 0x8000_0000 },
+            FILE_READ_ATTRIBUTES | 0x0002_0000 | if directory { FILE_LIST_DIRECTORY } else { 0x8000_0000 },
             FILE_SHARE_READ | if writable { FILE_SHARE_WRITE } else { 0 },
             std::ptr::null(), OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
             std::ptr::null_mut()) };
