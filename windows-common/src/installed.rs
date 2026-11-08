@@ -96,6 +96,7 @@ fn executable(command: &str, expected: &str) -> Result<PathBuf, String> {
 pub struct InstalledFloor {
     observed: Registrations,
     home: PathBuf,
+    release: PathBuf,
     _releases: Vec<Release>,
     _executables: Vec<File>,
 }
@@ -104,12 +105,13 @@ impl InstalledFloor {
         if self.observed != registrations()? {
             return Err(REJECTED.into());
         }
-        paths::verify(&self.home)
+        paths::verify(&self.home, &self.release)
     }
 }
 /// Must run as the independently verified interactive owner, so HKCU is never
 /// the service account's hive. Desktop's existing user-writable installations
-/// and unversioned CLI wrappers are unsupported, even when no process is live.
+/// and unversioned CLI wrappers are unsupported, even when no process is live;
+/// only the MSI's own command line in the selected release folder may be on PATH.
 pub fn verify(
     selected: &Release,
     home: &Path,
@@ -125,7 +127,7 @@ pub fn verify(
     {
         return Err(REJECTED.into());
     }
-    paths::verify(home)?;
+    paths::verify(home, &selected.runtime.root)?;
     let mut programs = vec![executable(
         &observed.service,
         "nessie-executor-service.exe",
@@ -136,6 +138,7 @@ pub fn verify(
     let mut floor = InstalledFloor {
         observed,
         home: home.to_path_buf(),
+        release: selected.runtime.root.clone(),
         _releases: Vec::new(),
         _executables: Vec::new(),
     };
