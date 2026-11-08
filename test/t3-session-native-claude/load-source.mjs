@@ -7,8 +7,8 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const directory = join(root, '.artifacts/native-claude-source')
 const files = [
   'existing-session/types', 'existing-session/claude-saved', 'existing-session/claude-history',
-  't3-session/ownership/continuity', 't3-session/native-sources/history-homes',
-  ...['files', 'catalog', 'history', 'index'].map(name => `t3-session/native-sources/claude/${name}`),
+  't3-session/ownership/continuity', 't3-session/native-sources/history-homes', 't3-session/native-sources/held-history',
+  ...['identity', 'catalog', 'history', 'index'].map(name => `t3-session/native-sources/claude/${name}`),
 ]
 // Node's builtin type erasure loads these exact authored modules. No dependency
 // install, substitute runtime package, generated engine or compiler is involved.

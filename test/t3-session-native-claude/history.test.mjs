@@ -4,10 +4,12 @@ import { appendFile, mkdir, mkdtemp, realpath, rename, symlink, utimes, writeFil
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { fixtureRoot, load } from './load-source.mjs'
+import { fixtureHeldRoot } from './held-fixture.mjs'
 
 const { NativeClaudeHistory } = await load('t3-session/native-sources/claude/index')
 const { listSavedClaudeSessions } = await load('existing-session/claude-saved')
 const { readClaudeRecentMessages } = await load('existing-session/claude-history')
+const { scanClaudeCatalog } = await load('t3-session/native-sources/claude/catalog')
 const NATIVE = '11111111-1111-4111-a111-111111111111'
 const target = { source: 'claude', admittedRootKey: 'fixture:root' }
 const row = (content, extra = {}) => JSON.stringify({ sessionId: NATIVE, type: 'user',
@@ -21,22 +23,46 @@ async function fixture() {
   let live = true
   let checks = 0
   let historyChecks = 0
+  let opens = 0
   let hook = async () => {}
   const recheck = async () => { checks++; await hook(); if (!live) throw new Error('fixture_revoked') }
   // Synthetic admission tests consumer behavior, not a production authority producer.
   const service = new NativeClaudeHistory({ withReadScope: async (input, use) => {
     assert.equal(input.admittedRootKey, target.admittedRootKey)
-    return use({ ...target, physicalRootKey: 'fixture:physical', projectsRoot, recheck,
+    const historyRoot = await fixtureHeldRoot(projectsRoot, recheck, { onOpen: () => { opens++ } })
+    return use({ ...target, physicalRootKey: 'fixture:physical', historyRoot, recheck,
       recheckHistory: async () => { historyChecks++; await recheck() } })
   } })
   return { profile, projectsRoot, service, file: join(projectsRoot, 'repo', `${NATIVE}.jsonl`),
     revoke: () => { live = false }, setHook: value => { hook = value },
-    checks: () => checks, historyChecks: () => historyChecks }
+    checks: () => checks, historyChecks: () => historyChecks, opens: () => opens }
 }
 
 test('unbound admission refuses before filesystem access', async () => {
   await assert.rejects(new NativeClaudeHistory().catalog({ target }), /required_unbound/u)
   await assert.rejects(new NativeClaudeHistory().history({ target: { ...target, historyId: 'unknown' } }), /required_unbound/u)
+})
+
+test('a caller-provided path without a held resource cannot become read admission', async () => {
+  const service = new NativeClaudeHistory({ withReadScope: async (_target, use) => use({ ...target,
+    physicalRootKey: 'fixture:physical', projectsRoot: 'C:/not-authorized', recheck: async () => {},
+    recheckHistory: async () => {} }) })
+  await assert.rejects(service.catalog({ target }), /admission_mismatch/u)
+})
+
+test('held enumeration rejects duplicate identities and looping cursors without opening bytes', async () => {
+  const entry = { entryKey: 'entry:1', relativeName: `repo/${NATIVE}.jsonl`, kind: 'file', revision: 'revision',
+    size: 0, modifiedAt: '2026-11-08T00:00:00.000Z' }
+  const resource = page => ({ source: 'claude', generation: 'generation', recheck: async () => {},
+    enumerate: async () => ({ generation: 'generation', nextCursor: null, complete: true, reasons: [], ...page }) })
+  await assert.rejects(scanClaudeCatalog(resource({ entries: [entry, { ...entry, entryKey: 'entry:2' }] }),
+    async () => {}), /entry_conflict/u)
+  await assert.rejects(scanClaudeCatalog(resource({ entries: [], nextCursor: 'again', complete: false }),
+    async () => {}), /cursor_invalid/u)
+  const incomplete = await scanClaudeCatalog(resource({ entries: [entry], complete: false, reasons: ['unavailable'] }),
+    async () => {})
+  assert.equal(incomplete.complete, false)
+  assert.equal(incomplete.entries.length, 1)
 })
 
 test('old, empty, overlay and nested histories survive complete stable source paging', async () => {
@@ -106,6 +132,32 @@ test('native tool values and excluded metadata never enter the supported history
   assert.equal(page.records[0].parts[0].id, 'call:1')
   assert.equal(page.records[1].parts[0].id, 'call:1')
   for (const withheld of ['1234', 'EXCLUDED', 'PRIVATE']) assert.equal(JSON.stringify(page).includes(withheld), false)
+})
+
+test('explicit native mask markers at row, message and block levels withhold values', async () => {
+  const f = await fixture()
+  await writeFile(f.file, row('ROW_SECRET', { isSecret: true })
+    + row('MESSAGE_SECRET', { message: { isSecret: true, content: 'MESSAGE_SECRET' } })
+    + row([{ type: 'text', isSecret: true, text: 'BLOCK_SECRET' }, { type: 'text', isSecret: false, text: 'public' }])
+    + row('MALFORMED_SECRET', { isSecret: 'false' }))
+  const entry = (await f.service.catalog({ target })).rows[0]
+  const page = await f.service.history({ target: { ...target, historyId: entry.historyId } })
+  assert.equal(page.records.length, 4)
+  assert.ok(page.records.every(record => record.fidelity === 'withheld'))
+  assert.equal(page.records[2].parts[0].text, 'public')
+  for (const value of ['ROW_SECRET', 'MESSAGE_SECRET', 'BLOCK_SECRET', 'MALFORMED_SECRET']) {
+    assert.equal(JSON.stringify(page).includes(value), false)
+  }
+})
+
+test('catalog enumeration never opens history bytes and revocation blocks file admission', async () => {
+  const f = await fixture()
+  await writeFile(f.file, row('do not read'))
+  const entry = (await f.service.catalog({ target })).rows[0]
+  assert.equal(f.opens(), 0)
+  f.revoke()
+  await assert.rejects(f.service.history({ target: { ...target, historyId: entry.historyId } }), /revoked/u)
+  assert.equal(f.opens(), 0)
 })
 
 test('partial final records stay incomplete and append invalidates the snapshot cursor', async () => {

@@ -1,5 +1,6 @@
 import { scanClaudeCatalog, type ClaudeHistoryEntry } from './catalog.js'
-import { digest } from './files.js'
+import type { HeldNativeHistoryRoot } from '../held-history.js'
+import { digest } from './identity.js'
 import { readClaudeHistoryPage } from './history.js'
 
 export interface ClaudeReadTarget {
@@ -11,8 +12,8 @@ export interface ClaudeReadLease {
   readonly source: 'claude'
   readonly admittedRootKey: string
   readonly physicalRootKey: string
-  /** Already canonical, held projects directory. Never a user-selected path. */
-  readonly projectsRoot: string
+  /** Issued by the protected native owner, never constructed from a root path. */
+  readonly historyRoot: HeldNativeHistoryRoot
   /** Canonical producer checks current human/team/executor/source admission,
    * root identity and revocation; freshness <=60s. No execution permission. */
   recheck(): Promise<void>
@@ -41,11 +42,15 @@ export class NativeClaudeHistory {
     if (!this.admission) throw new Error('claude_history_admission_required_unbound')
     if (target.source !== 'claude' || !target.admittedRootKey) throw new Error('claude_history_target_invalid')
     return this.admission.withReadScope(target, async lease => {
-      if (lease.source !== 'claude' || lease.admittedRootKey !== target.admittedRootKey || !lease.physicalRootKey) {
+      if (lease.source !== 'claude' || lease.admittedRootKey !== target.admittedRootKey || !lease.physicalRootKey
+        || lease.historyRoot?.source !== 'claude' || lease.historyRoot.admittedRootKey !== target.admittedRootKey
+        || lease.historyRoot.physicalRootKey !== lease.physicalRootKey) {
         throw new Error('claude_history_admission_mismatch')
       }
       await lease.recheck()
+      await lease.historyRoot.recheck()
       const result = await use(lease)
+      await lease.historyRoot.recheck()
       await lease.recheck()
       return result
     })
@@ -55,7 +60,7 @@ export class NativeClaudeHistory {
     const limit = input.limit ?? 100
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('claude_history_page_invalid')
     return this.withScope(input.target, async lease => {
-      const catalog = await scanClaudeCatalog(lease.projectsRoot, () => lease.recheck())
+      const catalog = await scanClaudeCatalog(lease.historyRoot, () => lease.recheck())
       const generation = digest([lease.physicalRootKey, catalog.generation])
       const offset = input.cursor?.offset ?? 0
       if (!Number.isSafeInteger(offset) || offset < 0 || offset > catalog.entries.length
@@ -70,11 +75,7 @@ export class NativeClaudeHistory {
             : digest(['claude', lease.physicalRootKey, entry.parentHistoryKey]),
           control: 'unavailable' as const, controlReason: 'native_stop_handoff_unbound' as const })
       }
-      // A second metadata pass detects ordinary concurrent additions/deletions.
-      // The resource producer must hold a coherent enumeration lease; scans alone
-      // cannot certify an adversarial snapshot or physical-source custody.
-      const after = await scanClaudeCatalog(lease.projectsRoot, () => lease.recheck())
-      if (after.generation !== catalog.generation) throw new Error('claude_catalog_changed')
+      await lease.historyRoot.recheck()
       const nextOffset = offset + rows.length
       return { source: 'claude' as const, generation, rows,
         complete: catalog.complete && nextOffset === catalog.entries.length,
@@ -86,7 +87,7 @@ export class NativeClaudeHistory {
   async history(input: { readonly target: ClaudeReadTarget & { readonly historyId: string };
     readonly cursor?: ClaudeHistoryCursor; readonly limit?: number }) {
     return this.withScope(input.target, async lease => {
-      const catalog = await scanClaudeCatalog(lease.projectsRoot, () => lease.recheck())
+      const catalog = await scanClaudeCatalog(lease.historyRoot, () => lease.recheck())
       const entry = catalog.entries.find(row => historyIdOf(lease, row) === input.target.historyId)
       if (!entry) throw new Error('claude_history_not_found')
       if (input.cursor && (input.cursor.historyId !== input.target.historyId || input.cursor.revision !== entry.revision)) {
@@ -97,9 +98,12 @@ export class NativeClaudeHistory {
         await lease.recheckHistory({ historyId: input.target.historyId, nativeId: entry.nativeId, agentId: entry.agentId })
       }
       await recheck()
-      const page = await readClaudeHistoryPage({ root: lease.projectsRoot, local: entry.historyKey,
-        nativeId: entry.nativeId, revision: entry.revision, offset: input.cursor?.offset ?? 0,
-        limit: input.limit ?? 100, recheck })
+      const page = await lease.historyRoot.withFile(entry.entryKey, entry.revision, async file => {
+        if (file.entryKey !== entry.entryKey) throw new Error('claude_history_resource_mismatch')
+        await recheck()
+        return readClaudeHistoryPage({ file, nativeId: entry.nativeId, revision: entry.revision,
+          offset: input.cursor?.offset ?? 0, limit: input.limit ?? 100, recheck })
+      })
       await recheck()
       const { nextOffset, ...result } = page
       return { source: 'claude' as const, historyId: input.target.historyId, ...result,

@@ -19,7 +19,7 @@ finite reads, with no provider writes, mutation receipts or streaming handle:
 
 `ClaudeHistoryReadPort.withReadScope` is REQUIRED and UNBOUND. Its canonical
 producer must admit the exact human, selected team, executor, source and root,
-hold the canonical projects root and provide fresh physical/current-authority
+hold the canonical native history resource and provide fresh physical/current-authority
 rechecks. `recheckHistory` authorizes each exact discovered history before
 publication or opening its bytes. A root discovery grant cannot grant every
 history read. Rechecks run during enumeration, at record boundaries and before
@@ -28,9 +28,13 @@ ports are explicitly synthetic. A caller-supplied port is not deployment proof.
 
 The actual admitted gateway must supply this producer, preserve these errors
 and cursor semantics, and apply the existing path/secret display projection.
-Missing admission fails before any filesystem access. Root discovery reads only
-directory entries and file metadata; history bytes are opened only after the
-specific history check. Credentials, provider-account files and title indexes
+Missing admission fails before any resource access. A path-only lease is
+rejected. The production Claude consumer contains no filesystem open, stat,
+realpath or directory enumeration: it consumes only `HeldNativeHistoryRoot`
+capabilities issued by the protected native resource owner. Root discovery reads
+only admitted entries and file metadata; history bytes are read from the same
+held native file only after the specific history check. Credentials,
+provider-account files and title indexes
 are never read by this adapter. Native stop, custody handoff, resume, queue and
 writer creation are unavailable.
 
@@ -49,8 +53,8 @@ as the stable tie-break. This is Claude file inventory ordering, not T3 app
 grouping. No native archive state or live writer state is inferred from a file.
 Directory redirects, unreadable paths and unsupported history identities leave
 the catalog explicitly incomplete. The resource producer still owes coherent
-enumeration custody; a pair of metadata scans alone is not an adversarial
-snapshot proof. This implementation does not bind the separate physical T3
+enumeration custody; a caller-created TypeScript object is not physical or
+authority proof. This implementation does not bind the separate physical T3
 SQLite producer.
 
 History paging preserves supported text and thinking blocks without the older
@@ -60,7 +64,10 @@ tool names and call/result IDs remain visible, but tool input and result values
 are explicitly withheld as `native_tool_privacy_unbound`. Unknown blocks and
 system/account/usage metadata do not leak through a raw-record passthrough;
 records report their fidelity. Thus reaching EOF does **not** claim full native
-feature fidelity. Canonical native tool privacy remains an integration blocker.
+feature fidelity. Explicit `isSecret` markers on native rows, message objects
+and content blocks withhold those values; malformed present markers also
+withhold, and `false` is distinct from a missing marker. This is structural
+projection, not prose inspection. Canonical native tool privacy remains an integration blocker.
 Prior plaintext user prose is ordinary history; this is not retrospective
 secret removal from native stores.
 
@@ -99,6 +106,38 @@ resolver keeps all of them and reports ambiguity with control unavailable.
 This binding grants no read permission or writer custody. Codex consumes the
 same shared port; there are no Codex-specific changes in this tranche.
 
+## Protected native producer integration
+
+`native-sources/held-history.ts` defines the local byte/enumeration seam, not a
+new grant or wire schema. `HeldNativeHistoryRoot` binds source, admitted root,
+physical root and a stable inventory generation. `enumerate({cursor?, limit})`
+returns at most 200 issued entries, source generation, next cursor and explicit
+completion/reasons. Entries carry an opaque `entryKey`, structural
+`relativeName`, kind, revision, size and modification time. The name is never
+reopened in JavaScript. `withFile(entryKey, revision, use)` yields a held file
+with the same entry/revision, size, `read(offset, length)` bounded to 64 KiB and
+`recheck()`. Root and file leases expire at callback exit. The producer must
+reject mismatches, revoked grants and stale/replaced resources before bytes.
+
+The existing Windows native seams to extend are:
+
+- `native/src/personal_state/windows.rs`: `pin` and `pin_directories` retain
+  ancestor handles without `FILE_SHARE_DELETE` and reject reparses/hardlinks.
+- `native/src/state_security/windows.rs`: `verify_owner_only_for` contains the
+  owner/DACL policy, currently read by pathname. Held-file admission needs the
+  corresponding handle-based check; `windows-common/src/release.rs::secure`
+  already demonstrates `GetSecurityInfo` on a retained handle.
+- `src/native-control-lease.ts` retains a native child until release; it is an
+  existing lifetime boundary, not yet a history byte transport or human grant.
+
+Do not widen `personal_state_context::protected_root` from Nessie private state
+to a caller-selected Claude home. The parent must compose a separately admitted
+native history root, using the protected ownership boundary and the canonical
+prospective source-owner grant. That grant's committed producer is absent from
+this worker's base. Current administrator/pairing status, a managed-start
+receipt, labels, provider credentials and the physical T3 SQLite lease cannot
+substitute for it. No native Rust files or grant schemas are modified here.
+
 ## Qualification
 
 The authored source fixtures are
@@ -113,8 +152,9 @@ The requested serial source gate is:
 node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-native-claude/homes.test.mjs test/t3-session-native-claude/history.test.mjs
 ```
 
-At authoring, builtin syntax checks passed for eight changed implementation
-files. The source suite, package typecheck/lint, production wiring and manual
+At the follow-up checkpoint, builtin syntax checks passed for all six native
+source modules and the modified fixture JavaScript; whitespace checks passed.
+Eighteen source fixtures are authored. The source suite, package typecheck/lint, production wiring and manual
 UI/WebMCP/MCP journeys have not run. The parent coordinator owns the serial
 qualification window and shared package/Turbo registration. No compiler,
 database, provider, server, browser, native build or installation was started.
