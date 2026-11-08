@@ -1,6 +1,10 @@
 //! Read-only installed diagnostics; never grants authority or changes local policy.
 #[cfg(windows)]
 fn main() {
+    if std::env::args().any(|value| value == "--installed-facts") {
+        inspect_installation();
+        return;
+    }
     if std::env::args().any(|value| value == "--peer-facts") {
         inspect_peer();
         std::process::exit(1);
@@ -174,4 +178,58 @@ fn inspect_peer() {
         CloseHandle(pipe);
     }
     eprintln!("{facts}");
+}
+
+// Read-only timings isolate OS provenance work from the broker's transport.
+#[cfg(windows)]
+fn inspect_installation() {
+    use nessie_windows_common::{release, update_admission::known_folder};
+    use std::time::Instant;
+    use windows_sys::Win32::UI::Shell::{
+        FOLDERID_ProgramData, FOLDERID_ProgramFiles, FOLDERID_Windows,
+    };
+    let start = Instant::now();
+    for (name, id) in [
+        ("windows", &FOLDERID_Windows),
+        ("programData", &FOLDERID_ProgramData),
+        ("programFiles", &FOLDERID_ProgramFiles),
+    ] {
+        eprintln!(
+            "{}",
+            serde_json::json!({"diagnosticOnly":true,"starting":name})
+        );
+        eprintln!(
+            "{}",
+            serde_json::json!({"stage":name,"elapsedMs":start.elapsed().as_millis(),
+            "result":known_folder(id)})
+        );
+    }
+    let Ok(program_files) = known_folder(&FOLDERID_ProgramFiles) else {
+        return;
+    };
+    let path = program_files.join("Nessie Executor/nessie-executor-native.exe");
+    let pin = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
+    eprintln!(
+        "{}",
+        serde_json::json!({"diagnosticOnly":true,"starting":"installed_runtime"})
+    );
+    match release::load_at(&path, pin) {
+        Ok(mut installed) => {
+            eprintln!(
+                "{}",
+                serde_json::json!({"stage":"installed_runtime","elapsedMs":start.elapsed().as_millis(),
+                "version":installed.version,"sourceCommit":installed.source_commit})
+            );
+            eprintln!("{}", serde_json::json!({"starting":"launch_consumers"}));
+            let result = installed.verify_launch_consumers(pin);
+            eprintln!(
+                "{}",
+                serde_json::json!({"stage":"launch_consumers", "elapsedMs":start.elapsed().as_millis(),"result":result})
+            );
+        }
+        Err(reason) => eprintln!(
+            "{}",
+            serde_json::json!({"stage":"installed_runtime", "elapsedMs":start.elapsed().as_millis(),"error":reason})
+        ),
+    }
 }
