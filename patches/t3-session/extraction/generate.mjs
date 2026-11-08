@@ -21,6 +21,7 @@ import { extractProviderSecretPlan } from './secret-plan.mjs'
 import { extractSelectedProvider } from './selected-provider.mjs'
 import { extractCodexHost } from './codex-host.mjs'
 import { extractCodexSerialization } from './serialization.mjs'
+import { extractCommandLineage } from './command-lineage.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -49,6 +50,7 @@ export const generateExtractionManifest = snapshot => {
   extractProviderHost(author)
   extractPrelaunch(author)
   extractColdLaunch(author, redirects, exports)
+  extractCommandLineage(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)
   extractCodexHost(author, redirects)

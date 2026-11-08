@@ -37,6 +37,7 @@ export const makeSessionCodexClientFactory = (launch: ReservedSessionLaunch):
         return yield* Effect.fail(refused(input))
       }
       opened = true
+      yield* launch.commandLineage.assertInitialMessage(input.threadId).pipe(Effect.mapError(() => refused(input)))
       const environment: Record<string, string> = {}
       for (const [key, value] of Object.entries(OriginalCodexIdentity.codexAppServerEnvironment(input.environment))) {
         if (value !== undefined) environment[key] = value

@@ -15,6 +15,7 @@ import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import { createProtectedCodexSerialization, type ProtectedCodexSerialization } from './codex-serialization.js'
 import { protectedRuntimeRefused } from './protected-wire.js'
 import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
+import type { SessionLaunchCommandLineage } from './command-lineage.js'
 
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type ProviderLaunch = Extract<T3NativeLaunchDescriptor, { processPurpose: 'provider' }>
@@ -34,6 +35,8 @@ export interface ReservedSessionLaunch {
   readonly binding: Readonly<T3ExecutionBinding>
   /** Replay refusal only; reserve does not authorize secret reads. */
   readonly secretReadAttempts: ScopedSessionSecretReadAttempts
+  /** Original command creation only; this is not effect or process authority. */
+  readonly commandLineage: SessionLaunchCommandLineage
   /** Internal original-adapter seam, after separately authorized preparation.
    * Does not hydrate settings, allocate IDs, perform workspace effects or infer
    * a launch descriptor from the original launchThread input. */
@@ -85,6 +88,7 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     }
     await transport.receipt(reservationReceipt, signal)
     await recheck()
+    const commandLineage = held.original.commandLineage.register(reserve.binding, recheck, signal)
     const launchProvider = async <T>(providerSessionId: string, launch: ProviderLaunch,
       callback: (provider: HeldNativeSessionProvider) => Promise<T>): Promise<T> => {
       await recheck()
@@ -148,7 +152,7 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     }
     try {
       return await use(Object.freeze({ target, signal, binding: Object.freeze(structuredClone(reserve.binding)),
-        secretReadAttempts,
+        secretReadAttempts, commandLineage,
         withProvider: <T>(providerSessionId: string, launch: ProviderLaunch,
           callback: (provider: HeldNativeSessionProvider) => Promise<T>) => {
           const work = launchProvider(providerSessionId, structuredClone(launch), callback)
@@ -160,6 +164,7 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     } finally {
       live = false
       stop.abort()
+      commandLineage.close()
       while (pending.size) await Promise.allSettled([...pending])
       if (failure) throw failure
     }

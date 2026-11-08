@@ -147,7 +147,7 @@ These are concrete runtime composition work, including for an empty secret plan:
 | `CodexDriver.create` / `makeCodexAdapterV2` | Selected construction and the protected client factory are authored below. Real `ManagedServerProvider`, `ProviderTextGeneration`, installation compatibility, environment and original FileSystem/config/MCP services remain required. No synthetic snapshot, text generator or ambient executable lookup is supplied. |
 | `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
 | `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. Persisted `effect.commandId` must survive `EffectWorker` dispatch and reach the original adapter. |
-| `ThreadLaunchService` initial-message dispatch | Record the actual parent-to-child command edge when the original message command is created. Do not infer it from `:initial-message` or replace the original internal run-event command ID. |
+| `ThreadLaunchService` initial-message dispatch | Capture and scoped recorders are implemented below. Use the same source context during activation; carry persisted `effect.commandId` separately through TurnStart. |
 | `SessionEngineLifecycle` | Bind recovery and worker execution to live original admission before running imported pending effects. Use the existing graph scope/memo, and drain providers before state revocation. |
 
 These ports remain runtime-owned. The missing native secret channel producer and
@@ -225,6 +225,53 @@ all with zero skips. Normal producer, CLI, private worker/API builds and 236
 transitive declaration checks passed at the unchanged compiler limit. The
 ordinary composite consumer reached 77 contract declarations and zero dependency
 implementations. Installed flows and actual provider activation remain unqualified.
+
+## Original launch command capture
+
+The protected `Launch.sessionLayer` requires `CommandLineage.SessionCommandLineage`.
+The ordinary original `Launch.layer` keeps its behavior. Both use the same
+constructor. Immediately before the original initial `message.dispatch`, it
+records the actual parent command, child command, thread and allocated or supplied
+message ID. A refusal maps through the existing `ThreadLaunchError` and prevents
+that dispatch. Receipt replay still passes through this observation; observation
+does not mean that the command was accepted.
+
+The cold context owns `makeSessionCommandLineageRegistry` and supplies its service
+to the same original engine context. The memoized launch layer routes each
+observation by its actual parent command to the matching reservation recorder;
+it does not capture the first reservation or look up a latest operation.
+`withReservedSessionLaunch` registers `makeSessionLaunchCommandLineage` after the
+real reserve receipt and backend receipt acceptance. It captures one immutable edge, permits
+exact replay, rechecks the held source before and after access, and permanently
+closes after substitution, missing-edge use, failed recheck, Effect interruption,
+parent abort or owner closure. The Codex factory requires that captured initial
+edge before native preparation. A blank launch does not authorize that factory
+to start a provider for some later command. Retired original parent IDs cannot
+register again in that source owner. Source abort closes every recorder; one
+reservation's normal closure leaves other registered commands independent.
+
+This records original command creation only. It derives no child ID from a
+suffix, changes no internal run-event command, and supplies no admission or
+effect/process grant. The persisted outbox `effect.commandId`, preclaim admission,
+TurnStart and post-association writer still require their actual composition.
+Production `open` continues to refuse. No recovery or imported-outbox claim is
+enabled by this change.
+
+The ten-family manifest now has 277 extraction and 36 privacy operations,
+SHA-256 `17a8f6147799aeba1284105572abc7d685eeb7cb26b11e9ef6646e39e04b2b9b`.
+The earlier 272-operation qualification above remains historical evidence for
+its stated revision. Current source checks passed on Maxis/Node 24.19.0:
+15 producer checks, 14 privacy checks and 37 source fixtures, with zero skips.
+The three new source fixtures execute the verified original allocation/capture/
+dispatch fragment, including supplied IDs, receipt replay and refusal before
+dispatch. This is source evidence; the installed launch remains unqualified.
+The strict producer, protocol and CLI builds then passed at the unchanged
+5120 MiB compiler limit. The focused Turbo suites passed 13 engine and 82 runtime
+cases, zero skips, including interleaved reservation routing, retired IDs,
+mutation during recheck and Effect interruption. The normal composite consumer
+still reached 77 contract declarations and zero dependency implementations.
+No native build or installed/provider run was performed for this TypeScript
+tranche; actual activation and the manual launch journey remain unfinished.
 
 ## Composition and ownership
 

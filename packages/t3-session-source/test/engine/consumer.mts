@@ -6,7 +6,7 @@ import * as Path from 'effect/Path'
 import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ProviderDirectory, ResourceOwners, Settings,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
-  SessionControl, Threads, Launch, ScheduledTasks } from '@nessie/t3-session-source/engine'
+  SessionControl, Threads, Launch, CommandLineage, ScheduledTasks } from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
 import { createSessionRuntimeLayers, ProviderHost, NativeChildProcesses,
   ProviderCredentialReferences, SessionResourceTargets, TurnControl, RuntimeRequests,
@@ -36,6 +36,8 @@ const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Re
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
 const engineDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Engine ? true : false = true
 const engineSettingsRequired: Settings.ServerSettingsService extends Engine ? true : false = true
+const engineLineageRequired: CommandLineage.SessionCommandLineage extends Engine ? true : false = true
+const readsNeedNoLineage: CommandLineage.SessionCommandLineage extends Reads ? true : false = false
 const workerCleanupRequired: ResourceOwners.ResourceCleanupService extends Worker ? true : false = true
 const sharedSqlRequired: SqlClient.SqlClient extends Shared ? true : false = true
 const sharedProjectionRequired: ProjectionStore.ProjectionStoreV2 extends Shared ? true : false = false
@@ -64,6 +66,7 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 // @ts-expect-error The original dedicated schema cannot be replaced with an ordinary value.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
+  engineLineageRequired, readsNeedNoLineage,
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   runtimeDirectoryRequired, engineDirectoryRequired,
   runtimeCredentialsRequired, runtimeResourceOwnersRequired, runtimeControlRequired, runtimeRequestsRequired,

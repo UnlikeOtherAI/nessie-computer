@@ -53,7 +53,7 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const threads = Threads.layerWithLegacyImporter.pipe(
     Layer.provideMerge(Layer.mergeAll(orchestrator, legacyImporter)),
   )
-  const launch = Launch.layer.pipe(Layer.provideMerge(Layer.mergeAll(threads, inspection)))
+  const launch = Launch.sessionLayer.pipe(Layer.provideMerge(Layer.mergeAll(threads, inspection)))
   const recovery = Recovery.layer.pipe(Layer.provideMerge(shared))
   const effectExecutor = Worker.layerExecutor.pipe(Layer.provideMerge(threads))
   const worker = Worker.layer.pipe(Layer.provideMerge(effectExecutor))
@@ -70,6 +70,7 @@ export * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManag
 export { layerWithLegacyImporter as threadManagementLayer }
   from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 export * as ThreadMessageIntake from 't3-source:apps/server/src/orchestration-v2/ThreadMessageIntake.ts'
+export * as CommandLineage from 't3-source:apps/server/src/orchestration-v2/SessionCommandLineage.ts'
 export * as AttachmentClaims from 't3-source:apps/server/src/orchestration-v2/AttachmentClaims.ts'
 export * as ProviderSessions from 't3-source:apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts'
 export * as ProviderDirectory from 't3-source:apps/server/src/provider/ProviderInstanceRegistry.session-port.ts'
