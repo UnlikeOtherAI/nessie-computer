@@ -161,8 +161,12 @@ const answerOf = (result: Record<string, unknown>): Record<string, unknown> | un
 
 export const createCodingSessionsDaemon = (input: {
   executorId: string
-  /** The rules this daemon runs under; changing them restarts it. */
-  commandRules: LocalCommandPolicy
+  /**
+   * The rules a call runs under, read as the call is stamped: a saved change
+   * applies to the next call without a restart, and a launch the owner allowed
+   * once reads the rules lent to it (`daemon-live-state.ts`).
+   */
+  commandRules: () => LocalCommandPolicy
   facts: ExecutorCodingSessionsFacts | undefined
   servers: readonly ExecutorLocalMcpServer[]
   sessions: ExecutorMcpSessionManager
@@ -275,7 +279,7 @@ export const createCodingSessionsDaemon = (input: {
       if (ownerKey) owners.add(ownerKey)
       return {
         [CODING_SESSION_COMMAND_META]: call.commandId,
-        [CODING_SESSION_COMMAND_RULES_META]: input.commandRules,
+        [CODING_SESSION_COMMAND_RULES_META]: input.commandRules(),
         ...(ownerKey ? { [CODING_SESSION_OWNER_META]: ownerKey } : {}),
       }
     },

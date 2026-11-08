@@ -19,7 +19,7 @@ import { startFolderSyncLoop } from './folder-sync/engine-loop.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
 import { createDaemonLiveApply } from './daemon-live-apply.js'
-import { createDaemonLiveState, liveView } from './daemon-live-state.js'
+import { createDaemonLiveState } from './daemon-live-state.js'
 import { watchLocalFiles } from './daemon-local-watch.js'
 import { createDaemonOwnerPause } from './daemon-owner-pause.js'
 import { createDaemonToolbox } from './daemon-tools.js'
@@ -31,7 +31,7 @@ import { openProgramRequestStore } from './program-requests.js'
 import { LOCAL_MCP_REFRESH_INTERVAL_MS } from './local-mcp-report.js'
 import { refreshLocalApps } from './local-mcp-apps.js'
 import { localMcpPolicyOf } from './mcp-policy.js'
-import { loadExecutorState, type ExecutorLocalState } from './state-store.js'
+import { executorStatePath, loadExecutorState, type ExecutorLocalState } from './state-store.js'
 import { createDaemonCadence } from './daemon-cadence.js'
 import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
 import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.js'
@@ -39,14 +39,11 @@ import { watchSessionChanges } from './session-change-watch.js'
 import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
 import { reportedSoftwareStatus, requestSoftwareUpdate } from './updates/native-client.js'
-import { join } from 'node:path'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
 const CODING_SESSION_SHUTDOWN_BUDGET_MS = 5_000
 // How often the Codex threads found open on this computer are asked whether they wait on their own client.
 const EXISTING_STATUS_REFRESH_MS = 5_000
-/** The file `state-store.ts` replaces atomically on every save of this team's state. */
-const STATE_FILE = 'executor-state.json'
 
 const withinShutdownBudget = (work: Promise<void>): Promise<void> => Promise.race([
   work.catch(() => undefined),
@@ -88,7 +85,7 @@ export const serveExecutor = async (
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const toolbox = createDaemonToolbox({
-      live, commandRules: liveView(() => live.commandRules), ownerRequestsGate, runtime: options.runtime,
+      live, commandRules: () => live.commandRules, ownerRequestsGate, runtime: options.runtime,
       quiesce: async () => { await screenPoll.current()?.catch(() => undefined) },
     })
     const tools = () => toolbox.current
@@ -266,7 +263,7 @@ export const serveExecutor = async (
       cadence.wake(['heartbeat'])
     })
     const saved = watchLocalFiles({
-      paths: [join(stateDir, STATE_FILE), ownerPausePath(stateDir)],
+      paths: [executorStatePath(stateDir), ownerPausePath(stateDir)],
       onChange: (path) => {
         if (shuttingDown) return
         void (path === ownerPausePath(stateDir) ? applyPause : applySaved).run().catch(() => undefined)
