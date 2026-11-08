@@ -182,7 +182,6 @@ details.access-developers summary { cursor: pointer; font-weight: 600; padding: 
   .tabs, .team-row, #error { margin-left: 16px; margin-right: 16px; }
   .team-card .actions button, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
   .list-row { flex-wrap: wrap; }
-  .list-row .list-name { flex-basis: 100%; }
 }
 
 /* Content text is selectable; controls are not. */

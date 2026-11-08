@@ -101,8 +101,13 @@ window.aiTab = (() => {
   /** On a team this Windows app runs, the first plan first connects the service; then it is named and signed in. */
   const addPlan = async () => {
     const executorId = nc.team.current()
-    const plansOn = planConnection() ?? await window.aiConnection.connect(executorId)
-    if (plansOn && executorId === nc.team.current()) await window.chatgptDialog.open(plansOn, null, plans.length + 1)
+    let plansOn = planConnection()
+    if (!plansOn) {
+      plansOn = await window.aiConnection.connect(executorId)
+      if (!plansOn || executorId !== nc.team.current()) return
+      await load()
+    }
+    if (executorId === nc.team.current()) await window.chatgptDialog.open(plansOn, null, plans.length + 1)
   }
   nc.byId('ai-add-chatgpt').onclick = () => nc.attempt(addPlan, { target: nc.byId('ai-add-chatgpt') })
   nc.byId('ai-add-endpoint').onclick = () => window.inferenceEndpoints.open(null)
