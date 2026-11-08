@@ -50,8 +50,11 @@ export type ExecutorApiClient = {
     baseUrl: string, action: 'challenge' | 'delegate' | 'disconnect', input: unknown,
   ) => Promise<unknown>
   cancelPending: () => void
+  checkSessionAuthority: (baseUrl: string, input: import('@nessie/executor-protocol').ExecutorSessionAuthorityCheck)
+    => Promise<import('@nessie/executor-protocol').ExecutorSessionAuthorityChecked>
   claim: (baseUrl: string, input: { challenge: string; executorId: string; signature: string }) =>
-    Promise<{ connectionEpoch: string; status: string }>
+    Promise<{ connectionEpoch: string; status: string;
+      sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource }>
   heartbeat: (
     baseUrl: string,
     input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string;
@@ -220,6 +223,7 @@ export const createExecutorApi = (options: {
       for (const controller of pending) controller.abort('cancelled')
     },
     claim: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/claim', input),
+    checkSessionAuthority: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-authority', input),
     heartbeat: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/heartbeat', input),
     pollCommand: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/commands/poll', input),
     recordCommandReceipt: (baseUrl, input) =>

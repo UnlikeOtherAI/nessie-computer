@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { ExecutorCodingSessionAuthoritySchema } from './executor-session-authority.js'
 import { PersonalInferenceAuthoritySchema } from './personal-inference-authority.js'
 import { CapabilityPurposeDescriptorSchema } from './capability-purpose.js'
 
@@ -109,6 +110,7 @@ export const ExecutorMcpCallPayloadSchema = z
     owner: ExecutorMcpCallOwnerSchema.optional(),
     /** Server-derived run authority carried beside model arguments, never inside them. */
     personalAuthority: PersonalInferenceAuthoritySchema.optional(),
+    codingSessionAuthority: ExecutorCodingSessionAuthoritySchema.optional(),
     runId: RunIdSchema,
   })
   .strict()

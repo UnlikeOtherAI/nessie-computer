@@ -50,3 +50,4 @@ The daemon doorbell, live session requests, owner answers and `request_secret` f
 Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
 The generated `/engine` package export, exact authored-input registration and its `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
+Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).

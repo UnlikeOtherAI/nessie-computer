@@ -1,3 +1,5 @@
+import { TerminalEffectOutcomes } from './terminal-effect-frame.js'
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
@@ -10,6 +12,7 @@ import { createDebouncedJsonWriter, writeJsonAtomic } from './session-files.js'
 import { packagedJobHelper } from './process-control.js'
 
 export const createTerminalDriver = (context: AgentDriverContext): AgentDriver => {
+  const outcomes = new TerminalEffectOutcomes()
   let process: AgentProcess | undefined
   let screen: ExecutorSessionScreen = {
     ansi: '', cols: 120, rows: 36, capturedAt: new Date().toISOString(), kind: 'terminal',
@@ -23,7 +26,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
   const writer = createDebouncedJsonWriter(
     join(context.paths.dir, 'terminal.json'), () => screen, context.log, 100, context.stillOwner,
   )
-  const start = async (): Promise<AgentProcess> => {
+  const start = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     if (!await context.stillOwner()) throw new AgentStartError('host_superseded')
     // PTYs cannot resume a killed process. The closed screen remains readable;
     // a fresh session is required rather than silently replaying its commands.
@@ -33,6 +36,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     ))
     const helperContext = { ...context, env: {
       ...context.env,
+      ...(effect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}),
       ...(globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' ? { NESSIE_EXECUTOR_PACKAGED_CLI: '1' } : {}),
     } }
     const child = await startAgentProcess(helperContext, [
@@ -40,6 +44,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     ], (line) => {
       try {
         const message = JSON.parse(line) as { socketPath?: unknown }
+        if (outcomes.accept(message)) return
         if (typeof message.socketPath === 'string') {
           void writeJsonAtomic(join(context.paths.dir, 'terminal-connection.json'), {
             socketPath: message.socketPath, session: 'nessie',
@@ -48,7 +53,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
         const parsed = ExecutorSessionScreenSchema.safeParse(message)
         if (parsed.success) { screen = parsed.data; writer.schedule() }
       } catch { /* A malformed helper frame never becomes terminal content. */ }
-    })
+    }, effect)
     process = child
     // One program for the session's whole life, not a turn: no turn limit applies to it (host.ts).
     context.update({ agentIdentity: child.identity, status: 'working', turn: 1 })
@@ -57,9 +62,11 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       const helper = packagedJobHelper() ?? (globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
         ? undefined : fileURLToPath(new URL('../../native/target/release/nessie-executor-native.exe', import.meta.url)))
       if (!helper) throw new AgentStartError('terminal_helper_missing')
-      argv.unshift(helper, 'terminal-run', '--')
+      argv.unshift(helper, effect ? 'terminal-run-authorized' : 'terminal-run', '--')
     }
-    child.write(`${JSON.stringify(argv)}\n`)
+    await effect?.consume()
+    effect?.assertLive()
+    await outcomes.send(argv, effect, child.write)
     settled = false
     void child.exited.then(async ({ code }) => {
       await writer.flush()
@@ -71,13 +78,15 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     }).finally(() => { settled = true })
     return child
   }
-  const stop = async (): Promise<void> => {
+  const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     ending = true
     if (process) {
       const descendants = await context.control.descendants(process.identity)
+      await effect?.consume()
+      effect?.assertLive()
       const stopped = process.confirmHostExecutionStopped
-        ? await process.confirmHostExecutionStopped(descendants)
-        : (await context.control.killTree(process.identity, descendants), true)
+        ? await process.confirmHostExecutionStopped(descendants, effect)
+        : (await context.control.killTree(process.identity, descendants, effect), true)
       await process.exited
       if (stopped) context.update({ agentIdentity: undefined })
     }
@@ -85,12 +94,16 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     context.update({ turnStartedAt: undefined })
   }
   return {
-    send: async (data) => {
-      const child = process?.alive() ? process : await start()
-      if (data) child.write(`${JSON.stringify(data)}\n`)
+    send: async (data, _uuid, effect) => {
+      const child = process?.alive() ? process : await start(effect)
+      await effect?.consume()
+      effect?.assertLive()
+      if (data) await outcomes.send(data, effect, child.write)
     },
-    interrupt: async () => { process?.write(`${JSON.stringify('\u0003')}\n`) },
-    close: async (reason) => { await stop(); context.update({ status: 'closed', reason }) },
+    interrupt: async (_reason, effect) => {
+      if (process) await outcomes.send('\u0003', effect, process.write)
+    },
+    close: async (reason, effect) => { await stop(effect); context.update({ status: 'closed', reason }) },
     endIdle: stop,
     running: () => process?.alive() === true || !settled,
     busy: () => process?.alive() === true || !settled,

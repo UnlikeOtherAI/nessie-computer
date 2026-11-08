@@ -1,3 +1,7 @@
+import { Socket } from 'node:net'
+import { attachEffectTransport } from './effect-transport.js'
+import { EffectPipe, EffectReceiver } from './effect-channel.js'
+import { SessionEffectAuthority, SessionEffectRefused } from './session-effect-authority.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 
 import { runsInOwnUserUnit } from './host-unit.js'
@@ -59,7 +63,7 @@ const TEARDOWN_MS = 10_000
 /** After the agent's `exit`, how long its pipes stay quiet before a descendant holding them is all that is left. */
 const DRAIN_MS = 1_000
 
-type AgentStart = { command: string; args: string[]; cwd: string; env: Record<string, string> }
+type AgentStart = { sessionEffect?: unknown; command: string; args: string[]; cwd: string; env: Record<string, string> }
 
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every((item) => typeof item === 'string')
 
@@ -68,7 +72,8 @@ const agentStart = (message: unknown): AgentStart | undefined => {
   const env = value?.env as unknown
   if (typeof value?.command !== 'string' || !strings(value.args) || typeof value.cwd !== 'string') return undefined
   if (!env || typeof env !== 'object' || !Object.values(env).every((item) => typeof item === 'string')) return undefined
-  return { command: value.command, args: value.args, cwd: value.cwd, env: env as Record<string, string> }
+  return { sessionEffect: value.sessionEffect, command: value.command, args: value.args,
+    cwd: value.cwd, env: env as Record<string, string> }
 }
 
 export type AgentGuardLaunch = {
@@ -90,10 +95,13 @@ export const guardedProcessControl = (
     // would end the guard with the host before it could act; on POSIX a kill of the host's group
     // would reach it too.
     const guard = spawn(launch.argv[0]!, launch.argv.slice(1), {
-      cwd: launch.cwd, env: launch.env, stdio: ['pipe', 'pipe', 'pipe', 'ipc'], windowsHide: true, shell: false, detached: true,
+      cwd: launch.cwd, env: { ...launch.env, ...(options.sessionEffect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}) }, stdio: options.sessionEffect ? ['pipe', 'pipe', 'pipe', 'ipc', 'pipe'] : ['pipe', 'pipe', 'pipe', 'ipc'], windowsHide: true, shell: false, detached: true,
     })
     // A guard that dies before reading this exits on its own, and that exit is the failure the host sees.
-    guard.send({ kind: 'start', command, args, cwd: options.cwd, env: options.env }, () => undefined)
+    guard.send({ kind: 'start', sessionEffect: options.sessionEffect?.reference, command, args, cwd: options.cwd, env: options.env }, () => undefined)
+    if (options.sessionEffect) {
+      attachEffectTransport(guard, 4, options.sessionEffect, { command, args, cwd: options.cwd })
+    }
     return guard
   },
   /**
@@ -312,6 +320,15 @@ export const runCodingAgentGuard = async (
     process.exit(REFUSED)
   }
 
+  const effect = SessionEffectAuthority.fromReference(request.sessionEffect)
+  if (process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1' && !effect) throw new SessionEffectRefused()
+  const receiver = effect ? new EffectReceiver(new EffectPipe(new Socket({ fd: 4, readable: true, writable: true })))
+    : undefined
+  const launch = await receiver?.next()
+  if (launch && (launch.frame.kind !== 'launch' || launch.frame.data !== JSON.stringify({
+    command: request.command, args: request.args, cwd: request.cwd,
+  }))) throw new SessionEffectRefused()
+  await launch?.consume()
   const child = control.spawnAgent(request.command, request.args, { cwd: request.cwd, env: request.env })
   agent = child
   const ending = watchAgentEnding(child)
@@ -326,6 +343,7 @@ export const runCodingAgentGuard = async (
     process.exit(REFUSED)
   }
 
+  launch?.outcome('accepted')
   const found = await control.identify(child.pid)
   // An agent with no start time could never be told from whatever inherits its pid, so it does not keep running,
   // and neither does what it started: its pid alone would leave its group and tree running on unwatched.
@@ -345,7 +363,27 @@ export const runCodingAgentGuard = async (
       stdinEnded = true
       endAgentInput()
     })
-    process.stdin.pipe(child.stdin, { end: false })
+    if (receiver) {
+      const input = child.stdin
+      void (async () => {
+        for (;;) {
+          const operation = await receiver.next()
+          if (!['input', 'reply', 'end'].includes(operation.frame.kind)) throw new SessionEffectRefused()
+          try { await operation.consume() }
+          catch (error) { operation.outcome('refused'); throw error }
+          if (operation.frame.kind === 'end') { input.end(); operation.outcome('accepted'); return }
+          try {
+            await new Promise<void>((resolve, reject) => input.write(operation.frame.data, error => {
+              if (error) reject(error); else resolve()
+            }))
+            operation.outcome('accepted')
+          } catch (error) { operation.outcome('uncertain'); throw error }
+        }
+      })().catch(async () => {
+        if (kill) await kill().catch(() => undefined)
+        else await killUnidentified(child)
+      })
+    } else process.stdin.pipe(child.stdin, { end: false })
   }
   ending.relaying()
 

@@ -42,9 +42,15 @@ pub const PARENT_GONE: &str = "EXECUTOR_JOB_PARENT_GONE";
 
 /// Runs the program to completion and answers the code the helper exits with.
 pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, false)
+}
+pub fn run_authorized(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, true)
+}
+fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
     #[cfg(all(windows, not(debug_assertions)))]
     let lease = crate::managed_windows::acquire_host()?;
-    let result = imp::run(argv);
+    let result = imp::run(argv, authorized);
     #[cfg(all(windows, not(debug_assertions)))]
     crate::managed_windows::release_host(&lease)?;
     result
@@ -54,7 +60,7 @@ pub fn run(argv: &[String]) -> Result<i32, NativeError> {
 mod imp {
     use super::{NativeError, UNSUPPORTED};
 
-    pub fn run(_argv: &[String]) -> Result<i32, NativeError> {
+    pub fn run(_argv: &[String], _authorized: bool) -> Result<i32, NativeError> {
         Err(NativeError::new(UNSUPPORTED))
     }
 }
@@ -62,7 +68,7 @@ mod imp {
 #[cfg(windows)]
 pub(crate) mod imp {
     use super::{NativeError, CONTAINMENT_FAILED, PARENT_GONE, SPAWN_FAILED};
-    use std::os::windows::io::AsRawHandle;
+    use std::os::windows::io::{AsRawHandle, BorrowedHandle};
     use std::os::windows::process::CommandExt;
     use std::process::{Child, Command};
     use windows_sys::Win32::Foundation::{
@@ -214,23 +220,62 @@ pub(crate) mod imp {
         NativeError::new(code)
     }
 
-    pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+    pub fn run(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
         let (program, arguments) = argv.split_first().ok_or(NativeError::new(SPAWN_FAILED))?;
         let parent = parent_process()?;
         let job = kill_on_close_job()?;
         // No console window of its own; stdio is inherited explicitly, so the
         // pipes the host holds are the program's stdin, stdout and stderr.
-        let child = Command::new(program)
+        let mut channel = if authorized {
+            Some(crate::session_effect::inherited()?)
+        } else {
+            None
+        };
+        let launch = if let Some(ref mut receiver) = channel {
+            Some(receiver.launch(argv)?)
+        } else {
+            None
+        };
+        let mut command = Command::new(program);
+        command
             .args(arguments)
-            .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW)
+            .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
+        if authorized {
+            command.stdin(std::process::Stdio::piped());
+        }
+        if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+            receiver.consume(frame)?;
+        }
+        let mut child = command
             .spawn()
             .map_err(|_| NativeError::new(SPAWN_FAILED))?;
         let process = child.as_raw_handle() as HANDLE;
         if unsafe { AssignProcessToJobObject(job.0, process) } == 0 {
             return Err(abandon(child, CONTAINMENT_FAILED));
         }
+        if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+            if receiver.consume(frame).is_err() {
+                return Err(abandon(child, crate::session_effect::REFUSED));
+            }
+        }
         if !resume(&child) {
             return Err(abandon(child, SPAWN_FAILED));
+        }
+        if let (Some(mut receiver), Some(frame)) = (channel, launch) {
+            if receiver.outcome(&frame, "accepted").is_err() {
+                return Err(abandon(child, crate::session_effect::REFUSED));
+            }
+            let input = child.stdin.take().ok_or(NativeError::new(SPAWN_FAILED))?;
+            let job_for_relay = unsafe { BorrowedHandle::borrow_raw(job.0 as _) }
+                .try_clone_to_owned()
+                .map_err(|_| NativeError::new(CONTAINMENT_FAILED))?;
+            std::thread::spawn(move || {
+                if receiver.relay(input, false).is_err() {
+                    unsafe {
+                        TerminateJobObject(job_for_relay.as_raw_handle() as HANDLE, ENDED_BY_HELPER)
+                    };
+                }
+            });
         }
         let handles = [process, parent.0];
         let signalled =

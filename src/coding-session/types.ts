@@ -41,6 +41,8 @@ export const codingSessionIsLive = (status: CodingSessionStatus): boolean => (
 
 /** Written once by the bridge; the owner and the reach of a session never change. */
 export type CodingSessionMeta = {
+  /** Written only by the actual new managed start; absent legacy/native metadata stays unknown. */
+  originalManagedStart?: import('./session-authority.js').ManagedStart
   personalAuthority?: PersonalInferenceAuthority
   version: 1
   sessionId: string
@@ -150,6 +152,7 @@ export type CodingSessionEvent = CodingEventBody & { seq: number; at: string }
 
 /** A request the bridge leaves for the host, named after the executor command that caused it. */
 export type CodingSessionRequest = {
+  sessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority
   id: string
   kind: 'start' | 'send' | 'interrupt' | 'close' | 'retire' | 'answer'
   text?: string

@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 
 import {
@@ -98,34 +99,34 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     const asker = agent
     const plan = planClaudeRequest(prompt, context.projector, context.folder, context.roots)
     if (plan.kind === 'allow') {
-      asker?.write(plan.line)
+      asker?.writeProtocol(plan.line)
       return
     }
     const opened = context.requests.open(plan.draft, {
-      answer: (answer) => {
+      answer: async (answer, effect) => {
         asked.delete(prompt.requestId)
         const reply = plan.answer(answer)
         // A cancel stops the turn: Claude interrupts itself, and the turn ends as interrupted.
         if (reply.stopsTurn) interruptRequested = true
-        if (asker?.alive()) asker.write(reply.line)
+        if (asker?.alive()) await asker.write(reply.line, effect)
       },
       withdraw: (_status, reason) => {
         asked.delete(prompt.requestId)
-        if (asker?.alive() && reason !== 'provider_cancelled') asker.write(plan.withdraw(reason))
+        if (asker?.alive() && reason !== 'provider_cancelled') asker.writeProtocol(plan.withdraw(reason))
       },
     })
     // A prompt the protocol cannot carry is turned down rather than left waiting on nobody.
     if (opened) asked.set(prompt.requestId, opened.id)
     else if (!context.requests.ownerReachable()) {
       // Nessie has not shown it can ask the owner: denied as every prompt was before it could.
-      asker?.write(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
+      asker?.writeProtocol(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
     } else {
       context.log('a permission prompt could not be shown to the owner')
-      asker?.write(plan.withdraw('unreadable_request'))
+      asker?.writeProtocol(plan.withdraw('unreadable_request'))
     }
   }
 
-  const start = async (): Promise<AgentProcess> => {
+  const start = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     const state = context.state()
     const sessionId = state.agentSessionId ?? randomUUID()
     const resume = state.agentSessionId !== undefined && state.agentSessionStarted === true
@@ -146,7 +147,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         sessionId, resume, ...(context.maxBudgetUsd === undefined ? {} : { maxBudgetUsd: context.maxBudgetUsd }),
         ...(context.secretServer ? { mcpServer: context.secretServer } : {}),
       }),
-    ], (line) => handle(current.accept(line), readyHooks))
+    ], (line) => handle(current.accept(line), readyHooks), effect)
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
     void spawned.exited.then(({ code }) => {
@@ -167,7 +168,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
       }
     })
-    spawned.write(claudeControlLine('initialize'))
+    await effect?.consume()
+    effect?.assertLive()
+    await spawned.write(claudeControlLine('initialize'), effect)
     const timer = setTimeout(() => rejectReady(new AgentStartError('agent_exited')), READY_TIMEOUT_MS)
     try {
       await ready
@@ -177,26 +180,30 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     return spawned
   }
 
-  const ensureAgent = async (): Promise<AgentProcess> => {
+  const ensureAgent = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
     if (agent?.alive()) return agent
-    starting ??= start().finally(() => { starting = undefined })
+    starting ??= start(effect).finally(() => { starting = undefined })
     return starting
   }
 
-  const stop = async (): Promise<void> => {
+  const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
     const identity = current?.identity ?? context.state().agentIdentity
     if (!identity) return
     ending = true
     const snapshot = await context.control.descendants(identity)
+    await effect?.consume()
+    effect?.assertLive()
     if (current?.alive()) {
-      current.write(claudeControlLine('end_session'))
-      current.endInput()
+      if (effect) await current.write(claudeControlLine('end_session'), effect)
+      await current.endInput(effect)
       await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
     }
+    await effect?.consume()
+    effect?.assertLive()
     const stopped = current?.confirmHostExecutionStopped
-      ? await current.confirmHostExecutionStopped(snapshot)
-      : (await context.control.killTree(identity, snapshot), true)
+      ? await current.confirmHostExecutionStopped(snapshot, effect)
+      : (await context.control.killTree(identity, snapshot, effect), true)
     if (stopped) agent = undefined
     // An interrupt the ended process never answered belongs to it, not to the next turn.
     interruptRequested = false
@@ -207,25 +214,29 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   }
 
   return {
-    send: async (text, uuid) => {
+    send: async (text, uuid, effect) => {
       if (context.maxBudgetUsd !== undefined && agent?.alive() && stream && !stream.busy()
         && stream.processCostUsd() > 0 && stream.backgroundTasks() === 0) {
         context.log('starting a fresh claude process so the next turn has its whole budget')
-        await stop()
+        await stop(effect)
       }
-      const running = await ensureAgent()
+      const running = await ensureAgent(effect)
+      await effect?.consume()
+      effect?.assertLive()
       stream?.noteSent(uuid)
       beginTurn()
-      running.write(claudeUserLine(uuid, text))
+      await running.write(claudeUserLine(uuid, text), effect)
     },
-    interrupt: async (reason) => {
+    interrupt: async (reason, effect) => {
       if (!agent?.alive() || !stream?.busy()) return
       interruptRequested = true
       interruptReason = reason
-      agent.write(claudeControlLine('interrupt'))
+      await effect?.consume()
+      effect?.assertLive()
+      await agent.write(claudeControlLine('interrupt'), effect)
     },
-    close: async (reason) => {
-      await stop()
+    close: async (reason, effect) => {
+      await stop(effect)
       context.update({ status: 'closed', reason, turnStartedAt: undefined })
     },
     endIdle: stop,
