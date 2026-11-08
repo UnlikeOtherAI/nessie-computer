@@ -30,7 +30,7 @@ assert.equal(hash(extractionBytes), 'd24f1709b6d7c1211d9987179d3fc727ef51e9c54d7
 const extraction = JSON.parse(extractionBytes)
 assert.equal(extraction.patches.length, 124)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))
-assert.equal(privacyFiles.size, 5)
+assert.equal(privacyFiles.size, 6)
 assert.deepEqual(extraction.patches.filter(patch => privacyFiles.has(patch.file)), [])
 
 const { original, snapshot, manifestBytes } = await readRequestSource()
