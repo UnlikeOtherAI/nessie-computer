@@ -37,7 +37,7 @@ export const readInferenceEndpoints = async (directory: string): Promise<Inferen
 
 /** Serialize read-modify-write so two native windows cannot discard each other's connections. */
 export const changeInferenceEndpoint = async (directory: string, input:
-  | { operation: 'save'; id?: string; name: string; config: LocalOpenAiConfig }
+  | { operation: 'save'; id?: string; name: string; config: LocalOpenAiConfig; preserveApiKey?: boolean }
   | { operation: 'remove'; id: string },
 ): Promise<string> => {
   await assertOwnerOnlyStatePath(directory, 'directory')
@@ -49,7 +49,12 @@ export const changeInferenceEndpoint = async (directory: string, input:
     if (input.operation === 'remove') {
       if (existing >= 0) endpoints.splice(existing, 1)
     } else {
-      const endpoint = Endpoint.parse({ id, name: input.name, config: input.config })
+      const previous = endpoints[existing]?.config
+      // Resolve omitted credentials under the same lock as the configuration write.
+      const apiKey = input.preserveApiKey && previous?.baseUrl === input.config.baseUrl
+        ? previous.apiKey : input.config.apiKey
+      const config = { ...input.config, ...(apiKey ? { apiKey } : {}) }
+      const endpoint = Endpoint.parse({ id, name: input.name, config })
       if (existing >= 0) endpoints[existing] = endpoint
       else endpoints.push(endpoint)
     }

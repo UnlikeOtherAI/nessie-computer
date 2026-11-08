@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
+import { applyInferenceEndpointOperation } from '../src/inference-endpoint-cli.js'
+import { readInferenceEndpoints } from '../src/inference-endpoints.js'
+import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 import { createInferenceEndpointBackend } from '../src/inference-endpoint-backend.js'
 import { isInferenceNetworkAddress, resolveInferenceAddresses } from '../src/inference-endpoint-network.js'
 import { parseLocalOpenAiConfig } from '../src/openai-local-config.js'
@@ -79,3 +86,26 @@ test('LAN configuration is explicit and every DNS answer stays within the local 
     assert.throws(() => parseLocalOpenAiConfig({ baseUrl: address, networkServiceConfirmed: true }))
   }
 })
+
+test('saved endpoint credentials survive rename but never a new address or explicit removal',
+  { skip: WINDOWS_STATE_HELPER_SKIP }, async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'nessie-inference-endpoints-'))
+    t.after(() => rm(directory, { recursive: true, force: true }))
+    await ensureOwnerOnlyStateDirectory(directory)
+    const save = { operation: 'save', id: first, name: 'Strata',
+      baseUrl: 'http://192.168.1.90:8080/v1', scope: 'network' }
+    await applyInferenceEndpointOperation(directory, { ...save, apiKey: 'fixture-key-one' })
+    await applyInferenceEndpointOperation(directory, { ...save, apiKey: 'fixture-key-two' })
+    await applyInferenceEndpointOperation(directory, { ...save, name: 'Renamed Strata' })
+    const saved = (await readInferenceEndpoints(directory))!
+    assert.equal(saved.find(item => item.id === first)?.config.apiKey, 'fixture-key-two')
+    assert.ok(saved.some(item => item.id === LEGACY_ENDPOINT_ID), 'keep automatic Ollama on first save')
+    await applyInferenceEndpointOperation(directory, { ...save, baseUrl: 'http://192.168.1.91:8080/v1' })
+    assert.equal((await readInferenceEndpoints(directory))!.find(item => item.id === first)?.config.apiKey, undefined)
+    await applyInferenceEndpointOperation(directory, { ...save, apiKey: 'fixture-key-three' })
+    await applyInferenceEndpointOperation(directory, { ...save, apiKey: '' })
+    assert.equal((await readInferenceEndpoints(directory))!.find(item => item.id === first)?.config.apiKey, undefined)
+    await applyInferenceEndpointOperation(directory, { operation: 'remove', id: first })
+    await applyInferenceEndpointOperation(directory, { operation: 'remove', id: LEGACY_ENDPOINT_ID })
+    assert.deepEqual(await readInferenceEndpoints(directory), [], 'explicit empty stays disabled')
+  })

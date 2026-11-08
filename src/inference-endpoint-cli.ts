@@ -36,12 +36,11 @@ export const applyInferenceEndpointOperation = async (directory: string, input: 
   const action = InferenceEndpointOperation.parse(input)
   if (action.operation === 'status') return
   if (action.operation === 'remove') { await changeInferenceEndpoint(directory, action); return }
-  const existing = (await readInferenceEndpoints(directory))?.find(endpoint => endpoint.id === action.id)
-  // An omitted key means keep it only for the same server. Changing the address never forwards the old credential.
-  const apiKey = action.apiKey ?? (existing?.config.baseUrl === action.baseUrl ? existing.config.apiKey : undefined)
+  const apiKey = action.apiKey
   const config = parseLocalOpenAiConfig({ baseUrl: action.baseUrl, ...(apiKey ? { apiKey } : {}),
     ...(action.scope === 'network' ? { networkServiceConfirmed: true } : { localServiceConfirmed: true }) })
-  await changeInferenceEndpoint(directory, { operation: 'save', id: action.id, name: action.name, config })
+  await changeInferenceEndpoint(directory, { operation: 'save', id: action.id, name: action.name, config,
+    preserveApiKey: action.apiKey === undefined })
 }
 export const runInferenceEndpointsCli = async (args: string[]): Promise<boolean> => {
   if (args[0] !== 'local-inference' || args[1] !== 'connections') return false
