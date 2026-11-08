@@ -34,11 +34,11 @@ fn the_services_own_processes_are_left_to_the_service_stop() {
     assert_eq!(found, [20, 21, 22, 30]);
 }
 
-/// A copy of a Windows program under one of the team images' names, started
-/// from a temporary folder the way a daemon runs from the install folder.
-fn start_from(folder: &Path, name: &str, program: &str, args: &[&str]) -> (std::process::Child, PathBuf) {
+/// A copy of a program under one of the team images' names, started from a
+/// temporary folder the way a daemon runs from the install folder.
+fn start_from(folder: &Path, name: &str, program: &Path, args: &[&str]) -> (std::process::Child, PathBuf) {
     let image = folder.join(name);
-    std::fs::copy(PathBuf::from(std::env::var("SystemRoot").unwrap()).join("System32").join(program), &image).unwrap();
+    std::fs::copy(program, &image).unwrap();
     // CREATE_NO_WINDOW: a hidden console of its own, as the launcher gives a daemon.
     let child = Command::new(&image).args(args).creation_flags(0x0800_0000).spawn().unwrap();
     std::thread::sleep(Duration::from_millis(500));
@@ -48,7 +48,8 @@ fn start_from(folder: &Path, name: &str, program: &str, args: &[&str]) -> (std::
 #[test]
 fn what_does_not_stop_in_time_is_terminated_and_nothing_is_left_running() {
     let folder = tempfile::tempdir().unwrap();
-    let (mut child, _) = start_from(folder.path(), "nessie-hyperv-bridge.exe", "PING.EXE", &["-n", "60", "127.0.0.1"]);
+    let ping = PathBuf::from(std::env::var("SystemRoot").unwrap()).join(r"System32\PING.EXE");
+    let (mut child, _) = start_from(folder.path(), "nessie-hyperv-bridge.exe", &ping, &["-n", "60", "127.0.0.1"]);
     let found = running_from(folder.path()).unwrap();
     assert_eq!(found.len(), 1);
     let closing = close_found(found, Duration::from_secs(2), false).unwrap();
@@ -63,8 +64,11 @@ fn what_does_not_stop_in_time_is_terminated_and_nothing_is_left_running() {
 #[ignore = "attaches to another console; run alone"]
 fn a_daemon_is_asked_to_stop_with_ctrl_break_before_anything_is_terminated() {
     let folder = tempfile::tempdir().unwrap();
-    // timeout.exe has no break handler, so Ctrl+Break ends it at once: it stops when asked.
-    let (mut child, _) = start_from(folder.path(), "nessie-executor-runtime.exe", "timeout.exe", &["/t", "60"]);
+    // Node, as the daemon runs: it stops when it hears SIGBREAK, as the daemon now does.
+    let node = std::env::split_paths(&std::env::var_os("PATH").unwrap())
+        .map(|directory| directory.join("node.exe")).find(|path| path.is_file()).expect("node on PATH");
+    let script = "process.on('SIGBREAK', () => process.exit(0)); setInterval(() => {}, 1000)";
+    let (mut child, _) = start_from(folder.path(), "nessie-executor-runtime.exe", &node, &["-e", script]);
     let found = running_from(folder.path()).unwrap();
     assert_eq!(found.len(), 1);
     let closing = close_found(found, Duration::from_secs(10), false).unwrap();
