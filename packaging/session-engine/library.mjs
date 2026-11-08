@@ -24,6 +24,7 @@ const external = name => externalPackages.some(pkg => name === pkg || name.start
 export const prepareLibrarySnapshot = async (original, { sourceRepository } = {}) => {
   const registration = JSON.parse(await readFile(new URL('./library-inputs.json', import.meta.url), 'utf8'))
   const privacy = await readFile(new URL('../../patches/t3-session/requests/boundary-patches.json', import.meta.url))
+  const workspace = await readFile(new URL('../../patches/t3-session/workspace/boundary-patches.json', import.meta.url))
   if (registration.format !== 1 || hash(privacy) !== registration.privacyManifestSha256) {
     throw new Error('SESSION_ENGINE_LIBRARY_PRIVACY_IDENTITY_MISMATCH')
   }
@@ -32,7 +33,8 @@ export const prepareLibrarySnapshot = async (original, { sourceRepository } = {}
     throw new Error('SESSION_ENGINE_LIBRARY_CONTRACTS_IDENTITY_MISMATCH')
   }
   const prepared = prepareSessionEngineSnapshot(original,
-    { additionalPatchFamilies: [{ id: 'request-privacy', bytes: privacy }] })
+    { additionalPatchFamilies: [{ id: 'request-privacy', bytes: privacy },
+      { id: 'workspace', bytes: workspace }] })
   const { default: ts } = await import('typescript')
   const supplemented = await readClientSourceInputs(prepared.snapshot, sourceRepository)
   const selected = selectMobileClientSource(ts, supplemented, clientSourceManifest)

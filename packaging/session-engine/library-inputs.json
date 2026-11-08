@@ -16,7 +16,8 @@
     "packaging/session-engine/core/SessionLifecycle.ts",
     "packaging/session-engine/core/StateDirectoryLock.ts",
     "packaging/session-engine/core/StateLayers.ts",
-    "src/t3-session/requests/validate.ts"
+    "src/t3-session/requests/validate.ts",
+    "patches/t3-session/workspace/Engine.ts"
   ],
   "privacyCommit": "da542bbc58a33ec96e7c555b6fd8779e78f92d81",
   "privacyManifestSha256": "bbc39dd3a7cdcef8109b512e646dab9ad9d51e3223c0fa753da2ae9d8bc4bb05",
