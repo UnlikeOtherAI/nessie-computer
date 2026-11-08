@@ -15,9 +15,10 @@ final class ExecutorPairingTests: XCTestCase {
         XCTAssertNotNil(state.expiration)
         XCTAssertTrue(state.isPending)
         XCTAssertFalse(state.isPaired)
-        var missingFingerprint = waiting
-        missingFingerprint.removeValue(forKey: "fingerprint")
-        XCTAssertThrowsError(try decode(missingFingerprint))
+        // Nessie confirms this computer by name now; no fingerprint is shown or needed.
+        var withoutFingerprint = waiting
+        withoutFingerprint.removeValue(forKey: "fingerprint")
+        XCTAssertEqual(try decode(withoutFingerprint).code, "00123456")
         for invalid in ["1234567", "123456789", "ABCDEFGH", "１２３４５６７８", "1234 567"] {
             var payload = waiting
             payload["code"] = invalid
@@ -40,7 +41,8 @@ final class ExecutorPairingTests: XCTestCase {
         ])
         XCTAssertTrue(state.isPaired)
         XCTAssertFalse(state.isPending)
-        XCTAssertEqual(state.connectionName, "UnlikeOtherAI, in the Platform team")
+        XCTAssertEqual(state.teamName, "Platform")
+        XCTAssertEqual(state.organizationName, "UnlikeOtherAI")
     }
 
     func testPairedConnectionUsesLiveNamesWithoutRequiringAPendingCode() throws {
@@ -49,7 +51,8 @@ final class ExecutorPairingTests: XCTestCase {
         ])
         XCTAssertTrue(state.isPaired)
         XCTAssertFalse(state.isPending)
-        XCTAssertEqual(state.connectionName, "Example")
+        XCTAssertEqual(state.organizationName, "Example")
+        XCTAssertNil(state.teamName)
         XCTAssertNil(state.expiration)
     }
 

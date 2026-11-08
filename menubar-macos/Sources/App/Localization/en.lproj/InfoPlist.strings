@@ -1,0 +1,10 @@
+/* The name a person sees. The bundle itself stays "Nessie Executor.app"; see Info.plist. */
+"CFBundleDisplayName" = "Nessie Computer";
+"CFBundleName" = "Nessie Computer";
+
+"NSDocumentsFolderUsageDescription" = "Nessie Computer uses this folder only when you share it with a team or keep your documents in it.";
+"NSDesktopFolderUsageDescription" = "Nessie Computer uses this folder only when you share it with a team or keep your documents in it.";
+"NSDownloadsFolderUsageDescription" = "Nessie Computer uses this folder only when you share it with a team or keep your documents in it.";
+"NSRemovableVolumesUsageDescription" = "Nessie Computer uses this drive only when you share a folder on it with a team.";
+"NSNetworkVolumesUsageDescription" = "Nessie Computer uses this network drive only when you share a folder on it with a team.";
+"NSLocalNetworkUsageDescription" = "Nessie Computer connects to model servers and computers on your network that you set up for a team.";

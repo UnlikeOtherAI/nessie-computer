@@ -70,26 +70,21 @@ public enum ApprovedAPIOrigin {
               let host = components.host?.lowercased(),
               !host.isEmpty
         else {
-            return .failure(ExecutorRefusal(
-                "Enter an HTTPS address for the Nessie you are pairing with, such as "
-                    + "https://nessie.example.com."
-            ))
+            return .failure(ExecutorRefusal(.addressNeedsHTTPS))
         }
         if components.user != nil || components.password != nil {
-            return .failure(ExecutorRefusal("Enter the server address without a username or password."))
+            return .failure(ExecutorRefusal(.addressHasCredentials))
         }
         let carriesMoreThanAnOrigin = components.query != nil
             || components.fragment != nil
             || !(components.path.isEmpty || components.path == "/")
         if carriesMoreThanAnOrigin {
-            return .failure(ExecutorRefusal(
-                "Enter only the server address, without a page path or anything after it."
-            ))
+            return .failure(ExecutorRefusal(.addressHasPath))
         }
         let origin = origin(scheme: scheme, host: host, port: components.port)
         if scheme == "https" { return .success(origin) }
         if isDevelopmentBuild, origin == localDevelopment { return .success(origin) }
-        return .failure(ExecutorRefusal("The server address must start with https://."))
+        return .failure(ExecutorRefusal(.addressMustBeHTTPS))
     }
 
     /// How a surface names an origin to the person confirming it. A preset is
@@ -107,18 +102,33 @@ public enum ApprovedAPIOrigin {
     /// admin beside its API, so the one rule is `api.` → `app.`; anything else
     /// is a self-hosted origin nobody here can second-guess, and it is offered
     /// as itself.
-    public static func consoleURL(forAPIOrigin apiOrigin: String, isDevelopmentBuild: Bool) -> URL {
+    ///
+    /// While a pairing code is showing, the page opens on Add a computer with
+    /// that code filled in (`?create=1&code=<code>`), a one-shot intent the
+    /// console strips once it has read it. Only an eight-digit code is passed.
+    public static func consoleURL(
+        forAPIOrigin apiOrigin: String,
+        isDevelopmentBuild: Bool,
+        pairingCode: String? = nil
+    ) -> URL {
+        var components: URLComponents
         if isDevelopmentBuild, apiOrigin == localDevelopment {
-            // Force-unwrapped against a literal this file owns.
-            return URL(string: "http://localhost:5455/admin/computers")!
-        }
-        guard var components = URLComponents(string: apiOrigin), let host = components.host else {
+            components = URLComponents()
+            components.scheme = "http"
+            components.host = "localhost"
+            components.port = 5455
+        } else if let parsed = URLComponents(string: apiOrigin), let host = parsed.host {
+            components = parsed
+            if host.hasPrefix("api.") { components.host = "app." + host.dropFirst("api.".count) }
+        } else {
             return hostedNessieConsole
         }
-        if host.hasPrefix("api.") {
-            components.host = "app." + host.dropFirst("api.".count)
-        }
         components.path = "/admin/computers"
+        if let pairingCode, pairingCode.utf8.count == 8, pairingCode.utf8.allSatisfy({ (48...57).contains($0) }) {
+            components.queryItems = [
+                URLQueryItem(name: "create", value: "1"), URLQueryItem(name: "code", value: pairingCode)
+            ]
+        }
         return components.url ?? hostedNessieConsole
     }
 

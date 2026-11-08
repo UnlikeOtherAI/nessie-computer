@@ -1,6 +1,6 @@
 import Foundation
 
-/// The JSON `nessie-executor describe` prints, and the only shape this app
+/// The JSON `nessie-computer describe` prints, and the only shape this app
 /// renders. `executor/src/describe.ts` is its producer; nothing here reads
 /// `executor-state.json`, so the app can never hold a second interpretation of
 /// a local policy the daemon enforces.
@@ -60,12 +60,19 @@ public struct ExecutorDescription: Equatable, Decodable, Sendable {
     public let sandbox: Sandbox
     /// Folder sync on this connection; absent from a runtime that predates it.
     public let folderSync: FolderSyncSummary?
+    /// The owner paused this team on this computer. Absent from a runtime that
+    /// predates Pause, which could not have been paused.
+    public let paused: Bool?
+    /// Program requests waiting for the owner's answer; absent from a runtime
+    /// that predates them.
+    public let pendingProgramRequests: Int?
 
     public static func decode(_ data: Data) throws -> ExecutorDescription {
         try JSONDecoder().decode(ExecutorDescription.self, from: data)
     }
 
     public var commandRunEnabled: Bool { policy.operations.contains(ExecutorPolicy.commandOperationKey) }
+    public var isPaused: Bool { paused ?? false }
 }
 
 public enum ExecutorPolicy {
