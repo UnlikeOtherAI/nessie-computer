@@ -102,6 +102,11 @@
       <Component>
         <File Id="TrayExe" Source="$(var.StagingDir)\nessie-executor-tray.exe" KeyPath="yes" />
       </Component>
+      <Component>
+        <File Id="CliCommand" Source="$(var.StagingDir)\nessie-executor.cmd" KeyPath="yes" />
+        <Environment Id="ExecutorCliPath" Name="PATH" Value="[INSTALLFOLDER]"
+                     Action="set" Part="last" Permanent="no" System="yes" />
+      </Component>
     </ComponentGroup>
 
     <!-- The sandbox payload. Its own manifest.json records one SHA-256 per

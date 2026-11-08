@@ -19,7 +19,8 @@ test('release input cannot change artifact paths or insert formula code', () => 
 test('native Linux packages keep the runtime and service at their trusted locations', () => {
   for (const format of ['deb', 'rpm']) {
     const config = linuxPackage('1.0.0', '/build/payload', format, '/temporary/signing-key.asc')
-    assert.deepEqual(config.contents, [{ src: '/build/payload/usr/', dst: '/usr', type: 'tree' }])
+    assert.deepEqual(config.contents, [{ src: '/build/payload/usr/', dst: '/usr', type: 'tree' },
+      { src: '/build/payload/nessie-executor-autostart.desktop', dst: '/etc/xdg/autostart/works.nessie.Executor.desktop' }])
     assert.deepEqual(config.scripts, { postinstall: '/build/payload/install-custody-barrier.sh',
       preremove: '/build/payload/disable-updater-for-removal.sh' })
     assert.ok(config.depends.includes('tmux'))

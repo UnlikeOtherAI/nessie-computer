@@ -1,15 +1,20 @@
 # Automatic executor updates
 
-Status: **not released**. The Windows native installer coordinator and shared
-local controls are implemented in source. No signed installed upgrade has been
-verified. Cross-platform installer adapters exist in source; complete stable
-publication and installed upgrade acceptance remain unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
+Status: **not released**. Native installer adapters and local update controls
+are implemented in source. Installed A-to-B acceptance on Windows, macOS and
+Linux has not passed, and the transition release remains unpublished. The published 0.9.1 prerelease and sequence-1 stable/preview
 catalogs contain only the Apple-silicon DMG. They do not provide a complete
 stable distribution or establish installed upgrade acceptance.
 
 The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
 background helper. See [the helper trust contract](macos-update-helper.md).
+
+Local signed candidates 1.0.2 and 1.0.3 now exist for all four formats at
+`a24bd9c2bf40201693baa1ddca9ffb7713619d2c`: timestamped Azure-signed Windows
+MSIs, Developer ID signed/notarized/stapled Apple-silicon DMGs, and signed
+Linux DEB/RPM packages and repository metadata. They remain unpublished and
+have not passed installed A-to-B acceptance. The local GUI and CLI changes require new candidates before release.
 
 Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.11
 at `9d8fef9` installed normally on Maxis; its non-elevated controls can read
@@ -52,8 +57,11 @@ unsupported updater and never claim to have installed an update.
 
 The CLI entry point exposes `updates status`, `updates check`, `updates install`,
 `updates automatic on|off` and `updates remind`, with `--json` for scripts.
-Human terminals may offer an available update at launch; JSON output and
-internal MCP pipes never receive a prompt. These operations require the
+Human terminals start an unreferenced background check at launch. An available
+version prints the fixed `updates install` and `updates remind` actions without
+reading standard input or holding an ordinary command open. A short command may
+finish before the check responds; the native coordinator retains its check.
+JSON output and internal MCP pipes never start a launch offer. These operations require the
 authenticated installed coordinator before they can replace software.
 
 The implementation adds a public software-status contract for signed heartbeats
@@ -64,7 +72,7 @@ in its runtime manifest; process environment overrides cannot change them.
 
 Stable installation defaults to automatic. A local opt-out survives subsequent
 catalogue checks, downloads, app restarts and upgrades. Opting out keeps version
-checks and prompts for a new version with Update now and Remind me tomorrow;
+checks and prompts for a new version with Update now and Remind me in 24 hours;
 the reminder lasts 24 hours and never suppresses a newer version. Preview
 requires an explicit local choice. Remote Nessie teams cannot change this
 machine setting.
@@ -190,6 +198,8 @@ translated into all seven supported locales. The local headless renderer
 journey is `node tray-windows/test/renderer-harness.mjs --updates-only`; it is
 not a CI job. Matching base screenshots can be captured with
 `--updates-before=<base-commit>` from actual Git objects without changing UI.
+For reminder and retry copy, add `--updates-copy-only` to both runs; it visits
+only the changed offer and service-unavailable states.
 
 Windows observes exited generations and empty Job Objects independently of
 stale service records; it never deletes that journal or its credential fences
@@ -347,6 +357,103 @@ automatic/stable defaults with SELinux still enforcing. The root-owned legacy
 image remains. Packaging-plan tests and all 37 native Rust tests passed.
 This verifies service setup and restart recovery, not catalogue-driven A-to-B
 installation, notification, interrupted-transaction recovery or GNOME controls.
+
+## Linux local settings
+
+The DEB and RPM payloads include `nessie-executor-app` and the Nessie Executor
+application entry. Its WebKitGTK window renders the same Software updates
+section, translations and Update / Remind me in 24 hours dialog as the Mac and
+Windows console. It shows the installed version, automatic preference, Check
+for updates and Update action before a team is connected.
+
+A desktop autostart entry monitors the authenticated updater in the user's
+graphical session. With automatic updates off, a newly available version opens
+the shared offer even after the window was closed. The reminder waits exactly
+24 elapsed hours, including across daylight-saving changes; it never promises
+the next calendar day. The reminder lives in the
+native coordinator, so closing or restarting this app cannot erase it. After
+the installed version changes, the fixed package launcher reopens the new
+console. Root-owned update and pairing state stay with their existing owners.
+
+The unprivileged Python/GTK host exposes no listener. It loads only its packaged
+document, blocks remote navigation and web permissions, and maps a strict local
+request to fixed `nessie-executor updates` arguments. The page cannot select an
+executable, file, URL, channel or environment. GTK and WebKit are OS package
+dependencies; no Python package download occurs at app launch.
+
+Focused native protocol checks run on Fedora with
+`python3 packaging/linux/test/console_test.py`. The local headless renderer
+journey is `node packaging/linux/test/renderer.mjs`; keep it out of CI.
+Installed GNOME entry, reminder and reboot checks remain release acceptance
+work until the signed candidate is exercised on FedoraMaxis.
+
+## Windows source verification context
+
+Build the Debug helper with `cargo build --manifest-path native/Cargo.toml`.
+The Windows source runner places Node beside that helper for real DACL, Job Object
+and ConPTY checks. Release Job/terminal helpers require an installed signed factory;
+the source terminal driver selects only Debug, and source tests do not claim
+that factory. Public
+ACL operations use that fixed sibling without marking Node as an installed
+executor. Previously the runner set `NESSIE_EXECUTOR_PACKAGED_CLI=1` solely to
+reach the helper; that also activated installed-only custody and stranded source
+MCP teardown on proof the uncontained test process could not provide.
+
+The ACL transport and runtime admission are now separate. State-test prerequisite
+checks use the sibling helper, so unmarked source runs retain real DACL coverage.
+State-store and guest-runtime fixtures set actual Windows DACLs in that context;
+POSIX chmod is never treated as Windows privacy.
+Guest artifact tests still require installed package resources. A missing or symlinked
+helper still refuses; there is no PATH search or helper environment override.
+Installed-only updater and credential commands retain their own package, publisher
+and native factory requirements. The real Windows regression verifies owner-only
+state while update installation is unsupported and native credential context is
+rejected for the source runtime. Existing journals and unknown-stop fences are
+never cleared to make source tests pass.
+
+Run the focused source/ACL/bridge, secret-delivery, Job Object and terminal regressions through Turbo with
+`pnpm exec turbo run test:windows-source --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
+Then run `pnpm verify`; installed acceptance remains a separate gate.
+
+## Immutable catalog history
+
+Versioned installer releases must be published with GitHub release immutability
+enabled. The publisher checks each downloaded package and Linux detached
+signature against that immutable release's GitHub SHA-256 digest and size. Its
+source tag must match the declared revision, which needs a successful CI push
+on protected main. OS signing and installed acceptance remain separate release
+requirements; a GitHub digest does not replace them.
+
+The protected catalog workflow first publishes the signed envelope as
+`update-catalog-<channel>-<sequence>`, an immutable release at the same source
+revision. Only after rereading its exact bytes does it replace `catalog.json` on
+the existing mutable `update-catalog-<channel>` release. Those two moving
+channel releases predate repository immutability; the publisher refuses a
+missing or immutable moving channel instead of creating a frozen destination.
+
+If upload stops after archival, repeating the same request reuses the archived
+signature and bytes, including an already uploaded draft. It cannot change that
+sequence's version, source or package inventory. The signed current catalog
+supplies a replay floor even after its validity expires; candidate validity is
+always checked at the actual publication time. A rollback, substituted current
+payload, changed package or expired archived candidate refuses publication.
+A fresh higher sequence is required to renew expired metadata.
+
+`test:updates` includes the publication recovery, integrity and 24-hour reminder
+boundaries across London daylight-saving changes.
+Catalog history uses GitHub release attestations generated by immutable
+publication; it does not claim the legacy CLI builder's artifact attestations.
+
+## Windows CLI entry point
+
+The MSI installs `nessie-executor.cmd` beside its native launcher and registers
+that protected directory in the machine PATH. New terminals can use
+`nessie-executor updates status --json` and the ordinary CLI commands. The wrapper
+passes arguments to the fixed native managed-runtime entry; it never invokes an
+ambient Node binary, selects an update origin or supplies credentials. Windows
+Installer owns PATH registration and removes it on uninstall. The typed-command,
+argument/exit-code and launch-notification journeys still need the installed
+candidate; the prior edge MSI exposed no `nessie-executor` command on Maxis.
 
 ## Windows installed setup and rollback
 

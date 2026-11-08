@@ -17,11 +17,10 @@ export const UNMARKED_BUNDLE_MESSAGE =
  *
  * The source entry is `index.js`/`index.ts`. The packaged bundle is
  * `nessie-executor.cjs`, which neither name matches, so the package marks
- * itself with `NESSIE_EXECUTOR_PACKAGED_CLI` — the same marker
- * `spawnPackagedStateSecurityHelper` requires before it will run the native
- * helper, because it asserts "this process is the installed package", not
- * merely "this process is an entry point". It is therefore never something
- * this file may set on its own behalf.
+ * itself with `NESSIE_EXECUTOR_PACKAGED_CLI`. Installed-only custody and update
+ * paths read that marker, so an entry point must never set it on its own behalf.
+ * Public Windows ACL checks use their fixed native sibling independently;
+ * finding that helper never makes a source process an installed package.
  */
 export const executorCliEntry = (
   invokedPath: string | undefined,

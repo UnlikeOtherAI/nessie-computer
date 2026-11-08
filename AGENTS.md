@@ -11,14 +11,15 @@ them, and use a pull request. Merge only after the required checks pass.
 
 Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
-prerequisites. Windows state tests require the real native ACL helper beside
-their test Node. Native and installed verification run on their actual OS.
+prerequisites. Windows source tests use the Debug native helper beside an
+unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
+claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
-Stable catalogues require Windows, macOS, DEB and RPM together, including Linux detached signatures; preview may contain a complete subset.
-The shared local Settings/update popup has a headless `--updates-only` renderer journey documented there; keep it out of CI.
+Stable catalogues require Windows, macOS, DEB and RPM together, including Linux detached signatures; preview may contain a complete subset. Catalog publication archives immutable signed bytes before advancing an existing mutable channel; see the same guide.
+The shared local Settings/update popup and Linux settings entry have local headless renderer journeys documented there; keep them out of CI. CLI launch checks never hold ordinary commands open.
 The macOS signed DMG carries the app and protected runtime; Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
@@ -31,7 +32,8 @@ publisher identities and protected release environments. Never publish an
 unsigned development artifact or weaken custody to make a fixture pass.
 
 The local console in `packages/executor-console` is shared by Windows and
-macOS. Reuse it. Every visible change needs all supported translations, a local
+macOS; Linux local update settings reuse its software section and translations
+through `packaging/linux/console`. Reuse it. Every visible change needs all supported translations, a local
 headless browser journey and matching before/after captures. Browser and native
 UI automation stay out of CI. Manually use every changed capability through its
 real entry point before claiming completion.

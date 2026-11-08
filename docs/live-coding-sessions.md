@@ -255,11 +255,13 @@ writes it unsandboxed while the agent can write in the same folder, so it
 trusts nothing between a check and a use: an existing file is opened with
 `O_NOFOLLOW` (Windows has none, so there the handle and the name are compared)
 and proved on the handle to be one ordinary file with one link, still the file
-the name points to; the new file is created exclusively beside it and made
-owner-only before the value is in it — 0600 on POSIX, and on Windows an
-explicit DACL from the state-security helper (`secureOwnerOnlyStateFile`,
-then `assertOwnerOnlyStatePath`), since Node's mode bits set none, so a
-development run on Windows without the packaged helper refuses — and the
+the name points to. On POSIX the new exclusive file has mode 0600. On Windows
+an empty temporary directory receives an owner-only DACL before the file is
+created inside it, so the file inherits private permissions at birth. The fixed
+sibling ACL helper normalizes its owner and proves the file private before any
+value is written; it verifies the final renamed file too. A missing helper refuses.
+The empty staging directory is removed only while its identity still matches;
+uncertain or nonempty staging is retained. The
 folder must be the same directory (device and inode) after the read, before
 the rename and after it, with the renamed file the one this write created. Any
 difference refuses the write; nothing outside the folder is read or written.
@@ -315,3 +317,11 @@ cover the lease's facts condition and the `ownerAnswers` fact.
 
 The Windows DACL arm is exercised with a stand-in helper here; the real native
 helper's verdict on a secret file has not been run on Windows.
+
+Exclusive JSON claims retain CREATE_NEW/O_EXCL single-winner semantics. On Windows,
+a delete-pending claim or a transient scanner handle can reject a new exclusive
+open with EPERM/EACCES/EBUSY. The writer retries that same exclusive operation for
+at most two seconds; an existing claim still loses immediately, and persistent
+permission errors still fail. It never removes or overwrites another writer’s
+claim. Focused Windows source checks include concurrent channel drains and
+claim-file deletion with an outstanding handle.

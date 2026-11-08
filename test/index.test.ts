@@ -319,8 +319,8 @@ test('local policy configuration proposes only implemented COW operations', { sk
  * marker. A silent success is indistinguishable from a daemon that started and
  * detached, so an autostart script written that way leaves a machine with no
  * executor and no evidence of why. The marker itself is not something this file
- * may set: `spawnPackagedStateSecurityHelper` reads it as the assertion that
- * this process *is* the installed package.
+ * may set: installed-only custody and update paths read it as the assertion
+ * that this process *is* the installed package.
  */
 test('the packaged bundle run without its marker is refused in words, not in silence', () => {
   assert.equal(executorCliEntry('/opt/nessie/nessie-executor.cjs', undefined), 'unmarked-bundle')

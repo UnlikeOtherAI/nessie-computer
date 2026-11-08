@@ -33,3 +33,21 @@ test('reminders are per version, last one day and a newer release is announced i
   assert.equal(updateReminderDue(state, '1.0.3', 101), true)
   assert.equal(state.automatic, true)
 })
+
+test('reminders wait 24 elapsed hours across London daylight-saving changes', () => {
+  const londonDate = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit',
+  })
+  for (const [instant, beforeDay, dueDay] of [
+    ['2026-03-28T23:30:00.000Z', '28/03/2026', '30/03/2026'],
+    ['2026-10-24T23:30:00.000Z', '25/10/2026', '25/10/2026'],
+  ]) {
+    const now = Date.parse(instant!)
+    const state = remindAboutUpdateTomorrow(defaultUpdateState(), '1.0.2', now)
+    assert.equal(state.remindAfter, now + 86_400_000)
+    assert.equal(londonDate.format(now), beforeDay)
+    assert.equal(londonDate.format(state.remindAfter), dueDay)
+    assert.equal(updateReminderDue(state, '1.0.2', state.remindAfter! - 1), false)
+    assert.equal(updateReminderDue(state, '1.0.2', state.remindAfter!), true)
+  }
+})

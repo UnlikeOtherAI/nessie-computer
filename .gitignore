@@ -10,3 +10,6 @@ dist/
 *.tsbuildinfo
 /menubar-macos/*.xcodeproj/
 /menubar-macos/build/
+
+__pycache__/
+*.pyc

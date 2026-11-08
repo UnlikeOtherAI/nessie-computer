@@ -78,6 +78,12 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:windows-source": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

@@ -87,8 +87,8 @@ export const ensurePrivateDir = async (path: string): Promise<void> => {
   await mkdir(path, { recursive: true, mode: 0o700 })
 }
 
-const RETRIED_RENAME_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
-const RENAME_RETRY_MS = 2_000
+const WINDOWS_BUSY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
+const FILE_RETRY_MS = 2_000
 
 const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
 
@@ -98,13 +98,13 @@ const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeou
  * moment, so those are retried for up to two seconds.
  */
 export const renameWithRetry = async (from: string, to: string): Promise<void> => {
-  const deadline = Date.now() + RENAME_RETRY_MS
+  const deadline = Date.now() + FILE_RETRY_MS
   for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
     try {
       await rename(from, to)
       return
     } catch (error) {
-      if (!RETRIED_RENAME_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
+      if (!WINDOWS_BUSY_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
       await delay(wait)
     }
   }
@@ -130,11 +130,19 @@ export const writeJsonAtomic = async (path: string, value: unknown): Promise<voi
 /** Creates `path` only if it does not exist; `false` means somebody already did. */
 export const createJsonExclusive = async (path: string, value: unknown): Promise<boolean> => {
   let handle
-  try {
-    handle = await open(path, 'wx', 0o600)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
-    throw error
+  const deadline = Date.now() + FILE_RETRY_MS
+  for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
+    try {
+      handle = await open(path, 'wx', 0o600)
+      break
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? ''
+      if (code === 'EEXIST') return false
+      // A deleted Windows claim can remain delete-pending until its last handle
+      // closes. Retry CREATE_NEW itself; never overwrite or remove another claim.
+      if (process.platform !== 'win32' || !WINDOWS_BUSY_CODES.has(code) || Date.now() >= deadline) throw error
+      await delay(wait)
+    }
   }
   try {
     await handle.writeFile(`${JSON.stringify(value)}\n`, 'utf8')
