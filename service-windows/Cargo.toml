@@ -3,13 +3,13 @@ name = "nessie-executor-service"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "The Nessie Executor Windows service: the standalone package's daemon host."
+description = "The Nessie Computer Windows service: the standalone package's daemon host."
 
 # What Windows names this executable in Task Manager and its properties; the
 # icon beside it is embedded by build.rs.
 [package.metadata.tauri-winres]
-FileDescription = "Nessie Executor Service"
-ProductName = "Nessie Executor"
+FileDescription = "Nessie Computer Service"
+ProductName = "Nessie Computer"
 
 [[bin]]
 name = "nessie-executor-service"
