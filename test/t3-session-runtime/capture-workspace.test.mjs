@@ -43,7 +43,8 @@ test('actual capture workspace holds one SQL service, preserves bytes across reo
   await withRetainedCaptureWorkspace(root, 'synthetic:physical-root', async storage => {
     const stage = await storage.workspace.reopenGeneration(reference)
     const sql = await sqlOf(stage)
-    assert.deepEqual(await Effect.runPromise(sql`SELECT value FROM runtime_fixture`), [{ value: 'preserved' }])
+    const rows = await Effect.runPromise(sql`SELECT value FROM runtime_fixture`)
+    assert.deepEqual(rows.map(row => ({ ...row })), [{ value: 'preserved' }])
     await assert.rejects(storage.workspace.createGeneration('synthetic:opaque/generation:雪'))
   }, signal)
   // Preserve all fixture files; never delete a journal, stage or writer lock.

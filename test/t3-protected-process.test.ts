@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { once } from 'node:events'
 import test from 'node:test'
 import { PassThrough, Writable } from 'node:stream'
 import { setImmediate } from 'node:timers/promises'
@@ -67,6 +68,7 @@ test('byte frames preserve fragmented UTF8 and split transport headers', async (
   const f = fixture()
   await f.child.ready
   const chunks: Buffer[] = []
+  const drained = once(f.child.stdout, 'end')
   f.child.stdout.on('data', (bytes: Buffer) => chunks.push(bytes))
   const expected = Buffer.from('雪🙂')
   for (const part of [expected.subarray(0, 2), expected.subarray(2, 5), expected.subarray(5)]) {
@@ -75,6 +77,7 @@ test('byte frames preserve fragmented UTF8 and split transport headers', async (
   }
   f.send({ kind: 'closed', cleared: true })
   await f.child.closed
+  await drained
   assert.deepEqual(Buffer.concat(chunks), expected)
 })
 

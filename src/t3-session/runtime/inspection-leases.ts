@@ -122,7 +122,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
       abort: () => { void close(id, lease).catch(() => undefined) } }
     leases.set(id, lease)
     arm(lease)
-    lease.pending = Promise.resolve().then(async () => {
+    const pending = Promise.resolve().then(async () => {
       if (!live || signal.aborted || lease.closing) throw new SessionExecutionGraphRefused()
       const scope = await Effect.runPromise(Scope.fork(parent, 'parallel'))
       lease.scope = scope
@@ -130,6 +130,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
         const child = yield* owner.inspect(request, delivery).pipe(
           Effect.provideService(Scope.Scope, scope), Effect.forkIn(scope))
         return yield* restore(Fiber.join(child)).pipe(Effect.onInterrupt(() => Fiber.interrupt(child).pipe(
+          Effect.andThen(Fiber.await(child)),
           Effect.tap(exit => Effect.sync(() => {
             if (Exit.isFailure(exit) && !Cause.hasInterruptsOnly(exit.cause)) lease.cleanupFailed = true
           })),
@@ -141,11 +142,12 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
       const receipt = graph.receipt
       lease.receiptDigest = 'sha256:' + createHash('sha256').update(canonicalExecutorJson(receipt)).digest('hex')
       return receipt
-    })()
+    })
+    lease.pending = pending
     signal.addEventListener('abort', lease.abort, { once: true })
     if (signal.aborted) lease.abort()
-    void lease.pending.catch(() => { void close(id, lease).catch(() => undefined) })
-    return lease.pending.then(receipt => structuredClone(receipt))
+    void pending.catch(() => { void close(id, lease).catch(() => undefined) })
+    return pending.then(receipt => structuredClone(receipt))
   }
   return {
     prepare,

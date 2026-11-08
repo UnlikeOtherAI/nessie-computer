@@ -8,7 +8,7 @@ import { decodeExecutorT3Request } from '@nessie/executor-protocol/t3-session'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { makeSessionInspectionLeases } from '../../dist/t3-session/runtime/inspection-leases.js'
 
-const fixture = async (completed = false) => {
+const fixture = async (completed = false, failCleanup = false) => {
   const root = await Effect.runPromise(Scope.make())
   const started = Promise.withResolvers()
   let calls = 0, checks = 0, finalized = false
@@ -21,7 +21,8 @@ const fixture = async (completed = false) => {
     yield* Effect.addFinalizer(() => Effect.sync(() => { finalized = true }))
     started.resolve()
     return completed ? { receipt } : yield* Effect.never
-  }) }
+  }).pipe(Effect.onInterrupt(() => failCleanup
+    ? Effect.die(new Error('synthetic inspection cleanup failure')) : Effect.void)) }
   const leases = await Effect.runPromise(makeSessionInspectionLeases(owner).pipe(
     Effect.provideService(Scope.Scope, root)))
   const request = decodeExecutorT3Request({ transportVersion: 1, protocolVersion: 2,
@@ -79,6 +80,18 @@ test('explicit release joins cancellation and refuses replay of the same still-s
     await assert.rejects(f.leases.prepare(f.request, f.delivery, caller.signal), /T3_SESSION_EXECUTION_GRAPH_REFUSED/u)
     assert.equal(f.calls(), 1)
   } finally { await Effect.runPromise(Scope.close(f.root, Exit.void)) }
+})
+
+test('a failed interruption cleanup remains failed through release and owner closure', async () => {
+  const f = await fixture(false, true)
+  const caller = new AbortController()
+  const stopped = assert.rejects(f.leases.prepare(f.request, f.delivery, caller.signal))
+  await f.started
+  await assert.rejects(f.leases.release(f.id), /T3_SESSION_EXECUTION_GRAPH_REFUSED/u)
+  await stopped
+  assert.equal(f.finalized(), true)
+  await assert.rejects(f.leases.release(f.id), /T3_SESSION_EXECUTION_GRAPH_REFUSED/u)
+  await assert.rejects(Effect.runPromise(Scope.close(f.root, Exit.void)), /T3_INSPECTION_RELEASE_FAILED/u)
 })
 
 test('resource deadline cancels without pipe cancellation; signing expiry alone does not retire the owner', async t => {
