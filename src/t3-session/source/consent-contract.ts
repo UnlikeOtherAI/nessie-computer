@@ -56,6 +56,7 @@ export function parseRetainedImportChallenge(value: unknown, now = Date.now()): 
     'recipient', 'selection', 'purpose', 'grantGeneration', 'captureGeneration', 'acceptedBaseline',
     'issuedAtMs', 'expiresAtMs', 'grantExpiresAtMs', 'issuerEnrollmentId', 'issuerKeyId'])
   valid(c.version === 1 && uuid(c.challengeId) && uuid(c.executorId) && uuid(c.grantGeneration))
+  valid(uuid(c.requestId) && uuid(c.organizationId) && uuid(c.teamId))
   valid(uuid(c.issuerEnrollmentId) && typeof c.issuerKeyId === 'string' && /^[a-f0-9]{64}$/u.test(c.issuerKeyId))
   valid(typeof c.nonce === 'string' && /^[A-Za-z0-9_-]{43}$/u.test(c.nonce)
     && Buffer.from(c.nonce, 'base64url').length === 32

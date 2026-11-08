@@ -40,7 +40,10 @@ approve-boolean operation. Both directions authenticate actual kernel pipe peers
 
 The broker launches the pinned source helper using the session's actual token,
 with explicit SYSTEM-owned process and thread security descriptors, no inherited
-handles, and a minimal environment. Ordinary user processes get query/synchronize
+handles, and a minimal environment. It also protects the duplicated primary token
+from duplication/default-DACL changes and installs an OWNER RIGHTS default DACL
+for later authentication/watchdog threads. Process, primary thread and token ACLs
+are read back before the suspended child resumes. Ordinary user processes get query/synchronize
 access, without memory-write, thread-creation, duplicate-handle or ACL-write rights.
 The broker retains the exact child process handle/generation and authenticates
 that child on its private bootstrap/signing pipe. Merely launching a signed helper
@@ -169,6 +172,12 @@ local headless renderer fixture, excluded from CI; it does not prove native trus
 Set `T3_CONSOLE_BROWSER_EXECUTABLE` to the lane's browser. Optional
 `T3_CONSOLE_CAPTURE_PATH` must be outside tracked source. Capture actual base/final
 Settings states separately before claiming visual verification.
+
+The source-only pass after merging the protocol/transport prerequisite parsed
+17 TypeScript files and three JSON files, checked five JavaScript files' syntax,
+matched all six locale keysets and checked whitespace/owned-code line limits.
+It executed no implementation modules and establishes no Rust, type, SQLite,
+native UI or OS-permission result.
 
 After a separately approved exact signed candidate and isolated installed setup,
 manually use the real tray/backend enrollment, cancel, wrong-owner authentication,

@@ -44,6 +44,7 @@ impl Challenge {
     pub fn validate(&self, now: u64) -> Result<(), NativeError> {
         let r = &self.recipient;
         if self.version != 1 || !uuid(&self.challenge_id) || !uuid(&self.executor_id) || !uuid(&self.grant_generation)
+            || !uuid(&self.request_id) || !uuid(&self.organization_id) || !uuid(&self.team_id)
             || !uuid(&self.issuer_enrollment_id) || !hex_id(&self.issuer_key_id)
             || self.nonce.len() != 43 || !self.nonce.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
             || !b"AEIMQUYcgkosw048".contains(self.nonce.as_bytes().last().ok_or_else(fail)?)
