@@ -13,7 +13,8 @@ import { T3ExecutionSecretPlanCandidateSchema, T3ExecutionGraphPayloadSchema,
 import { CodexSettings, ClaudeSettings, ProviderInstanceConfig, ServerSettings,
   type ResolvedProviderInstanceEnvironment }
   from '@nessie/t3-session-source/contracts'
-import { ProviderSecretPlan, Settings } from '@nessie/t3-session-source/engine'
+import { ProviderSecretPlan, Settings, SelectedProvider, SelectedCodex, ProviderDirectory, OriginalCodexFactory }
+  from '@nessie/t3-session-source/engine'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
@@ -22,6 +23,8 @@ import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 import { verifyProtectedT3SecretDelivery, protectedT3SecretInstalledFrame } from '../../t3-protected-process.js'
 import { snapshotT3LaneDelivery } from '../../t3-session-delivery.js'
 import { joinedNativeEffect } from './native-effect.js'
+import type { ReservedSessionLaunch } from './native-launch.js'
+import { makeSessionCodexClientFactory } from './codex-factory.js'
 
 const sha = (value: unknown) => 'sha256:' + createHash('sha256').update(canonicalExecutorJson(value)).digest('hex')
 const bytesSha = (value: string) => 'sha256:' + createHash('sha256').update(value, 'utf8').digest('hex')
@@ -49,7 +52,7 @@ type PlanEffect = Effect.Effect<HeldSessionProviderSecretPlan,
 type Record = { source: T3ExecutionResourceScope; target: PreparedSessionLaunchTarget;
   evidence: SessionProviderSecretPlanEvidence; settings: string; entry: ProviderInstanceConfig;
   environment: Array<ResolvedProviderInstanceEnvironment[number] | undefined>; stop: AbortController;
-  pending: Set<Promise<void>>; lifetimes: Map<AbortSignal, () => void> }
+  pending: Set<Promise<void>>; lifetimes: Map<AbortSignal, () => void>; constructed: boolean }
 const records = new WeakMap<HeldSessionProviderSecretPlan, Record>()
 const token = Object.freeze({})
 
@@ -107,6 +110,7 @@ export class HeldSessionProviderSecretPlan {
       const plan = new HeldSessionProviderSecretPlan(token, { source, target, evidence,
         settings: canonicalExecutorJson(Schema.encodeSync(ServerSettings)(settings)),
         entry: structuredClone(entry), stop: new AbortController(), pending: new Set(), lifetimes: new Map(),
+        constructed: false,
         environment: (entry.environment ?? []).map(variable =>
           ProviderSecretPlan.resolveProviderEnvironmentVariable(variable, undefined)) })
       yield* readSessionExecutionResources(source, target)
@@ -140,6 +144,40 @@ export const recheckSessionProviderSecretPlan = (plan: HeldSessionProviderSecret
     return yield* Effect.fail(new SessionSecretPlanRefused())
   }
 })
+
+/** Actual single-entry original registry. The only value consumer lives beside
+ * the private sink; callers receive the original registry, never environment
+ * values or an installer. Required original Codex services have no defaults.
+ * Nonempty plans remain unavailable until the safe native read producer exists. */
+export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPlan,
+  launch: ReservedSessionLaunch): Effect.Effect<ProviderDirectory.ProviderInstanceRegistry['Service'],
+    SessionSecretPlanRefused | EffectFailure<SessionExecutionResourcesEffect>,
+    EffectServices<SessionExecutionResourcesEffect>
+    | Exclude<SelectedCodex.SelectedCodexDriverEnv, OriginalCodexFactory.CodexAppServerClientFactory>
+    | Scope.Scope> =>
+  Effect.gen(function* () {
+    yield* recheckSessionProviderSecretPlan(plan)
+    const record = records.get(plan)
+    if (!record || record.constructed || record.target !== launch.target || launch.signal.aborted
+      || record.target.driverKind !== 'codex' || record.evidence.selection.references.length !== 0
+      || record.environment.some(variable => variable === undefined)) {
+      return yield* Effect.fail(new SessionSecretPlanRefused())
+    }
+    record.constructed = true // Failed or interrupted construction cannot reread/rebuild this plan.
+    retainSecretLifetime(record, launch.signal)
+    retainSecretLifetime(record, record.source.signal)
+    const environment = record.environment.filter(
+      (variable): variable is ResolvedProviderInstanceEnvironment[number] => variable !== undefined)
+    const factory = yield* makeSessionCodexClientFactory(launch)
+    const registry = yield* SelectedProvider.makeSelectedProviderInstance({
+      driver: SelectedCodex.SelectedCodexDriver, instanceId: record.target.providerInstanceId,
+      entry: record.entry, secrets: { environment, config: [] },
+    }).pipe(Effect.provideService(OriginalCodexFactory.CodexAppServerClientFactory,
+      factory))
+    yield* recheckSessionProviderSecretPlan(plan)
+    if (launch.signal.aborted) return yield* Effect.fail(new SessionSecretPlanRefused())
+    return registry
+  })
 
 /** Begin one selected full-array slot before native observation. This only
  * makes retries terminal. No value installer or native read is exposed here. */

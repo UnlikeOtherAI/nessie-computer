@@ -18,6 +18,8 @@ import { extractProviderLive } from './provider-live.mjs'
 import { extractProviderEvents } from './provider-events.mjs'
 import { extractInspectionHosts } from './inspection-hosts.mjs'
 import { extractProviderSecretPlan } from './secret-plan.mjs'
+import { extractSelectedProvider } from './selected-provider.mjs'
+import { extractCodexHost } from './codex-host.mjs'
 import { extractCodexSerialization } from './serialization.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
@@ -48,6 +50,8 @@ export const generateExtractionManifest = snapshot => {
   extractPrelaunch(author)
   extractColdLaunch(author, redirects, exports)
   extractProviderSecretPlan(author)
+  extractSelectedProvider(author, redirects)
+  extractCodexHost(author, redirects)
   extractProviderLive(author, redirects)
   extractProviderEvents(author)
   extractCodexSerialization(author)

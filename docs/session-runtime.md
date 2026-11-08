@@ -143,8 +143,8 @@ These are concrete runtime composition work, including for an empty secret plan:
 | Original producer | Required binding before activation |
 | --- | --- |
 | `ThreadLaunchService.make` / `schedulePreparation` | Actual project, managed-folder, git and setup-script owners. Fetch/worktree/attachment/overlay mutations still lack preparation-effect authority. |
-| `ProviderInstanceRegistry.makeProviderInstanceRegistry` | Selected-instance construction without its startup/reconcile prefetch or global resolver. The private resolved environment must reach only that original instance. |
-| `CodexDriver.create` / `createCodexAdapterV2` | Real ProviderHost, installation/model catalogue, environment and custody-bound spawner. Its managed status, maintenance and text-generation paths cannot be replaced by no-op services or ambient executable lookup. |
+| `ProviderInstanceRegistry.buildEntry` / `registryView` | Shared single-entry construction is authored below. Bind it inside the same recognized engine owner; global reconciliation remains excluded. Nonempty plans still require the safe native read producer. |
+| `CodexDriver.create` / `makeCodexAdapterV2` | Selected construction and the protected client factory are authored below. Real `ManagedServerProvider`, `ProviderTextGeneration`, installation compatibility, environment and original FileSystem/config/MCP services remain required. No synthetic snapshot, text generator or ambient executable lookup is supplied. |
 | `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
 | `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. Persisted `effect.commandId` must survive `EffectWorker` dispatch and reach the original adapter. |
 | `ThreadLaunchService` initial-message dispatch | Record the actual parent-to-child command edge when the original message command is created. Do not infer it from `:initial-message` or replace the original internal run-event command ID. |
@@ -155,6 +155,58 @@ version-specific noninteractive `op` behavior are separate dependencies. Claude
 SDK 0.3.316 immutable serialization is still unbound; the original history worker
 `runClaudeHistoryWorker(method, sessionId, rawOptions)` requires separately
 admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
+
+## Selected original construction and Codex host
+
+`createSessionSelectedProvider(plan, launch)` consumes the private plan inside
+its owning module. It rechecks the same selected target/settings/resource and
+requires an empty original secret plan. It never calls `op` or exposes the
+resolved environment. Construction is single-attempt; scope/source/operation
+revocation remains terminal. The original `buildEntry` now takes an explicit
+reader internally: global reconciliation retains its original reader, while
+`makeSelectedProviderInstance` receives only this private selected environment.
+Both paths share codec defaults, disable precedence, driver creation, child
+scope cleanup and the original registry view. The selected path exposes no
+mutator, prefetch, resolver, global cache or reload operation. Its escaped view
+cannot return a provider after its scope closes.
+
+`SelectedCodexDriver` constructs the actual original `makeCodexAdapterV2` and
+shares `makeCodexInstance` with `CodexDriver.create`. It requires real original
+snapshot, text-generation and installation-compatibility services through
+`SelectedCodexServices`, plus the original config/filesystem/allocator/MCP
+owners. None has a supplied fake implementation. Managed/default homes and
+auth overlays refuse: `materializeCodexShadowHome` would create directories,
+replace links and inspect private authentication state without admitted authority.
+Those operations are not skipped and treated as successful.
+
+The adapter retains the existing `CodexAppServerClientFactory` tag.
+`makeSessionCodexClientFactory` binds it to the one reserved original operation
+and passes the adapter's actual `providerSessionId` to `withProvider`. It uses
+the original argument/environment helpers, explicit absolute Windows EXEs only,
+and the original host cwd (the original factory omitted process cwd;
+`runtimePolicy.cwd` remains thread configuration). Native still canonicalizes
+and holds the real image/home before hashing. PATH, shell and wrapper resolution
+are unsupported here. The original client receives the already captured native
+preparation context and immutable before-Queue serializer. Its parser scope is
+closed and joined before the native callback returns and clears the provider.
+A failed preparation cannot reopen that factory; owner-scope closure revokes
+an escaped factory even while the outer reservation remains held.
+
+This does not activate production `open`. The real snapshot/text-generation
+services, TurnStart/MCP/workspace authority, original effect lineage, association
+placement and post-association writes remain unbound. No new authority follows
+from successfully constructing an adapter. The derived execution adapter also
+needs the same downstream request-privacy edits as the original adapter before
+qualification; extraction copies precede that family in the ordered pipeline.
+
+Source-only checks parsed the changed modules without linking/evaluation and
+walked the static runtime imports. The selected closure contains no secret
+resolver or forbidden application host. Its original generated-image Markdown
+path adds pinned `remark-math` 6.0.0, matching the upstream manifest. Root must
+resolve both package locks and regenerate downstream families: the first
+combined replay mismatch is `codex-request-privacy-import` on original
+`CodexAdapterV2.ts`. Sibling manifests were not changed. Five fixtures are authored
+UNRUN. No compiler, tests, native helper or installed user flow ran in this tranche.
 
 ## Composition and ownership
 
