@@ -1,5 +1,5 @@
 import { CliUsageError } from './cli-output.js'
-import { HELP_ENTRIES, HELP_GROUPS, type HelpEntry } from './cli-help-entries.js'
+import { canonicalWords, HELP_ENTRIES, HELP_GROUPS, type HelpEntry } from './cli-help-entries.js'
 
 /**
  * `nessie-computer help`, `help <command>`, `<command> --help` and
@@ -74,7 +74,7 @@ export const PLUMBING_HELP = [
   '  nessie-computer personal-chatgpt-local --operation-stdin --state-dir <dir>',
   '  nessie-computer unpair (--executor <id>|--state-dir <dir>) [--json]',
   '',
-  'Connecting (the app\'s Connect a team dialog):',
+  'Adding this computer (the app\'s Add this computer dialog):',
   '  nessie-computer pairing-start --api <nessie|https://your-nessie.example> [--cli] [--state-dir <dir>] [--json]',
   '  nessie-computer pairing-status|pairing-cancel --state-dir <dir> [--json]',
   '  nessie-computer login --api <nessie|https://your-nessie.example> [--workspace <folder>]',
@@ -110,7 +110,8 @@ export const PLUMBING_HELP = [
 ].join('\n')
 
 /** The help text for `help <words…>`; a usage error for a command that doesn't exist. */
-export const helpText = (words: readonly string[]): string => {
+export const helpText = (asked: readonly string[]): string => {
+  const words = canonicalWords(asked)
   if (words.length === 0) return renderOverview()
   const command = words.join(' ')
   if (command === 'plumbing') return PLUMBING_HELP

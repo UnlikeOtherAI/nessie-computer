@@ -36,7 +36,7 @@ use crate::{
     security::{connected_client_identity, current_user_sid_string, PipeSecurity, CLIENT_ACCESS},
 };
 
-pub const PIPE_NAME: &str = r"\\.\pipe\NessieExecutor";
+pub const PIPE_NAME: &str = nessie_windows_common::CONTROL_PIPE_NAME;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Scope {

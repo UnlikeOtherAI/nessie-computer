@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 
 import { PersonalChatgptConsoleStatusSchema, type PersonalChatgptProfileStatus } from '@nessie/executor-protocol'
 
+import { addPlanConnection } from './cli-ai-plan-connection.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, printJson } from './cli-output.js'
 import type { LabelledTeam } from './cli-teams.js'
@@ -14,7 +15,22 @@ import { executorChildCommand } from './executor-child-command.js'
  * the apps run, `personal-chatgpt-local --operation-stdin`, as a child: a
  * sign-in keeps its credential process under that verb's supervision, and no
  * OAuth URL, code or token ever passes through this command.
+ *
+ * On Windows a plan is kept by the background service, never under a copy of
+ * this account's key, so the verb names the service's connection for the
+ * team (`--service-executor`), as the Windows app does: the team itself when
+ * the service runs it, otherwise the team's ChatGPT plan connection, which
+ * `ai plans add` connects first when the team has none yet.
  */
+
+/** Where a team's plans are kept: its own state folder, or a connection the Windows service runs. */
+type PlanHolder = ['--state-dir', string] | ['--service-executor', string]
+
+const holderOf = (team: LabelledTeam, platform: NodeJS.Platform): PlanHolder | null => {
+  if (team.route === 'service') return ['--service-executor', team.executorId]
+  if (team.planConnectionId) return ['--service-executor', team.planConnectionId]
+  return platform === 'win32' ? null : ['--state-dir', team.stateDir]
+}
 
 type PlanStatus = ReturnType<typeof PersonalChatgptConsoleStatusSchema.parse>
 
@@ -37,11 +53,11 @@ const UNAVAILABLE_OTHER = 'ChatGPT plans are unavailable for this team. Check yo
 
 /** Runs one operation through the plumbing verb, passing each status it publishes to `seen`. */
 const operate = (
-  team: LabelledTeam, operation: Record<string, unknown>, seen: (status: PlanStatus) => void,
+  holder: PlanHolder, operation: Record<string, unknown>, seen: (status: PlanStatus) => void,
 ): Promise<PlanStatus> => {
   const [command, ...args] = executorChildCommand({ execPath: process.execPath, execArgv: process.execArgv,
     entry: process.argv[1]!, packaged: process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1' },
-  ['personal-chatgpt-local', '--operation-stdin', '--state-dir', team.stateDir])
+  ['personal-chatgpt-local', '--operation-stdin', ...holder])
   return new Promise((resolve, reject) => {
     const child = spawn(command!, args, { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true })
     let buffered = ''
@@ -101,12 +117,22 @@ const confirmRestriction = async (run: CliRun): Promise<void> => {
 export const runAiPlans = async (run: CliRun): Promise<void> => {
   const [action = 'list', ...rest] = operands(run.options, 2, 3, 'ai plans')
   acceptOnly(run.options, 'ai plans', action === 'add' || action === 'sign-in' ? ['--yes'] : [])
-  if (run.context.platform === 'win32') {
-    throw new CliRefusal('CHATGPT_PLANS_IN_APP', 'On Windows, manage ChatGPT plans in the Nessie Computer app.')
-  }
   const team = await run.team()
   const quiet = () => undefined
-  const current = await operate(team, { operation: 'status' }, quiet)
+  let holder = holderOf(team, run.context.platform)
+  if (!holder && action === 'list') {
+    if (run.options.json) printJson(run.context, { profiles: [] })
+    else run.context.out(`ChatGPT plans for ${team.label}:\nNo ChatGPT plans yet. Add one with nessie-computer ai plans add.\n`)
+    return
+  }
+  if (!holder && action !== 'add') {
+    throw new CliRefusal('CHATGPT_PLAN_NOT_FOUND', `${team.label} has no ChatGPT plans yet. Add one with nessie-computer ai plans add.`)
+  }
+  // Asked once, before anything is connected or signed in.
+  const confirmed = !holder && action === 'add'
+  if (confirmed) await confirmRestriction(run)
+  holder ??= ['--service-executor', await addPlanConnection(run, team)]
+  const current = await operate(holder, { operation: 'status' }, quiet)
   const plan = () => {
     if (!rest[0]) throw new CliUsageError(`Name the plan: nessie-computer ai plans ${action} <plan>.`, 'ai plans')
     return findPlan(current.profiles, rest[0])
@@ -116,7 +142,7 @@ export const runAiPlans = async (run: CliRun): Promise<void> => {
     if (rest.length) throw new CliUsageError('ai plans list takes nothing after it.', 'ai plans')
   } else if (action === 'add' || action === 'sign-in') {
     if (rest.length > 1) throw new CliUsageError(`Give one plan name, in quotes when it has spaces: ai plans ${action} "Work plan".`, 'ai plans')
-    await confirmRestriction(run)
+    if (!confirmed) await confirmRestriction(run)
     operation = action === 'add'
       ? { operation: 'start', acknowledgeHostRestriction: true, newProfileId: randomUUID(),
         label: rest[0] ?? `ChatGPT plan ${current.profiles.length + 1}` }
@@ -133,7 +159,7 @@ export const runAiPlans = async (run: CliRun): Promise<void> => {
     operation = { operation: 'disconnect', profileId: plan().profileId }
   } else throw new CliUsageError(`ai plans has no "${action}". See nessie-computer help ai plans.`, 'ai plans')
   let printed = false
-  const status = operation ? await operate(team, operation, (published) => {
+  const status = operation ? await operate(holder, operation, (published) => {
     if (run.options.json || printed || !published.profiles.some((entry) => entry.phase === 'signing_in')) return
     printed = true
     run.context.out('Finish signing in in your browser. Keep this command running until it says you are signed in.\n')

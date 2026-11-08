@@ -1,7 +1,9 @@
 import { join } from 'node:path'
 
+import { appAutoRestartEnabled, loginItemEnabled, setAppAutoRestart, setLoginItem } from './cli-app-settings.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, printJson, type CliContext } from './cli-output.js'
+import type { TeamRunner } from './cli-team-runner.js'
 import type { LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { createExecutorServiceEnvironment } from './service-environment.js'
@@ -11,11 +13,13 @@ import { runUpdateCli } from './updates/cli.js'
 import { localUpdate } from './updates/native-client.js'
 
 /**
- * The Settings tab's computer-wide settings: restart a team if it stops,
- * software updates (the `updates` verb) and where the logs are.
+ * The Settings tab's computer-wide settings: open at login, restart a team if
+ * it stops, software updates (the `updates` verb) and where the logs are. The
+ * app's two settings are kept where the app keeps them (`cli-app-settings.ts`),
+ * so a change here shows in the window and the other way round.
  */
 
-const APP_RESTART = 'Teams the Nessie Computer app runs follow "Restart a team if it stops" in its Settings.'
+const SERVICE_RESTARTS = 'The Nessie Computer service always starts its own teams again.'
 
 /** Where each kind of team writes its logs on this platform. */
 export const logLocations = (context: Pick<CliContext, 'platform' | 'home'>, teams: readonly LabelledTeam[]): string[] => {
@@ -29,40 +33,62 @@ export const logLocations = (context: Pick<CliContext, 'platform' | 'home'>, tea
     : ['journalctl --user -u "nessie-executor@*"']
 }
 
-const restartRows = async (teams: readonly LabelledTeam[]) => Promise.all(teams.filter((team) => team.cliService)
-  .map(async (team) => ({ executorId: team.executorId, label: team.label,
-    autoRestart: await serviceAutoRestartEnabled(team.stateDir) })))
+const appRuns = (runner: TeamRunner): boolean => runner === 'mac-app' || runner === 'windows-app'
+
+type RestartRow = { executorId: string; label: string; autoRestart: boolean }
+type RestartReading = { autoRestart: boolean | null; teams: RestartRow[] }
+
+/**
+ * The app's one computer-wide switch where the app runs the teams; otherwise
+ * each command-line service's own setting, listed per team.
+ */
+const readRestart = async (run: CliRun, teams: readonly LabelledTeam[]): Promise<RestartReading> => {
+  if (appRuns(await run.runner())) return { autoRestart: await appAutoRestartEnabled(run.context), teams: [] }
+  const row = async (team: LabelledTeam & { stateDir: string }): Promise<RestartRow> => (
+    { executorId: team.executorId, label: team.label, autoRestart: await serviceAutoRestartEnabled(team.stateDir) })
+  return { autoRestart: null, teams: await Promise.all(teams.flatMap((team) => (
+    team.route === 'local' && team.cliService ? [row(team)] : []))) }
+}
+
+const restartText = (reading: RestartReading, teams: readonly LabelledTeam[]): string => {
+  const serviceTeams = teams.some((team) => team.route === 'service')
+  if (reading.autoRestart !== null) {
+    return [`Restart a team if it stops: ${reading.autoRestart ? 'on' : 'off'}`, ...(serviceTeams ? [SERVICE_RESTARTS] : [])].join('\n')
+  }
+  return reading.teams.length
+    ? `Restart a team if it stops:\n${columns(reading.teams.map((row) => [row.label, row.autoRestart ? 'on' : 'off']), '  ')}`
+    : 'Restart a team if it stops: no teams yet.'
+}
 
 const autoRestart = async (run: CliRun, choice: string | undefined): Promise<void> => {
-  if (run.context.platform === 'win32') {
-    throw new CliRefusal('AUTO_RESTART_IN_APP', 'On Windows, change "Restart a team if it stops" in Nessie Computer → Settings.')
-  }
   const teams = await run.teams()
   if (choice !== undefined) {
-    const value = onOff(choice, 'settings auto-restart') ? 'on' : 'off'
-    for (const team of teams.filter((entry) => entry.cliService)) {
-      await runServiceRestartCli(['autorestart', team.executorId, value], { ...createExecutorServiceEnvironment(), write: () => undefined })
+    const enabled = onOff(choice, 'settings auto-restart')
+    if (appRuns(await run.runner())) await setAppAutoRestart(run.context, enabled)
+    for (const team of teams) {
+      if (team.route !== 'local' || !team.cliService) continue
+      await runServiceRestartCli(['autorestart', team.executorId, enabled ? 'on' : 'off'],
+        { ...createExecutorServiceEnvironment(), write: () => undefined })
     }
   }
-  const rows = await restartRows(teams)
-  if (run.options.json) {
-    printJson(run.context, rows)
-    return
-  }
-  const others = teams.some((team) => !team.cliService)
-  run.context.out([
-    ...(rows.length ? [`Restart a team if it stops:\n${columns(rows.map((row) => [row.label, row.autoRestart ? 'on' : 'off']), '  ')}`]
-      : ['No teams here run as command-line services.']),
-    ...(others || !rows.length ? [APP_RESTART] : []),
-  ].join('\n') + '\n')
+  const reading = await readRestart(run, teams)
+  if (run.options.json) printJson(run.context, reading)
+  else run.context.out(`${restartText(reading, teams)}\n`)
+}
+
+const login = async (run: CliRun, choice: string | undefined): Promise<void> => {
+  const enabled = choice === undefined ? await loginItemEnabled(run.context)
+    : await setLoginItem(run.context, onOff(choice, 'settings login'))
+  if (run.options.json) printJson(run.context, { openAtLogin: enabled })
+  else run.context.out(`Open Nessie Computer when I log in: ${enabled ? 'on' : 'off'}\n`)
 }
 
 export const runSettings = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'settings')
   const [section, ...rest] = operands(run.options, 1, 3, 'settings')
-  if (section === 'auto-restart') {
-    if (rest.length > 1) throw new CliUsageError('Use settings auto-restart on|off.', 'settings')
-    await autoRestart(run, rest[0])
+  if (section === 'login' || section === 'auto-restart') {
+    if (rest.length > 1) throw new CliUsageError(`Use settings ${section} on|off.`, 'settings')
+    await (section === 'login' ? login : autoRestart)(run, rest[0])
     return
   }
   if (section === 'updates') {
@@ -79,14 +105,19 @@ export const runSettings = async (run: CliRun): Promise<void> => {
     else run.context.out(`${logs.join('\n')}\n`)
     return
   }
-  if (section !== undefined) throw new CliUsageError(`settings has no "${section}". Use auto-restart, updates or logs.`, 'settings')
+  if (section !== undefined) {
+    throw new CliUsageError(`settings has no "${section}". Use login, auto-restart, updates or logs.`, 'settings')
+  }
   const teams = await run.teams()
+  const openAtLogin = await loginItemEnabled(run.context).catch((error: unknown) => (
+    error instanceof CliRefusal && error.code === 'LOGIN_ITEM_UNAVAILABLE' ? null : Promise.reject(error)))
   if (run.options.json) {
-    printJson(run.context, { autoRestart: run.context.platform === 'win32' ? null : await restartRows(teams),
+    printJson(run.context, { openAtLogin, restart: await readRestart(run, teams),
       updates: await localUpdate({ operation: 'status' }).catch(() => null), logs: logLocations(run.context, teams) })
     return
   }
-  if (run.context.platform !== 'win32') await autoRestart(run, undefined)
+  if (openAtLogin !== null) run.context.out(`Open Nessie Computer when I log in: ${openAtLogin ? 'on' : 'off'}\n`)
+  run.context.out(`${restartText(await readRestart(run, teams), teams)}\n`)
   await runUpdateCli(['updates']).catch((error: unknown) => {
     run.context.out(`${error instanceof Error ? error.message : String(error)}\n`)
     return true

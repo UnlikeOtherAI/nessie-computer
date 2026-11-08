@@ -15,7 +15,7 @@ export type HelpEntry = {
 
 export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
   { title: 'Overview', commands: ['status', 'teams', 'who'] },
-  { title: 'Connecting', commands: ['connect', 'disconnect'] },
+  { title: 'Adding this computer', commands: ['add', 'disconnect'] },
   { title: 'Pausing', commands: ['pause', 'resume'] },
   { title: 'Access', commands: ['access show', 'access folders', 'access programs', 'access websites',
     'access local-apps', 'access coding-assistants'] },
@@ -26,6 +26,13 @@ export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
   { title: 'Settings', commands: ['settings'] },
   { title: 'Help', commands: ['help'] },
 ]
+
+/** Older names a person may still type; each runs, and is explained by, the command it names. */
+export const COMMAND_ALIASES: Readonly<Record<string, string>> = { connect: 'add' }
+
+/** The command words with an older first word replaced by today's. */
+export const canonicalWords = (words: readonly string[]): string[] => (
+  words.length && COMMAND_ALIASES[words[0]!] ? [COMMAND_ALIASES[words[0]!]!, ...words.slice(1)] : [...words])
 
 export const HELP_ENTRIES: HelpEntry[] = [
   {
@@ -46,15 +53,18 @@ export const HELP_ENTRIES: HelpEntry[] = [
     examples: ['nessie-computer who --team "Sales · Acme"'],
   },
   {
-    command: 'connect', summary: 'Get a pairing code for a new team and wait until it\'s entered in Nessie.',
-    usage: ['nessie-computer connect [--server <https://address>] [--no-wait] [--json]'],
+    command: 'add', summary: 'Add this computer to a team: show a code and wait until it\'s entered in Nessie.',
+    usage: ['nessie-computer add [--server <https://address>] [--no-wait] [--json]'],
     notes: [
-      '--server  Your organisation\'s own Nessie (default https://api.nessie.works).',
+      'Enter the code in Nessie under Computers → Add a computer. It lasts 5 minutes.',
+      '--server  Only for an organisation with its own Nessie (default https://api.nessie.works).',
       '--no-wait  Print the code and return; status shows when it\'s done.',
-      'On Linux, a connected team starts at boot and keeps running after you log out.',
-      'On Windows, connect a team in the Nessie Computer app.',
+      'Where the Nessie Computer app is installed (Windows, and Macs with the app), the app runs the new team.',
+      'On a Mac without the app it runs in the background and starts when you log in.',
+      'On Linux it starts at boot and keeps running after you log out.',
+      'nessie-computer connect is the same command under its older name.',
     ],
-    examples: ['nessie-computer connect', 'nessie-computer connect --server https://nessie.example.com'],
+    examples: ['nessie-computer add', 'nessie-computer add --server https://nessie.example.com'],
   },
   {
     command: 'disconnect', summary: 'End a team\'s connection to this computer and delete its settings here.',
@@ -205,7 +215,9 @@ export const HELP_ENTRIES: HelpEntry[] = [
     notes: [
       'add and sign-in open ChatGPT\'s sign-in in your browser.',
       'While a ChatGPT plan is signed in, agents can\'t open terminals or coding tools under your account.',
-      '--yes accepts that without asking. On Windows, manage ChatGPT plans in the Nessie Computer app.',
+      '--yes accepts that without asking.',
+      'On Windows the Nessie Computer service keeps ChatGPT plans. A team without one gets a ChatGPT plan',
+      'connection first: Windows asks you to allow it, then this computer shows one more code to enter in Nessie.',
     ],
     examples: ['nessie-computer ai plans add "Work plan" --team "Sales · Acme"'],
   },
@@ -224,6 +236,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     command: 'settings', summary: 'Computer-wide settings.',
     usage: [
       'nessie-computer settings',
+      'nessie-computer settings login [on|off]',
       'nessie-computer settings auto-restart [on|off]',
       'nessie-computer settings updates',
       'nessie-computer settings updates check',
@@ -232,11 +245,13 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'nessie-computer settings logs',
     ],
     notes: [
-      'auto-restart restarts a team if it stops. It covers the teams this command line runs as services;',
-      'teams the app runs follow Settings in the app. "Open Nessie Computer when I log in" is set in the app.',
+      'login is "Open Nessie Computer when I log in", the same switch as in the app\'s Settings.',
+      'auto-restart is "Restart a team if it stops". Where the app runs the teams it is the app\'s switch;',
+      'otherwise it covers the teams this command line runs as services.',
       'logs prints where the logs are.',
     ],
-    examples: ['nessie-computer settings updates check', 'nessie-computer settings auto-restart off'],
+    examples: ['nessie-computer settings login on', 'nessie-computer settings updates check',
+      'nessie-computer settings auto-restart off'],
   },
   {
     command: 'help', summary: 'Help for every command, or for one.',

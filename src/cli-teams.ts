@@ -7,6 +7,7 @@ import { pairingCodeStatus, type PairingCodeView } from './pairing-code.js'
 import { listProgramRequests } from './program-requests.js'
 import { executorServiceStateRoot } from './service-environment.js'
 import { loadExecutorState, type ExecutorLocalState } from './state-store.js'
+import type { ServiceTeamStatus } from './windows-service-control.js'
 
 /**
  * The teams connected on this computer, found where the apps and the
@@ -14,21 +15,30 @@ import { loadExecutorState, type ExecutorLocalState } from './state-store.js'
  * window does (contract §1.7).
  *
  * - Every platform: `~/.local/state/nessie-executor/<id>`, the command line's
- *   own teams (Linux services, macOS launchd agents and Windows teams that run
- *   under this account).
+ *   own folder, which the apps also run teams from (Linux services, Macs
+ *   without the app, and the Windows app's teams under this account).
  * - macOS: the menu bar app's teams under Application Support, the same
  *   folders its `ExecutorPaths.discover` reads.
- *
- * A Windows team owned by the background service keeps its state where only
- * the service can write, so it is not one of these.
+ * - Windows: the background service's teams, whose state only the service can
+ *   read, are asked of the service itself (`cli-teams-service.ts`).
  */
-export type CliTeam = {
+export type LocalTeam = {
+  route: 'local'
   stateDir: string
   state: ExecutorLocalState
   executorId: string
-  /** Kept by the command line's own services, which the command line also starts and stops. */
+  /** Run by the command line's own Linux or macOS service, which the command line also turns on and off. */
   cliService: boolean
 }
+
+/** A team the Windows background service runs. Everything about it is asked of the service. */
+export type ServiceTeam = {
+  route: 'service'
+  executorId: string
+  service: ServiceTeamStatus
+}
+
+export type CliTeam = LocalTeam | ServiceTeam
 
 export type TeamNames = { teamName: string | null; organizationName: string | null }
 
@@ -37,11 +47,21 @@ export type TeamStatus = 'working' | 'paused' | 'needs_you' | 'not_connected'
 export type LabelledTeam = CliTeam & {
   label: string
   names: TeamNames | null
+  apiBaseUrl: string
   server: string
   running: boolean
   paused: boolean
   pendingProgramRequests: number
   status: TeamStatus
+  /** Why it is not connected, when it says. */
+  failure?: string
+  /**
+   * Windows: the service's connection that holds this team's ChatGPT plans, or
+   * (on that connection itself) the team it belongs to. A plan connection is
+   * the team's, never a second team; the window keeps it out of the team list.
+   */
+  planConnectionId?: string
+  planConnectionOf?: string
 }
 
 export const STATUS_WORDS: Record<TeamStatus, string> = {
@@ -90,13 +110,19 @@ const childDirectories = async (root: string): Promise<string[]> => {
     .map((entry) => join(root, entry.name)).sort()
 }
 
-/** Every connected team, once each. A folder whose state cannot be read is reported, not skipped silently. */
-export const findTeams = async (context: Pick<CliContext, 'platform' | 'home' | 'err'>): Promise<CliTeam[]> => {
+/**
+ * Every team saved on this computer, once each. A folder whose state cannot be
+ * read is reported, not skipped silently. `cliServices` says whether the
+ * command line's own service runs the teams in its folder here (`cli-team-runner.ts`).
+ */
+export const findLocalTeams = async (
+  context: Pick<CliContext, 'platform' | 'home' | 'err'>, cliServices: boolean,
+): Promise<LocalTeam[]> => {
   const locations = teamLocations(context.platform, context.home)
   const cliRoot = resolve(executorServiceStateRoot(context.home))
   const candidates = [...locations.teams]
   for (const root of locations.roots) candidates.push(...await childDirectories(root))
-  const teams: CliTeam[] = []
+  const teams: LocalTeam[] = []
   for (const stateDir of candidates) {
     if (!await isPlainDirectory(stateDir) || !await hasFile(stateDir, STATE_FILE)) continue
     const state = await loadExecutorState(stateDir).catch((error: unknown) => {
@@ -104,8 +130,8 @@ export const findTeams = async (context: Pick<CliContext, 'platform' | 'home' | 
       return null
     })
     if (!state || teams.some((team) => team.executorId === state.executorId)) continue
-    teams.push({ stateDir, state, executorId: state.executorId,
-      cliService: resolve(stateDir) === join(cliRoot, state.executorId) })
+    teams.push({ route: 'local', stateDir, state, executorId: state.executorId,
+      cliService: cliServices && resolve(stateDir) === join(cliRoot, state.executorId) })
   }
   return teams
 }
@@ -135,22 +161,27 @@ export const daemonRunning = async (stateDir: string): Promise<boolean> => {
   }
 }
 
-export type NameLookup = (stateDir: string) => Promise<Pick<PairingCodeView, 'teamName' | 'organizationName'>>
+export type NameView = Pick<PairingCodeView, 'teamName' | 'organizationName' | 'apiBaseUrl'>
+/** A team's names as the labels use them, and the server Nessie named. */
+export type ReadNames = TeamNames & { apiBaseUrl?: string }
+/** What Nessie calls a team; the pairing status of its connection, as the apps read it. */
+export type NameLookup = (team: CliTeam) => Promise<NameView>
 
 const NAME_TIMEOUT_MS = 4_000
 
+export const localNameLookup = (team: LocalTeam): Promise<NameView> => pairingCodeStatus(team.stateDir)
+
 /** The team and organisation names, read from Nessie as the apps read them; null when Nessie can't say. */
-export const readTeamNames = async (
-  team: CliTeam, lookup: NameLookup = pairingCodeStatus,
-): Promise<TeamNames | null> => {
+export const readTeamNames = async (team: CliTeam, lookup: NameLookup): Promise<ReadNames | null> => {
   let timer: NodeJS.Timeout | undefined
   try {
-    const view = await Promise.race([lookup(team.stateDir), new Promise<never>((_, reject) => {
+    const view = await Promise.race([lookup(team), new Promise<never>((_, reject) => {
       timer = setTimeout(() => reject(new Error('timed out')), NAME_TIMEOUT_MS)
       timer.unref()
     })])
     if (!view.teamName && !view.organizationName) return null
-    return { teamName: view.teamName ?? null, organizationName: view.organizationName ?? null }
+    return { teamName: view.teamName ?? null, organizationName: view.organizationName ?? null,
+      ...(view.apiBaseUrl ? { apiBaseUrl: view.apiBaseUrl } : {}) }
   } catch {
     return null
   } finally {
@@ -158,25 +189,30 @@ export const readTeamNames = async (
   }
 }
 
-const hostOf = (apiBaseUrl: string): string => {
+export const hostOf = (apiBaseUrl: string): string => {
   try { return new URL(apiBaseUrl).host } catch { return apiBaseUrl }
 }
+
+const ownLabel = (names: TeamNames | null): string => (
+  names ? [names.teamName, names.organizationName].filter(Boolean).join(' · ') : '')
 
 /**
  * `{teamName} · {organizationName}`; two equal labels get ` ({serverHost})`;
  * an unknown name says so (contract §2). Never an id.
  */
 export const labelFor = (names: TeamNames | null, server: string, others: readonly (TeamNames | null)[]): string => {
-  const own = names ? [names.teamName, names.organizationName].filter(Boolean).join(' · ') : ''
+  const own = ownLabel(names)
   if (!own) return UNKNOWN_TEAM_NAME
-  const same = (other: TeamNames | null) => (other ? [other.teamName, other.organizationName].filter(Boolean).join(' · ') : '') === own
-  return others.some(same) ? `${own} (${server})` : own
+  return others.some((other) => ownLabel(other) === own) ? `${own} (${server})` : own
 }
 
 /** One of the contract's status words, decided as the window decides it (`teams.js`). */
-export const statusOf = (team: { paused: boolean; pendingProgramRequests: number; running: boolean }): TeamStatus => {
+type Reading = { paused: boolean; pendingProgramRequests: number; running: boolean; failure?: string }
+
+export const statusOf = (team: Reading): TeamStatus => {
   if (team.paused) return 'paused'
   if (team.pendingProgramRequests > 0) return 'needs_you'
+  if (team.failure) return 'not_connected'
   return team.running ? 'working' : 'not_connected'
 }
 
@@ -184,18 +220,45 @@ export const statusOf = (team: { paused: boolean; pendingProgramRequests: number
 export const teamPaused = async (stateDir: string): Promise<boolean> =>
   (await readOwnerPause(stateDir).catch(() => ({ paused: true }))) !== null
 
-/** Every team with its label and status. */
-export const describeTeams = async (teams: readonly CliTeam[], lookup?: NameLookup): Promise<LabelledTeam[]> => {
+const SERVICE_RUNNING = new Set(['running', 'starting', 'running elsewhere'])
+
+const readings = async (team: CliTeam) => {
+  if (team.route === 'service') {
+    return { running: SERVICE_RUNNING.has(team.service.daemonStatus), paused: team.service.paused,
+      pendingProgramRequests: team.service.pendingProgramRequests,
+      ...(team.service.failure ? { failure: team.service.failure.message } : {}) }
+  }
+  return { running: await daemonRunning(team.stateDir), paused: await teamPaused(team.stateDir),
+    pendingProgramRequests: (await listProgramRequests(team.stateDir).catch(() => [])).length }
+}
+
+/** The same organisation and team on the same server: the window's rule for a team's ChatGPT plan connection. */
+const sameTeam = (
+  left: TeamNames | null, leftServer: string, right: TeamNames | null, rightServer: string,
+): boolean => (
+  Boolean(left && right && leftServer && leftServer === rightServer
+    && left.organizationName === right.organizationName && left.teamName === right.teamName))
+
+/** Every team with its label and status; a Windows plan connection is linked to its team. */
+export const describeTeams = async (teams: readonly CliTeam[], lookup: NameLookup): Promise<LabelledTeam[]> => {
   const names = await Promise.all(teams.map((team) => readTeamNames(team, lookup)))
+  const servers = teams.map((team, index) => (team.route === 'local' ? team.state.apiBaseUrl : names[index]?.apiBaseUrl ?? ''))
+  const planOwner = teams.map((team, index) => (team.route !== 'service' ? undefined
+    : teams.find((other, at) => other.route === 'local'
+      && sameTeam(names[at]!, servers[at]!, names[index]!, servers[index]!))?.executorId))
+  const shown = names.filter((_, index) => !planOwner[index])
   return Promise.all(teams.map(async (team, index) => {
-    const server = hostOf(team.state.apiBaseUrl)
-    const running = await daemonRunning(team.stateDir)
-    const paused = await teamPaused(team.stateDir)
-    const pendingProgramRequests = (await listProgramRequests(team.stateDir).catch(() => [])).length
+    const apiBaseUrl = servers[index]!
+    const server = hostOf(apiBaseUrl)
+    const reading = await readings(team)
+    const plan = teams.find((_, at) => planOwner[at] === team.executorId)
     return {
-      ...team, names: names[index]!, server, running, paused, pendingProgramRequests,
-      label: labelFor(names[index]!, server, names.filter((_, other) => other !== index)),
-      status: statusOf({ paused, pendingProgramRequests, running }),
+      ...team, ...reading, names: names[index]!, apiBaseUrl, server,
+      label: planOwner[index] ? `${ownLabel(names[index]!) || UNKNOWN_TEAM_NAME} — ChatGPT plan connection`
+        : labelFor(names[index]!, server, shown.filter((other) => other !== names[index])),
+      status: statusOf(reading),
+      ...(plan ? { planConnectionId: plan.executorId } : {}),
+      ...(planOwner[index] ? { planConnectionOf: planOwner[index] } : {}),
     }
   }))
 }
@@ -211,7 +274,7 @@ export const selectTeam = (
   teams: readonly LabelledTeam[], query: string | undefined, command: string,
 ): LabelledTeam => {
   if (teams.length === 0) {
-    throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer. Run nessie-computer connect first.')
+    throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer. Run nessie-computer add first.')
   }
   if (query === undefined) {
     if (teams.length === 1) return teams[0]!

@@ -13,6 +13,7 @@
 #[cfg(windows)]
 mod sid;
 
+pub mod control_channel;
 pub mod custody;
 pub mod custody_store;
 pub mod failure;
@@ -49,6 +50,11 @@ pub use sid::sid_to_string;
 /// The Windows service name. `nessie-executor-service` registers under it and
 /// the MSI authors the same string.
 pub const SERVICE_NAME: &str = "NessieExecutor";
+
+/// The service's control pipe: pairing, team controls and the owner's own
+/// answers. The service, the Windows app and the command line's relay
+/// (`control_channel`) all address it by this name.
+pub const CONTROL_PIPE_NAME: &str = r"\\.\pipe\NessieExecutor";
 
 /// Runtime admission only; pairing and machine control retain their separate ACL.
 pub const CUSTODY_PIPE_NAME: &str = r"\\.\pipe\NessieExecutorCustody";

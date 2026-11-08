@@ -71,7 +71,7 @@ words. (`nessie-executor` is the same command under its older name.)
 
 ```sh
 nessie-computer status                      # what each team is doing
-nessie-computer add                     # get a pairing code for a new team
+nessie-computer add                         # add this computer to a team
 nessie-computer pause                       # pause every team
 nessie-computer resume --team "Sales · Acme"
 nessie-computer access show --team "Sales · Acme"

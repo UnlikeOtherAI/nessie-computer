@@ -4,11 +4,17 @@ import SwiftUI
 
 /// Every team on this Mac, one controller each. Nothing here is "selected":
 /// the menu speaks about all teams at once, and every action names its team.
+///
+/// While this app is installed it runs every team on this Mac, including the
+/// ones `nessie-computer connect` adds to the command line's folder while the
+/// app is open: the command line hands them over rather than starting them
+/// itself, so no team ever has two owners.
 @MainActor
 final class ExecutorConnections: ObservableObject {
     @Published private(set) var controllers: [ExecutorController]
     private let isDevelopmentBuild: Bool
     private var observations: Set<AnyCancellable> = []
+    private var discoveryTimer: Timer?
     /// The directory the last Connect a team used, so the pairing dialog's
     /// status checks follow that attempt and no other.
     private var connectingDirectory: String?
@@ -157,7 +163,30 @@ final class ExecutorConnections: ObservableObject {
         }
     }
 
-    func start() { controllers.forEach { $0.start() } }
+    func start() {
+        controllers.forEach { $0.start() }
+        discoveryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.adoptNewTeams() }
+        }
+    }
+
+    /// Starts a team that appeared in a state folder since the last look.
+    func adoptNewTeams() {
+        guard case let .success(found) = ExecutorPaths.discover(isDevelopmentBuild: isDevelopmentBuild) else { return }
+        let known = controllers.map(\.stateDirectory)
+        for directory in ExecutorStateDiscovery.unclaimedTeams(in: found, known: known) {
+            let controller = ExecutorController(isDevelopmentBuild: isDevelopmentBuild, stateDirectory: directory)
+            controllers.append(controller)
+            observe(controller)
+            controller.start()
+        }
+    }
+
     func refresh() { controllers.forEach { $0.refresh() } }
-    func shutdown() { controllers.forEach { $0.shutdown() } }
+
+    func shutdown() {
+        discoveryTimer?.invalidate()
+        discoveryTimer = nil
+        controllers.forEach { $0.shutdown() }
+    }
 }
