@@ -12,6 +12,8 @@ const provenance = JSON.parse(await readFile(`${output}.provenance.json`, 'utf8'
 assert.equal(provenance.kind, 'session-engine-library')
 assert.equal(createHash('sha256').update(bytes).digest('hex'), provenance.bundleSha256)
 assert.equal(bytes.includes(Buffer.from('layerLegacyV1ThreadImporterNoop')), false)
+assert.equal(Object.hasOwn(provenance.sourceInputs,
+  'apps/server/src/orchestration-v2/ThreadManagementService.ts'), false)
 let starts = 0
 const constructors = ['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork']
 const original = new Map(constructors.map(name => [name, childProcess[name]]))
@@ -37,7 +39,8 @@ try {
   assert.equal(starts, 0)
   process.stdout.write(`${JSON.stringify({ bundleSha256: provenance.bundleSha256, protocol: 2,
     importsWithoutChildCreation: true, stateReferencesReused: true, originalIntakeExported: true,
-    noNoopImporterExport: true, lifecycleReadinessClaimed: false, ...(coBuild ? { coBuild } : {}) })}\n`)
+    noNoopImporterExport: true, lifecycleReadinessClaimed: false,
+    qualification: provenance.qualification, ...(coBuild ? { coBuild } : {}) })}\n`)
 } finally {
   for (const [name, implementation] of original) childProcess[name] = implementation
   syncBuiltinESMExports()
