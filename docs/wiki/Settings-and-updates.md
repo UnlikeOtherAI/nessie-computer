@@ -1,0 +1,38 @@
+# Settings and updates
+
+**Settings** holds what applies to the whole computer, for every team.
+
+| Setting | What it does | Default |
+|---|---|---|
+| **Open Nessie Computer when I log in** | Starts it when you sign in to the computer | On |
+| **Restart a team if it stops** | If a team's connection stops without you stopping it, Nessie Computer starts it again. A paused team stays paused. | On |
+| **Notifications** | Lets Nessie Computer tell you when an agent asks to run a program or something needs you | Asked the first time it's needed |
+| **Software updates** | See below | |
+| **Help** | Version, **Open logs folder**, and where to find the command line | |
+
+## Software updates
+
+Settings shows the **Installed version** and whether a newer one is available.
+
+- **Install updates automatically:** when on, updates install by themselves.
+  They wait for agents' work to finish first. Your teams, access and sign-ins
+  stay as they are.
+- When it's off, Nessie Computer tells you when an update is ready. Choose
+  **Update to {version}** or **Remind me in 24 hours**.
+- **Check for updates** checks now.
+
+On a Mac, updates need Nessie Computer's background helper. If Settings shows
+**Set up updates**, choose it and switch the helper on in System Settings.
+
+If you installed with a package manager (such as `apt` or `dnf`), update with
+that tool; Settings says so.
+
+## On the command line
+
+```sh
+nessie-computer settings login on
+nessie-computer settings auto-restart on
+nessie-computer settings updates            # version and update status
+nessie-computer settings updates check
+nessie-computer settings updates automatic off
+```

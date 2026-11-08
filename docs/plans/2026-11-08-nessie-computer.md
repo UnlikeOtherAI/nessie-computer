@@ -328,6 +328,13 @@ verbs); integration fixes.
 **Wave 3:** verification (§10).
 
 ## 9. CLI parity (tranche F)
+**Spec:** `docs/wiki/Command-reference.md` and `docs/wiki/Command-line.md` (the
+user docs) define the commands, options, output and exit codes. Help text and
+docs must match; a difference is a defect in one of them.
+
+User documentation lives in `docs/wiki/` (published to the GitHub wiki after
+the code lands) and the consumer `README.md`; developer material is in
+`CONTRIBUTING.md`. Change them with behaviour.
 `nessie-computer` (alias `nessie-executor`, kept because installed services,
 packages and scripts call it). Verb tree mirrors the window:
 `status` · `teams` · `connect` · `disconnect` · `pause` / `resume` ·
