@@ -43,7 +43,7 @@ export const readConfiguredSessionProvider = (projectId: ProjectId,
         Effect.mapError(() => new ConfiguredSessionProviderRefused()))
     if (!config.enabled) return yield* Effect.fail(new ConfiguredSessionProviderRefused())
     return {
-      instanceId, driverKind: entry.driver,
+      instanceId, driverKind: entry.driver === 'codex' ? 'codex' as const : 'claudeAgent' as const,
       // Retained only in the enclosing runtime's opaque selection. This value
       // contains configuration and must never be emitted in a graph receipt.
       settingsBytes: canonicalExecutorJson(Schema.encodeSync(ServerSettings)(settings)),

@@ -68,7 +68,10 @@ export function interactiveOperationContract<M extends InteractiveMethod>(method
 /** Decode at the original boundary. Unknown properties cannot smuggle install/retry options. */
 export function decodeInteractiveInput<M extends InteractiveMethod>(method: M, value: unknown): InteractiveInput<M> {
   try {
-    return Schema.decodeUnknownSync(interactiveDescriptor(method).payloadSchema)(value, { onExcessProperty: 'error' })
+    const descriptor: OriginalRpc = interactiveDescriptor(method)
+    // The checked tag selects this exact original schema. Reconnect the generic
+    // input after decoding the original union; no alternate codec is introduced.
+    return Schema.decodeUnknownSync(descriptor.payloadSchema)(value, { onExcessProperty: 'error' }) as InteractiveInput<M>
   } catch {
     // Original schema errors can embed input values; the transport must not retain them.
     throw new InteractiveFailure('invalid_input')

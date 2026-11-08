@@ -619,5 +619,12 @@ errors and required services through exported types. The owned SQL stage names
 the error union of the original Sqlite layer instead of an unknown error port.
 Native/resource Promise failures become fixed graph/resource refusal errors;
 original launch/settings failures retain their typed unions. No service or error
-union is widened to make declarations compile. Source parsing passed for nine
-changed modules; the root still owns compiler qualification of these annotations.
+union is widened to make declarations compile.
+
+Root compiled the combined CLI, original engine, protocol and backend on Maxis
+with Node 24.19.0: all 15 prerequisite/build tasks passed. The composed original
+manifest is `345b17a5cbf8913815ac1b482393e72d7612994e0b905bea9d2c1fe14323b9be`.
+Catalog and file wrappers name their original codecs and Effect services; SQL
+transaction errors remain explicit. The retained wake uses the actual
+`session_views` cadence topic. These compiler results establish neither native
+execution nor installed readiness; focused runtime and provider tests continue.

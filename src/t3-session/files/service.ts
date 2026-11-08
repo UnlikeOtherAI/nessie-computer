@@ -13,12 +13,25 @@ import { FileUpload, FileAssets, FileHttp, FileMedia, FilePorts,
  * canonical signed runtime may supply them; an API request cannot construct a layer.
  * The broker must keep the Effect scope alive until a response stream ends/cancels.
  */
-export const createSessionFileUpload = (input: unknown) =>
+type UploadIssue = ReturnType<typeof FileUpload.issueAttachmentUploadUrl>
+type UploadDelete = ReturnType<typeof FileUpload.deletePendingAttachment>
+type UploadStore = ReturnType<typeof FileUpload.storeAttachmentUpload>
+type AssetIssue = ReturnType<typeof FileAssets.issueAssetUrl>
+type AssetResolve = ReturnType<typeof FileAssets.resolveAsset>
+type FileResponse = ReturnType<typeof FileHttp.assetFileResponse>
+type AssetResponse = Effect.Effect<HttpServerResponse.HttpServerResponse,
+  Effect.Error<AssetResolve> | Effect.Error<FileResponse>
+    | Effect.Error<ReturnType<FileSystem.FileSystem['realPath']>>,
+  Effect.Services<AssetResolve> | Effect.Services<FileResponse> | FilePorts.FileAccess>
+
+export const createSessionFileUpload = (input: unknown): Effect.Effect<Effect.Success<UploadIssue>,
+  Schema.SchemaError | Effect.Error<UploadIssue>, Effect.Services<UploadIssue>> =>
   Schema.decodeUnknownEffect(S.AttachmentCreateUploadUrlInput)(input).pipe(
     Effect.flatMap(FileUpload.issueAttachmentUploadUrl),
   )
 
-export const deleteSessionFileUpload = (input: unknown) =>
+export const deleteSessionFileUpload = (input: unknown): Effect.Effect<Effect.Success<UploadDelete>,
+  Schema.SchemaError | Effect.Error<UploadDelete>, Effect.Services<UploadDelete>> =>
   Schema.decodeUnknownEffect(S.AttachmentDeleteInput)(input).pipe(
     Effect.flatMap(({ attachmentId }) => FileUpload.deletePendingAttachment(attachmentId)),
   )
@@ -27,7 +40,10 @@ export const deleteSessionFileUpload = (input: unknown) =>
  * identical bytes succeed again; partial/oversized/conflicting uploads cannot replace it.
  * The admission port records the byte digest separately from provider/command receipts.
  */
-export const uploadSessionFile = Effect.fn('SessionFiles.upload')(function* (
+export const uploadSessionFile: (token: string, body: Uint8Array | HttpServerRequest.HttpServerRequest['stream']) =>
+  Effect.Effect<Effect.Success<UploadStore>, Effect.Error<UploadStore>,
+    Effect.Services<UploadStore> | Effect.Services<ReturnType<typeof FileUpload.validateAttachmentUploadToken>>> =
+  Effect.fn('SessionFiles.upload')(function* (
   token: string, body: Uint8Array | HttpServerRequest.HttpServerRequest['stream'],
 ) {
   const claims = yield* FileUpload.validateAttachmentUploadToken(token)
@@ -35,7 +51,9 @@ export const uploadSessionFile = Effect.fn('SessionFiles.upload')(function* (
   return yield* FileUpload.storeAttachmentUpload(claims, body)
 })
 
-export const createSessionAsset = Effect.fn('SessionFiles.createAsset')(function* (
+export const createSessionAsset: (input: unknown, admittedWorkspaceRoot?: string) =>
+  Effect.Effect<Effect.Success<AssetIssue>, Schema.SchemaError | Effect.Error<AssetIssue>, Effect.Services<AssetIssue>> =
+  Effect.fn('SessionFiles.createAsset')(function* (
   input: unknown, admittedWorkspaceRoot?: string,
 ) {
   const { resource } = yield* Schema.decodeUnknownEffect(S.AssetCreateUrlInput)(input)
@@ -50,13 +68,15 @@ export const createSessionAsset = Effect.fn('SessionFiles.createAsset')(function
 /** Byte response only. UI and MCP receive the original finite URL descriptor;
  * bytes stream on its authenticated resource route, never inside a tool JSON result.
  */
-export const readSessionAsset = Effect.fn('SessionFiles.readAsset')(function* (input: {
+type AssetInput = {
   readonly token: string
   readonly relativePath: string
   readonly range?: string
   readonly ifRange?: string
   readonly method?: 'GET' | 'HEAD'
-}) {
+}
+export const readSessionAsset: (input: AssetInput) => AssetResponse =
+  Effect.fn('SessionFiles.readAsset')(function* (input: AssetInput) {
   const access = yield* FilePorts.FileAccess
   const expiresAt = yield* access.assetToken(input.token, input.relativePath)
   const recheck = () => Effect.gen(function* () {
@@ -70,10 +90,9 @@ export const readSessionAsset = Effect.fn('SessionFiles.readAsset')(function* (i
   )
 })
 
-const readAssetBody = Effect.fn('SessionFiles.readAssetBody')(function* (input: {
-  readonly token: string; readonly relativePath: string; readonly range?: string
-  readonly ifRange?: string; readonly method?: 'GET' | 'HEAD'
-}, recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>) {
+const readAssetBody: (input: AssetInput, recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>) => AssetResponse =
+  Effect.fn('SessionFiles.readAssetBody')(function* (input: AssetInput,
+    recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>) {
   const access = yield* FilePorts.FileAccess
   yield* recheck()
   if ((input.range?.length ?? 0) > 256 || (input.ifRange?.length ?? 0) > 512) {
@@ -110,7 +129,7 @@ const readAssetBody = Effect.fn('SessionFiles.readAssetBody')(function* (input: 
   const fs = yield* FileSystem.FileSystem
   const canonical = yield* fs.realPath(asset.path)
   yield* access.path(canonical, 'read')
-  const file = asset.file ?? (yield* FileMedia.openMediaFile(canonical))
+  const file = ('file' in asset ? asset.file : undefined) ?? (yield* FileMedia.openMediaFile(canonical))
   if (!file) return HttpServerResponse.empty({ status: 404 })
   yield* access.recheck()
   return yield* FileHttp.assetFileResponse({ ...asset, path: canonical, file },

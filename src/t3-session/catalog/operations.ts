@@ -22,7 +22,19 @@ export const retainedCatalogReadPolicy = {
   transport: 'required-unbound-admitted-executor-dispatcher',
 } as const
 
-export const retainedCatalogOperations = {
+const streams = {
+  'orchestration.subscribeShell': { mode: 'stream', prerequisite: 'admitted-live-runtime-and-replay' },
+  'orchestration.subscribeThread': { mode: 'stream', prerequisite: 'admitted-live-runtime-and-replay' },
+  'orchestration.subscribeCommandOutput': { mode: 'stream', prerequisite: 'admitted-live-command-output-hub' },
+  'orchestration.searchThreadStream': { mode: 'stream', prerequisite: 'bounded-authorized-stream-relay' },
+} as const
+type RetainedCatalogOperations = {
+  readonly rpc: Record<string, { descriptor: ExecutorT3Descriptor<RetainedCatalogRpcMethod>;
+    mode: 'finite' } & typeof retainedCatalogReadPolicy>
+  readonly http: typeof ExecutorT3HttpEndpoints
+  readonly streams: typeof streams
+}
+export const retainedCatalogOperations: RetainedCatalogOperations = {
   rpc: Object.fromEntries(retainedCatalogRpcMethods.map(method => [method, {
     descriptor: ExecutorT3Descriptors[method], mode: 'finite' as const,
     ...retainedCatalogReadPolicy,
@@ -30,10 +42,5 @@ export const retainedCatalogOperations = {
   http: ExecutorT3HttpEndpoints,
   // A retained capture has no live writer or output hub. Do not substitute a
   // one-frame stream, poll snapshots, or collect an unbounded stream for MCP.
-  streams: {
-    'orchestration.subscribeShell': { mode: 'stream', prerequisite: 'admitted-live-runtime-and-replay' },
-    'orchestration.subscribeThread': { mode: 'stream', prerequisite: 'admitted-live-runtime-and-replay' },
-    'orchestration.subscribeCommandOutput': { mode: 'stream', prerequisite: 'admitted-live-command-output-hub' },
-    'orchestration.searchThreadStream': { mode: 'stream', prerequisite: 'bounded-authorized-stream-relay' },
-  },
+  streams,
 } as const
