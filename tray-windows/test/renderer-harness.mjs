@@ -17,6 +17,7 @@ import { verifySoftwareUpdates } from './updates-renderer.mjs'
 import { verifyAccessTab } from './access-renderer.mjs'
 import { verifyDocumentsTab } from './documents-renderer.mjs'
 import { verifyAiTab } from './ai-tab-renderer.mjs'
+import { captureAiBefore, verifyAiLocal } from './ai-local-renderer.mjs'
 import { verifyNowWorking } from './working-renderer.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -32,6 +33,7 @@ const files = [...consoleFiles.shell, ...consoleFiles.teamTabs]
 try {
   if (before) {
     await captureConsoleBefore(browser, root, before, join(output, 'before'))
+    await captureAiBefore(browser, root, before, join(output, 'before'))
     process.exit(0)
   }
   if (process.argv.some((arg) => arg.startsWith('--updates'))) {
@@ -45,6 +47,7 @@ try {
   if (only.includes('access')) await verifyAccessTab(browser, ui, after)
   if (only.includes('documents')) await verifyDocumentsTab(browser, ui, after)
   if (only.includes('ai')) await verifyAiTab(browser, ui, after)
+  if (only.includes('ai')) await verifyAiLocal(browser, ui, after)
   if (only.includes('updates')) await verifySoftwareUpdates(browser, ui, files, root)
   process.stdout.write(`Shared Windows/macOS console passed. Pictures: ${after}\n`)
 } finally { await browser.close() }
