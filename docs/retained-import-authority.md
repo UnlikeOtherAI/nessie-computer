@@ -34,9 +34,9 @@ The production callback is `withRetainedImportLocally(stateDirectory,
 the registered physical owner itself, holds the exact source callback, consumes
 the native approval with a server verification nonce, commits the enrolled
 signature plus live proof, and revokes at callback exit. `RetainedImportLocalContext`
-exposes the real `source`, `physicalSourceRecheck`, issued `captureGeneration`,
+exposes the real held `source`, `database`, `physicalSourceRecheck`, issued `captureGeneration`,
 active grant status, and `authority(serverLeaseDescriptor)`. That authority has
-the distinct prospective `withReadScope`, `withPublicationScope` and catalog
+the distinct prospective `withReadScope`, `withCatalogPublicationScope` and catalog
 `withCatalogReadScope`. A scope verifies native liveness and the backend lease
 before/after use and every thread/source/selection recheck. Escaped callbacks fail.
 `recheckLocalConsent` checks only local liveness; it is not server admission.
@@ -47,3 +47,7 @@ capture/read/catalog operation inside this callback. It cannot return a live
 graph after callback exit, derive native execution authority, or manufacture a
 ready association from the tuple. The tray-to-runtime callback registration and
 the parent-integrated native producer still require actual journey qualification.
+
+During unrelated waits, the caller must recheck the held source and local consent
+at least every 20 seconds; this preserves the physical producer's 55/60-second
+idle fence. It does not extend the hard native consent or backend lease expiry.
