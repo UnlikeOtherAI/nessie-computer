@@ -13,6 +13,7 @@ import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityP
 import { requireCapture } from '../state/sqlite.js'
 import type { CaptureDatabase } from '../state/sqlite.js'
 import { retainedImportPost } from './import-transport.js'
+import { recheckRetainedImportLease } from './import-local-check.js'
 
 export interface RetainedImportReadScope extends RetainedReadScope {
   readonly basis: 'prospective-import-grant'
@@ -98,27 +99,7 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
         const current = await owner.recognize(input.physicalSourceRecheck)
         requireCapture(current.source === input.source && current.executorId === lease.executorId,
           'retained_import_source_replaced')
-        const verification = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
-          operation: 'verification.issue', grantId: lease.grantId, purpose: 'recheck', leaseId: lease.leaseId,
-          ...(lease.operationBinding ? { operationBinding: lease.operationBinding } : {}),
-        }))
-        const liveProof = RetainedImportLiveProofSchema.parse(await consent.recheck(verification))
-        const answer = await retainedImportPost(stateDirectory, {
-          operation: 'lease.check', leaseId: lease.leaseId, token: lease.token, grantId: lease.grantId, liveProof,
-          generation: lease.generation, sourceOwnerGeneration: lease.sourceOwnerGeneration,
-          selectionKey: lease.selectionKey,
-          ...(lease.operationBinding ? { operationBinding: lease.operationBinding } : {}),
-          source: { executorId: lease.executorId, environmentId: lease.environmentId,
-            physicalRootKey: lease.physicalRootKey, admittedRootKey: lease.admittedRootKey,
-            databaseIdentity: lease.databaseIdentity, environmentIdentity: lease.environmentIdentity,
-            captureGeneration: lease.captureGeneration }, purpose: lease.purpose, ...(threadId ? { threadId } : {}),
-        }) as { basis?: string; selection?: unknown; selectionKey?: string; generation?: string;
-          expiresAt?: string; operationBinding?: unknown }
-        requireCapture(answer.basis === 'prospective_import' && answer.generation === lease.generation
-          && answer.expiresAt === lease.expiresAt && answer.selectionKey === lease.selectionKey
-          && canonicalExecutorJson(answer.operationBinding ?? null) === canonicalExecutorJson(lease.operationBinding ?? null)
-          && canonicalExecutorJson(answer.selection) === canonicalExecutorJson(lease.selection),
-        'retained_import_server_scope_changed')
+        await recheckRetainedImportLease(stateDirectory, lease, consent, threadId)
         requireLive()
         requireCapture((await owner.recognize(input.physicalSourceRecheck)).source === input.source,
           'retained_import_source_replaced')
@@ -198,6 +179,7 @@ export async function withRetainedImportLocally<A>(stateDirectory: string,
         requireCapture(grant.status === 'active' && grant.grantId === challenge.challengeId
           && grant.generation === challenge.grantGeneration, 'retained_import_commit_substitution')
         committed = true
+        for (const lease of bootstrapLeases) await recheckRetainedImportLease(stateDirectory, lease, consent)
         await consent.recheck()
         const result = await use({ grant: { ...grant, status: 'active' }, source, database, physicalSourceRecheck,
           challenge, captureGeneration: challenge.captureGeneration, bootstrapLeases: Object.freeze(bootstrapLeases),
