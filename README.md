@@ -41,6 +41,7 @@ control from the command line.
 | **Programs** | Apps from UnlikeOtherAI, Claude Code, Codex and T3 Code | Allow more, block some, or allow none |
 | **Other programs** | Agents ask first. You choose **Allow once**, **Always allow** or **Don't allow** | Answer on the computer |
 | **Local apps** | Every app on this computer that agents can talk to (MCP servers) | Switch any off |
+| **Claude Code and Codex** | Available if installed and signed in on this computer | Switch either off in **AI** |
 | **Websites** | None | Add the sites the agents' browser may open |
 
 Programs run under your account, so a program you allow can open any file you
