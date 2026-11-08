@@ -3,6 +3,8 @@ import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 import type * as Scope from 'effect/Scope'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
+import { T3ExecutionSecretPlanCandidateSchema, type T3ExecutionSecretPlanCandidate }
+  from '@nessie/executor-protocol/t3-session'
 import { CodexSettings, ClaudeSettings, ProviderInstanceConfig, ServerSettings }
   from '@nessie/t3-session-source/contracts'
 import { ProviderSecretPlan, Settings } from '@nessie/t3-session-source/engine'
@@ -10,6 +12,7 @@ import type { T3ExecutionResourceScope } from '../source/execution.js'
 import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import type { EffectFailure, EffectServices } from './effect-types.js'
+import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 
 const sha = (value: unknown) => 'sha256:' + createHash('sha256').update(canonicalExecutorJson(value)).digest('hex')
 export class SessionSecretPlanRefused extends Error {
@@ -51,6 +54,15 @@ export class HeldSessionProviderSecretPlan {
     const record = records.get(this)
     if (!record) throw new SessionSecretPlanRefused()
     return structuredClone(record.evidence)
+  }
+  /** Exact parent-integrated native candidate. Empty selection needs no read;
+   * this getter neither hydrates nor consumes a slot. */
+  get candidate(): T3ExecutionSecretPlanCandidate {
+    const { selection, recipient, ...evidence } = this.evidence
+    try {
+      return T3ExecutionSecretPlanCandidateSchema.parse({ evidence: { ...evidence, custody: recipient }, selection })
+    }
+    catch { throw new SessionSecretPlanRefused() }
   }
   static readonly prepare = (source: T3ExecutionResourceScope, target: PreparedSessionLaunchTarget): PlanEffect =>
     Effect.gen(function* () {
@@ -94,4 +106,24 @@ export const recheckSessionProviderSecretPlan = (plan: HeldSessionProviderSecret
     || canonicalExecutorJson(Schema.encodeSync(ServerSettings)(settings)) !== record.settings) {
     return yield* Effect.fail(new SessionSecretPlanRefused())
   }
+})
+
+/** Begin one selected full-array slot before native observation. This only
+ * makes retries terminal. No value installer or native read is exposed here. */
+export const beginSessionProviderSecretRead = (plan: HeldSessionProviderSecretPlan,
+  target: PreparedSessionLaunchTarget, attempts: ScopedSessionSecretReadAttempts,
+  originalEnvironmentIndex: number): Effect.Effect<T3ExecutionSecretPlanCandidate,
+    SessionSecretPlanRefused | EffectFailure<SessionExecutionResourcesEffect>,
+    EffectServices<SessionExecutionResourcesEffect>> => Effect.gen(function* () {
+  yield* recheckSessionProviderSecretPlan(plan)
+  return yield* Effect.try({ try: () => {
+    const record = records.get(plan)
+    if (!record || record.target !== target) throw new SessionSecretPlanRefused()
+    const candidate = plan.candidate
+    if (!candidate.selection.environment.some(slot => slot.index === originalEnvironmentIndex)) {
+      throw new SessionSecretPlanRefused()
+    }
+    attempts.claim(originalEnvironmentIndex)
+    return candidate
+  }, catch: () => new SessionSecretPlanRefused() })
 })
