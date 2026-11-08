@@ -74,6 +74,13 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 
 ## Package interface
 
+The gateway source adds `SocketFrameParts` and uses `TerminalOutputProtocol` from
+the engine entry. They export the pinned source's multipart socket helpers and
+eight-chunk/terminal-byte output window without copying implementations or
+starting a server. This export change is source-only and requires a new normal
+package build and consumer qualification; the previous package hashes below
+do not qualify it. The private gateway consumes the same external Effect root.
+
 The combined 8 November source candidate registers state, client connection,
 extraction/runtime, catalog, files, session control, request privacy and workspace
 families in that order. Bounded Node 24.19 checks on Maxis applied every exact
