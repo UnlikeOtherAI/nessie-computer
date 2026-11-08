@@ -23,12 +23,14 @@
     "@nessie/t3-session-source#build": {
       "dependsOn": ["^build", "prepare:engine"],
       "inputs": ["$TURBO_DEFAULT$", "../../LICENSE", "../../packaging/session-engine/**", "../../patches/t3-session/**",
+        "../../src/t3-session/requests/**",
         "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"],
       "outputs": ["dist/**"]
     },
     "prepare:engine": { "dependsOn": [], "cache": false },
     "@nessie/t3-session-source#typecheck": { "dependsOn": ["^build", "^typecheck", "prepare:engine"],
       "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/**", "../../patches/t3-session/**",
+        "../../src/t3-session/requests/**",
         "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"] },
     "test:t3-session-engine": { "dependsOn": ["build"], "cache": false },
     "test:t3-session-engine-browser": { "dependsOn": ["build"], "cache": false,
