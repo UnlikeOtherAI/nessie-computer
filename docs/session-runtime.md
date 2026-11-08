@@ -70,9 +70,35 @@ the attempted-index set across plan creation and open callbacks; duplicate ACKs
 cannot replace it. Concurrent calls cannot claim the same index, and callback
 exit, expiry or cancellation cannot reopen it. This is a replay refusal only;
 neither a successful local claim nor a reservation authorizes a secret read.
-The dedicated native receiver/private installer is still unbound. Its eventual
-release must check the original native preparation's absolute five-second total
-deadline and 65,536-byte limit; the graph resource deadline cannot replace either.
+`beginSessionProviderSecretRead` returns an opaque read slot containing only a
+cloned candidate getter. It captures the exact original offered graph binding,
+graph nonce and graph payload digest. It cannot read or return a secret.
+
+`receiveSessionProviderSecretRead` composes the integrated native verifier with
+the private original slot. It accepts the captured preparation receipt, exact
+signed admission, a dedicated value Readable and a separate ACK Writable. It
+checks all observation fields, the exact preparation payload digest, the selected
+slot and graph, and the original absolute deadline. These streams do not create
+a process or prove one has closed. No read-start client is implemented here.
+
+The service must close its sole value writer after one frame. The receiver owns
+bounded raw storage, waits for that EOF to reject trailing bytes, rechecks the
+source and authenticates the exact header/value/MAC using the private startup
+key. Without an intervening await, it converts and installs only the original
+selected environment element. The same pure conversion is now shared with the
+original registry: whitespace-only values refuse; other whitespace is preserved.
+Only then are raw buffers wiped and the token-derived ACK written before expiry.
+Every failure is terminal, clears private installed values and closes both
+channels. Scope closure aborts and joins receivers, then releases value references.
+JavaScript strings cannot be physically zeroed; raw buffers are explicitly wiped.
+
+There is no raw-value getter, exported installer or callback registration. The
+private resolved environment is not yet consumed by an activated original driver.
+Empty plans require no receive operation. Nonempty reads remain unavailable until
+the safe native producer and both actual channel endpoints exist; the sink cannot
+substitute for them. The native preparation's five-second TOTAL and 65,536-byte
+limit remain distinct from graph resource retention. EOF is framing completion;
+only the authenticated service header attests its observed child clearance.
 
 The original resolver cannot be enabled by wrapping a registry reconcile. It
 caches across its lifetime and deduplicates references; its only built-in driver,
@@ -99,6 +125,26 @@ launch and FRAME admissions do not authorize those effects. Claude SDK 0.3.316
 serialization, separate history authority, full original host activation and
 daemon `open` registration remain required. No new tests, compiler or native
 qualification were run for this source checkpoint; regression fixtures are authored.
+
+## Remaining original activation bindings
+
+These are concrete runtime composition work, including for an empty secret plan:
+
+| Original producer | Required binding before activation |
+| --- | --- |
+| `ThreadLaunchService.make` / `schedulePreparation` | Actual project, managed-folder, git and setup-script owners. Fetch/worktree/attachment/overlay mutations still lack preparation-effect authority. |
+| `ProviderInstanceRegistry.makeProviderInstanceRegistry` | Selected-instance construction without its startup/reconcile prefetch or global resolver. The private resolved environment must reach only that original instance. |
+| `CodexDriver.create` / `createCodexAdapterV2` | Real ProviderHost, installation/model catalogue, environment and custody-bound spawner. Its managed status, maintenance and text-generation paths cannot be replaced by no-op services or ambient executable lookup. |
+| `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
+| `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. Persisted `effect.commandId` must survive `EffectWorker` dispatch and reach the original adapter. |
+| `ThreadLaunchService` initial-message dispatch | Record the actual parent-to-child command edge when the original message command is created. Do not infer it from `:initial-message` or replace the original internal run-event command ID. |
+| `SessionEngineLifecycle` | Bind recovery and worker execution to live original admission before running imported pending effects. Use the existing graph scope/memo, and drain providers before state revocation. |
+
+These ports remain runtime-owned. The missing native secret channel producer and
+version-specific noninteractive `op` behavior are separate dependencies. Claude
+SDK 0.3.316 immutable serialization is still unbound; the original history worker
+`runClaudeHistoryWorker(method, sessionId, rawOptions)` requires separately
+admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
 
 ## Composition and ownership
 
