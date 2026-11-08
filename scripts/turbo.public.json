@@ -2,6 +2,7 @@
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
     "test:t3-session-source": { "dependsOn": [], "cache": false },
+    "//#test:t3-session-interactive": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-session-import-source": { "dependsOn": [], "cache": false,
       "env": ["T3_SESSION_IMPORT_REFERENCE"] },
     "//#test:t3-session-import": { "dependsOn": ["//#build"], "cache": false },
