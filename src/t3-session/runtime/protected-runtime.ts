@@ -8,6 +8,7 @@ import type { T3SessionLaneRuntime } from '../../t3-session-lane.js'
 import { startProtectedT3Graph, type ProtectedT3Process } from '../../t3-protected-process.js'
 import { machineT3Sources } from '../source/owner.js'
 import type { SessionInspectionRuntime } from './inspection-runtime.js'
+import { createProtectedNativeRelay, type ProtectedNativeRelay } from './protected-native-relay.js'
 import { ProtectedRuntimeInputSchema, ProtectedRuntimeOutputSchema, readProtectedRuntimeFrames,
   writeProtectedRuntimeFrame, protectedRuntimeRefused, type ProtectedRuntimeInput } from './protected-wire.js'
 
@@ -17,6 +18,7 @@ type Job = {
   readonly calls: Map<string, Call>; readonly inspections: Map<string, { signal: AbortSignal; abort(): void }>;
   started: Promise<void>; child?: ProtectedT3Process; reading?: Promise<void>; closing?: Promise<void>;
   announcement?: T3InspectionRuntimeAnnouncement;
+  native?: ProtectedNativeRelay;
   cleared?: boolean; retryAt?: number;
 }
 const identity = (state: ExecutorLocalState) => canonicalExecutorJson({ executorId: state.executorId,
@@ -41,6 +43,7 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
     wake()
     job.closing = (async () => {
       await job.started.catch(() => undefined)
+      await job.native?.close()
       // Terminate resolves only after service-positive kernel Job clearance.
       if (job.child) { await job.child.terminate(); await job.child.closed }
       await job.reading?.catch(() => undefined)
@@ -147,6 +150,11 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
     job.started = Promise.resolve().then(async () => {
       assertCurrent(job)
       job.child = await startProtectedT3Graph(state().executorId, job.stop.signal)
+      job.native = createProtectedNativeRelay(async result => {
+        assertCurrent(job)
+        if (!job.child) throw protectedRuntimeRefused()
+        await writeProtectedRuntimeFrame(job.child.stdin, ProtectedRuntimeInputSchema.parse(result))
+      }, () => { void close(job) })
       assertCurrent(job)
       job.child.stderr.resume()
       job.child.on('error', () => { void close(job) })
@@ -162,6 +170,9 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
               clearTimeout(timer)
               job.announcement = message.announcements[0]!
               wake()
+            } else if (message.type === 'native') {
+              if (!job.native) throw protectedRuntimeRefused()
+              job.native.receive(message)
             } else {
               const waiting = job.calls.get(message.callId)
               if (!waiting) throw protectedRuntimeRefused()

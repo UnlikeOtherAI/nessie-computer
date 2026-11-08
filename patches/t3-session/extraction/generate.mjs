@@ -17,6 +17,8 @@ import { extractColdLaunch } from './cold-launch.mjs'
 import { extractProviderLive } from './provider-live.mjs'
 import { extractProviderEvents } from './provider-events.mjs'
 import { extractInspectionHosts } from './inspection-hosts.mjs'
+import { extractProviderSecretPlan } from './secret-plan.mjs'
+import { extractCodexSerialization } from './serialization.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -45,8 +47,10 @@ export const generateExtractionManifest = snapshot => {
   extractProviderHost(author)
   extractPrelaunch(author)
   extractColdLaunch(author, redirects, exports)
+  extractProviderSecretPlan(author)
   extractProviderLive(author, redirects)
   extractProviderEvents(author)
+  extractCodexSerialization(author)
   for (const [relative, symbols] of [
     ['Orchestrator', [['const', 'isOrchestratorProjectionError'], ['function', 'runtimePolicyCeilingCause']]],
     ['CheckpointRollbackService', [['const', 'isCheckpointRollbackExecutionError']]],

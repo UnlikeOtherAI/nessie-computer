@@ -15,6 +15,7 @@
     "packaging/session-engine/core/ResourceLayers.ts",
     "packaging/session-engine/core/RuntimeLayers.ts",
     "packaging/session-engine/core/SessionLifecycle.ts",
+    "packaging/session-engine/core/Serialization.ts",
     "packaging/session-engine/core/StateDirectoryLock.ts",
     "packaging/session-engine/core/StateLayers.ts",
     "src/t3-session/requests/validate.ts",

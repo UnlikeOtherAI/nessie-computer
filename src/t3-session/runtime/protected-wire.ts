@@ -1,11 +1,13 @@
 import type { Readable, Writable } from 'node:stream'
 import { z } from 'zod'
 import { T3ExecutionSignedAdmissionSchema, T3LaneInspectionAcceptedSchema,
-  T3InspectionRuntimeAnnouncementSchema, T3_LANE_LIMITS } from '@nessie/executor-protocol/t3-session'
+  T3InspectionRuntimeAnnouncementSchema, T3_LANE_LIMITS,
+  T3NativeExecutionOperationSchema, T3NativeExecutionOperationResultSchema } from '@nessie/executor-protocol/t3-session'
 
 const id = z.string().regex(/^[a-f0-9]{64}$/u)
 const call = { callId: id }
 const parent = { inspectionId: id }
+const operation = { operationId: id }
 export const ProtectedRuntimeInputSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('source'), admittedRootKey: z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/u) }).strict(),
   z.object({ type: z.literal('inspect'), ...call, ...parent, request: z.unknown(),
@@ -16,6 +18,9 @@ export const ProtectedRuntimeInputSchema = z.discriminatedUnion('type', [
     accepted: T3LaneInspectionAcceptedSchema }).strict(),
   z.object({ type: z.literal('release'), ...call, ...parent }).strict(),
   z.object({ type: z.literal('describe'), ...call }).strict(),
+  z.object({ type: z.literal('native-result'), ...operation, ...call,
+    value: T3NativeExecutionOperationResultSchema }).strict(),
+  z.object({ type: z.literal('native-refused'), ...operation, ...call }).strict(),
   z.object({ type: z.literal('close') }).strict(),
 ])
 export type ProtectedRuntimeInput = z.infer<typeof ProtectedRuntimeInputSchema>
@@ -24,6 +29,7 @@ export const ProtectedRuntimeOutputSchema = z.discriminatedUnion('type', [
     announcements: T3InspectionRuntimeAnnouncementSchema.array().length(1) }).strict(),
   z.object({ type: z.literal('result'), ...call, value: z.unknown() }).strict(),
   z.object({ type: z.literal('refused'), ...call }).strict(),
+  z.object({ type: z.literal('native'), ...operation, ...call, operation: T3NativeExecutionOperationSchema }).strict(),
 ])
 const limit = T3_LANE_LIMITS.requestBytes + T3_LANE_LIMITS.controlBytes
 export const protectedRuntimeRefused = () => new Error('T3_PROTECTED_RUNTIME_REFUSED')

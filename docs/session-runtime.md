@@ -4,6 +4,81 @@ Status: authored source, not qualified execution. No provider, native process,
 installed session or user data was opened for this change. Production provider
 and custody bindings remain required. Constructing a layer is not readiness.
 
+## Original encoder and finite native composition
+
+`CodexClient.make` now accepts the internal `serializedOutput` transport. The
+original protocol still allocates request IDs and encodes complete NDJSON. It
+captures an immutable write before `Queue.offer`, retains that object through a
+bounded queue, and acknowledges only after its write completes. Scope loss and
+protocol termination discard pending captures. Automatic errors pass only the
+actual provider request ID to native; native constructs the fixed unsupported
+response and checks its outstanding stdout request. Arbitrary response bytes
+cannot use the bootstrap frame path.
+
+`createProtectedCodexSerialization` copies the exact encoder bytes and the
+preparation's original command/correlation/HMAC/provider-session context before
+queueing. It bounds captures to eight, 256 KiB total and 128 KiB per frame. Each
+write obtains a service-held frame receipt, relays it for a fresh signed FRAME,
+and awaits `commitFrame`. Cancellation joins that write. Association permanently
+closes this bootstrap writer; post-association commands need a distinct effect
+binding, which is not supplied by this adapter. No latest-grant lookup or generic
+stdin is used.
+
+`withReservedSessionLaunch` retains the same recognized selection and original
+engine scope across reserve, actual native preparation, launch and association.
+The original adapter must supply its already-allocated provider session ID and
+actual process descriptor after separately authorized preparation. Native
+retains that descriptor and starts only the signed launch. Association consumes
+native's own held stdout evidence. Callback exit drains serialization and
+association before positive provider Job clearance. `makeProtectedOriginalCodexClient`
+uses the original client, codecs, stderr tail and exit handling; its generic
+Stdio output refuses. These internal source adapters are not yet called by an
+activated original `launchThread` graph.
+
+`protected-native-relay.ts` implements both finite pipe endpoints. An operation
+port accepts only phase/frame/receipt requests; it carries no caller-supplied
+original operation, keys, frame bytes or method/hash selector. Call IDs cannot
+replay, responses cannot cross operation IDs, and close aborts then joins pending
+HTTP demand. The fixed entry and daemon recognize these wire messages. The
+production `open` registration still refuses: the complete original activation
+and its preparation-effect authority are not bound. Therefore no native port is
+registered from inspection, and none of this advertises executing readiness.
+
+## Selected provider secret preparation
+
+The original registry and protected graph share `planProviderInstanceSecrets`.
+It preserves environment array order followed by `secretReferencesInSettings`
+codec field order (and each keyed record's entry order). At the pinned revision,
+Codex and Claude have no annotated config secret fields; their config slot lists
+are empty. Environment references decode from the stored `secret` field and
+encode back as `value: ""`, `secret`, and `sensitive: true`.
+
+`HeldSessionProviderSecretPlan` retains the actual source resource, selected
+instance, settings identity/digest, full encoded instance digest, encoded secret
+provider map digest, credential HOME reference and graph custody. The full
+settings remain in graph memory. Evidence contains reference/slot identity,
+never secret values. Rechecks and scope closure invalidate escaped plans. This
+plan is a candidate for independent native observation, not read permission.
+
+The original resolver cannot be enabled by wrapping a registry reconcile. It
+caches across its lifetime and deduplicates references; its only built-in driver,
+1Password, spawns `op`, and batch reads write a temporary template, run `inject`
+and may fall back to individual reads. A separate fixed, trusted `op read` child
+and one-use per-slot admission are required. Initial agreement is an absolute
+five-second total deadline through execution, EOF, positive Job clearance and
+private delivery to the same graph slot. Duplicate references at different
+environment indices remain separate; a consumed or uncertain slot cannot retry
+under a new plan/read ID. No batch, fallback, invalidation or global cache is
+authorized. Native/backend schemas and the private sink are still being authored.
+
+Other original preparation effects remain unbound: pending attachment copies
+in `AttachmentClaims`, workspace fetch/worktree/setup/rollback in
+`ThreadLaunchService`, and Codex shadow-home materialization. Reserve, graph,
+launch and FRAME admissions do not authorize those effects. Claude SDK 0.3.316
+serialization, separate history authority, full original host activation and
+daemon `open` registration remain required. No new tests, compiler or native
+qualification were run for this source checkpoint; regression fixtures are authored.
+
 ## Composition and ownership
 
 `@nessie/t3-session-source/engine` exports `createSessionRuntimeLayers(state)`.

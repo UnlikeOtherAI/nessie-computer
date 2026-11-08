@@ -1739,6 +1739,33 @@
       "afterSha256": "a53143f17559967db846fe2c0f297ba6a4e51b22d540f15ff49d53f7f7620726"
     },
     {
+      "id": "provider-original-secret-plan",
+      "file": "apps/server/src/provider/ProviderInstanceSecretPlan.ts",
+      "create": [
+        {
+          "text": "import type { ProviderInstanceConfig, SecretReference, SettingsSecretSlot }\n  from \"@t3tools/contracts\";\nimport { secretReferencesInSettings } from \"@t3tools/contracts\";\nimport type * as Schema from \"effect/Schema\";\n\nexport interface ProviderInstanceSecretPlan {\n  readonly environment: ReadonlyArray<{ readonly index: number; readonly name: string;\n    readonly reference: SecretReference }>;\n  readonly config: ReadonlyArray<SettingsSecretSlot & { readonly reference: SecretReference }>;\n  readonly references: ReadonlyArray<SecretReference>;\n}\n\n/** Exact environment order followed by the original codec's declared config slots. */\nexport const planProviderInstanceSecrets = (schema: Schema.Top | undefined,\n  entry: ProviderInstanceConfig): ProviderInstanceSecretPlan => {\n  const environment = (entry.environment ?? []).flatMap((variable, index) =>\n    typeof variable.value === \"string\" ? [] : [{ index, name: variable.name, reference: variable.value }]);\n  const config = schema === undefined ? [] : secretReferencesInSettings(schema, entry.config);\n  return { environment, config,\n    references: [...environment.map(slot => slot.reference), ...config.map(slot => slot.reference)] };\n};\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "ad5e949c23a03358c2f53f2c32f5ceb3eb47b29a2cb9adfd7e48816b4a2bf9d2"
+    },
+    {
+      "id": "provider-use-original-secret-plan",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "import {\n  providerInstanceConfigEnabledFlag,\n  ProviderInstanceId,\n  type ProviderInstanceConfig,\n  type ProviderInstanceConfigMap,\n  type ProviderInstanceEnvironment,\n  type ProviderDriverKind,\n  type ResolvedProviderInstanceEnvironment,\n  type SecretReference,\n  secretReferencesInSettings,\n  type ServerProvider,\n  type SettingsSecretSlot,\n  withSettingsSecrets,\n} from \"@t3tools/contracts\";",
+      "to": "import { planProviderInstanceSecrets } from \"./ProviderInstanceSecretPlan.ts\";\nimport {\n  providerInstanceConfigEnabledFlag,\n  ProviderInstanceId,\n  type ProviderInstanceConfig,\n  type ProviderInstanceConfigMap,\n  type ProviderInstanceEnvironment,\n  type ProviderDriverKind,\n  type ResolvedProviderInstanceEnvironment,\n  type SecretReference,\n  secretReferencesInSettings,\n  type ServerProvider,\n  type SettingsSecretSlot,\n  withSettingsSecrets,\n} from \"@t3tools/contracts\";",
+      "beforeSha256": "40ec3e81ac65121018a6b22e280cd4cfa10162980790a545e740aac29675266c",
+      "afterSha256": "a0d77b9cc3b9a7e008bec0ab937ffde8bfad10d432683fb72d1ac6e43a6f4a52"
+    },
+    {
+      "id": "provider-secret-read-exact-plan",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "  const configFields = configSecretReferences(driver, entry);\n  const references = [\n    ...secretReferencesIn(variables),\n    ...configFields.map(({ reference }) => reference),\n  ];",
+      "to": "  const plan = planProviderInstanceSecrets(driver?.configSchema, entry);\n  const configFields = plan.config;\n  const references = plan.references;",
+      "beforeSha256": "a0d77b9cc3b9a7e008bec0ab937ffde8bfad10d432683fb72d1ac6e43a6f4a52",
+      "afterSha256": "4f4748acb973e11993d6c744fea73c9e53baab295009d386511f102be4825769"
+    },
+    {
       "id": "session-manager-exclude-metric-decorator",
       "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "from": "        const turnMetrics = (operation: string, model?: string) =>\n          withMetrics({\n            counter: providerTurnsTotal,\n            ...(operation === \"send\" ? { timer: providerTurnDuration } : {}),\n            attributes: {\n              provider: runtime.driver,\n              operation,\n              modelFamily: normalizeModelMetricLabel(model),\n            },\n          });\n",
@@ -1826,19 +1853,19 @@
       "file": "apps/server/src/provider/ProviderInstanceRegistry.session-live.ts",
       "create": [
         {
-          "text": "import { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceConfigMap, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Equal from \"effect/Equal\";\nimport * as Exit from \"effect/Exit\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport * as SecretResolver from \"@t3tools/secret-provider-core/server/SecretResolver\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport * as ProviderInstanceRegistryMutator from \"./ProviderInstanceRegistryMutator.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
+          "text": "import { planProviderInstanceSecrets } from \"./ProviderInstanceSecretPlan.ts\";\nimport { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceConfigMap, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Equal from \"effect/Equal\";\nimport * as Exit from \"effect/Exit\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport * as SecretResolver from \"@t3tools/secret-provider-core/server/SecretResolver\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport * as ProviderInstanceRegistryMutator from \"./ProviderInstanceRegistryMutator.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
         },
         {
           "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
-          "start": 1327,
-          "end": 23688,
-          "sha256": "41a13b9fb5d1332d8adb8602244c3bc1fb6e557ae7923d2f300b4ad5074bd56a",
+          "start": 1406,
+          "end": 23731,
+          "sha256": "ae58e07799437d446cc2e05de9343426e307ac6054f66831e9f80c4a064e99c2",
           "sourceStage": "current",
-          "sourceSha256": "40ec3e81ac65121018a6b22e280cd4cfa10162980790a545e740aac29675266c"
+          "sourceSha256": "4f4748acb973e11993d6c744fea73c9e53baab295009d386511f102be4825769"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "dc2f1addb6d7f390fb3e1cdefe07d9dcc556862f8225d2f3a0a5389fb6476f01"
+      "afterSha256": "6b65b92d16e709579ad900cde2ae34ba990bff45bf1162d0cec053721b2b2ab7"
     },
     {
       "id": "original-finalization-live",
@@ -1898,6 +1925,70 @@
       "to": "",
       "beforeSha256": "efcb316664a75a037c82126ff1c91a9c1f8f914d8bf74ef62f24f8f754762492",
       "afterSha256": "bbc05bc10e68d7d99706e818134cd2621ff3c68773325edbf3ac1498ce26c7f4"
+    },
+    {
+      "id": "codex-immutable-serialized-output",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "export interface CodexAppServerPatchedProtocolOptions {",
+      "to": "export interface CodexCapturedWrite {\n  readonly write: Effect.Effect<void, CodexError.CodexAppServerError>;\n  readonly discard: Effect.Effect<void>;\n}\n\n/** Bound once to an original invocation, not a mutable current-grant lookup. */\nexport interface CodexSerializedOutput {\n  readonly capture: (encoded: string) => Effect.Effect<CodexCapturedWrite, CodexError.CodexAppServerError>;\n  readonly refuse: (requestId: string | number) => Effect.Effect<void, CodexError.CodexAppServerError>;\n}\n\ninterface CapturedQueueEntry {\n  readonly captured: CodexCapturedWrite;\n  readonly acknowledged: Deferred.Deferred<void, CodexError.CodexAppServerError>;\n}\n\nexport interface CodexAppServerPatchedProtocolOptions {\n  readonly serializedOutput?: CodexSerializedOutput;",
+      "beforeSha256": "7a75263f6c86882c054bc3962274e525849ac89af26c2266aa7da9407070ebc8",
+      "afterSha256": "c5fee09b35b63c65913c01a96034c5a3e42bcd0707c37da8373081fdc2efe535"
+    },
+    {
+      "id": "codex-captured-queue",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "    const outgoing = yield* Queue.unbounded<string, Cause.Done<void>>();",
+      "to": "    const outgoing = yield* Queue.unbounded<string, Cause.Done<void>>();\n    const capturedOutgoing = yield* Queue.bounded<CapturedQueueEntry, Cause.Done<void>>(8);\n    const capturedPending = new Set<CapturedQueueEntry>();\n    yield* Effect.addFinalizer(() => Effect.forEach([...capturedPending], (entry) =>\n      Deferred.fail(entry.acknowledged, new CodexError.CodexAppServerInputStreamEndedError({})).pipe(\n        Effect.andThen(entry.captured.discard)), { discard: true }));",
+      "beforeSha256": "c5fee09b35b63c65913c01a96034c5a3e42bcd0707c37da8373081fdc2efe535",
+      "afterSha256": "87107594d48e4e1afc36cf7b5f11940d27e0019fb6ce0e72d4cecdf0fe8abaf2"
+    },
+    {
+      "id": "codex-terminate-captured-writes",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "            yield* Queue.end(outgoing);",
+      "to": "            yield* Queue.end(outgoing);\n            yield* Queue.end(capturedOutgoing);\n            yield* Effect.forEach([...capturedPending], (entry) =>\n              Deferred.fail(entry.acknowledged, error).pipe(Effect.andThen(entry.captured.discard)),\n              { discard: true });",
+      "beforeSha256": "87107594d48e4e1afc36cf7b5f11940d27e0019fb6ce0e72d4cecdf0fe8abaf2",
+      "afterSha256": "8fda76dc849317e2a65d1405131d101c531f016cac347f5f10d506fcb0fb1722"
+    },
+    {
+      "id": "codex-capture-before-queue",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "        const accepted = yield* Queue.offer(outgoing, encoded);",
+      "to": "        if (options.serializedOutput) {\n          // The encoder's exact complete NDJSON and immutable invocation port\n          // are captured before the first Queue.offer. No sink reconstructs it.\n          return yield* Effect.acquireUseRelease(\n            Effect.gen(function* () {\n              const captured = yield* options.serializedOutput!.capture(encoded);\n              const acknowledged = yield* Deferred.make<void, CodexError.CodexAppServerError>();\n              const entry = Object.freeze({ captured, acknowledged });\n              capturedPending.add(entry);\n              return entry;\n            }),\n            (entry) => Effect.gen(function* () {\n              if (!(yield* Queue.offer(capturedOutgoing, entry))) {\n                return yield* new CodexError.CodexAppServerInputStreamEndedError({});\n              }\n              return yield* Deferred.await(entry.acknowledged);\n            }),\n            (entry) => entry.captured.discard.pipe(\n              Effect.andThen(Effect.sync(() => { capturedPending.delete(entry); }))),\n          );\n        }\n        const accepted = yield* Queue.offer(outgoing, encoded);",
+      "beforeSha256": "8fda76dc849317e2a65d1405131d101c531f016cac347f5f10d506fcb0fb1722",
+      "afterSha256": "114e94d2f916c54c394937937b4038df3199d43a79252689f7bf3f8ccbf83854"
+    },
+    {
+      "id": "codex-drain-exact-captured-write",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "    yield* Stream.fromQueue(outgoing).pipe(",
+      "to": "    yield* Stream.fromQueue(capturedOutgoing).pipe(\n      Stream.runForEach((entry) => entry.captured.write.pipe(\n        Effect.matchEffect({\n          onSuccess: () => Deferred.succeed(entry.acknowledged, undefined),\n          onFailure: (error) => Deferred.fail(entry.acknowledged, error).pipe(\n            Effect.andThen(handleTermination(() => Effect.succeed(error)))),\n        }), Effect.asVoid)),\n      Effect.forkScoped,\n    );\n\n    yield* Stream.fromQueue(outgoing).pipe(",
+      "beforeSha256": "114e94d2f916c54c394937937b4038df3199d43a79252689f7bf3f8ccbf83854",
+      "afterSha256": "bc307054367c51c6538e12a5939a07850a0061441637e67adcccd67b40a32948"
+    },
+    {
+      "id": "codex-fixed-protected-unsupported-reply",
+      "file": "packages/effect-codex-app-server/src/protocol.ts",
+      "from": "    ) => offerOutgoing(toProtocolMessage(requestId, { error: error.toProtocolError() }));",
+      "to": "    ) => options.serializedOutput\n      ? options.serializedOutput.refuse(requestId)\n      : offerOutgoing(toProtocolMessage(requestId, { error: error.toProtocolError() }));",
+      "beforeSha256": "bc307054367c51c6538e12a5939a07850a0061441637e67adcccd67b40a32948",
+      "afterSha256": "4cbbd330047aa159f7f7db5a8565347031e44a750896812fc31731f81057008f"
+    },
+    {
+      "id": "codex-client-serialized-output",
+      "file": "packages/effect-codex-app-server/src/client.ts",
+      "from": "export interface CodexAppServerClientOptions {",
+      "to": "export interface CodexAppServerClientOptions {\n  readonly serializedOutput?: CodexProtocol.CodexSerializedOutput;",
+      "beforeSha256": "47454f9269105c78d525ebede696f2b91a61702f19b06cc47fb3ee78ae372c66",
+      "afterSha256": "b38e0933414f939e683105ad0233c701154ada5f8697bb338598afbbd617ac2b"
+    },
+    {
+      "id": "codex-client-forward-captured-output",
+      "file": "packages/effect-codex-app-server/src/client.ts",
+      "from": "    stdio,\n    ...(terminationError",
+      "to": "    stdio,\n    ...(options.serializedOutput ? { serializedOutput: options.serializedOutput } : {}),\n    ...(terminationError",
+      "beforeSha256": "b38e0933414f939e683105ad0233c701154ada5f8697bb338598afbbd617ac2b",
+      "afterSha256": "61305458f4ff9ed038c7b504a525479aba86e8543978ee468a581d73e1eb537f"
     },
     {
       "id": "share-error-guard:isOrchestratorProjectionError",

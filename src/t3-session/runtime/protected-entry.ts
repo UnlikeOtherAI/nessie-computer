@@ -4,6 +4,7 @@ import { ProtectedRuntimeInputSchema, readProtectedRuntimeFrames, writeProtected
   protectedRuntimeRefused, type ProtectedRuntimeInput } from './protected-wire.js'
 import { withProtectedSessionSource } from './protected-source.js'
 import type { HeldSessionInspectionRuntime } from './inspection-runtime.js'
+import { createProtectedNativeClient } from './protected-native-relay.js'
 
 /** SYSTEM's fixed immutable graph CLI. Reads the private startup exactly once;
  * subsequent frames carry only source selectors and finite inspection demand.
@@ -31,7 +32,9 @@ async function run(args: readonly string[]): Promise<void> {
     for (const parent of parents.values()) parent.abort()
   }
   const write = (value: unknown) => writeProtectedRuntimeFrame(process.stdout, value)
-  const dispatch = async (message: Exclude<ProtectedRuntimeInput, { type: 'source' | 'close' }>) => {
+  const native = createProtectedNativeClient(write)
+  const dispatch = async (message: Exclude<ProtectedRuntimeInput,
+    { type: 'source' | 'close' | 'native-result' | 'native-refused' }>) => {
     if (stop.signal.aborted || !current) throw protectedRuntimeRefused()
     const held = current
     if (message.type === 'describe') return held.runtime.describeInspections()
@@ -67,6 +70,10 @@ async function run(args: readonly string[]): Promise<void> {
     for await (const raw of readProtectedRuntimeFrames(process.stdin, stop.signal)) {
       const message = ProtectedRuntimeInputSchema.parse(raw)
       if (message.type === 'close') break
+      if (message.type === 'native-result' || message.type === 'native-refused') {
+        native.receive(message)
+        continue
+      }
       if (message.type === 'source') {
         if (sourceJob) throw protectedRuntimeRefused()
         sourceJob = withProtectedSessionSource(startup, message.admittedRootKey, async held => {
@@ -96,6 +103,7 @@ async function run(args: readonly string[]): Promise<void> {
     }
   } finally {
     shutdown()
+    await native.close()
     while (pending.size) await Promise.allSettled([...pending])
     await sourceJob
   }

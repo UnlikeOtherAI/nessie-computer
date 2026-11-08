@@ -90,6 +90,7 @@ export { SessionsLive as SessionProviderSessions, ProviderEvents, CheckpointCapt
 // Construction hydrates original instances. Build only after finite native/command
 // admission; inspection must use the held original settings codecs instead.
 export * as SessionProviderDirectory from 't3-source:apps/server/src/provider/ProviderInstanceRegistry.session-live.ts'
+export * as ProviderSecretPlan from 't3-source:apps/server/src/provider/ProviderInstanceSecretPlan.ts'
 export * as RuntimeRequests from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts'
 export * as Rollback from 't3-source:apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts'
 export * as Titles from 't3-source:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts'
