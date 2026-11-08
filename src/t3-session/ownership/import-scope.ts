@@ -137,7 +137,8 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     withCatalogPublicationScope: async (input, use) => {
       requireCapture(input.purpose === 'retained-catalog-publish' && lease.purpose === 'publish',
         'retained_import_wrong_purpose')
-      return withScope(input, scope => use({ ...scope, selection: selection() }))
+      return withScope(input, scope => use({ ...scope, publicationGrantId: lease.grantId,
+        selectionKey: lease.selectionKey, selection: selection() }))
     },
     withCatalogReadScope: async (input, use) => {
       requireCapture(input.purpose === 'retained-catalog-read' && lease.purpose === 'catalog',
