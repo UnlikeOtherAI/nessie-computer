@@ -13,6 +13,10 @@ export const extractColdLaunch = (author, redirects, exports) => {
     .replace('import * as ThreadManagement', 'import type * as ThreadManagement')
   author.derive(port, [portImports, author.sourcePart(file, contract, { current: true })], 'cold-launch-contract')
   const names = exportedNames(contract)
+  // The live original implementation still uses this original private alias.
+  // Share its one declaration through the extracted port, as with its service types.
+  author.replace(port, 'type PreparationInput =', 'export type PreparationInput =', 'cold-launch-preparation-type')
+  names.push('PreparationInput')
   const values = new Set([...contract.matchAll(/^export (?:class|const) (\w+)/gm)].map(match => match[1]))
   const bindings = names.map(name => `${values.has(name) ? '' : 'type '}${name}`).join(', ')
   author.replace(file, contract, `import { ${bindings} } from "./ThreadLaunchService.session-port.ts";

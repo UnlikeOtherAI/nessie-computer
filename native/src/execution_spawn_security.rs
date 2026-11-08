@@ -123,7 +123,7 @@ impl Attributes {
             return Err(REJECTED.into());
         }
         value.initialized = true;
-        let mut set =
+        let set =
             |attribute: usize, data: *mut std::ffi::c_void, length: usize| -> Result<(), String> {
                 if unsafe {
                     UpdateProcThreadAttribute(

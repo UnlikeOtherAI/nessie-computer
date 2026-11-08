@@ -231,3 +231,10 @@ On Maxis, the parent-integrated service and native helper both passed
 service dependency lock, removed an unused import and made the resource receipt
 decode type explicit. These checks do not exercise SYSTEM creation, enrollment,
 provider effects, installation or native user flows; those remain required.
+
+The later combined SYSTEM session-host, source-registration and snapshot sources
+also pass service and native helper checks on Maxis. The helper needed an
+explicit output mutex guard, an owning Job-handle capture in the watchdog and
+rejection arms for the two new startup commands. The dependency locks now include
+the creator's HMAC dependency. Installed privilege, pipe, mitigation, nested Job
+and clearance behavior remains unverified.

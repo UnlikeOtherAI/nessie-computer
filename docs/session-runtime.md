@@ -485,6 +485,14 @@ Native preparation must bind this actual graph-owned ID alongside the exact
 process descriptor. Reserve still has no provider/native IDs. Provider stdout
 proves the separate native association; it never allocates the app session ID.
 
+Root's later combined cold-selection build passed strict checks on Maxis,
+Node 24.19.0. Its manifest is
+`47e16c5fe007e44e7253c150ae5ee6b1390e47bf51bed98c379b947a7b7c3a58`.
+The extracted port shares the original `PreparationInput` alias, selection
+normalizes explicitly absent optional fields, and the scoped memo-map owner
+retains its closed-graph error in the Effect type. This compiler check does
+not qualify the executing entry, native provider or installed journey.
+
 The integrated original engine built successfully on Maxis with Node 24.19.0
 and strict declaration checks after replaying all patch families. The combined
 manifest digest is `8708c678a9a5f524e5cca8f02271b3f7318d3de957c68143eebbc0bef883afe8`.
