@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import type { CliContext } from '../src/cli-output.js'
 import { isUserCommand, runUserCli } from '../src/cli-user.js'
@@ -64,6 +66,14 @@ const run = async (home: string, args: string[], platform: NodeJS.Platform = pro
   return { exit, out, err, json: () => JSON.parse(out) as unknown }
 }
 
+/** The real entry in a child process, with `home` as its home folder. */
+const spawned = (home: string, args: string[]) => {
+  const env = { ...process.env, HOME: home, USERPROFILE: home }
+  delete env.NESSIE_EXECUTOR_PACKAGED_CLI
+  return spawnSync(process.execPath, ['--import', 'tsx', fileURLToPath(new URL('../src/index.ts', import.meta.url)), ...args],
+    { encoding: 'utf8', env, timeout: 60_000 })
+}
+
 const SALES = '00000000-0000-4000-8000-0000000000a1'
 const RESEARCH = '00000000-0000-4000-8000-0000000000a2'
 
@@ -102,7 +112,7 @@ test('access changes save through the configure writer and show before and after
     policy = localCommandPolicyOf(await loadExecutorState(stateDir))
     assert.deepEqual(policy.allowlist, [])
     assert.deepEqual(policy.trusted, { unlikeotherai: false, claudeCode: false, codex: true, t3Code: false })
-    assert.equal((await run(home, ['access', 'programs', 'allow', 'rm;'])).exit, 2)
+    assert.equal((await run(home, ['access', 'programs', 'allow', 'git * status'])).exit, 2)
 
     const site = await run(home, ['access', 'websites', 'add', 'https://docs.example.com/guide', '--json'])
     assert.equal(site.exit, 0, site.err)
@@ -119,10 +129,13 @@ test('access changes save through the configure writer and show before and after
 
     assert.equal((await run(home, ['access', 'coding-assistants', 'conversations', 'off'])).exit, 0)
     assert.equal(await existingSessionsEnabled(stateDir), false)
-    const shown = await run(home, ['access', 'show'])
-    assert.match(shown.out, /^Sales · Acme can use:\n {2}Folders +work \(/u)
-    assert.match(shown.out, /Programs +Only these: Codex/u)
-    assert.match(shown.out, /Websites +https:\/\/docs\.example\.com/u)
+    // Describing a team resolves the executor's own entry, so this one runs the real command line.
+    const shown = spawned(home, ['access', 'show', '--team', SALES])
+    assert.equal(shown.status, 0, shown.stderr)
+    assert.match(shown.stdout, /can use:\n {2}Folders +work \(/u)
+    assert.match(shown.stdout, /Programs +Only these: Codex/u)
+    assert.match(shown.stdout, /Websites +https:\/\/docs\.example\.com/u)
+    assert.match(shown.stdout, /Coding assistants +can't read your Claude Code and Codex conversations/u)
   } finally { await rm(home, { force: true, recursive: true }) }
 })
 
@@ -161,8 +174,9 @@ test('--team takes an id, a label or a unique part of it; two teams need it', { 
       ['Sales · Acme (api.example.test)', 'Sales · Acme (api.example.test)'])
     assert.equal((await run(home, ['access', 'show'])).exit, 2)
     assert.equal((await run(home, ['access', 'show', '--team', 'Sales'])).exit, 2)
-    const byId = await run(home, ['access', 'show', '--team', RESEARCH])
+    const byId = await run(home, ['access', 'programs', 'show', '--team', RESEARCH])
     assert.equal(byId.exit, 0, byId.err)
+    assert.match(byId.out, /^Sales · Acme \(api\.example\.test\) may start: Only these programs/u)
     const missing = await run(home, ['access', 'show', '--team', 'Finance', '--json'])
     assert.equal(missing.exit, 1)
     assert.equal((missing.json() as { error: { code: string } }).error.code, 'TEAM_NOT_FOUND')
