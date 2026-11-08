@@ -106,7 +106,7 @@ test('configure passes websites through and keeps the built-in programs a propos
   }
 })
 
-test('removing one local app keeps the others' environment; a resend that would strip it is refused', {
+test('removing one local app keeps the environment of the others; a resend that would strip it is refused', {
   skip, timeout: 120_000,
 }, async () => {
   const servers: ExecutorLocalMcpServer[] = [
