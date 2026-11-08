@@ -1,0 +1,111 @@
+# Historical question privacy
+
+Status: source correction awaiting original-engine qualification. No physical
+source, original-human authority, gateway or UI is enabled. Do not treat the
+previous capture's passing tests as evidence for these bytes.
+
+## What the pinned source retains
+
+The evidence is original T3 `25bf84ab07f53f141c20239c63e383823a9d5ea0`:
+
+- `packages/contracts/src/orchestrationV2.ts:1340`: the question codec has IDs,
+  header, question, ordered options and `initialAnswer`, but no `isSecret`.
+  `:1216` defines runtime answers without classification. ProjectionStore's
+  `encodeRuntimeRequestPayload` and `encodeTurnItemPayload` use those codecs.
+- `Adapters/CodexAdapterV2.ts:4322` constructs a new question object without
+  the native mask; `:5231` maps asynchronous questions to the same shape.
+  The marker can disappear before persistence, not just on later decoding.
+- `Adapters/ClaudeAdapterV2.ts:7796` copies questions into the question item;
+  `:10396` also hands questions and answers back through SDK tool input.
+  The request and tool share native references, independently of question text.
+- `packages/contracts/src/providerPolicy.ts:90` defines embedded answers,
+  `questionTextById` and attachment arrays. `Orchestrator.ts:9545` persists these
+  copies; `:9602` derives `async-answer:${requestId}` for message-mode answers.
+- `chatAttachment.ts:148` and `:161` admit image/file references with required
+  IDs, names, MIME strings and sizes, plus optional snapshot/pasted sources.
+  `composerContext.ts:94` repeats descriptor metadata under `attachmentId`.
+- The legacy importer reads messages, context and attachment references. It
+  does not recover a question classification from legacy transcript text.
+
+No inspected admitted field supplies authoritative classification after these
+losses. Native credentials, provider transcript files, current login, titles and
+question wording are not classification sources. No such data is read.
+
+## Projection contract
+
+Capture retains the entire catalog and session graph, IDs, timestamps, statuses,
+request/question/option ordering and attachment-reference ordering. It uses the
+original codecs before accepting the final representation. It adds no schema
+field, alternative session DTO or inferred `isSecret: false`.
+
+An exact source-thread/request/question key has three states:
+
+| Evidence in the pinned transaction | Stored values |
+| --- | --- |
+| Explicit `false`, with no conflicting occurrence | Original question and answer values, including their original shapes |
+| Explicit `true`, with no conflicting occurrence | Existing `[REDACTED]` semantics for defaults, option values/previews and answers |
+| All occurrences lack classification | `[WITHHELD:UNKNOWN_QUESTION_PRIVACY]` in question header/text, initial answer, every option string and answer value |
+
+The unknown sentinel is a machine representation of withheld data, not a claim
+that the value was secret or that the user supplied this text. Original answer
+arrays retain element count/order; opaque non-array answers become one sentinel.
+Question IDs and answer-map keys remain exact. `questionTextById`, question-item
+titles and request feedback use the corresponding request/field classification.
+The unknown marker does not change live question admission or canonical saving.
+
+Masks are collected before original decoding, across all rows and events, so
+answers may precede requests. An explicit marker can cover only an exact matching
+occurrence. Conflicting masks, malformed markers, answers without a declared
+question, embedded request disagreement and SQL/payload identity disagreement
+still fail before destination session inserts. No session is silently skipped.
+
+Message-mode answer text is correlated only through an observed request and the
+original deterministic message ID, in the same thread. Dynamic-tool copies bind
+the source thread, provider thread, provider turn, driver and native item ID.
+Conflicting request bindings refuse. An original Claude `AskUserQuestion` tool
+without that complete binding withholds its own opaque values as unknown; it
+cannot borrow another request's public classification. Their opaque input/output/title/path fields
+are withheld as a unit when any question is private/unknown; these opaque copies
+do not supply reliable per-question subfield identities. The typed question and
+answer records still retain independently known public fields exactly. Optional
+context on a correlated answer message is removed rather than reinterpreted.
+
+Attachment IDs, file/image types, sizes and array positions survive. Names become
+the applicable sentinel, MIME values become `image/x-withheld` or
+`application/x-withheld`, and optional source/preview metadata is removed.
+Repeated descriptor and composer-context references in the same thread receive
+the same projection, including legacy message descriptors. An attachment reused
+by both a public and private/unknown question is a classification conflict,
+not permission to disclose or silently alter a known-public answer. No attachment
+bytes are opened, copied or made deliverable by retaining an ID. The resource
+owner must still authorize any future byte access independently.
+
+All correlation retains IDs/classification only, bounded by 8,192 entries per
+index, a shared 256 KiB encoded-identity budget, bounded individual keys and the
+existing row/depth/member limits. Exhaustion refuses; it never evicts evidence.
+Each capture gets new classification; fingerprints, publication/currentness
+fences, complete catalog ordering and frozen-legacy rules are unchanged.
+
+## Remaining boundaries and comparator rules
+
+This representation cannot reconstruct erased classification or original values
+from withheld output. It is not full-fidelity history. A real-machine comparator
+must compare every session identity, graph edge and ordered item first, then
+allow only these documented field-level differences under this exact projector
+revision. Unknown is not equivalent to public or known-secret. Do not ignore an
+entire session, accept a subset, or treat a successful capture as source authority.
+
+An arbitrary message, summary, code string or unknown tool payload may contain a
+human-pasted or provider-echoed value without a structural request reference.
+The original schemas do not carry enough provenance to identify that occurrence
+without interpreting prose or blanket-redacting ordinary history. This projector
+does neither. It does not claim to sanitize original/native stores or arbitrary
+uncorrelated prose. A correlated tool without the complete native tuple cannot
+borrow a different request's classification. Broader source acceptance requires
+producer evidence or a separately specified representation for such data.
+
+The registered `test:t3-session-import` task includes original-codec-normalized
+questions, destination SQLite/raw bytes, original replay/export/cache reads,
+resume/refresh, and scoped message/tool/attachment copies. The source gate adds
+metadata, repeated-ID, conflict and bounded-correlation cases. All new cases are
+unrun pending a PRIMARY window; parser checks do not qualify privacy.

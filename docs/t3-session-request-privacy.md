@@ -107,7 +107,9 @@ The original question schema's `initialAnswer` is also sensitive when an explici
 `isSecret` marker is present. The follow-up adds that exact structural field to
 the existing projection; ordinary unmasked initial answers remain ordinary data.
 This does not recover mask markers removed before a caller invokes the projector.
-The retained-capture caller still needs its separate classification-order repair.
+The retained-capture caller collects classification before decoding and has a
+separate [unknown-history representation](historical-question-privacy.md),
+awaiting runtime qualification. It does not change this shared live projector.
 
 ## Remaining admission boundaries
 

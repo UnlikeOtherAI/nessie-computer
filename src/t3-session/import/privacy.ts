@@ -143,10 +143,12 @@ export class CapturePrivacy {
     }
     if (entry.name === 'projection_thread_messages') {
       if (typeof row.attachments_json === 'string') {
-        row.attachments_json = JSON.stringify(attachmentArrayCodec(JSON.parse(row.attachments_json)))
+        row.attachments_json = JSON.stringify(attachmentArrayCodec(
+          this.questions.projectAttachments(JSON.parse(row.attachments_json), this.scope(entry, row))))
       }
       if (typeof row.context_json === 'string') {
-        const context = this.projectEntity(classify(this.legacyContext(row)), project)
+        const context = this.projectEntity(this.questions.projectContext(
+          classify(this.legacyContext(row)), this.scope(entry, row)), project)
         row.context_json = JSON.stringify(messageContextCodec(context))
       }
     }

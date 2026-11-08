@@ -26,11 +26,28 @@ const codecs: Readonly<Record<string, (value: unknown) => unknown>> = {
   OrchestrationV2ContextTransferJson: roundTrip(S.OrchestrationV2ContextTransferJson),
 }
 
+/** Correlation uses SQL thread scope. A disagreeing embedded identity cannot
+ * authorize borrowing that thread's question classification or answer copies.
+ */
+function checkIdentity(entry: CaptureTable, row: SqlRow, value: unknown): void {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return
+  const record = value as Record<string, unknown>
+  const thread = entry.scope ? row[entry.scope] : undefined
+  if (record.threadId !== undefined && typeof thread === 'string') {
+    requireCapture(record.threadId === thread, 'capture_question_provenance_conflict')
+  }
+  const idColumn = entry.codec === 'OrchestrationV2RuntimeRequestJson' ? 'runtime_request_id'
+    : entry.codec === 'OrchestrationV2TurnItemJson' ? 'turn_item_id'
+      : entry.codec === 'OrchestrationV2ConversationMessageJson' ? 'message_id' : undefined
+  if (idColumn) requireCapture(record.id === row[idColumn], 'capture_question_provenance_conflict')
+}
+
 /** Read the original shape before codecs discard native privacy metadata. */
 export function rawStoredPayload(entry: CaptureTable, row: SqlRow): unknown {
   requireCapture(typeof row.payload_json === 'string', 'invalid_source_payload')
   requireCapture(Buffer.byteLength(row.payload_json, 'utf8') <= 1024 * 1024, 'capture_privacy_incomplete')
   const value: unknown = JSON.parse(row.payload_json)
+  checkIdentity(entry, row, value)
   if (entry.codec !== 'application-event') {
     requireCapture(entry.codec && codecs[entry.codec], 'unsupported_source_codec')
     return value

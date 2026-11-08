@@ -65,8 +65,9 @@ ServerSecretStore, native transcripts or arbitrary attachment files.
 The first preflight retains only bounded thread/request/question IDs and explicit
 boolean `isSecret` classification. Absent markers may resolve from another exact
 occurrence of the same request/question in this pinned source transaction; they
-never inherit classification from another request or thread. Missing, malformed
-or conflicting classification fails the whole capture. Wording is never used.
+never inherit classification from another request or thread. Missing classification uses the explicitly withheld representation in
+[historical question privacy](historical-question-privacy.md). Malformed or
+conflicting classification and missing request provenance still fail capture. Wording is never used.
 The second preflight projects and validates every row before any session INSERT;
 the final pass repeats that projection over the same read transaction.
 It uses the same patched original `RequestPrivacy` namespace:
@@ -80,12 +81,11 @@ correlation retains opaque IDs, not a second cache of secret values.
 
 Masked question defaults, option values/previews, runtime answers and embedded
 `questionAnswer` values are projected before the original codecs strip native
-mask flags. Answer values retain their original shape when public. Masked
-attachments with nonempty descriptors fail explicitly because their delivery
-cannot be reconstructed safely here. Each capture uses fresh classification;
+mask flags. Answer values retain their original shape when public. Masked and unknown-classification attachments retain inert IDs, types, sizes
+and ordering with names/MIME/source metadata withheld; no delivery is inferred. Each capture uses fresh classification;
 reusing a preflight object is refused. Resume reads only the already projected
-generation, and refresh reclassifies source data. Unknown classification is an
-incomplete source, never permission to omit a session or claim subset parity.
+generation, and refresh reclassifies source data. Unknown classification is explicitly withheld, never permission to omit a
+session or claim full-fidelity parity. This correction awaits runtime qualification.
 
 Original codecs validate stored entities/events and strip unsupported fields.
 Typed runtime-request references become `not_resumable`, with no native callback
@@ -151,10 +151,10 @@ never resume of the prior stage. No timestamp rewriting, arbitrary ordinal
 assignment or omission is used. These are separate source-layout contracts.
 
 Historical original question codecs may erase `isSecret` everywhere in a
-snapshot. Such sessions still refuse capture. Recoverable authoritative
-classification or a justified safe representation is an **ALL-session blocker**,
-owned separately from this currentness correction; green synthetic marker
-fixtures do not discharge it.
+snapshot. The source correction now preserves these sessions with explicit
+unknown-classification redactions; see [its evidence and limits](historical-question-privacy.md).
+Its original-engine qualification is still an **ALL-session acceptance blocker**;
+older synthetic marker fixtures do not discharge it.
 
 Each refresh allocates a new staging generation and resets destination legacy
 completion markers. Fresh original read/import services invalidate process
