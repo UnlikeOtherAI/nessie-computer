@@ -68,7 +68,8 @@ export type TeamOpsHost = {
 const localAccess = async (stateDir: string): Promise<TeamAccess> => {
   const state = await loadExecutorState(stateDir)
   return { commandPolicy: localCommandPolicyOf(state), allowedOrigins: allowedOriginsOf(state),
-    folders: state.workspaceFolders.map(({ name, path }) => ({ name, path })), browserConfigured: Boolean(state.browserSandbox),
+    folders: state.workspaceFolders.map(({ name, path }) => ({ name, path })),
+    browserConfigured: Boolean(state.browserSandbox),
     existingCodingSessionsEnabled: await existingSessionsEnabled(stateDir) }
 }
 
