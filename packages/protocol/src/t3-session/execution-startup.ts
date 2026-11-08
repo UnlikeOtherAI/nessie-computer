@@ -11,5 +11,5 @@ export const T3ProtectedGraphStartupSchema = z.object({
 }).strict()
 export type T3ProtectedGraphStartup = z.infer<typeof T3ProtectedGraphStartupSchema>
 export const T3ProtectedCompanionRoleSchema = z.enum(['resource', 'execution-offer', 'execution-enroll',
-  'execution-graph', 'execution-reserve', 'execution-prepare', 'execution-associate'])
+  'execution-graph', 'execution-reserve', 'execution-prepare', 'execution-associate', 'execution-secret-observe'])
 export type T3ProtectedCompanionRole = z.infer<typeof T3ProtectedCompanionRoleSchema>

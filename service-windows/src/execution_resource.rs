@@ -23,6 +23,9 @@ struct Held {
 mod link;
 #[path = "execution_resource_homes.rs"]
 mod homes;
+#[path = "execution_resource_secret.rs"]
+mod secret;
+pub(crate) use secret::observe_secret_slot;
 pub(crate) use homes::{resolve_launch_homes, match_launch_home, ResolvedLaunchHome, ResolvedLaunchHomes, HeldLaunchHome};
 static RESOURCES: OnceLock<Mutex<HashMap<String, Held>>> = OnceLock::new();
 #[cfg(test)]

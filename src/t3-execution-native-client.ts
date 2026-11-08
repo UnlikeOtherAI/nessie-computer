@@ -5,11 +5,13 @@ import { executionReceiptBytes, T3ExecutionReceiptSchema, T3ExecutionIssuerDescr
   T3ExecutionIssuerChallengeSchema, T3ExecutionSignedAdmissionSchema,
   T3_EXECUTION_ISSUER_DOMAIN, T3_EXECUTION_GRAPH_DOMAIN, T3_EXECUTION_RESERVATION_DOMAIN,
   T3_EXECUTION_PREPARATION_DOMAIN, T3_EXECUTION_ASSOCIATION_DOMAIN,
+  T3ExecutionSecretObservationInputSchema, T3ExecutionSecretObservationUnavailableSchema,
+  type T3ExecutionSecretObservationInput,
   type T3ExecutionReceipt, type T3ExecutionIssuerDescriptor, type T3ExecutionIssuerChallenge,
   type T3ExecutionSignedAdmission, type T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
 
 const refused = () => new Error('T3_NATIVE_EXECUTION_REFUSED')
-type FiniteMode = 'offer' | 'enroll' | 'graph' | 'reserve' | 'prepare' | 'associate'
+type FiniteMode = 'offer' | 'enroll' | 'graph' | 'reserve' | 'prepare' | 'associate' | 'secret-observe'
 
 /** Fixed signed companion only. It authenticates its graph parent and service
  * before handling the payload. Timeout/abort/uncertain delivery is never retried.
@@ -83,7 +85,7 @@ export type T3NativeLaunchDescriptor = T3NativeLaunchProcess & (
 export async function createT3ExecutionNativeClient(executorId: string, signal?: AbortSignal) {
   const descriptor = T3ExecutionIssuerDescriptorSchema.parse(await exchange('offer', { executorId }, signal))
   if (descriptor.executorId !== executorId) throw refused()
-  const capture = async (mode: Exclude<FiniteMode, 'offer'>, domain: T3ExecutionReceipt['domain'],
+  const capture = async (mode: Exclude<FiniteMode, 'offer' | 'secret-observe'>, domain: T3ExecutionReceipt['domain'],
     input: unknown, cancellation?: AbortSignal): Promise<T3ExecutionReceipt> => {
     const receipt = verifyT3ExecutionReceiptSignature(await exchange(mode, input, cancellation), descriptor)
     if (receipt.domain !== domain) throw refused()
@@ -91,6 +93,13 @@ export async function createT3ExecutionNativeClient(executorId: string, signal?:
   }
   return Object.freeze({
     get descriptor() { return structuredClone(descriptor) },
+    observeSecretRead: async (input: T3ExecutionSecretObservationInput, cancellation?: AbortSignal) => {
+      const selected = T3ExecutionSecretObservationInputSchema.parse(input)
+      if (selected.binding.executorId !== executorId) throw refused()
+      // A successful metadata exchange still returns unavailable. It is not an
+      // enrolled PREPARATION receipt and cannot be sent to a secret-read signer.
+      return T3ExecutionSecretObservationUnavailableSchema.parse(await exchange('secret-observe', selected, cancellation))
+    },
     enroll: async (challenge: T3ExecutionIssuerChallenge, cancellation?: AbortSignal) => {
       const selected = T3ExecutionIssuerChallengeSchema.parse(challenge)
       const digest = 'sha256:' + createHash('sha256').update(canonicalExecutorJson(descriptor)).digest('hex')

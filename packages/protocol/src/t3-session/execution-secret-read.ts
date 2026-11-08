@@ -43,6 +43,17 @@ export const T3ExecutionSecretPlanCandidateSchema = z.object({
 }).strict()
 export type T3ExecutionSecretPlanCandidate = z.infer<typeof T3ExecutionSecretPlanCandidateSchema>
 export type T3ExecutionSecretEnvironmentSlot = z.infer<typeof T3ExecutionSecretEnvironmentSlotSchema>
+/** Fixed native metadata observation. It grants no secret read or value release. */
+export const T3ExecutionSecretObservationInputSchema = z.object({
+  binding: T3ExecutionBindingSchema, acceptedGraphNonce: hex,
+  candidate: T3ExecutionSecretPlanCandidateSchema,
+  environmentIndex: z.number().int().nonnegative().max(255), recipientSlotId: hex,
+}).strict()
+export type T3ExecutionSecretObservationInput = z.infer<typeof T3ExecutionSecretObservationInputSchema>
+export const T3ExecutionSecretObservationUnavailableSchema = z.object({
+  status: z.literal('unavailable'), reason: z.literal('T3_SECRET_READ_NONINTERACTIVE_UNQUALIFIED'), attemptId: hex,
+}).strict()
+export type T3ExecutionSecretObservationUnavailable = z.infer<typeof T3ExecutionSecretObservationUnavailableSchema>
 const read = z.object({
   version: z.literal(1), action: z.literal('selected-provider-secret-read'),
   binding: T3ExecutionBindingSchema, acceptedGraphNonce: hex,

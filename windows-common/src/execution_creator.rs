@@ -17,6 +17,7 @@ pub enum CompanionRole {
     ExecutionReserve,
     ExecutionPrepare,
     ExecutionAssociate,
+    ExecutionSecretObserve,
 }
 impl CompanionRole {
     pub fn arguments(&self) -> Vec<&'static str> {
@@ -28,6 +29,7 @@ impl CompanionRole {
             Self::ExecutionReserve => vec!["t3-execution", "reserve"],
             Self::ExecutionPrepare => vec!["t3-execution", "prepare"],
             Self::ExecutionAssociate => vec!["t3-execution", "associate"],
+            Self::ExecutionSecretObserve => vec!["t3-execution", "secret-observe"],
         }
     }
 }
@@ -177,6 +179,10 @@ mod tests {
         assert_eq!(
             CompanionRole::ExecutionPrepare.arguments(),
             vec!["t3-execution", "prepare"]
+        );
+        assert_eq!(
+            CompanionRole::ExecutionSecretObserve.arguments(),
+            vec!["t3-execution", "secret-observe"]
         );
         assert!(Request::RegisterGraph {
             nonce: "a".repeat(64),
