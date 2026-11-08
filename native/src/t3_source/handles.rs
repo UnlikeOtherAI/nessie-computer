@@ -68,6 +68,12 @@ impl Held {
 /// permits DELETE sharing. Renaming a parent or substituting a junction cannot
 /// change the path SQLite subsequently opens while these handles remain live.
 pub fn chain(path: &Path) -> Result<Vec<Held>, NativeError> {
+    let held = namespace_chain(path)?;
+    held.last().ok_or_else(fail)?.recheck()?;
+    Ok(held)
+}
+/// Namespace stability only. Callers must separately prove their ACL policy.
+pub fn namespace_chain(path: &Path) -> Result<Vec<Held>, NativeError> {
     let raw = path.to_str().ok_or_else(fail)?;
     let bytes = raw.as_bytes();
     if bytes.len() < 4 || !bytes[0].is_ascii_alphabetic() || &bytes[1..3] != b":\\"
@@ -87,7 +93,6 @@ pub fn chain(path: &Path) -> Result<Vec<Held>, NativeError> {
         held.push(Held::open(&current, true, false, false)?);
         current = held.last().ok_or_else(fail)?.path()?;
     }
-    held.last().ok_or_else(fail)?.recheck()?;
     Ok(held)
 }
 

@@ -1,6 +1,6 @@
 import {
   decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream, T3_LANE_LIMITS,
-  type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame,
+  type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame, type T3RuntimeAnnouncement,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
@@ -11,7 +11,9 @@ import type { ExecutorLocalState } from './state-store.js'
  * Aborting stops subscription/resource demand, not an already admitted turn.
  */
 export interface T3SessionLaneRuntime {
-  open(request: ExecutorT3LaneOperation, signal: AbortSignal): AsyncIterable<ExecutorT3LaneReply>;
+  describe(): Promise<readonly T3RuntimeAnnouncement[]>;
+  open(request: ExecutorT3LaneOperation, signal: AbortSignal,
+    delivery: { readonly requestDigest: string }): AsyncIterable<ExecutorT3LaneReply>;
 }
 type State = Pick<ExecutorLocalState, 'apiBaseUrl' | 'executorId' | 'machinePrivateKey' | 'connectionEpoch'>
 type Attempt = {
@@ -97,8 +99,11 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       frames.push(attempt.pending)
       bytes += attempt.bytes
     }
+    const runtimes = await runtime.describe()
+    if (runtimes.length > T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
     const payload = { operation: 't3.operations.exchange' as const, executorId: state.executorId,
       connectionEpoch: state.connectionEpoch, observedAt: new Date().toISOString(), frames,
+      runtimes,
       active: [...attempts.values()].map(attempt => target(attempt.request)) }
     const response = await api.exchangeT3SessionOperations(state.apiBaseUrl, { ...payload,
       signature: signExecutorDaemonPayload(state.machinePrivateKey, 't3_operations', payload) })
@@ -135,6 +140,7 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         throw new Error('T3_LANE_CAPACITY')
       }
       const request = decodeExecutorT3LaneOperation(offer.request)
+      if (!/^hmac-sha256:[a-f0-9]{64}$/u.test(offer.requestDigest)) throw new Error('T3_LANE_CORRELATION')
       if (request.executorId !== state.executorId || request.connectionEpoch !== state.connectionEpoch) {
         throw new Error('T3_LANE_CORRELATION')
       }
@@ -150,7 +156,9 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       const abort = new AbortController()
       // Lazy adapter invocation: a synchronous runtime failure follows the same
       // terminal uncertainty path as a rejected Effect/stream pull.
-      const iterator = (async function* () { yield* runtime.open(request, abort.signal) })()[Symbol.asyncIterator]()
+      const iterator = (async function* () {
+        yield* runtime.open(request, abort.signal, { requestDigest: offer.requestDigest })
+      })()[Symbol.asyncIterator]()
       const attempt: Attempt = { request, iterator, abort, ordinal: 0, expiresAt, bytes: 0, pulling: false }
       attempts.set(key(request), attempt)
       pull(attempt)

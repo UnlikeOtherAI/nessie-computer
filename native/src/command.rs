@@ -14,6 +14,8 @@ pub const MAX_JOB_ARGUMENT_LENGTH: usize = 32_767;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Command {
     T3SourceRead,
+    T3RetainedApprove(String),
+    T3RetainedVerify,
     BuildInfo,
     UpdateControl,
     UpdateService,
@@ -112,6 +114,9 @@ fn job_argv(values: &[String]) -> Result<Vec<String>, NativeError> {
 pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
     match arguments {
         [command] if command == "t3-source-read" => Ok(Command::T3SourceRead),
+        [command, nonce] if command == "t3-retained-approve" && nonce.len()==64
+            && nonce.bytes().all(|b|b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) => Ok(Command::T3RetainedApprove(nonce.clone())),
+        [command] if command == "t3-retained-verify" => Ok(Command::T3RetainedVerify),
         [command] if command == "build-info" => Ok(Command::BuildInfo),
         [command] if command == "update-control" => Ok(Command::UpdateControl),
         [command] if command == "update-service" => Ok(Command::UpdateService),

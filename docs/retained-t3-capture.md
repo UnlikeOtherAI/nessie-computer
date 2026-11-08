@@ -354,3 +354,10 @@ parity. Original-human and physical-source producers, installation coverage,
 native history-home custody, canonical vault delivery, T07 publication races and
 the entitled gateway/client journey remain required and unverified.
 
+The [physical source](t3-physical-source.md) and [prospective native consent](t3-source-consent.md)
+producers now have source implementations. Their native/installed execution remains
+unqualified; the original-human producer remains separate and unbound. Explicit
+prospective issuer delegation accepts a labeled unattested baseline and does not
+manufacture historical ownership. Parent composition must run the actual retained
+capture/read inside T05's `withRetainedImportLocally` callback before import is reachable.
+
