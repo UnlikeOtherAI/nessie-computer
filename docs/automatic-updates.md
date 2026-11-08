@@ -48,8 +48,11 @@ unsupported updater and never claim to have installed an update.
 
 The CLI entry point exposes `updates status`, `updates check`, `updates install`,
 `updates automatic on|off` and `updates remind`, with `--json` for scripts.
-Human terminals may offer an available update at launch; JSON output and
-internal MCP pipes never receive a prompt. These operations require the
+Human terminals start an unreferenced background check at launch. An available
+version prints the fixed `updates install` and `updates remind` actions without
+reading standard input or holding an ordinary command open. A short command may
+finish before the check responds; the native coordinator retains its check.
+JSON output and internal MCP pipes never start a launch offer. These operations require the
 authenticated installed coordinator before they can replace software.
 
 The implementation adds a public software-status contract for signed heartbeats
@@ -343,3 +346,30 @@ automatic/stable defaults with SELinux still enforcing. The root-owned legacy
 image remains. Packaging-plan tests and all 37 native Rust tests passed.
 This verifies service setup and restart recovery, not catalogue-driven A-to-B
 installation, notification, interrupted-transaction recovery or GNOME controls.
+
+## Linux local settings
+
+The DEB and RPM payloads include `nessie-executor-app` and the Nessie Executor
+application entry. Its WebKitGTK window renders the same Software updates
+section, translations and Update / Remind me tomorrow dialog as the Mac and
+Windows console. It shows the installed version, automatic preference, Check
+for updates and Update action before a team is connected.
+
+A desktop autostart entry monitors the authenticated updater in the user's
+graphical session. With automatic updates off, a newly available version opens
+the shared offer even after the window was closed. The reminder lives in the
+native coordinator, so closing or restarting this app cannot erase it. After
+the installed version changes, the fixed package launcher reopens the new
+console. Root-owned update and pairing state stay with their existing owners.
+
+The unprivileged Python/GTK host exposes no listener. It loads only its packaged
+document, blocks remote navigation and web permissions, and maps a strict local
+request to fixed `nessie-executor updates` arguments. The page cannot select an
+executable, file, URL, channel or environment. GTK and WebKit are OS package
+dependencies; no Python package download occurs at app launch.
+
+Focused native protocol checks run on Fedora with
+`python3 packaging/linux/test/console_test.py`. The local headless renderer
+journey is `node packaging/linux/test/renderer.mjs`; keep it out of CI.
+Installed GNOME entry, reminder and reboot checks remain release acceptance
+work until the signed candidate is exercised on FedoraMaxis.

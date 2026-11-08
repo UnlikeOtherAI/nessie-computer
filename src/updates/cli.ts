@@ -1,4 +1,3 @@
-import { createInterface } from 'node:readline/promises'
 import { localUpdate } from './native-client.js'
 import { cliUpdateWords } from './words.js'
 import type { ExecutorLocalUpdateRequest, ExecutorLocalUpdateStatus } from '@nessie/executor-protocol'
@@ -49,35 +48,18 @@ export const runUpdateCli = async (args: string[]): Promise<boolean> => {
   return true
 }
 
-/** Only human terminals get a prompt. Built-in servers and JSON output keep their wire contract. */
-export const offerUpdateAtLaunch = async (args: string[]): Promise<boolean> => {
-  if (!process.stdin.isTTY || !process.stderr.isTTY || args.includes('--json')) return false
-  const words = cliUpdateWords()
-  let chosen = false
-  try {
-    let status = await localUpdate({ operation: 'check' })
-    const deadline = Date.now() + 5_000
-    while (status.canInstall && status.phase === 'checking' && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 200))
-      status = await localUpdate({ operation: 'status' })
-    }
+/** Human terminals get an offer; a check never consumes input or delays their command. */
+export const offerUpdateAtLaunch = (args: string[], {
+  terminal = process.stdin.isTTY && process.stderr.isTTY,
+  check = () => localUpdate({ operation: 'check' }, { background: true }),
+  write = (message: string) => { process.stderr.write(message) },
+}: {
+  terminal?: boolean; check?: () => Promise<ExecutorLocalUpdateStatus>; write?: (message: string) => void
+} = {}): void => {
+  if (!terminal || args.includes('--json')) return
+  void check().then(status => {
     if (!status.canInstall || !status.notify || !status.availableVersion
-      || ['downloading', 'waiting', 'installing', 'restarting'].includes(status.phase)) return false
-    const terminal = createInterface({ input: process.stdin, output: process.stderr })
-    try {
-      const answer = await terminal.question(
-        words.prompt.replace('{version}', status.availableVersion),
-      )
-      chosen = ['r', 'u'].includes(answer.trim().toLowerCase())
-      if (answer.trim().toLowerCase() === 'r') await localUpdate({ operation: 'remind' })
-      if (answer.trim().toLowerCase() !== 'u') return false
-      await localUpdate({ operation: 'install' })
-      process.stderr.write(`${words.requested}\n`)
-      // Leaving this old runtime allows its native launch lease to drain.
-      return true
-    } finally { terminal.close() }
-  } catch {
-    if (chosen) process.stderr.write(`${words.requestFailed}\n`)
-    return false
-  }
+      || ['downloading', 'waiting', 'installing', 'restarting'].includes(status.phase)) return
+    write(cliUpdateWords().prompt.replace('{version}', status.availableVersion) + '\n')
+  }).catch(() => { /* An unavailable updater never changes command output or exit status. */ })
 }

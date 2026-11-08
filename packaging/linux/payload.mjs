@@ -14,6 +14,7 @@ import { promisify } from 'node:util'
 
 import { PERSONAL_INFERENCE_GUARD_VERSION } from '@nessie/executor-protocol'
 import { prepareExecutorRuntime } from '../../scripts/prepare-runtime.mjs'
+import { linuxConsoleDesktop, linuxConsoleLauncher, stageLinuxConsole } from './console/stage.mjs'
 
 const run = promisify(execFile)
 
@@ -234,6 +235,7 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await mkdir(resourcesDirectory, { mode: 0o755, recursive: true })
   await stageFirecracker(join(resourcesDirectory, 'firecracker'))
   await stageGuest(join(resourcesDirectory, 'guest'))
+  await stageLinuxConsole(executorDirectory, resourcesDirectory)
   await writeFile(
     join(resourcesDirectory, 'manifest.json'),
     `${JSON.stringify(await resourceManifest(resourcesDirectory), null, 2)}\n`,
@@ -255,6 +257,11 @@ export const stageLinuxPayload = async (stagingDirectory, version, {
   await symlink(`releases/${releaseDigest}`, join(stagingDirectory, INSTALL_PREFIX, 'current'))
   await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor'), linuxManagedLauncher(releaseDigest), { mode: 0o755 })
   await chmod(join(stagingDirectory, 'usr/bin/nessie-executor'), 0o755)
+  await writeFile(join(stagingDirectory, 'usr/bin/nessie-executor-app'),
+    linuxConsoleLauncher(`/${INSTALL_PREFIX}/releases/${releaseDigest}`), { mode: 0o755 })
+  await mkdir(join(stagingDirectory, 'usr/share/applications'), { recursive: true })
+  await writeFile(join(stagingDirectory, 'usr/share/applications/works.nessie.Executor.desktop'), linuxConsoleDesktop())
+  await writeFile(join(stagingDirectory, 'nessie-executor-autostart.desktop'), linuxConsoleDesktop(true))
   // Root-owned durable custody lock is not package content: postinstall creates
   // it once, verifies it on upgrade, and package removal never deletes it.
   await writeFile(join(stagingDirectory, 'install-custody-barrier.sh'), [

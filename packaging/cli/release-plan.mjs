@@ -67,12 +67,14 @@ export const linuxPackage = (version, payload, format, signingKey) => {
   return {
     name: 'nessie-executor', arch: 'amd64', platform: 'linux', version,
     maintainer: 'Nessie <desktop@nessie.works>', homepage: 'https://nessie.works',
-    description: 'Nessie executor CLI with per-team local permissions and systemd user services.',
+    description: 'Nessie Executor with local update settings, per-team permissions and systemd user services.',
     license: 'FSL-1.1-ALv2',
     depends: format === 'deb'
-      ? ['libc6 (>= 2.31)', 'libgcc-s1', 'libstdc++6', 'systemd', 'git', 'tmux', 'ca-certificates', 'gpgv', 'policycoreutils']
-      : ['glibc >= 2.31', 'libgcc', 'libstdc++', 'systemd', 'git', 'tmux', 'ca-certificates', 'gnupg2', 'policycoreutils'],
-    contents: [{ src: `${payload}/usr/`, dst: '/usr', type: 'tree' }],
+      ? ['libc6 (>= 2.31)', 'libgcc-s1', 'libstdc++6', 'systemd', 'git', 'tmux', 'ca-certificates', 'gpgv', 'policycoreutils', 'python3', 'python3-gi', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1']
+      : ['glibc >= 2.31', 'libgcc', 'libstdc++', 'systemd', 'git', 'tmux', 'ca-certificates', 'gnupg2', 'policycoreutils', 'python3', 'python3-gobject', 'gtk3', 'webkit2gtk4.1'],
+    contents: [{ src: `${payload}/usr/`, dst: '/usr', type: 'tree' },
+      { src: `${payload}/nessie-executor-autostart.desktop`,
+        dst: '/etc/xdg/autostart/works.nessie.Executor.desktop' }],
     scripts: { postinstall: `${payload}/install-custody-barrier.sh`,
       preremove: `${payload}/disable-updater-for-removal.sh` },
     rpm: { compression: 'gzip', ...(signingKey ? { signature: { key_file: signingKey } } : {}) },

@@ -18,7 +18,9 @@ type NativeRequest = ExecutorLocalUpdateRequest | {
   operation: 'request'; request: ExecutorSoftwareUpdateRequest
 }
 
-const nativeUpdate = async (request: NativeRequest): Promise<ExecutorLocalUpdateStatus> => {
+type UpdateClientOptions = { background?: boolean }
+
+const nativeUpdate = async (request: NativeRequest, options: UpdateClientOptions = {}): Promise<ExecutorLocalUpdateStatus> => {
   if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') {
     if (request.operation === 'status' || request.operation === 'check') {
       return { ...uninstalledSoftwareStatus(), notify: false }
@@ -59,11 +61,20 @@ const nativeUpdate = async (request: NativeRequest): Promise<ExecutorLocalUpdate
       } catch { fail(new Error('update.coordinator_unavailable')) }
     })
     child.stdin.end(`${JSON.stringify(request)}\n`)
+    if (options.background) {
+      // A launch check may finish while an ordinary command runs, but must not
+      // keep that command alive or wait for a missing native coordinator.
+      child.unref()
+      timeout.unref()
+      for (const stream of [child.stdin, child.stdout]) {
+        (stream as typeof stream & { unref?: () => void }).unref?.()
+      }
+    }
   })
 }
 
-export const localUpdate = (request: ExecutorLocalUpdateRequest): Promise<ExecutorLocalUpdateStatus> =>
-  nativeUpdate(ExecutorLocalUpdateRequestSchema.parse(request))
+export const localUpdate = (request: ExecutorLocalUpdateRequest, options?: UpdateClientOptions): Promise<ExecutorLocalUpdateStatus> =>
+  nativeUpdate(ExecutorLocalUpdateRequestSchema.parse(request), options)
 
 export const requestSoftwareUpdate = (request: ExecutorSoftwareUpdateRequest): Promise<ExecutorLocalUpdateStatus> =>
   nativeUpdate({ operation: 'request', request: ExecutorSoftwareUpdateRequestSchema.parse(request) })
