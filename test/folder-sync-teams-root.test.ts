@@ -59,16 +59,17 @@ test('two teams share one main folder, each in its own folder; one switched off 
 
   // Neither team sends the other's files.
   await platform.settle()
-  assert.equal(platform.server.find('Projects/Paper'), undefined)
-  assert.equal(research.server.find('Projects/Roadmap'), undefined)
+  const titles = (h: typeof platform) => h.server.livePages().map((page) => page.title).sort()
+  assert.deepEqual(titles(platform), ['Roadmap'])
+  assert.deepEqual(titles(research), ['Paper'])
 
   // Research switched off: its folder stays, Platform keeps syncing.
   await runConsoleCommand(research.context, { command: 'configure', root: platform.root, enabled: false, acceptExistingFiles: false })
   await research.pass()
   assert.equal((await research.state()).state, 'off')
-  await platform.write('Projects/Notes.md', 'n\n')
+  await platform.write('Projects/Notes.txt', 'n\n')
   await platform.settle()
-  assert.ok(platform.server.find('Projects/Notes'))
+  assert.equal(platform.server.text(platform.server.find('Projects/Notes.txt')), 'n\n')
   assert.equal((await platform.state()).state, 'up_to_date')
   assert.equal(await readFile(join(platform.root, 'UnlikeOtherAI', 'Research', 'Projects', 'Paper.md'), 'utf8'), 'q\n')
 })
