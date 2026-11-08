@@ -74,6 +74,18 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 
 ## Package interface
 
+The combined 8 November source candidate registers state, client connection,
+extraction/runtime, catalog, files, session control, request privacy and workspace
+families in that order. Bounded Node 24.19 checks on Maxis applied every exact
+patch against pinned Git objects and parsed 131 affected TypeScript modules.
+The combined manifest SHA-256 is
+`4c923f711eccd2309209f052cc508119229284f40aa348f12da23d60ee72b754`.
+Workspace fragments now bind the exact current extraction stage; their earlier
+offsets could not be applied to original-capsule bytes in a combined build.
+The generator and its fixture use the same normal preceding family composition.
+This is source/syntax evidence only. The normal compiler, consumer fixtures,
+native custody and user/tool journeys have not qualified this candidate.
+
 The owning export is `@nessie/t3-session-source/engine`, alongside the existing
 contracts/settings/relay and build-helper exports. One split build must generate
 engine and contracts from the same exact patched snapshot, share portable types,

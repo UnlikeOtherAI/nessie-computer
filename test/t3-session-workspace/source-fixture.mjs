@@ -1,13 +1,14 @@
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { applySessionEngineBoundaryPatches } from '../../packaging/session-engine/patches.mjs'
+import { prepareSessionEngineSnapshot } from '../../packaging/session-engine/engine-snapshot.mjs'
 import { T3_SESSION_ENGINE_SOURCE } from '../../packaging/session-engine/source.mjs'
 
 /** Immutable objects only; never read the reference checkout's files, dependencies or retained state. */
 export const sourceSnapshot = () => {
   const repository = process.env.T3_WORKSPACE_SOURCE_REPOSITORY
   if (!repository) throw new Error('T3_WORKSPACE_SOURCE_REPOSITORY_REQUIRED')
-  const git = args => execFileSync('git', ['-C', repository, ...args], { maxBuffer: 8 * 1024 * 1024 })
+  const git = args => execFileSync('git', ['--no-replace-objects', '-C', repository, ...args],
+    { maxBuffer: 8 * 1024 * 1024, windowsHide: true })
   const spec = T3_SESSION_ENGINE_SOURCE
   const tree = git(['rev-parse', `${spec.commit}^{tree}`]).toString().trim()
   if (tree !== spec.tree) throw new Error('T3_WORKSPACE_SOURCE_TREE_MISMATCH')
@@ -21,12 +22,7 @@ export const sourceSnapshot = () => {
       return Buffer.from(cache.get(file))
     },
   }
-  const families = [
-    '../../packaging/session-engine/boundary-patches.json',
-    '../../patches/t3-session/client-connection/boundary-patches.json',
-    '../../patches/t3-session/extraction/boundary-patches.json',
-    '../../patches/t3-session/requests/boundary-patches.json',
-  ]
-  return families.reduce((snapshot, file) => applySessionEngineBoundaryPatches(snapshot,
-    readFileSync(new URL(file, import.meta.url))), original)
+  return prepareSessionEngineSnapshot(original, { additionalPatchFamilies: [{ id: 'request-privacy',
+    bytes: readFileSync(new URL('../../patches/t3-session/requests/boundary-patches.json', import.meta.url)),
+  }] }).snapshot
 }

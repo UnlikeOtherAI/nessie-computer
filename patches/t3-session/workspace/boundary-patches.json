@@ -13,7 +13,9 @@
           "sourceFile": "apps/server/src/vcs/VcsDriverRegistry.ts",
           "start": 852,
           "end": 1574,
-          "sha256": "96fdce6875cba628eb1608eea44fd3592e0ed66d441a801156b941931706987b"
+          "sha256": "96fdce6875cba628eb1608eea44fd3592e0ed66d441a801156b941931706987b",
+          "sourceStage": "current",
+          "sourceSha256": "01cc525e9ea5b835f0d4c4f558ff5f526995be3f81264fea94365ab378c07ef7"
         }
       ],
       "beforeSha256": null,
@@ -38,7 +40,9 @@
           "sourceFile": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
           "start": 6403,
           "end": 7344,
-          "sha256": "e0cc92d9f9e2c3b17a1d301ceadca23290ad5068ca5c92f4d262a7cf45f9f2c2"
+          "sha256": "e0cc92d9f9e2c3b17a1d301ceadca23290ad5068ca5c92f4d262a7cf45f9f2c2",
+          "sourceStage": "current",
+          "sourceSha256": "37fc10f9d6ea802671bc25f771c6cf9238eda0a52f144cf76643ee29f5b80c3c"
         }
       ],
       "beforeSha256": null,
@@ -63,7 +67,9 @@
           "sourceFile": "apps/server/src/workspace/KnownWorkspaces.ts",
           "start": 852,
           "end": 1939,
-          "sha256": "ec8586480883aaa6dff3f7901bf2a04f8e51135d982fd75771efd8365b393df0"
+          "sha256": "ec8586480883aaa6dff3f7901bf2a04f8e51135d982fd75771efd8365b393df0",
+          "sourceStage": "current",
+          "sourceSha256": "ace55c133c4f446e177159a9a829c76f3cb76f72b1a6abf01461fc8016793c1d"
         }
       ],
       "beforeSha256": null,
@@ -88,19 +94,25 @@
           "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
           "start": 4182,
           "end": 4278,
-          "sha256": "ececd4427fb997ecbf5f92f2940862c2f5bf61a70ac07f39be5db94c6a02ffc4"
+          "sha256": "ececd4427fb997ecbf5f92f2940862c2f5bf61a70ac07f39be5db94c6a02ffc4",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
         },
         {
           "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
           "start": 6813,
           "end": 6901,
-          "sha256": "6cb3d4b61578aada98d225ea60b8a0c1cefd1bcdefbda14f5409aa949a2d7c49"
+          "sha256": "6cb3d4b61578aada98d225ea60b8a0c1cefd1bcdefbda14f5409aa949a2d7c49",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
         },
         {
           "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
           "start": 7255,
           "end": 12357,
-          "sha256": "2f4ec4db24d588125a981fc2ef2a4cc996ab7c75e3c465ed9907b6e7c80dcf45"
+          "sha256": "2f4ec4db24d588125a981fc2ef2a4cc996ab7c75e3c465ed9907b6e7c80dcf45",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
         }
       ],
       "beforeSha256": null,
@@ -149,13 +161,17 @@
           "sourceFile": "apps/server/src/orchestration-v2/CheckpointService.ts",
           "start": 855,
           "end": 926,
-          "sha256": "b45a14bcd4611d3ec54a03d6565c7daf2ac04b057e6bb9886ad70c32d9e8f33b"
+          "sha256": "b45a14bcd4611d3ec54a03d6565c7daf2ac04b057e6bb9886ad70c32d9e8f33b",
+          "sourceStage": "current",
+          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
         },
         {
           "sourceFile": "apps/server/src/orchestration-v2/CheckpointService.ts",
           "start": 1482,
           "end": 2042,
-          "sha256": "56381f5306747f0a3614cfc105204b6830094dfdd3c5da66280892ab93da0f5b"
+          "sha256": "56381f5306747f0a3614cfc105204b6830094dfdd3c5da66280892ab93da0f5b",
+          "sourceStage": "current",
+          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
         }
       ],
       "beforeSha256": null,
@@ -177,7 +193,9 @@
           "sourceFile": "apps/server/src/vcs/VcsProcess.ts",
           "start": 2606,
           "end": 2731,
-          "sha256": "35f0c65295d1cd77f584a0020c460914c0e878ba66b07a6d7bcc79e911553a01"
+          "sha256": "35f0c65295d1cd77f584a0020c460914c0e878ba66b07a6d7bcc79e911553a01",
+          "sourceStage": "current",
+          "sourceSha256": "506988d97fbf6afe68d05b4acc8cbbf6310bd64d842b02d703ed3ac4d7a70fae"
         }
       ],
       "beforeSha256": null,

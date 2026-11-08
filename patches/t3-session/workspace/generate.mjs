@@ -6,6 +6,9 @@ const root = 'apps/server/src/'
 /** Run after the existing extraction family. No source implementation is transcribed. */
 export const generateWorkspaceManifest = snapshot => {
   const author = createPatchAuthor(snapshot)
+  // This family follows extraction. Bind fragments to that exact current stage,
+  // rather than interpreting offsets in derived files as original-capsule offsets.
+  const sourcePart = (file, text) => author.sourcePart(file, text, { current: true })
   const redirects = new Map([
     ['config.ts', 'config.session-port.ts'],
     ['serverSettings.ts', 'serverSettings.session-port.ts'],
@@ -29,7 +32,7 @@ export const generateWorkspaceManifest = snapshot => {
     redirects.set(source, target)
     const body = author.between(source, start, end)
     author.derive(target, [selectedImports(author.read(source), body, source, target, redirects),
-      author.sourcePart(source, body)], `workspace-port:${file}`)
+      sourcePart(source, body)], `workspace-port:${file}`)
     const names = exportedNames(body)
     const values = new Set([...body.matchAll(/^export (?:class|const|function) (\w+)/gm)].map(match => match[1]))
     const bindings = names.map(name => `${values.has(name) ? '' : 'type '}${name}`).join(', ')
@@ -46,7 +49,7 @@ export const generateWorkspaceManifest = snapshot => {
     author.between(pullRequests, 'export class PullRequestService extends', 'const VERDICT_LABELS:'),
   ]
   author.derive(pullRequestPort, [selectedImports(author.read(pullRequests), pullRequestBody.join(''),
-    pullRequests, pullRequestPort, redirects), ...pullRequestBody.map(body => author.sourcePart(pullRequests, body))],
+    pullRequests, pullRequestPort, redirects), ...pullRequestBody.map(body => sourcePart(pullRequests, body))],
   'workspace-pull-request-port')
   author.replace(pullRequestPort,
     'import { type ProviderChangeRequestWatchFingerprint } from "@t3tools/source-control-core/server/PullRequestProvider";',
@@ -66,8 +69,8 @@ export const generateWorkspaceManifest = snapshot => {
   const reference = author.between(checkpoints, 'export const checkpointRefForScopeOrdinal =', 'function checkpointIdForScopeOrdinal(')
   const referenceTarget = checkpoints.replace('.ts', '.session-ref.ts')
   author.derive(referenceTarget, [selectedImports(author.read(checkpoints), reference, checkpoints, referenceTarget),
-    author.sourcePart(checkpoints, 'const CHECKPOINT_REFS_PREFIX = "refs/t3/orchestration-v2/checkpoints";\n'),
-    author.sourcePart(checkpoints, reference)], 'workspace-checkpoint-ref')
+    sourcePart(checkpoints, 'const CHECKPOINT_REFS_PREFIX = "refs/t3/orchestration-v2/checkpoints";\n'),
+    sourcePart(checkpoints, reference)], 'workspace-checkpoint-ref')
   author.replace(checkpoints, reference,
     'import { checkpointRefForScopeOrdinal } from "./CheckpointService.session-ref.ts";\n'
       + 'export { checkpointRefForScopeOrdinal };\n\n', 'workspace-share-checkpoint-ref')
@@ -77,7 +80,7 @@ export const generateWorkspaceManifest = snapshot => {
   const processConstants = processFile.replace('.ts', '.session-constants.ts')
   const locked = author.between(processFile, 'export const GIT_INDEX_LOCKED_DETAIL =',
     'export const CHECKPOINT_CAPTURE_OPERATION =')
-  author.derive(processConstants, [author.sourcePart(processFile, locked)], 'workspace-git-lock-message')
+  author.derive(processConstants, [sourcePart(processFile, locked)], 'workspace-git-lock-message')
   author.replace(processFile, locked,
     'import { GIT_INDEX_LOCKED_DETAIL } from "./VcsProcess.session-constants.ts";\n'
       + 'export { GIT_INDEX_LOCKED_DETAIL };\n\n', 'workspace-share-git-lock-message')

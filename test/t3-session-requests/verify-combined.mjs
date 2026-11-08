@@ -10,7 +10,7 @@ import { applySessionEngineBoundaryPatches } from '../../packaging/session-engin
 import { applyRequestPrivacyPatches, requestPrivacyManifestBytes } from '../../patches/t3-session/requests/index.mjs'
 
 // Execute this checkout's current producer, with its bytes checked against the integrated commit.
-const producerCommit = '41b35a2f3d1473839ae854aa460d7ce79d7f33ff'
+const producerCommit = '8b4086dd3bf5e9710237370341503ddccab17d30'
 const rejectedCommit = 'db4bd5972777bcfae2df4f00f0292581bc17fb97'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const committed = (commit, path) => execFileSync('git', ['--no-replace-objects', 'show', `${commit}:${path}`], {
@@ -26,9 +26,9 @@ for (const path of ['packaging/session-engine/patches.mjs', 'packaging/session-e
 const extractionPath = 'patches/t3-session/extraction/boundary-patches.json'
 const extractionBytes = readFileSync(new URL(`../../${extractionPath}`, import.meta.url))
 assert.deepEqual(extractionBytes, committed(producerCommit, extractionPath))
-assert.equal(hash(extractionBytes), 'd24f1709b6d7c1211d9987179d3fc727ef51e9c54d7c6900a1fceb8f900f1908')
+assert.equal(hash(extractionBytes), '7af46ac8bf7d67cd59bb986150db5324e709856d94755d29e029858177a9a4ac')
 const extraction = JSON.parse(extractionBytes)
-assert.equal(extraction.patches.length, 124)
+assert.equal(extraction.patches.length, 150)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))
 assert.equal(privacyFiles.size, 6)
 assert.deepEqual(extraction.patches.filter(patch => privacyFiles.has(patch.file)), [])
@@ -37,7 +37,7 @@ const { original, snapshot, manifestBytes } = await readRequestSource()
 assert.deepEqual(buildRequestPrivacyManifest(original), requestPrivacyManifestBytes)
 const manifest = JSON.parse(manifestBytes)
 assert.deepEqual(manifest.families.map(family => family.id),
-  ['state', 'client-connection', 'extraction', 'session-control', 'request-privacy'])
+  ['state', 'client-connection', 'extraction', 'catalog', 'files', 'session-control', 'request-privacy'])
 assert.equal(snapshot.identity.orderedPatchesSha256, hash(manifestBytes))
 assert.equal(snapshot.identity.archiveSha256, original.identity.archiveSha256)
 const independent = applyRequestPrivacyPatches(original)
