@@ -240,9 +240,10 @@
     render,
     refresh: () => { reload(true); return loadNeeds() },
   }
+  // Registered now, not on DOMContentLoaded: a host that answers at once lists the teams before that event.
+  nc.team.onListChange(() => { reload(false); render(); loadNeeds().catch(() => undefined) })
+  nc.view.onChange((tab) => { if (tab === 'overview') { reload(true); loadNeeds().catch(() => undefined) } })
   window.addEventListener('DOMContentLoaded', () => {
-    nc.team.onListChange(() => { reload(false); render(); loadNeeds().catch(() => undefined) })
-    nc.view.onChange((tab) => { if (tab === 'overview') { reload(true); loadNeeds().catch(() => undefined) } })
     setInterval(() => {
       if (nc.view.current() !== 'overview' || Date.now() - needsAt < 4000) return
       loadNeeds().catch(() => undefined)
