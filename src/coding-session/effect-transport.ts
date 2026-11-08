@@ -14,7 +14,7 @@ export const attachEffectTransport = (
     ? reference : SessionEffectAuthority.fromReference(reference)
   const stream = child.stdio[fd] as Duplex | undefined
   if (!effect || !stream) throw new SessionEffectRefused()
-  const pipe = new EffectPipe(stream), broker = new EffectBroker(pipe, effect.scope)
+  const pipe = new EffectPipe(stream), broker = new EffectBroker(pipe, effect.scope, effect.issuerOrigin)
   const ready = broker.send('launch', JSON.stringify(launch), effect)
   void ready.catch(() => undefined) // startAgentProcess awaits the exact outcome.
   transports.set(child, { broker, ready })

@@ -8,6 +8,9 @@ use std::io::{BufRead, BufReader, Read, Write};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+#[path = "session_effect_scope.rs"]
+mod scope;
+
 pub const REFUSED: &str = "EXECUTOR_SESSION_EFFECT_REFUSED";
 fn refused() -> NativeError {
     NativeError::new(REFUSED)
@@ -25,6 +28,7 @@ pub struct Channel {
     writer: Box<dyn Write + Send>,
     sequence: u64,
     original: Option<Value>,
+    issuer_origin: Option<String>,
 }
 
 pub struct Frame {
@@ -32,36 +36,6 @@ pub struct Frame {
     pub data: String,
     seq: u64,
     digest: String,
-}
-
-fn session(scope: &Value) -> Option<(&Value, &Value, &Value, &Value, &Value, &Value)> {
-    if scope["purpose"] != "control"
-        || [
-            "executorId",
-            "originalOwnerGeneration",
-            "ownerKey",
-            "connectionEpoch",
-            "commandId",
-        ]
-        .iter()
-        .any(|key| scope[*key].as_str().is_none_or(|value| value.is_empty()))
-        || scope["authorizationRevision"]
-            .as_u64()
-            .is_none_or(|revision| revision == 0)
-    {
-        return None;
-    }
-    Some((
-        scope.get("executorId")?,
-        scope.get("originalOwnerGeneration")?,
-        scope.get("ownerKey")?,
-        scope.get("connectionEpoch")?,
-        scope.get("authorizationRevision")?,
-        scope["admissions"]
-            .get(0)
-            .and_then(|row| row.get("startCommandId"))
-            .or_else(|| scope.get("commandId"))?,
-    ))
 }
 
 fn automatic_reply(data: &str) -> bool {
@@ -114,6 +88,7 @@ impl Channel {
             writer: Box::new(writer),
             sequence: 0,
             original: None,
+            issuer_origin: None,
         }
     }
     fn read(&self, timed: bool) -> Result<Value, NativeError> {
@@ -156,31 +131,33 @@ impl Channel {
                 return Err(refused());
             }
         } else {
-            let identity = session(scope).ok_or_else(refused)?;
-            if self
-                .original
-                .as_ref()
-                .is_some_and(|first| session(first) != Some(identity))
-            {
+            scope::identity(scope).ok_or_else(refused)?;
+            let origin = frame.get("issuerOrigin").and_then(Value::as_str);
+            if scope::is_t3(scope) {
+                // The managed host verifies this origin against its protected enrolled state
+                // before every signed consumption. This field is included in the wire digest.
+                if origin.is_none_or(|value| !value.starts_with("https://") || value.len() <= 8) {
+                    return Err(refused());
+                }
+            } else if frame.get("issuerOrigin").is_some() {
                 return Err(refused());
             }
             if let Some(first) = &self.original {
-                if first["admissions"].get(0).is_some()
-                    && scope["admissions"].get(0).is_some()
-                    && (first["admissions"][0]["sessionId"] != scope["admissions"][0]["sessionId"]
-                        || first["admissions"][0]["evidenceDigest"]
-                            != scope["admissions"][0]["evidenceDigest"])
-                {
+                if !scope::same_session(first, scope) || self.issuer_origin.as_deref() != origin {
                     return Err(refused());
                 }
             }
             if self
                 .original
                 .as_ref()
-                .is_none_or(|first| first["admissions"].get(0).is_none())
+                .is_none_or(|first| !scope::is_t3(first) && first["admissions"].get(0).is_none())
             {
                 self.original = Some(scope.clone());
+                self.issuer_origin = origin.map(str::to_owned);
             }
+        }
+        if frame.get("issuerOrigin").and_then(Value::as_str) != self.issuer_origin.as_deref() {
+            return Err(refused());
         }
         self.sequence += 1;
         Ok(Frame {
@@ -372,6 +349,32 @@ mod tests {
     fn malformed_oversized_or_disconnected_channel_refuses() {
         for input in [String::new(), "{}\n".into(), "x".repeat(LIMIT as usize + 1)] {
             let mut channel = Channel::new(Cursor::new(input.into_bytes()), Vec::new());
+            assert!(channel.next().is_err());
+        }
+    }
+    #[test]
+    fn t3_issuer_origin_cannot_change_or_disappear_on_automatic_replies() {
+        let selected = json!({"kind":"t3-effect", "version":1, "purpose":"execute",
+            "executorId":"executor", "environmentId":"env", "threadId":"thread",
+            "providerSessionId":"provider", "connectionEpoch":"1", "runtimeGeneration":"generation",
+            "correlationId":"correlation", "commandId":"command", "requestDigest":"digest",
+            "issuedAt":"issued", "expiresAt":"expires", "requestNonce":"nonce", "requestProofDigest":"proof",
+            "nativeAssociation":{"driver":"codex", "nativeId":"native", "continuationHomeKey":"continue",
+                "historyHomeKey":"history"}});
+        let first = json!({"type":"offer", "seq":1, "wire":json!({"kind":"launch", "data":"{}",
+            "scope":selected, "issuerOrigin":"https://issuer.example"}).to_string()})
+        .to_string()
+            + "\n";
+        for origin in [Value::Null, json!("https://other.example")] {
+            let second = json!({"type":"offer", "seq":2, "wire":json!({"kind":"reply",
+                "data":"{\"id\":1,\"result\":{}}", "scope":Value::Null, "issuerOrigin":origin}).to_string()})
+                .to_string()+"\n";
+            let mut channel = Channel::new(
+                Cursor::new((first.clone() + &second).into_bytes()),
+                Vec::new(),
+            );
+            // Parsing a selection does not grant launch; consumption is still mandatory.
+            assert!(channel.next().is_ok());
             assert!(channel.next().is_err());
         }
     }

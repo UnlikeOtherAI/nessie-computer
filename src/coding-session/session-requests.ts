@@ -60,6 +60,7 @@ export const pruneCommandRecords = async (stateDir: string, maxAgeMs = 7 * 24 * 
 export const writeRequest = async (
   paths: CodingSessionPaths, request: CodingSessionRequest, effect?: SessionEffectAuthority,
 ): Promise<boolean> => {
+  if (effect && 'kind' in effect.scope) throw new Error('T3 effects require the original admitted request lane.')
   if (!COMMAND_ID_PATTERN.test(request.id)) throw new Error('A request id is 1 to 128 letters, digits, - or _.')
   const intents = join(paths.dir, 'request-intents')
   if (effect) await ensurePrivateDir(intents)
