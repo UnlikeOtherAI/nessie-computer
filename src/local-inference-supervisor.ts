@@ -1,6 +1,8 @@
 import { LocalInferenceApiError } from './local-inference-api.js'
 import { connectExecutorLocalInference } from './local-inference-runtime.js'
 import type { ExecutorLocalState } from './state-store.js'
+import type { LocalCliSessionGate } from './local-cli-engine-backend.js'
+import { createLocalCliEngineManager } from './local-cli-engine-manager.js'
 
 export type ExecutorLocalInferenceSupervisor = {
   drain: () => Promise<void>
@@ -9,6 +11,9 @@ export type ExecutorLocalInferenceSupervisor = {
   heartbeat: () => Promise<void>
   reconnect: (state: ExecutorLocalState) => Promise<ExecutorLocalState>
   stop: () => Promise<void>
+  /** Ends the Claude Code and Codex turns of these runs (the owner's Stop, a closed session). */
+  stopRuns: (runIds: readonly string[]) => void
+  setSessionGate: (gate: LocalCliSessionGate) => void
 }
 
 type Connected = Awaited<ReturnType<typeof connectExecutorLocalInference>>
@@ -36,6 +41,7 @@ export const startExecutorLocalInferenceSupervisor = async (
   stateDir: string,
   state: ExecutorLocalState,
   connectLocal: typeof connectExecutorLocalInference = connectExecutorLocalInference,
+  createCliEngines: typeof createLocalCliEngineManager = createLocalCliEngineManager,
 ): Promise<{ state: ExecutorLocalState; supervisor: ExecutorLocalInferenceSupervisor }> => {
   let desiredState = state
   let connected: Connected | null = null
@@ -75,6 +81,9 @@ export const startExecutorLocalInferenceSupervisor = async (
     })
     return desiredState
   }
+  // Claude Code and Codex hosts (contract §12) are siblings of the local-weights
+  // host: each follows its own switch, and neither one's failure stops the other.
+  const cliEngines = createCliEngines(stateDir, state)
   try {
     await connect(state)
   } catch (error) {
@@ -84,13 +93,21 @@ export const startExecutorLocalInferenceSupervisor = async (
     diagnose('connect', error)
     connected = null
   }
+  // Registration is a network call per engine; the daemon starts without waiting for it.
+  void cliEngines.reconcile(desiredState).catch((error: unknown) => diagnose('connect', error))
   return {
     state: desiredState,
     supervisor: {
-      drain: async () => { draining = true; await connected?.session.loop.drain() },
-      resume: () => { draining = false; connected?.session.loop.resume() },
-      isIdle: () => connected?.session.loop.isIdle() ?? true,
+      drain: async () => {
+        draining = true
+        await Promise.all([connected?.session.loop.drain(), cliEngines.drain()])
+      },
+      resume: () => { draining = false; connected?.session.loop.resume(); cliEngines.resume() },
+      isIdle: () => (connected?.session.loop.isIdle() ?? true) && cliEngines.isIdle(),
+      stopRuns: (runIds) => cliEngines.stopRuns(runIds),
+      setSessionGate: (gate) => cliEngines.setSessionGate(gate),
       heartbeat: async () => {
+        await cliEngines.heartbeat()
         let stage: 'connect' | 'heartbeat' = connected ? 'heartbeat' : 'connect'
         if (!connected && Date.now() < claimNotBefore) return
         try {
@@ -122,14 +139,16 @@ export const startExecutorLocalInferenceSupervisor = async (
           }
         }
       },
-      stop: disconnect,
+      stop: async () => { await Promise.all([disconnect(), cliEngines.stop()]) },
       reconnect: async (nextState) => {
+        let reconnected = nextState
         try {
-          return await connect(nextState)
+          reconnected = await connect(nextState)
         } catch {
           connected = null
-          return nextState
         }
+        void cliEngines.reconcile(reconnected).catch((error: unknown) => diagnose('connect', error))
+        return reconnected
       },
     },
   }

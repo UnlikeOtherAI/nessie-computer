@@ -1,10 +1,12 @@
 import { runInferenceEndpointsCli } from './inference-endpoint-cli.js'
+import { runLocalCliEnginesCli } from './local-cli-engine-cli.js'
 import { runLocalOpenAiCli } from './openai-local-cli.js'
 import { LocalInferenceCoordinator } from './local-inference-coordinator.js'
 
 /** Host-local controls; they contain neither pairing credentials nor model data. */
 export const runLocalInferenceCli = async (args: string[]): Promise<boolean> => {
   if (await runInferenceEndpointsCli(args)) return true
+  if (await runLocalCliEnginesCli(args)) return true
   if (await runLocalOpenAiCli(args)) return true
   if (args[0] !== 'local-inference') return false
   const action = args[1]

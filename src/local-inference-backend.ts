@@ -1,4 +1,6 @@
-import type { ExecutorInferenceSource, LocalInferenceAttemptRequest } from '@nessie/executor-protocol'
+import type {
+  ExecutorInferenceSource, LocalCliEngine, LocalCliEngineState, LocalInferenceAttemptRequest,
+} from '@nessie/executor-protocol'
 import type { OllamaChatEvent } from './ollama-chat.js'
 import { streamOllamaChat } from './ollama-chat.js'
 import { observeOllamaInventory } from './ollama-observed.js'
@@ -13,6 +15,9 @@ export type ObservedInferenceModel = {
   providerModelId?: string
   capabilities: string[]
   identitySource?: 'owner_configuration'
+  /** A Claude Code or Codex engine on a `local_cli` host (docs/local-cli-engines.md). */
+  cliEngine?: LocalCliEngine
+  cliEngineState?: LocalCliEngineState
   manifestDigest: string
   name: string
   numCtxCap: number | null

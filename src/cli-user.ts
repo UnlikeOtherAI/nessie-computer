@@ -84,6 +84,7 @@ const handlers = async (command: string): Promise<Handler | undefined> => {
   if (command === 'documents') return (await import('./cli-documents.js')).runDocuments
   if (command === 'ai plans') return (await import('./cli-ai-plans.js')).runAiPlans
   if (command === 'ai servers') return (await import('./cli-ai-servers.js')).runAiServers
+  if (command === 'ai local') return (await import('./cli-ai-local.js')).runAiLocal
   if (command === 'settings') return (await import('./cli-settings.js')).runSettings
   return undefined
 }

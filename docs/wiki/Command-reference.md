@@ -213,6 +213,22 @@ teams the background service runs.
 
 ## AI
 
+### `ai local` — Claude Code and Codex on this computer
+```sh
+nessie-computer ai local [list]            [--team <team>]
+nessie-computer ai local on|off claude-code|codex [--account <account>] [--team <team>]
+nessie-computer ai local add claude-code|codex <name> [--team <team>]   # runs the program's own sign-in
+nessie-computer ai local sign-in <account> [--team <team>]
+nessie-computer ai local remove <account> [--team <team>]
+```
+`list` shows each program, the account it's signed in to and whether it's
+available to the team's agents. `on` offers it to them; they then use the
+program's own sign-in, and Nessie decides whether only you or the whole team
+may. `add` makes another account on this computer and runs the program's own
+sign-in in this terminal; `--account` picks it for `on` and `off`. `remove`
+signs it out and deletes it. Not on Windows teams the background service runs:
+the service can't use your sign-in.
+
 ### `ai plans` — ChatGPT plans
 ```sh
 nessie-computer ai plans [list]            [--team <team>]
@@ -291,6 +307,7 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 | `sessions`, `session stop --state-dir <dir>` | The app's Now working and its Stop |
 | `sync --state-dir <dir> …` | The app's Documents tab |
 | `local-inference connections …` | The app's model servers |
+| `local-inference engines …` | The app's Claude Code and Codex rows |
 | `personal-chatgpt-local --state-dir <dir>` | The app's ChatGPT plans |
 | `unpair --state-dir <dir>` | The app's Disconnect |
 | `enable`, `disable`, `autorestart` | The Linux service |
