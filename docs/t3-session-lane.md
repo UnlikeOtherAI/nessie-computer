@@ -1,5 +1,45 @@
 # Original T3 daemon lane
 
+## Cold inspection and accepted graph retention
+
+`describeInspections()` announces actual held source/writer descriptors with
+`role:'source-inspection'`, environment, runtime generation, pinned source
+revision, physical root and capture generation. It is separate from `describe()`
+and retained `state:'ready'`. The daemon never infers inspection availability
+from read readiness or mere presence of `inspect`. Backend registries are
+separate; original reads cannot select a cold inspection-only graph.
+
+The runtime lifecycle is `inspect(request,signal,{inspection,relayHmac,
+retentionExpiresAt})`, `acceptInspection(request,accepted,signal)` and
+`releaseInspection(inspectionId)`. The last method joins actual held-scope
+cleanup after abort. All three accompany inspection discovery. These methods
+and descriptors convey resource demand, never authorization or effect signing.
+
+The signed challenge's five seconds limit first evidence acceptance. The offer's
+`retentionExpiresAt` comes from the original opaque operation deadline and is
+only a pending resource cap. A lost response can retry the same receipt within
+that cap; no receipt or challenge is renewed. The cap also reaches the protected
+child so a stalled daemon pipe cannot retain its resources indefinitely.
+
+`inspectionAcknowledged` now contains strict `T3LaneInspectionAccepted` objects.
+Each carries the canonical backend `graphId/expiresAt`, full receipt digest
+(`sha256(canonicalExecutorJson(receipt))`), original request SHA/relay HMAC,
+inspection/command/correlation and exact executor/environment/epoch/runtime/
+source identity. The pump compares these to its held job. Acceptance only
+shortens retention to the exact backend parent deadline. Exact duplicate ACKs
+do nothing; changed metadata or extended deadlines refuse.
+
+An accepted ACK drops the receipt job without aborting its graph parent signal.
+Expiry, source descriptor withdrawal, connection loss or lane close aborts and
+joins `releaseInspection`; capacity remains occupied until cleanup completes.
+The same held graph must still consume the independent signed original
+reserve/launch/open authority. Acceptance is never a ready announcement.
+
+Transport fixtures cover late ACK after the five-second signature window,
+same-signal retention, immutable replay, digest/source/runtime substitution,
+descriptor withdrawal and joined release. They are authored, unrun in
+SOURCE/TINY; native and original-engine qualification remains with integration.
+
 Status: authored source, not runtime-qualified. The owning daemon registers
 `createT3SessionLane` through `serveExecutor(..., { t3Sessions })`. The admitted
 runtime supplies that port from its single held graph; absence leaves T3
