@@ -15,6 +15,9 @@
       setup: 'Set up updates', setupHint: 'Allow Nessie’s background helper in System Settings to start this computer and install updates.',
       promptTitle: 'Update Nessie on this computer', promptBody: "Version {version} is available. Update now, or ask again in 24 hours.",
       offHint: 'Automatic updates are off. Nessie will ask you when a new version is available.',
+      stuck: 'Updates are stuck — teams can’t start', restart: 'Restart updates',
+      stuckNeed: 'Nessie’s background helper isn’t responding, so no team can start. Restarting it keeps your teams, permissions and sign-ins.',
+      helperStuck: 'Nessie’s background helper isn’t responding, so no team can start. Select “Restart updates” to start it again.',
   }
   window.nc.words.register('updates', {
     'en-GB': en,
@@ -34,6 +37,9 @@
       setup: 'Nastavit aktualizace', setupHint: 'Povolte pomocnou službu Nessie v Nastavení systému. Pak půjde tento počítač spustit a instalovat aktualizace.',
       promptTitle: 'Aktualizujte Nessie v tomto počítači', promptBody: "Je dostupná verze {version}. Aktualizujte nyní, nebo si ji nechte připomenout za 24 hodin.",
       offHint: 'Automatické aktualizace jsou vypnuté. Nessie vás upozorní na novou verzi.',
+      stuck: 'Aktualizace se zasekly — týmy nejde spustit', restart: 'Restartovat aktualizace',
+      stuckNeed: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit. Restart zachová vaše týmy, oprávnění i přihlášení.',
+      helperStuck: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit. Znovu ji spustíte tlačítkem „Restartovat aktualizace“.',
     },
     de: {
       title: 'Softwareupdates', installed: 'Installierte Version', unknown: 'Version nicht verfügbar',
@@ -50,6 +56,9 @@
       setup: 'Updates einrichten', setupHint: 'Erlauben Sie den Hintergrunddienst von Nessie in den Systemeinstellungen, um diesen Computer zu starten und Updates zu installieren.',
       promptTitle: 'Nessie auf diesem Computer aktualisieren', promptBody: "Version {version} ist verfügbar. Jetzt aktualisieren oder in 24 Stunden erinnern lassen.",
       offHint: 'Automatische Updates sind aus. Nessie meldet sich, wenn eine neue Version verfügbar ist.',
+      stuck: 'Updates hängen – Teams können nicht starten', restart: 'Updates neu starten',
+      stuckNeed: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten. Ein Neustart behält Ihre Teams, Berechtigungen und Anmeldungen.',
+      helperStuck: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten. Wählen Sie „Updates neu starten“, um ihn wieder zu starten.',
     },
     fr: {
       title: 'Mises à jour', installed: 'Version installée', unknown: 'Version indisponible',
@@ -66,6 +75,9 @@
       setup: 'Configurer les mises à jour', setupHint: 'Autorisez le service d’arrière-plan de Nessie dans Réglages Système pour démarrer cet ordinateur et installer les mises à jour.',
       promptTitle: 'Mettre à jour Nessie sur cet ordinateur', promptBody: "La version {version} est disponible. Mettez à jour maintenant ou demandez un rappel dans 24 heures.",
       offHint: 'Les mises à jour automatiques sont désactivées. Nessie vous avertira lorsqu’une nouvelle version sera disponible.',
+      stuck: 'Les mises à jour sont bloquées — les équipes ne peuvent pas démarrer', restart: 'Redémarrer les mises à jour',
+      stuckNeed: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer. Le redémarrer conserve vos équipes, autorisations et connexions.',
+      helperStuck: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer. Sélectionnez « Redémarrer les mises à jour » pour le relancer.',
     },
     it: {
       title: 'Aggiornamenti software', installed: 'Versione installata', unknown: 'Versione non disponibile',
@@ -82,6 +94,9 @@
       setup: 'Configura aggiornamenti', setupHint: 'Consenti il servizio in background di Nessie in Impostazioni di Sistema per avviare questo computer e installare gli aggiornamenti.',
       promptTitle: 'Aggiorna Nessie su questo computer', promptBody: "È disponibile la versione {version}. Aggiorna ora o chiedi un promemoria tra 24 ore.",
       offHint: 'Gli aggiornamenti automatici sono disattivati. Nessie ti avviserà quando sarà disponibile una nuova versione.',
+      stuck: 'Gli aggiornamenti sono bloccati — i team non possono avviarsi', restart: 'Riavvia gli aggiornamenti',
+      stuckNeed: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi. Riavviarlo mantiene team, autorizzazioni e accessi.',
+      helperStuck: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi. Seleziona “Riavvia gli aggiornamenti” per avviarlo di nuovo.',
     },
     es: {
       title: 'Actualizaciones de software', installed: 'Versión instalada', unknown: 'Versión no disponible',
@@ -98,6 +113,9 @@
       setup: 'Configurar actualizaciones', setupHint: 'Permite el servicio en segundo plano de Nessie en Ajustes del Sistema para iniciar este ordenador e instalar actualizaciones.',
       promptTitle: 'Actualizar Nessie en este ordenador', promptBody: "La versión {version} está disponible. Actualiza ahora o pide un recordatorio dentro de 24 horas.",
       offHint: 'Las actualizaciones automáticas están desactivadas. Nessie te avisará cuando haya una nueva versión.',
+      stuck: 'Las actualizaciones están atascadas — los equipos no pueden iniciarse', restart: 'Reiniciar actualizaciones',
+      stuckNeed: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse. Reiniciarlo conserva tus equipos, permisos y sesiones.',
+      helperStuck: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse. Selecciona «Reiniciar actualizaciones» para volver a iniciarlo.',
     },
   })
 })()
