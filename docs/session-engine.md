@@ -51,6 +51,10 @@ The source-only [T3 client connection patch](t3-session-client-connection.md)
 preserves mounted environment URLs through the existing shared URL helpers;
 account integration and live client/gateway acceptance remain separate work.
 
+The [control adapter](t3-session-control.md) extracts original dispatch/launch
+handlers and the required schedule port; its engine exports require fresh package
+qualification. Runtime admission, schedule execution and tool bindings remain unbound.
+
 ## Source and distribution decision
 
 Use MIT T3 source at

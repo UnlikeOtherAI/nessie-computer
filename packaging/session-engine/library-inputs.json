@@ -4,6 +4,7 @@
   "contractsCommit": "4dbabb20e42ce9b6c8381f64d3e80d43bde912aa",
   "contractsInputSha256": "bff917e9ce29b6023c3c756ee395672b17545d7d5825a5321a264790f6a37c5e",
   "authoredInputs": [
+    "packaging/session-engine/core/Control.ts",
     "packaging/session-engine/core/Engine.ts",
     "packaging/session-engine/core/EngineLayers.ts",
     "packaging/session-engine/core/ReadLayers.ts",

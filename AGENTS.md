@@ -52,3 +52,4 @@ Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
 The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration and `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
 Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
+Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).

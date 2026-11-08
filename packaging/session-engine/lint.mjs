@@ -13,6 +13,8 @@ export const lintSessionEngineSources = async () => {
       .map(file => resolve(tools, 'core', file)),
     ...(await readdir(resolve(tools, '../../patches/t3-session/extraction'))).filter(file => file.endsWith('.mjs'))
       .map(file => resolve(tools, '../../patches/t3-session/extraction', file)),
+    ...(await readdir(resolve(tools, '../../patches/t3-session/session-control'))).filter(file => file.endsWith('.mjs'))
+      .map(file => resolve(tools, '../../patches/t3-session/session-control', file)),
   ]
   const eslint = new ESLint({ cwd: resolve(tools, '../..'), overrideConfigFile: true, overrideConfig: configuration })
   const results = await eslint.lintFiles(files)

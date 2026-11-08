@@ -5,7 +5,8 @@ import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
 import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ResourceOwners, Settings,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
-  EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts } from '@nessie/t3-session-source/engine'
+  EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
+  SessionControl, Threads, Launch, ScheduledTasks } from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
 
 type Input<T> = T extends Layer.Layer<infer _Out, infer _Error, infer Required> ? Required : never
@@ -34,9 +35,18 @@ const retainedProjector: (value: unknown) => unknown = RequestPrivacy.createRequ
 type Command = Parameters<typeof ThreadMessageIntake.dispatchCommand>[0]
 // @ts-expect-error Original source command discriminants survive the generated boundary.
 const invalidCommand: Command = { type: 'invented-command' }
+
+type ControlPorts = Services<ReturnType<typeof SessionControl.dispatchCommand>>
+const controlNeedsThreads: Threads.ThreadManagementService extends ControlPorts ? true : false = true
+const controlNeedsLaunch: Launch.ThreadLaunchService extends ControlPorts ? true : false = true
+type ScheduleService = ScheduledTasks.ScheduledTaskService['Service']
+type ScheduleInput = Parameters<ScheduleService['runNow']>[0]
+// @ts-expect-error The original schedule ID cannot be substituted with a thread field.
+const invalidSchedule: ScheduleInput = { threadId: ThreadId.make('not-a-schedule') }
 type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer']>[0]
 // @ts-expect-error The original dedicated schema cannot be replaced with an ordinary value.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,
-  fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret, retainedProjector]
+  fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret, retainedProjector,
+  controlNeedsThreads, controlNeedsLaunch, invalidSchedule]

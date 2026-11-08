@@ -40,6 +40,9 @@ try {
     assert.equal(name in engine, false)
   }
   assert.equal('layer' in engine.Threads, false)
+  assert.equal('layer' in engine.ScheduledTasks, false)
+  assert.equal(typeof engine.SessionControl.dispatchCommand, 'function')
+  assert.equal(typeof engine.SessionControl.launchThread, 'function')
 } finally {
   constructors.forEach(([owner, key], index) => { owner[key] = originals[index] })
   syncBuiltinESMExports()
