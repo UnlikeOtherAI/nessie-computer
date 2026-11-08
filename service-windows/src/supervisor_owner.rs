@@ -6,8 +6,8 @@
 //! pause is a record in that directory: it survives this service restarting,
 //! the person signing out and an update, and the daemon enforces it.
 //!
-//! Program requests can be read and answered only by the account that paired
-//! the team. Every admitted account may pause or resume, as it may start and
+//! Program requests and the sessions agents work in can be read and answered
+//! only by the account that paired the team. Every admitted account may pause or resume, as it may start and
 //! stop; only the owner decides what an agent may run.
 
 use std::{fs, path::Path, time::Instant};
@@ -17,12 +17,15 @@ use nessie_windows_common::owner_controls::{
     program_requests_arguments, Answer, ProgramRequest,
 };
 
+use nessie_windows_common::owner_sessions::{parse_sessions, sessions_arguments, stop_session_arguments};
+
 use crate::{
     paths::{has_executor_state, PAIRED_BY_FILE},
     supervisor::Supervisor,
 };
 
 const NOT_OWNER: &str = "Only the person who connected this team can answer its requests.";
+const NOT_SESSIONS_OWNER: &str = "Only the person who connected this team can see and stop its agents’ work.";
 
 impl Supervisor {
     fn paired_state_dir(&self, executor_id: &str) -> Result<std::path::PathBuf, String> {
@@ -34,10 +37,14 @@ impl Supervisor {
     }
 
     fn require_owner(state_dir: &Path, sid: Option<&str>) -> Result<(), String> {
-        let owner = fs::read_to_string(state_dir.join(PAIRED_BY_FILE)).map_err(|_| NOT_OWNER.to_owned())?;
+        Self::require_owner_or(state_dir, sid, NOT_OWNER)
+    }
+
+    fn require_owner_or(state_dir: &Path, sid: Option<&str>, refusal: &str) -> Result<(), String> {
+        let owner = fs::read_to_string(state_dir.join(PAIRED_BY_FILE)).map_err(|_| refusal.to_owned())?;
         match sid {
             Some(sid) if sid == owner.trim() => Ok(()),
-            _ => Err(NOT_OWNER.to_owned()),
+            _ => Err(refusal.to_owned()),
         }
     }
 
@@ -100,6 +107,47 @@ impl Supervisor {
         self.program_requests(executor_id, sid)
     }
 
+    /// What agents are doing on this computer for this team. Like its
+    /// requests, only the account that connected the team sees it: it names
+    /// the programs, files and websites agents use.
+    pub fn sessions(&mut self, executor_id: &str, sid: Option<&str>) -> Result<Vec<serde_json::Value>, String> {
+        let state_dir = self.paired_state_dir(executor_id)?;
+        Self::require_owner_or(&state_dir, sid, NOT_SESSIONS_OWNER)?;
+        let mut cache = self.sessions.remove(executor_id).unwrap_or_default();
+        let sessions = cache.refresh(&state_dir, Instant::now(), || self.read_sessions(&state_dir));
+        self.sessions.insert(executor_id.to_owned(), cache);
+        sessions
+    }
+
+    fn read_sessions(&self, state_dir: &Path) -> Result<Vec<serde_json::Value>, String> {
+        const UNREADABLE: &str = "The list of what agents are doing could not be read.";
+        let (status, output) = self.public_json_command(sessions_arguments(state_dir), None)?;
+        if status != 0 {
+            return Err(UNREADABLE.to_owned());
+        }
+        parse_sessions(serde_json::from_str(&output).map_err(|_| UNREADABLE.to_owned())?)
+    }
+
+    /// The owner's Stop for one session: its daemon ends that session's work
+    /// and tells Nessie. Answers the sessions that remain.
+    pub fn stop_session(
+        &mut self,
+        executor_id: &str,
+        session_id: &str,
+        sid: Option<&str>,
+    ) -> Result<Vec<serde_json::Value>, String> {
+        let state_dir = self.paired_state_dir(executor_id)?;
+        Self::require_owner_or(&state_dir, sid, NOT_SESSIONS_OWNER)?;
+        self.run_to_completion(
+            stop_session_arguments(&state_dir, session_id)?,
+            "That session has already finished on this computer.",
+        )?;
+        if let Some(cache) = self.sessions.get_mut(executor_id) {
+            cache.forget();
+        }
+        self.sessions(executor_id, sid)
+    }
+
     /// Who may send work to this team here, as Nessie answers the signed
     /// request. Nothing of it is kept.
     pub fn audience(&mut self, executor_id: &str) -> Result<serde_json::Value, String> {
@@ -114,7 +162,7 @@ impl Supervisor {
 
 #[cfg(test)]
 mod tests {
-    use super::{Supervisor, NOT_OWNER};
+    use super::{Supervisor, NOT_OWNER, NOT_SESSIONS_OWNER};
     use crate::{manifest::VerifiedRuntime, paths::PAIRED_BY_FILE};
 
     const TEAM: &str = "00000000-0000-4000-8000-000000000001";
@@ -143,6 +191,11 @@ mod tests {
         paired(&host, Some("S-1-5-21-1"));
         for sid in [None, Some("S-1-5-21-2")] {
             assert_eq!(host.program_requests(TEAM, sid), Err(NOT_OWNER.to_owned()));
+            assert_eq!(host.sessions(TEAM, sid), Err(NOT_SESSIONS_OWNER.to_owned()));
+            assert_eq!(
+                host.stop_session(TEAM, "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11", sid),
+                Err(NOT_SESSIONS_OWNER.to_owned()),
+            );
             assert_eq!(
                 host.answer_program_request(TEAM, "r-1", nessie_windows_common::owner_controls::Answer::Once, sid),
                 Err(NOT_OWNER.to_owned()),

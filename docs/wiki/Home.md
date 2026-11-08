@@ -7,7 +7,7 @@ installed there. Everything they can use is decided on the computer, by you.
 ## Start here
 
 1. [Install Nessie Computer](Install-Nessie-Computer)
-2. [Connect a team](Connect-a-team)
+2. [Add this computer](Add-this-computer)
 3. [What agents can use](What-agents-can-use)
 
 ## Guides

@@ -175,7 +175,7 @@ mod tests {
             request: ProgramRequest {
                 id: "r1".to_owned(), program: program.to_owned(),
                 args: args.iter().map(|arg| (*arg).to_owned()).collect(), agent_name: agent.map(str::to_owned),
-                requested_at: "2026-11-08T10:00:00.000Z".to_owned(), expires_at: "2026-11-08T10:02:00.000Z".to_owned(),
+                command_id: None, session_id: None, requested_at: "2026-11-08T10:00:00.000Z".to_owned(), expires_at: "2026-11-08T10:02:00.000Z".to_owned(),
             },
         }
     }

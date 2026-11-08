@@ -1,4 +1,4 @@
-import { HELP_ENTRIES } from './cli-help-entries.js'
+import { canonicalWords, HELP_ENTRIES } from './cli-help-entries.js'
 import { helpText } from './cli-help.js'
 import { parseCliOptions, type CliOptions } from './cli-options.js'
 import { CliUsageError, EXIT, processContext, reportFailure, type CliContext } from './cli-output.js'
@@ -43,8 +43,8 @@ export type CliRun = {
 
 type Handler = (run: CliRun) => Promise<void>
 
-const USER_COMMANDS = new Set(['help', 'status', 'teams', 'who', 'connect', 'disconnect', 'pause', 'resume',
-  'access', 'requests', 'documents', 'ai', 'settings'])
+const USER_COMMANDS = new Set(['help', 'status', 'teams', 'who', 'add', 'connect', 'disconnect', 'pause', 'resume',
+  'access', 'requests', 'sessions', 'documents', 'ai', 'settings'])
 
 /** A team's state folder on the command line marks a plumbing verb, which the apps call. */
 const PLUMBING_OPTIONS = new Set(['--state-dir', '--state-root', '--executor'])
@@ -75,11 +75,12 @@ const commandOf = (words: readonly string[]): string => {
 const handlers = async (command: string): Promise<Handler | undefined> => {
   const group = command.split(' ')[0]
   if (['status', 'teams', 'who', 'pause', 'resume'].includes(command)) return (await import('./cli-overview.js')).OVERVIEW[command]
-  if (command === 'connect' || command === 'disconnect') return (await import('./cli-connect.js')).CONNECTING[command]
+  if (command === 'add' || command === 'disconnect') return (await import('./cli-connect.js')).CONNECTING[command]
   if (command === 'access programs') return (await import('./cli-access-programs.js')).runAccessPrograms
   if (command === 'access local-apps') return (await import('./cli-access-local-apps.js')).runAccessLocalApps
   if (group === 'access') return (await import('./cli-access.js')).ACCESS[command]
   if (command === 'requests') return (await import('./cli-requests.js')).runRequests
+  if (command === 'sessions') return (await import('./cli-sessions.js')).runSessions
   if (command === 'documents') return (await import('./cli-documents.js')).runDocuments
   if (command === 'ai plans') return (await import('./cli-ai-plans.js')).runAiPlans
   if (command === 'ai servers') return (await import('./cli-ai-servers.js')).runAiServers
@@ -124,7 +125,9 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
       context.out(`nessie-computer ${executorSoftwareVersion()}\n`)
       return EXIT.ok
     }
-    const options = parseCliOptions(args)
+    const parsed = parseCliOptions(args)
+    // `connect` is `add` under its older name: same command, same help, same messages.
+    const options = { ...parsed, words: canonicalWords(parsed.words) }
     json = options.json
     if (options.words.length === 0 || options.words[0] === 'help') {
       const asked = options.words.slice(1)

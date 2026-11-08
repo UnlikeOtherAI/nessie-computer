@@ -268,7 +268,7 @@ export const selectTeam = (
   teams: readonly LabelledTeam[], query: string | undefined, command: string,
 ): LabelledTeam => {
   if (teams.length === 0) {
-    throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer. Run nessie-computer connect first.')
+    throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer. Run nessie-computer add first.')
   }
   if (query === undefined) {
     if (teams.length === 1) return teams[0]!

@@ -279,3 +279,12 @@ test('the relay\'s answer is read strictly: unreachable reasons are named, anyth
     && error.reason === 'notInstalled')
   assert.deepEqual(sent, [])
 })
+
+test('a waiting code shows how long Nessie gave it and where to enter it', async () => {
+  const { codeLines } = await import('../src/cli-pairing-words.js')
+  const now = new Date('2026-11-08T10:00:00Z')
+  assert.equal(codeLines('48219037', '2026-11-08T10:05:00Z', now),
+    'Code: 4821 9037   (5 minutes)\nIn Nessie, open Computers, choose Add a computer and enter the code.\n')
+  assert.equal(codeLines('48219037', '2026-11-08T10:00:50Z', now).split('\n')[0], 'Code: 4821 9037   (1 minute)')
+  assert.equal(codeLines('48219037', undefined, now).split('\n')[0], 'Code: 4821 9037')
+})

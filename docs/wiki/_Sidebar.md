@@ -2,7 +2,7 @@
 
 **Get started**
 - [Install](Install-Nessie-Computer)
-- [Connect a team](Connect-a-team)
+- [Add this computer](Add-this-computer)
 - [What agents can use](What-agents-can-use)
 
 **Use it**

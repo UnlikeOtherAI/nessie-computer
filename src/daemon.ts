@@ -19,7 +19,8 @@ import {
 } from '@nessie/executor-protocol'
 
 import { executorApi, type ExecutorApiClient } from './api-client.js'
-import { executeWithCommandCancellation } from './command-cancellation.js'
+import { CODING_SESSION_COMMAND_RULES_META } from './coding-session/meta-keys.js'
+import type { LocalCommandPolicy } from './command-policy.js'
 import { admitCommandRun, admitTerminalLaunch, type ProgramAdmission } from './daemon-program-admission.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorBrowserSessionManager } from './browser-session-manager.js'
@@ -28,17 +29,10 @@ import type { ExecutorCodingSessionManager } from './coding-session-manager.js'
 import type { CodingSessionsDaemon } from './coding-sessions-daemon.js'
 import type { ExecutorCommandSessionManager } from './command-session-manager.js'
 import {
-  createExecutorCommandAttachmentStore,
-  deliverExecutorCommandAttachments,
   executorAttachmentUploadTimeoutMs,
   type ExecutorAttachmentUpload,
   type ExecutorCommandAttachmentStore,
 } from './command-attachments.js'
-import {
-  createExecutorCommandRecoveryStore,
-  recoverOrPollExecutorCommand,
-  type ExecutorCommandRecoveryStore,
-} from './command-recovery.js'
 import { executeExecutorMcpCommand } from './mcp-dispatch.js'
 import type { ExecutorMcpSessionManager } from './mcp-session-manager.js'
 import { applyNativePromotion } from './native-helper.js'
@@ -59,7 +53,7 @@ export { claimExecutor, heartbeatExecutor } from './daemon-connection.js'
 const digest = (value: unknown): string =>
   `sha256:${createHash('sha256').update(canonicalExecutorJson(value)).digest('hex')}`
 
-const receipt = async (
+export const sendExecutorCommandReceipt = async (
   state: ExecutorLocalState,
   input: {
     commandId: ExecutorCommandEnvelope['commandId']
@@ -113,6 +107,19 @@ export const uploadExecutorCommandAttachment = (
     dataBase64: image.bytes.toString('base64'),
     signature: signExecutorDaemonPayload(state.machinePrivateKey, 'attachment', payload),
   }, { timeoutMs: executorAttachmentUploadTimeoutMs(image.bytes.length) })
+}
+
+/**
+ * The bridge's stamp for one call, with the rules a launch the owner allowed
+ * once runs under in place of the saved ones: only this call carries them.
+ */
+const withLaunchRules = (
+  bridge: Pick<CodingSessionsDaemon, 'callMeta'> | undefined, rules: LocalCommandPolicy,
+): Pick<CodingSessionsDaemon, 'callMeta'> | undefined => bridge && {
+  callMeta: (server, call) => {
+    const meta = bridge.callMeta(server, call)
+    return meta && { ...meta, [CODING_SESSION_COMMAND_RULES_META]: rules }
+  },
 }
 
 /**
@@ -328,7 +335,7 @@ export const executeExecutorCommand = async (
     if ('refusal' in admitted) return admitted.refusal
     const refusal = unavailable()
     if (refusal || !commandSessions) return refusal ?? { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false }
-    return admitted.run(() => commandSessions.run(command, runId.data))
+    return commandSessions.run(command, runId.data, admitted.rules)
   }
   if (command.operationKey === 'coding.launch') {
     if (!ExecutorCodingLaunchArgumentsSchema.safeParse(command.payload.args).success) {
@@ -370,108 +377,13 @@ export const executeExecutorCommand = async (
       ? await admitTerminalLaunch(dependencies.programRequests, state, command, dependencies.signal)
       : undefined
     if (admitted && 'refusal' in admitted) return admitted.refusal
-    const call = () => executeExecutorMcpCommand(operationKey, command.payload.args, mcpSessions, {
-      codingBridge: dependencies.codingBridge,
+    return executeExecutorMcpCommand(operationKey, command.payload.args, mcpSessions, {
+      codingBridge: admitted?.rules
+        ? withLaunchRules(dependencies.codingBridge, admitted.rules) : dependencies.codingBridge,
       commandId: command.commandId,
       payload: command.payload,
     }, attachments && ((images) => attachments.write(command.commandId, images)), dependencies.signal)
-    return admitted ? admitted.run(call) : call()
   }
   // Other declared-only operations remain unavailable.
   return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }
-}
-
-/**
- * `store` is owned by the caller and lives as long as the daemon does. It used
- * to be built here, once per poll, which rebuilt the owner-only proof of the
- * runtime directory every second — two native-helper process spawns per poll on
- * Windows. The journal it fronts is per-`stateDir` state, and `stateDir` does
- * not change across a daemon's life, so one store is the honest lifetime. The
- * sidecar store beside it is the caller's for the same reason.
- *
- * `state` is the daemon's state when this poll starts; its signed exchanges
- * use that connection, as they always have.
- */
-export const pollAndExecuteCommand = async (
-  stateDir: string,
-  state: ExecutorLocalState,
-  backends: {
-    browserSessions: ExecutorBrowserSessionManager
-    commandSessions: ExecutorCommandSessionManager
-    codingSessions: ExecutorCodingSessionManager
-    mcpSessions: ExecutorMcpSessionManager
-    store?: ExecutorCommandRecoveryStore
-    codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
-    sidecars?: ExecutorCommandAttachmentStore
-    ownerPaused?: () => boolean
-    programRequests?: ProgramAdmission
-  },
-): Promise<void> => {
-  const { browserSessions, commandSessions, codingSessions, mcpSessions, codingBridge } = backends
-  const store = backends.store ?? createExecutorCommandRecoveryStore(stateDir)
-  const sidecars = backends.sidecars ?? createExecutorCommandAttachmentStore(stateDir)
-  const connectionEpoch = state.connectionEpoch
-  if (!connectionEpoch) return
-  await recoverOrPollExecutorCommand({
-    attachments: {
-      deliver: ({ command, delivered, journal, result }) => deliverExecutorCommandAttachments({
-        command,
-        delivered,
-        journal,
-        // The reason names only Nessie's own refusal; the image stays here.
-        onWithdrawn: (reference, reason) => {
-          console.error(
-            `[nessie-executor] image ${reference.attachmentDigest} of command ${command.commandId} `
-            + `was not delivered: ${reason}`,
-          )
-        },
-        result,
-        sidecars,
-        upload: uploadExecutorCommandAttachment(state),
-      }),
-      release: (commandId) => sidecars.remove(commandId),
-    },
-    execute: (command) => executeWithCommandCancellation({
-      command,
-      state,
-      cancel: async () => {
-        const runId = RunIdSchema.parse(command.payload.runId)
-        // Tear down only the backend this command owns; other sessions on the
-        // computer keep their own lifetimes. VM teardown ends every guest process.
-        if (command.operationKey.startsWith('browser.')) await browserSessions.stop(runId)
-        if (command.operationKey === 'command.run') await commandSessions.stop(runId)
-        if (command.operationKey.startsWith('coding.')) await codingSessions.stop(runId)
-      },
-      execute: (signal) => executeExecutorCommand(stateDir, state, command, {
-        attachments: sidecars, browserSessions, codingSessions, mcpSessions, commandSessions,
-        signal, ...(codingBridge ? { codingBridge } : {}),
-        ...(backends.ownerPaused ? { ownerPaused: backends.ownerPaused } : {}),
-        ...(backends.programRequests ? { programRequests: backends.programRequests } : {}),
-      }),
-    }),
-    // The result itself stays on this machine: it can quote program output.
-    onResultRefused: (command) => {
-      console.error(
-        `[nessie-executor] Nessie refused the result of ${command.operationKey} command ${command.commandId}; `
-        + 'it was reported as EXECUTOR_RESULT_REFUSED instead.',
-      )
-    },
-    store,
-    transport: {
-      poll: async () => {
-        const observedAt = new Date().toISOString()
-        const payload = {
-          connectionEpoch,
-          executorId: state.executorId,
-          observedAt,
-        }
-        const response = await executorApi.pollCommand(state.apiBaseUrl, {
-          ...payload,
-          signature: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload),
-        })
-        return response.command
-      },
-      receipt: (input) => receipt(state, input),
-    },
-  })
 }

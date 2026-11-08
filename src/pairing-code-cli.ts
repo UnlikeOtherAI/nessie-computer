@@ -10,6 +10,7 @@ import { defaultExecutorWorkspaceFolders } from './default-workspace-folders.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 import { acquireDefaultPairingLease, defaultPairingDirectory, promoteDefaultPairing } from './pairing-code-directory.js'
 import { processContext } from './cli-output.js'
+import { codeLines } from './cli-pairing-words.js'
 import { retireMacLaunchAgent, startNewTeam } from './cli-team-runner.js'
 import { createExecutorServiceEnvironment } from './service-environment.js'
 import { disableExecutorServiceIfPresent } from './service-linux.js'
@@ -45,19 +46,17 @@ const requestedFolders = async (input: Record<string, unknown>): Promise<Executo
 /** `{team} · {organisation}`, the label every surface uses (contract §2). */
 const destination = (view: PairingCodeView): string => [view.teamName, view.organizationName].filter(Boolean).join(' · ') || 'Nessie'
 
-/** The terminal's Connect a team: the code and where to enter it (contract §3.3). No fingerprint. */
+/** The terminal's Add this computer: the code and where to enter it (contract §3.3). No fingerprint. */
 const show = (view: PairingCodeView): void => {
   if (view.status === 'waiting') {
-    const code = view.code ?? ''
-    process.stdout.write(`Pairing code: ${code.slice(0, 4)} ${code.slice(4)}   (valid for 10 minutes)\n`)
-    process.stdout.write('In Nessie, open Computers and choose Add a computer, then enter the code.\n')
+    process.stdout.write(codeLines(view.code, view.expiresAt, new Date()))
   } else if (view.status === 'paired') {
     process.stdout.write(`Connected to ${destination(view)}.\n`)
   } else if (view.status === 'alreadyPaired') {
     process.stdout.write(`This computer is already connected to ${destination(view)}.\n`)
   } else {
     process.stdout.write(view.status === 'expired'
-      ? 'The pairing code expired. Run nessie-computer connect for a new one.\n' : 'Connecting was cancelled.\n')
+      ? 'The code expired. Run nessie-computer add for a new one.\n' : 'Adding this computer was cancelled.\n')
   }
 }
 
@@ -109,7 +108,7 @@ export const runPairingCodeCli = async (
   if (!['login', 'pairing-start', 'pairing-status', 'pairing-confirm', 'pairing-cancel', 'pair'].includes(command)) return false
   if (command === 'pair' && args.includes('--enrollment')) return false
   if (pairingUsesWindowsTray(args, platform)) {
-    process.stdout.write('Run nessie-computer connect, or open Nessie Computer and choose Connect a team.\n')
+    process.stdout.write('Run nessie-computer add, or open Nessie Computer and choose Add this computer.\n')
     return true
   }
   const explicitDirectory = value(args, '--state-dir')

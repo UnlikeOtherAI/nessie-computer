@@ -292,3 +292,30 @@ fn the_owner_controls_name_one_validated_team_and_one_known_answer() {
         assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
     }
 }
+
+#[test]
+fn the_sessions_commands_name_one_validated_team_and_one_session_uuid() {
+    const SESSION: &str = "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11";
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"sessions","executorId":"{EXECUTOR}"}}"#)).unwrap(),
+        Command::Sessions { executor_id: EXECUTOR.to_owned() },
+    );
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}","sessionId":"{SESSION}"}}"#))
+            .unwrap(),
+        Command::StopSession { executor_id: EXECUTOR.to_owned(), session_id: SESSION.to_owned() },
+    );
+    for line in [
+        format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}","sessionId":"../x"}}"#),
+        format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}"}}"#),
+        format!(r#"{{"command":"sessions","executorId":"{EXECUTOR}","stateDir":"C:\\x"}}"#),
+        format!(r#"{{"command":"stopSession","executorId":"../x","sessionId":"{SESSION}"}}"#),
+    ] {
+        assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
+    }
+    assert_eq!(
+        Response::Sessions { sessions: vec![serde_json::json!({ "sessionId": SESSION, "commands": [] })] }
+            .encode().trim_end(),
+        format!(r#"{{"status":"sessions","sessions":[{{"commands":[],"sessionId":"{SESSION}"}}]}}"#),
+    );
+}

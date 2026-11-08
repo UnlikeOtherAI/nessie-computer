@@ -124,8 +124,8 @@ and the launch is refused as before.
 The owner answers on the computer:
 
 - `once` runs this launch and saves nothing. A program named by its path runs
-  with every program not denied allowed for that one launch, because no rule can
-  name a path.
+  with that one launch's own rules, which allow every program not denied; the
+  rules travel with that launch only and never apply to another command.
 - `always` first saves `<program> *` to the allowlist through the ordinary
   policy writer, which the running team applies live. Then this launch runs.
   If the save fails, the request keeps waiting for another answer. A program
@@ -139,23 +139,22 @@ refusals use `code: "EXECUTOR_COMMAND_DENIED"` with a message the agent can read
 Only one answer per request is accepted.
 
 `program-requests --json` prints
-`[{ "id", "program", "args", "requestedAt", "expiresAt" }]`. Here `expiresAt`
-is when the daemon stops waiting. Nessie sends no agent name with a command,
-so `agentName` is never present. With `--json`, `program-request answer` prints
-the requests still waiting.
+`[{ "id", "commandId", "sessionId", "program", "args", "agentName"?, "requestedAt", "expiresAt" }]`.
+Here `expiresAt` is when the daemon stops waiting (at most 15 minutes).
+`agentName` is present when Nessie sent the agent's name with the command.
+With `--json`, `program-request answer` prints the requests still waiting.
 
 ### What the agent sees while it waits
 
-The agent's tool call stays open until the owner answers or the hold ends. The
-daemon runs one command at a time per team, so while a request waits, every
-other command for that team waits behind it. A short command can expire in that
-queue: file operations have a 25-second lifetime in Nessie. Nessie is not told
-that the command is waiting for the owner.
+Only the asking command waits; its capacity slot is released while it does,
+and the team's other commands keep running
+([sessions and concurrency](sessions-and-concurrency.md)). The daemon reports
+the waiting command in its poll (`waiting`), so Nessie can tell the agent it is
+waiting for the computer's owner. A Nessie that only speaks the one-command
+protocol gets the old behaviour: the command holds the team's single slot.
 
 ## Limits
 
-- A launch's lent rules are safe only because the daemon runs one command at a
-  time. A second loan while one is active is refused.
 - When the allowlist already holds its maximum of 64 rules, nobody is asked.
 - `audience` needs a connected team: it signs with the connection epoch the
   team's daemon last claimed.

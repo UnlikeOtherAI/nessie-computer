@@ -129,6 +129,16 @@ impl Control {
                     Err(reason) => Response::error(reason),
                 }
             }
+            Command::Sessions { executor_id } => match supervisor.sessions(&executor_id, client_sid) {
+                Ok(sessions) => Response::Sessions { sessions },
+                Err(reason) => Response::error(reason),
+            },
+            Command::StopSession { executor_id, session_id } => {
+                match supervisor.stop_session(&executor_id, &session_id, client_sid) {
+                    Ok(sessions) => Response::Sessions { sessions },
+                    Err(reason) => Response::error(reason),
+                }
+            }
             Command::Audience { executor_id } => match supervisor.audience(&executor_id) {
                 Ok(audience) => Response::Audience { audience },
                 Err(reason) => Response::error(reason),

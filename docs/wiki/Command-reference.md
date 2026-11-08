@@ -15,7 +15,7 @@ Options every command accepts:
 | `--help` | Help for this command, with examples. Same as `nessie-computer help <command>`. |
 
 Exit codes: `0` worked · `1` refused or failed (the message says why) · `2` the
-command was typed wrong · `3` waiting timed out (for example `connect`).
+command was typed wrong · `3` waiting timed out (for example `add`).
 
 ---
 
@@ -46,20 +46,22 @@ nessie-computer who [--team <team>] [--json]
 
 ---
 
-## Connecting
+## Adding this computer
 
-### `connect`
-Get a pairing code for a new team and wait until it's entered in Nessie.
+### `add`
+Add this computer to a team: get a code from Nessie and wait until it's entered
+under **Computers → Add a computer**, within 5 minutes. `connect` is the same
+command under its older name.
 
 ```sh
-nessie-computer connect [--server <https://address>] [--no-wait] [--json]
+nessie-computer add [--server <https://address>] [--no-wait] [--json]
 ```
-- `--server` — your organisation's own Nessie (default `https://api.nessie.works`).
+- `--server` — only for an organisation with its own Nessie (default `https://api.nessie.works`).
 - `--no-wait` — print the code and return; `status` shows when it's done.
 
 Who runs the new team (see [Who runs your teams](Command-line#who-runs-your-teams)):
 
-- **Windows, or a Mac with the Nessie Computer app:** the app. `connect` opens
+- **Windows, or a Mac with the Nessie Computer app:** the app. `add` opens
   it if it isn't open.
 - **A Mac without the app:** a background service that starts when you log in.
 - **Linux:** a service that starts at boot and keeps running after you log out.
@@ -167,7 +169,24 @@ nessie-computer requests deny <id>
 nessie-computer requests watch    [--team <team>]   # prints new requests as they arrive
 ```
 An id may be shortened to its first characters while it stays unique. A
-request waits up to 2 minutes, then is refused.
+request waits up to 15 minutes, then is refused. Only the command that asked
+waits; the agent's other work carries on.
+
+---
+
+## Now working
+
+What agents are doing on this computer, one session per agent and team, as
+Overview shows it.
+
+```sh
+nessie-computer sessions [list] [--team <team>] [--json]
+nessie-computer sessions stop <id> [--team <team>]   # ends that session's work here
+```
+Each command shows as running, waiting to start, or waiting for you (a program
+request). `stop` ends everything the session is doing on this computer and
+tells Nessie; other sessions keep working. An id may be shortened to its first
+characters while it stays unique.
 
 ---
 
@@ -209,8 +228,8 @@ accepts it without asking.
 
 On Windows the Nessie Computer service keeps ChatGPT plans, as in the app. The
 first `add` for a team connects its ChatGPT plan connection: Windows asks you to
-allow it, then Nessie shows one more pairing code to enter under **Computers →
-Add a computer**.
+allow it, then this computer shows one more code to enter in Nessie under
+**Computers → Add a computer**.
 
 ### `ai servers` — model servers
 ```sh
@@ -264,11 +283,12 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 |---|---|
 | `describe --state-dir <dir>` | One team's full settings as JSON |
 | `configure --configuration-input-stdin --state-dir <dir>` | Save a team's settings from JSON |
-| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Connect a team dialog |
+| `pairing-start`, `pairing-status`, `pairing-cancel` | The app's Add this computer dialog |
 | `serve`, `connect`, `heartbeat --state-dir <dir>` | Running a team (services and the apps) |
 | `pause`, `resume --state-dir <dir>` | The app's Pause |
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
 | `audience --state-dir <dir>` | The app's "Who can send work here" |
+| `sessions`, `session stop --state-dir <dir>` | The app's Now working and its Stop |
 | `sync --state-dir <dir> …` | The app's Documents tab |
 | `local-inference connections …` | The app's model servers |
 | `personal-chatgpt-local --state-dir <dir>` | The app's ChatGPT plans |

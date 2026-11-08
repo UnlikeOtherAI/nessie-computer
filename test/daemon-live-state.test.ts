@@ -5,7 +5,8 @@ import test from 'node:test'
 import { ExecutorApiError } from '../src/api-client.js'
 import { localCommandPolicyOf, localCommandPolicyPermits } from '../src/command-policy.js'
 import { createDaemonLiveApply } from '../src/daemon-live-apply.js'
-import { createDaemonLiveState, lendAnyProgram, lendRule } from '../src/daemon-live-state.js'
+import { createDaemonLiveState } from '../src/daemon-live-state.js'
+import { withAnyProgram, withRule } from '../src/daemon-program-admission.js'
 import { daemonToolsKey } from '../src/daemon-tools.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 
@@ -40,28 +41,21 @@ test('the view answers every read from the current state, and nothing can write 
   assert.throws(() => live.set({ ...state(3), executorId: '00000000-0000-4000-8000-000000000b02' }), /one team/u)
 })
 
-test('allowOnce lends one rule for one launch, never past it and never two at once', async () => {
+test('a launch allowed once runs under its own rules, which never reach the live state', () => {
   const live = createDaemonLiveState(state(1))
+  const once = { ...live.view, commandPolicy: withRule(live.commandRules, 'ls *') }
+  assert.equal(localCommandPolicyPermits(once, 'ls', ['-la']), true)
+  // The denylist still wins over a lent rule.
+  assert.equal(localCommandPolicyPermits(once, 'git', ['push', 'origin']), false)
   assert.equal(localCommandPolicyPermits(live.view, 'ls', ['-la']), false)
-  const inside = await live.allowOnce(lendRule('ls *'), async () => {
-    await assert.rejects(live.allowOnce(lendRule('cat *'), async () => undefined), /one launch at a time/u)
-    // The denylist still wins over a lent rule.
-    assert.equal(localCommandPolicyPermits(live.view, 'git', ['push', 'origin']), false)
-    return localCommandPolicyPermits(live.view, 'ls', ['-la'])
-  })
-  assert.equal(inside, true)
-  assert.equal(localCommandPolicyPermits(live.view, 'ls', ['-la']), false)
-  await assert.rejects(live.allowOnce(lendRule('ls *'), async () => { throw new Error('launch failed') }), /launch failed/u)
   assert.deepEqual(live.commandRules.allowlist, ['git *'])
 })
 
-test('a path launch borrows "any program not denied" for its own length, and the denylist still wins', async () => {
+test('a path launch runs under "any program not denied" for itself alone, and the denylist still wins', () => {
   const live = createDaemonLiveState(state(1))
-  await live.allowOnce(lendAnyProgram, async () => {
-    assert.equal(live.commandRules.mode, 'all')
-    assert.equal(localCommandPolicyPermits(live.view, 'htop', []), true)
-    assert.equal(localCommandPolicyPermits(live.view, 'git', ['push', 'origin']), false)
-  })
+  const once = { ...live.view, commandPolicy: withAnyProgram(live.commandRules) }
+  assert.equal(localCommandPolicyPermits(once, 'htop', []), true)
+  assert.equal(localCommandPolicyPermits(once, 'git', ['push', 'origin']), false)
   assert.equal(live.commandRules.mode, 'allowlist')
 })
 

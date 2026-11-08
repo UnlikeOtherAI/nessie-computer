@@ -90,6 +90,8 @@ The console calls these through `window.webkit.messageHandlers.executor`
 | `executor_audience` | the CLI's `audience --json` for the team |
 | `executor_program_requests` | `{ executorId? }`; `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: once \| always \| deny }`; answers every team's open requests |
+| `executor_sessions` | `{ executorId? }`; every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |
+| `executor_stop_session` | `{ executorId, sessionId }`; `session stop` for that team, then every team's sessions |
 | `executor_configure` | `configure --configuration-input-stdin`, with the daemon left running; answers `describe` |
 | `executor_open_logs` | opens the logs folder |
 | `executor_open_nessie` | `{ executorId? }`: that team's Nessie; while a code is showing, `/admin/computers?create=1&code=<code>` on the attempt's server |
@@ -116,7 +118,10 @@ opens Overview with the team.
 `nessie-computer://open?section=<overview|access|documents|ai|settings>[&team=<executorId>]`
 and `nessie-computer://connect` only navigate the window. Anything else —
 another host, a path, an unknown parameter, a team that is not a UUID — is
-ignored.
+ignored. When a link launches a second copy of the app (the standalone install
+beside the copy inside Nessie Desktop), that copy takes the link, hands it to
+the running copy in its "show window" notification and exits; the running copy
+parses it again and follows it.
 
 ## Building and testing
 

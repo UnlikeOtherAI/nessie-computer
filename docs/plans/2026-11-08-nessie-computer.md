@@ -40,7 +40,7 @@ adversarial UX reviews of revision 30ba47d.
 |---|---|---|
 | The app / CLI | Nessie Computer / `nessie-computer` | Nessie Executor, executor, tray, daemon |
 | A paired team on this computer | team | connection, executor, pairing (except "pairing code") |
-| Pair a team (on the computer) | **Connect a team** | Add team, Pair this Mac |
+| Pair (on the computer, app and CLI) | **Add this computer** (menu: "Add this computer…"; CLI `nessie-computer add`, `connect` kept as an alias) | Connect a team, Add team, Pair this Mac |
 | Pair a computer (in Nessie web) | **Add a computer** | Pair a computer |
 | The code | pairing code (8 digits) | invitation, enrollment |
 | Unpair | **Disconnect** {team} | Remove team, sign off |
@@ -136,7 +136,13 @@ service cannot be reached). Starting/stopping/connecting are never amber.
   the OS. Content text is selectable; controls are not. Errors show beside the
   control that failed; the footer keeps one short status line.
 
-### 3.3 Connect a team (pairing)
+### 3.3 Add this computer (pairing)
+
+Ruling (Ondrej, 8 Nov): no address to type. Press **Add this computer** in the
+app or run `nessie-computer add`, get a code, enter it within **5 minutes** in
+Nessie's **Add a computer** box. The server address is optional and only for
+an organisation that runs its own Nessie.
+
 
 1. **Connect a team** opens the dialog and immediately requests a code for
    `https://api.nessie.works` (the advanced server link re-requests for another

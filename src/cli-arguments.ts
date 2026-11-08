@@ -3,6 +3,7 @@ import type { ExecutorLocalMcpServer } from './mcp-servers.js'
 import { parseSyncArguments, type SyncCliCommand } from './folder-sync/sync-cli.js'
 import { secureApiUrl } from './pairing-origin.js'
 import { PROGRAM_REQUEST_ANSWERS, type ProgramRequestAnswer } from './program-requests.js'
+import { parseSessionsArguments, SESSIONS_USAGE, type SessionsCliCommand } from './session-cli.js'
 import { parseExecutorWorkspaceFolderArguments, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 
 /**
@@ -134,6 +135,7 @@ const usageText = (): string => (
     + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
     + '--answer once|always|deny [--json]\n'
     + '       nessie-executor audience --state-dir <owner-only-path> [--json]\n'
+    + SESSIONS_USAGE
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
     + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
@@ -184,6 +186,10 @@ const pairingChallenge = (args: string[]): Pick<Extract<ParsedCommand, { kind: '
   if (standardInput === commandLine) return usage()
   return standardInput ? { challengeFromStandardInput: true } : { challenge: option(args, '--challenge') }
 }
+
+/** The apps' `sessions` and `session stop` (`session-cli.ts`), or `undefined` for any other line. */
+export const parseSessionsCommand = (args: string[]): SessionsCliCommand | undefined =>
+  parseSessionsArguments(args, usage)
 
 export const parseCommand = (args: string[]): ParsedCommand => {
   const [command] = args

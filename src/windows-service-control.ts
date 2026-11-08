@@ -130,6 +130,8 @@ export const serviceRequests = {
   answer: (executorId: string, id: string, answer: string): ServiceRequest => (
     { command: 'answerProgramRequest', executorId, id, answer }),
   audience: (executorId: string): ServiceRequest => ({ command: 'audience', executorId }),
+  sessions: (executorId: string): ServiceRequest => ({ command: 'sessions', executorId }),
+  stopSession: (executorId: string, sessionId: string): ServiceRequest => ({ command: 'stopSession', executorId, sessionId }),
   inference: (executorId: string, operation: unknown): ServiceRequest => (
     { command: 'inferenceConnections', executorId, operation }),
   remove: (executorId: string): ServiceRequest => ({ command: 'remove', executorId }),

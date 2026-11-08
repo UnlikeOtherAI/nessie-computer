@@ -207,7 +207,7 @@ test('plumbing verbs stay plumbing; the commands people type are routed here', (
     ['teams', '--state-root', '/s'], ['status', SALES], ['sync', '--executor', SALES, 'status'], ['serve', '--state-dir', '/s']]) {
     assert.equal(isUserCommand(args), false, args.join(' '))
   }
-  for (const args of [[], ['--help'], ['--version'], ['status'], ['teams', '--json'], ['pause'], ['connect', '--no-wait'],
+  for (const args of [[], ['--help'], ['--version'], ['status'], ['teams', '--json'], ['pause'], ['add'], ['connect', '--no-wait'],
     ['access', 'programs', 'show'], ['help', 'plumbing']]) {
     assert.equal(isUserCommand(args), true, args.join(' '))
   }

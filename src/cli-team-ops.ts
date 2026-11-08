@@ -9,6 +9,8 @@ import { applyInferenceEndpointOperation, inferenceEndpointStatus } from './infe
 import { setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest } from './program-request-cli.js'
 import { listProgramRequests, type ProgramRequest, type ProgramRequestAnswer } from './program-requests.js'
+import { stopTeamSession } from './session-cli.js'
+import { readSessions, type SessionView } from './session-snapshot.js'
 import { loadExecutorState } from './state-store.js'
 import type { UnpairResult } from './unpair.js'
 import { grantServiceFolder } from './windows-service-grant.js'
@@ -36,6 +38,9 @@ export type TeamOps = {
   programRequests: () => Promise<TeamRequest[]>
   answer: (request: ProgramRequest, answer: ProgramRequestAnswer) => Promise<void>
   audience: () => Promise<ExecutorDaemonAudienceResponse>
+  /** Now working: the team's sessions, and Stop for one, answering with the sessions left. */
+  sessions: () => Promise<SessionView[]>
+  stopSession: (sessionId: string) => Promise<SessionView[]>
   inference: (operation: InferenceOperation) => Promise<InferenceStatus>
   remove: () => Promise<UnpairResult>
 }
@@ -64,6 +69,8 @@ const localOps = (team: LocalTeam, host: TeamOpsHost): TeamOps => ({
       { answer, id: request.id, json: false }, () => undefined)
   },
   audience: () => readAudience(team.stateDir),
+  sessions: () => readSessions(team.stateDir),
+  stopSession: (sessionId) => stopTeamSession(team.stateDir, sessionId),
   inference: async (operation) => {
     if (operation.operation !== 'status') await applyInferenceEndpointOperation(team.stateDir, operation)
     return inferenceEndpointStatus(team.stateDir)
@@ -92,6 +99,7 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
   const ask = async (request: Parameters<ServiceCall>[0], status: string) => expectAnswer(await host.service(request), status)
   const describe = async () => (await ask(serviceRequests.describe(id), 'describe')).description as TeamDescription
   const requests = (answer: Record<string, unknown>) => (Array.isArray(answer.requests) ? answer.requests : []) as TeamRequest[]
+  const sessionsOf = (answer: Record<string, unknown>) => (Array.isArray(answer.sessions) ? answer.sessions : []) as SessionView[]
   return {
     describe,
     save: async (change) => {
@@ -111,6 +119,8 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
     programRequests: async () => requests(await ask(serviceRequests.programRequests(id), 'programRequests')),
     answer: async (request, answer) => { await ask(serviceRequests.answer(id, request.id, answer), 'programRequests') },
     audience: async () => (await ask(serviceRequests.audience(id), 'audience')).audience as ExecutorDaemonAudienceResponse,
+    sessions: async () => sessionsOf(await ask(serviceRequests.sessions(id), 'sessions')),
+    stopSession: async (sessionId) => sessionsOf(await ask(serviceRequests.stopSession(id, sessionId), 'sessions')),
     inference: async (operation) => (await ask(serviceRequests.inference(id, operation), 'inferenceConnections'))
       .connections as InferenceStatus,
     remove: async () => ({ status: 'removed', signedOff: (await ask(serviceRequests.remove(id), 'removed')).signedOff === true }),

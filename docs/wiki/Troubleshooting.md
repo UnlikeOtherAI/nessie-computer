@@ -7,7 +7,7 @@ menu. It always says what is going on.
 |---|---|---|
 | Plain | **Working for 2 teams** | Connected. Agents you allow can use the computer. |
 | Grey | **Paused** | You paused it. Choose **Resume**. |
-| Grey | **No team connected** | Choose **Connect a team**. |
+| Grey | **No team connected** | Choose **Add this computer**. |
 | Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; Overview says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Red (Windows) | **Background service isn't running** | Choose **Start it**, or reinstall Nessie Computer. |
@@ -24,7 +24,7 @@ underneath shows the technical message, which helps if you contact support.
   keep it visible. Or open Nessie Computer from the Start menu.
 
 ### The code doesn't work in Nessie
-Codes work once and last 10 minutes. On the computer choose **Get a new code**.
+Codes work once and last 5 minutes. On the computer choose **Get a new code**.
 Check you're in the right team in Nessie, and on the right Nessie server if your
 organisation runs its own.
 
@@ -52,7 +52,7 @@ settings again**. Nothing about what agents can use changes.
 ### "This computer's key no longer matches"
 The team was connected again from somewhere else, or the computer's files were
 restored. [Disconnect](Disconnect-or-uninstall) the team and
-[connect it](Connect-a-team) again.
+[connect it](Add-this-computer) again.
 
 ### ChatGPT says terminals and coding tools are stopped
 That is expected while a ChatGPT plan is signed in. See

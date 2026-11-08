@@ -6,7 +6,7 @@ about another.
 
 ## Connect another team
 
-Choose **Connect a team** again and follow [Connect a team](Connect-a-team).
+Choose **Add this computer** again and follow [Add this computer](Add-this-computer).
 In Nessie, switch to the other team before you choose **Add a computer**,
 because a computer is always added to the team you are in.
 

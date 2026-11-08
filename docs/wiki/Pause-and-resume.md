@@ -41,7 +41,7 @@ doing here. Other agents carry on, and the agent can start again unless you paus
 | **Pause** | on this computer | Agents start nothing new here. The computer stays connected. | **Resume** on this computer |
 | **Turn off for now** | in Nessie, on the computer's page | Nessie sends no work to the computer | **Turn on** in Nessie |
 | **Quit** | on this computer | Closes Nessie Computer. On a Mac this stops all work here; on Windows, teams run by the background service keep running. | Open Nessie Computer |
-| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Connect-a-team) again |
+| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Add-this-computer) again |
 
 ## On the command line
 

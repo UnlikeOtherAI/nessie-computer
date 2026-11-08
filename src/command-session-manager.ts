@@ -11,7 +11,7 @@ import {
   type GuestWorkspaceLease,
 } from './guest-workspace-lease.js'
 import type { ExecutorGuestVmExecutionConfig } from './state-store.js'
-import { localCommandPolicyPermits } from './command-policy.js'
+import { localCommandPolicyPermits, type LocalCommandPolicy } from './command-policy.js'
 
 const COMMAND_SESSION_MAX_MS = 10 * 60 * 1_000
 const COMMAND_RESULT_MAX_BYTES = 8_192
@@ -36,7 +36,8 @@ type PreparedLeaseSource = {
 
 export type ExecutorCommandSessionManager = {
   isIdle: () => boolean
-  run: (command: ExecutorCommandEnvelope, runId: string) => Promise<Record<string, unknown>>
+  /** `rules`: the rules this one launch runs under, when the owner allowed it once; the saved ones otherwise. */
+  run: (command: ExecutorCommandEnvelope, runId: string, rules?: LocalCommandPolicy) => Promise<Record<string, unknown>>
   stop: (runId: string) => Promise<boolean>
   stopAll: () => Promise<void>
 }
@@ -172,7 +173,7 @@ export const createExecutorCommandSessionManager = (
 
   return {
     isIdle: () => activeByRun.size === 0 && openingByRun.size === 0,
-    run: async (command, runId) => {
+    run: async (command, runId, rules) => {
       const args = ExecutorCommandRunArgumentsSchema.safeParse(command.payload.args)
       if (!args.success) return denied()
       // The allowlist decides before a guest exists, so a program nobody
@@ -180,7 +181,7 @@ export const createExecutorCommandSessionManager = (
       // control plane and the DeepTest execution adapter reach, which is why
       // the decision lives here rather than only at the daemon's dispatch.
       if (!localCommandPolicyPermits(
-        state,
+        rules ? { ...state, commandPolicy: rules } : state,
         args.data.program,
         args.data.args,
       )) {

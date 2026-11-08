@@ -10,6 +10,10 @@ import { EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS, type ExecutorDaemonWakeTopic } fro
  * one-second pace while its last answer named view requests or actions:
  * somebody is watching a session, or their input is on its way.
  *
+ * While the daemon holds a command, the command poll runs at least every five
+ * seconds with the doorbell open: it carries the held commands' state and
+ * fetches their cancellations, which a doorbell Nessie should also ring for.
+ *
  * A wake, or a change in a session on this computer, runs its exchange at
  * once. When that exchange is already running, it runs once more as soon as
  * it ends, so nothing that changed after the running one was signed waits a
@@ -19,6 +23,7 @@ import { EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS, type ExecutorDaemonWakeTopic } fro
 export type CadenceTask = { run: () => Promise<void>; current: () => Promise<void> | null }
 
 const FAST_MS = 1_000
+const HELD_MS = 5_000
 
 export type DaemonCadence = {
   /** Runs each exchange that is due; called every quarter second. */
@@ -40,6 +45,8 @@ export const createDaemonCadence = (input: {
   heartbeat: CadenceTask
   /** The session exchange's last answer named view requests or actions. */
   sessionsHot: () => boolean
+  /** The daemon holds commands, whose state and cancellations the command poll carries. */
+  commandsHot?: () => boolean
   /** Host readings only travel while a short-lived monitor request is active. */
   monitorHot?: () => boolean
   now?: () => number
@@ -64,7 +71,8 @@ export const createDaemonCadence = (input: {
 
   return {
     tick: () => {
-      if (due(input.commands, slowMs ?? FAST_MS)) launch(input.commands, false)
+      const commandsMs = slowMs === undefined ? FAST_MS : input.commandsHot?.() ? Math.min(slowMs, HELD_MS) : slowMs
+      if (due(input.commands, commandsMs)) launch(input.commands, false)
       const sessionsMs = slowMs === undefined || input.sessionsHot() ? FAST_MS : slowMs
       if (due(input.sessions, sessionsMs)) launch(input.sessions, false)
       const heartbeatMs = input.monitorHot?.() ? EXECUTOR_MONITOR_UPLOAD_INTERVAL_MS : 20_000

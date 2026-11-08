@@ -1,7 +1,7 @@
 import { describeFolderSync } from './folder-sync/console-state.js'
 import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, columns, counted, listed, printJson } from './cli-output.js'
-import { advancePendingConnections, type PendingConnection } from './cli-connect.js'
+import { advancePendingConnections, waitingLine, type PendingConnection } from './cli-connect.js'
 import { STATUS_WORDS, selectTeams, type LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { executorSoftwareVersion } from './updates/version.js'
@@ -68,8 +68,7 @@ const planLines = (team: LabelledTeam, all: readonly LabelledTeam[]): string[] =
   return plan ? [`    ChatGPT plan connection: ${STATUS_WORDS[plan.status]}`] : []
 }
 
-const connectingLines = (pending: readonly PendingConnection[]): string[] => pending.map((entry) => (
-  `Connecting a team: pairing code ${entry.code ?? 'not ready yet'} — enter it in Nessie under Computers → Add a computer.`))
+const connectingLines = (pending: readonly PendingConnection[]): string[] => pending.map(waitingLine)
 
 const status = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'status')
@@ -90,7 +89,7 @@ const status = async (run: CliRun): Promise<void> => {
   if (teams.length) {
     lines.push('', ...columns(teams.map((team) => [team.label, statusLine(team)]), '  ').split('\n')
       .flatMap((line, index) => [line, ...planLines(teams[index]!, connections)]))
-  } else if (!pending.length) lines.push('', 'Run nessie-computer connect to connect a team.')
+  } else if (!pending.length) lines.push('', 'Run nessie-computer add to add this computer to a team.')
   if (note) lines.push('', note)
   if (pending.length) lines.push('', ...connectingLines(pending))
   for (const item of attention) lines.push('', `Needs you: ${item.text} (${item.label})`, `  ${item.next}`)
@@ -110,7 +109,7 @@ const teams = async (run: CliRun): Promise<void> => {
   }
   if (note) run.context.err(`${note}\n`)
   if (!listedTeams.length) {
-    run.context.out(`${[...connectingLines(pending), 'No teams are connected. Run nessie-computer connect to connect one.']
+    run.context.out(`${[...connectingLines(pending), 'No teams are connected. Run nessie-computer add to add this computer to a team.']
       .join('\n')}\n`)
     return
   }

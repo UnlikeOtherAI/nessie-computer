@@ -16,7 +16,7 @@ Commands follow the window:
 |---|---|
 | Overview | `nessie-computer status`, `teams`, `who` |
 | Settings → Help | `nessie-computer help`, `--version` |
-| Connect a team / Disconnect | `nessie-computer connect`, `disconnect` |
+| Add this computer / Disconnect | `nessie-computer add`, `disconnect` |
 | Pause / Resume | `nessie-computer pause`, `resume` |
 | Access tab | `nessie-computer access …` (`folders`, `programs`, `websites`, `local-apps`, `coding-assistants`) |
 | Documents tab | `nessie-computer documents …` |
@@ -61,22 +61,22 @@ Each team is run by one thing, so a team never runs twice:
 
 | Computer | Runs the teams |
 |---|---|
-| Windows | The Nessie Computer app runs teams connected under your account; the background service runs its own. |
-| Mac with the Nessie Computer app | The app, including teams you connect with `nessie-computer connect`. |
+| Windows | The Nessie Computer app runs teams added under your account; the background service runs its own. |
+| Mac with the Nessie Computer app | The app, including teams you add with `nessie-computer add`. |
 | Mac without the app | A background service per team, which starts when you log in. |
 | Linux | A service per team, which starts at boot. |
 
-If you connected teams on a Mac from the command line before installing the
-app, the next `nessie-computer connect` moves them to the app.
+If you added this Mac to teams from the command line before installing the
+app, the next `nessie-computer add` moves them to the app.
 
-## Tutorial: connect a Linux server
+## Tutorial: add a Linux server
 
 On the server (as the user the agents should run as):
 
 ```sh
-$ nessie-computer connect
-Pairing code: 4821 9037   (valid for 10 minutes)
-In Nessie, open Computers and choose Add a computer, then enter the code.
+$ nessie-computer add
+Code: 4821 9037   (5 minutes)
+In Nessie, open Computers, choose Add a computer and enter the code.
 Waiting for Nessie…
 Connected to Sales · Acme.
 It starts at boot and keeps running after you log out.
@@ -85,7 +85,7 @@ It starts at boot and keeps running after you log out.
 For your organisation's own Nessie server:
 
 ```sh
-nessie-computer connect --server https://nessie.example.com
+nessie-computer add --server https://nessie.example.com
 ```
 
 Then decide what it may use:

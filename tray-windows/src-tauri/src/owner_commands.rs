@@ -5,10 +5,15 @@
 //! agents would keep working through the one left running. Each connection is
 //! paused by whoever runs it — this app for its own, the service for its own —
 //! through the CLI, so the pause is durable and the daemon enforces it.
+//!
+//! The same holds for the work agents do here: program requests and the
+//! sessions under Now working are read and stopped team by team, by whoever
+//! runs that team.
 
 use nessie_windows_common::{
     failure::Remedy,
     owner_controls::{Answer, ProgramRequest},
+    owner_sessions::with_executor_id,
 };
 use tauri::AppHandle;
 
@@ -125,6 +130,36 @@ pub fn answer(executor_id: &str, id: &str, answer: Answer) -> Result<Vec<TeamReq
     all_program_requests()
 }
 
+fn team_sessions(executor_id: &str, response: ServiceResponse) -> Result<Vec<serde_json::Value>, String> {
+    let ServiceResponse::Sessions(sessions) = response else {
+        return Err(UNREADABLE.to_owned());
+    };
+    Ok(with_executor_id(executor_id, sessions))
+}
+
+pub fn sessions_for(executor_id: &str) -> Result<Vec<serde_json::Value>, String> {
+    team_sessions(executor_id, call(&serde_json::json!({ "command": "sessions", "executorId": executor_id }))?)
+}
+
+/// What agents are doing on this computer, for every team. A team whose list
+/// cannot be read — one another account connected, whose work only that
+/// account sees — is left out rather than failing the others.
+pub fn all_sessions() -> Result<Vec<serde_json::Value>, String> {
+    Ok(listed()?.iter()
+        .filter_map(|executor| sessions_for(&executor.executor_id).ok())
+        .flatten()
+        .collect())
+}
+
+/// The owner's Stop for one session. The console replaces its whole list with
+/// the answer, so the answer is every team's.
+pub fn stop_session(executor_id: &str, session_id: &str) -> Result<Vec<serde_json::Value>, String> {
+    team_sessions(executor_id, call(&serde_json::json!({
+        "command": "stopSession", "executorId": executor_id, "sessionId": session_id,
+    }))?)?;
+    all_sessions()
+}
+
 async fn blocking<T: Send + 'static>(work: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
     tauri::async_runtime::spawn_blocking(work).await.map_err(|error| error.to_string())?
 }
@@ -164,6 +199,19 @@ pub async fn executor_answer_program_request(
     blocking(move || self::answer(&executor_id, &id, Answer::parse(&answer)?)).await
 }
 
+#[tauri::command]
+pub async fn executor_sessions(executor_id: Option<String>) -> Result<Vec<serde_json::Value>, String> {
+    blocking(move || match executor_id {
+        Some(executor_id) => sessions_for(&executor_id),
+        None => all_sessions(),
+    }).await
+}
+
+#[tauri::command]
+pub async fn executor_stop_session(executor_id: String, session_id: String) -> Result<Vec<serde_json::Value>, String> {
+    blocking(move || stop_session(&executor_id, &session_id)).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{pause_targets, TeamRequest};
@@ -184,7 +232,7 @@ mod tests {
             executor_id: "a".to_owned(),
             request: ProgramRequest {
                 id: "r1".to_owned(), program: "python".to_owned(), args: vec!["build.py".to_owned()],
-                agent_name: None, requested_at: "2026-11-08T10:00:00.000Z".to_owned(),
+                agent_name: None, command_id: None, session_id: None, requested_at: "2026-11-08T10:00:00.000Z".to_owned(),
                 expires_at: "2026-11-08T10:02:00.000Z".to_owned(),
             },
         };

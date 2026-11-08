@@ -15,16 +15,24 @@ export type HelpEntry = {
 
 export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
   { title: 'Overview', commands: ['status', 'teams', 'who'] },
-  { title: 'Connecting', commands: ['connect', 'disconnect'] },
+  { title: 'Adding this computer', commands: ['add', 'disconnect'] },
   { title: 'Pausing', commands: ['pause', 'resume'] },
   { title: 'Access', commands: ['access show', 'access folders', 'access programs', 'access websites',
     'access local-apps', 'access coding-assistants'] },
   { title: 'Program requests', commands: ['requests'] },
+  { title: 'Now working', commands: ['sessions'] },
   { title: 'Documents', commands: ['documents'] },
   { title: 'AI', commands: ['ai plans', 'ai servers'] },
   { title: 'Settings', commands: ['settings'] },
   { title: 'Help', commands: ['help'] },
 ]
+
+/** Older names a person may still type; each runs, and is explained by, the command it names. */
+export const COMMAND_ALIASES: Readonly<Record<string, string>> = { connect: 'add' }
+
+/** The command words with an older first word replaced by today's. */
+export const canonicalWords = (words: readonly string[]): string[] => (
+  words.length && COMMAND_ALIASES[words[0]!] ? [COMMAND_ALIASES[words[0]!]!, ...words.slice(1)] : [...words])
 
 export const HELP_ENTRIES: HelpEntry[] = [
   {
@@ -45,16 +53,18 @@ export const HELP_ENTRIES: HelpEntry[] = [
     examples: ['nessie-computer who --team "Sales · Acme"'],
   },
   {
-    command: 'connect', summary: 'Get a pairing code for a new team and wait until it\'s entered in Nessie.',
-    usage: ['nessie-computer connect [--server <https://address>] [--no-wait] [--json]'],
+    command: 'add', summary: 'Add this computer to a team: show a code and wait until it\'s entered in Nessie.',
+    usage: ['nessie-computer add [--server <https://address>] [--no-wait] [--json]'],
     notes: [
-      '--server  Your organisation\'s own Nessie (default https://api.nessie.works).',
+      'Enter the code in Nessie under Computers → Add a computer. It lasts 5 minutes.',
+      '--server  Only for an organisation with its own Nessie (default https://api.nessie.works).',
       '--no-wait  Print the code and return; status shows when it\'s done.',
       'Where the Nessie Computer app is installed (Windows, and Macs with the app), the app runs the new team.',
       'On a Mac without the app it runs in the background and starts when you log in.',
       'On Linux it starts at boot and keeps running after you log out.',
+      'nessie-computer connect is the same command under its older name.',
     ],
-    examples: ['nessie-computer connect', 'nessie-computer connect --server https://nessie.example.com'],
+    examples: ['nessie-computer add', 'nessie-computer add --server https://nessie.example.com'],
   },
   {
     command: 'disconnect', summary: 'End a team\'s connection to this computer and delete its settings here.',
@@ -155,9 +165,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     notes: [
       'always adds the program to the team\'s programs. watch prints new requests as they arrive.',
       'An id may be shortened to its first characters while it stays unique.',
-      'A request waits up to 2 minutes, then is refused.',
+      'A request waits up to 15 minutes, then is refused. Only the agent\'s asking command waits.',
     ],
     examples: ['nessie-computer requests list', 'nessie-computer requests allow-once 7f3a9c21'],
+  },
+  {
+    command: 'sessions', summary: 'What agents are doing on this computer now, and Stop for one agent\'s work.',
+    usage: [
+      'nessie-computer sessions [list] [--team <team>] [--json]',
+      'nessie-computer sessions stop <id> [--team <team>]',
+    ],
+    notes: [
+      'Each session is one agent\'s work for a team, with its commands: running, waiting to start, or waiting for you.',
+      'stop ends everything that session is doing here and tells Nessie. Other sessions keep working.',
+      'An id may be shortened to its first characters while it stays unique.',
+    ],
+    examples: ['nessie-computer sessions', 'nessie-computer sessions stop 0b0c3a40'],
   },
   {
     command: 'documents', summary: 'Keep a copy of a team\'s documents on this computer.',
@@ -194,7 +217,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'While a ChatGPT plan is signed in, agents can\'t open terminals or coding tools under your account.',
       '--yes accepts that without asking.',
       'On Windows the Nessie Computer service keeps ChatGPT plans. A team without one gets a ChatGPT plan',
-      'connection first: Windows asks you to allow it, then Nessie shows one more pairing code.',
+      'connection first: Windows asks you to allow it, then this computer shows one more code to enter in Nessie.',
     ],
     examples: ['nessie-computer ai plans add "Work plan" --team "Sales · Acme"'],
   },

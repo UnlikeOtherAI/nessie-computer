@@ -12,6 +12,7 @@ import { claimExecutor, heartbeatExecutor } from './daemon.js'
 import { setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
 import { ProgramRequestError } from './program-requests.js'
+import { runSessionsCommand } from './session-cli.js'
 import { ExecutorApiError } from './api-client.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
 import { serveExecutor } from './daemon-server.js'
@@ -47,7 +48,7 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
+import { parseCommand, parseSessionsCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
 import { requestedMcpServers } from './mcp-server-changes.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -175,6 +176,12 @@ const readPairingInput = async (): Promise<{
 }
 
 export const run = async (args: string[]): Promise<void> => {
+  // The apps' Now working verbs (`session-cli.ts`); `nessie-computer sessions` without a state folder is a person's.
+  const sessions = args.includes('--state-dir') ? parseSessionsCommand(args) : undefined
+  if (sessions) {
+    process.exitCode = await runSessionsCommand(sessions, (text) => { process.stdout.write(text) })
+    return
+  }
   if (isUserCommand(args)) {
     offerUpdateAtLaunch(args)
     process.exitCode = await runUserCli(args)

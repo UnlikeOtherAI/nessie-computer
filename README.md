@@ -24,10 +24,10 @@ control from the command line.
 
    Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Install-Nessie-Computer)
 
-2. **Connect a team.** Open Nessie Computer and choose **Connect a team**. It
+2. **Add this computer.** Open Nessie Computer and choose **Add this computer**. It
    shows an 8-digit pairing code. In Nessie, open **Computers**, choose
    **Add a computer** and enter the code. Nessie shows this computer's name;
-   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Connect-a-team)
+   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-this-computer)
 
 3. **Check what the team can use.** Nessie Computer opens on **Overview**,
    which lists each team, what it can use and who can send it work. Choose
@@ -71,7 +71,7 @@ words. (`nessie-executor` is the same command under its older name.)
 
 ```sh
 nessie-computer status                      # what each team is doing
-nessie-computer connect                     # get a pairing code for a new team
+nessie-computer add                     # get a pairing code for a new team
 nessie-computer pause                       # pause every team
 nessie-computer resume --team "Sales · Acme"
 nessie-computer access show --team "Sales · Acme"
