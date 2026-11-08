@@ -553,10 +553,36 @@ It does not renew receipt expiry or consume reserve/launch authority. Two
 additional refusal fixtures reject serialized graph objects and callback-asserted
 resource scopes; they are authored and unrun.
 
-This receipt producer is not yet registered as an executing lane. The protected
-startup parser/companion creator and corrected source loader still await parent
-integration. The executing resource port also needs read access to its already
-held source database for the original cold SQL graph. The passive retained
-capture is not promoted to a writer. The executing state import/writer, admitted
-provider serialization and immutable history child remain required before any
-production execution or installed journey can be claimed.
+The protected startup parser/companion creator and same-resource source snapshot
+are parent-integrated at public `893e3b19095b6279545a5a9767cd37e90e83b791`.
+This receipt producer is not yet registered as an executing lane.
+
+`withSessionExecutionState(source, storageRoot, use, callerSignal)` recognizes
+the real execution resource before opening destination storage. It consumes
+`withReadonlySourceSnapshot` without another source connection or transaction.
+The shared `withSourceSnapshotView` supplies the original fixed table reads and
+HMAC fingerprints. Its complete frozen-legacy fingerprint still includes rows
+excluded from the eligible original-v2 import view. Escaped views/iterators refuse.
+
+The destination uses a distinct `execution-state` namespace, an exclusive writer,
+one held SQL layer per generation and a durable capture journal outside checkouts.
+It applies the existing complete privacy preflight before any row is inserted.
+The physical producer commits its source transaction before the journal marks
+the destination captured. Captured is neither published nor executing readiness.
+The original engine must reconcile legacy shells inside its own shared graph.
+
+On restart, the same source fingerprint reopens the existing destination and
+preserves accepted engine writes. An interrupted copy, changed source, changed
+layout or divergent original-v2 frozen legacy refuses; no automatic recopy
+replaces execution history. An explicit source-reconciliation/recovery operation
+is still required for those cases. A fresh runtime incarnation is minted only
+after the destination writer lock is acquired. Callback exit invalidates access;
+the enclosing original graph must drain before SQL and the writer close.
+
+The storage root is an owner-checked local data location, not the startup's
+service enrollment reference and not source authority. This helper does not read
+ProgramData enrollment, select a profile registration or expose machine keys.
+Two additional fixtures cover source transaction ownership, full legacy baseline,
+escaped views and forged-resource refusal; both are authored and unrun. Fixed
+entry, full inspect/open registration, admitted SDK serialization, immutable
+history child and installed recovery journeys remain unfinished.
