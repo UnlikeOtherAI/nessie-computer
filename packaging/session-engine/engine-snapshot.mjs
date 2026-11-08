@@ -6,6 +6,7 @@ const families = [
   ['client-connection', '../../patches/t3-session/client-connection/boundary-patches.json'],
   ['extraction', '../../patches/t3-session/extraction/boundary-patches.json'],
   ['catalog', '../../patches/t3-session/catalog/boundary-patches.json'],
+  ['files', '../../patches/t3-session/files/boundary-patches.json'],
 ]
 
 /** Compose once from original bytes. Sequential applications cannot replace the provenance digest. */
