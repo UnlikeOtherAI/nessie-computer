@@ -1,11 +1,11 @@
 //! User-session connections share the CLI's owner-only state and never read its keys.
 //! Existing Windows service connections still use their authenticated control pipe.
 use std::{
-    collections::BTreeMap, fs, path::PathBuf, process::{Child, ChildStdin, Stdio},
+    collections::BTreeMap, fs, path::{Path, PathBuf}, process::{Child, ChildStdin, Stdio},
     sync::{Mutex, OnceLock}, time::{Duration, Instant},
 };
 use nessie_windows_common::{
-    failure::{classify, retriable, Failure, StderrTail}, lease::unowned_daemon_is_stopping,
+    failure::{classify, retriable, Failure, StderrTail, ALREADY_RUNNING}, lease::unowned_daemon_is_stopping,
     owner_controls::{read_paused, Answer, RequestCache}, owner_sessions::SessionsCache, unpair,
 };
 use crate::{pipe_client::ServiceResponse, state::{Connection, ExecutorStatus}, user_owner, user_runtime};
@@ -25,6 +25,9 @@ struct Connections {
     restart_at: BTreeMap<String, Instant>,
     /// The wait before the next restart of each connection.
     restart_delay: BTreeMap<String, Duration>,
+    /// Teams whose daemon this app started was refused because another app,
+    /// the CLI or a scheduled task already runs them, and when.
+    elsewhere: BTreeMap<String, Instant>,
 }
 static CONNECTIONS: OnceLock<Mutex<Connections>> = OnceLock::new();
 
@@ -45,6 +48,16 @@ fn restart_waits(previous: Option<Duration>, ran: Duration) -> (Duration, Durati
 
 /// A connection another app or CLI runs. This app neither starts nor stops it.
 pub const RUNNING_ELSEWHERE: &str = "running elsewhere";
+
+/// A team this app runs no daemon for: what it shows, and whether an earlier
+/// "already running" refusal still stands. The refusal stands while the other
+/// daemon holds the team's folder, and for the longest restart wait after, so
+/// a lease this app misreads can never turn into a start every poll.
+fn untracked(refused_at: Option<Instant>, held_elsewhere: bool, now: Instant) -> (&'static str, bool) {
+    let state = if held_elsewhere { RUNNING_ELSEWHERE } else { "stopped" };
+    let stands = refused_at.is_some_and(|at| held_elsewhere || now.saturating_duration_since(at) < RESTART_MAX);
+    (state, stands)
+}
 
 fn root() -> Result<PathBuf, String> {
     Ok(PathBuf::from(std::env::var_os("USERPROFILE").ok_or("Windows reported no user profile.")?)
@@ -93,23 +106,54 @@ fn ids() -> Result<Vec<String>, String> {
 }
 
 impl Connections {
+    /// The state of the daemon this app started for a team, or None when it
+    /// runs none. A daemon that stopped on its own leaves its reason, except
+    /// one refused because the team already runs elsewhere: that team is no
+    /// longer this app's to run.
+    fn daemon_state(&mut self, id: &str) -> Result<Option<&'static str>, String> {
+        let Some(daemon) = self.daemons.get_mut(id) else { return Ok(None) };
+        let state = match daemon.child.try_wait().map_err(|_| "Could not inspect this team's connection.")? {
+            None if daemon.liveness.is_some() => "running",
+            None => "stopping",
+            Some(_) if daemon.liveness.is_none() || self.failures.contains_key(id) => "stopped",
+            Some(_) => {
+                let reason = daemon.stderr.settled(STDERR_SETTLE)
+                    .unwrap_or_else(|| "This team's connection stopped.".to_owned());
+                let failure = classify(&reason);
+                if failure.code.as_deref() == Some(ALREADY_RUNNING) {
+                    self.refused_elsewhere(id, Instant::now());
+                    return Ok(None);
+                }
+                self.failures.insert(id.to_owned(), failure);
+                "stopped"
+            }
+        };
+        Ok(Some(state))
+    }
+
+    /// Another app, the CLI or a scheduled task already runs this team: show
+    /// it as working there, never as a failure, and never restart it here.
+    fn refused_elsewhere(&mut self, id: &str, now: Instant) {
+        self.daemons.remove(id);
+        self.failures.remove(id);
+        self.restart_at.remove(id);
+        self.restart_delay.remove(id);
+        self.elsewhere.insert(id.to_owned(), now);
+    }
+
+    fn untracked_state(&mut self, id: &str, state_dir: &Path, now: Instant) -> &'static str {
+        let (state, stands) = untracked(self.elsewhere.get(id).copied(), unowned_daemon_is_stopping(state_dir), now);
+        if !stands { self.elsewhere.remove(id); }
+        state
+    }
+
     fn statuses(&mut self) -> Result<Vec<ExecutorStatus>, String> {
         ids()?.into_iter().map(|id| {
             let state_dir = directory(&id)?;
-            let state = if let Some(daemon) = self.daemons.get_mut(&id) {
-                match daemon.child.try_wait().map_err(|_| "Could not inspect this team's connection.")? {
-                    None if daemon.liveness.is_some() => "running",
-                    None => "stopping",
-                    Some(_) => {
-                        if daemon.liveness.is_some() && !self.failures.contains_key(&id) {
-                            let reason = daemon.stderr.settled(STDERR_SETTLE)
-                                .unwrap_or_else(|| "This team's connection stopped.".to_owned());
-                            self.failures.insert(id.clone(), classify(&reason));
-                        }
-                        "stopped"
-                    }
-                }
-            } else if unowned_daemon_is_stopping(&state_dir) { RUNNING_ELSEWHERE } else { "stopped" };
+            let state = match self.daemon_state(&id)? {
+                Some(state) => state,
+                None => self.untracked_state(&id, &state_dir, Instant::now()),
+            };
             let mut requests = self.requests.remove(&id).unwrap_or_default();
             requests.refresh(&state_dir, Instant::now(), || user_owner::program_requests(&state_dir));
             let pending_program_requests = requests.requests().len();
@@ -136,7 +180,7 @@ impl Connections {
         }
         let state_dir = directory(id)?;
         if unowned_daemon_is_stopping(&state_dir) {
-            return Err("This connection is running in another app or CLI. Stop it there first.".into());
+            return Err("This team is running in another app or the command line. Stop it there first.".into());
         }
         let path = state_dir.display().to_string();
         // serve claims its own connection. Never block the tray's controller
@@ -148,6 +192,7 @@ impl Connections {
         let stderr = child.stderr.take().map(StderrTail::watch).unwrap_or_default();
         self.daemons.insert(id.into(), Daemon { child, liveness, started_at: Instant::now(), stderr });
         self.failures.remove(id);
+        self.elsewhere.remove(id);
         self.restart_at.remove(id);
         Ok(())
     }
@@ -159,7 +204,7 @@ impl Connections {
         let state = |id: &str| directory(id).ok();
         let new = teams_to_start(
             ids().unwrap_or_default(),
-            |id| self.daemons.contains_key(id) || self.failures.contains_key(id),
+            |id| self.daemons.contains_key(id) || self.failures.contains_key(id) || self.elsewhere.contains_key(id),
             |id| state(id).is_some_and(|path| read_paused(&path)),
             |id| state(id).is_none_or(|path| unowned_daemon_is_stopping(&path)),
         );
@@ -185,6 +230,10 @@ impl Connections {
         for (id, started_at, reason) in stopped {
             // A recognised refusal is never retried: it waits for the owner's remedy.
             let failure = classify(reason.as_deref().unwrap_or("This team's connection stopped."));
+            if failure.code.as_deref() == Some(ALREADY_RUNNING) {
+                self.refused_elsewhere(&id, now);
+                continue;
+            }
             if !retriable(&failure) {
                 self.failures.insert(id.clone(), failure);
                 self.restart_at.remove(&id);
@@ -219,7 +268,7 @@ impl Connections {
         self.restart_delay.remove(id);
         let Some(daemon) = self.daemons.get_mut(id) else {
             return if unowned_daemon_is_stopping(&directory(id)?) {
-                Err("Stop this connection in the app or CLI that started it.".into())
+                Err("Stop this team in the app or command line that runs it.".into())
             } else { Ok(()) };
         };
         daemon.liveness.take();
@@ -371,8 +420,21 @@ pub fn supervise() {
 
 #[cfg(test)]
 mod tests {
-    use super::{restart_waits, teams_to_start, RESTART_INITIAL, RESTART_MAX};
-    use std::time::Duration;
+    use super::{restart_waits, teams_to_start, untracked, RESTART_INITIAL, RESTART_MAX, RUNNING_ELSEWHERE};
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn a_team_another_app_runs_shows_as_working_there_and_is_not_started_here() {
+        let now = Instant::now();
+        // Held elsewhere: working in another app, and the refusal stands however long ago it came.
+        assert_eq!(untracked(Some(now - Duration::from_secs(3_600)), true, now), (RUNNING_ELSEWHERE, true));
+        assert_eq!(untracked(None, true, now), (RUNNING_ELSEWHERE, false));
+        // Released: a recent refusal still stands, so a misread lease never restarts it every poll.
+        assert_eq!(untracked(Some(now - Duration::from_secs(10)), false, now), ("stopped", true));
+        // Released for longer than the longest restart wait: this app may start it again.
+        assert_eq!(untracked(Some(now - RESTART_MAX), false, now), ("stopped", false));
+        assert_eq!(untracked(None, false, now), ("stopped", false));
+    }
 
     #[test]
     fn a_team_paired_elsewhere_starts_unless_known_paused_or_run_by_another_app() {

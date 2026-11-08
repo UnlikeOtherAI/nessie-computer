@@ -156,6 +156,12 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.getByRole('button', { name: 'Resume all', exact: true }).click()
     await page.getByRole('button', { name: 'Pause all', exact: true }).waitFor()
     assert.equal(await status(), 'Working for 2 teams')
+    // A team another app, the command line or a scheduled task runs is working there, never "Not connected".
+    await page.evaluate(() => { window.paired[0].daemonStatus = 'running elsewhere' })
+    await card('Platform · UnlikeOtherAI').locator('.status-word').getByText('Working in another app').waitFor()
+    assert.equal(await status(), 'Working for 2 teams')
+    await page.evaluate(() => { window.paired[0].daemonStatus = 'running' })
+    await card('Platform · UnlikeOtherAI').locator('.status-word').getByText('Working', { exact: true }).waitFor()
     // Change access lands on Access with that team selected, and the tab names it.
     await card('Research · UnlikeOtherAI').getByRole('button', { name: 'Change access' }).click()
     assert.equal(await page.getByRole('tab', { name: 'Access' }).getAttribute('aria-selected'), 'true')
