@@ -379,7 +379,10 @@ work until the signed candidate is exercised on FedoraMaxis.
 
 ## Windows source verification context
 
-The Windows source runner places Node beside the built native ACL helper. Public
+Build the Debug helper with `cargo build --manifest-path native/Cargo.toml`.
+The Windows source runner places Node beside that helper for real DACL, Job Object
+and ConPTY checks. Release Job/terminal helpers require an installed signed factory;
+source tests do not claim that factory. Public
 ACL operations use that fixed sibling without marking Node as an installed
 executor. Previously the runner set `NESSIE_EXECUTOR_PACKAGED_CLI=1` solely to
 reach the helper; that also activated installed-only custody and stranded source
@@ -393,7 +396,7 @@ state while update installation is unsupported and native credential context is
 rejected for the source runtime. Existing journals and unknown-stop fences are
 never cleared to make source tests pass.
 
-Run the focused source/ACL/bridge regression through Turbo with
+Run the focused source/ACL/bridge, secret-delivery, Job Object and terminal regressions through Turbo with
 `pnpm exec turbo run test:windows-source --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
 Then run `pnpm verify`; installed acceptance remains a separate gate.
 

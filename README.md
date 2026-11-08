@@ -31,11 +31,13 @@ The policy, trust model and remaining delivery gates are in
 [automatic updates](docs/automatic-updates.md).
 
 On Windows, build the native ACL helper before running unit tests:
-`cargo build --release --manifest-path native/Cargo.toml`. The test runner puts
+`cargo build --manifest-path native/Cargo.toml`. The test runner puts
 its own unmarked Node beside that helper so state-security tests exercise real
 DACLs without enabling installed-only update or custody paths. The helper is
 resolved only beside that runtime, never through PATH or an environment override.
-This test context never establishes signed release or credential eligibility.
+Debug helpers exercise real Job Objects and ConPTY without the release helper’s
+installed-factory requirement. This test context never establishes signed release
+or credential eligibility.
 
 ## Licence
 

@@ -15,12 +15,12 @@ let node = process.execPath
 const env = { ...process.env }
 
 if (process.platform === 'win32') {
-  const release = join(root, 'native/target/release')
-  if (!existsSync(join(release, 'nessie-executor-native.exe'))) {
-    console.error('Windows unit tests require the native ACL helper. Run cargo build --release --manifest-path native/Cargo.toml.')
+  const nativeDirectory = join(root, 'native/target/debug')
+  if (!existsSync(join(nativeDirectory, 'nessie-executor-native.exe'))) {
+    console.error('Windows unit tests require the native ACL helper. Run cargo build --manifest-path native/Cargo.toml.')
     process.exit(2)
   }
-  node = join(release, 'node.exe')
+  node = join(nativeDirectory, 'node.exe')
   const version = existsSync(node) ? spawnSync(node, ['--version'], { encoding: 'utf8' }).stdout?.trim() : undefined
   if (version !== process.version) copyFileSync(process.execPath, node)
   delete env.NESSIE_EXECUTOR_PACKAGED_CLI

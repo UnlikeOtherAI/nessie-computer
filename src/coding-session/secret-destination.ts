@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
-import { lstat, open, realpath, rename, unlink, type FileHandle } from 'node:fs/promises'
+import { lstat, mkdtemp, open, realpath, rename, rmdir, unlink, type FileHandle } from 'node:fs/promises'
 import { isAbsolute, join, posix, win32 } from 'node:path'
 
 import {
-  assertOwnerOnlyStatePath, secureOwnerOnlyStateFile, type StateSecurityDeps,
+  assertOwnerOnlyStatePath, ensureOwnerOnlyStateDirectory, secureOwnerOnlyStateFile, type StateSecurityDeps,
 } from '../state-security.js'
 
 /**
@@ -98,6 +98,29 @@ const folderUnchanged = async (root: string, identity: Identity): Promise<void> 
   if (now.isSymbolicLink() || !now.isDirectory() || !sameFile(now, identity)) refuse()
 }
 
+type SecretStaging = { path: string; verify: () => Promise<void>; cleanup: () => Promise<void> }
+
+/** Windows mode bits cannot make a new file private: inherit a private DACL at birth. */
+const secretStaging = async (root: string, name: string, security?: StateSecurityDeps): Promise<SecretStaging> => {
+  const file = `.${name}.${randomUUID()}.tmp`
+  if ((security?.platform ?? process.platform) !== 'win32') {
+    return { path: join(root, file), verify: async () => undefined, cleanup: async () => undefined }
+  }
+  const directory = await mkdtemp(join(root, '.nessie-secret-')).catch(refuse)
+  const identity = await lstat(directory).catch(refuse)
+  if (identity.isSymbolicLink() || !identity.isDirectory()) refuse()
+  const verify = () => folderUnchanged(directory, identity)
+  // Empty only; never recurse into or follow a raced path.
+  const cleanup = async () => {
+    try { await verify(); await rmdir(directory) } catch { /* Retain uncertain or nonempty staging. */ }
+  }
+  try {
+    await ensureOwnerOnlyStateDirectory(directory, security)
+    await verify()
+    return { path: join(directory, file), verify, cleanup }
+  } catch { await cleanup(); return refuse() }
+}
+
 /** `O_NOFOLLOW` where the platform has it; Windows has none, so the handle and the name are compared instead. */
 const READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)
 
@@ -183,18 +206,23 @@ export const writeSecretToFolder = async (input: {
   await folderUnchanged(root, folder)
   await input.seams?.afterRead?.()
   const content = input.envName === undefined ? input.value : setDotenvLine(existing.text, input.envName, input.value)
-  const temporary = join(root, `.${name}.${randomUUID()}.tmp`)
+  await folderUnchanged(root, folder)
+  const staging = await secretStaging(root, name, input.security)
+  const temporary = staging.path
   // Exclusive: a name a racing writer put there, link or not, fails the open rather than being followed.
-  const handle = await open(temporary, 'wx', 0o600).catch(refuse)
+  const handle = await open(temporary, 'wx', 0o600).catch(async () => { await staging.cleanup(); return refuse() })
   let created: Identity | undefined
   try {
     try {
       created = await handle.stat()
+      await staging.verify()
       await handle.chmod(0o600).catch(() => undefined)
       // Owner-only before the value is in it, and proved so on the file this write created.
       await secureOwnerOnlyStateFile(temporary, input.security)
       await assertOwnerOnlyStatePath(temporary, 'file', input.security)
       if (!sameFile(await lstat(temporary), created)) refuse()
+      await staging.verify()
+      await folderUnchanged(root, folder)
       await handle.writeFile(content, 'utf8')
       await handle.sync()
     } finally {
@@ -202,16 +230,21 @@ export const writeSecretToFolder = async (input: {
     }
     await input.seams?.beforeRename?.()
     await folderUnchanged(root, folder)
+    await staging.verify()
     const staged = await lstat(temporary)
     if (staged.isSymbolicLink() || !sameFile(staged, created)) refuse()
     await rename(temporary, target)
   } catch {
-    await unlink(temporary).catch(() => undefined)
+    try {
+      await staging.verify()
+      if (created && sameFile(await lstat(temporary), created)) await unlink(temporary)
+    } catch { /* An uncertain staging identity is retained, never followed for cleanup. */ }
     refuse()
-  }
+  } finally { await staging.cleanup() }
   // The rename landed in the same folder, as the file this write created.
   await folderUnchanged(root, folder)
   const placed = await lstat(target).catch(refuse)
   if (placed.isSymbolicLink() || placed.nlink !== 1 || !sameFile(placed, created!)) refuse()
+  await assertOwnerOnlyStatePath(target, 'file', input.security)
   return { destination: name }
 }

@@ -11,8 +11,9 @@ them, and use a pull request. Merge only after the required checks pass.
 
 Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
-prerequisites. Windows state tests use the real native ACL helper beside an
-unmarked source-test Node; ACL transport never claims installed-runtime authority. Native and installed verification run on their actual OS.
+prerequisites. Windows source tests use the Debug native helper beside an
+unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
+claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
