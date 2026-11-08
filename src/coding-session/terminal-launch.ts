@@ -1,7 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { homedir } from 'node:os'
 
-import { localTerminalCommandRefusal, type LocalCommandPolicy, type TerminalCommandRefusal } from '../command-policy.js'
+import { localTerminalCommandDecision, type LocalCommandPolicy, type TerminalCommandRefusal } from '../command-policy.js'
 import { argumentsFor, CodingBridgeError, invalidArguments, requiredText } from './bridge-tools.js'
 import { absoluteDirectory } from './program-path.js'
 
@@ -57,13 +57,14 @@ export const terminalLaunch = async (
   if (process.platform === 'win32' && /\.(?:cmd|bat|ps1)$/iu.test(argv[0]!)) {
     invalidArguments('command names a script. Start its interpreter instead, such as cmd.exe /c or powershell -File.')
   }
-  const refusal = localTerminalCommandRefusal(rules, argv)
-  if (refusal) throw new CodingBridgeError('coding_session_command_refused', REFUSED[refusal])
+  // A program admitted by its UnlikeOtherAI signature comes back as the absolute file that was verified.
+  const decision = await localTerminalCommandDecision(rules, argv)
+  if (!decision.allowed) throw new CodingBridgeError('coding_session_command_refused', REFUSED[decision.refusal])
   const cwd = args.cwd === undefined ? homedir() : requiredText(args.cwd, 'cwd', CWD_MAX)
   if (!absoluteDirectory(cwd, process.platform)) invalidArguments('cwd must be the absolute path of a folder on this computer.')
   if (!(await stat(cwd).then((info) => info.isDirectory(), () => false))) {
     throw new CodingBridgeError('coding_session_cwd_unavailable', 'cwd is not an existing folder on this computer.')
   }
   const title = args.title === undefined ? programTitle(argv[0]!) : requiredText(args.title, 'title', 120).trim()
-  return { command: argv, cwd, title }
+  return { command: decision.argv, cwd, title }
 }
