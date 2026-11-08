@@ -483,9 +483,10 @@ publication; it does not claim the legacy CLI builder's artifact attestations.
 
 ## Windows CLI entry point
 
-The MSI installs `nessie-executor.cmd` beside its native launcher and registers
-that protected directory in the machine PATH. New terminals can use
-`nessie-executor updates status --json` and the ordinary CLI commands. The wrapper
+The MSI installs `nessie-computer.cmd` and, under the older name,
+`nessie-executor.cmd` beside its native launcher and registers that protected
+directory in the machine PATH. Both are the same wrapper. New terminals can use
+`nessie-computer settings updates --json` and the ordinary CLI commands. The wrapper
 passes arguments to the fixed native managed-runtime entry; it never invokes an
 ambient Node binary, selects an update origin or supplies credentials. Windows
 Installer owns PATH registration and removes it on uninstall. Installed 1.0.12 passed command discovery through machine PATH, ordinary-user
