@@ -8,6 +8,7 @@ import { ExecutorT3HttpRequest, ExecutorT3HttpReply, ExecutorT3HttpFailure } fro
 import { ExecutorT3TransportError, type T3_SOURCE_COMMIT } from './routing.js'
 import { ExecutorT3Descriptors } from './methods.js'
 import type { RetainedImportLease } from '../retained-import.js'
+import type { T3ExecutionReceipt, T3ExecutionSignedAdmission } from './native-execution.js'
 
 /** One daemon lane carries the original envelopes, without native conversation DTOs. */
 export const ExecutorT3LaneOperation = Schema.Union([ExecutorT3Request, ExecutorT3HttpRequest])
@@ -43,7 +44,17 @@ export type ExecutorT3LaneDelivery = {
    * original request and relay; local native consent still must be consumed.
    */
   readonly catalogLeases?: readonly RetainedImportLease[];
+  /** Enrolled service graph evidence for this exact original command. */
+  readonly executionGraph?: T3ExecutionReceipt;
 }
+
+export type T3LaneInspection = {
+  inspectionId: string; request: ExecutorT3LaneOperationEncoded;
+  inspection: T3ExecutionSignedAdmission; relayHmac: string;
+}
+export type T3LaneInspectionReceipt = { inspectionId: string; receipt: T3ExecutionReceipt }
+export const isT3NativeLaunchOperation = (request: ExecutorT3LaneOperation): boolean =>
+  request.kind === 'request' && request.method === 'orchestration.launchThread' && Boolean(request.commandId)
 
 export const T3_LANE_LIMITS = Object.freeze({
   active: 64, exchangeFrames: 8, requestBytes: 1024 * 1024,
@@ -64,11 +75,16 @@ export type T3LaneExchange = {
   operation: 't3.operations.exchange'; executorId: string; connectionEpoch: string;
   observedAt: string; signature: string; frames: readonly T3LaneFrame[];
   runtimes: readonly T3RuntimeAnnouncement[];
+  /** Availability only. The protected graph receipt is still required. */
+  inspectionRuntimes?: readonly { environmentId: string; runtimeGeneration: string }[];
+  inspectionReceipts?: readonly T3LaneInspectionReceipt[];
   /** Exact active attempts, for cancellation and credit reconciliation. */
   active: readonly { environmentId: string; correlationId: string; runtimeGeneration: string }[];
 }
 export type T3LaneExchangeResult = {
   acknowledged: { environmentId: string; correlationId: string; ordinal: number }[];
+  inspections?: T3LaneInspection[];
+  inspectionAcknowledged?: string[];
   offers: (ExecutorT3LaneDelivery & { request: ExecutorT3LaneOperationEncoded; expiresAt: string })[];
   controls: { environmentId: string; correlationId: string; state: 'credit' | 'hold' | 'cancel';
     nextOrdinal: number; expiresAt?: string }[];
