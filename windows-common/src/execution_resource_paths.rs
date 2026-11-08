@@ -1,10 +1,10 @@
-//! Metadata-only candidate namespace pins. The service's resource owner supplies
+//! Candidate namespace pins. The service's resource owner supplies
 //! identity/authority separately; opening a path here never issues admission.
 use super::HeldObject;
 use crate::custody::REJECTED;
 use std::{fs::File, os::windows::{ffi::OsStrExt, io::FromRawHandle}, path::{Path, PathBuf}};
 use windows_sys::Win32::{Foundation::{HANDLE, INVALID_HANDLE_VALUE, WAIT_TIMEOUT},
-    Storage::FileSystem::{CreateFileW, FILE_READ_ATTRIBUTES, READ_CONTROL, FILE_SHARE_READ, OPEN_EXISTING,
+    Storage::FileSystem::{CreateFileW, FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, READ_CONTROL, FILE_SHARE_READ, OPEN_EXISTING,
         FILE_FLAG_OPEN_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, GetDriveTypeW,
         FindFirstChangeNotificationW, FindCloseChangeNotification, FILE_NOTIFY_CHANGE_SECURITY},
     System::Threading::WaitForSingleObject};
@@ -36,7 +36,12 @@ impl HeldCandidateDirectory {
         let mut current = root;
         for index in 0..=parts.len() {
             if index > 0 { current.push(&parts[index - 1]); }
-            let handle = unsafe { CreateFileW(wide(&current).as_ptr(), FILE_READ_ATTRIBUTES | READ_CONTROL,
+            // Attribute/security-only opens do not participate in share-access
+            // accounting. LIST_DIRECTORY is the directory READ_DATA bit: it
+            // makes our no-write/no-delete sharing apply for the handle's life,
+            // including against incompatible handles opened before admission.
+            // We acquire this right without enumerating any directory contents.
+            let handle = unsafe { CreateFileW(wide(&current).as_ptr(), FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | READ_CONTROL,
                 FILE_SHARE_READ, std::ptr::null(), OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS,
                 std::ptr::null_mut()) };
             if handle == INVALID_HANDLE_VALUE { return Err(REJECTED.into()); }

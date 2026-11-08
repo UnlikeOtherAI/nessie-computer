@@ -120,6 +120,8 @@ mod tests {
             assert!(std::fs::write(&config, "changed").is_err());
             assert!(std::fs::rename(&config, config.with_extension("replacement")).is_err());
             assert!(std::fs::rename(&fixture.root, fixture.root.with_extension("replacement")).is_err());
+            assert!(std::fs::rename(&fixture.state, fixture.state.with_extension("replacement")).is_err());
+            assert!(std::fs::rename(fixture.temporary.path(), fixture.temporary.path().with_extension("replacement")).is_err());
             registration.recheck().unwrap();
         }
         let source = Resource::open_with_clock(&registration.request, clock.clone()).unwrap();

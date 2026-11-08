@@ -66,7 +66,8 @@ fn replacements_are_denied_at_each_protocol_wait_boundary() {
         let fixture = Fixture::new(false);
         let mut source = Resource::open(&fixture.request).unwrap();
         let statement = source.database.query("rows", Some("projection_threads")).unwrap()["statement"].as_u64().unwrap();
-        for path in [fixture.root.clone(), fixture.database.clone(), fixture.root.join("environment-id"),
+        for path in [fixture.temporary.path().to_owned(), fixture.state.clone(), fixture.root.clone(),
+            fixture.database.clone(), fixture.root.join("environment-id"),
             std::path::PathBuf::from(format!("{}-wal",fixture.database.display())),
             std::path::PathBuf::from(format!("{}-shm",fixture.database.display()))] {
             assert!(fs::rename(&path, path.with_extension("replaced")).is_err(), "{operation}: {}",path.display());
@@ -83,21 +84,27 @@ fn directory_write_handles_cannot_cross_admission_or_its_wait_boundaries() {
         FILE_SHARE_READ, FILE_SHARE_WRITE, FILE_SHARE_DELETE, OPEN_EXISTING,
     }};
     let fixture = Fixture::new(false);
-    let open_writer = || unsafe { CreateFileW(super::handles::wide(&fixture.root).as_ptr(), 0x4000_0000,
+    let open_mutator = |path: &std::path::Path, access| unsafe { CreateFileW(super::handles::wide(path).as_ptr(), access,
         FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, std::ptr::null(), OPEN_EXISTING,
         FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, std::ptr::null_mut()) };
-    // This is the write access needed to turn an existing directory into a
-    // reparse point. A handle acquired before admission must also be excluded.
-    let writer = open_writer();
-    assert_ne!(writer, INVALID_HANDLE_VALUE);
-    assert!(Resource::open(&fixture.request).is_err());
-    unsafe { CloseHandle(writer); }
-    let mut source = Resource::open(&fixture.request).unwrap();
-    for operation in ["describe", "recheck", "query", "close"] {
-        let handle = open_writer();
-        if handle != INVALID_HANDLE_VALUE { unsafe { CloseHandle(handle); } }
-        assert_eq!(handle, INVALID_HANDLE_VALUE, "{operation}");
-        pipe::dispatch(&json!({"op":operation,"query":"migrations"}), &mut source).unwrap();
+    // Include registration and the common ancestor, not only the source leaf.
+    // Both preexisting DELETE and reparse-capable write handles must exclude
+    // admission; the same handles must be denied throughout the live resource.
+    for path in [fixture.temporary.path(), fixture.state.as_path(), fixture.root.as_path()] {
+        for access in [0x0001_0000, 0x4000_0000] {
+            let prior = open_mutator(path, access);
+            assert_ne!(prior, INVALID_HANDLE_VALUE);
+            let admission = Resource::open(&fixture.request);
+            unsafe { CloseHandle(prior); }
+            assert!(admission.is_err());
+            let mut source = Resource::open(&fixture.request).unwrap();
+            for operation in ["describe", "recheck", "query", "close"] {
+                let handle = open_mutator(path, access);
+                if handle != INVALID_HANDLE_VALUE { unsafe { CloseHandle(handle); } }
+                assert_eq!(handle, INVALID_HANDLE_VALUE, "{operation}: {}", path.display());
+                pipe::dispatch(&json!({"op":operation,"query":"migrations"}), &mut source).unwrap();
+            }
+        }
     }
 }
 
