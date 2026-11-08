@@ -322,6 +322,7 @@ test('private terminal and coding canary readers are refused before spawn or hos
   let output = ''
   const control: CodingProcessControl = {
     spawnAgent: () => { spawned = true; throw new Error('Credential canary could have escaped') },
+    stopTree: async () => { throw new Error('The refused canary must never need process clearance') },
     identify: async () => undefined, descendants: async () => [],
     killTree: async () => undefined, killChildTree: async () => false,
   }

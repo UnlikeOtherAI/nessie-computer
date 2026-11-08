@@ -125,7 +125,9 @@ export const prepareExecutorRuntime = async ({
 
   const license = nodeLicenseContents ?? await readNodeLicense(licenseSourcePath, nodeExecutablePath)
   // Reject unsupported inputs before replacing an existing staging directory.
+  const selectedDigest = await digest(nodeExecutablePath)
   const selectedNode = inspectPackagedNodeRuntime(nodeExecutablePath)
+  if (await digest(nodeExecutablePath) !== selectedDigest) throw new Error('The selected Node runtime changed during preparation.')
   await rm(runtimeDirectory, { force: true, recursive: true })
   await mkdir(runtimeDirectory, { recursive: true })
 
@@ -147,8 +149,8 @@ export const prepareExecutorRuntime = async ({
   if (isPosix) await chmod(executorBundlePath, 0o644)
   await copyFile(nodeExecutablePath, nodePath)
   if (isPosix) await chmod(nodePath, 0o755)
-  const copiedNode = inspectPackagedNodeRuntime(nodePath)
-  if (copiedNode.nodeVersion !== selectedNode.nodeVersion) throw new Error('The selected Node runtime changed during preparation.')
+  const copiedDigest = await digest(nodePath)
+  if (copiedDigest !== selectedDigest) throw new Error('The selected Node runtime changed during preparation.')
   await writeFile(resolve(runtimeDirectory, 'NODE_LICENSE'), license, { mode: 0o644 })
 
   // The helper establishes and proves the Windows state DACL, so a package that
@@ -175,8 +177,8 @@ export const prepareExecutorRuntime = async ({
         nativeHelperSha256: await digest(resolve(runtimeDirectory, nativeHelper)),
       }),
     nodeExecutable,
-    nodeSha256: await digest(nodePath),
-    nodeVersion: copiedNode.nodeVersion,
+    nodeSha256: copiedDigest,
+    nodeVersion: selectedNode.nodeVersion,
   }
   const manifestPath = resolve(runtimeDirectory, 'manifest.json')
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 })

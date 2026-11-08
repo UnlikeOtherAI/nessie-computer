@@ -69,7 +69,7 @@ const fixture = async () => {
   const host = Duplex.from({ readable: inbound, writable: outbound })
   const receiverPipe = new EffectPipe(Duplex.from({ readable: outbound, writable: inbound }))
   child.stdout = new PassThrough(); child.stderr = new PassThrough()
-  child.stdio[4] = host
+  child.stdio = [null, child.stdout, child.stderr, null, host]
   const scope: T3EffectGrantReference = {
     kind: 't3-effect', version: 1, purpose: 'execute', executorId: randomUUID(),
     environmentId: 'environment', threadId: 'thread', providerSessionId: 'provider', connectionEpoch: '1',

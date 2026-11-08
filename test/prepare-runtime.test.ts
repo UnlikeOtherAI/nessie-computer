@@ -68,7 +68,7 @@ test('the shared preparation writes the exact runtime layout both supervisors ve
     assert.match(bundledExecutor, /deeptest-source/)
     assert.match(bundledExecutor, /deeptest-inference/)
     // One file still: the commands the entry loads on demand, built in and the CLI's, both run from it.
-    const packaged = (args: string[]) => spawnSync(process.execPath, [prepared.executorBundlePath, ...args], {
+    const packaged = (args: string[]) => spawnSync(prepared.nodePath, [prepared.executorBundlePath, ...args], {
       encoding: 'utf8', env: { ...process.env, NESSIE_EXECUTOR_PACKAGED_CLI: '1' }, timeout: 60_000,
     })
     const version = packaged(['--version'])
@@ -93,9 +93,9 @@ test('the shared preparation writes the exact runtime layout both supervisors ve
 
 /**
  * Both layouts are produced from one host by injecting the platform and a Node
- * path laid out the way that platform lays it out â€” the test never branches on
- * `process.platform`, so the Windows layout is exercised on Linux CI and the
- * POSIX layout on a Windows build machine.
+ * path with that platform's licence placement. Windows layout is exercised on Linux CI and the
+ * POSIX licence layout on a Windows build machine. The selected binary retains
+ * the host's executable suffix so its real capabilities can be probed.
  */
 test('the Windows layout ships nessie-executor-runtime.exe and the licence installed beside it', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nessie-prepare-windows-'))
@@ -143,7 +143,7 @@ test('the POSIX layout reads the licence one directory above the Node binary', a
   const directory = await mkdtemp(join(tmpdir(), 'nessie-prepare-posix-'))
   try {
     // A POSIX Node install: `bin/node` with `LICENSE` at the prefix root.
-    const nodeExecutablePath = join(directory, 'nodejs', 'bin', 'node')
+    const nodeExecutablePath = join(directory, 'nodejs', 'bin', process.platform === 'win32' ? 'node.exe' : 'node')
     await mkdir(dirname(nodeExecutablePath), { recursive: true })
     await copyFile(process.execPath, nodeExecutablePath)
     await writeFile(join(directory, 'nodejs', 'LICENSE'), 'node license')

@@ -69,8 +69,9 @@ additional Installer certificate or account setup is required.
 
 Executor packages require Node 24. Preparation executes the selected binary,
 opens SQLite and verifies transaction state plus a denied operation through
-`DatabaseSync.setAuthorizer`. It repeats the probe on the copied runtime and
-records that binary's version. Unsupported input refuses before replacing an
+`DatabaseSync.setAuthorizer`. Hashes before/after the probe and after copying
+bind the staged bytes to that tested binary and its version. The host-shaped
+package fixture executes the copied runtime. Unsupported input refuses before replacing an
 existing staging directory. A JavaScript compilation target supplies no proof
 of these APIs. The installed Maxis Node 22.23.4 runtime lacks `setAuthorizer`
 and requires an executor update before the new source reader can qualify.
