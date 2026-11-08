@@ -386,9 +386,9 @@ modules. Focused first-party lint passes ten changed package/fixture modules.
 Private CI/image-scope regression passes 20 cases, including partial-image COPY
 closure checks. Docker is not available on this Maxis host: Production Image
 app/admin/web were not built here. The complete private API
-`test:build-declarations` gate remains deferred to V03's prepared prerequisites;
-the exact three contract mappings and new engine mapping are source changes,
-not a claimed private gate pass.
+`test:build-declarations` gate was deferred at that checkpoint. Root subsequently
+passed all 236 API/worker declaration checks after integrating shared `.d.ts`
+production and the complete browser-client/billing-protocol mappings.
 
 This is a machine-only build/library capability. No UI changes or screenshots
 apply. Canonical vault save/use/delivery, admitted provider/resource/lifecycle
@@ -404,8 +404,11 @@ the type-only export of the existing original Codex raw-client interface. The re
 pure provider projection is the sole added provider-core derivation path; other
 package paths, traversal, replacement and replay refuse. Fifteen source-producer,
 14 privacy and 34 actual-source fixture cases passed on Maxis/Node 24.19.0.
-The normal compiler, packaged declaration consumer and installed runtime still
-need qualification; these source checks do not establish their success.
+The integrated normal producer, CLI, worker and API compilers subsequently passed
+on the same Maxis toolchain. The engine suite passed 13 cases, including the
+ordinary composite consumer with 470 files, 77 contract declarations and zero
+dependency implementations. Client 20 and runtime 73 cases also passed, with
+zero skips. Installed runtime and provider execution remain unqualified.
 
 The pinned `remark-math` 6.0.0 npm tarball omits its monorepo license.
 `notices/remark-math-6.0.0.LICENSE` retains the exact upstream `license` from

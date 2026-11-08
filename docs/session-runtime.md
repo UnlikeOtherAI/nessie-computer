@@ -212,7 +212,7 @@ Source-only checks parsed the changed modules without linking/evaluation and
 walked the static runtime imports. The selected closure contains no secret
 resolver or forbidden application host. Its original generated-image Markdown
 path adds pinned `remark-math` 6.0.0, matching the upstream manifest. Its frozen
-locks and portable contract declarations still require qualification. Root
+locks and portable contract declarations passed root's integrated qualification. Root
 regenerated all ten families: 272 extraction and 36 privacy operations, combined
 SHA-256 `a374fe2b145222844305c7798f49f2688644f474335eef1e3ba937b8a3b975fa`.
 The additional extraction operation exports the already-public original
@@ -220,8 +220,11 @@ Codex client raw interface by name for declaration emission.
 On Maxis/Node 24.19.0, the Turbo source gates passed 15 producer checks, 14 privacy
 checks and 34 actual-source fixtures, all with zero skips. These cover selected
 policy denial before any driver effect and canary protection in both adapters.
-The separate built-engine/runtime fixtures, full compiler and installed flows
-remain unqualified.
+The built-engine suite subsequently passed 13 cases, client 20 and runtime 73,
+all with zero skips. Normal producer, CLI, private worker/API builds and 236
+transitive declaration checks passed at the unchanged compiler limit. The
+ordinary composite consumer reached 77 contract declarations and zero dependency
+implementations. Installed flows and actual provider activation remain unqualified.
 
 ## Composition and ownership
 

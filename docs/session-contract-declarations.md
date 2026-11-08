@@ -76,17 +76,20 @@ naming checks and a strict 469-file consumer with zero dependency implementation
 files. Its declaration-tree SHA-256 is
 `f43423e1d28393b6c543e783d913af474903a5460be45a11ee1a33666c1f0254`.
 
-The normal package build from approved public parent
-`f07536130f8e6581c0b43c406b54f90df0245e6c` stops before compilation. Ordered
+At the independent declaration checkpoint, the normal package build from parent
+`f07536130f8e6581c0b43c406b54f90df0245e6c` stopped before compilation. Ordered
 operation index 394, `codex-request-privacy-import` in
 `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts`, fails with
-`SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH`. The family owner must regenerate
-that composition before full package, engine/client consumer and private
-API/worker qualification. This tranche changes no request/privacy/workspace
-manifests or private compiler configuration.
+`SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH`. Root subsequently regenerated
+the composition and qualified the integrated producer through `b75e7d7` on the
+same Maxis/Node 24.19.0 toolchain. Engine 13, client 20 and runtime 73 cases passed.
+The ordinary composite consumer reached 470 files and 77 contract declarations,
+with zero dependency implementations. Private worker/API builds and all 236
+transitive declaration checks passed. No compiler heap or checking rule changed;
+installed provider execution remains unqualified.
 
 Both public dependency locks now include the already-declared
 `remark-math@6.0.0` and its new dependency records. Existing resolved versions and
-peer bindings are unchanged. The private lock still needs the same
-`remark-math` importer entry for `executor/packages/t3-session-source`, plus any
-new records absent from its current dependency closure; it is not edited here.
+peer bindings are unchanged. Root integrated the same private importer and
+missing package/snapshot records, preserved existing resolutions, and passed
+the frozen offline metadata check.
