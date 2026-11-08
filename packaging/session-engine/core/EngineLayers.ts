@@ -91,6 +91,13 @@ export { SessionsLive as SessionProviderSessions, ProviderEvents, CheckpointCapt
 // admission; inspection must use the held original settings codecs instead.
 export * as SessionProviderDirectory from 't3-source:apps/server/src/provider/ProviderInstanceRegistry.session-live.ts'
 export * as ProviderSecretPlan from 't3-source:apps/server/src/provider/ProviderInstanceSecretPlan.ts'
+export * as SelectedProvider from 't3-source:apps/server/src/provider/SelectedProviderInstance.ts'
+export * as OriginalCodexAdapter from 't3-source:apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts'
+export * as OriginalCodexFactory from 't3-source:apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-port.ts'
+export * as OriginalCodexIdentity from 't3-source:apps/server/src/provider/CodexProtocolIdentity.ts'
+export * as OriginalCodexLaunch from 't3-source:apps/server/src/provider/codexLaunchArgs.ts'
+export * as SelectedCodex from 't3-source:apps/server/src/provider/SelectedCodexDriver.ts'
+export * as OriginalProviderAdapter from 't3-source:packages/provider-core/src/server/ProviderAdapter.ts'
 export * as RuntimeRequests from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts'
 export * as Rollback from 't3-source:apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts'
 export * as Titles from 't3-source:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts'

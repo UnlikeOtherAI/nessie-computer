@@ -1774,6 +1774,359 @@
       "afterSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd"
     },
     {
+      "id": "entry-separate-read-service-type",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "const buildEntry = Effect.fn(\"ProviderInstanceRegistry.buildEntry\")(function* <R>(input: {",
+      "to": "const buildEntry = Effect.fn(\"ProviderInstanceRegistry.buildEntry\")(function* <R, S>(input: {",
+      "beforeSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd",
+      "afterSha256": "58ad2368b36de05e645261146276cf8cb9f0045d8f4c1342cd0ebcee2d754d6d"
+    },
+    {
+      "id": "entry-explicit-read-boundary",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "  readonly deferSecrets: boolean;\n}",
+      "to": "  readonly deferSecrets: boolean;\n  readonly readSecrets: (driver: AnyProviderDriver<R>, entry: ProviderInstanceConfig) =>\n    Effect.Effect<{ readonly secrets: InstanceSecrets; readonly unreadable: ReadonlyArray<string> }, never, S>;\n}",
+      "beforeSha256": "58ad2368b36de05e645261146276cf8cb9f0045d8f4c1342cd0ebcee2d754d6d",
+      "afterSha256": "142f7e7a722521194c760ee36552055cc01ba83288ba5ef11475241bacf2a82c"
+    },
+    {
+      "id": "entry-read-service-requirement",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "  R | SecretResolver.SecretResolver\n> {",
+      "to": "  R | S\n> {",
+      "beforeSha256": "142f7e7a722521194c760ee36552055cc01ba83288ba5ef11475241bacf2a82c",
+      "afterSha256": "1ed3d335ad141bf9d3115b3c0429202731faa3fabdb101546487c11c9ed36484"
+    },
+    {
+      "id": "entry-use-explicit-reader",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "? yield* readInstanceSecrets(driver, entry)",
+      "to": "? yield* input.readSecrets(driver, entry)",
+      "beforeSha256": "1ed3d335ad141bf9d3115b3c0429202731faa3fabdb101546487c11c9ed36484",
+      "afterSha256": "7623bbe5da72147ca4398dfcb0f63730e42c4f1b4e08ec33f8444f17b7ee3dca"
+    },
+    {
+      "id": "registry-retain-original-reader",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "          deferSecrets,\n        });",
+      "to": "          deferSecrets,\n          readSecrets: readInstanceSecrets,\n        });",
+      "beforeSha256": "7623bbe5da72147ca4398dfcb0f63730e42c4f1b4e08ec33f8444f17b7ee3dca",
+      "afterSha256": "89e073983bf8a75bc4f133a061e2457a6a0eca0882239ee155c966d728d6b7bd"
+    },
+    {
+      "id": "registry-shared-view-call",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "  const registry: ProviderInstanceRegistry[\"Service\"] = {\n    getInstance: (id) => Ref.get(entries).pipe(Effect.map((map) => map.get(id)?.instance)),\n    listInstances: Ref.get(entries).pipe(\n      Effect.map(\n        (map) =>\n          Array.from(map.values(), (live) => live.instance) as ReadonlyArray<ProviderInstance>,\n      ),\n    ),\n    listUnavailable: Ref.get(unavailable).pipe(\n      Effect.map((map) => Array.from(map.values()) as ReadonlyArray<ServerProvider>),\n    ),\n    get streamChanges() {\n      return Stream.fromPubSub(changes);\n    },\n    get subscribeChanges() {\n      return PubSub.subscribe(changes);\n    },\n  };\n\n",
+      "to": "  const registry = registryView(state);\n\n",
+      "beforeSha256": "89e073983bf8a75bc4f133a061e2457a6a0eca0882239ee155c966d728d6b7bd",
+      "afterSha256": "92305ada644ec5f86b44f81ca453ecb115132b2f9bdea3b945a1f469e84ea09c"
+    },
+    {
+      "id": "registry-shared-view-definition",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "const entryEqual =",
+      "to": "const registryView = ({ entries, unavailable, changes }: RegistryState):\n  ProviderInstanceRegistry[\"Service\"] => {\n  const registry: ProviderInstanceRegistry[\"Service\"] = {\n    getInstance: (id) => Ref.get(entries).pipe(Effect.map((map) => map.get(id)?.instance)),\n    listInstances: Ref.get(entries).pipe(\n      Effect.map(\n        (map) =>\n          Array.from(map.values(), (live) => live.instance) as ReadonlyArray<ProviderInstance>,\n      ),\n    ),\n    listUnavailable: Ref.get(unavailable).pipe(\n      Effect.map((map) => Array.from(map.values()) as ReadonlyArray<ServerProvider>),\n    ),\n    get streamChanges() {\n      return Stream.fromPubSub(changes);\n    },\n    get subscribeChanges() {\n      return PubSub.subscribe(changes);\n    },\n  };\n\n  return registry;\n};\n\nconst entryEqual =",
+      "beforeSha256": "92305ada644ec5f86b44f81ca453ecb115132b2f9bdea3b945a1f469e84ea09c",
+      "afterSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
+    },
+    {
+      "id": "selected-original-provider-construction",
+      "file": "apps/server/src/provider/SelectedProviderInstance.ts",
+      "create": [
+        {
+          "text": "import { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Stream from \"effect/Stream\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+          "start": 1483,
+          "end": 3114,
+          "sha256": "1c125318b261b4ff6fc8d1257ded881dd4543a0c88b81197a6245c35e847bbc6",
+          "sourceStage": "current",
+          "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+          "start": 3223,
+          "end": 4211,
+          "sha256": "ddffa5e93d57405415fd1069a42c0612204bd62dc748feca232b02bec10b8d5f",
+          "sourceStage": "current",
+          "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+          "start": 5651,
+          "end": 6135,
+          "sha256": "b4cfab1c6ad565a60575386cb6213707752409a5e4e65476bb0d660d8d7c40c7",
+          "sourceStage": "current",
+          "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+          "start": 6745,
+          "end": 11817,
+          "sha256": "497336343c1b4503cf39ce24950681a3cc9c727c1c15491a8dd291dbc4ecd8a6",
+          "sourceStage": "current",
+          "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
+        },
+        {
+          "text": "\n/** A fixed selected instance; no mutator, refresh, prefetch or secret resolver. */\nexport const makeSelectedProviderInstance = Effect.fn(\"ProviderInstanceRegistry.makeSelected\")(\n  function* <R>(input: {\n    readonly driver: AnyProviderDriver<R>;\n    readonly instanceId: ProviderInstanceId;\n    readonly entry: ProviderInstanceConfig;\n    readonly secrets: InstanceSecrets;\n  }): Effect.fn.Return<ProviderInstanceRegistry[\"Service\"], never, R | Scope.Scope> {\n    const parentScope = yield* Scope.Scope;\n    const changes = yield* PubSub.unbounded<void>();\n    yield* Effect.addFinalizer(() => PubSub.shutdown(changes));\n    const state: RegistryState = {\n      entries: yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveEntry>>(new Map()),\n      unavailable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ServerProvider>>(new Map()),\n      secretsUnreadable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ProviderInstanceConfig>>(new Map()),\n      changes,\n    };\n    const result = yield* buildEntry({\n      driversById: new Map([[input.driver.driverKind, input.driver]]),\n      blockedReason: () => undefined, parentScope, instanceId: input.instanceId,\n      rawInstanceId: input.instanceId, entry: input.entry, deferSecrets: false,\n      readSecrets: () => Effect.succeed({ secrets: input.secrets, unreadable: [] }),\n    });\n    if (result.kind === \"live\") yield* Ref.set(state.entries, new Map([[input.instanceId, result.live]]));\n    else yield* Ref.set(state.unavailable, new Map([[input.instanceId, result.snapshot]]));\n    // Escaped views cannot return a retired provider after the owning scope closes.\n    yield* Effect.addFinalizer(() => Ref.set(state.entries, new Map()));\n    return registryView(state);\n  },\n);\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "e9e6886602d7ec6b9247659784e048213d95324c682cd25556720b00cd629ba4"
+    },
+    {
+      "id": "codex-original-client-factory-port",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-port.ts",
+      "create": [
+        {
+          "text": "import { CodexSettings } from \"@t3tools/contracts\";\nimport type { OrchestrationV2ProviderSession, ProviderInstanceId, ThreadId } from \"@t3tools/contracts\";\nimport * as CodexClient from \"effect-codex-app-server/client\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Scope from \"effect/Scope\";\nimport * as ProviderAdapter from \"@t3tools/provider-core/server/ProviderAdapter\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+          "start": 48730,
+          "end": 49480,
+          "sha256": "df698a4b15c32c92345bfbc4177d9e8a8ebffaeb808cd808082180685b8182b8"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "2552d66c0ac1608a22472e7b92a15071f1a2cb6315b949dc835100bb0a3204be"
+    },
+    {
+      "id": "codex-share-client-factory-tag",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "from": "export interface CodexAppServerClientFactoryShape {\n  readonly open: (input: {\n    readonly instanceId: ProviderInstanceId;\n    readonly threadId: ThreadId;\n    readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n    readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;\n    readonly settings: CodexSettings;\n    readonly environment: NodeJS.ProcessEnv;\n  }) => Effect.Effect<\n    CodexClient.CodexAppServerClient[\"Service\"],\n    ProviderAdapter.ProviderAdapterOpenSessionError,\n    Scope.Scope\n  >;\n}\n\nexport class CodexAppServerClientFactory extends Context.Service<\n  CodexAppServerClientFactory,\n  CodexAppServerClientFactoryShape\n>()(\"t3/orchestration-v2/Adapters/CodexAdapterV2/CodexAppServerClientFactory\") {}\n\n",
+      "to": "import { CodexAppServerClientFactory,\n  type CodexAppServerClientFactoryShape } from \"./CodexAdapterV2.session-port.ts\";\nexport { CodexAppServerClientFactory, type CodexAppServerClientFactoryShape };\n\n",
+      "beforeSha256": "5913ec92bde020cbb23f5cbe3714b314fc9466406a22cc9721cf432418977c74",
+      "afterSha256": "eaacf1c4a0b58d52b775b32f6c6de8b144539a851f60fbdaeec8a886554d921b"
+    },
+    {
+      "id": "codex-share-protocol-identity",
+      "file": "apps/server/src/provider/CodexProtocolIdentity.ts",
+      "create": [
+        {
+          "text": "import * as CodexSchema from \"effect-codex-app-server/schema\";\nimport { codexModelFamily } from \"@t3tools/shared/model\";\nimport packageJson from \"../../package.json\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/CodexProvider.ts",
+          "start": 2836,
+          "end": 2873,
+          "sha256": "777064758c4ab097bd9712e7916e3bdfe22e1a8090033324c070e44c7ef29821"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/CodexProvider.ts",
+          "start": 15372,
+          "end": 15846,
+          "sha256": "49796149fe6cc8e37ccf86afd47f579bdf12afc26571ddfb76d38137af404e56"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/CodexProvider.ts",
+          "start": 6159,
+          "end": 6328,
+          "sha256": "9c4befec273585325d3495fede1b1fd938a3bf68a2394dbf90c2a7aef9456f23"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "7d705e99d17d125fedb42775e8388bb404cba5204d9b89538d4d24293b5d4471"
+    },
+    {
+      "id": "codex-provider-shared-identity",
+      "file": "apps/server/src/provider/CodexProvider.ts",
+      "from": "export const codexAppServerEnvironment = (\n  environment: NodeJS.ProcessEnv | undefined,\n): NodeJS.ProcessEnv => ({\n  CODEX_INTERNAL_ORIGINATOR_OVERRIDE: CODEX_CLIENT_NAME,\n  ...environment,\n});\n\nexport function buildCodexInitializeParams(): CodexSchema.V1InitializeParams {\n  return {\n    clientInfo: {\n      name: CODEX_CLIENT_NAME,\n      title: CODEX_CLIENT_NAME,\n      version: packageJson.version,\n    },\n    capabilities: {\n      experimentalApi: true,\n    },\n  };\n}\n\n",
+      "to": "import { codexAppServerEnvironment, buildCodexInitializeParams,\n  codexDefaultReasoningEffortOverride } from \"./CodexProtocolIdentity.ts\";\nexport { codexAppServerEnvironment, buildCodexInitializeParams, codexDefaultReasoningEffortOverride };\n\n",
+      "beforeSha256": "e7da5a386b6b7ed099d8fd526ddcf328791d2418ef5e8d4a3cad7cd4d0ec6ad5",
+      "afterSha256": "e7a2e29e4c26be5c786db4a74213624efa023ebcac7c6e41e9d8f6526b599206"
+    },
+    {
+      "id": "codex-provider-shared-effort",
+      "file": "apps/server/src/provider/CodexProvider.ts",
+      "from": "export function codexDefaultReasoningEffortOverride(model: string): \"medium\" | undefined {\n  return codexModelFamily(model) === \"gpt-6-astra\" ? \"medium\" : undefined;\n}\n\n",
+      "to": "",
+      "beforeSha256": "e7a2e29e4c26be5c786db4a74213624efa023ebcac7c6e41e9d8f6526b599206",
+      "afterSha256": "d131608ef1891331f8e854e811c5d0c38ae6be3a741a8304fa9147ecd1eb6364"
+    },
+    {
+      "id": "codex-original-home-selection",
+      "file": "apps/server/src/provider/CodexHomeLayout.session-pure.ts",
+      "create": [
+        {
+          "text": "import { ProviderDriverKind, type CodexSettings } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Path from \"effect/Path\";\nimport { expandHomePath } from \"@t3tools/provider-core/server/pathExpansion\";\nimport * as HostProcess from \"@t3tools/shared/HostProcess\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+          "start": 440,
+          "end": 642,
+          "sha256": "c4b5351512b01b014fd7fbc8f0256a55e37edd11001bc0bfee7ce3c18fcdc08f"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+          "start": 1429,
+          "end": 2521,
+          "sha256": "13d4e653ce72f77de57222334a27e548a3aec4c82ea742b331fded9748346a6f"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+          "start": 14192,
+          "end": 14374,
+          "sha256": "66c6a0af6ce9c1be824071c939695a29b3e2028412aec2e4d5db888008ea8707"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "3ba8970e7e100d4e4bbfbad4986d28062b9bc157b40d900ed1e9fc23a6d64c02"
+    },
+    {
+      "id": "codex-share-home-selection",
+      "file": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+      "from": "export interface CodexHomeLayout {\n  readonly mode: \"direct\" | \"authOverlay\";\n  readonly sharedHomePath: string;\n  readonly effectiveHomePath: string | undefined;\n  readonly continuationKey: string;\n}\n\n",
+      "to": "import { resolveCodexHomeLayout, codexContinuationIdentity,\n  type CodexHomeLayout } from \"../CodexHomeLayout.session-pure.ts\";\nexport { resolveCodexHomeLayout, codexContinuationIdentity, type CodexHomeLayout };\n\n",
+      "beforeSha256": "a946f1940ec378b8002a9dfa2365081acc01601d8e244523cd90d36d4a23c41b",
+      "afterSha256": "6a0250f6333c4ff4a0466f530828a585ce2e805fc459355c52f97068a847b0cf"
+    },
+    {
+      "id": "codex-remove-home-selection-copy",
+      "file": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+      "from": "function resolveHomePath(path: Path.Path, home: string, value: string | undefined): string {\n  const expanded =\n    value && value.trim().length > 0 ? expandHomePath(value, home) : path.join(home, \".codex\");\n  return path.resolve(expanded);\n}\n\nexport const resolveCodexHomeLayout = Effect.fn(\"resolveCodexHomeLayout\")(function* (\n  config: CodexSettings,\n): Effect.fn.Return<CodexHomeLayout, never, Path.Path> {\n  const path = yield* Path.Path;\n  const home = yield* HostProcess.HomeDirectory;\n  const sharedHomePath = resolveHomePath(path, home, config.homePath);\n  const shadowHomePath = config.shadowHomePath.trim();\n  if (shadowHomePath.length === 0) {\n    return {\n      mode: \"direct\",\n      sharedHomePath,\n      effectiveHomePath: config.homePath.trim().length > 0 ? sharedHomePath : undefined,\n      continuationKey: `codex:home:${sharedHomePath}`,\n    };\n  }\n\n  const effectiveHomePath = path.resolve(expandHomePath(shadowHomePath, home));\n  return {\n    mode: \"authOverlay\",\n    sharedHomePath,\n    effectiveHomePath,\n    continuationKey: `codex:home:${sharedHomePath}`,\n  };\n});\n\n",
+      "to": "",
+      "beforeSha256": "6a0250f6333c4ff4a0466f530828a585ce2e805fc459355c52f97068a847b0cf",
+      "afterSha256": "9e5af6718861b4de4fe095cbb7de874d69eec9691ca279852b3ad0555f2f76a9"
+    },
+    {
+      "id": "codex-remove-continuation-copy",
+      "file": "apps/server/src/provider/Drivers/CodexHomeLayout.ts",
+      "from": "export function codexContinuationIdentity(layout: CodexHomeLayout) {\n  return {\n    driverKind: ProviderDriverKind.make(\"codex\"),\n    continuationKey: layout.continuationKey,\n  };\n}\n",
+      "to": "",
+      "beforeSha256": "9e5af6718861b4de4fe095cbb7de874d69eec9691ca279852b3ad0555f2f76a9",
+      "afterSha256": "58eb93e85099f5334e1a35d810901edc8a31605a43ddad84b063e6cf39ba05eb"
+    },
+    {
+      "id": "codex-explicit-original-adapter-result",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "from": "  adapterOptions: CodexAdapterV2Options,\n) {",
+      "to": "  adapterOptions: CodexAdapterV2Options,\n): Effect.fn.Return<ProviderAdapter.ProviderAdapterV2[\"Service\"], never, McpProviderSessions.McpProviderSessions> {",
+      "beforeSha256": "eaacf1c4a0b58d52b775b32f6c6de8b144539a851f60fbdaeec8a886554d921b",
+      "afterSha256": "bb056f0aae81dd24186f245cb06a4b0da8957a9e8f4dfe4586cc02a1f1d99587"
+    },
+    {
+      "id": "codex-thread-environment-name",
+      "file": "apps/server/src/provider/ProviderThreadEnvironment.ts",
+      "create": [
+        {
+          "sourceFile": "apps/server/src/preview/PortScanner.ts",
+          "start": 2824,
+          "end": 2876,
+          "sha256": "fd7bf3982f7bf45b4d9d87b8d7c61a78bd1bb3df0a31c1b13e241e4cebef5ae7"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "fd7bf3982f7bf45b4d9d87b8d7c61a78bd1bb3df0a31c1b13e241e4cebef5ae7"
+    },
+    {
+      "id": "codex-share-thread-environment-name",
+      "file": "apps/server/src/preview/PortScanner.ts",
+      "from": "export const AGENT_THREAD_ENV = \"T3CODE_THREAD_ID\";\n",
+      "to": "import { AGENT_THREAD_ENV } from \"../provider/ProviderThreadEnvironment.ts\";\nexport { AGENT_THREAD_ENV };\n",
+      "beforeSha256": "d05961598d563b1d62433d29d741723123288d0d00d5d9aaa7544f2e215c3098",
+      "afterSha256": "6974c228d4369df314c4c5db57d7f0b9dfb5f5ff4adb9f47e8eaf98d1357dacf"
+    },
+    {
+      "id": "codex-original-execution-adapter",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "create": [
+        {
+          "text": "import { pipe } from \"effect/Function\";\nimport * as DocumentText from \"../../provider/DocumentText.session-path.ts\";\nimport { revertCodexThread } from \"../../provider/CodexThreadRevert.ts\";\nimport { historyResponseItems } from \"@t3tools/provider-core/server/handoffBudget\";\nimport { makeProviderTextDeltaCoalescer } from \"./ProviderTextDeltaCoalescer.ts\";\nimport { mcpToolPresentation, type McpToolPresentation } from \"../../provider/CodexToolPresentation.ts\";\nimport { makeCodexTurnTokenUsageState, getCodexTurnAccumulator, accumulateCodexTurnTokenUsage, completeCodexTurnTokenUsage, type CodexTurnTokenUsageState } from \"../../provider/CodexTurnTokenUsage.ts\";\nimport type { ManagedServerProvider } from \"@t3tools/provider-core/server/snapshot\";\nimport type { CodexEffectiveRuntime } from \"../../provider/CodexManagedRuntime.ts\";\nimport { classifyCodexManagedError } from \"../../provider/CodexManagedErrors.ts\";\nimport { buildCodexInitializeParams, codexDefaultReasoningEffortOverride } from \"../../provider/CodexProtocolIdentity.ts\";\nimport { codexRateLimitsToUpdate, mergeCodexRateLimits, codexUsageLimitResetAt, type CodexRateLimitSnapshot } from \"../../provider/codexUsageLimits.ts\";\nimport { CodexSettings, defaultInstanceIdForDriver, isOrchestrationV2WorkActive, type OrchestrationV2GoalCommand, OrchestrationV2ProviderGoal, parseGoalCommand, ProviderDriverKind, ProviderSetupError, type ServerProviderCompatibilityAdvisory } from \"@t3tools/contracts\";\nimport { SKILL_MENTION_PATTERN } from \"@t3tools/shared/composerInlineTokens\";\nimport { COMPUTER_USE_TOOL_SOURCE, dynamicToolSurface, dynamicToolTitle } from \"@t3tools/shared/toolActivity\";\nimport { getModelSelectionStringOptionValue, modelSelectionsEqual } from \"@t3tools/shared/model\";\nimport { appendGeneratedImageEmbeds } from \"@t3tools/shared/generatedImageMarkdown\";\nimport { mcpToolResultOutput } from \"@t3tools/shared/toolOutput\";\nimport type { ChatAttachment, OrchestrationV2AppThread, OrchestrationV2ConversationMessage, OrchestrationV2ExecutionNode, ModelSelection, OrchestrationV2PlanArtifact, OrchestrationV2ProviderCapabilities, OrchestrationV2ProviderFailure, OrchestrationV2ProviderRetry, OrchestrationV2ProviderSession, OrchestrationV2ProviderThread, OrchestrationV2ProviderTurn, OrchestrationV2PlanStep, OrchestrationV2RuntimeRequest, OrchestrationV2Subagent, OrchestrationV2TurnItem, ProviderUserInputAnswers, ProviderApprovalDecision, ProviderApprovalOption, ProviderRequestKind, ProviderThreadId, ProviderTurnId, ProviderInstanceId, RuntimeMode, ThreadId } from \"@t3tools/contracts\";\nimport * as CodexClient from \"effect-codex-app-server/client\";\nimport * as CodexErrors from \"effect-codex-app-server/errors\";\nimport * as CodexSchema from \"effect-codex-app-server/schema\";\nimport * as Cause from \"effect/Cause\";\nimport * as Context from \"effect/Context\";\nimport * as Digest from \"effect/crypto/Digest\";\nimport * as DateTime from \"effect/DateTime\";\nimport * as Deferred from \"effect/Deferred\";\nimport * as Effect from \"effect/Effect\";\nimport * as Fiber from \"effect/Fiber\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Function from \"effect/Function\";\nimport * as Option from \"effect/Option\";\nimport * as Queue from \"effect/Queue\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport { resolveAttachmentPath, resolveAttachmentPathById } from \"../../attachmentStore.ts\";\nimport * as PortScanner from \"../../provider/ProviderThreadEnvironment.ts\";\nimport { getCodexServiceTierOptionValue } from \"../../codexModelOptions.ts\";\nimport { ServerConfig } from \"../../config.session-port.ts\";\nimport { buildCodexAdditionalContext } from \"../../provider/CodexDeveloperInstructions.ts\";\nimport { describeMcpElicitation, toMcpElicitationResponse } from \"../../provider/CodexMcpElicitation.ts\";\nimport * as McpProviderSession from \"@t3tools/provider-core/server/mcpSession\";\nimport * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\nimport { MCP_APP_EXTENSION_ID, MCP_APP_MIME_TYPE, MCP_APP_OUTPUT_KEY, MCP_APP_RESOURCE_SCHEME } from \"@t3tools/shared/mcpApp\";\nimport { snapshotMcpApp } from \"../../mcpApps/McpAppSnapshot.ts\";\nimport * as ProviderContinuationRequests from \"@t3tools/provider-core/server/ProviderContinuationRequests\";\nimport { backgroundWorkNotification } from \"@t3tools/provider-core/server/notification\";\nimport { makeProviderFailure, makeProviderFailureTurnItem, makeProviderRetryTurnItem } from \"@t3tools/provider-core/server/failure\";\nimport { turnScopedSelectionTransition } from \"@t3tools/provider-core/server/selectionTransition\";\nimport { isProviderNativeImageAttachment, providerMessageTextWithAttachmentPaths } from \"@t3tools/provider-core/server/attachmentPrompt\";\nimport { makeSubagentChildThread, makeSubagentConversationArtifacts, subagentThreadTitle } from \"@t3tools/provider-core/server/subagentProjection\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\nimport * as ProviderAdapter from \"@t3tools/provider-core/server/ProviderAdapter\";\nimport { CodexAppServerClientFactory, type CodexAppServerClientFactoryShape } from \"./CodexAdapterV2.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+          "start": 6354,
+          "end": 48730,
+          "sha256": "602212e9126cda2ac0754cde597e9d244a3105390183804e3f7d343446019d55",
+          "sourceStage": "current",
+          "sourceSha256": "bb056f0aae81dd24186f245cb06a4b0da8957a9e8f4dfe4586cc02a1f1d99587"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+          "start": 48850,
+          "end": 52188,
+          "sha256": "11c6762a64c164d3672770cd010f9c45e98735a765e87dba563d6262f678f58d",
+          "sourceStage": "current",
+          "sourceSha256": "bb056f0aae81dd24186f245cb06a4b0da8957a9e8f4dfe4586cc02a1f1d99587"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+          "start": 59877,
+          "end": 338538,
+          "sha256": "936acd2206f63d94c3ae58ae0cd8221674d61a0c075d085b77d89dfefe5c1060",
+          "sourceStage": "current",
+          "sourceSha256": "bb056f0aae81dd24186f245cb06a4b0da8957a9e8f4dfe4586cc02a1f1d99587"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "90a273228833afe873bd03106291264ec3b86b3b36f968e0089a5cb9a95eaecb"
+    },
+    {
+      "id": "codex-managed-runtime-data-shape",
+      "file": "apps/server/src/provider/CodexEffectiveRuntime.ts",
+      "create": [
+        {
+          "text": "import { CodexSettings } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/CodexManagedRuntime.ts",
+          "start": 886,
+          "end": 1035,
+          "sha256": "e3300ac8748f1ace0f71cb63fc3729a5e3368f67976f1331f679823ad26e6c9f"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "674fcf2f86481cc0139052eeb50c3df3cd62fbcd2fbb99df229ee75608dd66d8"
+    },
+    {
+      "id": "codex-no-managed-runtime-import",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "from": "from \"../../provider/CodexManagedRuntime.ts\"",
+      "to": "from \"../../provider/CodexEffectiveRuntime.ts\"",
+      "beforeSha256": "90a273228833afe873bd03106291264ec3b86b3b36f968e0089a5cb9a95eaecb",
+      "afterSha256": "1865ebbaeaa154a25ec235668f7de1d501cb8f876c35395ffd600c048bcd1d25"
+    },
+    {
+      "id": "codex-shared-instance-assembly",
+      "file": "apps/server/src/provider/CodexInstance.ts",
+      "create": [
+        {
+          "text": "import type { ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderDriverKind } from \"@t3tools/contracts\";\nconst DRIVER_KIND = ProviderDriverKind.make(\"codex\");\nexport const makeCodexInstance = ({ instanceId, continuationIdentity, displayName, accentColor,\n  enabled, snapshot, orchestrationAdapter, textGeneration }: Pick<ProviderInstance,\n  \"instanceId\" | \"continuationIdentity\" | \"displayName\" | \"accentColor\" | \"enabled\" |\n  \"snapshot\" | \"orchestrationAdapter\" | \"textGeneration\">): ProviderInstance => {\n    return {\n      instanceId,\n      driverKind: DRIVER_KIND,\n      continuationIdentity,\n      displayName,\n      accentColor,\n      enabled,\n      snapshot,\n      orchestrationAdapter,\n      textGeneration,\n    } satisfies ProviderInstance;\n};\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "fcdf0d1936f8dcfc51c430bb3f0ac08594a40990c50e7b452073f5c88b5d4382"
+    },
+    {
+      "id": "codex-use-shared-instance-assembly",
+      "file": "apps/server/src/provider/Drivers/CodexDriver.ts",
+      "from": "    return {\n      instanceId,\n      driverKind: DRIVER_KIND,\n      continuationIdentity,\n      displayName,\n      accentColor,\n      enabled,\n      snapshot,\n      snapshotForCwd,\n      consumeResetCredit,\n      orchestrationAdapter,\n      textGeneration,\n    } satisfies ProviderInstance;",
+      "to": "    return {\n      ...makeCodexInstance({ instanceId, continuationIdentity, displayName, accentColor,\n        enabled, snapshot, orchestrationAdapter, textGeneration }),\n      snapshotForCwd, consumeResetCredit,\n    } satisfies ProviderInstance;",
+      "beforeSha256": "4327fed7ea328699265b6592152510c5c5355fae1bb37a7c89be9bb77cbd67c4",
+      "afterSha256": "67c9ae3d0bd055c7b9d030035b3c3f48ddcb50f0280d71b39beebf102266d755"
+    },
+    {
+      "id": "codex-import-instance-assembly",
+      "file": "apps/server/src/provider/Drivers/CodexDriver.ts",
+      "from": "const decodeCodexSettings =",
+      "to": "import { makeCodexInstance } from \"../CodexInstance.ts\";\nconst decodeCodexSettings =",
+      "beforeSha256": "67c9ae3d0bd055c7b9d030035b3c3f48ddcb50f0280d71b39beebf102266d755",
+      "afterSha256": "b8529b5286bb217a0af3c35a32229f7a68173c3b6ef2c1942bea9c93952e2608"
+    },
+    {
+      "id": "codex-selected-original-driver",
+      "file": "apps/server/src/provider/SelectedCodexDriver.ts",
+      "create": [
+        {
+          "text": "import { CodexSettings, ProviderDriverKind } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\nimport * as Digest from \"effect/crypto/Digest\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Path from \"effect/Path\";\nimport * as HostProcess from \"@t3tools/shared/HostProcess\";\nimport type { ProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderDriverError } from \"@t3tools/provider-core/server/errors\";\nimport { mergeProviderInstanceEnvironment } from \"@t3tools/provider-core/server/instanceEnvironment\";\nimport { expandHomePath } from \"@t3tools/provider-core/server/pathExpansion\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\nimport * as Continuations from \"@t3tools/provider-core/server/ProviderContinuationRequests\";\nimport * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\nimport { ServerConfig } from \"../config.session-port.ts\";\nimport { CodexAppServerClientFactory } from \"../orchestration-v2/Adapters/CodexAdapterV2.session-port.ts\";\nimport { makeCodexAdapterV2, type CodexAdapterV2Options }\n  from \"../orchestration-v2/Adapters/CodexAdapterV2.session-live.ts\";\nimport { resolveCodexHomeLayout, codexContinuationIdentity } from \"./CodexHomeLayout.session-pure.ts\";\nimport { makeCodexInstance } from \"./CodexInstance.ts\";\n\n/** Real original services are required. There is no pending/ready stand-in,\n * refresh suppression or default text-generation implementation here. */\nexport class SelectedCodexServices extends Context.Service<SelectedCodexServices, {\n  readonly instanceId: ProviderInstance[\"instanceId\"];\n  readonly snapshot: ProviderInstance[\"snapshot\"];\n  readonly textGeneration: ProviderInstance[\"textGeneration\"];\n  readonly compatibility: NonNullable<CodexAdapterV2Options[\"compatibility\"]>;\n}>()(\"nessie/session-engine/SelectedCodexServices\") {}\n\nexport type SelectedCodexDriverEnv = SelectedCodexServices | CodexAppServerClientFactory |\n  Digest.Digest | FileSystem.FileSystem | Path.Path | IdAllocator.IdAllocatorV2 |\n  Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig;\n\nexport const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {\n  driverKind: ProviderDriverKind.make(\"codex\"),\n  metadata: { displayName: \"Codex\", supportsMultipleInstances: true },\n  configSchema: CodexSettings,\n  defaultConfig: () => Schema.decodeSync(CodexSettings)({}),\n  create: Effect.fn(\"CodexDriver.createSelected\")(function* (input) {\n    // A saved overlay requires materializeCodexShadowHome: mkdir, symlink,\n    // replacement and private-auth checks. Launch/reserve do not grant it.\n    if (input.config.setupMode === \"managed\" || input.config.shadowHomePath.trim()\n      || !input.config.homePath.trim()) return yield* new ProviderDriverError({\n        driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n        detail: \"Selected Codex home preparation is not admitted.\",\n      });\n    const services = yield* SelectedCodexServices;\n    if (services.instanceId !== input.instanceId) return yield* new ProviderDriverError({\n      driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n      detail: \"Selected Codex services belong to another instance.\",\n    });\n    const environment = yield* mergeProviderInstanceEnvironment(input.environment, yield* HostProcess.Environment);\n    const homeLayout = yield* resolveCodexHomeLayout(input.config);\n    const orchestrationAdapter = yield* makeCodexAdapterV2({\n      instanceId: input.instanceId,\n      settings: { ...input.config, enabled: input.enabled,\n        binaryPath: expandHomePath(input.config.binaryPath, yield* HostProcess.HomeDirectory),\n        homePath: homeLayout.effectiveHomePath ?? \"\" },\n      environment, clientFactory: yield* CodexAppServerClientFactory,\n      digest: yield* Digest.Digest, fileSystem: yield* FileSystem.FileSystem,\n      idAllocator: yield* IdAllocator.IdAllocatorV2, serverConfig: yield* ServerConfig,\n      continuationRequests: yield* Continuations.ProviderContinuationRequests,\n      onUsageLimits: services.snapshot.applyUsageLimits, compatibility: services.compatibility,\n    });\n    return makeCodexInstance({ ...input, continuationIdentity: codexContinuationIdentity(homeLayout),\n      snapshot: services.snapshot, textGeneration: services.textGeneration, orchestrationAdapter });\n  }),\n};\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "87107f4bf78b125091585ea390eb5651f6dde5d6a228be040d9d6dcce71ea222"
+    },
+    {
       "id": "session-manager-exclude-metric-decorator",
       "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "from": "        const turnMetrics = (operation: string, model?: string) =>\n          withMetrics({\n            counter: providerTurnsTotal,\n            ...(operation === \"send\" ? { timer: providerTurnDuration } : {}),\n            attributes: {\n              provider: runtime.driver,\n              operation,\n              modelFamily: normalizeModelMetricLabel(model),\n            },\n          });\n",
@@ -1866,14 +2219,14 @@
         {
           "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
           "start": 1444,
-          "end": 23742,
-          "sha256": "9640ef244d5f99215b138b5cde2618e8e7db434115dafe60dd77d2486ae9621a",
+          "end": 24140,
+          "sha256": "f0a5458a0995cbe8abd1e5d5ae812b15dcb1bd6605fcb79734d20f09087d8573",
           "sourceStage": "current",
-          "sourceSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd"
+          "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "543bf7b40cc5981e8a852eb7e856746c68ea24c5d64e44a420d156c427c5138a"
+      "afterSha256": "a524e3c901576b1b73c09006b28c2c5d99122b8e0ce5c8eff4b0d54029c03fed"
     },
     {
       "id": "original-finalization-live",
@@ -2170,6 +2523,126 @@
       "to": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.session-port.ts\";",
       "beforeSha256": "a8da97ea4f497de0759642c38070e29a885a2038f194fa91e23867d9da7ff74d",
       "afterSha256": "33d2ee75a84945034122e367034d22d61b48cc49a5ae4cc0d562719a671dde03"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/Drivers/CodexDriver.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/provider/Drivers/CodexDriver.ts",
+      "from": "import * as ServerConfig from \"../../config.ts\";",
+      "to": "import * as ServerConfig from \"../../config.session-port.ts\";",
+      "beforeSha256": "b8529b5286bb217a0af3c35a32229f7a68173c3b6ef2c1942bea9c93952e2608",
+      "afterSha256": "a007f173814812849478122cc2298df1c0585863b06f1db53ebe7fa559d9a773"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/Drivers/CodexDriver.ts:apps/server/src/environment/ServerEnvironment.ts",
+      "file": "apps/server/src/provider/Drivers/CodexDriver.ts",
+      "from": "import * as ServerEnvironment from \"../../environment/ServerEnvironment.ts\";",
+      "to": "import * as ServerEnvironment from \"../../environment/ServerEnvironment.session-port.ts\";",
+      "beforeSha256": "a007f173814812849478122cc2298df1c0585863b06f1db53ebe7fa559d9a773",
+      "afterSha256": "650117f841fdfbb4bb48d40edc6192acffa329c3ee0f343048f2491a65ea9081"
+    },
+    {
+      "id": "port-import:apps/server/src/auth/ServerSecretStore.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/auth/ServerSecretStore.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "73dafed19bec0d5166326c509dba79014891f6de718e935a3c255ba1917e4753",
+      "afterSha256": "9f99b04a1ab15e5d009106aec06ca4adc5b7ed1dbf74662225ad1f6b7337a6b4"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexManagedTokenBroker.ts:apps/server/src/environment/ServerEnvironment.ts",
+      "file": "apps/server/src/provider/CodexManagedTokenBroker.ts",
+      "from": "import * as ServerEnvironment from \"../environment/ServerEnvironment.ts\";",
+      "to": "import * as ServerEnvironment from \"../environment/ServerEnvironment.session-port.ts\";",
+      "beforeSha256": "77b5957d484457712c0e08872d1a42493002e4af6a7cc59156f751795d78909c",
+      "afterSha256": "b8eff984a197b7e4864ef5144e215d6e81786b10d4bc4be934d25a31e12fdd52"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexChatGptAuth.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/provider/CodexChatGptAuth.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "8bd38c2065dfab4a9ba900cf6db069bcf3ad5d7c375140fafe739316c7b3bf6b",
+      "afterSha256": "221d4e8d6e05c811835ac853f658dbc4dbbe88a016227b51b5e660eda2f57fde"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexChatGptAuth.ts:apps/server/src/environment/ServerEnvironment.ts",
+      "file": "apps/server/src/provider/CodexChatGptAuth.ts",
+      "from": "import * as ServerEnvironment from \"../environment/ServerEnvironment.ts\";",
+      "to": "import * as ServerEnvironment from \"../environment/ServerEnvironment.session-port.ts\";",
+      "beforeSha256": "221d4e8d6e05c811835ac853f658dbc4dbbe88a016227b51b5e660eda2f57fde",
+      "afterSha256": "09c66c0a07958cdcdf394dbaa53f9b6e38fec6255fea62c8ad1c15987edcccc4"
+    },
+    {
+      "id": "port-import:apps/server/src/telemetry/Identify.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/telemetry/Identify.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "57113dc3b5cc1471f98d604efa5665092fa11ba063b31db65f0326b2e82da51e",
+      "afterSha256": "31708474802f23947540f0d385038fad39d069048d019d96a8504558606b36e1"
+    },
+    {
+      "id": "port-import:apps/server/src/telemetry/AnalyticsService.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/telemetry/AnalyticsService.ts",
+      "from": "import packageJson from \"../../package.json\" with { type: \"json\" };\nimport * as ServerConfig from \"../config.ts\";",
+      "to": "import packageJson from \"../../package.json\" with { type: \"json\" };\nimport * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "d8e2c74d4b6107669e1b9a263a17d7e70cee2dc557adab79059cc595907427d0",
+      "afterSha256": "60c75b1ca2cf9a771c7d1ffc39ddb0a90244d56178eea6009bdffb8474370b52"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexInstallation.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/provider/CodexInstallation.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "c87d9bc716355082f3b5f30b6c6581cc329e1d221a14fe0708e5873d73f59245",
+      "afterSha256": "e3e4eca9d4004194063512404c7213722955394f93f6c701f4fdfceaa8f0519d"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/provider/ModelManifest.ts",
+      "from": "import { ServerConfig } from \"../config.ts\";",
+      "to": "import { ServerConfig } from \"../config.session-port.ts\";",
+      "beforeSha256": "ebc928bbe30b07ff65ffc956ca5cd2f3f933a8a966fd61e62033ac36798f02cb",
+      "afterSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/provider/ModelManifest.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931",
+      "afterSha256": "ced37e56e941734143db305575d10c363678eaff4dd794828cab09c9cc7b9981"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "from": "import { ServerConfig } from \"../../config.ts\";",
+      "to": "import { ServerConfig } from \"../../config.session-port.ts\";",
+      "beforeSha256": "bb056f0aae81dd24186f245cb06a4b0da8957a9e8f4dfe4586cc02a1f1d99587",
+      "afterSha256": "2484ed93b7f035b82ce82158ba3faf043e8b39e9d9d9d4022f61d2f54762988c"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexManagedRuntime.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/provider/CodexManagedRuntime.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "1942eabb76a96e9399df89554b399fb094e309499582de26d6dd4f0cf7d57ec9",
+      "afterSha256": "46f95b6867b8ba001e7305711738a8dd29943f33a2a0db6a20626d0f90075f26"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/CodexManagedRuntime.ts:apps/server/src/environment/ServerEnvironment.ts",
+      "file": "apps/server/src/provider/CodexManagedRuntime.ts",
+      "from": "import * as ServerEnvironment from \"../environment/ServerEnvironment.ts\";",
+      "to": "import * as ServerEnvironment from \"../environment/ServerEnvironment.session-port.ts\";",
+      "beforeSha256": "46f95b6867b8ba001e7305711738a8dd29943f33a2a0db6a20626d0f90075f26",
+      "afterSha256": "c0f0b1b7866c1a5c7fafb3a9988d5bceb841210366be3e81f7659cac88d9c39b"
+    },
+    {
+      "id": "port-import:apps/server/src/textGeneration/CodexTextGeneration.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/textGeneration/CodexTextGeneration.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "bf73dec5dc20ab44613e9fda3265468a30ff3d210acd374029c5b5d9aa373dcb",
+      "afterSha256": "def93a53c1eaccdd3da865f54978b9e4f0955b6cd3f82d67abe54196b94462a9"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectCloneTracker.ts",
