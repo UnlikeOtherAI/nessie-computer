@@ -1,7 +1,9 @@
 import {
-  decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream, T3_LANE_LIMITS,
+  decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream,
+  isT3NativeLaunchOperation, T3_LANE_LIMITS,
   type ExecutorT3LaneDelivery,
   type T3ExecutionReceipt, type T3ExecutionSignedAdmission,
+  T3InspectionRuntimeAnnouncementSchema, type T3InspectionRuntimeAnnouncement, type T3LaneInspectionAccepted,
   type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame, type T3RuntimeAnnouncement,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
@@ -18,11 +20,18 @@ import { retainT3FiniteReply, T3FiniteReplyCapacityError, type T3RetainedFiniteR
  */
 export interface T3SessionLaneRuntime {
   describe(): Promise<readonly T3RuntimeAnnouncement[]>;
+  describeInspections?(): Promise<readonly T3InspectionRuntimeAnnouncement[]>;
   /** Nonexecuting demand. Only the service-registered held graph implements it;
    * retained lanes omit it. The native service verifies the backend signature.
    */
   inspect?(request: ExecutorT3LaneOperation, signal: AbortSignal,
-    delivery: { inspection: T3ExecutionSignedAdmission; relayHmac: string }): Promise<T3ExecutionReceipt>;
+    delivery: { inspection: T3ExecutionSignedAdmission; relayHmac: string;
+      retentionExpiresAt: string }): Promise<T3ExecutionReceipt>;
+  /** Retention notification only; reserve/open still need their own real authority. */
+  acceptInspection?(request: ExecutorT3LaneOperation, accepted: T3LaneInspectionAccepted,
+    signal: AbortSignal): Promise<void>;
+  /** Abort has already fired. Join the actual held selection's finalizers. */
+  releaseInspection?(inspectionId: string): Promise<void>;
   open(request: ExecutorT3LaneOperation, signal: AbortSignal,
     delivery: ExecutorT3LaneDelivery): AsyncIterable<ExecutorT3LaneReply>;
 }
@@ -142,19 +151,23 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       bytes += attempt.bytes
     }
     const runtimes = await runtime.describe()
+    const inspectionRuntimes = runtime.describeInspections
+      ? (await runtime.describeInspections()).map(row => T3InspectionRuntimeAnnouncementSchema.parse(row)) : []
+    if (inspectionRuntimes.length > T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
+    if (inspectionRuntimes.length && (!runtime.inspect || !runtime.acceptInspection || !runtime.releaseInspection)) {
+      throw new Error('T3_EXECUTION_INSPECTION_UNBOUND')
+    }
     const inspectionReceipts = inspections.frames()
     if (runtimes.length > T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
     const payload = { operation: 't3.operations.exchange' as const, executorId: state.executorId,
       connectionEpoch: state.connectionEpoch, observedAt: new Date().toISOString(), frames,
       runtimes,
-      ...(runtime.inspect ? { inspectionRuntimes: runtimes.filter(row => row.state === 'ready')
-        .map(row => ({ environmentId: row.environmentId, runtimeGeneration: row.runtimeGeneration })),
-      inspectionReceipts } : {}),
+      inspectionRuntimes, inspectionReceipts,
       active: [...attempts.values()].map(attempt => target(attempt.request)) }
     const response = await api.exchangeT3SessionOperations(state.apiBaseUrl, { ...payload,
       signature: signExecutorDaemonPayload(state.machinePrivateKey, 't3_operations', payload) })
     if (closed || connection !== identity) return
-    inspections.accept(state.executorId, state.connectionEpoch, runtimes,
+    await inspections.accept(state.executorId, state.connectionEpoch, inspectionRuntimes,
       response.inspections ?? [], response.inspectionAcknowledged ?? [], inspectionReceipts,
       T3_LANE_LIMITS.active - attempts.size)
     if (!Array.isArray(response.acknowledged) || response.acknowledged.length > T3_LANE_LIMITS.exchangeFrames
@@ -198,6 +211,15 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       if (request.executorId !== state.executorId || request.connectionEpoch !== state.connectionEpoch) {
         throw new Error('T3_LANE_CORRELATION')
       }
+      const announced = isT3NativeLaunchOperation(request)
+        ? inspectionRuntimes.some(row => row.environmentId === request.environmentId
+          && row.runtimeGeneration === request.runtimeGeneration && row.sourceRevision === request.sourceRevision)
+        : runtimes.some(row => row.state === 'ready' && row.environmentId === request.environmentId
+          && row.runtimeGeneration === request.runtimeGeneration && row.sourceRevision === request.sourceRevision)
+      if (!announced) throw new Error('T3_RUNTIME_UNAVAILABLE')
+      // A lost acceptance response may race its later command offer. Preserve
+      // that offer for a later exchange; never open an unretained selection.
+      if (isT3NativeLaunchOperation(request) && !inspections.hasAccepted(request)) continue
       const old = attempts.get(key(request))
       if (old) {
         if (old.request.runtimeGeneration !== request.runtimeGeneration
@@ -207,7 +229,11 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         }
         continue // Never invoke the engine twice for an already active offer.
       }
-      if (attempts.size + inspections.size() >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
+      // The accepted inspection and this exact command reuse one held graph.
+      // This is local retention accounting, never permission to execute it.
+      if (attempts.size + inspections.size() >= T3_LANE_LIMITS.active && !inspections.hasAccepted(request)) {
+        throw new Error('T3_LANE_CAPACITY')
+      }
       const expiresAt = t3LaneDeliveryExpiry(delivery, Date.parse(offer.expiresAt))
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()
         || expiresAt > Date.now() + T3_LANE_LIMITS.leaseMs) continue

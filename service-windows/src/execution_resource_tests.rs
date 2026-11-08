@@ -92,6 +92,7 @@ fn execution_resource_receiver_expiry_and_unlinked_registration_never_recover() 
             driver:"codex".into(), continuation_home_key:"unissued".into(), history_home_key:"unissued".into(), credential_binding_id:"unissued".into() } };
     let id = fixture.held.receipt.resource_id.clone();
     resources().lock().unwrap().insert(id.clone(), fixture.held);
+    assert!(resolve_launch_homes(&id, &caller, &context, &graph).is_err());
     assert!(bind_graph(&id, &caller, &context, &graph).is_err());
     assert!(!resources().lock().unwrap().contains_key(&id));
     let mut second = self::fixture();
@@ -99,4 +100,50 @@ fn execution_resource_receiver_expiry_and_unlinked_registration_never_recover() 
     resources().lock().unwrap().insert(id.clone(), second.held);
     assert!(bind_graph(&id, &caller, &context, &graph).is_err());
     assert!(!resources().lock().unwrap().contains_key(&id));
+}
+
+#[test]
+fn execution_resource_candidate_keeps_real_directory_identity_across_volume_aliases() {
+    use nessie_windows_common::execution_resource_handles::HeldCandidateDirectory;
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("provider-home"); fs::create_dir(&directory).unwrap();
+    let owner = Process::open(std::process::id()).unwrap();
+    let (original, expected) = open(&directory, true, &owner.sid, "provider-home");
+    let copied = Duplicator::new(&owner).unwrap().file(&expected, &owner.sid).unwrap();
+    let canonical = copied.directory_path(&owner.sid).unwrap();
+    drop(original); drop(copied);
+    let guard = HeldCandidateDirectory::open(&directory, &owner.sid).unwrap();
+    let alias = HeldCandidateDirectory::open(&canonical, &owner.sid).unwrap();
+    assert_eq!(guard.identity(), expected.identity);
+    assert_eq!(alias.identity(), expected.identity);
+    assert_eq!(guard.canonical_path().unwrap(), canonical);
+    assert!(fs::rename(&directory, directory.with_extension("replacement")).is_err());
+    guard.recheck().unwrap(); alias.recheck().unwrap();
+    let other = root.path().join("other"); fs::create_dir(&other).unwrap();
+    let (other_pin, other_id) = open(&other, true, &owner.sid, "provider-home");
+    assert_ne!(other_id.identity, guard.identity()); drop(other_pin);
+    // A candidate cannot turn an administrator/SYSTEM claim into OS ownership.
+    assert!(HeldCandidateDirectory::open(&directory, "S-1-5-18").is_err());
+}
+
+#[test]
+fn execution_resource_candidate_refuses_traversal_reparse_and_sticky_acl_changes() {
+    use nessie_windows_common::execution_resource_handles::HeldCandidateDirectory;
+    use windows_sys::Win32::Security::Authorization::{SetNamedSecurityInfoW, SE_FILE_OBJECT};
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("provider-home"); fs::create_dir(&directory).unwrap();
+    let owner = Process::open(std::process::id()).unwrap();
+    let (pin, _) = open(&directory, true, &owner.sid, "provider-home"); drop(pin);
+    let link = root.path().join("provider-link");
+    std::os::windows::fs::symlink_dir(&directory, &link).unwrap(); // Qualification requires symlink privilege; no skip.
+    assert!(HeldCandidateDirectory::open(&link, &owner.sid).is_err());
+    assert!(HeldCandidateDirectory::open(&directory.join(".."), &owner.sid).is_err());
+    assert!(HeldCandidateDirectory::open(Path::new(r"\\server\provider"), &owner.sid).is_err());
+    let guard = HeldCandidateDirectory::open(&directory, &owner.sid).unwrap();
+    let wide: Vec<u16> = directory.to_str().unwrap().encode_utf16().chain(Some(0)).collect();
+    assert_eq!(unsafe { SetNamedSecurityInfoW(wide.as_ptr(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+        std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) }, 0);
+    assert!(guard.recheck().is_err());
+    let (restored, _) = open(&directory, true, &owner.sid, "provider-home"); drop(restored);
+    assert!(guard.recheck().is_err());
 }
