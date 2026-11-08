@@ -26,6 +26,7 @@ type ColdServices = HostServices | ContextServices<EffectValue<Inspection>>
 export interface SessionInspectionContext {
   readonly engine: EngineOwner
   readonly context: Context.Context<ColdServices>
+  readonly recheck: Effect.Effect<void, SessionExecutionGraphRefused>
   inspect(request: LaunchRequest,
     delivery: { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string }):
     Effect.Effect<HeldSessionExecutionGraph, EffectFailure<SessionExecutionGraphPreparation>, Scope.Scope>
@@ -79,5 +80,5 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
         yield* current
         return target
       })
-    return { engine, context, inspect, recognize }
+    return { engine, context, inspect, recognize, recheck: current }
   })

@@ -6,23 +6,30 @@ import * as Fiber from 'effect/Fiber'
 import * as Scope from 'effect/Scope'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { T3ExecutionInspectionSchema, decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation,
-  type ExecutorT3Request, type ExecutorT3LaneDelivery, type T3ExecutionSignedAdmission, type T3ExecutionReceipt }
+  T3LaneInspectionAcceptedSchema, type T3LaneInspectionAccepted, type T3ExecutionInspection,
+  type ExecutorT3Request, type ExecutorT3LaneDelivery, type T3ExecutionReceipt }
   from '@nessie/executor-protocol/t3-session'
+import type { T3SessionLaneRuntime } from '../../t3-session-lane.js'
+import { snapshotT3LaneDelivery } from '../../t3-session-delivery.js'
 import type { SessionInspectionContext } from './inspection-context.js'
 import type { HeldSessionExecutionGraph } from './execution-graph.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import { SessionExecutionGraphRefused } from './execution-graph.js'
 
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
-type Delivery = { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string;
-  readonly retentionExpiresAt: number }
+type Delivery = Parameters<NonNullable<T3SessionLaneRuntime['inspect']>>[2]
 type Lease = {
   readonly identity: string
+  readonly requestIdentity: string
+  readonly challenge: T3ExecutionInspection
   readonly signal: AbortSignal
   readonly stop: AbortController
   readonly demand: Set<Promise<unknown>>
   readonly signingDeadline: number
   readonly retentionExpiresAt: number
+  expiresAt: number
+  accepted?: T3LaneInspectionAccepted
+  accepting?: Promise<void>
   timer?: ReturnType<typeof setTimeout>
   scope?: Scope.Closeable
   graph?: HeldSessionExecutionGraph
@@ -34,6 +41,7 @@ type Lease = {
 }
 export interface SessionInspectionLeases {
   prepare(request: Request, delivery: Delivery, signal: AbortSignal): Promise<T3ExecutionReceipt>
+  accept(request: Request, accepted: T3LaneInspectionAccepted, signal: AbortSignal): Promise<void>
   release(inspectionId: string): Promise<void>
   withRecognized<A>(request: Request, delivery: ExecutorT3LaneDelivery, signal: AbortSignal,
     use: (target: PreparedSessionLaunchTarget, signal: AbortSignal) => Promise<A>): Promise<A>
@@ -70,6 +78,11 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
     void lease.closing.catch(() => undefined)
     return lease.closing
   }
+  const arm = (lease: Lease) => {
+    clearTimeout(lease.timer)
+    lease.timer = setTimeout(lease.abort, Math.max(0, lease.expiresAt - Date.now()))
+    lease.timer.unref()
+  }
   yield* Effect.addFinalizer(() => Effect.promise(async () => {
     live = false
     const results = await Promise.allSettled([...leases].map(([id, lease]) => close(id, lease)))
@@ -85,6 +98,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
     const delivery = structuredClone(offered)
     const inspection = T3ExecutionInspectionSchema.parse(JSON.parse(delivery.inspection.payload))
     const id = inspection.inspectionId
+    const requestIdentity = canonicalExecutorJson(encodeExecutorT3LaneOperation(request))
     const identity = canonicalExecutorJson({ request: encodeExecutorT3LaneOperation(request), delivery })
     const previous = leases.get(id)
     if (previous) {
@@ -95,17 +109,18 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
     }
     const now = Date.now()
     for (const [key, deadline] of retired) if (deadline <= now) retired.delete(key)
-    if (!Number.isSafeInteger(delivery.retentionExpiresAt) || delivery.retentionExpiresAt <= now
-      || delivery.retentionExpiresAt < inspection.expiresAtMs || delivery.retentionExpiresAt - now > 2_147_483_647
+    const retentionExpiresAt = Date.parse(delivery.retentionExpiresAt)
+    if (!Number.isSafeInteger(retentionExpiresAt) || retentionExpiresAt <= now
+      || retentionExpiresAt < inspection.expiresAtMs || retentionExpiresAt - now > 2_147_483_647
       || inspection.expiresAtMs <= now || inspection.issuedAtMs > now || retired.has(id)
       || leases.size + retired.size >= 64) return Promise.reject(new SessionExecutionGraphRefused())
-    const lease: Lease = { identity, signal, stop: new AbortController(), demand: new Set(),
+    const lease: Lease = { identity, requestIdentity, challenge: inspection,
+      signal, stop: new AbortController(), demand: new Set(),
       signingDeadline: inspection.expiresAtMs,
-      retentionExpiresAt: delivery.retentionExpiresAt,
+      retentionExpiresAt, expiresAt: retentionExpiresAt,
       abort: () => { void close(id, lease).catch(() => undefined) } }
     leases.set(id, lease)
-    lease.timer = setTimeout(lease.abort, Math.max(0, lease.retentionExpiresAt - Date.now()))
-    lease.timer.unref()
+    arm(lease)
     lease.pending = Promise.resolve().then(async () => {
       if (!live || signal.aborted || lease.closing) throw new SessionExecutionGraphRefused()
       const scope = await Effect.runPromise(Scope.fork(parent, 'parallel'))
@@ -133,14 +148,69 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
   }
   return {
     prepare,
+    accept: async (request, raw, signal) => {
+      const accepted = Object.freeze(T3LaneInspectionAcceptedSchema.parse(raw))
+      const lease = leases.get(accepted.inspectionId)
+      if (!live || !lease?.graph || lease.closing || lease.signal !== signal || signal.aborted
+        || lease.expiresAt <= Date.now()
+        || lease.requestIdentity !== canonicalExecutorJson(encodeExecutorT3LaneOperation(request))) {
+        throw new SessionExecutionGraphRefused()
+      }
+      if (lease.accepted) {
+        if (canonicalExecutorJson(accepted) !== canonicalExecutorJson(lease.accepted)) {
+          throw new SessionExecutionGraphRefused()
+        }
+        await lease.accepting
+        if (lease.closing || signal.aborted || lease.expiresAt <= Date.now()) throw new SessionExecutionGraphRefused()
+        return
+      }
+      const challenge = lease.challenge
+      const expiresAt = Date.parse(accepted.expiresAt)
+      if (accepted.receiptDigest !== lease.receiptDigest || accepted.executorId !== challenge.executorId
+        || accepted.environmentId !== challenge.environmentId || accepted.connectionEpoch !== challenge.connectionEpoch
+        || accepted.runtimeGeneration !== challenge.runtimeGeneration
+        || accepted.sourceRevision !== challenge.sourceRevision || accepted.physicalRootKey !== challenge.sourceRootKey
+        || accepted.captureGeneration !== challenge.sourceGeneration
+        || accepted.correlationId !== challenge.correlationId || accepted.commandId !== challenge.commandId
+        || accepted.requestSha256 !== challenge.requestSha256 || accepted.relayHmac !== challenge.relayHmac
+        || !Number.isSafeInteger(expiresAt) || expiresAt <= Date.now() || expiresAt > lease.expiresAt) {
+        throw new SessionExecutionGraphRefused()
+      }
+      lease.accepted = accepted
+      lease.expiresAt = expiresAt
+      arm(lease)
+      const pending = Effect.runPromise(owner.recheck, { signal: AbortSignal.any([signal, lease.stop.signal]) })
+      lease.accepting = pending
+      lease.demand.add(pending)
+      try {
+        await pending
+        if (!live || lease.closing || signal.aborted || lease.expiresAt <= Date.now()) {
+          throw new SessionExecutionGraphRefused()
+        }
+      } catch (error) {
+        // Retire the record without waiting on this same pending demand.
+        lease.abort()
+        throw error
+      } finally { lease.demand.delete(pending) }
+    },
     release: async id => { const lease = leases.get(id); if (lease) await close(id, lease) },
-    withRecognized: async (request, delivery, signal, use) => {
+    withRecognized: async (original, offered, signal, use) => {
+      const request = decodeExecutorT3LaneOperation(JSON.parse(JSON.stringify(encodeExecutorT3LaneOperation(original))))
+      if (request.kind !== 'request' || request.method !== 'orchestration.launchThread') {
+        throw new SessionExecutionGraphRefused()
+      }
+      const delivery = snapshotT3LaneDelivery(offered, request)
       if (!live || signal.aborted || !delivery.executionGraph) throw new SessionExecutionGraphRefused()
       const digest = 'sha256:' + createHash('sha256')
         .update(canonicalExecutorJson(delivery.executionGraph)).digest('hex')
       const matches = [...leases.values()].filter(lease => lease.receiptDigest === digest && !lease.closing)
       const lease = matches.length === 1 ? matches[0] : undefined
-      if (!lease?.graph || !lease.scope || lease.signal.aborted || lease.retentionExpiresAt <= Date.now()) {
+      if (!lease?.graph || !lease.scope || !lease.accepted
+        || lease.signal.aborted || lease.expiresAt <= Date.now()) {
+        throw new SessionExecutionGraphRefused()
+      }
+      await lease.accepting
+      if (lease.closing || lease.signal.aborted || lease.expiresAt <= Date.now()) {
         throw new SessionExecutionGraphRefused()
       }
       const graph = lease.graph, scope = lease.scope

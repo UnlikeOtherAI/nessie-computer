@@ -641,9 +641,26 @@ signal, so a returned target cannot end lifetime tracking before dispatch drains
 The cold context checks challenge source/capture/writer generation against the
 actual held imported state before creating the native graph receipt.
 
-This internal owner is not yet a registered lane. Exact ACK metadata and its
-shorter canonical parent expiry still require the parent-integrated inspection
-lifecycle contract. No command or provider authority is inferred from retaining
-the scope. Four refusal/cancellation fixtures are authored and unrun; six changed
-modules passed builtin parsing without application evaluation. No compiler,
-package tests, native launch or manual journey ran for this checkpoint.
+`withHeldSessionInspectionRuntime(source, state, use, signal)` now composes that
+lease owner and the original cold context inside the existing resource/writer
+callbacks. It exposes the exact parent-integrated `describeInspections`,
+`inspect`, `acceptInspection` and `releaseInspection` methods. Announcements name
+the actual held source/capture/writer; no retained read state or execution-ready
+flag is returned. The same original engine remains available to the enclosing
+protected owner for separately admitted activation.
+
+ACK handling compares the full original request, full canonical receipt digest,
+epoch, source revision/root/capture, runtime generation, command and relay
+correlation against the existing record. It independently shortens the resource
+timer to the backend canonical expiry and rechecks held source state. Exact ACK
+replay repeats neither work nor timer updates. Missing ACK, substituted metadata
+and changed deadlines cannot open a recognized command callback. Callback exit
+aborts and drains demand before releasing the engine and SQL resources.
+
+No command or provider authority is inferred from retaining the scope. The fixed
+CLI/daemon bridge and original admitted provider serializer remain unfinished;
+these internal methods are not yet reachable through the daemon. Six lease
+fixtures are authored and unrun, including lost-ACK retention, shortening,
+metadata substitution and joined cleanup. Builtin parsing performs no application
+evaluation. No compiler, package tests, native launch or manual journey ran for
+this checkpoint.

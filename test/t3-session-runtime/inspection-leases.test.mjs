@@ -1,21 +1,26 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createHash } from 'node:crypto'
 import * as Effect from 'effect/Effect'
 import * as Exit from 'effect/Exit'
 import * as Scope from 'effect/Scope'
 import { decodeExecutorT3Request } from '@nessie/executor-protocol/t3-session'
+import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { makeSessionInspectionLeases } from '../../dist/t3-session/runtime/inspection-leases.js'
 
-const fixture = async () => {
+const fixture = async (completed = false) => {
   const root = await Effect.runPromise(Scope.make())
   const started = Promise.withResolvers()
-  let calls = 0, finalized = false
-  // A nonterminating refusal trap: this fixture issues no graph or native proof.
-  const owner = { inspect: () => Effect.gen(function* () {
+  let calls = 0, checks = 0, finalized = false
+  // Only the lease lifecycle is exercised by this synthetic owner. Its receipt
+  // cannot pass real native verification and never authorizes an operation.
+  const receipt = { domain: 'nessie.t3.execution.graph.v1', keyId: 'b'.repeat(64),
+    payload: '{}', signature: 'not-native-proof' }
+  const owner = { recheck: Effect.sync(() => { checks++ }), inspect: () => Effect.gen(function* () {
     calls++
     yield* Effect.addFinalizer(() => Effect.sync(() => { finalized = true }))
     started.resolve()
-    return yield* Effect.never
+    return completed ? { receipt } : yield* Effect.never
   }) }
   const leases = await Effect.runPromise(makeSessionInspectionLeases(owner).pipe(
     Effect.provideService(Scope.Scope, root)))
@@ -37,9 +42,17 @@ const fixture = async () => {
     sourceRootKey: 'root', sourceGeneration: 'capture', sourceRevision: request.sourceRevision,
     targets: [], issuedAtMs: now, expiresAtMs: now + 5000 }
   const delivery = { inspection: { payload: JSON.stringify(inspection), keyId: 'b'.repeat(64), signature: 'synthetic' },
-    relayHmac, retentionExpiresAt: now + 30_000 }
+    relayHmac, retentionExpiresAt: new Date(now + 30_000).toISOString() }
   return { root, leases, request, delivery, started: started.promise,
-    calls: () => calls, finalized: () => finalized, id: inspection.inspectionId }
+    calls: () => calls, checks: () => checks, finalized: () => finalized, id: inspection.inspectionId,
+    accepted: { inspectionId: inspection.inspectionId, graphId: 'd'.repeat(64),
+      expiresAt: new Date(now + 20_000).toISOString(),
+      receiptDigest: 'sha256:' + createHash('sha256').update(canonicalExecutorJson(receipt)).digest('hex'),
+      executorId: inspection.executorId, environmentId: inspection.environmentId,
+      connectionEpoch: inspection.connectionEpoch, runtimeGeneration: inspection.runtimeGeneration,
+      sourceRevision: inspection.sourceRevision, physicalRootKey: inspection.sourceRootKey,
+      captureGeneration: inspection.sourceGeneration, correlationId: inspection.correlationId,
+      commandId: inspection.commandId, requestSha256: inspection.requestSha256, relayHmac } }
 }
 
 test('owner closure interrupts and joins a pending inspection before scope resources release', async () => {
@@ -93,10 +106,57 @@ test('a retry cannot extend the original resource deadline', async () => {
     const stopped = assert.rejects(f.leases.prepare(f.request, f.delivery, caller.signal))
     await f.started
     await assert.rejects(f.leases.prepare(f.request,
-      { ...f.delivery, retentionExpiresAt: f.delivery.retentionExpiresAt + 1 }, caller.signal),
+      { ...f.delivery, retentionExpiresAt: new Date(Date.parse(f.delivery.retentionExpiresAt) + 1).toISOString() },
+      caller.signal),
     /T3_SESSION_EXECUTION_GRAPH_REFUSED/u)
     assert.equal(f.calls(), 1)
     await f.leases.release(f.id)
     await stopped
+  } finally { await Effect.runPromise(Scope.close(f.root, Exit.void)) }
+})
+
+test('ACK retains the same selection and only shortens its resource deadline', async t => {
+  t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: Date.now() })
+  const f = await fixture(true)
+  const caller = new AbortController()
+  try {
+    await f.leases.prepare(f.request, f.delivery, caller.signal)
+    t.mock.timers.tick(5001)
+    assert.equal(f.finalized(), false)
+    await f.leases.accept(f.request, f.accepted, caller.signal)
+    await f.leases.accept(f.request, f.accepted, caller.signal)
+    assert.equal(f.checks(), 1)
+    assert.equal(f.calls(), 1)
+    assert.equal(f.finalized(), false)
+    await assert.rejects(f.leases.accept(f.request,
+      { ...f.accepted, expiresAt: f.delivery.retentionExpiresAt }, caller.signal),
+    /T3_SESSION_EXECUTION_GRAPH_REFUSED/u)
+    t.mock.timers.tick(15_000)
+    await f.leases.release(f.id)
+    assert.equal(f.finalized(), true)
+    assert.equal(caller.signal.aborted, false)
+  } finally { await Effect.runPromise(Scope.close(f.root, Exit.void)) }
+})
+
+test('ACK requires exact original request, receipt, source and caller lifetime', async () => {
+  const f = await fixture(true)
+  const caller = new AbortController()
+  try {
+    await f.leases.prepare(f.request, f.delivery, caller.signal)
+    const substitutions = { receiptDigest: 'sha256:' + 'e'.repeat(64),
+      executorId: '22222222-2222-4222-8222-222222222222',
+      environmentId: 'other', connectionEpoch: '2', runtimeGeneration: 'other', physicalRootKey: 'other',
+      captureGeneration: 'other', correlationId: 'other', commandId: 'other', requestSha256: 'sha256:' + 'e'.repeat(64),
+      relayHmac: 'hmac-sha256:' + 'e'.repeat(64),
+      expiresAt: new Date(Date.parse(f.delivery.retentionExpiresAt) + 1).toISOString() }
+    for (const [field, value] of Object.entries(substitutions)) {
+      await assert.rejects(f.leases.accept(f.request, { ...f.accepted, [field]: value }, caller.signal))
+    }
+    await assert.rejects(f.leases.accept({ ...f.request, input: { ...f.request.input, title: 'changed' } },
+      f.accepted, caller.signal))
+    await assert.rejects(f.leases.accept(f.request, f.accepted, new AbortController().signal))
+    assert.equal(f.checks(), 0)
+    await f.leases.accept(f.request, f.accepted, caller.signal)
+    assert.equal(f.checks(), 1)
   } finally { await Effect.runPromise(Scope.close(f.root, Exit.void)) }
 })
