@@ -49,6 +49,6 @@ export interface T3CatalogPublicationPort {
 export const retainedCaptureBindings = Object.freeze({
   localResourceProducer: 'windows_source_implemented_unqualified',
   originalOwnerContinuityProducer: 'required_unbound',
-  serverCatalogPublication: 'required_unbound',
+  serverCatalogPublication: 'ordered_producer_implemented_unqualified',
   execution: 'unavailable',
 } as const)

@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import * as Effect from 'effect/Effect'
+import * as Exit from 'effect/Exit'
 import * as SqlClient from 'effect/sql/SqlClient'
 import { ProjectionStore } from '@nessie/t3-session-source/engine'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
@@ -8,7 +9,10 @@ import { T3CatalogMetadataPageSchema, T3CatalogPublicationSchema,
 import { createT3CatalogPublicationTransport } from '../../t3-catalog-publication.js'
 import type { ExecutorLocalState } from '../../state-store.js'
 import type { RetainedCapturePorts } from '../import/capture.js'
-import type { T3CatalogPublicationPort, T3SourceManifest } from '../import/manifest.js'
+import type { T3CatalogPublicationPort } from '../import/manifest.js'
+import type { RetainedImportLocalContext } from '../ownership/import-scope.js'
+import type { RetainedCatalogPublicationAuthorityPort } from './selection.js'
+import type { HeldRetainedReadGraph } from './scope.js'
 import { requireCapture } from '../state/sqlite.js'
 import { capturedCatalogPage, type CapturedCatalogCursor } from './publication-rows.js'
 import { withRetainedCatalogPublication, type HeldCatalogPublication, type LocalCatalogCapture } from './publication-scope.js'
@@ -34,7 +38,7 @@ const enumerate = (held: HeldCatalogPublication, input: LocalCatalogCapture,
     if (rows.entries.length === 0) break
     const entries: T3CatalogMetadataPage['entries'] = []
     for (const [index, row] of rows.entries.entries()) {
-      yield* Effect.promise(() => held.recheckThread(row.threadId))
+      held.checkIdentity(row.threadId)
       entries.push({ threadId: row.threadId, sourceState: row.state,
         // This is the original source index, not a persisted copy of a person's
         // mobile grouping preferences. Original client reducers own that view.
@@ -70,9 +74,8 @@ const enumerate = (held: HeldCatalogPublication, input: LocalCatalogCapture,
  * T07's signed transport and protocol are required parent-integrated inputs.
  */
 export function createRetainedCatalogPublicationPort(ports: RetainedCapturePorts,
-  manifest: T3SourceManifest, state: () => ExecutorLocalState): T3CatalogPublicationPort {
-  const admitted = Object.freeze({ ...manifest,
-    homes: Object.freeze(manifest.homes.map(home => Object.freeze({ ...home }))) })
+  local: RetainedImportLocalContext, graph: HeldRetainedReadGraph,
+  authority: RetainedCatalogPublicationAuthorityPort, state: () => ExecutorLocalState): T3CatalogPublicationPort {
   return Object.freeze({
     async publishLocalCapture(requested: LocalCatalogCapture, options?: { readonly signal?: AbortSignal }) {
       const input = Object.freeze({ ...requested, source: Object.freeze({ ...requested.source }) })
@@ -80,8 +83,8 @@ export function createRetainedCatalogPublicationPort(ports: RetainedCapturePorts
       // a later explicit retry reconciles the same immutable publication/pages.
       const deadline = AbortSignal.timeout(120_000)
       const signal = options?.signal ? AbortSignal.any([options.signal, deadline]) : deadline
-      return withRetainedCatalogPublication(ports, admitted, input, signal, held =>
-        Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+      return withRetainedCatalogPublication(ports, local, graph, authority, input, signal, async held => {
+        const exit = await graph.evaluate(Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient
           return yield* sql.withTransaction(Effect.gen(function* () {
             const snapshot = yield* enumerate(held, input)
@@ -113,7 +116,9 @@ export function createRetainedCatalogPublicationPort(ports: RetainedCapturePorts
             yield* Effect.promise(() => held.recheck())
             return Object.freeze(receipt)
           }))
-        }).pipe(Effect.provide(held.stage.sql))), { signal }))
+        }), signal)
+        return Effect.runPromise(Exit.isFailure(exit) ? Effect.failCause(exit.cause) : Effect.succeed(exit.value))
+      })
     },
   })
 }
