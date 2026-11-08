@@ -297,7 +297,7 @@ test('an unsigned image says so in its file name and in Finder', () => {
     dmgFileName('0.1.0', 'arm64', 'development'),
     `NessieExecutor_0.1.0_arm64-${DEVELOPMENT_MARKER}.dmg`,
   )
-  assert.equal(dmgVolumeName('0.1.0', 'release'), 'Nessie Executor 0.1.0')
+  assert.equal(dmgVolumeName('0.1.0', 'release'), 'Nessie Computer 0.1.0')
   assert.ok(dmgVolumeName('0.1.0', 'development').includes(DEVELOPMENT_MARKER))
   // The marker survives being downloaded, forwarded and renamed in a release
   // draft — which is the whole reason it is in the name rather than in a log.
@@ -344,11 +344,11 @@ test('the image is the app and the drop target, and it is read-only', () => {
     hdiutilArguments({
       output: '/tmp/x.dmg',
       sourceDirectory: '/tmp/stage',
-      volumeName: 'Nessie Executor 0.1.0',
+      volumeName: 'Nessie Computer 0.1.0',
     }),
     [
       'create',
-      '-volname', 'Nessie Executor 0.1.0',
+      '-volname', 'Nessie Computer 0.1.0',
       '-srcfolder', '/tmp/stage',
       '-fs', 'HFS+',
       '-format', 'UDZO',
