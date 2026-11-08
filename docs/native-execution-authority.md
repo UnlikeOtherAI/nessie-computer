@@ -196,3 +196,11 @@ These transport changes and negative fixtures are source-only. Installed
 inspection, graph acceptance, original preparation and native execution remain
 unqualified until the canonical authority producers and managed graph are
 integrated and exercised through the real user flow.
+
+## Combined compiler qualification
+
+On Maxis, the parent-integrated service and native helper both passed
+`cargo check --locked` on 8 November 2026. Root resolved and committed the
+service dependency lock, removed an unused import and made the resource receipt
+decode type explicit. These checks do not exercise SYSTEM creation, enrollment,
+provider effects, installation or native user flows; those remain required.

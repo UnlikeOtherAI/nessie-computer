@@ -97,7 +97,7 @@ pub(super) fn run() -> Result<(), NativeError> {
     let mut watches = source.execution_watches(); watches.extend(settings.watches());
     let result = service(Request::Register { executor_id: executor.clone(), resource_id: resource_id.clone(),
         evidence: evidence.clone(), objects, watches });
-    let receipt: Receipt = match result.and_then(|value| serde_json::from_value(value).map_err(|_| fail())) {
+    let receipt: Receipt = match result.and_then(|value| serde_json::from_value::<Receipt>(value).map_err(|_| fail())) {
         Ok(receipt) if receipt.version == 1 && receipt.resource_id == resource_id
             && receipt.evidence == evidence && receipt.custody == custody => receipt,
         _ => { let _ = service(Request::Close { executor_id: executor, resource_id }); return Err(fail()); }
