@@ -132,7 +132,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.getByRole('tab', { name: 'Overview' }).click()
 
     // Needs you: a program request, and Documents waiting for a decision.
-    const attention = { ...syncCases(host).find((entry) => entry.name === 'needs-attention').state, executorId: 'team-1' }
+    const attention = { ...syncCases(host).find((entry) => entry.name === 'claims-up-to-date-with-conflict').state, executorId: 'team-1' }
     await page.evaluate((state) => {
       window.requests = [{ executorId: 'team-0', id: 'req-1', program: 'git', args: ['push', 'origin', 'main'], agentName: 'Jev',
         requestedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 90000).toISOString() }]
