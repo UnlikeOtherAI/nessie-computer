@@ -1,3 +1,4 @@
+import { SessionEffectRefused, type SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -101,6 +102,7 @@ const handOver = (
 
 export const answerSessionRequest = async (input: {
   paths: CodingSessionPaths
+  effect?: SessionEffectAuthority
   answer: unknown
   commandId: string
   hostLive: boolean
@@ -119,6 +121,7 @@ export const answerSessionRequest = async (input: {
 
   const found = await readJson<Claim>(claimPath)
   if (found) {
+    if (input.effect && found.stage === 'delivering') return IN_PROGRESS
     if (found.stage === undefined || found.stage === 'delivered') return reported(found)
     if (!writerGone(found)) return found.commandId === commandId ? IN_PROGRESS : NOT_PENDING
     // Its bridge stopped mid-delivery: complete the claim if the answer got through, else release it.
@@ -140,16 +143,16 @@ export const answerSessionRequest = async (input: {
     commandId, at: new Date().toISOString(), outcome, stage: 'delivering', life: BRIDGE_LIFE, pid: process.pid,
   }
   await ensurePrivateDir(paths.answers)
-  if (!await createJsonExclusive(claimPath, intent)) {
+  if (!await createJsonExclusive(claimPath, intent, input.effect)) {
     const racing = await readJson<Claim>(claimPath)
     return racing?.commandId === commandId ? IN_PROGRESS : NOT_PENDING
   }
   // Until the inbox holds it, nothing reached the host: on any failure the claim goes, so the owner can answer again.
-  const release = (): Promise<void> => unlink(claimPath).catch(() => undefined)
+  const release = (): Promise<void> => input.effect ? Promise.resolve() : unlink(claimPath).catch(() => undefined)
   if (answer.secret !== undefined) {
     try {
       const written = await writeSecretToFolder({
-        folder: await input.folder(), destination: request.destination ?? '', value: answer.secret,
+        effect: input.effect, folder: await input.folder(), destination: request.destination ?? '', value: answer.secret,
         ...(request.envName ? { envName: request.envName } : {}),
       })
       // Which file holds a supplied value, never the value: a restarted host reads it back to keep it redacted.
@@ -157,17 +160,19 @@ export const answerSessionRequest = async (input: {
         destination: written.destination, ...(request.envName ? { envName: request.envName } : {}),
       })
     } catch (error) {
+      if (input.effect) throw new SessionEffectRefused()
       await release()
       return { state: 'failed', code: error instanceof SecretDestinationError ? error.code : 'secret_destination_refused' }
     }
   }
   try {
-    await writeRequest(paths, { id: `answer-${commandId}`, kind: 'answer', answer: delivered, at: new Date().toISOString() })
+    await writeRequest(paths, { id: `answer-${commandId}`, kind: 'answer', answer: delivered, at: new Date().toISOString() }, input.effect)
   } catch (error) {
     await release()
     throw error
   }
   await writeJsonAtomic(claimPath, { ...intent, stage: 'delivered' })
+  await input.effect?.consume()
   await input.ensureHost()
   return outcome
 }

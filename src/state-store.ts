@@ -64,6 +64,8 @@ export type ExecutorLocalState = {
   commandPolicy?: LocalCommandPolicy
   apiBaseUrl: string
   connectionEpoch?: string
+  /** Accepted authenticated claim references. Missing legacy state grants no session compatibility mode. */
+  sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource
   descriptor: {
     /**
      * The programs `command.run` may start. Absent means the policy has never

@@ -8,6 +8,7 @@ export type ExecutorDaemonSignatureDomain =
   | 't3_receipt'
   | 't3_catalog'
   | 'session_view'
+  | 'session_authority'
   | 'attachment'
   | 'browser_cookie_import.poll'
   | 'browser_cookie_import.upload'

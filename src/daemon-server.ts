@@ -1,6 +1,7 @@
 import type { Readable } from 'node:stream'
 import { enableLocalSessionBridge } from './local-session-bridge.js'
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
+import { createSessionAuthorityClient } from './session-authority-client.js'
 
 import { executorApi } from './api-client.js'
 import { createExecutorBrowserSessionManager } from './browser-session-manager.js'
@@ -75,6 +76,9 @@ export const serveExecutor = async (
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const codingBridge = createCodingSessionsDaemon({
+      pairingSource: () => live.sessionPairingSource,
+      validateSessionAuthority: createSessionAuthorityClient(() => live),
+      connectionEpoch: () => live.connectionEpoch,
       executorId: live.executorId,
       commandRules: localCommandPolicyOf(live),
       facts: live.descriptor.codingSessions,

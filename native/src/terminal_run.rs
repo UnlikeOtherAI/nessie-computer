@@ -1,14 +1,21 @@
 use crate::protocol::NativeError;
 
+pub fn run_authorized(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, true)
+}
+pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, false)
+}
+
 #[cfg(not(windows))]
-pub fn run(_argv: &[String]) -> Result<i32, NativeError> {
+fn run_mode(_argv: &[String], _authorized: bool) -> Result<i32, NativeError> {
     Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM"))
 }
 
 /// The parent session host owns containment. This child only provides ConPTY.
 /// argv is already validated by the command parser; input and output are bytes.
 #[cfg(windows)]
-pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
     use std::io::{self, Read, Write};
     let failed = |_| NativeError::new("EXECUTOR_TERMINAL_FAILED");
@@ -25,13 +32,36 @@ pub fn run(argv: &[String]) -> Result<i32, NativeError> {
     let mut command = CommandBuilder::new(&argv[0]);
     command.args(&argv[1..]);
     command.cwd(std::env::current_dir().map_err(|_| NativeError::new("EXECUTOR_TERMINAL_FAILED"))?);
+    let mut channel = if authorized {
+        Some(crate::session_effect::inherited()?)
+    } else {
+        None
+    };
+    let launch = if let Some(ref mut receiver) = channel {
+        Some(receiver.launch(argv)?)
+    } else {
+        None
+    };
+    if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+        receiver.consume(frame)?;
+    }
     let mut child = pair.slave.spawn_command(command).map_err(failed)?;
+    if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+        if receiver.outcome(frame, "accepted").is_err() {
+            let _ = child.kill();
+            return Err(NativeError::new(crate::session_effect::REFUSED));
+        }
+    }
     drop(pair.slave);
     let mut reader = pair.master.try_clone_reader().map_err(failed)?;
     let mut writer = pair.master.take_writer().map_err(failed)?;
     let mut killer = child.clone_killer();
     std::thread::spawn(move || {
-        let _ = io::copy(&mut io::stdin().lock(), &mut writer);
+        if let Some(receiver) = channel {
+            let _ = receiver.relay(writer, true);
+        } else {
+            let _ = io::copy(&mut io::stdin().lock(), &mut writer);
+        }
         let _ = killer.kill();
     });
     let output = std::thread::spawn(move || {

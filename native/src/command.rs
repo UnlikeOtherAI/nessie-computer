@@ -27,6 +27,7 @@ pub enum Command {
     /// with the program's own code. The argv after `--` is the program and its
     /// arguments, exactly as given.
     JobRun(Vec<String>),
+    JobRunAuthorized(Vec<String>),
     ManagedRuntime(Vec<String>),
     ManagedCustodyInstall,
     ManagedInventoryBarrier(String),
@@ -37,6 +38,7 @@ pub enum Command {
     ManagedProtectionRevoke(String),
     ManagedProtectionClear(String),
     TerminalRun(Vec<String>),
+    TerminalRunAuthorized(Vec<String>),
     /// Create the executor's private state directory if absent and give it an
     /// owner-only, non-inherited DACL.
     SecureDirectory(String),
@@ -155,6 +157,14 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
             } else {
                 Command::ManagedProtectionClear(epoch.clone())
             })
+        }
+        [command, separator, rest @ ..] if command == "job-run-authorized" && separator == "--" => {
+            Ok(Command::JobRunAuthorized(job_argv(rest)?))
+        }
+        [command, separator, rest @ ..]
+            if command == "terminal-run-authorized" && separator == "--" =>
+        {
+            Ok(Command::TerminalRunAuthorized(job_argv(rest)?))
         }
         [command, separator, rest @ ..] if command == "job-run" && separator == "--" => {
             Ok(Command::JobRun(job_argv(rest)?))

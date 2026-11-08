@@ -42,9 +42,15 @@ pub const PARENT_GONE: &str = "EXECUTOR_JOB_PARENT_GONE";
 
 /// Runs the program to completion and answers the code the helper exits with.
 pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, false)
+}
+pub fn run_authorized(argv: &[String]) -> Result<i32, NativeError> {
+    run_mode(argv, true)
+}
+fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
     #[cfg(all(windows, not(debug_assertions)))]
     let lease = crate::managed_windows::acquire_host()?;
-    let result = imp::run(argv);
+    let result = imp::run(argv, authorized);
     #[cfg(all(windows, not(debug_assertions)))]
     crate::managed_windows::release_host(&lease)?;
     result
@@ -54,7 +60,7 @@ pub fn run(argv: &[String]) -> Result<i32, NativeError> {
 mod imp {
     use super::{NativeError, UNSUPPORTED};
 
-    pub fn run(_argv: &[String]) -> Result<i32, NativeError> {
+    pub fn run(_argv: &[String], _authorized: bool) -> Result<i32, NativeError> {
         Err(NativeError::new(UNSUPPORTED))
     }
 }
@@ -62,7 +68,7 @@ mod imp {
 #[cfg(windows)]
 pub(crate) mod imp {
     use super::{NativeError, CONTAINMENT_FAILED, PARENT_GONE, SPAWN_FAILED};
-    use std::os::windows::io::AsRawHandle;
+    use std::os::windows::io::{AsRawHandle, BorrowedHandle};
     use std::os::windows::process::CommandExt;
     use std::process::{Child, Command};
     use windows_sys::Win32::Foundation::{
@@ -214,23 +220,72 @@ pub(crate) mod imp {
         NativeError::new(code)
     }
 
-    pub fn run(argv: &[String]) -> Result<i32, NativeError> {
+    fn terminate_job(job: &Owned) -> Result<(), NativeError> {
+        // The authorized relay owns a duplicate handle while waiting for input.
+        // Closing only the main handle cannot trigger kill-on-close in that state.
+        // End descendants before asking the service for independent clearance.
+        if unsafe { TerminateJobObject(job.0, ENDED_BY_HELPER) } == 0 {
+            return Err(NativeError::new(CONTAINMENT_FAILED));
+        }
+        Ok(())
+    }
+
+    pub fn run(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
         let (program, arguments) = argv.split_first().ok_or(NativeError::new(SPAWN_FAILED))?;
         let parent = parent_process()?;
         let job = kill_on_close_job()?;
         // No console window of its own; stdio is inherited explicitly, so the
         // pipes the host holds are the program's stdin, stdout and stderr.
-        let child = Command::new(program)
+        let mut channel = if authorized {
+            Some(crate::session_effect::inherited()?)
+        } else {
+            None
+        };
+        let launch = if let Some(ref mut receiver) = channel {
+            Some(receiver.launch(argv)?)
+        } else {
+            None
+        };
+        let mut command = Command::new(program);
+        command
             .args(arguments)
-            .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW)
+            .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
+        if authorized {
+            command.stdin(std::process::Stdio::piped());
+        }
+        if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+            receiver.consume(frame)?;
+        }
+        let mut child = command
             .spawn()
             .map_err(|_| NativeError::new(SPAWN_FAILED))?;
         let process = child.as_raw_handle() as HANDLE;
         if unsafe { AssignProcessToJobObject(job.0, process) } == 0 {
             return Err(abandon(child, CONTAINMENT_FAILED));
         }
+        if let (Some(receiver), Some(frame)) = (&mut channel, &launch) {
+            if receiver.consume(frame).is_err() {
+                return Err(abandon(child, crate::session_effect::REFUSED));
+            }
+        }
         if !resume(&child) {
             return Err(abandon(child, SPAWN_FAILED));
+        }
+        if let (Some(mut receiver), Some(frame)) = (channel, launch) {
+            if receiver.outcome(&frame, "accepted").is_err() {
+                return Err(abandon(child, crate::session_effect::REFUSED));
+            }
+            let input = child.stdin.take().ok_or(NativeError::new(SPAWN_FAILED))?;
+            let job_for_relay = unsafe { BorrowedHandle::borrow_raw(job.0 as _) }
+                .try_clone_to_owned()
+                .map_err(|_| NativeError::new(CONTAINMENT_FAILED))?;
+            std::thread::spawn(move || {
+                if receiver.relay(input, false).is_err() {
+                    unsafe {
+                        TerminateJobObject(job_for_relay.as_raw_handle() as HANDLE, ENDED_BY_HELPER)
+                    };
+                }
+            });
         }
         let handles = [process, parent.0];
         let signalled =
@@ -242,16 +297,57 @@ pub(crate) mod imp {
                 .ok()
                 .and_then(|status| status.code())
                 .unwrap_or(ENDED_BY_HELPER as i32);
-            // Dropping the job here, before the helper exits, kills whatever
-            // the program left behind, while the exit code is still its own.
+            // A relay may still hold the job open after the root exits. Explicit
+            // termination closes that gap without treating root exit as clearance.
+            terminate_job(&job)?;
             drop(job);
             return Ok(code);
         }
         // The session host is gone, or the wait itself failed: either way no
         // one is left to end this job later, so it ends now.
-        unsafe { TerminateJobObject(job.0, ENDED_BY_HELPER) };
+        terminate_job(&job)?;
         let _ = child.wait();
         Ok(ENDED_BY_HELPER as i32)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use windows_sys::Win32::Foundation::WAIT_TIMEOUT;
+        use windows_sys::Win32::System::Threading::WaitForSingleObject;
+
+        #[test]
+        fn explicit_job_termination_ends_children_while_the_relay_retains_a_handle() {
+            let job = kill_on_close_job().unwrap();
+            let relay = unsafe { BorrowedHandle::borrow_raw(job.0 as _) }
+                .try_clone_to_owned()
+                .unwrap();
+            let program = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+                .join("System32/cmd.exe");
+            // A suspended synthetic child needs no provider, credentials or host
+            // authority. This verifies a kernel primitive, not release admission.
+            let mut child = Command::new(program)
+                .args(["/d", "/c", "exit 0"])
+                .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW)
+                .spawn()
+                .unwrap();
+            assert_ne!(
+                unsafe { AssignProcessToJobObject(job.0, child.as_raw_handle() as HANDLE) },
+                0
+            );
+            assert_eq!(
+                unsafe { WaitForSingleObject(child.as_raw_handle() as HANDLE, 0) },
+                WAIT_TIMEOUT
+            );
+            terminate_job(&job).unwrap();
+            assert_eq!(
+                unsafe { WaitForSingleObject(child.as_raw_handle() as HANDLE, 5_000) },
+                WAIT_OBJECT_0
+            );
+            child.wait().unwrap();
+            // Keep the relay handle alive through the exit observation.
+            drop(relay);
+        }
     }
 }
 

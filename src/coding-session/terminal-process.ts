@@ -1,3 +1,4 @@
+import { readTerminalEffectFrame, terminalProgramEnvironment, terminalEffectOutcome } from './terminal-effect-frame.js'
 import { execFile, spawn } from 'node:child_process'
 import { mkdtemp, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -63,7 +64,7 @@ export const paneCursor = (x: number, y: number): { row: number; column: number 
  */
 export const runTerminalProcess = async (): Promise<void> => {
   // The marker belongs to this executor helper, never the user's program.
-  delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
+  // The program environment is stripped separately; this helper still needs its ACL identity.
   if (process.platform === 'win32') {
     const { runWindowsTerminal } = await import('./terminal-windows.js')
     return runWindowsTerminal()
@@ -71,7 +72,9 @@ export const runTerminalProcess = async (): Promise<void> => {
   const lines = createInterface({ input: process.stdin })
   const iterator = lines[Symbol.asyncIterator]()
   const first = await iterator.next()
-  const argv: unknown = first.done ? undefined : JSON.parse(first.value)
+  const required = process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1'
+  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required, 1)
+  const argv = launch.value
   if (!Array.isArray(argv) || !argv.length || argv.some((arg) => typeof arg !== 'string' || arg.includes('\0'))) {
     throw new Error('terminal_invalid_program')
   }
@@ -79,7 +82,9 @@ export const runTerminalProcess = async (): Promise<void> => {
   if (!tmux) throw new Error('terminal_tmux_missing')
   const socketDir = await mkdtemp(join(tmpdir(), 'nessie-tmux-'))
   const socket = join(socketDir, 's')
-  const env = { ...process.env, TERM: 'xterm-256color', TMUX: '' }
+  const env = { ...terminalProgramEnvironment(), TERM: 'xterm-256color', TMUX: '' }
+  await launch.effect?.consume()
+  launch.effect?.assertLive()
   const server = spawn(tmux, ['-D', '-S', socket, '-f', '/dev/null'], { env, stdio: 'ignore' })
   let serverEnded = false
   server.once('exit', () => { serverEnded = true })
@@ -91,8 +96,11 @@ export const runTerminalProcess = async (): Promise<void> => {
   try {
     for (let attempt = 0; ; attempt += 1) {
       try {
+        await launch.effect?.consume()
+        launch.effect?.assertLive()
         await command('set-option', '-g', 'remain-on-exit', 'on', ';',
           'set-option', '-g', 'history-limit', String(HISTORY), ';', ...terminalProcessArguments(argv))
+        terminalEffectOutcome(launch, 'accepted')
         break
       }
       catch {
@@ -105,14 +113,19 @@ export const runTerminalProcess = async (): Promise<void> => {
     process.stdout.write(JSON.stringify({ socketPath: socket }) + '\n')
     let inputEnded = false
     void (async () => {
+      let sequence = 1
       for await (const line of { [Symbol.asyncIterator]: () => iterator }) {
-        const data: unknown = JSON.parse(line)
+        const frame = readTerminalEffectFrame(JSON.parse(line), required, ++sequence)
+        const data = frame.value
         if (typeof data !== 'string' || data.length > 32_000) throw new Error('terminal_invalid_input')
         const bytes = Buffer.from(data, 'utf8')
         for (let offset = 0; offset < bytes.length; offset += 512) {
+          await frame.effect?.consume()
+          frame.effect?.assertLive()
           await command('send-keys', '-t', 'nessie:0.0', '-H',
             ...[...bytes.subarray(offset, offset + 512)].map((byte) => byte.toString(16).padStart(2, '0')))
         }
+        terminalEffectOutcome(frame, 'accepted')
       }
       inputEnded = true
     })().catch(() => { inputEnded = true })
