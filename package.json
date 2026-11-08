@@ -8,6 +8,8 @@
   },
   "scripts": {
     "test:session-engine-source": "node --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
+    "test:t3-session-requests": "node --experimental-vm-modules --test --test-concurrency=1 test/t3-session-requests/*.test.mjs",
+    "test:t3-session-engine-plugins": "node packaging/session-engine/plugin-proof.mjs",
     "test:executor-pairing": "node --test --test-concurrency=1 --import tsx test/pairing-code.test.ts test/pairing-code-cli.test.ts",
     "test:public-portability": "node scripts/run-tests.mjs --test-concurrency=1 packaging/cli/public-boundary.test.mjs test/coding-session-daemon.test.ts",
     "test:updates": "node scripts/run-tests.mjs --test-concurrency=1 test/updates-manifest.test.ts test/updates-manifest-darwin.test.ts test/updates-state.test.ts test/updates-catalog.test.ts test/updates-heartbeat.test.ts test/updates-drain.test.ts test/local-inference-supervisor.test.ts test/chatgpt-profile-store.test.ts test/control-plane-e2e.test.ts",
