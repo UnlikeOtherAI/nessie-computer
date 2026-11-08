@@ -41,6 +41,7 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
+  retainedImport: (baseUrl: string, input: unknown) => Promise<unknown>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -210,6 +211,7 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
+    retainedImport: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/retained-import', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,
