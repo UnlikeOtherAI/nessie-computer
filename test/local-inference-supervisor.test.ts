@@ -3,6 +3,16 @@ import test from 'node:test'
 
 import { LocalInferenceApiError } from '../src/local-inference-api.js'
 import { startExecutorLocalInferenceSupervisor } from '../src/local-inference-supervisor.js'
+import type { LocalCliEngineManager } from '../src/local-cli-engine-manager.js'
+
+/** Claude Code and Codex hosts are a sibling these tests leave out; the last test checks the wiring. */
+const cliCalls: string[] = []
+const noCliEngines = (): LocalCliEngineManager => ({
+  reconcile: async () => { cliCalls.push('reconcile') }, heartbeat: async () => { cliCalls.push('heartbeat') },
+  drain: async () => { cliCalls.push('drain') }, resume: () => { cliCalls.push('resume') }, isIdle: () => true,
+  stopRuns: (runIds) => { cliCalls.push(`stop:${runIds.join(',')}`) }, setSessionGate: () => undefined,
+  stop: async () => { cliCalls.push('stop') },
+})
 
 const session = (
   heartbeat: () => Promise<void>,
@@ -22,7 +32,7 @@ test('local inference registration failure leaves the executor live and reconnec
     if (!enabled) throw new Error('LOCAL_HOST_UNAVAILABLE')
     return { session: live.session, state }
   }
-  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
   assert.equal(local.state, state)
   assert.equal(heartbeats, 0)
   enabled = true
@@ -40,7 +50,7 @@ test('a dropped socket keeps the host; a refusal claims afresh at the next heart
     connects += 1
     return { session: connects === 1 ? first.session : second.session, state }
   }
-  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
   await local.supervisor.heartbeat()
   assert.equal(first.stops(), 0, 'An unreachable socket reconnects by itself; generations continue.')
   failure = new LocalInferenceApiError('LOCAL_HOST_UNAVAILABLE', 404)
@@ -55,7 +65,7 @@ test('local reconnect failure retains the latest core executor state', async () 
   const latest = { executorId: 'latest' } as never
   const local = await startExecutorLocalInferenceSupervisor('state-dir', initial, async () => {
     throw new Error('LOCAL_HOST_UNAVAILABLE')
-  })
+  }, noCliEngines)
   assert.equal(await local.supervisor.reconnect(latest), latest)
 })
 
@@ -70,7 +80,7 @@ test('a claim refused for rate waits five minutes before the next claim, then re
     if (limited) throw new LocalInferenceApiError('RATE_LIMITED', 429)
     return { session: live.session, state }
   }
-  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
   assert.equal(connects, 1)
   limited = false
   t.mock.timers.tick(20_000)
@@ -97,7 +107,7 @@ test('a heartbeat right after a fresh claim waits for the socket to open and nev
     if (connects === 1) throw new Error('LOCAL_HOST_UNAVAILABLE')
     return { session: live.session, state }
   }
-  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
   // Reconnected inside the heartbeat: the socket is still opening.
   const first = local.supervisor.heartbeat()
   await new Promise((resolve) => setImmediate(resolve))
@@ -122,9 +132,24 @@ test('a socket that opens within the wait is heartbeated in the same call', asyn
     if (connects === 1) throw new Error('LOCAL_HOST_UNAVAILABLE')
     return { session: live.session, state }
   }
-  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
   await local.supervisor.heartbeat()
   assert.equal(connects, 2)
   assert.equal(heartbeats, 1)
   assert.equal(live.stops(), 0)
+})
+
+test('Claude Code and Codex hosts follow the supervisor: drain, resume, stop runs, stop', async () => {
+  const state = { executorId: 'executor-1' } as never
+  const live = session(async () => undefined)
+  const local = await startExecutorLocalInferenceSupervisor('state-dir', state,
+    (async () => ({ session: { ...live.session, loop: { drain: async () => undefined, resume: () => undefined,
+      isIdle: () => true } }, state })) as never, noCliEngines)
+  cliCalls.length = 0
+  await local.supervisor.drain()
+  local.supervisor.resume()
+  local.supervisor.stopRuns(['run-1'])
+  await local.supervisor.heartbeat()
+  await local.supervisor.stop()
+  assert.deepEqual(cliCalls, ['drain', 'resume', 'stop:run-1', 'heartbeat', 'stop'])
 })

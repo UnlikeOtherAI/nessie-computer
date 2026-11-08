@@ -71,6 +71,7 @@ export const PLUMBING_HELP = [
   '  nessie-computer sync (--executor <id>|--state-dir <dir>) --input-stdin',
   '  nessie-computer local-inference endpoint configure|status|remove --state-dir <dir> [--config-stdin]',
   '  nessie-computer local-inference connections status|--operation-stdin --state-dir <dir>',
+  '  nessie-computer local-inference engines list|--operation-stdin --state-dir <dir>',
   '  nessie-computer personal-chatgpt-local --operation-stdin --state-dir <dir>',
   '  nessie-computer unpair (--executor <id>|--state-dir <dir>) [--json]',
   '',
