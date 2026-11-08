@@ -125,7 +125,7 @@ mod imp {
             )
         };
         if sid_length == 0 {
-            return Err("Windows would not name the Nessie Executor service account.".to_owned());
+            return Err("Windows would not name the Nessie Computer service account.".to_owned());
         }
         let mut sid = vec![0_u8; sid_length as usize];
         let mut domain = vec![0_u16; domain_length.max(1) as usize];
@@ -141,7 +141,7 @@ mod imp {
             )
         };
         if looked_up == 0 {
-            return Err("Windows would not name the Nessie Executor service account.".to_owned());
+            return Err("Windows would not name the Nessie Computer service account.".to_owned());
         }
         Ok(sid)
     }
@@ -164,7 +164,7 @@ mod imp {
         if added == ERROR_SUCCESS || added == ERROR_MEMBER_IN_ALIAS {
             Ok(())
         } else {
-            Err("Windows refused to add the Nessie Executor service account to Hyper-V \
+            Err("Windows refused to add the Nessie Computer service account to Hyper-V \
                  Administrators."
                 .to_owned())
         }

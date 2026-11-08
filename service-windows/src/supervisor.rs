@@ -13,11 +13,15 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet},
-    io::{Read, Write},
     path::PathBuf,
     process::{Child, ChildStdin, Command, Stdio},
     thread::sleep,
     time::{Duration, Instant},
+};
+
+use nessie_windows_common::{
+    failure::{classify, Failure, StderrTail},
+    owner_controls::{read_paused, RequestCache},
 };
 
 use crate::{
@@ -47,11 +51,13 @@ pub(crate) struct ManagedDaemon {
     /// releases the durable daemon lease. It has to be droppable while the child
     /// is still held, because closing it *is* the stop request.
     parent_liveness: Option<ChildStdin>,
+    stderr: StderrTail,
 }
 
 pub(crate) struct PendingConnection {
     child: Child,
     started_at: Instant,
+    stderr: StderrTail,
 }
 
 pub struct Supervisor {
@@ -60,6 +66,9 @@ pub struct Supervisor {
     pub(crate) desired: BTreeSet<String>,
     retry_after: BTreeMap<String, Instant>,
     retry_delay: BTreeMap<String, Duration>,
+    /// Why each team last stopped without being asked to, until it connects again.
+    failures: BTreeMap<String, Failure>,
+    pub(crate) program_requests: BTreeMap<String, RequestCache>,
     pub(crate) root: PathBuf,
     runtime: VerifiedRuntime,
     #[cfg(test)]
@@ -80,7 +89,7 @@ pub(crate) fn wait_bounded(child: &mut Child, timeout: Duration) -> Result<Optio
     loop {
         match child.try_wait() {
             Err(_) => {
-                return Err("Nessie Executor could not inspect its packaged command.".to_owned())
+                return Err("Nessie Computer could not inspect its packaged command.".to_owned())
             }
             Ok(Some(status)) => return Ok(Some(status.code().unwrap_or(1))),
             Ok(None) if Instant::now() >= deadline => return Ok(None),
@@ -112,6 +121,8 @@ impl Supervisor {
             desired: BTreeSet::new(),
             retry_after: BTreeMap::new(),
             retry_delay: BTreeMap::new(),
+            failures: BTreeMap::new(),
+            program_requests: BTreeMap::new(),
             root,
             runtime,
             #[cfg(test)]
@@ -145,92 +156,6 @@ impl Supervisor {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         command
-    }
-
-    /// Runs one packaged command to completion. Its output is never captured or
-    /// reported: a refusal names what was refused, never what a child printed.
-    pub(crate) fn run_to_completion(
-        &self,
-        arguments: Vec<String>,
-        refusal: &str,
-    ) -> Result<(), String> {
-        let mut child = self
-            .command()
-            .args(arguments)
-            .spawn()
-            .map_err(|_| "Nessie Executor could not start its packaged command.".to_owned())?;
-        match wait_bounded(&mut child, COMMAND_TIMEOUT)? {
-            Some(0) => Ok(()),
-            Some(_) => Err(refusal.to_owned()),
-            None => {
-                // A wedged one-shot command is not a daemon with guests to tear
-                // down, and it must not hold the control pipe open forever.
-                let _ = child.kill();
-                Err(refusal.to_owned())
-            }
-        }
-    }
-
-    /// Runs a one-shot command that reads its payload from stdin. Used for
-    /// `configure --configuration-input-stdin` so the whole policy travels on a
-    /// pipe, never in a process list.
-    pub(crate) fn run_to_completion_with_input(
-        &self,
-        arguments: Vec<String>,
-        input: serde_json::Value,
-        refusal: &str,
-    ) -> Result<(), String> {
-        let mut child = self
-            .command()
-            .args(arguments)
-            .stdin(Stdio::piped())
-            .spawn()
-            .map_err(|_| "Nessie Executor could not start its packaged command.".to_owned())?;
-        let mut standard_input = child.stdin.take().ok_or_else(|| {
-            "Nessie Executor could not provide the configuration input securely.".to_owned()
-        })?;
-        let bytes = serde_json::to_vec(&input)
-            .map_err(|_| "Nessie Executor could not prepare the configuration input.".to_owned())?;
-        standard_input.write_all(&bytes).map_err(|_| {
-            "Nessie Executor could not provide the configuration input securely.".to_owned()
-        })?;
-        drop(standard_input);
-        match wait_bounded(&mut child, COMMAND_TIMEOUT)? {
-            Some(0) => Ok(()),
-            Some(_) => Err(refusal.to_owned()),
-            None => {
-                let _ = child.kill();
-                Err(refusal.to_owned())
-            }
-        }
-    }
-
-    /// Runs a one-shot command and returns its stdout. Used for `describe`,
-    /// whose credential-free JSON is handed straight back to the tray.
-    pub(crate) fn run_to_completion_with_output(
-        &self,
-        arguments: Vec<String>,
-        refusal: &str,
-    ) -> Result<String, String> {
-        let mut child = self
-            .command()
-            .args(arguments)
-            .stdout(Stdio::piped())
-            .spawn()
-            .map_err(|_| "Nessie Executor could not start its packaged command.".to_owned())?;
-        let outcome = wait_bounded(&mut child, COMMAND_TIMEOUT)?;
-        let mut stdout = String::new();
-        if let Some(mut pipe) = child.stdout.take() {
-            let _ = pipe.read_to_string(&mut stdout);
-        }
-        match outcome {
-            Some(0) => Ok(stdout),
-            Some(_) => Err(refusal.to_owned()),
-            None => {
-                let _ = child.kill();
-                Err(refusal.to_owned())
-            }
-        }
     }
 
     fn child_status(&mut self, executor_id: &str) -> &'static str {
@@ -268,13 +193,21 @@ impl Supervisor {
         Ok(local.to_owned())
     }
 
-    /// Every paired executor and the state its daemon is in.
+    /// Every paired executor, the state its daemon is in, and the owner's
+    /// facts about it: paused, why it stopped, and requests waiting.
     pub fn statuses(&mut self) -> Vec<ExecutorStatus> {
         paired_executors(&self.root)
             .into_iter()
             .filter_map(|executor_id| {
                 let daemon_status = self.status(&executor_id).ok()?;
+                let state_dir = self.state_dir(&executor_id).ok()?;
+                let failure = (daemon_status != "running")
+                    .then(|| self.failures.get(&executor_id).cloned())
+                    .flatten();
                 Some(ExecutorStatus {
+                    paused: read_paused(&state_dir),
+                    pending_program_requests: self.pending_program_requests(&executor_id, &state_dir),
+                    failure,
                     daemon_status,
                     executor_id,
                     workspace_configured: true,
@@ -319,15 +252,17 @@ impl Supervisor {
             state_dir.display().to_string(),
         ];
         let mut command = self.command();
-        command.args(connection_arguments);
-        let child = command
+        command.args(connection_arguments).stderr(Stdio::piped());
+        let mut child = command
             .spawn()
-            .map_err(|_| "Nessie Executor could not start its packaged command.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not start its packaged command.".to_owned())?;
+        let stderr = child.stderr.take().map(StderrTail::watch).unwrap_or_default();
         self.connections.insert(
             executor_id.to_owned(),
             PendingConnection {
                 child,
                 started_at: Instant::now(),
+                stderr,
             },
         );
         Ok("starting".to_owned())
@@ -337,19 +272,21 @@ impl Supervisor {
         let state_dir = self.state_dir(executor_id)?;
         let mut command = self.command();
         command.args(serve_arguments(&state_dir));
-        command.stdin(Stdio::piped());
+        command.stdin(Stdio::piped()).stderr(Stdio::piped());
         let mut child = command
             .spawn()
-            .map_err(|_| "Nessie Executor could not start the executor daemon.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not start the executor daemon.".to_owned())?;
         let parent_liveness = child
             .stdin
             .take()
-            .ok_or_else(|| "Nessie Executor could not supervise the executor daemon.".to_owned())?;
+            .ok_or_else(|| "Nessie Computer could not supervise the executor daemon.".to_owned())?;
+        let stderr = child.stderr.take().map(StderrTail::watch).unwrap_or_default();
         self.children.insert(
             executor_id.to_owned(),
             ManagedDaemon {
                 child,
                 parent_liveness: Some(parent_liveness),
+                stderr,
             },
         );
         Ok("running".to_owned())
@@ -376,7 +313,16 @@ impl Supervisor {
             let Some(connected) = outcome else {
                 continue;
             };
-            self.connections.remove(&executor_id);
+            let Some(connection) = self.connections.remove(&executor_id) else {
+                continue;
+            };
+            if connected {
+                self.failures.remove(&executor_id);
+            } else {
+                let reason = connection.stderr.last()
+                    .unwrap_or_else(|| "Nessie did not answer this computer in time.".to_owned());
+                self.failures.insert(executor_id.clone(), classify(&reason));
+            }
             if connected {
                 match self.start_daemon(&executor_id) {
                     Ok(_) => {
@@ -397,7 +343,11 @@ impl Supervisor {
         for executor_id in &desired {
             let had_daemon = self.children.contains_key(executor_id);
             if had_daemon && self.child_status(executor_id) == "stopped" {
-                self.children.remove(executor_id);
+                if let Some(daemon) = self.children.remove(executor_id) {
+                    let reason = daemon.stderr.last()
+                        .unwrap_or_else(|| "This team's connection stopped.".to_owned());
+                    self.failures.insert(executor_id.clone(), classify(&reason));
+                }
                 self.schedule_retry(executor_id, now);
             }
         }
@@ -439,6 +389,7 @@ impl Supervisor {
     }
 
     pub fn stop(&mut self, executor_id: &str) -> Result<String, String> {
+        self.failures.remove(executor_id);
         self.desired.remove(executor_id);
         self.retry_after.remove(executor_id);
         self.retry_delay.remove(executor_id);
@@ -451,7 +402,7 @@ impl Supervisor {
         if daemon
             .child
             .try_wait()
-            .map_err(|_| "Nessie Executor could not inspect the executor daemon.".to_owned())?
+            .map_err(|_| "Nessie Computer could not inspect the executor daemon.".to_owned())?
             .is_some()
         {
             return Ok("stopped".to_owned());
@@ -464,7 +415,7 @@ impl Supervisor {
         }
         self.children.insert(executor_id.to_owned(), daemon);
         Err(
-            "The executor is still stopping. Nessie Executor will not force-kill a sandbox daemon."
+            "The executor is still stopping. Nessie Computer will not force-kill a sandbox daemon."
                 .to_owned(),
         )
     }

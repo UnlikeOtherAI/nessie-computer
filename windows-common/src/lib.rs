@@ -1,4 +1,4 @@
-//! What the Nessie Executor service and its tray both have to agree on.
+//! What the Nessie Computer service and its tray both have to agree on.
 //!
 //! Three facts, and all are the kind that break silently when they are stated
 //! twice: the account Windows derives from the service name — pick the two
@@ -15,9 +15,11 @@ mod sid;
 
 pub mod custody;
 pub mod custody_store;
+pub mod failure;
 #[cfg(windows)]
 pub mod custody_observation;
 pub mod lease;
+pub mod owner_controls;
 pub mod inference_control;
 #[cfg(windows)]
 pub mod process;

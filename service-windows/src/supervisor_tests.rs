@@ -320,7 +320,7 @@ fn a_refused_unpair_keeps_the_pairing_and_leaves_it_stopped() {
     fs::write(state.join("unpair-refuse.marker"), b"").expect("refusal fixture");
     assert_eq!(
         supervisor.remove(EXECUTOR_ID, None),
-        Err("The Nessie Executor service couldn’t remove this team. Try again.".to_owned()),
+        Err("The Nessie Computer service couldn’t remove this team. Try again.".to_owned()),
     );
     assert!(has_executor_state(&state));
     assert_eq!(supervisor.status(EXECUTOR_ID), Ok("stopped".to_owned()));

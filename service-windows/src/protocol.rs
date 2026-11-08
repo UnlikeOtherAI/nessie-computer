@@ -2,8 +2,9 @@
 //!
 //! The tray is a stateless client of the CLI, so the protocol exposes the
 //! commands it needs: `status`, `pair`, `start`, `stop`, `describe`,
-//! `configureInput`, and `remove`. `describe` returns the same credential-free
-//! JSON the CLI prints; `configureInput` carries the whole stdin payload for
+//! `configureInput`, `remove`, and the owner's own controls — `setPaused`,
+//! `programRequests`, `answerProgramRequest` and `audience`. `describe`
+//! returns the same credential-free JSON the CLI prints; `configureInput` carries the whole stdin payload for
 //! `configure --configuration-input-stdin`; `remove` runs the CLI's `unpair`
 //! and answers only whether Nessie heard the sign-off. This keeps the tray from
 //! ever opening `executor-state.json` while still letting it show folders,
@@ -12,35 +13,15 @@
 //! Everything here is a pure function of the request text, so both halves of the
 //! contract are tested on any host.
 
+use nessie_windows_common::{failure::Failure, owner_controls::Answer};
 use serde::{Deserialize, Serialize};
 
-/// The workspace operations the local policy may allow, in canonical order.
-pub const WORKSPACE_OPERATION_KEYS: [&str; 5] = [
-    "file.list",
-    "file.read",
-    "file.write",
-    "workspace.review",
-    "sandbox.stop",
-];
-
-/// The longest pairing challenge the API mints, matched to the desktop
-/// companion's own bound so neither accepts what the other refuses.
-const MAX_CHALLENGE_BYTES: usize = 8_192;
-
-/// Windows' extended path limit. A workspace root longer than this cannot name
-/// a real directory.
-const MAX_WORKSPACE_BYTES: usize = 32_767;
-
-const MAX_IDENTIFIER_BYTES: usize = 128;
-
-/// The longest request line the pipe will read. A pairing challenge plus a
-/// workspace path plus JSON framing fits with room to spare; anything larger is
-/// a caller that has lost the protocol, not a command.
-pub const MAX_REQUEST_BYTES: usize = 65_536;
-
-const NESSIE_API_BASE_URL: &str = "https://api.nessie.works";
-const DEEPTEST_API_BASE_URL: &str = "https://api.deeptest.live";
-const LOOPBACK_API_BASE_URLS: [&str; 2] = ["http://127.0.0.1:5454", "http://localhost:5454"];
+pub use crate::protocol_values::MAX_REQUEST_BYTES;
+use crate::protocol_values::{
+    approved_api_base_url, challenge, workspace_operation_keys, workspace_root, MAX_IDENTIFIER_BYTES,
+};
+#[cfg(test)]
+use crate::protocol_values::{LOOPBACK_API_BASE_URLS, NESSIE_API_BASE_URL};
 
 /// A validated command. Construction is the validation: nothing downstream
 /// re-checks these, and nothing downstream may skip them.
@@ -83,6 +64,21 @@ pub enum Command {
     },
     PairingCancel,
     Remove {
+        executor_id: String,
+    },
+    SetPaused {
+        executor_id: String,
+        paused: bool,
+    },
+    ProgramRequests {
+        executor_id: String,
+    },
+    AnswerProgramRequest {
+        executor_id: String,
+        id: String,
+        answer: Answer,
+    },
+    Audience {
         executor_id: String,
     },
     Start {
@@ -162,6 +158,21 @@ enum Request {
     Remove {
         executor_id: String,
     },
+    SetPaused {
+        executor_id: String,
+        paused: bool,
+    },
+    ProgramRequests {
+        executor_id: String,
+    },
+    AnswerProgramRequest {
+        executor_id: String,
+        id: String,
+        answer: String,
+    },
+    Audience {
+        executor_id: String,
+    },
     Start {
         executor_id: String,
     },
@@ -171,13 +182,19 @@ enum Request {
     },
 }
 
-/// One paired executor, as the tray is allowed to see it.
+/// One paired executor, as the tray is allowed to see it: its daemon state,
+/// whether its owner paused it, why it last stopped when it is not running,
+/// and how many program requests wait for an answer. Never a path or a key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutorStatus {
     pub daemon_status: String,
     pub executor_id: String,
     pub workspace_configured: bool,
+    pub paused: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure: Option<Failure>,
+    pub pending_program_requests: usize,
 }
 
 /// The answer. Each variant carries only what the tray asked for: an executor
@@ -221,6 +238,12 @@ pub enum Response {
     Removed {
         signed_off: bool,
     },
+    ProgramRequests {
+        requests: Vec<nessie_windows_common::owner_controls::ProgramRequest>,
+    },
+    Audience {
+        audience: serde_json::Value,
+    },
 }
 
 impl Response {
@@ -235,7 +258,7 @@ impl Response {
         // The type is a closed set of strings and booleans, so serialization is
         // total; a failure here would be a bug in this file, not in a caller.
         format!("{}\n", serde_json::to_string(self).unwrap_or_else(|_| {
-            r#"{"status":"error","reason":"The Nessie Executor service could not encode its answer."}"#
+            r#"{"status":"error","reason":"The Nessie Computer service could not encode its answer."}"#
                 .to_owned()
         }))
     }
@@ -257,82 +280,6 @@ fn identifier(value: String, field: &str) -> Result<String, String> {
     } else {
         Err(format!("The {field} is malformed."))
     }
-}
-
-fn approved_api_base_url(value: &str) -> Result<String, String> {
-    if value == NESSIE_API_BASE_URL || value == DEEPTEST_API_BASE_URL {
-        return Ok(value.to_owned());
-    }
-    // A local owner may deliberately pair to this machine's development API.
-    // This is a closed loopback set, not a general HTTP exception: a pasted
-    // invitation can never route the machine key to a LAN or internet host.
-    if LOOPBACK_API_BASE_URLS.contains(&value) {
-        return Ok(value.to_owned());
-    }
-    // Nessie is open source and self-hosted. Anything else must be an HTTPS
-    // origin with no credentials, path, query or fragment — the same rule the
-    // shared schema enforces so one host cannot be dressed up as another.
-    let parsed = value.parse::<url::Url>().map_err(|_| {
-        "Choose Nessie cloud, DeepTest, an approved local API, or an HTTPS origin.".to_owned()
-    })?;
-    if !parsed.username().is_empty() || parsed.password().is_some() {
-        return Err("Enter the server address without a username or password.".to_owned());
-    }
-    if parsed.query().is_some()
-        || parsed.fragment().is_some()
-        || !(parsed.path() == "/" || parsed.path().is_empty())
-    {
-        return Err(
-            "Enter only the server address, without a page path or anything after it.".to_owned(),
-        );
-    }
-    if parsed.scheme() == "https" {
-        Ok(parsed.origin().unicode_serialization())
-    } else {
-        Err("The server address must start with https://.".to_owned())
-    }
-}
-
-fn challenge(value: String) -> Result<String, String> {
-    if value.is_empty() || value.len() > MAX_CHALLENGE_BYTES || value.contains('\0') {
-        return Err("The pairing challenge is malformed.".to_owned());
-    }
-    Ok(value)
-}
-
-fn workspace_root(value: String) -> Result<String, String> {
-    if value.is_empty()
-        || value.len() > MAX_WORKSPACE_BYTES
-        || value.contains('\0')
-        || !std::path::Path::new(&value).is_absolute()
-    {
-        return Err("Choose one existing absolute workspace directory.".to_owned());
-    }
-    Ok(value)
-}
-
-/// Canonicalizes the requested policy the way the desktop companion does: a
-/// known set, each key at most once, always in the one declared order.
-pub fn workspace_operation_keys(requested: Vec<String>) -> Result<Vec<String>, String> {
-    if requested.is_empty()
-        || requested.len() > WORKSPACE_OPERATION_KEYS.len()
-        || requested
-            .iter()
-            .any(|key| !WORKSPACE_OPERATION_KEYS.contains(&key.as_str()))
-    {
-        return Err("Choose one or more supported workspace operations.".to_owned());
-    }
-    let mut unique = requested.clone();
-    unique.sort();
-    unique.dedup();
-    if unique.len() != requested.len() {
-        return Err("Choose each workspace operation only once.".to_owned());
-    }
-    Ok(WORKSPACE_OPERATION_KEYS
-        .iter()
-        .filter(|key| requested.iter().any(|value| value == *key))
-        .map(|key| (*key).to_owned())
-        .collect())
 }
 
 /// Parses and validates one request line. A malformed line is refused in words
@@ -418,6 +365,26 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             workspace_root: workspace_root(workspace)?,
         })),
         Request::Remove { executor_id } => Ok(Command::Remove {
+            executor_id: identifier(executor_id, "executor id")?,
+        }),
+        Request::SetPaused { executor_id, paused } => Ok(Command::SetPaused {
+            executor_id: identifier(executor_id, "executor id")?,
+            paused,
+        }),
+        Request::ProgramRequests { executor_id } => Ok(Command::ProgramRequests {
+            executor_id: identifier(executor_id, "executor id")?,
+        }),
+        Request::AnswerProgramRequest { executor_id, id, answer } => {
+            if !nessie_windows_common::owner_controls::valid_request_id(&id) {
+                return Err("That request is no longer listed.".to_owned());
+            }
+            Ok(Command::AnswerProgramRequest {
+                executor_id: identifier(executor_id, "executor id")?,
+                id,
+                answer: Answer::parse(&answer)?,
+            })
+        }
+        Request::Audience { executor_id } => Ok(Command::Audience {
             executor_id: identifier(executor_id, "executor id")?,
         }),
         Request::Start { executor_id } => Ok(Command::Start {

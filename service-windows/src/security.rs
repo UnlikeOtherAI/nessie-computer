@@ -218,7 +218,7 @@ impl PipeSecurity {
         let administrators = well_known_administrators()
             .ok_or_else(|| "Windows would not report the Administrators group.".to_owned())?;
         let service = sid_from_string(service_sid)
-            .ok_or_else(|| "Windows would not report the Nessie Executor account.".to_owned())?;
+            .ok_or_else(|| "Windows would not report the Nessie Computer account.".to_owned())?;
         // The service is added below with its server rights. A malformed or
         // stale marker naming it must not add a second limited `SET_ACCESS`
         // entry and take `FILE_CREATE_PIPE_INSTANCE` back away.
@@ -257,7 +257,7 @@ impl PipeSecurity {
             )
         };
         if built != ERROR_SUCCESS || acl.is_null() {
-            return Err("Nessie Executor could not secure its control channel.".to_owned());
+            return Err("Nessie Computer could not secure its control channel.".to_owned());
         }
         let mut descriptor: Box<SECURITY_DESCRIPTOR> = Box::new(unsafe { std::mem::zeroed() });
         let descriptor_pointer =
@@ -268,7 +268,7 @@ impl PipeSecurity {
             && unsafe { SetSecurityDescriptorDacl(descriptor_pointer, 1, acl, 0) } != 0;
         if !initialized {
             unsafe { LocalFree(acl as HLOCAL) };
-            return Err("Nessie Executor could not secure its control channel.".to_owned());
+            return Err("Nessie Computer could not secure its control channel.".to_owned());
         }
         Ok(Self { acl, descriptor })
     }
