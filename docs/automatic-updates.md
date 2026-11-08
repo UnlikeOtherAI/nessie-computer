@@ -424,3 +424,7 @@ or closed broker error using the production exchange. Application calls keep
 their existing public error; no diagnostic flag bypasses authentication or changes
 timeouts. Signed 1.0.7 passed normal installation and desktop peer verification;
 its subsequent control exchange is still under investigation and is not accepted.
+Windows nonblocking pipe acceptance distinguishes listening from a connected
+client: a successful first ConnectNamedPipe call only makes the instance
+available; ERROR_PIPE_CONNECTED establishes the connection. The kernel pipe
+regression covers an empty listener, a real client and abandoned-client recovery.
