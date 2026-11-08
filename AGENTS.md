@@ -49,3 +49,4 @@ The daemon doorbell, live session requests, owner answers and `request_secret` f
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
 Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
+The generated `/engine` package export, exact authored-input registration and its `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).

@@ -1,5 +1,6 @@
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createHash } from 'node:crypto'
 
 import { createSessionEngineSourceResolver } from './resolver.mjs'
 import { declarationWriter } from './declarations.mjs'
@@ -8,7 +9,8 @@ const tools = fileURLToPath(new URL('.', import.meta.url))
 const slash = path => path.replaceAll('\\', '/')
 
 /** Type-check the real source closure without writing upstream files into a checkout. */
-export const typecheckSessionState = async (snapshot, entryPoint, { declarationDirectory } = {}) => {
+export const typecheckSessionState = async (snapshot, entryPoint,
+  { declarationDirectory, sharedContracts, assertAuthoredInputs } = {}) => {
   const { default: ts } = await import('typescript')
   const virtualRoot = `${slash(resolve(tools, '.virtual-t3-source'))}/`
   const sourcePath = path => {
@@ -67,9 +69,15 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
     return ts.resolveModuleName(name, containingFile, options, host).resolvedModule
   })
   const declarations = declarationDirectory
-    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver }) : undefined
+    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver, sharedContracts }) : undefined
   if (declarations) host.writeFile = declarations.writeFile
   const program = ts.createProgram([resolve(entryPoint)], options, host)
+  const authoredInputs = Object.fromEntries(program.getSourceFiles()
+    .filter(source => sourcePath(source.fileName) === undefined && !slash(source.fileName).includes('/node_modules/'))
+    .map(source => [slash(relative(resolve(tools, '../..'), source.fileName)),
+      createHash('sha256').update(source.text).digest('hex')]).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
+  // Erased imports and authored declarations are inputs before emit or bundler tree shaking.
+  assertAuthoredInputs?.(Object.keys(authoredInputs))
   // Full upstream schema inference exceeds TS's declaration serializer. Check the complete graph;
   // emit authored declarations and retain verified upstream type source instead of widening schemas.
   const diagnostics = [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(),
@@ -93,5 +101,6 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
     }
   }
   return { compiler: ts.version, sourceFiles: program.getSourceFiles().length, libraryChecks: true,
+    authoredInputs,
     ...(declarations ? { declarations: await declarations.save(declarationDirectory, resolve(entryPoint)) } : {}) }
 }

@@ -65,15 +65,176 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 `T3_REQUEST_PRIVACY_SOURCE_ARCHIVE`. For a dedicated dlx store use
 `--config.store-dir=<owned-store>`; pnpm 10.22 rejects `--store-dir` for dlx.
 
-## Package boundary being implemented
+## Package interface
 
 The owning export is `@nessie/t3-session-source/engine`, alongside the existing
 contracts/settings/relay and build-helper exports. One split build must generate
 engine and contracts from the same exact patched snapshot, share portable types,
 and leave Effect 4.1.2 external for ordinary consumer resolution. Producer-only
 module counts do not establish the consumer's actual physical/runtime identity.
-Package runtime, normal consumer identity/history, reproducibility and final-byte
-Node 22 qualification remain pending at this checkpoint.
+The runtime is `dist/engine.js`; its declaration entry is
+`dist/engine-types/index.d.ts`. The contract barrels retain
+`dist/types/{index,settings,relay}.d.ts` and share their checked, patched
+`dist/source/*.ts` with the engine's type-source closure. The generated build
+helper at `dist/build/input.mjs` retains the existing `/build` API in a packed
+consumer. Its source helper remains unchanged and hash-checkable.
+
+```ts
+import { createSessionStateLayers, createSessionReadLayers, Sqlite,
+  EnvironmentIdentity, SourceContracts } from '@nessie/t3-session-source/engine'
+import { ThreadId } from '@nessie/t3-session-source/contracts'
+```
+
+`SourceContracts` is the actual original module namespace shared with the
+contracts entry. Keep one `state = createSessionStateLayers()` and pass it to
+`createSessionReadLayers(state)` and, when its owners are ready,
+`createSessionEngineLayers(state)`. Recreating state would lose the retained
+outbox wakeup reference. Import and factory construction open no database and
+start no providers, worker consumers, recovery or lifecycle.
+
+The original read layer type remains
+`Layer<SessionStateServices | LegacyImporter.LegacyV1ThreadImporter |
+ThreadReadService, never, SqlClient.SqlClient>`. Supply the real SQL layer.
+`Sqlite.layerFromPath` needs Effect FileSystem and Path; use the declared Node
+platform services for a Node host. Calling `getThreadTranscript` additionally
+needs `EnvironmentIdentity.ServerEnvironmentIdentity`. Shell streams still need
+the original project enrichment port. Higher layers retain their real settings,
+provider and cleanup requirements; the package supplies no fallback owners.
+
+The declared `prepare:engine` Turbo prerequisite prepares the verified source
+cache and performs only the isolated producer's frozen, script/workspace/
+pnpmfile-disabled install. The ordinary `build` task emits one split graph;
+Effect and Node platform packages stay external and pinned at 4.1.2. Markdown
+runtime dependencies remain bundled from the frozen patched producer. Their
+declared public packages also satisfy the portable upstream type-source imports.
+The package includes the complete original MIT notice, dependency notices and
+unchanged first-party FSL licence. Previous generated output generations are
+retained under the owning package's ignored build directory.
+Direct package build/typecheck scripts also invoke that same idempotent
+preparation before loading compiler dependencies, including in Docker. Turbo
+keeps its explicit graph prerequisite; neither path assumes isolated producer
+dependencies already exist.
+
+```powershell
+pnpm.cmd exec turbo run build --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+pnpm.cmd exec turbo run test:t3-session-engine --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+```
+
+`library-inputs.json` registers the exact authored files admitted to this graph.
+T04 must add each actual owned adapter file to `authoredInputs` and export its
+namespace through `core/Engine.ts`; the build rejects unregistered imports.
+Admission checks the complete first-party TypeScript program, including erased
+type-only imports and authored `.d.ts`, as well as runtime bundler inputs. Both
+closures are recorded with file hashes. The focused regression refuses an
+unregistered type-only declaration before emit, then passes after registration.
+For files outside the existing package/producer/patch roots, register the same
+exact paths in the public and private Turbo build/typecheck inputs. Admission
+does not silently widen filesystem inputs or cache coverage.
+There are no wildcard directories or runtime source loaders. T04 is not
+implemented here. The producer's existing `buildSessionEngineModule` and
+`buildSessionStateModule` APIs remain available for their explicit source/probe
+uses; probes are never package exports.
+
+## Runtime and browser checks
+
+The first normal package gate passed four cases on Node 24.19.0. The final
+registered gate passed six cases on the independently downloaded official Node
+22.23.1 interpreter, with no skips. It checked actual package exports and their
+physical Effect root, exact codec objects and original Context service identity,
+strict Bundler/NodeNext declarations and required ports, browser bundle isolation,
+and real SQLite history/replay/prune/reopen through the generated library.
+
+Import/factory construction started zero child processes, workers or databases.
+The library exports no synthetic proof functions or no-op importer. The history
+run completed all 80 migrations, 162 catalog rows, 10 archived, 60 older settled,
+360 messages across nine pages and 360 inherited rows. Replay/live handoff each
+returned one event with zero duplicates; future/pruned cursors returned snapshots.
+Reopening retained all 360 rows; repeat hydration imported zero messages and the
+dormant outbox row was unchanged. Providers and effect consumers started: zero.
+
+Node 22's `builtinModules` does not list prefix-only `node:sqlite`, although
+`isBuiltin('node:sqlite')` correctly returns true. The build resolver and external
+checks now use that API; the focused regression also rejects invented/bare SQLite
+names. This fixes producer admission without changing upstream SQLite behavior.
+The original adapter still warns that checkpoints use the main connection when
+Node 22 lacks `setAuthorizer`; boolean `isTransaction` is present. Installed
+runtime/native eligibility remains false.
+
+The owned Node ZIP and EXE SHA-256 values match the exact-version official
+checksums: `7df0bc9375723f4a86b3aa1b7cc73342423d9677a8df4538aca31a049e309c29`
+and `f8d162c0641dcee512132f3bcf8a68169c7ecb852efd8e1a46c9fec5a0f469ed`.
+Authenticode is Valid for OpenJS Foundation with a timestamp. No interpreter
+installation or runtime custody change occurred.
+
+The local-only registered browser gate passed in headless Chrome 156.0.8078.80.
+It imports a self-contained browser-platform bundle made from the three actual
+package entries; original ID/settings/secret codecs and 119 relay exports work.
+The graph rejects engine, Node builtins and Node platform leakage through shared
+chunks. No product UI build, page change or screenshot applies. This gate is
+absent from ordinary test/CI.
+
+Two independent forced normal builds under Node 22.23.1 reproduced every byte
+of all 396 distribution files, including ordered source/dependency/type inputs,
+portable declarations, provenance, notices and packed build helpers. Two standard
+`pnpm pack` invocations also produced identical 1,701,172-byte archives:
+
+- All distribution file hashes: `c621b094a162d2262d21ae3335fcb39cfd421926fd7bb9ddd51bcaf9f3540b19`.
+- Package archive: `9e48fd3bf65fec76b0731b7d50bda6ef13f73610bed48ca0e0fc9481eb733914`.
+- Eight runtime modules: `8816354ed76f27cd48053d1860dae6334d0283418afae4d52c5d96980e65e653`.
+- Engine entry: `388d68d2c920b1bbf5fdafa49e2b4ecd757e836fa19d88c89de1fd031f6de49a`.
+- 295 engine type files: `3ce35177f0c5cf158415a1a8dab310c07a5cdeca96e651094008a9e60062bf63`, sharing 78 contract type files.
+- Engine provenance: `15b4e9f0f2b49d5fa34dbab470f77c424c4e21b7799842203b76da2681a434e6`.
+- Complete original MIT/97 dependency notices: `b3bfb9fbb65ef16a9a654571025c2b9b7ebc0da6174e68d248574b9d3fe4eefa`.
+
+A fresh consumer installed only the packed archive plus its declared
+dependencies and pinned TypeScript/Node typings/esbuild, from its own frozen,
+script/workspace/pnpmfile-disabled installation and store. Module observation
+hooks return ordinary resolution unchanged and reject any resolved file outside
+that installation; `NODE_PATH` is unset. Runtime imports pass with 323 module
+files inside the consumer, actual shared codec/Context identities, one physical
+Effect root and zero import/factory side effects. Both strict default-host
+Bundler and NodeNext programs pass library checks; all 925 source/declaration/lib
+files resolve inside that fresh consumer. No parent workspace modules mask a
+missing dependency.
+
+The packed build helper actually read the hash-verified original capsule,
+resolved its original contract entry and ran real esbuild with both exported
+plugins. Actual alias/source codec identity passed. Its file inputs and loaded
+modules stayed inside the consumer's own installation; no helper was imported
+from the source checkout.
+
+Contained history execution also passed the complete migration/history/replay/
+prune/reopen assertions above, with 324 module files inside the installation.
+The containment guard first caught the fixture's direct Node filesystem-service
+import resolving from the parent workspace. The consumer manifest now declares
+`@effect/platform-node@4.1.2` explicitly, alongside Effect and the engine package;
+the library had already declared its own platform dependencies. The corrected
+frozen install and contained run passed without remapping imports or weakening
+the guard. The failed import attempt created no history database. This is a
+consumer host-dependency correction, not a runtime fallback or ambient owner.
+
+The final protocol rerun passed all 18 cases on Node 22, with its normal
+5120 MiB compiler. Raw HTTP inventory reads the original committed capsule:
+the ledger binds original application declarations, while extracted `ws.ts`
+changes line locations and is excluded from the runtime graph. Provenance
+records `rawHttpSource: original-committed-capsule`; its inventory digest is
+`33cc69d4ac118a969ddc66007ad5e260d6f6a4f988dba0af7093ef69ae6b0356`.
+Engine/contracts runtime, types and notices are unchanged by this metadata
+correction. The final repeated archives above include the corrected inventory.
+The contained consumer then installed that exact final archive, rehashed all 396
+installed distribution files against the final output map, and reran actual
+import/context/codec and fresh SQLite history proofs on Node 22. All passed;
+the read run stayed within 324 consumer module files.
+
+Final source gates pass 14 producer cases and two cache/plugin metadata cases;
+both real plugin orders retain the expected `ddbdb025` probe and 306 Effect
+modules. Focused first-party lint passes ten changed package/fixture modules.
+Private CI/image-scope regression passes 20 cases, including partial-image COPY
+closure checks. Docker is not available on this Maxis host: Production Image
+app/admin/web were not built here. The complete private API
+`test:build-declarations` gate remains deferred to V03's prepared prerequisites;
+the exact three contract mappings and new engine mapping are source changes,
+not a claimed private gate pass.
 
 This is a machine-only build/library capability. No UI changes or screenshots
 apply. Canonical vault save/use/delivery, admitted provider/resource/lifecycle

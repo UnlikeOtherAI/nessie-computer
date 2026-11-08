@@ -18,10 +18,19 @@
       "env": ["T3_CLIENT_CONNECTION_SOURCE_REPOSITORY", "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE",
         "T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY"] },
     "@nessie/t3-session-source#build": {
-      "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/source.mjs", "../../packaging/session-engine/source-lock.json",
-        "../../packaging/session-engine/snapshot.mjs", "../../packaging/session-engine/resolver.mjs"],
+      "dependsOn": ["^build", "prepare:engine"],
+      "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/**", "../../patches/t3-session/**",
+        "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"],
       "outputs": ["dist/**"]
     },
+    "prepare:engine": { "dependsOn": [], "cache": false },
+    "@nessie/t3-session-source#typecheck": { "dependsOn": ["^build", "^typecheck", "prepare:engine"],
+      "inputs": ["$TURBO_DEFAULT$", "../../packaging/session-engine/**", "../../patches/t3-session/**",
+        "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"] },
+    "test:t3-session-engine": { "dependsOn": ["build"], "cache": false },
+    "test:t3-session-engine-browser": { "dependsOn": ["build"], "cache": false,
+      "env": ["T3_SESSION_BROWSER_EXECUTABLE"] },
+    "@nessie/t3-session-source#test": { "dependsOn": ["build"], "cache": false },
     "build": {
       "dependsOn": [
         "^build"

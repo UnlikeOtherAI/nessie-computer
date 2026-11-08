@@ -16,6 +16,14 @@ const artifacts = resolve(dirname(fileURLToPath(import.meta.url)), '../../.artif
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const environment = { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' }
 
+test('prefix-only Node builtins use the runtime admission API, including Node 22 SQLite', () => {
+  const resolver = createSessionEngineSourceResolver({ files: [] })
+  assert.deepEqual(resolver.resolve('node:sqlite'), { kind: 'builtin', path: 'node:sqlite' })
+  assert.deepEqual(resolver.resolve('node:test'), { kind: 'builtin', path: 'node:test' })
+  assert.equal(resolver.resolve('node:invented').kind, 'dependency')
+  assert.equal(resolver.resolve('sqlite').kind, 'dependency')
+})
+
 const fixture = async (context, extra = {}) => {
   await mkdir(artifacts, { recursive: true })
   const root = await mkdtemp(join(artifacts, 'session-engine-source-test-'))
