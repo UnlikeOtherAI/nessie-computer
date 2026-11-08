@@ -9,6 +9,15 @@ with lossless `stdout`/`stderr`, observed `pid`/`exitCode`, `endInput()`,
 `terminate()` and positive `closed`. Generic SDK stdin is absent. `completion()`
 waits for clearance before exposing the service's result envelope.
 
+`createT3ExecutionNativeClient().prepare(reservationId, providerSessionId, launch,
+signal?)` requires `launch.processPurpose`; it is not a top-level prepare field.
+The original provider adapter passes `{ processPurpose: 'provider', command,
+args, cwd, environment }` with no `history`. The typed history alternatives
+require `history: { method, sessionId, rawOptions }`, with `getSessionMessages`
+for `claude-history-read` or `forkSession` for `claude-history-fork`. Native
+independently validates those pairings. The client supplies no default purpose,
+and representing a history descriptor does not authorize its execution.
+
 The SYSTEM session host calls `ExecutionProcess::Authorize`. The service verifies
 the backend launch signature against the paired origin, current graph, source,
 release, reservation and preparation. It returns only its held exact launch
