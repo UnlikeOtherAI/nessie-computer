@@ -48,6 +48,16 @@ test('settings changes alter the retained selection even when the provider id is
   assert.notEqual(first.settingsBytes, second.settingsBytes)
 })
 
+test('original provider decoder failures do not expose settings values', async () => {
+  const marker = 'private-config-marker'
+  await assert.rejects(read(settings({ driver: 'codex', config: { binaryPath: { secret: marker } } })), error => {
+    assert.match(String(error), /T3_CONFIGURED_PROVIDER_REFUSED/u)
+    assert.equal(String(error).includes(marker), false)
+    assert.equal(JSON.stringify(error).includes(marker), false)
+    return true
+  })
+})
+
 test('a DTO or constructor call cannot manufacture a prepared original launch target', async () => {
   assert.throws(() => new PreparedSessionLaunchTarget({}, {}, 'generation', {}, {}),
     { name: 'SessionLaunchTargetRefused' })

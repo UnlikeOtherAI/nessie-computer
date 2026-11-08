@@ -26,6 +26,12 @@ type Reads = Input<ReturnType<typeof createSessionReadLayers>['layer']>
 type Engine = Input<ReturnType<typeof createSessionEngineLayers>['layer']>
 type Worker = Input<ReturnType<typeof createSessionEngineLayers>['worker']>
 type Shared = Input<ReturnType<typeof createSessionEngineLayers>['shared']>
+type Inspection = Input<ReturnType<typeof createSessionEngineLayers>['inspection']>
+const inspectionSqlRequired: SqlClient.SqlClient extends Inspection ? true : false = true
+const inspectionSettingsRequired: Settings.ServerSettingsService extends Inspection ? true : false = true
+const inspectionDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Inspection ? true : false = false
+const inspectionSessionsRequired: ProviderSessions.ProviderSessionManagerV2 extends Inspection ? true : false = false
+const inspectionCleanupRequired: ResourceOwners.ResourceCleanupService extends Inspection ? true : false = false
 const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
@@ -42,6 +48,8 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 // @ts-expect-error A plain value cannot substitute for the original dedicated request schema.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineDirectoryRequired,
+  inspectionSqlRequired, inspectionSettingsRequired, inspectionDirectoryRequired,
+  inspectionSessionsRequired, inspectionCleanupRequired,
   engineSettingsRequired, workerCleanupRequired,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, invalidCommand, invalidSecret]
 `

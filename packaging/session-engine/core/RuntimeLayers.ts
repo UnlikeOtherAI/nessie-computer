@@ -11,8 +11,8 @@ import { sessionResourceCleanupLayer } from './ResourceLayers.ts'
  * layer. Missing provider/resource services remain real Layer requirements.
  * One state object supplies every store, outbox and post-commit wakeup lane.
  */
-export const createSessionRuntimeLayers = (state = createSessionStateLayers()) => {
-  const engine = createSessionEngineLayers(state)
+export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
+  engine = createSessionEngineLayers(state)) => {
   const host = Layer.mergeAll(sessionProviderHostLayer, sessionResourceCleanupLayer)
   const services = Layer.mergeAll(engine.launch, engine.recovery, engine.worker).pipe(
     Layer.provideMerge(Layer.mergeAll(host, engine.finalization)),

@@ -9,7 +9,17 @@ export const extractPrelaunch = author => {
   author.replace(file, '  const projects = yield* ProjectService.ProjectService;',
     '  const projects = yield* ProjectService.ProjectService;\n'
       + '  const storedProjects = yield* ProjectStore.ProjectStoreV2;', 'prelaunch-stored-project-owner')
-  const target = `export interface ThreadLaunchTarget {
+  const target = `/** Fields used by nonexecuting ID/project/provider selection only. */
+export type ThreadLaunchSelectionInput = Pick<ThreadLaunchInput,
+  "commandId" | "threadId" | "reuseExistingThread" | "projectId" | "modelSelection">;
+
+export const selectThreadLaunchTargetInput = (input: ThreadLaunchSelectionInput): ThreadLaunchSelectionInput => ({
+  commandId: input.commandId, projectId: input.projectId, modelSelection: input.modelSelection,
+  ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
+  ...(input.reuseExistingThread === undefined ? {} : { reuseExistingThread: input.reuseExistingThread }),
+});
+
+export interface ThreadLaunchTarget {
   readonly threadId: ThreadId;
   readonly projectId: ProjectId;
   readonly providerInstanceId: ThreadLaunchInput["modelSelection"]["instanceId"];
@@ -21,7 +31,7 @@ export const extractPrelaunch = author => {
 `
   author.replace(file, 'export class ThreadLaunchService extends', target + 'export class ThreadLaunchService extends',
     'prelaunch-target-type')
-  author.replace(file, '    readonly launch: (\n', `    readonly prepareTarget: (input: ThreadLaunchInput) =>
+  author.replace(file, '    readonly launch: (\n', `    readonly prepareTarget: (input: ThreadLaunchSelectionInput) =>
       Effect.Effect<ThreadLaunchTarget,
         ThreadLaunchError | ThreadManagement.ThreadManagementProviderInstanceDisabledError, Scope.Scope>;
     readonly launch: (
@@ -48,11 +58,11 @@ export const extractPrelaunch = author => {
     readonly signature: string; readonly threadId: ThreadId; holders: number;
   }>();
   yield* Effect.addFinalizer(() => Effect.sync(() => prepared.clear()));
-  // Attachment claiming happens later in ThreadMessageIntake. It may rewrite
-  // attachment paths but never this original launch target. The enclosing
-  // signed operation still binds the entire original request, including content.
+  // Selection retains only the fields it consumes, never creation provenance.
+  // The enclosing signed command still binds its full original request and the
+  // admitted launch keeps the original complete receipt/digest semantics.
   const selectionSignature = (input: ThreadLaunchInput) =>
-    JSON.stringify({ ...input, initialMessage: undefined });
+    JSON.stringify(selectThreadLaunchTargetInput(input));
   const resolveTarget = Effect.fn("ThreadLaunchService.resolveTarget")(
     function* (request: ThreadLaunchInput, inspection = false) {
 ${cachedSelection}

@@ -5,6 +5,7 @@ import * as ThreadCommandExecutor from 't3-source:apps/server/src/orchestration-
 import * as Orchestrator from 't3-source:apps/server/src/orchestration-v2/Orchestrator.ts'
 import * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 import * as Launch from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchService.ts'
+import * as LaunchSelection from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchSelection.ts'
 import * as LegacyImporter from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import * as Policy from 't3-source:apps/server/src/orchestration-v2/RuntimePolicy.ts'
 import * as CommandPolicy from 't3-source:apps/server/src/orchestration-v2/CommandPolicy.ts'
@@ -32,6 +33,11 @@ import { createSessionStateLayers } from './StateLayers.ts'
 export const createSessionEngineLayers = (state = createSessionStateLayers()) => {
   const shared = Layer.mergeAll(IdAllocator.layer, ContinuationRequests.layer,
     ThreadCommandExecutor.layer, CommandPolicy.layer, Forks.layer, Output.layer).pipe(Layer.provideMerge(state.layer))
+  // Cold inspection builds only the original stores, allocator and selection.
+  // In particular it does not construct command executors, forks or providers.
+  const inspection = LaunchSelection.layer.pipe(
+    Layer.provideMerge(Layer.mergeAll(state.layer, IdAllocator.layer)),
+  )
   const adapters = Adapters.layerFromProviderInstanceRegistry.pipe(Layer.provide(shared))
   const providerEvents = ProviderEvents.layer.pipe(Layer.provideMerge(shared))
   const sessions = SessionsLive.layer.pipe(Layer.provideMerge(Layer.mergeAll(adapters, providerEvents)))
@@ -46,18 +52,18 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const threads = Threads.layerWithLegacyImporter.pipe(
     Layer.provideMerge(Layer.mergeAll(orchestrator, legacyImporter)),
   )
-  const launch = Launch.layer.pipe(Layer.provideMerge(threads))
+  const launch = Launch.layer.pipe(Layer.provideMerge(Layer.mergeAll(threads, inspection)))
   const recovery = Recovery.layer.pipe(Layer.provideMerge(shared))
   const effectExecutor = Worker.layerExecutor.pipe(Layer.provideMerge(threads))
   const worker = Worker.layer.pipe(Layer.provideMerge(effectExecutor))
   // Explicit opt-in: the original continuation layer starts its scoped queue consumer.
   const continuationConsumer = Continuations.layer.pipe(Layer.provide(threads))
-  return { state, shared, providerEvents, sessions, checkpointCapture, finalization,
+  return { state, shared, inspection, providerEvents, sessions, checkpointCapture, finalization,
     turns, decisions, legacyImporter, orchestrator, threads, launch, recovery,
     effectExecutor, worker, continuationConsumer, layer: Layer.mergeAll(launch, recovery) }
 }
 
-export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator, Launch,
+export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator, Launch, LaunchSelection,
   Policy, CommandPolicy, Forks, Handoffs, Adapters, Switches, Output, Recovery, Continuations, Worker }
 export * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementService.session-api.ts'
 export { layerWithLegacyImporter as threadManagementLayer }

@@ -13,6 +13,7 @@ import { extractThreadLive } from './thread-live.mjs'
 import { extractRuntimeLive } from './runtime-live.mjs'
 import { extractProviderHost } from './provider-host.mjs'
 import { extractPrelaunch } from './prelaunch.mjs'
+import { extractColdLaunch } from './cold-launch.mjs'
 import { extractProviderLive } from './provider-live.mjs'
 import { extractProviderEvents } from './provider-events.mjs'
 
@@ -41,6 +42,7 @@ export const generateExtractionManifest = snapshot => {
   extractRuntimeLive(author, redirects)
   extractProviderHost(author)
   extractPrelaunch(author)
+  extractColdLaunch(author, redirects, exports)
   extractProviderLive(author, redirects)
   extractProviderEvents(author)
   for (const [relative, symbols] of [

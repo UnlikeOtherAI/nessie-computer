@@ -411,15 +411,15 @@
     },
     {
       "file": "apps/server/src/orchestration-v2/ThreadMessageIntake.ts",
-      "beforeSha256": "13d7a0dbc376c491f782dcc7c2a89535c2f3901c88d641a0904d276952857072",
-      "afterSha256": "3b2bcd7ab12e9d10e0ab14d188dc6cb65e68c40edce512a5c32012f5c14e6046",
+      "beforeSha256": "6f9f28ca5b2c96843c7158fb3fd6d4452d1c4beea448f4f416fd83b5924ecb30",
+      "afterSha256": "c5d46b1c2d227339f35e42d7d2a59b8b0001b13f6d4b75ff5ad122084f289bd5",
       "from": "import * as Effect from \"effect/Effect\";",
       "to": "import * as Effect from \"effect/Effect\";\nimport { FileAccess } from \"../assets/FilePorts.session.ts\";"
     },
     {
       "file": "apps/server/src/orchestration-v2/ThreadMessageIntake.ts",
-      "beforeSha256": "3b2bcd7ab12e9d10e0ab14d188dc6cb65e68c40edce512a5c32012f5c14e6046",
-      "afterSha256": "88e6752bef0c4f86659da2624ac19ec95df5c6c25c3c2988717d584fae982480",
+      "beforeSha256": "c5d46b1c2d227339f35e42d7d2a59b8b0001b13f6d4b75ff5ad122084f289bd5",
+      "afterSha256": "fc37810b914defa48c5e61ee9cb02a5413e7400b5366c5e8ffaf1178c5ebadc6",
       "from": "  yield* AttachmentClaims.validateAttachmentLimits(input.initialMessage?.attachments ?? []);",
       "to": "  const initialAttachments = input.initialMessage?.attachments ?? [];\n  if (initialAttachments.length > 0) {\n    if (!input.threadId) return yield* new AttachmentClaims.AttachmentClaimError({\n      message: \"Attachment launch requires an admitted original thread id.\",\n    });\n    const access = yield* FileAccess;\n    yield* access.recheck();\n    yield* access.claim(input.threadId, initialAttachments);\n  }\n  yield* AttachmentClaims.validateAttachmentLimits(initialAttachments);"
     },

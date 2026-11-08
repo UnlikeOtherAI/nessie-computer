@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { ExecutorT3Request, requestTargets } from '@nessie/executor-protocol/t3-session'
-import { SessionControl, type Threads } from '@nessie/t3-session-source/engine'
+import { SessionControl } from '@nessie/t3-session-source/engine'
 import { SessionStateOwner } from './state-owner.js'
 import { readConfiguredSessionProvider } from './configured-provider.js'
 
@@ -47,7 +47,7 @@ export class PreparedSessionLaunchTarget {
   get driver(): 'codex' | 'claude' { return this.driverKind === 'codex' ? 'codex' : 'claude' }
   get threadId() { return this.target.threadId }
 
-  static readonly prepare = (original: LaunchRequest, provenance: Threads.ThreadManagementProvenance) =>
+  static readonly prepare = (original: LaunchRequest) =>
     Effect.gen(function* () {
       // Decode a private copy. The backend inspection challenge binds this same
       // original request, not a payload amended with the allocated thread ID.
@@ -60,7 +60,7 @@ export class PreparedSessionLaunchTarget {
       if (request.runtimeGeneration !== owner.runtimeGeneration) {
         return yield* Effect.fail(new SessionLaunchTargetRefused())
       }
-      const target = yield* SessionControl.prepareLaunchTarget(request.input, provenance)
+      const target = yield* SessionControl.prepareLaunchTarget(request.input)
       const instance = yield* readConfiguredSessionProvider(target.projectId, target.providerInstanceId)
       yield* target.assertCurrent
       yield* owner.assertCurrent

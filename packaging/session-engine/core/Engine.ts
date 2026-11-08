@@ -1,6 +1,7 @@
 export * from './StateLayers.ts'
 export * from './ReadLayers.ts'
 export * from './EngineLayers.ts'
+export * from './EngineGraph.ts'
 export * from './Control.ts'
 export * from './RuntimeLayers.ts'
 export * from './ProviderHostLayers.ts'
