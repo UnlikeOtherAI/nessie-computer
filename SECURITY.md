@@ -24,3 +24,9 @@ Update installation must authenticate the release, preserve local state and
 credential fences, and use the supported native clearance and restart path.
 Remote pages and teams cannot select an executable, update origin or install
 arbitrary commands through the local control bridge.
+
+On Windows, signed runtime admission has a separate local pipe from pairing and
+legacy service controls. Opening it grants no authority: the service proves the
+native launcher, immutable release, process generations, account/session and Job
+Object. Read-only process/token inspection enables reciprocal verification; no
+process-control or impersonation rights are granted.

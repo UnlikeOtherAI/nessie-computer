@@ -1,5 +1,4 @@
-//! Publish read-only kernel facts required to authenticate the SYSTEM pipe server.
-use nessie_executor_updater::catalog::UpdateResult;
+//! Read-only kernel facts for reciprocal authentication of installed Windows peers.
 use windows_sys::Win32::{
     Foundation::{CloseHandle, LocalFree, HANDLE},
     Security::{
@@ -16,21 +15,26 @@ use windows_sys::Win32::{
         GetCurrentProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE,
     },
 };
-const ERROR: &str = "update.peer_inspection_unavailable";
+const ERROR: &str = "windows.peer_inspection_unavailable";
 
-/// Called only after the installed SYSTEM/session-0 worker has been verified.
-/// Clients retain the same process, token, publisher and protected-image checks.
-/// No terminate, memory, handle-duplication, impersonation or ACL-write access is added.
-pub(super) fn allow_verification() -> UpdateResult<()> {
-    let process = unsafe { GetCurrentProcess() };
+/// Publish only process identity/liveness and token facts, never control rights.
+/// The verified service calls this before exposing its fixed local pipe.
+pub fn allow_verification() -> Result<(), &'static str> {
+    allow_process_for(unsafe { GetCurrentProcess() }, "S-1-5-11")
+}
+
+/// Allow the fixed service account to verify a launcher and its suspended child.
+/// The caller must retain a handle with authority over the process and token ACL.
+pub fn allow_process_for(process: HANDLE, observer: &str) -> Result<(), &'static str> {
     let mut token = std::ptr::null_mut();
     if unsafe { OpenProcessToken(process, READ_CONTROL | WRITE_DAC, &mut token) } == 0 {
         return Err(ERROR);
     }
-    let result = grant_read(token, TOKEN_QUERY).and_then(|()| {
+    let result = grant_read(token, TOKEN_QUERY, observer).and_then(|()| {
         grant_read(
             process,
             PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE,
+            observer,
         )
     });
     unsafe { CloseHandle(token) };
@@ -46,7 +50,7 @@ impl Drop for Local {
     }
 }
 
-fn grant_read(object: HANDLE, rights: u32) -> UpdateResult<()> {
+fn grant_read(object: HANDLE, rights: u32, observer: &str) -> Result<(), &'static str> {
     let mut length = 0;
     unsafe {
         GetKernelObjectSecurity(
@@ -87,7 +91,7 @@ fn grant_read(object: HANDLE, rights: u32) -> UpdateResult<()> {
     {
         return Err(ERROR);
     }
-    let sid_text: Vec<u16> = "S-1-5-11".encode_utf16().chain(Some(0)).collect();
+    let sid_text: Vec<u16> = observer.encode_utf16().chain(Some(0)).collect();
     let mut sid = std::ptr::null_mut();
     if unsafe { ConvertStringSidToSidW(sid_text.as_ptr(), &mut sid) } == 0 {
         return Err(ERROR);
@@ -242,8 +246,8 @@ mod tests {
         prepare(process);
         let system_before = rights(process, "S-1-5-18");
         let allowed = PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE;
-        grant_read(process, allowed).unwrap();
-        grant_read(process, allowed).unwrap();
+        grant_read(process, allowed, "S-1-5-11").unwrap();
+        grant_read(process, allowed, "S-1-5-11").unwrap();
         assert_eq!(rights(process, "S-1-5-11"), allowed);
         assert_eq!(rights(process, "S-1-5-18"), system_before);
         assert_ne!(rights(process, "S-1-5-11"), PROCESS_ALL_ACCESS);
@@ -275,7 +279,7 @@ mod tests {
         let private = Token(private);
         prepare(private.0);
         let system_before = rights(private.0, "S-1-5-18");
-        grant_read(private.0, TOKEN_QUERY).unwrap();
+        grant_read(private.0, TOKEN_QUERY, "S-1-5-11").unwrap();
         assert_eq!(rights(private.0, "S-1-5-11"), TOKEN_QUERY);
         assert_eq!(rights(private.0, "S-1-5-18"), system_before);
     }

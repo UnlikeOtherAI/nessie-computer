@@ -161,6 +161,7 @@ fn active(job: HANDLE) -> Result<u32, NativeError> {
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     crate::personal_state_context::require_release()?;
     let release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
+    let service = service_channel::service_account_sid().map_err(|_| refused())?;
     let own = Process::open(std::process::id()).map_err(|_| refused())?;
     if own.session != 0
         && !own.elevated
@@ -199,6 +200,8 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let mut child = command.spawn().map_err(|_| refused())?;
     let process = child.as_raw_handle() as HANDLE;
     let admitted = (|| {
+        nessie_windows_common::peer_inspection::allow_process_for(process, &service)
+            .map_err(|_| refused())?;
         if unsafe { AssignProcessToJobObject(job.0, process) } == 0 {
             return Err(refused());
         }

@@ -58,7 +58,7 @@ fn inspect_peer(service: bool) {
         },
     };
     let endpoint = if service {
-        r"\\.\pipe\NessieExecutor"
+        nessie_windows_common::CUSTODY_PIPE_NAME
     } else {
         nessie_windows_common::update_channel::PIPE
     };

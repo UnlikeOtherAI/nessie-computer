@@ -13,17 +13,17 @@ use std::ffi::c_void;
 use std::os::windows::ffi::OsStrExt;
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, ERROR_SUCCESS, HANDLE, INVALID_HANDLE_VALUE, LocalFree, HLOCAL,
+    CloseHandle, LocalFree, ERROR_SUCCESS, HANDLE, HLOCAL, INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Security::Authorization::{
     ConvertStringSidToSidW, SetEntriesInAclW, EXPLICIT_ACCESS_W, NO_MULTIPLE_TRUSTEE, SET_ACCESS,
     TRUSTEE_IS_GROUP, TRUSTEE_IS_SID, TRUSTEE_IS_USER, TRUSTEE_W,
 };
 use windows_sys::Win32::Security::{
-    CheckTokenMembership, CopySid, CreateWellKnownSid, GetLengthSid, GetTokenInformation, InitializeSecurityDescriptor,
-    IsValidSid, RevertToSelf, SetSecurityDescriptorDacl, TokenUser, WinBuiltinAdministratorsSid,
-    ACL, NO_INHERITANCE, PSECURITY_DESCRIPTOR, PSID, SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR,
-    SECURITY_MAX_SID_SIZE, TOKEN_QUERY, TOKEN_USER,
+    CheckTokenMembership, CopySid, CreateWellKnownSid, GetLengthSid, GetTokenInformation,
+    InitializeSecurityDescriptor, IsValidSid, RevertToSelf, SetSecurityDescriptorDacl, TokenUser,
+    WinBuiltinAdministratorsSid, ACL, NO_INHERITANCE, PSECURITY_DESCRIPTOR, PSID,
+    SECURITY_ATTRIBUTES, SECURITY_DESCRIPTOR, SECURITY_MAX_SID_SIZE, TOKEN_QUERY, TOKEN_USER,
 };
 use windows_sys::Win32::System::Pipes::ImpersonateNamedPipeClient;
 use windows_sys::Win32::System::Threading::{
@@ -72,8 +72,10 @@ fn sid_from_string(value: &str) -> Option<OwnedSid> {
     if !is_sid_string(value) {
         return None;
     }
-    let wide: Vec<u16> =
-        std::ffi::OsStr::new(value).encode_wide().chain(std::iter::once(0)).collect();
+    let wide: Vec<u16> = std::ffi::OsStr::new(value)
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
     let mut sid: PSID = std::ptr::null_mut();
     if unsafe { ConvertStringSidToSidW(wide.as_ptr(), &mut sid) } == 0 {
         return None;
@@ -130,19 +132,20 @@ pub fn connected_client_identity(pipe: HANDLE) -> Option<ConnectedClient> {
         return None;
     }
     let mut token: HANDLE = INVALID_HANDLE_VALUE;
-    let opened =
-        unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 1, &mut token) } != 0;
+    let opened = unsafe { OpenThreadToken(GetCurrentThread(), TOKEN_QUERY, 1, &mut token) } != 0;
     let identity = if opened {
         let sid = token_user_sid(token);
         let administrators = well_known_administrators();
         let mut member = 0_i32;
-        let is_administrator = administrators
-            .as_ref()
-            .is_some_and(|group| unsafe { CheckTokenMembership(token, group.pointer(), &mut member) } != 0)
-            && member != 0;
+        let is_administrator = administrators.as_ref().is_some_and(
+            |group| unsafe { CheckTokenMembership(token, group.pointer(), &mut member) } != 0,
+        ) && member != 0;
         unsafe { CloseHandle(token) };
         sid.and_then(|sid| sid_to_string(sid.pointer()))
-            .map(|sid| ConnectedClient { sid, is_administrator })
+            .map(|sid| ConnectedClient {
+                sid,
+                is_administrator,
+            })
     } else {
         None
     };
@@ -198,6 +201,20 @@ impl PipeSecurity {
     /// an error and not a widening: until an elevated grant records the first
     /// account, only an administrator can reach the pipe.
     pub fn new(recorded_sids: &[String], service_sid: &str) -> Result<Self, String> {
+        Self::with_clients(recorded_sids, service_sid, false)
+    }
+
+    /// Runtime admission accepts local authenticated accounts, with every
+    /// operation still checked against the signed launcher and kernel custody.
+    pub fn custody(service_sid: &str) -> Result<Self, String> {
+        Self::with_clients(&[], service_sid, true)
+    }
+
+    fn with_clients(
+        recorded_sids: &[String],
+        service_sid: &str,
+        custody: bool,
+    ) -> Result<Self, String> {
         let administrators = well_known_administrators()
             .ok_or_else(|| "Windows would not report the Administrators group.".to_owned())?;
         let service = sid_from_string(service_sid)
@@ -210,12 +227,34 @@ impl PipeSecurity {
             .filter(|value| value.as_str() != service_sid)
             .filter_map(|value| sid_from_string(value))
             .collect();
-        let mut entries = vec![allow(administrators.pointer(), TRUSTEE_IS_GROUP, CLIENT_ACCESS)];
-        entries.extend(recorded.iter().map(|sid| allow(sid.pointer(), TRUSTEE_IS_USER, CLIENT_ACCESS)));
+        let authenticated = sid_from_string("S-1-5-11")
+            .ok_or_else(|| "Windows would not report authenticated users.".to_owned())?;
+        let mut entries = vec![allow(
+            administrators.pointer(),
+            TRUSTEE_IS_GROUP,
+            CLIENT_ACCESS,
+        )];
+        if custody {
+            entries.push(allow(
+                authenticated.pointer(),
+                TRUSTEE_IS_GROUP,
+                CLIENT_ACCESS,
+            ));
+        }
+        entries.extend(
+            recorded
+                .iter()
+                .map(|sid| allow(sid.pointer(), TRUSTEE_IS_USER, CLIENT_ACCESS)),
+        );
         entries.push(allow(service.pointer(), TRUSTEE_IS_USER, SERVER_ACCESS));
         let mut acl: *mut ACL = std::ptr::null_mut();
         let built = unsafe {
-            SetEntriesInAclW(entries.len() as u32, entries.as_ptr(), std::ptr::null(), &mut acl)
+            SetEntriesInAclW(
+                entries.len() as u32,
+                entries.as_ptr(),
+                std::ptr::null(),
+                &mut acl,
+            )
         };
         if built != ERROR_SUCCESS || acl.is_null() {
             return Err("Nessie Executor could not secure its control channel.".to_owned());
@@ -263,5 +302,52 @@ mod tests {
     #[test]
     fn a_control_client_cannot_create_a_rival_pipe_instance() {
         assert_eq!(CLIENT_ACCESS & FILE_APPEND_DATA, 0);
+    }
+}
+
+#[cfg(test)]
+mod custody_tests {
+    use super::*;
+    use windows_sys::Win32::Security::{
+        Authorization::GetEffectiveRightsFromAclW, GetSecurityDescriptorDacl,
+    };
+    fn rights(security: &mut PipeSecurity, sid: &str) -> u32 {
+        let sid = sid_from_string(sid).unwrap();
+        let entry = allow(sid.pointer(), TRUSTEE_IS_GROUP, 0);
+        let (mut present, mut defaulted, mut acl) = (0, 0, std::ptr::null_mut());
+        assert_ne!(
+            unsafe {
+                GetSecurityDescriptorDacl(
+                    security.attributes().lpSecurityDescriptor,
+                    &mut present,
+                    &mut acl,
+                    &mut defaulted,
+                )
+            },
+            0
+        );
+        assert_ne!(present, 0);
+        assert!(!acl.is_null());
+        let mut rights = 0;
+        assert_eq!(
+            unsafe { GetEffectiveRightsFromAclW(acl, &entry.Trustee, &mut rights) },
+            0
+        );
+        rights
+    }
+    #[test]
+    fn authenticated_runtime_clients_gain_no_pairing_or_pipe_creation_rights() {
+        let service = "S-1-5-21-1004336348-1177238915-682003330-1002";
+        let mut control = PipeSecurity::new(&[], service).unwrap();
+        let mut custody = PipeSecurity::custody(service).unwrap();
+        assert_eq!(rights(&mut control, "S-1-5-11"), 0);
+        assert_eq!(rights(&mut custody, "S-1-5-11"), CLIENT_ACCESS);
+        assert_eq!(rights(&mut custody, service), SERVER_ACCESS);
+        assert_eq!(rights(&mut custody, "S-1-5-7"), 0);
+        assert_eq!(
+            CLIENT_ACCESS & 4,
+            0,
+            "clients cannot create rival pipe instances"
+        );
     }
 }
