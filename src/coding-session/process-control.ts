@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { lstatSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
@@ -44,7 +45,7 @@ export type CodingProcessControl = {
   /** Birth containment, recorded with the child rather than inferred after it exits. */
   containment?: 'windows_job' | 'posix_group'
   /** Positive stop evidence. Absence after an uncontained root exited cannot prove its descendants stopped. */
-  stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[]) => Promise<'stopped' | 'unknown'>
+  stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<'stopped' | 'unknown'>
   /** Set when this host cannot contain an agent; starting one fails with this reason. */
   refusal?: string
   spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: unknown }) => ChildProcess
@@ -212,6 +213,7 @@ const posixControl = (
   /** The kill, from a table read before anything is signalled. */
   const killFrom = async (
     before: ProcessTable, identity: CodingProcessIdentity, snapshot: readonly CodingProcessIdentity[],
+    effect?: SessionEffectAuthority,
   ): Promise<'stopped' | 'unknown'> => {
     const rootWasOurs = isStill(before, identity)
     const members = membersOf(identity, snapshot, treeOf(identity, before, true))
@@ -226,12 +228,14 @@ const posixControl = (
       for (const pid of pending) send(pid, name)
       return rootIsOurs || pending.length > 0
     }
+    await effect?.consume()
+    effect?.assertLive()
     if (!signal(before, 'SIGTERM')) return 'unknown'
     const gone = (current: ProcessTable): boolean => (
       !isStill(current, identity) && stillThere(members, current).length === 0
     )
     const after = await afterGrace(before, gone)
-    if (after) signal(after, 'SIGKILL')
+    if (after) { await effect?.consume(); effect?.assertLive(); signal(after, 'SIGKILL') }
     else log(`no process table after the grace: SIGKILL skipped for pid ${identity.pid}'s group and tree (${members.size + 1} processes)`)
     if (!after) return 'unknown'
     // Signal delivery is not termination. Require a fresh table after it.
@@ -244,9 +248,9 @@ const posixControl = (
   }
   return {
     containment: 'posix_group',
-    stopTree: async (identity, snapshot = []) => {
+    stopTree: async (identity, snapshot = [], effect) => {
       const before = await table()
-      return before ? killFrom(before, identity, snapshot) : 'unknown'
+      return before ? killFrom(before, identity, snapshot, effect) : 'unknown'
     },
     // Its own process group, so the group can be killed without the host.
     spawnAgent: (command, args, options) => spawn(command, args, {
@@ -257,7 +261,7 @@ const posixControl = (
       return started === undefined ? undefined : { pid, startedAt: started }
     },
     descendants: async (identity) => treeOf(identity, await table() ?? new Map(), true),
-    killTree: async (identity, snapshot = []) => {
+    killTree: async (identity, snapshot = [], effect) => {
       const before = await table()
       if (before) await killFrom(before, identity, snapshot)
     },

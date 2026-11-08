@@ -1,3 +1,4 @@
+import { effectTransport } from './effect-transport.js'
 import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { createWriteStream } from 'node:fs'
 import type { ChildProcess } from 'node:child_process'
@@ -64,10 +65,11 @@ export class AgentStartError extends Error {
 }
 
 export type AgentProcess = {
-  confirmHostExecutionStopped?: (snapshot?: readonly CodingProcessIdentity[]) => Promise<boolean>
+  confirmHostExecutionStopped?: (snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<boolean>
   identity: CodingProcessIdentity
-  write: (text: string) => void
-  endInput: () => void
+  write: (text: string, effect?: SessionEffectAuthority) => Promise<void>
+  writeProtocol: (text: string) => void
+  endInput: (effect?: SessionEffectAuthority) => Promise<void>
   exited: Promise<{ code: number | null }>
   alive: () => boolean
   stderrTail: () => string[]
@@ -120,6 +122,7 @@ export const startAgentProcess = async (
     if (child.pid === undefined) await protectionLease?.release()
     throw new AgentStartError('agent_missing')
   }
+  await effectTransport(child)?.ready
   let done = false
   // `close` means stdout has been read to the end, so the turn's last line is
   // parsed first. A descendant still holding the pipe would delay it forever,
@@ -168,10 +171,10 @@ export const startAgentProcess = async (
   try { await protectionLease?.bindExecution(identity) }
   catch (error) { await context.control.killTree(identity).catch(() => undefined); throw error }
   let released = false
-  const confirmHostExecutionStopped = async (snapshot: readonly CodingProcessIdentity[] = []): Promise<boolean> => {
+  const confirmHostExecutionStopped = async (snapshot: readonly CodingProcessIdentity[] = [], authority?: SessionEffectAuthority): Promise<boolean> => {
     if (released) return true
     // The legacy killTree's void completion is deliberately never a release proof.
-    if (!context.control.stopTree || await context.control.stopTree(identity, snapshot) !== 'stopped') return false
+    if (!context.control.stopTree || await context.control.stopTree(identity, snapshot, authority) !== 'stopped') return false
     await protectionLease?.release()
     released = true
     return true
@@ -194,10 +197,22 @@ export const startAgentProcess = async (
   return {
     ...(protectionLease ? { confirmHostExecutionStopped } : {}),
     identity,
-    write: (text) => {
+    write: async (text, authority) => {
+      const transport = effectTransport(child)
+      if (transport) return transport.broker.send('input', text, authority)
+      await authority?.consume()
+      authority?.assertLive()
       if (!done && child.stdin?.writable) child.stdin.write(text)
+      else throw new AgentStartError('agent_exited')
     },
-    endInput: () => {
+    writeProtocol: (text) => {
+      const transport = effectTransport(child)
+      if (transport) {
+        void transport.broker.send('reply', text).catch(() => context.log('Provider reply transport refused.'))
+      } else if (!done && child.stdin?.writable) child.stdin.write(text)
+    },
+    endInput: async (authority) => {
+      await effectTransport(child)?.broker.send('end', '', authority)
       if (context.control.endInput) context.control.endInput(child)
       else child.stdin?.end()
     },

@@ -99,30 +99,30 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     const asker = agent
     const plan = planClaudeRequest(prompt, context.projector, context.folder, context.roots)
     if (plan.kind === 'allow') {
-      asker?.write(plan.line)
+      asker?.writeProtocol(plan.line)
       return
     }
     const opened = context.requests.open(plan.draft, {
-      answer: (answer) => {
+      answer: async (answer, effect) => {
         asked.delete(prompt.requestId)
         const reply = plan.answer(answer)
         // A cancel stops the turn: Claude interrupts itself, and the turn ends as interrupted.
         if (reply.stopsTurn) interruptRequested = true
-        if (asker?.alive()) asker.write(reply.line)
+        if (asker?.alive()) await asker.write(reply.line, effect)
       },
       withdraw: (_status, reason) => {
         asked.delete(prompt.requestId)
-        if (asker?.alive() && reason !== 'provider_cancelled') asker.write(plan.withdraw(reason))
+        if (asker?.alive() && reason !== 'provider_cancelled') asker.writeProtocol(plan.withdraw(reason))
       },
     })
     // A prompt the protocol cannot carry is turned down rather than left waiting on nobody.
     if (opened) asked.set(prompt.requestId, opened.id)
     else if (!context.requests.ownerReachable()) {
       // Nessie has not shown it can ask the owner: denied as every prompt was before it could.
-      asker?.write(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
+      asker?.writeProtocol(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
     } else {
       context.log('a permission prompt could not be shown to the owner')
-      asker?.write(plan.withdraw('unreadable_request'))
+      asker?.writeProtocol(plan.withdraw('unreadable_request'))
     }
   }
 
@@ -170,7 +170,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     })
     await effect?.consume()
     effect?.assertLive()
-    spawned.write(claudeControlLine('initialize'))
+    await spawned.write(claudeControlLine('initialize'), effect)
     const timer = setTimeout(() => rejectReady(new AgentStartError('agent_exited')), READY_TIMEOUT_MS)
     try {
       await ready
@@ -195,15 +195,15 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     await effect?.consume()
     effect?.assertLive()
     if (current?.alive()) {
-      current.write(claudeControlLine('end_session'))
-      current.endInput()
+      if (effect) await current.write(claudeControlLine('end_session'), effect)
+      await current.endInput(effect)
       await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
     }
     await effect?.consume()
     effect?.assertLive()
     const stopped = current?.confirmHostExecutionStopped
-      ? await current.confirmHostExecutionStopped(snapshot)
-      : (await context.control.killTree(identity, snapshot), true)
+      ? await current.confirmHostExecutionStopped(snapshot, effect)
+      : (await context.control.killTree(identity, snapshot, effect), true)
     if (stopped) agent = undefined
     // An interrupt the ended process never answered belongs to it, not to the next turn.
     interruptRequested = false
@@ -225,7 +225,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       effect?.assertLive()
       stream?.noteSent(uuid)
       beginTurn()
-      running.write(claudeUserLine(uuid, text))
+      await running.write(claudeUserLine(uuid, text), effect)
     },
     interrupt: async (reason, effect) => {
       if (!agent?.alive() || !stream?.busy()) return
@@ -233,7 +233,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       interruptReason = reason
       await effect?.consume()
       effect?.assertLive()
-      agent.write(claudeControlLine('interrupt'))
+      await agent.write(claudeControlLine('interrupt'), effect)
     },
     close: async (reason, effect) => {
       await stop(effect)

@@ -1,25 +1,13 @@
-mod command;
-mod updates;
 mod chatgpt_browser;
+mod command;
 mod job_run;
 mod kernel_context;
 #[cfg(target_os = "macos")]
-mod macos_provenance;
-#[cfg(target_os = "macos")]
 mod macos_processes;
 #[cfg(target_os = "macos")]
-mod managed_macos_installed;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod unix_kernel;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_release;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_runtime_context;
+mod macos_provenance;
 #[cfg(target_os = "linux")]
-mod managed_runtime;
-#[cfg(target_os = "macos")]
-#[path = "managed_macos_runtime.rs"]
-mod managed_runtime;
+mod managed_installed;
 #[cfg(target_os = "linux")]
 mod managed_inventory;
 #[cfg(target_os = "macos")]
@@ -27,17 +15,30 @@ mod managed_inventory;
 mod managed_inventory;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod managed_machine_barrier;
+#[cfg(target_os = "macos")]
+mod managed_macos_installed;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_transition;
+mod managed_release;
 #[cfg(target_os = "linux")]
-mod managed_installed;
+mod managed_runtime;
+#[cfg(target_os = "macos")]
+#[path = "managed_macos_runtime.rs"]
+mod managed_runtime;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod managed_runtime_context;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod managed_socket;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod managed_transition;
 #[cfg(windows)]
 mod managed_windows;
 mod personal_state;
 mod personal_state_context;
+mod session_effect;
 mod terminal_run;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix_kernel;
+mod updates;
 // The workspace commands act on inherited directory descriptors with `openat`
 // and friends, which have no Windows equivalent: the Windows helper exists for
 // the state-security commands and `job-run`, and the parser above still knows
@@ -159,14 +160,17 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
         Command::BuildInfo => {
-            println!("{}", serde_json::json!({
-                "version": env!("NESSIE_EXECUTOR_VERSION"),
-                "sourceCommit": env!("NESSIE_EXECUTOR_SOURCE_COMMIT"),
-                "managedLaunchProtocol": 1,
-                "personalInferenceGuardVersion": 2,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "version": env!("NESSIE_EXECUTOR_VERSION"),
+                    "sourceCommit": env!("NESSIE_EXECUTOR_SOURCE_COMMIT"),
+                    "managedLaunchProtocol": 1,
+                    "personalInferenceGuardVersion": 2,
+                })
+            );
             Ok(())
-        },
+        }
         Command::UpdateControl => updates::control(),
         Command::UpdateService => updates::service(),
         Command::UpdateRegisteredService => updates::registered_service(),
@@ -229,6 +233,10 @@ fn run(command: &Command) -> Result<(), NativeError> {
                 let _ = epoch;
                 Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM"))
             }
+        }
+        Command::JobRunAuthorized(argv) => std::process::exit(job_run::run_authorized(argv)?),
+        Command::TerminalRunAuthorized(argv) => {
+            std::process::exit(terminal_run::run_authorized(argv)?)
         }
         Command::JobRun(argv) => std::process::exit(job_run::run(argv)?),
         Command::TerminalRun(argv) => std::process::exit(terminal_run::run(argv)?),
@@ -335,9 +343,16 @@ fn run(command: &Command) -> Result<(), NativeError> {
 /// unparsable argv keeps answering in the promotion shape, as it always has.
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
-        Some(Command::BuildInfo | Command::UpdateControl | Command::UpdateService
+        Some(
+            Command::BuildInfo
+            | Command::UpdateControl
+            | Command::UpdateService
             | Command::UpdateRegisteredService
-            | Command::UpdateInstall | Command::UpdateUninstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
+            | Command::UpdateInstall
+            | Command::UpdateUninstall
+            | Command::UpdateWorker
+            | Command::UpdateApplicationReopen,
+        ) => {
             println!("{}", serde_json::json!({"error":error.code}));
         }
         Some(Command::KernelProcessContext(_)) => {
@@ -347,6 +362,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             );
         }
         Some(Command::ManagedRuntime(_))
+        | Some(Command::JobRunAuthorized(_))
+        | Some(Command::TerminalRunAuthorized(_))
         | Some(Command::JobRun(_))
         | Some(Command::TerminalRun(_)) => {
             let encoded = serde_json::to_string(&JobRunResponse {

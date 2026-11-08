@@ -1,3 +1,4 @@
+import { claimHostEffect, recordHostEffectAccepted } from './host-effect-intent.js'
 import { SessionEffectRefused, type SessionEffectAuthority } from './session-effect-authority.js'
 import { requestEffectAuthority } from './session-effect-authority.js'
 import { dirname } from 'node:path'
@@ -300,13 +301,14 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     const effect = requestEffectAuthority(dirname(loaded.configPath), meta, request)
     await effect?.consume()
     effect?.assertLive()
+    const intent = effect ? await claimHostEffect(paths, request, effect) : undefined
     if (request.kind === 'retire') {
       retiring = true
     } else if (request.kind === 'answer') {
       const answer = request.answer && unsealHostAnswer(request.answer, answerKey, context.projector)
       // Sealed for a key this host does not hold: nothing can deliver it, so the request ends rather than waits.
       if (request.answer && !answer) book.withdraw(request.answer.requestId, 'expired', 'answer_unreadable')
-      const problem = answer ? book.answer(answer, effect) : 'answer_shape_mismatch'
+      const problem = answer ? await book.answer(answer, effect) : 'answer_shape_mismatch'
       if (problem) log(`an answer was not delivered: ${problem}`)
     } else if (request.kind === 'close') {
       book.withdrawAll('cancelled', 'session_closed')
@@ -325,6 +327,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     } else if (request.kind === 'start' || request.kind === 'send') {
       await deliver(request.text ?? '', request.kind, effect)
     }
+    if (intent) await recordHostEffectAccepted(intent, request.id)
   }
 
   // `request_secret` calls the agent made, turned into requests for the owner.

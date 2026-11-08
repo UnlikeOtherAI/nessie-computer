@@ -1,4 +1,5 @@
-import { readTerminalEffectFrame, terminalProgramEnvironment } from './terminal-effect-frame.js'
+import { attachEffectTransport, effectTransport } from './effect-transport.js'
+import { readTerminalEffectFrame, terminalProgramEnvironment, terminalEffectOutcome } from './terminal-effect-frame.js'
 import { createInterface } from 'node:readline'
 import { spawn } from 'node:child_process'
 import headless from '@xterm/headless'
@@ -11,7 +12,7 @@ export const runWindowsTerminal = async (): Promise<void> => {
   const iterator = lines[Symbol.asyncIterator]()
   const first = await iterator.next()
   const required = process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1'
-  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required)
+  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required, 1)
   const argv = launch.value
   if (!Array.isArray(argv) || !argv.length || argv.some((arg) => typeof arg !== 'string' || arg.includes('\0'))) {
     throw new Error('terminal_invalid_command')
@@ -25,10 +26,24 @@ export const runWindowsTerminal = async (): Promise<void> => {
   await launch.effect?.consume()
   launch.effect?.assertLive()
   const child = spawn(argv[0] as string, argv.slice(1) as string[], {
-    cwd: process.cwd(), env: terminalProgramEnvironment(), windowsHide: true, stdio: ['pipe', 'pipe', 'inherit'],
+    cwd: process.cwd(), env: terminalProgramEnvironment(), windowsHide: true,
+    stdio: launch.effect ? ['pipe', 'pipe', 'inherit', 'pipe'] : ['pipe', 'pipe', 'inherit'],
   })
-  child.stdout.setEncoding('utf8')
-  term.onData((data) => { child.stdin.write(data) })
+  if (launch.effect) {
+    if (argv[1] !== 'terminal-run-authorized' || argv[2] !== '--') throw new Error('terminal_invalid_receiver')
+    attachEffectTransport(child, 3, launch.effect.reference, {
+      command: argv[3] as string, args: argv.slice(4) as string[], cwd: process.cwd(),
+    })
+    await effectTransport(child)!.ready
+  }
+  terminalEffectOutcome(launch, 'accepted')
+  child.stdout!.setEncoding('utf8')
+  term.onData((data) => {
+    // Automatic terminal replies are not human input. Bound replies use the restricted receiver grammar.
+    const transport = effectTransport(child)
+    if (transport) void transport.broker.send('terminal_reply', data).catch(() => undefined)
+    else child.stdin!.write(data)
+  })
   let dirty = true
   let pendingWrites = 0
   const flush = () => {
@@ -46,7 +61,7 @@ export const runWindowsTerminal = async (): Promise<void> => {
       capturedAt: new Date().toISOString(), kind: 'terminal',
     }) + '\n')
   }
-  child.stdout.on('data', (data: string) => {
+  child.stdout!.on('data', (data: string) => {
     pendingWrites += 1
     term.write(data, () => { pendingWrites -= 1; dirty = true })
   })
@@ -58,16 +73,20 @@ export const runWindowsTerminal = async (): Promise<void> => {
     })
   })
   void (async () => {
+    let sequence = 1
     for await (const line of { [Symbol.asyncIterator]: () => iterator }) {
-      const frame = readTerminalEffectFrame(JSON.parse(line), required)
+      const frame = readTerminalEffectFrame(JSON.parse(line), required, ++sequence)
       const data = frame.value
       if (typeof data !== 'string' || data.length > 32_000) throw new Error('terminal_invalid_input')
       await frame.effect?.consume()
       frame.effect?.assertLive()
-      child.stdin.write(data)
+      if (frame.effect) await effectTransport(child)!.broker.send('input', data, frame.effect)
+      else child.stdin!.write(data)
+      terminalEffectOutcome(frame, 'accepted')
     }
-    child.stdin.end()
-  })().catch(() => { child.stdin.end() })
+    if (effectTransport(child)) await effectTransport(child)!.broker.send('end', '')
+    child.stdin!.end()
+  })().catch(() => { child.kill(); child.stdin?.end() })
   await exited
   clearInterval(timer)
   term.dispose()

@@ -1,4 +1,4 @@
-import { terminalEffectFrame } from './terminal-effect-frame.js'
+import { TerminalEffectOutcomes } from './terminal-effect-frame.js'
 import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -12,6 +12,7 @@ import { createDebouncedJsonWriter, writeJsonAtomic } from './session-files.js'
 import { packagedJobHelper } from './process-control.js'
 
 export const createTerminalDriver = (context: AgentDriverContext): AgentDriver => {
+  const outcomes = new TerminalEffectOutcomes()
   let process: AgentProcess | undefined
   let screen: ExecutorSessionScreen = {
     ansi: '', cols: 120, rows: 36, capturedAt: new Date().toISOString(), kind: 'terminal',
@@ -43,6 +44,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     ], (line) => {
       try {
         const message = JSON.parse(line) as { socketPath?: unknown }
+        if (outcomes.accept(message)) return
         if (typeof message.socketPath === 'string') {
           void writeJsonAtomic(join(context.paths.dir, 'terminal-connection.json'), {
             socketPath: message.socketPath, session: 'nessie',
@@ -60,11 +62,11 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       const helper = packagedJobHelper() ?? (globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
         ? undefined : fileURLToPath(new URL('../../native/target/release/nessie-executor-native.exe', import.meta.url)))
       if (!helper) throw new AgentStartError('terminal_helper_missing')
-      argv.unshift(helper, 'terminal-run', '--')
+      argv.unshift(helper, effect ? 'terminal-run-authorized' : 'terminal-run', '--')
     }
     await effect?.consume()
     effect?.assertLive()
-    child.write(terminalEffectFrame(argv, effect))
+    await outcomes.send(argv, effect, child.write)
     settled = false
     void child.exited.then(async ({ code }) => {
       await writer.flush()
@@ -83,8 +85,8 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       await effect?.consume()
       effect?.assertLive()
       const stopped = process.confirmHostExecutionStopped
-        ? await process.confirmHostExecutionStopped(descendants)
-        : (await context.control.killTree(process.identity, descendants), true)
+        ? await process.confirmHostExecutionStopped(descendants, effect)
+        : (await context.control.killTree(process.identity, descendants, effect), true)
       await process.exited
       if (stopped) context.update({ agentIdentity: undefined })
     }
@@ -96,9 +98,11 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       const child = process?.alive() ? process : await start(effect)
       await effect?.consume()
       effect?.assertLive()
-      if (data) child.write(terminalEffectFrame(data, effect))
+      if (data) await outcomes.send(data, effect, child.write)
     },
-    interrupt: async (_reason, effect) => { await effect?.consume(); effect?.assertLive(); process?.write(terminalEffectFrame('\u0003', effect)) },
+    interrupt: async (_reason, effect) => {
+      if (process) await outcomes.send('\u0003', effect, process.write)
+    },
     close: async (reason, effect) => { await stop(effect); context.update({ status: 'closed', reason }) },
     endIdle: stop,
     running: () => process?.alive() === true || !settled,

@@ -35,7 +35,7 @@ export type SessionRequestDraft = Omit<ExecutorSessionRequest, 'id' | 'status' |
 export type HostAnswer = Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?: true; sealed?: unknown }
 
 export type SessionRequestResponder = {
-  answer: (answer: HostAnswer, effect?: SessionEffectAuthority) => void
+  answer: (answer: HostAnswer, effect?: SessionEffectAuthority) => void | Promise<void>
   /** The request ended unanswered; the provider is told so if it still listens. */
   withdraw: (status: 'cancelled' | 'expired', reason: string) => void
 }
@@ -97,13 +97,17 @@ export class SessionRequestBook {
   }
 
   /** Settles the request with the owner's answer and hands it to the provider; a problem changes nothing. */
-  answer(answer: HostAnswer, effect?: SessionEffectAuthority): AnswerProblem | undefined {
+  answer(answer: HostAnswer, effect?: SessionEffectAuthority): AnswerProblem | undefined | Promise<undefined> {
     const entry = this.#entries.find((candidate) => candidate.request.id === answer.requestId)
     const problem = answerProblem(entry?.request, answer)
     if (problem || !entry) return problem ?? 'request_not_pending'
     effect?.assertLive()
     this.settle(entry, 'answered', undefined, answer.decision)
-    entry.responder?.answer(answer, effect)
+    const delivered = entry.responder?.answer(answer, effect)
+    if (delivered) return delivered.then(() => undefined, error => {
+      this.settle(entry, 'expired', 'delivery_unknown')
+      throw error
+    })
     return undefined
   }
 

@@ -61,3 +61,50 @@ signed command acceptance and the owning HTTP route. They are authored but
 unrun. Crash-phase replay fixtures are explicit durable-record fixtures, not
 proof that an installed host was created. Native, driver, database and installed
 qualification remain required; no public pin advancement is recommended.
+
+## Receiver-owned effect transport
+
+The later transport checkpoint replaces the temporary bound-launch refusal.
+`job-run-authorized` and `terminal-run-authorized` use an explicit inherited
+control pipe, separate from provider stdio. The native receiver clears handle
+inheritance before provider creation. The agent guard uses a separate inherited
+pipe beside its existing identity/lifetime IPC channel. Providers receive no
+machine key, refresh material, authority reference or control endpoint.
+
+Each ordered offer binds the original session authority and exact local payload
+bytes. The receiver hashes that wire image, issues a fresh nonce, and asks the
+original host to consume the owning signed HTTP route. The host answers only
+for its pending sequence, digest, nonce and original executor/owner/generation,
+connection epoch, authorization revision and selected original start. Replays
+or substitutions refuse. No independent local identity issuer is introduced.
+
+A receiver consumes immediately before launch, again before resuming a suspended
+Windows process, and before each input write. It acknowledges accepted only
+after the actual effect call; partial writes and lost acknowledgement remain
+uncertain. Disconnect closes the channel and ends the contained process rather
+than granting an unguarded retry. Native/guard provider responses have a separate
+structural response-only grammar; they cannot carry new provider requests or
+human input. Terminal device reports have a bounded control-sequence grammar.
+Neither kind grants control authority or renews its original carrier.
+
+Freshness is bounded, not instantaneous remote revocation: an owning-route
+consumption grants at most five seconds. The receiver checks the deadline and
+round-trip elapsed time immediately before the OS/API call, and reconsumes after
+intervening waits. Scheduling inside a kernel or provider after that call is not
+a second authority boundary. A carrier that expires while waiting is refused;
+only the actual signed route can refresh a still-live carrier.
+
+Host `effect-intents` persist before dispatch. A crash before or after provider
+acceptance never authorizes dispatching that request again. The separate outcome
+says `accepted_by_driver`; a queued Codex message is not mislabeled as provider
+completion. Each deferred turn keeps its own original authority and message.
+Terminal helper acknowledgements cover the inner ConPTY receiver, not merely
+acceptance by the outer process relay. Start replay remains read-only and precedes
+new-launch-only policy/root/quota checks.
+
+The registered custody gate includes receiver nonce/digest/deadline/replay tests.
+The private effects gate adds the actual signed issuer, native launch crash
+phases, revoked native input and a provider-active deferred Codex regression.
+These are synthetic development fixtures. Qualification results and exact
+revision/helper hashes are recorded separately; none establishes signed installed
+personal custody by itself.

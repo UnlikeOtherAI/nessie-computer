@@ -1,4 +1,4 @@
-import { readTerminalEffectFrame, terminalProgramEnvironment } from './terminal-effect-frame.js'
+import { readTerminalEffectFrame, terminalProgramEnvironment, terminalEffectOutcome } from './terminal-effect-frame.js'
 import { execFile, spawn } from 'node:child_process'
 import { mkdtemp, rmdir } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -73,7 +73,7 @@ export const runTerminalProcess = async (): Promise<void> => {
   const iterator = lines[Symbol.asyncIterator]()
   const first = await iterator.next()
   const required = process.env.NESSIE_SESSION_EFFECT_REQUIRED === '1'
-  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required)
+  const launch = readTerminalEffectFrame(first.done ? undefined : JSON.parse(first.value), required, 1)
   const argv = launch.value
   if (!Array.isArray(argv) || !argv.length || argv.some((arg) => typeof arg !== 'string' || arg.includes('\0'))) {
     throw new Error('terminal_invalid_program')
@@ -100,6 +100,7 @@ export const runTerminalProcess = async (): Promise<void> => {
         launch.effect?.assertLive()
         await command('set-option', '-g', 'remain-on-exit', 'on', ';',
           'set-option', '-g', 'history-limit', String(HISTORY), ';', ...terminalProcessArguments(argv))
+        terminalEffectOutcome(launch, 'accepted')
         break
       }
       catch {
@@ -112,8 +113,9 @@ export const runTerminalProcess = async (): Promise<void> => {
     process.stdout.write(JSON.stringify({ socketPath: socket }) + '\n')
     let inputEnded = false
     void (async () => {
+      let sequence = 1
       for await (const line of { [Symbol.asyncIterator]: () => iterator }) {
-        const frame = readTerminalEffectFrame(JSON.parse(line), required)
+        const frame = readTerminalEffectFrame(JSON.parse(line), required, ++sequence)
         const data = frame.value
         if (typeof data !== 'string' || data.length > 32_000) throw new Error('terminal_invalid_input')
         const bytes = Buffer.from(data, 'utf8')
@@ -123,6 +125,7 @@ export const runTerminalProcess = async (): Promise<void> => {
           await command('send-keys', '-t', 'nessie:0.0', '-H',
             ...[...bytes.subarray(offset, offset + 512)].map((byte) => byte.toString(16).padStart(2, '0')))
         }
+        terminalEffectOutcome(frame, 'accepted')
       }
       inputEnded = true
     })().catch(() => { inputEnded = true })
