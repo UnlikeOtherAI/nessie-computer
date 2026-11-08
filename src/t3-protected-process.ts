@@ -73,7 +73,7 @@ export async function spawnProtectedT3Companion(
   const current = binding
   if (!current || current.startup.custody.runtime.pid !== process.pid) throw protectedDeliveryUnknown()
   const nonce = randomBytes(32).toString('hex')
-  const socket = createConnection(companionPipe)
+  const socket = createConnection(companionPipe + '-' + current.startup.graphId)
   const child = new ProtectedT3Process({ input: socket, output: socket, dispose: () => socket.destroy() }, frame => {
     const { proof, ...ready } = frame
     if (frame.kind !== 'ready' || frame.graphId !== current.startup.graphId || frame.nonce !== nonce

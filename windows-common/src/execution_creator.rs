@@ -39,6 +39,17 @@ impl CompanionRole {
     deny_unknown_fields
 )]
 pub enum Request {
+    RegisterSessionHost {
+        nonce: String,
+        child_pid: u32,
+        job_name: String,
+    },
+    SessionContext {
+        nonce: String,
+    },
+    ClearSessionHost {
+        nonce: String,
+    },
     AuthorizeGraph {
         executor_id: String,
         requester_pid: u32,
@@ -66,6 +77,15 @@ pub enum Request {
 impl Request {
     pub fn validate(&self) -> Result<(), String> {
         let (nonce, valid) = match self {
+            Self::RegisterSessionHost {
+                nonce,
+                child_pid,
+                job_name,
+            } => (
+                nonce,
+                *child_pid > 0 && job_name == &format!(r"Global\NessieCustodyHost-{nonce}"),
+            ),
+            Self::SessionContext { nonce } | Self::ClearSessionHost { nonce } => (nonce, true),
             Self::AuthorizeGraph {
                 executor_id,
                 requester_pid,
@@ -103,6 +123,10 @@ impl Request {
 pub struct Creation {
     pub executor_id: String,
     pub creator: Generation,
+    #[serde(default)]
+    pub session_host: Option<Generation>,
+    #[serde(default)]
+    pub host_job_name: Option<String>,
     pub requester: Generation,
     pub graph: Option<Generation>,
     pub role: Option<CompanionRole>,

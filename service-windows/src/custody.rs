@@ -131,14 +131,14 @@ pub fn handle(
     if !caller.alive()
         || Some(caller.sid.as_str()) != sid
         || caller.image.file_name().and_then(|value| value.to_str())
-            != Some(if creator{"nessie-computer-updater.exe"}else{"nessie-executor-native.exe"})
+            != Some(if creator && caller.session==0{"nessie-computer-updater.exe"}else{"nessie-executor-native.exe"})
     {
         return Err(REJECTED.into());
     }
     caller.signed(PIN)?;
     let release = if creator {
-        if caller.sid!="S-1-5-18"||caller.session!=0{return Err(REJECTED.into());}
-        let _pins=nessie_windows_common::update_runtime::pin_image(&caller.image,PIN)?;
+        if caller.sid!="S-1-5-18"{return Err(REJECTED.into());}
+        if caller.session==0 { let _pins=nessie_windows_common::update_runtime::pin_image(&caller.image,PIN)?; }
         let program=nessie_windows_common::update_admission::known_folder(
             &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)?;
         let mut release=nessie_windows_common::release::load_at(
@@ -151,7 +151,8 @@ pub fn handle(
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
         Operation::ExecutionCreator {request}=>{
-            if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}){
+            if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}
+                |nessie_windows_common::execution_creator::Request::ClearSessionHost{..}){
                 machine.admit_daemon(&release.digest)?;
             }
             crate::execution_creator::handle(root,&caller,&release,&mut state,request)?

@@ -120,9 +120,13 @@ The new SYSTEM creator source installs process/thread/token security, mitigation
 policy and Job membership at suspended creation. Its listener runs in the
 existing LocalSystem updater; the normal executor service retains its virtual
 account and independently journals/verifies creation. Same-user launch remains
-denied. Installed verification must establish the target-session stdio handle
-inheritance and parent/Job behavior, token privileges and Node/native-module
-mitigation compatibility. No installed result has established these yet.
+denied. The session-0 updater creates an isolated SYSTEM session host with no
+inherited handles. The service records that host's actual generation before
+resume; it then creates the user graph and companions within the same Windows
+session. A private SYSTEM-only pipe binds the host to its actual updater parent.
+Graph stdio therefore never relies on cross-session handle inheritance.
+Installed verification must establish these token privileges, nested parent/Job
+behavior and Node/native-module mitigation compatibility.
 
 Physical resource modules and original allocator/serializer integration need
 parent integration. New service Cargo dependencies need root-owned lock
@@ -168,6 +172,12 @@ child record before the client sends private input. The per-graph key travels
 only through SYSTEM-created stdin. A spoofed pipe instance cannot produce the
 proof; it can cause connection refusal, which is never retried as an effect.
 Restricted native endpoints retain their existing access mask.
+
+Companion pipe names include the native graph ID. The updater withholds graph
+`closed` until the executor service also observes the SYSTEM session host absent
+and its enclosing Job empty. A host self-report, a proxy EOF or exit alone cannot
+clear that additional lifetime. The SYSTEM host has no generic command/argv
+receiver; its fixed CLI carries only the service-journal nonce.
 
 Service journals retain clearance for late readers, preserve permanent nonce
 claims, reject replay/expired registration and cap active records. New fixtures

@@ -36,7 +36,10 @@ fn current<'a>(
     id: &str,
 ) -> Result<&'a Creation, String> {
     let value = state.execution_creations.get(id).ok_or(REJECTED)?;
-    if value.creator != caller.generation || value.release_digest != release.digest || value.cleared
+    if (value.creator != caller.generation
+        && value.session_host.as_ref() != Some(&caller.generation))
+        || value.release_digest != release.digest
+        || value.cleared
     {
         return Err(REJECTED.into());
     }
@@ -57,18 +60,36 @@ pub fn handle(
     request: Request,
 ) -> Result<Value, String> {
     if caller.sid != "S-1-5-18"
-        || caller.session != 0
-        || (!matches!(&request, Request::Clear { .. }) && !state.fences.is_empty())
+        || (!matches!(
+            &request,
+            Request::Clear { .. } | Request::ClearSessionHost { .. }
+        ) && !state.fences.is_empty())
     {
         return Err(REJECTED.into());
     }
     request.validate()?;
+    if caller.session != 0
+        && !state.execution_creations.values().any(|v| {
+            v.session_host.as_ref() == Some(&caller.generation)
+                && v.release_digest == release.digest
+        })
+    {
+        return Err(REJECTED.into());
+    }
     match request {
+        Request::RegisterSessionHost { .. }
+        | Request::SessionContext { .. }
+        | Request::ClearSessionHost { .. } => {
+            super::execution_session_host::handle(caller, release, state, request)
+        }
         Request::AuthorizeGraph {
             executor_id,
             requester_pid,
             nonce: id,
         } => {
+            if caller.session != 0 {
+                return Err(REJECTED.into());
+            }
             let requester = Process::open(requester_pid)?;
             let (owner, session, directory) = super::execution_creator_owner::resolve(
                 root,
@@ -86,6 +107,8 @@ pub fn handle(
                 Creation {
                     executor_id: executor_id.clone(),
                     creator: caller.generation.clone(),
+                    session_host: None,
+                    host_job_name: None,
                     requester: requester.generation,
                     graph: None,
                     role: None,
@@ -124,6 +147,9 @@ pub fn handle(
                 .find(|v| v.child.as_ref() == Some(&graph.child) && v.role.is_none() && !v.cleared)
                 .ok_or(REJECTED)?
                 .clone();
+            if owner.session_host.as_ref() != Some(&caller.generation) {
+                return Err(REJECTED.into());
+            }
             nonce(root, &id)?;
             if state.execution_creations.len() >= 256 {
                 return Err(REJECTED.into());
@@ -133,6 +159,8 @@ pub fn handle(
                 Creation {
                     executor_id: owner.executor_id,
                     creator: caller.generation.clone(),
+                    session_host: None,
+                    host_job_name: None,
                     requester: graph.child.clone(),
                     graph: Some(graph.child),
                     role: Some(role),
@@ -208,7 +236,10 @@ pub fn handle(
         }
         Request::Clear { nonce: id } => {
             let creation = state.execution_creations.get(&id).ok_or(REJECTED)?;
-            if creation.creator != caller.generation || creation.release_digest != release.digest {
+            if (creation.creator != caller.generation
+                && creation.session_host.as_ref() != Some(&caller.generation))
+                || creation.release_digest != release.digest
+            {
                 return Err(REJECTED.into());
             }
             let child = creation.child.as_ref().ok_or(REJECTED)?;

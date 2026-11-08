@@ -104,7 +104,7 @@ pub struct Attributes {
 }
 impl Attributes {
     pub fn new(handles: Vec<HANDLE>, job: HANDLE, parent: Option<HANDLE>) -> Result<Self, String> {
-        let count = if parent.is_some() { 4 } else { 3 };
+        let count = 2 + u32::from(!handles.is_empty()) + u32::from(parent.is_some());
         let mut size = 0;
         unsafe { InitializeProcThreadAttributeList(std::ptr::null_mut(), count, 0, &mut size) };
         if size == 0 || size > 65536 {
@@ -146,11 +146,13 @@ impl Attributes {
             (&mut *value.policy as *mut u64).cast(),
             size_of::<u64>(),
         )?;
-        set(
-            PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
-            value.handles.as_mut_ptr().cast(),
-            value.handles.len() * size_of::<HANDLE>(),
-        )?;
+        if !value.handles.is_empty() {
+            set(
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST as usize,
+                value.handles.as_mut_ptr().cast(),
+                value.handles.len() * size_of::<HANDLE>(),
+            )?;
+        }
         set(
             PROC_THREAD_ATTRIBUTE_JOB_LIST as usize,
             value.jobs.as_mut_ptr().cast(),

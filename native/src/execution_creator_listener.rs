@@ -89,12 +89,14 @@ fn peer(file: &File) -> Result<Process, String> {
     }
     Process::open(pid)
 }
-fn installed() -> Result<Release, String> {
+pub(crate) fn installed() -> Result<Release, String> {
     let own = Process::open(std::process::id())?;
-    if own.sid != "S-1-5-18" || own.session != 0 {
+    if own.sid != "S-1-5-18" {
         return Err(REJECTED.into());
     }
-    let _worker = nessie_windows_common::update_runtime::pin_image(&own.image, PIN)?;
+    if own.session == 0 {
+        let _worker = nessie_windows_common::update_runtime::pin_image(&own.image, PIN)?;
+    }
     let program = nessie_windows_common::update_admission::known_folder(
         &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles,
     )?;
@@ -103,29 +105,38 @@ fn installed() -> Result<Release, String> {
         PIN,
     )?;
     release.verify_launch_consumers(PIN)?;
+    if own.session != 0 {
+        if own.image != release.runtime.native_helper {
+            return Err(REJECTED.into());
+        }
+        nessie_windows_common::execution_isolation::verify(&own)?;
+    }
     Ok(release)
 }
 fn service(request: Request) -> Result<Value, String> {
     service_channel::call(&Operation::ExecutionCreator { request }, PIN)
 }
 pub fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
-    let companions = stopped.clone();
-    std::thread::spawn(move || {
-        let _ = listen(companions, true);
-    });
-    listen(stopped, false)
+    listen(stopped, None, None)
 }
-fn listen(stopped: Arc<AtomicBool>, companions: bool) -> Result<(), String> {
+fn listen(
+    stopped: Arc<AtomicBool>,
+    graph: Option<String>,
+    ready: Option<std::sync::mpsc::Sender<()>>,
+) -> Result<(), String> {
     installed()?;
     let active = Arc::new(AtomicUsize::new(0));
     let instance = |first| {
-        if companions {
-            protected_pipe::execution_companion_instance(first)
+        if let Some(graph) = &graph {
+            protected_pipe::execution_companion_instance(first, graph)
         } else {
             protected_pipe::instance(PIPE, first, None)
         }
     };
     let mut pending = instance(true).map_err(|_| REJECTED)?;
+    if let Some(ready) = ready {
+        ready.send(()).map_err(|_| REJECTED)?;
+    }
     while !stopped.load(Ordering::Acquire) {
         if !protected_pipe::connect(&pending).map_err(|_| REJECTED)? {
             std::thread::sleep(Duration::from_millis(10));
@@ -139,6 +150,7 @@ fn listen(stopped: Arc<AtomicBool>, companions: bool) -> Result<(), String> {
         active.fetch_add(1, Ordering::AcqRel);
         let active = active.clone();
         let stopped = stopped.clone();
+        let companions = graph.is_some();
         std::thread::spawn(move || {
             let _ = connection(file, stopped, companions);
             active.fetch_sub(1, Ordering::AcqRel);
@@ -166,54 +178,7 @@ fn connection(mut file: File, stopped: Arc<AtomicBool>, companions: bool) -> Res
                 requester_pid: caller.generation.pid,
                 nonce: id.clone(),
             })?;
-            let owner = admitted["ownerSid"].as_str().ok_or(REJECTED)?;
-            let session: u32 = admitted["sessionId"]
-                .as_u64()
-                .ok_or(REJECTED)?
-                .try_into()
-                .map_err(|_| REJECTED)?;
-            let mut child = execution_spawn::spawn(&release, owner, session, &id, None, None)?;
-            let registered = service(Request::RegisterGraph {
-                nonce: id.clone(),
-                child_pid: child.process.generation.pid,
-                job_name: child.job_name.clone(),
-            })?;
-            if registered["registered"] != true {
-                return Err(REJECTED.into());
-            }
-            let key = random()?;
-            let startup = json!({"version":1,"type":"t3.graph.start","executorId":executor_id,
-                "stateDirectory":admitted["stateDirectory"],"custody":registered["custody"],
-                "graphId":id,"creatorKey":hex(&key)});
-            // The secret goes directly to the protected child, never the initiating daemon.
-            let mut bytes = serde_json::to_vec(&startup).map_err(|_| REJECTED)?;
-            bytes.push(b'\n');
-            child
-                .stdin
-                .as_mut()
-                .ok_or(REJECTED)?
-                .write_all(&bytes)
-                .map_err(|_| REJECTED)?;
-            bytes.fill(0);
-            GRAPHS.lock().map_err(|_| REJECTED)?.insert(
-                id.clone(),
-                Graph {
-                    generation: child.process.generation.clone(),
-                    key,
-                    release_digest: release.digest.clone(),
-                },
-            );
-            let result = (|| {
-                child.resume()?;
-                protected_pipe::write(
-                    &mut file,
-                    &json!({"kind":"ready","child":child.process.generation}),
-                )
-                .map_err(|_| REJECTED)?;
-                execution_creator_stream::run(file, child, id.clone(), caller, stopped)
-            })();
-            GRAPHS.lock().map_err(|_| REJECTED)?.remove(&id);
-            result
+            crate::execution_session_host::start(file, &release, &id, admitted, caller, stopped)
         }
         Input::Companion {
             graph_id,
@@ -281,4 +246,72 @@ fn connection(mut file: File, stopped: Arc<AtomicBool>, companions: bool) -> Res
             execution_creator_stream::run(file, child, id, caller, stopped)
         }
     }
+}
+
+pub(crate) fn run_graph(
+    mut file: File,
+    release: &Release,
+    id: String,
+    admitted: Value,
+    caller: Process,
+    stopped: Arc<AtomicBool>,
+) -> Result<(), String> {
+    let executor_id = admitted["executorId"].as_str().ok_or(REJECTED)?.to_owned();
+    let (ready_tx, ready_rx) = std::sync::mpsc::channel();
+    let listening = stopped.clone();
+    let graph_id = id.clone();
+    std::thread::spawn(move || {
+        let _ = listen(listening, Some(graph_id), Some(ready_tx));
+    });
+    ready_rx
+        .recv_timeout(Duration::from_secs(5))
+        .map_err(|_| REJECTED)?;
+    let owner = admitted["ownerSid"].as_str().ok_or(REJECTED)?;
+    let session: u32 = admitted["sessionId"]
+        .as_u64()
+        .ok_or(REJECTED)?
+        .try_into()
+        .map_err(|_| REJECTED)?;
+    let mut child = execution_spawn::spawn(&release, owner, session, &id, None, None)?;
+    let registered = service(Request::RegisterGraph {
+        nonce: id.clone(),
+        child_pid: child.process.generation.pid,
+        job_name: child.job_name.clone(),
+    })?;
+    if registered["registered"] != true {
+        return Err(REJECTED.into());
+    }
+    let key = random()?;
+    let startup = json!({"version":1,"type":"t3.graph.start","executorId":executor_id,
+                "stateDirectory":admitted["stateDirectory"],"custody":registered["custody"],
+                "graphId":id,"creatorKey":hex(&key)});
+    // The secret goes directly to the protected child, never the initiating daemon.
+    let mut bytes = serde_json::to_vec(&startup).map_err(|_| REJECTED)?;
+    bytes.push(b'\n');
+    child
+        .stdin
+        .as_mut()
+        .ok_or(REJECTED)?
+        .write_all(&bytes)
+        .map_err(|_| REJECTED)?;
+    bytes.fill(0);
+    GRAPHS.lock().map_err(|_| REJECTED)?.insert(
+        id.clone(),
+        Graph {
+            generation: child.process.generation.clone(),
+            key,
+            release_digest: release.digest.clone(),
+        },
+    );
+    let result = (|| {
+        child.resume()?;
+        protected_pipe::write(
+            &mut file,
+            &json!({"kind":"ready","child":child.process.generation}),
+        )
+        .map_err(|_| REJECTED)?;
+        execution_creator_stream::run(file, child, id.clone(), caller, stopped)
+    })();
+    GRAPHS.lock().map_err(|_| REJECTED)?.remove(&id);
+    result
 }

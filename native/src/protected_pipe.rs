@@ -39,9 +39,15 @@ pub fn instance(name: &str, first: bool, sid: Option<&str>) -> Result<File, Nati
 /// any payload and authenticates the graph through the kernel client PID.
 /// An injected pipe instance cannot produce that proof. Never use this ACL
 /// for pairing, updates, retained consent or the native bootstrap channel.
-pub fn execution_companion_instance(first: bool) -> Result<File, NativeError> {
+pub fn execution_companion_instance(first: bool, graph_id: &str) -> Result<File, NativeError> {
+    if !nessie_windows_common::custody::valid_nonce(graph_id) {
+        return Err(fail());
+    }
     instance_access(
-        nessie_windows_common::execution_creator::COMPANION_PIPE,
+        &format!(
+            "{}-{graph_id}",
+            nessie_windows_common::execution_creator::COMPANION_PIPE
+        ),
         first,
         None,
         "0x0012019F",
@@ -104,7 +110,7 @@ fn instance_access(
 pub fn connect(file: &File) -> Result<bool, NativeError> {
     let answer = unsafe { ConnectNamedPipe(file.as_raw_handle(), std::ptr::null_mut()) };
     if answer != 0 {
-        return Ok(false);
+        return Ok(true);
     }
     match unsafe { GetLastError() } {
         ERROR_PIPE_CONNECTED => Ok(true),
@@ -113,6 +119,37 @@ pub fn connect(file: &File) -> Result<bool, NativeError> {
     }
 }
 pub fn client(name: &str) -> Result<File, NativeError> {
+    let file = open_client(name)?;
+    nessie_windows_common::service_channel::verify_updater(
+        file.as_raw_handle(),
+        option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"),
+    )
+    .map_err(|_| fail())?;
+    Ok(file)
+}
+pub fn client_process(
+    name: &str,
+    expected: &nessie_windows_common::custody::Generation,
+) -> Result<File, NativeError> {
+    let file = open_client(name)?;
+    let mut pid = 0;
+    if unsafe {
+        windows_sys::Win32::System::Pipes::GetNamedPipeServerProcessId(
+            file.as_raw_handle(),
+            &mut pid,
+        )
+    } == 0
+    {
+        return Err(fail());
+    }
+    let actual = nessie_windows_common::process::Process::open(pid).map_err(|_| fail())?;
+    if actual.generation != *expected || actual.sid != "S-1-5-18" || !actual.alive() {
+        return Err(fail());
+    }
+    nessie_windows_common::execution_isolation::verify(&actual).map_err(|_| fail())?;
+    Ok(file)
+}
+fn open_client(name: &str) -> Result<File, NativeError> {
     let handle = unsafe {
         CreateFileW(
             wide(Path::new(name)).as_ptr(),
@@ -128,11 +165,6 @@ pub fn client(name: &str) -> Result<File, NativeError> {
         return Err(fail());
     }
     let file = unsafe { File::from_raw_handle(handle) };
-    nessie_windows_common::service_channel::verify_updater(
-        handle,
-        option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"),
-    )
-    .map_err(|_| fail())?;
     Ok(file)
 }
 pub fn alive(file: &File) -> bool {

@@ -179,7 +179,9 @@ pub fn spawn(
         return Err(REJECTED.into());
     }
     let own = Process::open(std::process::id())?;
-    if own.sid != "S-1-5-18" || own.session != 0 {
+    // Handle inheritance is only valid within one Windows session. The
+    // updater starts an isolated SYSTEM session host without inherited handles.
+    if own.sid != "S-1-5-18" || own.session != session {
         return Err(REJECTED.into());
     }
     let service = nessie_windows_common::service_channel::service_account_sid()?;

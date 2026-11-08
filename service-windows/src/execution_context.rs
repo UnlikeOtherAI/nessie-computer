@@ -88,7 +88,24 @@ pub(crate) fn authenticate_runtime(
     // Signed images and a Job are not process isolation. Only the fixed SYSTEM
     // creator may attest startup before the user graph's first instruction.
     // The current same-user managed-runtime starter intentionally cannot pass.
-    if supervisor.sid != "S-1-5-18" || supervisor.session != 0 {
+    let creation = state
+        .execution_creations
+        .values()
+        .find(|v| {
+            v.child.as_ref() == Some(&runtime.child)
+                && v.session_host.as_ref() == Some(&supervisor.generation)
+                && !v.cleared
+        })
+        .ok_or(REJECTED)?;
+    let updater = Process::open(creation.creator.pid)?;
+    if supervisor.sid != "S-1-5-18"
+        || supervisor.session != actual.session
+        || supervisor.image != release.runtime.native_helper
+        || updater.generation != creation.creator
+        || updater.sid != "S-1-5-18"
+        || updater.session != 0
+        || !updater.alive()
+    {
         return Err(REJECTED.into());
     }
     nessie_windows_common::execution_isolation::verify(actual)?;
