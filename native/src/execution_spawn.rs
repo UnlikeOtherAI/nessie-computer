@@ -43,6 +43,9 @@ pub struct Child {
     _process: Owned,
 }
 impl Child {
+    pub fn thread_handle(&self) -> HANDLE {
+        self.thread.0
+    }
     pub fn duplicate_job(&self) -> Result<Owned, String> {
         let mut copy = std::ptr::null_mut();
         if unsafe {
@@ -89,7 +92,7 @@ impl Drop for Child {
         let _ = self.stop();
     }
 }
-fn pipe(security: &Security) -> Result<(File, File), String> {
+pub(crate) fn pipe(security: &Security) -> Result<(File, File), String> {
     let (mut read, mut write) = (std::ptr::null_mut(), std::ptr::null_mut());
     if unsafe { CreatePipe(&mut read, &mut write, &security.attributes(true), 65536) } == 0 {
         return Err(REJECTED.into());
@@ -159,11 +162,6 @@ fn inherited(
     }
     Ok((remote.handles.clone(), Some(remote)))
 }
-fn quote(value: &str) -> String {
-    // Only immutable installed paths reach this function. Reject embedded quotes
-    // rather than accepting a second Windows command line through path text.
-    format!("\"{value}\"")
-}
 pub fn spawn(
     release: &Release,
     owner: &str,
@@ -172,7 +170,82 @@ pub fn spawn(
     role: Option<&CompanionRole>,
     parent: Option<u32>,
 ) -> Result<Child, String> {
-    if !nessie_windows_common::custody::valid_nonce(nonce) || role.is_some() != parent.is_some() {
+    if role.is_some() != parent.is_some() {
+        return Err(REJECTED.into());
+    }
+    let executable = if role.is_none() {
+        &release.runtime.node_executable
+    } else {
+        &release.runtime.native_helper
+    };
+    let args = match role {
+        None => vec![
+            release.runtime.bundle().to_str().ok_or(REJECTED)?.into(),
+            "t3-session-runtime".into(),
+        ],
+        Some(role) => role.arguments().into_iter().map(str::to_owned).collect(),
+    };
+    let system = nessie_windows_common::update_admission::known_folder(
+        &windows_sys::Win32::UI::Shell::FOLDERID_Windows,
+    )?;
+    let environment = std::collections::BTreeMap::from([
+        ("NESSIE_EXECUTOR_PACKAGED_CLI".into(), "1".into()),
+        ("PATH".into(), format!("{}\\System32", system.display())),
+        ("SystemRoot".into(), system.to_str().ok_or(REJECTED)?.into()),
+    ]);
+    create(
+        owner,
+        session,
+        nonce,
+        parent,
+        executable.to_str().ok_or(REJECTED)?,
+        &args,
+        release.runtime.root.to_str().ok_or(REJECTED)?,
+        &environment,
+    )
+}
+pub fn spawn_prepared(
+    record: &nessie_windows_common::execution_process::Record,
+    launch: &nessie_windows_common::execution::Launch,
+    owner: &str,
+    session: u32,
+) -> Result<Child, String> {
+    launch.validate()?;
+    if record.command != launch.command
+        || Some(&launch.process_purpose) != record.admission.process_purpose.as_ref()
+        || Some(nessie_windows_common::execution::value_digest(
+            &serde_json::to_value(launch).map_err(|_| REJECTED)?,
+        )?) != record.admission.launch_digest
+    {
+        return Err(REJECTED.into());
+    }
+    let _image =
+        nessie_windows_common::release::pin_execution_image(std::path::Path::new(&launch.command))?;
+    create(
+        owner,
+        session,
+        &record.nonce,
+        Some(record.graph.pid),
+        &launch.command,
+        &launch.args,
+        &launch.cwd,
+        &launch.environment,
+    )
+}
+fn create(
+    owner: &str,
+    session: u32,
+    nonce: &str,
+    parent: Option<u32>,
+    image: &str,
+    args: &[String],
+    cwd: &str,
+    values: &std::collections::BTreeMap<String, String>,
+) -> Result<Child, String> {
+    if !nessie_windows_common::custody::valid_nonce(nonce)
+        || image.contains('\0')
+        || cwd.contains('\0')
+    {
         return Err(REJECTED.into());
     }
     if nessie_windows_common::process::session_owner(session)? != owner {
@@ -230,31 +303,9 @@ pub fn spawn(
     }
     let user = Owned(user);
     let user = token(&user, &service)?;
-    let executable = if role.is_none() {
-        &release.runtime.node_executable
-    } else {
-        &release.runtime.native_helper
-    };
-    let image = executable.to_str().ok_or(REJECTED)?;
-    let bundle = release.runtime.bundle();
-    let bundle = bundle.to_str().ok_or(REJECTED)?;
-    if image.contains('"') || bundle.contains('"') {
-        return Err(REJECTED.into());
-    }
-    let args = match role {
-        None => format!("{} {} t3-session-runtime", quote(image), quote(bundle)),
-        Some(role) => format!("{} {}", quote(image), role.arguments().join(" ")),
-    };
-    let mut args = wide(&args);
+    let mut args = crate::execution_command::command(image, args)?;
+    let mut environment = crate::execution_command::environment(values)?;
     let mut desktop = wide(r"winsta0\default");
-    let system = nessie_windows_common::update_admission::known_folder(
-        &windows_sys::Win32::UI::Shell::FOLDERID_Windows,
-    )?;
-    let mut environment = wide(&format!(
-        "NESSIE_EXECUTOR_PACKAGED_CLI=1\0PATH={}\\System32\0SystemRoot={}\0",
-        system.display(),
-        system.display()
-    ));
     let mut startup: STARTUPINFOEXW = unsafe { std::mem::zeroed() };
     startup.StartupInfo.cb = size_of::<STARTUPINFOEXW>() as u32;
     startup.StartupInfo.lpDesktop = desktop.as_mut_ptr();
@@ -277,7 +328,7 @@ pub fn spawn(
                 | CREATE_UNICODE_ENVIRONMENT
                 | EXTENDED_STARTUPINFO_PRESENT,
             environment.as_mut_ptr().cast(),
-            wide(release.runtime.root.to_str().ok_or(REJECTED)?).as_ptr(),
+            wide(cwd).as_ptr(),
             (&startup as *const STARTUPINFOEXW).cast::<STARTUPINFOW>(),
             &mut created,
         )

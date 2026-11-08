@@ -16,6 +16,7 @@ mod sid;
 pub mod custody;
 pub mod execution;
 pub mod execution_creator;
+pub mod execution_process;
 pub mod execution_resource;
 #[cfg(windows)]
 pub mod execution_resource_handles;

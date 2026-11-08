@@ -12,6 +12,10 @@ mod execution_creator_bridge;
 #[cfg(windows)]
 mod execution_spawn;
 #[cfg(windows)]
+mod execution_command;
+#[cfg(windows)]
+mod execution_provider;
+#[cfg(windows)]
 mod execution_spawn_security;
 #[cfg(windows)]
 mod execution_session_host;

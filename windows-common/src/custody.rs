@@ -48,6 +48,7 @@ pub enum RuntimeKind {
 )]
 pub enum Operation {
     ExecutionCreator { request: crate::execution_creator::Request },
+    ExecutionProcess { request: Box<crate::execution_process::Request> },
     ExecutionResource { request: Box<crate::execution_resource::Request> },
     Execution { request: crate::execution::Request },
     Status,
@@ -87,6 +88,7 @@ pub fn valid_nonce(value: &str) -> bool {
 pub fn validate(operation: &Operation) -> Result<(), String> {
     let valid = match operation {
         Operation::ExecutionCreator { request } => return request.validate(),
+        Operation::ExecutionProcess { request } => return request.validate(),
         Operation::ExecutionResource { request } => return request.validate(),
         Operation::Execution { request } => return request.validate(),
         Operation::Status | Operation::HostCheck => true,

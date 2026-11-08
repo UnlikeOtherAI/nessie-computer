@@ -75,6 +75,11 @@ fn recheck_source(
     key: &Key,
     binding: &Binding,
 ) -> Result<(), String> {
+    let context=execution_context::authenticate_graph(root,caller,release,state,&binding.executor_id)?;
+    recheck_held_source(caller,&context,key,binding)
+}
+pub(crate) fn recheck_held_source(caller:&Process,context:&execution_context::DescriptorContext,
+    key:&Key,binding:&Binding)->Result<(),String>{
     let evidence = binding.source_evidence_digest.as_deref().ok_or(REJECTED)?;
     let record = key.read("graph", evidence.strip_prefix("sha256:").ok_or(REJECTED)?)?;
     let graph: Graph = serde_json::from_value(record["graph"].clone()).map_err(|_| REJECTED)?;
@@ -83,15 +88,13 @@ fn recheck_source(
     if graph.binding != original {
         return Err(REJECTED.into());
     }
-    let context =
-        execution_context::authenticate_graph(root, caller, release, state, &binding.executor_id)?;
     if record["custody"] != value(&context.custody)? {
         return Err(REJECTED.into());
     }
     crate::execution_resource::bind_graph(
         record["resourceId"].as_str().ok_or(REJECTED)?,
         caller,
-        &context,
+        context,
         &graph,
     )
 }
@@ -250,10 +253,11 @@ pub fn handle(
             // Reserve TTL bounds acceptance only. This receipt grants no execution;
             // the backend rechecks current parent authority before fresh launch admission.
             launch.validate()?;
-            let held = crate::execution_preparation::hold(&reservation_id, &descriptor, launch)?;
+            let held = crate::execution_preparation::hold(&reservation_id, &descriptor, release, launch)?;
             // Scoped environment remains in held service memory, never the replay journal.
             payload["launchDigest"] = held["launchDigest"].clone();
             payload["providerSessionId"] = json!(provider_session_id);
+            payload["processPurpose"] = held["processPurpose"].clone();
             let issued=now_ms()?;
             payload["issuedAtMs"] = json!(issued);
             payload["expiresAtMs"] = json!(issued.checked_add(5000).ok_or(REJECTED)?);
@@ -265,33 +269,6 @@ pub fn handle(
             )?;
             key.sign(PREPARATION_DOMAIN, &payload)
         }
-        Request::Launch { admission: signed } => {
-            let (admission, descriptor, key) =
-                bound(root, caller, release, state, &signed, "launch")?;
-            let reserved = reservation(&key, &admission.reservation_id, &descriptor)?;
-            let prepared = key.read("prepare", &admission.reservation_id)?;
-            if reserved["binding"] != value(&admission.binding)?
-                || prepared["receipt"]["launchDigest"] != value(&admission.launch_digest)?
-            {
-                return Err(REJECTED.into());
-            }
-            admission.validate(now_ms()?)?;
-            crate::execution_preparation::recheck(
-                &admission.reservation_id,
-                &descriptor,
-                admission.launch_digest.as_deref().ok_or(REJECTED)?,
-            )?;
-            key.claim(
-                "launch",
-                &admission.reservation_id,
-                &json!({"admission":admission,
-                "controller":caller.generation,"prepared":prepared}),
-            )?;
-            Ok(
-                json!({"permitted":true,"reservationId":admission.reservation_id,
-                    "service":descriptor.custody.service,"expiresAtMs":admission.expires_at_ms}),
-            )
-        }
         Request::Associate { admission: signed } => {
             let (admission, descriptor, key) =
                 bound(root, caller, release, state, &signed, "associate")?;
@@ -299,7 +276,7 @@ pub fn handle(
             if payload["binding"] != value(&admission.binding)? {
                 return Err(REJECTED.into());
             }
-            let observed = crate::execution_observation::consume(
+            let observed = crate::execution_process_io::consume(
                 &admission.reservation_id,
                 &admission,
                 &descriptor,
@@ -307,6 +284,7 @@ pub fn handle(
             payload["admissionDigest"] = json!(sha(signed.payload.as_bytes()));
             payload["launchDigest"] = value(&admission.launch_digest)?;
             payload["providerSessionId"] = value(&admission.provider_session_id)?;
+            payload["processPurpose"] = value(&admission.process_purpose)?;
             payload["nativeId"] = observed["nativeId"].clone();
             payload["provider"] = observed["provider"].clone();
             payload["providerImageDigest"] = observed["providerImageDigest"].clone();
@@ -317,28 +295,7 @@ pub fn handle(
             key.claim("associate", &admission.reservation_id, &payload)?;
             key.sign(ASSOCIATION_DOMAIN, &payload)
         }
-        Request::Observe {
-            executor_id,
-            reservation_id,
-            child_pid,
-            stdout_handle,
-            output_handle,
-            provider_session_id,
-        } => {
-            let (descriptor, key) =
-                execution_context::descriptor(root, caller, release, state, &executor_id, false)?;
-            crate::execution_observation::attach(
-                caller,
-                &descriptor,
-                &key,
-                &reservation_id,
-                child_pid,
-                stdout_handle,
-                output_handle,
-                provider_session_id,
-            )?;
-            Ok(json!({"observing":true}))
-        }
+        Request::Launch { .. } | Request::Observe { .. } => Err(REJECTED.into()),
     }
 }
 pub fn image_digest(mut file: std::fs::File) -> Result<String, String> {
