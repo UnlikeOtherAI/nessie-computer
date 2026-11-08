@@ -30,7 +30,7 @@ import { verifyPrivateCodexAuthProfile, verifyPrivateGuestVmFile } from './guest
 import { verifyGuestRuntimeBundle } from './guest-runtime-bundle.js'
 import { detectExecutorHost, type ExecutorHost } from './host-platform.js'
 import { discoverLocalApps } from './local-app-discovery.js'
-import { composeLocalMcpServers, managedMcpOperations, storedLocalApps } from './local-mcp-apps.js'
+import { composeLocalMcpServers, managedMcpOperations } from './local-mcp-apps.js'
 import { localMcpPolicyOf, MCP_OPERATION_KEYS, pairedLocalMcpPolicy } from './mcp-policy.js'
 import { executorLocalMcpServerNames, type ExecutorLocalMcpServer } from './mcp-servers.js'
 import { verifyNativeHelperPath } from './native-helper.js'
@@ -274,8 +274,7 @@ export const configureExecutorLocalPolicy = async (
     stateDir,
     workspaceFolders: canonicalWorkspaceFolders,
   })
-  const discovered = mcpPolicy.mode === 'installed' ? await (settings.discover ?? discoverLocalApps)()
-    : storedLocalApps(state)
+  const discovered = mcpPolicy.mode === 'installed' ? await (settings.discover ?? discoverLocalApps)() : []
   const namedMcpServers = composeLocalMcpServers(bridge.servers, discovered, mcpPolicy)
   const operationKeys = configuredOperationKeys(
     managedMcpOperations(requestedOperationKeys, mcpPolicy, namedMcpServers.length),

@@ -123,7 +123,8 @@ not local apps. A name is fitted to the server grammar (`node_repl` becomes
 `node-repl`) or the server is left out; the first source to claim a name keeps
 it, and none may take `coding-sessions`. A program found on PATH is stored as
 its absolute path; one found nowhere is listed as not installed and never
-started. At most eight servers fit a descriptor; owner entries come first and
+started. On Windows a Store app's execution alias under `WindowsApps` counts as
+installed, because CreateProcess starts it although `stat` cannot open it. At most eight servers fit a descriptor; owner entries come first and
 `describe` marks the discovered apps past the limit with `reason: 'limit'`.
 
 The launch specs, environments included, stay in the owner-only state file.
