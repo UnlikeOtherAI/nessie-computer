@@ -37,12 +37,14 @@ selected. From the top:
 - a disabled status sentence ("Working for 2 teams · 1 paused", "Paused",
   "Not connected — open Nessie Computer");
 - one "Needs you" line when something needs the owner, which opens its exact
-  place (Overview with the team, or Documents for a documents problem);
+  place (the window with the team — its Needs you strip shows on every tab —
+  or Documents for a documents problem);
 - **Pause** / **Resume**: one line for one team; with several, a submenu with
   "All teams" and then each team's label, checked while paused;
-- **Open Nessie Computer…** (the window, on Overview), **Add this computer…**
-  (the window, straight onto a new pairing code, as Overview's **Add this
-  computer** does) and **Open Nessie** (the paired server's Computers page);
+- **Open Nessie Computer…** (the window, on the tab last used), **Add another
+  team…** (the window, straight onto a new pairing code, as the dropdown's
+  **＋ Add another team** does) and **Open Nessie** (the paired server's
+  Computers page);
 - **Quit Nessie Computer**, which adds "— agents stop until you open it again"
   while any team is working.
 
@@ -115,8 +117,9 @@ The console calls these through `window.webkit.messageHandlers.executor`
 `FailureClassifier` recognises it. The console translates both. Removed:
 `executor_set_running`, `executor_hide_status`, `executor_reconnect` and
 `executor_notify` (saves never post notifications). Section events are
-`tray://section/<overview|access|documents|ai|settings>` with an optional
-`{ executorId }`, and `tray://connect` opens Add this computer.
+`tray://section/<access|documents|ai|settings>` and `tray://open` (the window
+as it was) with an optional `{ executorId }`, and `tray://connect` opens Add
+another team.
 
 ## Program requests
 
@@ -125,11 +128,11 @@ When a team has `pendingProgramRequests`, the app reads
 once**, **Always allow {program}** and **Don't allow**. The actions need an
 unlocked Mac. Notification permission is asked the first time a request needs
 one. Answered or expired requests are withdrawn. Clicking the notification
-opens Overview with the team.
+opens the window with the team; the request waits in its Needs you strip.
 
 ## Links
 
-`nessie-computer://open?section=<overview|access|documents|ai|settings>[&team=<executorId>]`
+`nessie-computer://open[?section=<access|documents|ai|settings>][&team=<executorId>]`
 and `nessie-computer://connect` only navigate the window. Anything else —
 another host, a path, an unknown parameter, a team that is not a UUID — is
 ignored. When a link launches a second copy of the app (the standalone install

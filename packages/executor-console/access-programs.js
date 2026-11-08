@@ -1,6 +1,6 @@
-// Programs: the one Access section that applies explicitly. "Currently
-// allowed" is always what the team reports; edits gather in a draft shown
-// beside it as a before/after line until Apply sends them in one save.
+// Programs: the one Access section that applies explicitly. "Now" is always
+// what the team reports; edits gather in a draft shown beside it as an
+// "After Apply" line until Apply sends them in one save.
 // No programs — only listed, with nothing listed and no built-in on — is a
 // real, applicable state (contract §4.3).
 (() => {
@@ -62,21 +62,18 @@
   const build = (node) => {
     node.innerHTML = `
       <div class="section-heading"><h3 id="access-programs-title"></h3><button type="button" id="access-add-program"></button></div>
-      <p id="access-programs-current" class="access-current" role="status"></p>
       <div class="access-mode" role="radiogroup" aria-labelledby="access-mode-label">
         <span id="access-mode-label" class="label"></span>
         <label class="toggle"><input type="radio" name="access-mode" id="access-mode-allowlist" value="allowlist"><span id="access-mode-allowlist-text"></span></label>
         <label class="toggle"><input type="radio" name="access-mode" id="access-mode-all" value="all"><span id="access-mode-all-text"></span></label>
         <p id="access-mode-consequence" class="hint"></p>
       </div>
-      <p id="access-programs-not-used" class="access-note" hidden></p>
       <div id="access-program-list"></div>
       <details id="access-advanced"><summary id="access-advanced-summary"></summary>
-        <label for="access-allowlist" id="access-allowlist-label"></label>
-        <textarea id="access-allowlist" rows="3" aria-describedby="access-pattern-help" spellcheck="false"></textarea>
+        <div class="label-row"><label for="access-allowlist" id="access-allowlist-label"></label></div>
+        <textarea id="access-allowlist" rows="3" spellcheck="false"></textarea>
         <label for="access-denylist" id="access-denylist-label"></label>
-        <textarea id="access-denylist" rows="3" aria-describedby="access-pattern-help" spellcheck="false"></textarea>
-        <p id="access-pattern-help" class="hint"></p>
+        <textarea id="access-denylist" rows="3" spellcheck="false"></textarea>
         <p id="access-pattern-error" class="field-error" role="alert" hidden></p>
       </details>
       <div class="access-apply">
@@ -84,9 +81,13 @@
         <button type="button" id="access-undo"></button>
         <button type="button" id="access-apply" class="primary"></button>
       </div>`
-    nodes = Object.fromEntries(['add-program', 'programs-current', 'mode-label', 'mode-allowlist', 'mode-all', 'mode-allowlist-text', 'mode-all-text',
-      'mode-consequence', 'programs-not-used', 'program-list', 'advanced-summary', 'allowlist', 'allowlist-label', 'denylist', 'denylist-label',
-      'pattern-help', 'pattern-error', 'now', 'after', 'no-programs-note', 'undo', 'apply'].map((id) => [id, node.querySelector(`#access-${id}`)]))
+    nodes = Object.fromEntries(['add-program', 'mode-label', 'mode-allowlist', 'mode-all', 'mode-allowlist-text', 'mode-all-text',
+      'mode-consequence', 'program-list', 'advanced-summary', 'allowlist', 'allowlist-label', 'denylist', 'denylist-label',
+      'pattern-error', 'now', 'after', 'no-programs-note', 'undo', 'apply'].map((id) => [id, node.querySelector(`#access-${id}`)]))
+    // The pattern grammar sits behind "?" beside the first list and describes both.
+    nodes['pattern-help'] = nc.help('', { describes: [nodes.allowlist, nodes.denylist] })
+    nodes['pattern-help'].id = 'access-pattern-help'
+    nodes['allowlist-label'].after(nodes['pattern-help'])
     for (const mode of ['allowlist', 'all']) nodes[`mode-${mode}`].onchange = () => change((draft) => { draft.mode = mode })
     for (const list of ['allowlist', 'denylist']) {
       nodes[list].oninput = () => change((draft) => { draft[list] = lines(nodes[list]) })
@@ -108,12 +109,15 @@
     const dialog = document.createElement('dialog')
     dialog.id = 'access-program-dialog'
     dialog.setAttribute('aria-labelledby', 'access-program-dialog-title')
-    dialog.innerHTML = '<h2 id="access-program-dialog-title" tabindex="-1"></h2><form><label for="access-program-name" id="access-program-name-label"></label>'
-      + '<input id="access-program-name" maxlength="256" autocomplete="off" spellcheck="false" aria-describedby="access-program-hint" aria-errormessage="access-program-error">'
-      + '<p id="access-program-hint" class="hint"></p><p id="access-program-error" class="field-error" role="alert" hidden></p>'
+    dialog.innerHTML = '<h2 id="access-program-dialog-title" tabindex="-1"></h2><form><div class="label-row"><label for="access-program-name" id="access-program-name-label"></label></div>'
+      + '<input id="access-program-name" maxlength="256" autocomplete="off" spellcheck="false" aria-errormessage="access-program-error">'
+      + '<p id="access-program-error" class="field-error" role="alert" hidden></p>'
       + '<div class="actions"><button type="button" id="access-program-cancel"></button><button type="submit" id="access-program-confirm" class="primary"></button></div></form>'
     document.body.append(dialog)
     const input = dialog.querySelector('input')
+    const addHelp = nc.help('', { describes: input })
+    addHelp.id = 'access-program-help'
+    dialog.querySelector('.label-row').append(addHelp)
     const error = dialog.querySelector('#access-program-error')
     dialog.querySelector('#access-program-cancel').onclick = () => dialog.close()
     dialog.querySelector('form').onsubmit = (event) => {
@@ -133,9 +137,10 @@
     }
     nodes['add-program'].onclick = () => {
       for (const [id, key] of [['access-program-dialog-title', 'programs.addTitle'], ['access-program-name-label', 'programs.addName'],
-        ['access-program-hint', 'programs.addHint'], ['access-program-cancel', 'programs.cancel'], ['access-program-confirm', 'programs.addConfirm']]) {
+        ['access-program-cancel', 'programs.cancel'], ['access-program-confirm', 'programs.addConfirm']]) {
         nc.byId(id).textContent = t(key)
       }
+      addHelp.set(t('programs.addHint'))
       input.value = ''
       input.removeAttribute('aria-invalid')
       error.hidden = true
@@ -145,7 +150,7 @@
     }
   }
 
-  const renderList = (draft, saved, label) => access.keepFocus(nodes['program-list'], () => {
+  const renderList = (draft, saved) => access.keepFocus(nodes['program-list'], () => {
     const list = nodes['program-list']
     list.replaceChildren()
     const listed = draft.mode === 'allowlist'
@@ -154,9 +159,7 @@
       const name = t(`programs.builtins.${key}`)
       const toggle = access.toggle({ label: t('programs.switchLabel', { program: name }), checked: Boolean(draft.trusted?.[key]),
         disabled: !listed || !entry.available, onchange: (on) => setTrusted(key, on) })
-      const detail = [entry.verifiedBy === 'signature' ? t('programs.signed') : null, entry.available ? null : t('programs.unavailable')]
-        .filter(Boolean).join(' ')
-      list.append(access.row({ name, detail: detail || undefined, control: toggle, key,
+      list.append(access.row({ name, detail: entry.available ? undefined : t('programs.unavailable'), control: toggle, key,
         disabled: !listed || !entry.available }))
     }
     for (const rule of draft.allowlist) {
@@ -169,29 +172,26 @@
       remove.onclick = () => change((next) => { next.allowlist = next.allowlist.filter((entry) => entry !== rule) })
       list.append(access.row({ name: program, detail: t('programs.ownerAdded'), control: remove, key: rule, disabled: !listed }))
     }
-    nodes['programs-not-used'].hidden = listed
-    nodes['programs-not-used'].textContent = t('programs.notUsed', { team: label })
   }, () => nodes['add-program'])
 
   const render = (view) => {
-    const { saved, label } = view
+    const { saved } = view
     const draft = draftOf(view)
     const dirty = drafts.has(view.executorId) && !same(draft, saved.commandPolicy)
     const ok = valid(draft)
     nc.byId('access-programs-title').textContent = t('sections.programs')
     nodes['add-program'].textContent = t('programs.add')
     nodes['add-program'].disabled = draft.mode !== 'allowlist'
-    nodes['programs-current'].textContent = t('programs.current', { rule: ruleWords(saved.commandPolicy) })
     nodes['mode-label'].textContent = t('programs.modeLabel')
     nodes['mode-allowlist-text'].textContent = t('programs.modeOnly')
     nodes['mode-all-text'].textContent = t('programs.modeAny')
     nodes['mode-consequence'].textContent = t('programs.consequence')
     nodes[`mode-${draft.mode}`].checked = true
-    renderList(draft, saved, label)
+    renderList(draft, saved)
     nodes['advanced-summary'].textContent = t('programs.advanced')
     nodes['allowlist-label'].textContent = t('programs.allowed')
     nodes['denylist-label'].textContent = t('programs.blocked')
-    nodes['pattern-help'].textContent = t('programs.help')
+    nodes['pattern-help'].set(t('programs.help'))
     // A field being typed in is never repainted under the person's hands.
     for (const list of ['allowlist', 'denylist']) {
       if (document.activeElement !== nodes[list]) nodes[list].value = draft[list].join('\n')
@@ -202,7 +202,7 @@
     nodes.now.textContent = t('programs.now', { rule: ruleWords(saved.commandPolicy) })
     nodes.after.textContent = dirty ? t('programs.after', { rule: ruleWords(draft) }) : t('programs.noChanges')
     nodes['no-programs-note'].hidden = !(dirty && draft.mode === 'allowlist' && ruleWords(draft) === t('programs.noPrograms'))
-    nodes['no-programs-note'].textContent = t('programs.noProgramsNote', { team: label })
+    nodes['no-programs-note'].textContent = t('programs.noProgramsNote')
     nodes.undo.textContent = t('programs.undo')
     nodes.undo.hidden = !drafts.has(view.executorId)
     nodes.apply.textContent = t('programs.apply')

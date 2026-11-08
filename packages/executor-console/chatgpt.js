@@ -20,16 +20,14 @@ window.chatgptDialog = (() => {
   dialog.id = 'chatgpt-dialog'
   dialog.setAttribute('aria-labelledby', 'chatgpt-title')
   dialog.innerHTML = `
-    <h2 id="chatgpt-title" tabindex="-1"></h2>
+    <div class="label-row"><h2 id="chatgpt-title" tabindex="-1"></h2></div>
     <p id="chatgpt-team"></p>
     <label id="chatgpt-name-label" for="chatgpt-name"></label>
     <div class="ai-name-row"><input id="chatgpt-name" maxlength="80"><button type="button" id="chatgpt-rename"></button></div>
-    <p id="chatgpt-disclosure"></p>
     <p id="chatgpt-status" role="status"></p>
     <label id="chatgpt-profile-label" for="chatgpt-profile"></label>
     <select id="chatgpt-profile"></select>
     <label class="toggle" id="chatgpt-restriction-row"><input id="chatgpt-restriction" type="checkbox"><span id="chatgpt-restriction-copy"></span></label>
-    <p id="chatgpt-background-copy" class="hint"></p>
     <p class="dialog-error" role="alert" hidden></p>
     <div class="actions chatgpt-actions">
       <button type="button" id="chatgpt-start" class="primary"></button>
@@ -42,6 +40,13 @@ window.chatgptDialog = (() => {
     </div>`
   document.body.append(dialog)
   const byId = nc.byId
+  // What the plan pays for sits behind "?" beside the title; what background work means, beside its button.
+  const disclosure = nc.help('')
+  disclosure.id = 'chatgpt-disclosure'
+  byId('chatgpt-title').after(disclosure)
+  const backgroundHelp = nc.help('', { describes: byId('chatgpt-background') })
+  backgroundHelp.id = 'chatgpt-background-copy'
+  byId('chatgpt-background').after(backgroundHelp)
   const profile = () => (newId ? null : view?.profiles.find((entry) => entry.profileId === byId('chatgpt-profile').value))
 
   const render = () => {
@@ -60,6 +65,7 @@ window.chatgptDialog = (() => {
     byId('chatgpt-disconnect').hidden = !current || ['disconnected', 'unavailable'].includes(phase)
     // Background work is kept: off until allowed here, with its revision fencing each change.
     byId('chatgpt-background').hidden = !(current?.backgroundConsentRevision || (!readFailed && phase === 'ready' && current?.planEnabled))
+    backgroundHelp.hidden = byId('chatgpt-background').hidden
     byId('chatgpt-background').textContent = current?.backgroundConsentRevision ? t('backgroundOff') : t('backgroundOn')
     for (const id of ['cancel', 'disconnect', 'background', 'refresh', 'profile']) byId(`chatgpt-${id}`).disabled = busy
     byId('chatgpt-profile').hidden = byId('chatgpt-profile-label').hidden = Boolean(newId) || (view?.profiles.length ?? 0) < 2
@@ -124,9 +130,11 @@ window.chatgptDialog = (() => {
     byId('chatgpt-title').textContent = newId ? t('newTitle') : t('title')
     byId('chatgpt-name').value = newId ? nc.t('ai.planName', { n: number }) : ''
     byId('chatgpt-team').textContent = nc.team.label(nc.team.teamOf(executorId))
-    for (const [id, key] of [['disclosure', 'disclosure'], ['profile-label', 'profileLabel'], ['restriction-copy', 'restriction'],
-      ['background-copy', 'background'], ['start', 'start'], ['cancel', 'cancel'], ['disconnect', 'disconnect'], ['refresh', 'refresh'],
+    for (const [id, key] of [['profile-label', 'profileLabel'], ['restriction-copy', 'restriction'],
+      ['start', 'start'], ['cancel', 'cancel'], ['disconnect', 'disconnect'], ['refresh', 'refresh'],
       ['usage', 'usage'], ['close', 'close']]) byId(`chatgpt-${id}`).textContent = t(key)
+    disclosure.set(t('disclosure'))
+    backgroundHelp.set(t('background'))
     byId('chatgpt-name-label').textContent = nc.t('ai.name')
     byId('chatgpt-rename').textContent = nc.t('ai.rename')
     dialog.lang = document.documentElement.lang

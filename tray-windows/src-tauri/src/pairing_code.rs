@@ -2,7 +2,7 @@
 //! The person's claim in Nessie completes it: nothing is confirmed here, and
 //! the status check that first reads `paired` starts the team's connection.
 //!
-//! **Add this computer** always pairs under this person's account, so agents can
+//! **Add another team** always pairs under this person's account, so agents can
 //! use the coding tools installed there. It offers no ChatGPT option.
 //!
 //! **ChatGPT plans on Windows** need the background service: only it can hold

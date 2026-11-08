@@ -27,8 +27,8 @@ window.accessTab = (() => {
     built = true
     tab.replaceChildren()
     const heading = document.createElement('div')
-    heading.className = 'section-heading'
-    heading.innerHTML = '<h2 id="access-heading"></h2><span id="access-saved" class="saved-note" role="status"></span>'
+    heading.className = 'saved-row'
+    heading.innerHTML = '<span id="access-saved" class="saved-note" role="status"></span>'
     const status = document.createElement('p')
     status.id = 'access-status'
     status.setAttribute('role', 'status')
@@ -55,7 +55,6 @@ window.accessTab = (() => {
     build()
     const executorId = current()
     const label = executorId ? nc.team.label(executorId) : ''
-    nc.byId('access-heading').textContent = t('heading', { team: label })
     nc.byId('access-reload').textContent = t('save.tryAgain')
     const shown = view()
     const busy = loading === executorId && !shown

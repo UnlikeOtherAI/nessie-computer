@@ -20,7 +20,8 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
   let journeys = 0
   const open = async ({ host = 'windows', width = 640, locale = 'en-GB', state = 'idle' } = {}) => {
     const context = await browser.newContext({ viewport: { width, height: 680 }, locale })
-    await installRendererHost(context, host)
+    // A connected team: with none the window opens on a pairing code, which the update prompt must not cover.
+    await installRendererHost(context, host, { paired: 1 })
     await context.addInitScript((state) => {
       if (state === 'unavailable') window.updateUnavailable = true
       if (state !== 'idle') Object.assign(window.updateStatus, { availableVersion: '1.0.1', automatic: false })
@@ -111,7 +112,8 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         }
         if (!before && state === 'idle') {
           await page.locator('#update-automatic').uncheck()
-          await page.getByText('Automatic updates are off. Nessie will ask you when a new version is available.', { exact: true }).waitFor()
+          // The explanation sits behind "?" beside the switch and follows it.
+          await page.waitForFunction(() => document.querySelector('#update-hint .help-tip').textContent === 'Automatic updates are off. Nessie will ask you when a new version is available.')
           await page.locator('#update-automatic').check()
           await page.waitForFunction(() => window.updateStatus.automatic)
         }

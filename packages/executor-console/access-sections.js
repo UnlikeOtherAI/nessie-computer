@@ -27,30 +27,36 @@
     node.onclick = onclick
     return node
   }
+  /** A section's heading row: its title, a "?" holding what the section is for, and its one action. */
   const heading = (node, name, action) => {
     const row = document.createElement('div')
     row.className = 'section-heading'
+    const titleRow = document.createElement('div')
+    titleRow.className = 'label-row'
     const title = document.createElement('h3')
     title.id = `access-${name}-title`
-    row.append(title)
+    const help = nc.help('')
+    help.id = `access-${name}-help`
+    titleRow.append(title, help)
+    row.append(titleRow)
     if (action) row.append(action)
-    const intro = document.createElement('p')
-    intro.className = 'intro hint'
-    intro.id = `access-${name}-intro`
-    node.append(row, intro)
-    return { title, intro }
+    node.append(row)
+    return { title, help }
   }
   /** A small dialog with one text field; `check(value)` answers the saved value or an error key. */
   const inputDialog = (id, { title, label, hint, confirm, cancel, placeholder }, check, accept) => {
     const dialog = document.createElement('dialog')
     dialog.id = id
     dialog.setAttribute('aria-labelledby', `${id}-title`)
-    dialog.innerHTML = `<h2 id="${id}-title" tabindex="-1"></h2><form><label for="${id}-input" id="${id}-label"></label>`
-      + `<input id="${id}-input" maxlength="512" autocomplete="off" aria-describedby="${id}-hint" aria-errormessage="${id}-error">`
-      + `<p id="${id}-hint" class="hint"></p><p id="${id}-error" class="field-error" role="alert" hidden></p>`
+    dialog.innerHTML = `<h2 id="${id}-title" tabindex="-1"></h2><form><div class="label-row"><label for="${id}-input" id="${id}-label"></label></div>`
+      + `<input id="${id}-input" maxlength="512" autocomplete="off" aria-errormessage="${id}-error">`
+      + `<p id="${id}-error" class="field-error" role="alert" hidden></p>`
       + `<div class="actions"><button type="button" id="${id}-cancel"></button><button type="submit" id="${id}-confirm" class="primary"></button></div></form>`
     document.body.append(dialog)
     const input = dialog.querySelector('input')
+    const help = nc.help('', { describes: input })
+    help.id = `${id}-help`
+    dialog.querySelector('.label-row').append(help)
     if (placeholder) input.placeholder = placeholder
     dialog.querySelector(`#${id}-cancel`).onclick = () => dialog.close()
     dialog.querySelector('form').onsubmit = (event) => {
@@ -68,9 +74,10 @@
     }
     return {
       open: () => {
-        for (const [selector, key] of [['h2', title], ['label', label], [`#${id}-hint`, hint], [`#${id}-confirm`, confirm], [`#${id}-cancel`, cancel]]) {
+        for (const [selector, key] of [['h2', title], ['label', label], [`#${id}-confirm`, confirm], [`#${id}-cancel`, cancel]]) {
           dialog.querySelector(selector).textContent = t(key)
         }
+        help.set(t(hint))
         input.value = ''
         input.removeAttribute('aria-invalid')
         dialog.querySelector(`#${id}-error`).hidden = true
@@ -83,7 +90,7 @@
   // Folders: rows with the name agents use, Remove, Add folder… The runtime
   // keeps at least one folder (workspace-folders.ts), so the last Remove waits.
   access.register('folders', (() => {
-    let list; let add; let last; let intro; let several
+    let list; let add; let help
     const inForce = (input) => t('save.inForce.folders', { list: access.list(input.workspaceFolders.map((folder) => folderLabel(folder.path))) })
     return {
       build: (node) => {
@@ -97,20 +104,17 @@
             input.workspaceFolders = [...input.workspaceFolders, { name, path }]
           } })
         }), { id: 'access-add-folder' })
-        ;({ intro } = heading(node, 'folders', add))
+        ;({ help } = heading(node, 'folders', add))
         list = document.createElement('div')
         list.id = 'access-folder-list'
-        last = document.createElement('p')
-        last.id = 'access-last-folder'
-        last.className = 'hint'
-        several = document.createElement('p')
-        several.id = 'access-several-folders'
-        several.className = 'hint'
-        node.append(list, last, several)
+        node.append(list)
       },
       render: ({ input, label }) => {
         setText(`access-folders-title`, t('sections.folders'))
-        intro.textContent = t('folders.intro', { team: label })
+        // What the folders are for, why the last Remove is off, and why several folders stop some work — one "?".
+        // (The runtime keeps at least one folder; the browser, sandboxed commands and coding sessions need exactly one.)
+        help.set([t('folders.intro', { team: label }), input.workspaceFolders.length === 1 ? t('folders.last') : null,
+          input.workspaceFolders.length >= 2 ? t('folders.multiple') : null].filter(Boolean).join(' '))
         add.textContent = t('folders.add')
         access.keepFocus(list, () => {
           list.replaceChildren()
@@ -123,12 +127,6 @@
             list.append(access.row({ name: folderLabel(folder.path), detail: `${folder.path} · ${t('folders.agentsUse', { name: folder.name })}`, control: remove, key: folder.name }))
           }
         }, () => add)
-        last.textContent = t('folders.last')
-        last.hidden = input.workspaceFolders.length !== 1
-        // The agent browser, sandboxed commands and coding sessions need exactly one folder
-        // (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
-        several.textContent = t('folders.multiple')
-        several.hidden = input.workspaceFolders.length < 2
       },
     }
   })())
@@ -142,7 +140,7 @@
     } catch { return null }
   }
   access.register('websites', (() => {
-    let list; let add; let note; let intro; let empty
+    let list; let add; let note; let help; let empty
     const inForce = (input) => t('save.inForce.websites', { list: access.list(input.allowedOrigins) })
     const dialog = inputDialog('access-website-dialog', { title: 'websites.addTitle', label: 'websites.addLabel', hint: 'websites.addHint',
       confirm: 'websites.addConfirm', cancel: 'websites.cancel', placeholder: 'https://docs.example.com' }, (value) => {
@@ -157,7 +155,7 @@
     return {
       build: (node) => {
         add = button('', () => dialog.open(), { id: 'access-add-website' })
-        ;({ intro } = heading(node, 'websites', add))
+        ;({ help } = heading(node, 'websites', add))
         note = document.createElement('p')
         note.id = 'access-browser-note'
         note.className = 'access-note'
@@ -170,7 +168,7 @@
       },
       render: ({ input, saved, label }) => {
         setText('access-websites-title', t('sections.websites'))
-        intro.textContent = t('websites.intro', { team: label })
+        help.set(t('websites.intro', { team: label }))
         add.textContent = t('websites.add')
         note.hidden = saved.sandbox?.browserConfigured !== false
         note.textContent = t('websites.notSetUp')
@@ -185,7 +183,7 @@
           }
         }, () => add)
         empty.hidden = input.allowedOrigins.length > 0
-        empty.textContent = t('websites.empty', { team: label })
+        empty.textContent = t('websites.empty')
       },
     }
   })())
@@ -193,7 +191,7 @@
   // Local apps: every installed local MCP server, on unless the owner switched
   // it off; an app the owner named (`configured`) is removed rather than switched.
   access.register('localApps', (() => {
-    let list; let intro; let empty
+    let list; let help; let empty
     const inForce = (input, saved) => t('save.inForce.localApps', { list: access.list((saved?.localApps ?? [])
       .filter((app) => !input.mcpPolicy?.disabled.includes(app.name) && !input.mcpServerRemovals?.includes(app.name))
       .map((app) => app.name)) })
@@ -209,7 +207,7 @@
       } })
     return {
       build: (node) => {
-        ;({ intro } = heading(node, 'localApps'))
+        ;({ help } = heading(node, 'localApps'))
         list = document.createElement('div')
         list.id = 'access-local-app-list'
         empty = document.createElement('p')
@@ -219,7 +217,7 @@
       },
       render: ({ input, saved, label }) => {
         setText('access-localApps-title', t('sections.localApps'))
-        intro.textContent = t('localApps.intro', { team: label })
+        help.set(t('localApps.intro', { team: label }))
         const apps = saved.localApps
         access.keepFocus(list, () => {
           list.replaceChildren()
@@ -253,7 +251,7 @@
 
   // Coding assistants, collapsed under "For developers": conversation access and the Claude Code channel recipe.
   access.register('coding', (() => {
-    let details; let summary; let sessions; let sessionsText; let hint; let setup; let dialog; let config
+    let details; let summary; let sessions; let sessionsText; let help; let setup; let dialog; let config
     const inForce = (input) => t(input.existingCodingSessionsEnabled ? 'save.inForce.codingOn' : 'save.inForce.codingOff')
     const copy = async (block, trigger) => {
       try {
@@ -269,13 +267,15 @@
     return {
       build: (node) => {
         node.innerHTML = `<h3 id="access-coding-title" class="visually-hidden"></h3><details class="access-developers" id="access-developers"><summary id="access-developers-summary"></summary>`
-          + `<label class="toggle"><input id="access-existing-sessions" type="checkbox" aria-describedby="access-existing-sessions-hint"><span id="access-existing-sessions-text"></span></label>`
-          + `<p id="access-existing-sessions-hint" class="hint"></p><p><button type="button" id="access-claude-setup" class="link"></button></p></details>`
+          + `<label class="toggle"><input id="access-existing-sessions" type="checkbox"><span id="access-existing-sessions-text"></span></label>`
+          + `<p><button type="button" id="access-claude-setup" class="link"></button></p></details>`
         details = node.querySelector('details')
         summary = node.querySelector('summary')
         sessions = node.querySelector('#access-existing-sessions')
         sessionsText = node.querySelector('#access-existing-sessions-text')
-        hint = node.querySelector('#access-existing-sessions-hint')
+        help = nc.help('', { describes: sessions })
+        help.id = 'access-existing-sessions-help'
+        sessionsText.after(help)
         setup = node.querySelector('#access-claude-setup')
         sessions.onchange = () => {
           const enabled = sessions.checked
@@ -291,7 +291,7 @@
           + '<pre id="access-claude-config" class="code"></pre><button type="button" id="access-claude-copy-config"></button>'
           + '<p id="access-claude-step2"></p><pre id="access-claude-command" class="code">claude --mcp-config nessie-channel.json --dangerously-load-development-channels server:nessie</pre>'
           + '<button type="button" id="access-claude-copy-command"></button></div><p id="access-claude-unavailable" hidden></p>'
-          + '<p id="access-claude-hint" class="hint"></p><p class="dialog-error" role="alert" hidden></p><div class="actions"><button type="button" id="access-claude-close"></button></div>'
+          + '<p class="dialog-error" role="alert" hidden></p><div class="actions"><button type="button" id="access-claude-close"></button></div>'
         document.body.append(dialog)
         config = dialog.querySelector('#access-claude-config')
         dialog.querySelector('#access-claude-close').onclick = () => dialog.close()
@@ -313,12 +313,12 @@
         setText('access-coding-title', t('sections.coding'))
         summary.textContent = t('coding.developers')
         sessionsText.textContent = t('coding.sessions')
-        hint.textContent = t('coding.sessionsHint')
+        help.set(t('coding.sessionsHint'))
         setup.textContent = t('coding.claudeSetup')
         if (document.activeElement !== sessions) sessions.checked = input.existingCodingSessionsEnabled
         for (const [id, key] of [['access-claude-title', 'coding.claudeTitle'], ['access-claude-step1', 'coding.step1'], ['access-claude-step2', 'coding.step2'],
           ['access-claude-copy-config', 'coding.copy'], ['access-claude-copy-command', 'coding.copy'], ['access-claude-unavailable', 'coding.claudeUnavailable'],
-          ['access-claude-hint', 'coding.claudeHint'], ['access-claude-close', 'coding.close']]) nc.byId(id).textContent = t(key)
+          ['access-claude-close', 'coding.close']]) nc.byId(id).textContent = t(key)
         for (const node of [dialog, details]) node.lang = document.documentElement.lang
       },
     }

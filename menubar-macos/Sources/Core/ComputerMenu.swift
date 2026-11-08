@@ -9,8 +9,9 @@ public enum MenuIcon: Equatable, Sendable {
 }
 
 /// The "Needs you" line: one sentence and the exact place that settles it —
-/// a console section, or, when `confirmExecutorId` is set, that team's
-/// computer page in Nessie, where its owner confirms this computer again.
+/// the window (its Needs you strip shows on every tab), a console section, or,
+/// when `confirmExecutorId` is set, that team's computer page in Nessie, where
+/// its owner confirms this computer again.
 public struct NeedsYouItem: Equatable, Sendable {
     public let title: String
     public let target: ConsoleTarget
@@ -91,26 +92,26 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public var needsYouItems: [NeedsYouItem] {
         var items: [NeedsYouItem] = []
         if updatesStuck {
-            items.append(NeedsYouItem(title: say(.needsYouUpdatesStuck), target: ConsoleTarget(section: .overview)))
+            items.append(NeedsYouItem(title: say(.needsYouUpdatesStuck), target: ConsoleTarget()))
         }
         if runtimeMissing {
-            items.append(NeedsYouItem(title: say(.needsYouReinstall), target: ConsoleTarget(section: .overview)))
+            items.append(NeedsYouItem(title: say(.needsYouReinstall), target: ConsoleTarget()))
         }
         if unreadableTeams > 0 {
-            items.append(NeedsYouItem(title: say(.needsYouUnreadableTeam), target: ConsoleTarget(section: .overview)))
+            items.append(NeedsYouItem(title: say(.needsYouUnreadableTeam), target: ConsoleTarget()))
         }
         for executorId in confirmationTeams {
             items.append(NeedsYouItem(
                 title: say(.needsYouConfirmComputer),
-                target: ConsoleTarget(section: .overview, executorId: executorId),
+                target: ConsoleTarget(executorId: executorId),
                 confirmExecutorId: executorId
             ))
         }
         for team in teams {
             guard let reason = team.needsYou else { continue }
-            let section: ConsoleSection
+            let section: ConsoleSection?
             switch reason {
-            case .programs, .notConnected: section = .overview
+            case .programs, .notConnected: section = nil
             default: section = .documents
             }
             items.append(NeedsYouItem(
@@ -125,7 +126,7 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public var needsYou: NeedsYouItem? {
         let items = needsYouItems
         guard items.count > 1 else { return items.first }
-        return NeedsYouItem(title: say(.needsYouMany(items.count)), target: ConsoleTarget(section: .overview))
+        return NeedsYouItem(title: say(.needsYouMany(items.count)), target: ConsoleTarget())
     }
 
     /// Amber only for what needs the owner; any working team is "working";

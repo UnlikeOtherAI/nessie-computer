@@ -161,12 +161,12 @@ fn refresh_on_hover(app: &AppHandle) {
     });
 }
 
-fn open_section(app: &AppHandle, section: ConsoleSection, target: ConsoleTarget) {
+fn open_section(app: &AppHandle, section: Option<ConsoleSection>, target: ConsoleTarget) {
     commands::show_status(app);
-    let _ = app.emit_to("status", &section.event(), target);
+    let _ = app.emit_to("status", &ConsoleSection::event_for(section), target);
 }
 
-/// A link only navigates: it opens the window on a section, or on Add this computer.
+/// A link only navigates: it opens the window on a section, or on Add another team.
 fn follow(app: &AppHandle, link: Link) {
     match link {
         Link::Open(section, target) => open_section(app, section, target),
@@ -182,7 +182,7 @@ fn follow(app: &AppHandle, link: Link) {
 fn handle_menu(app: &AppHandle, id: &str) {
     match parse_menu_id(id) {
         MenuAction::Open(section, target) => open_section(app, section, target),
-        MenuAction::AddComputer => follow(app, Link::Connect),
+        MenuAction::AddTeam => follow(app, Link::Connect),
         MenuAction::SetPaused { executor_id, paused } => {
             let app = app.clone();
             std::thread::spawn(move || {
@@ -260,7 +260,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 fn executor_launch_link() -> Option<serde_json::Value> {
     let link = LAUNCH_LINK.lock().ok()?.take()?;
     Some(match link {
-        Link::Open(section, target) => serde_json::json!({ "section": section.name(), "executorId": target.executor_id }),
+        Link::Open(section, target) => serde_json::json!({ "section": section.map(ConsoleSection::name), "executorId": target.executor_id }),
         Link::Connect => serde_json::json!({ "connect": true }),
     })
 }

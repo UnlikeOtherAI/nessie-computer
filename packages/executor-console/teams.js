@@ -116,7 +116,7 @@
    * kept, so the next call asks again.
    */
   const describe = (executorId = current, { fresh = false } = {}) => {
-    if (!executorId) return Promise.reject(new Error(t('shell.noTeam')))
+    if (!executorId) return Promise.reject(new Error('No team is selected.'))
     if (fresh || !describes.has(executorId)) {
       const loading = invoke('executor_describe', { executorId }).catch((error) => {
         if (describes.get(executorId) === loading) describes.delete(executorId)
@@ -131,8 +131,7 @@
   /** Pause or resume one team (`executorId`) or every team (`null`). The daemon enforces it; this only asks. */
   const setPaused = async (executorId, paused) => {
     apply(await invoke('executor_set_paused', { executorId, paused }))
-    if (!paused) { nc.footer.note(t('teams.resumedNote')); return }
-    nc.footer.note(t(executorId ? 'teams.pausedNote' : 'teams.pausedAllNote'))
+    nc.footer.note(t(paused ? 'teams.pausedNote' : 'teams.resumedNote'))
   }
   const applyRemedy = async (executorId, remedy) => { apply(await invoke('executor_apply_remedy', { executorId, remedy })) }
 
@@ -160,8 +159,7 @@
       describes.delete(executorId)
       nc.footer.forget(`${executorId}:`)
       await refresh()
-      nc.view.show('overview')
-      byId('tab-overview').querySelector('[data-action=connect]')?.focus()
+      byId('team-select').focus()
       if (result?.signedOff) nc.footer.note(t('teams.disconnected', { team }))
       else nc.reportError(new Error(t('teams.disconnectedUntold', { team })))
     } finally {

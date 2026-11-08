@@ -179,9 +179,9 @@ Recovery now works from both ends without weakening a fence:
   fails two probes in a row. The person's **Restart updates** does the same on
   request and opens Login Items if macOS asks for approval again.
 - **Plain words.** While the helper can't be reached or refuses, the app reports
-  the local status `update.helper_unavailable`. Overview and the menu say
-  "Updates are stuck — teams can't start" instead of "No team connected", with
-  Restart updates as the one action. The journey
+  the local status `update.helper_unavailable`. The window's Needs you strip
+  and the menu say "Updates are stuck — teams can't start" instead of "No team
+  connected", with Restart updates as the one action. The journey
   `node tray-windows/test/renderer-harness.mjs --updates-stuck-only` asserts
   both places in seven locales.
 - **Monotonic for the app too.** Catalogue replacement refuses to put an older

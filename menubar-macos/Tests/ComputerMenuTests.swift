@@ -81,17 +81,17 @@ final class ComputerMenuTests: XCTestCase {
         let stuck = team("a", "Sales · Acme", daemon: .stopped, failure: fenced)
         XCTAssertEqual(menu([stuck]).icon, .needsYou)
         XCTAssertEqual(menu([stuck]).needsYou?.title, "Needs you: Sales · Acme — not connected")
-        XCTAssertEqual(menu([stuck]).needsYou?.target, ConsoleTarget(section: .overview, executorId: "a"))
+        XCTAssertEqual(menu([stuck]).needsYou?.target, ConsoleTarget(executorId: "a"))
         let recovered = team("a", "Sales · Acme", failure: fenced)
         XCTAssertNil(menu([recovered]).needsYou, "a running daemon is not stopped by an old failure")
     }
 
     /// A program request is the one thing that must reach the owner quickly.
-    func testAProgramRequestNeedsTheOwnerAndOpensOverview() {
+    func testAProgramRequestNeedsTheOwnerAndOpensTheWindow() {
         let model = menu([team("a", "Sales · Acme", requests: 1), team("b", "Ops · Acme")])
         XCTAssertEqual(model.icon, .needsYou)
         XCTAssertEqual(model.needsYou?.title, "Needs you: Sales · Acme — a program asks to run")
-        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(section: .overview, executorId: "a"))
+        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(executorId: "a"))
         XCTAssertEqual(
             menu([team("a", "Sales · Acme", requests: 3)]).needsYou?.title,
             "Needs you: Sales · Acme — 3 programs ask to run"
@@ -106,7 +106,7 @@ final class ComputerMenuTests: XCTestCase {
         XCTAssertEqual(model.needsYouItems.count, 3)
         XCTAssertEqual(model.needsYouItems.first?.title, "Needs you: reinstall Nessie Computer")
         XCTAssertEqual(model.needsYou?.title, "Needs you: 3 things — open Nessie Computer")
-        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(section: .overview))
+        XCTAssertEqual(model.needsYou?.target, ConsoleTarget())
         XCTAssertEqual(menu([], unreadable: 1).needsYou?.title, "Needs you: a team on this Mac can’t be read")
     }
 
@@ -119,7 +119,7 @@ final class ComputerMenuTests: XCTestCase {
         )
         XCTAssertEqual(model.needsYou, NeedsYouItem(
             title: "Needs you: confirm this computer in Nessie",
-            target: ConsoleTarget(section: .overview, executorId: "a"),
+            target: ConsoleTarget(executorId: "a"),
             confirmExecutorId: "a"
         ))
         let both = ComputerMenuModel(

@@ -1,7 +1,7 @@
 // The AI tab: ChatGPT plans named and signed in one by one, background work
 // consent kept, model servers saved, edited and removed, in every locale.
 import assert from 'node:assert/strict'
-import { LOCALES, assertFits, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
+import { LOCALES, assertFits, checkHelp, helpText, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
 
 const RETIRED_WORDS = /\b(Executor|Strata|personal|Personal)\b/
 
@@ -14,14 +14,16 @@ export const verifyAiTab = async (browser, ui, output) => {
         await showTab(page, 'ai')
         await page.waitForFunction(() => document.querySelector('#ai-chatgpt-list').textContent === window.nc.t('ai.emptyPlans'))
         const english = locale.startsWith('en')
-        if (english) assert.equal(await page.locator('#ai-heading').textContent(), 'AI for Platform · UnlikeOtherAI')
+        assert.equal(await page.locator('#tab-ai h2').count(), 0, 'the tab and the dropdown already name it: no heading')
         assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on AI')
         assert.doesNotMatch(await page.locator('#tab-ai').innerText(), RETIRED_WORDS)
         if (size === 'desktop') await shot('empty')
         // On Windows the first plan first connects the background service to the team: one more pairing code, claimed in Nessie.
         const windows = host === 'windows'
-        assert.equal(await page.locator('#ai-connection-needed').isVisible(), windows)
-        if (english && windows) assert.match(await page.locator('#ai-connection-needed').textContent(), /Adding the first plan connects it to Platform · UnlikeOtherAI/)
+        // What a plan is — and on Windows how the first one connects — sits behind the "?" by the heading.
+        const plansHelp = english && size === 'desktop' ? await checkHelp(page, 'ai-plans-hint') : await helpText(page, 'ai-plans-hint')
+        if (english) assert.match(plansHelp, /A plan can be yours or your company’s/)
+        assert.equal(/Adding the first plan connects it to Platform · UnlikeOtherAI/.test(plansHelp), english && windows)
         // Adding a plan prefills an editable name and needs the restriction understood before Sign in with ChatGPT.
         for (const n of [1, 2]) {
           await page.locator('#ai-add-chatgpt').click()
@@ -36,7 +38,7 @@ export const verifyAiTab = async (browser, ui, output) => {
             await page.evaluate(() => window.claimPlanInNessie('team-0'))
             await page.waitForFunction(() => !document.getElementById('ai-connection-dialog').open)
             await page.waitForFunction(() => document.getElementById('chatgpt-dialog').open)
-            assert.equal(await page.locator('#ai-connection-needed').isHidden(), true)
+            if (english) assert.doesNotMatch(await helpText(page, 'ai-plans-hint'), /Adding the first plan/)
             assert.equal((await lastCall(page, 'executor_personal_chatgpt')).args.executorId, 'team-0-plans', 'plans live on the service connection')
             if (english) assert.equal(await page.locator('#chatgpt-team').textContent(), 'Platform · UnlikeOtherAI', 'the dialog names the team, not the connection')
           }
@@ -123,7 +125,7 @@ export const verifyAiTab = async (browser, ui, output) => {
     const { context, page, errors } = await openConsole(browser, ui, { host: 'macos', locale: 'cs', dark: true, size, paired: 2 })
     await showTab(page, 'ai')
     await selectTeam(page, 'team-1')
-    await page.waitForFunction(() => document.getElementById('ai-heading').textContent === window.nc.t('ai.heading', { team: 'Research · UnlikeOtherAI' }))
+    await page.waitForFunction(() => document.getElementById('team-select').value === 'team-1')
     await page.waitForFunction(() => document.querySelector('#ai-chatgpt-list').textContent === window.nc.t('ai.emptyPlans'))
     await assertFits(page, `cs dark ${size} ai`)
     await screenshot(page, output, `ai-cs-dark-${size}`)

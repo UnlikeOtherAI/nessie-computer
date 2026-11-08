@@ -94,7 +94,7 @@ fn local_route(command: &str, owned: Option<bool>) -> bool {
         "pairingStart" | "pairingStatus" | "pairingCancel"))
 }
 
-/// Add this computer runs under this account; a ChatGPT plan connection
+/// Add another team runs under this account; a ChatGPT plan connection
 /// addresses service_control explicitly, without fallback.
 pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
     let command = request["command"].as_str().unwrap_or("");

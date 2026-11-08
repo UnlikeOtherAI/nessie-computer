@@ -44,8 +44,36 @@ export const openConsole = async (browser, ui, { host, locale = 'en-GB', dark = 
 }
 
 /** Opens a tab by its position, so the journey reads in any language. */
-export const showTab = (page, name) => page.getByRole('tab').nth(['overview', 'access', 'documents', 'ai', 'settings'].indexOf(name)).click()
+export const TABS = ['access', 'documents', 'ai', 'settings']
+export const showTab = (page, name) => page.getByRole('tab').nth(TABS.indexOf(name)).click()
 export const selectTeam = (page, executorId) => page.locator('#team-select').selectOption(executorId)
+/** The words behind a "?" (`.help` by id), whether or not its tip is showing. */
+export const helpText = (page, id) => page.locator(`#${id} .help-tip`).evaluate((tip) => tip.textContent)
+/**
+ * A "?" explains on hover and on focus, is read through aria-describedby, and
+ * Escape closes it with focus kept on the button. Answers the tip's text.
+ */
+export const checkHelp = async (page, id) => {
+  const help = page.locator(`#${id}`)
+  const button = help.locator('.help-button')
+  const tip = help.locator('.help-tip')
+  assert.equal(await tip.isHidden(), true, `${id} starts closed`)
+  await button.hover()
+  await tip.waitFor({ state: 'visible' })
+  await page.mouse.move(0, 0)
+  await tip.waitFor({ state: 'hidden' })
+  await button.focus()
+  await tip.waitFor({ state: 'visible' })
+  const text = await tip.textContent()
+  assert.ok(text.length > 0, `${id} has words`)
+  assert.ok(await help.evaluate((node) => node.querySelector('.help-button').getAttribute('aria-describedby') === node.querySelector('.help-tip').id), `${id} is described by its tip`)
+  assert.ok(await button.getAttribute('aria-label'), `${id} has an accessible name`)
+  await assertFits(page, `${id} open`)
+  await page.keyboard.press('Escape')
+  await tip.waitFor({ state: 'hidden' })
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('help-button')), true, `${id} keeps focus`)
+  return text
+}
 
 export const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
 export const callArgs = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).map((call) => call.args), command)
@@ -75,7 +103,7 @@ export const assertFits = async (page, label) => {
     const found = []
     const root = document.documentElement
     if (root.scrollWidth > root.clientWidth) found.push(`page scrolls sideways (${root.scrollWidth} > ${root.clientWidth})`)
-    const scopes = [document.querySelector('header'), document.querySelector('footer'), document.querySelector('.team-row:not([hidden])'),
+    const scopes = [document.querySelector('footer'), document.querySelector('.team-row:not([hidden])'), document.querySelector('.needs:not([hidden])'),
       ...document.querySelectorAll('[role=tabpanel]:not([hidden])'), ...document.querySelectorAll('dialog[open]')].filter(Boolean)
     for (const scope of scopes) {
       const edge = scope.getBoundingClientRect().right + 0.5
@@ -89,7 +117,7 @@ export const assertFits = async (page, label) => {
           && node.scrollWidth > node.clientWidth + 1 && node.clientWidth > 0) found.push(`${name} clips its text`)
       }
     }
-    if (/\b(shell|access|documents|ai|chatgpt|overview|teams|pairing|settings|updates|errors)\.[a-zA-Z]+\.[a-zA-Z.]+/.test(document.body.innerText)) {
+    if (/\b(shell|access|documents|ai|aiLocal|chatgpt|needs|teams|pairing|settings|updates|errors)\.[a-zA-Z]+\.?[a-zA-Z.]*/.test(document.body.innerText)) {
       found.push('a word key leaked onto the page')
     }
     return found

@@ -43,7 +43,7 @@ enum SpanishWords {
         case .resume: return "Reanudar"
         case .allTeams: return "Todos los equipos"
         case .openComputer: return "Abrir Nessie Computer…"
-        case .addThisComputer: return "Añadir este ordenador…"
+        case .addAnotherTeam: return "Añadir otro equipo…"
         case .openNessie: return "Abrir Nessie"
         case .quit: return "Salir de Nessie Computer"
         case .quitWhileWorking: return "Salir de Nessie Computer — los agentes se detienen hasta que lo vuelvas a abrir"
