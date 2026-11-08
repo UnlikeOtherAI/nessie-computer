@@ -114,7 +114,9 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
       let heard = 0
       let done: Promise<Awaited<ReturnType<typeof runCliEngineTurn>>> | undefined
       const hear = (text: string) => {
-        const chunk = splitter.push(cli === 'codex' && heard++ > 0 ? `\n\n${text}` : text)
+        // Codex writes whole messages; a second one is a new paragraph.
+        const chunk = splitter.push(cli === 'codex' && heard > 0 ? `\n\n${text}` : text)
+        heard += 1
         if (chunk) { queue.push(chunk); wake?.() }
       }
       try {

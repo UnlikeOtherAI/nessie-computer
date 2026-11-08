@@ -149,7 +149,7 @@ test('turning a switch on offers its host; off withdraws it from Nessie', { skip
     assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { codex: 'yes', 'claude-code': 'not_yet' })
     await setLocalCliAvailability(dirs.teamA, { engine: 'codex', profileId: null }, false)
     await manager.reconcile()
-    assert.deepEqual(calls, [{ engine: 'codex', available: true }, { engine: 'claude-code', available: true },
+    assert.deepEqual(calls, [{ engine: 'claude-code', available: true }, { engine: 'codex', available: true },
       { engine: 'codex', available: false }])
     assert.equal(stops, 1)
     assert.deepEqual((await readLocalCliStatus(dirs.teamA))?.offered, { 'claude-code': 'not_yet' })
