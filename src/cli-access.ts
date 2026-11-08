@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 
-import { setExistingSessionsEnabled } from './existing-session/settings.js'
-import { configuredAllowedOrigins } from './configuration-input.js'
+import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
+import { allowedOriginsOf, configuredAllowedOrigins } from './configuration-input.js'
 import { describeTeamAt, saveAccess, type TeamDescription } from './cli-describe.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
@@ -9,6 +9,7 @@ import { programRuleSummary } from './cli-access-programs.js'
 import { localAppsSummary } from './cli-access-local-apps.js'
 import type { LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
+import { loadExecutorState } from './state-store.js'
 import { deriveExecutorWorkspaceFolderName } from './workspace-folders.js'
 
 /** The Access tab: `access show`, `folders`, `websites` and `coding-assistants`. */
@@ -90,7 +91,7 @@ const websites = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access websites')
   const [action = 'list', target] = operands(run.options, 2, 2, 'access websites')
   const team = await run.team()
-  const current = (await describe(team)).reach.allowedOrigins
+  const current = allowedOriginsOf(await loadExecutorState(team.stateDir))
   if (action === 'list') {
     if (run.options.json) printJson(run.context, current)
     else run.context.out(current.length ? `Agents in ${team.label} may open these websites in the agent browser:\n${
@@ -106,12 +107,12 @@ const websites = async (run: CliRun): Promise<void> => {
   if (action === 'add' && current.includes(site)) throw new CliRefusal('WEBSITE_LISTED', `${site} is already listed.`)
   if (action === 'remove' && !current.includes(site)) throw new CliRefusal('WEBSITE_NOT_FOUND', `${team.label} has no website ${site}.`)
   const next = action === 'add' ? [...current, site] : current.filter((entry) => entry !== site)
-  await saveAccess(team.stateDir, { settings: { allowedOrigins: next } })
-  const after = (await describe(team))
-  if (run.options.json) printJson(run.context, after.reach.allowedOrigins)
+  const saved = await saveAccess(team.stateDir, { settings: { allowedOrigins: next } })
+  const after = allowedOriginsOf(saved)
+  if (run.options.json) printJson(run.context, after)
   else {
-    run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${site}. Websites allowed: ${listed(after.reach.allowedOrigins)}.\n`)
-    if (!after.sandbox.browserConfigured) {
+    run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${site}. Websites allowed: ${listed(after)}.\n`)
+    if (!saved.browserSandbox) {
       run.context.out('The agent browser isn\'t set up on this computer yet. These websites apply once it is.\n')
     }
   }
@@ -132,18 +133,17 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
     return
   }
   if (value !== undefined) throw new CliUsageError(`access coding-assistants ${action} takes nothing after it.`, 'access coding-assistants')
-  const description = await describe(team)
   if (action === 'show') {
-    const enabled = description.existingCodingSessionsEnabled
+    const enabled = await existingSessionsEnabled(team.stateDir)
     if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: enabled })
-    else run.context.out(`Agents in ${team.label} ${description.existingCodingSessionsEnabled ? CODING_ON : CODING_OFF}.\n`)
+    else run.context.out(`Agents in ${team.label} ${enabled ? CODING_ON : CODING_OFF}.\n`)
     return
   }
   if (action !== 'claude-setup') {
     throw new CliUsageError(`access coding-assistants has no "${action}". Use show, conversations or claude-setup.`,
       'access coding-assistants')
   }
-  const configuration = description.existingClaudeChannelConfiguration
+  const configuration = (await describe(team)).existingClaudeChannelConfiguration
   if (!configuration) throw new CliRefusal('CODING_SESSIONS_UNAVAILABLE', `Resume ${team.label} to set up Claude Code.`)
   if (run.options.json) {
     printJson(run.context, { configuration, command: RECIPE_COMMAND })
