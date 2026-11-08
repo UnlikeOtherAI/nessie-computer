@@ -613,3 +613,11 @@ an executing graph. Inspection selections must retain their own caller Scope
 through normal admitted dispatch; a finite pipe call cannot close that Scope
 immediately after returning its graph receipt. No lane or CLI registration is
 claimed by this internal composition.
+
+Runtime helper declarations now name their exact original Effect results,
+errors and required services through exported types. The owned SQL stage names
+the error union of the original Sqlite layer instead of an unknown error port.
+Native/resource Promise failures become fixed graph/resource refusal errors;
+original launch/settings failures retain their typed unions. No service or error
+union is widened to make declarations compile. Source parsing passed for nine
+changed modules; the root still owns compiler qualification of these annotations.

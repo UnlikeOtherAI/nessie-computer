@@ -11,7 +11,8 @@ const unavailable = () => new ServerSettingsError({ settingsPath: '<protected>',
  * implements the original read projection, not fake settings lifecycle/mutators.
  * No driver, secret resolver, directory loader or provider probe is constructed.
  * Decoded configuration never leaves the protected original graph context. */
-export const sessionExecutionSettingsLayer = (source: T3ExecutionResourceScope) => {
+export const sessionExecutionSettingsLayer = (source: T3ExecutionResourceScope):
+  Layer.Layer<Settings.ServerSettingsReadService, ServerSettingsError> => {
   const getSettings = Effect.gen(function* () {
     yield* Effect.tryPromise({ try: () => recognizeT3ExecutionResource(source), catch: unavailable })
     const raw = yield* Effect.try({

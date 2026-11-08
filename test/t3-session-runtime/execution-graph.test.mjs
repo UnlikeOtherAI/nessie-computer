@@ -25,7 +25,7 @@ test('caller supplied recheck and settings never substitute for a native issued 
     recheck: async () => { checked = true },
   }
   await assert.rejects(Effect.runPromise(readSessionExecutionResources(source, {})),
-    /t3_execution_resource_not_issued/u)
+    /T3_SESSION_EXECUTION_RESOURCE_REFUSED/u)
   assert.equal(decoded, false)
   assert.equal(checked, false)
 })
