@@ -56,7 +56,7 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const launch = Launch.sessionLayer.pipe(Layer.provideMerge(Layer.mergeAll(threads, inspection)))
   const recovery = Recovery.layer.pipe(Layer.provideMerge(shared))
   const effectExecutor = Worker.layerExecutor.pipe(Layer.provideMerge(threads))
-  const worker = Worker.layer.pipe(Layer.provideMerge(effectExecutor))
+  const worker = Worker.sessionLayer.pipe(Layer.provideMerge(effectExecutor))
   // Explicit opt-in: the original continuation layer starts its scoped queue consumer.
   const continuationConsumer = Continuations.layer.pipe(Layer.provide(threads))
   return { state, shared, inspection, providerEvents, sessions, checkpointCapture, finalization,
@@ -72,6 +72,7 @@ export { layerWithLegacyImporter as threadManagementLayer }
 export * as ThreadMessageIntake from 't3-source:apps/server/src/orchestration-v2/ThreadMessageIntake.ts'
 export * as CommandLineage from 't3-source:apps/server/src/orchestration-v2/SessionCommandLineage.ts'
 export * as EffectCommand from 't3-source:apps/server/src/orchestration-v2/OriginalEffectCommandContext.ts'
+export * as EffectClaims from 't3-source:apps/server/src/orchestration-v2/SessionEffectClaimAuthority.ts'
 export * as AttachmentClaims from 't3-source:apps/server/src/orchestration-v2/AttachmentClaims.ts'
 export * as ProviderSessions from 't3-source:apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts'
 export * as ProviderDirectory from 't3-source:apps/server/src/provider/ProviderInstanceRegistry.session-port.ts'

@@ -6,7 +6,8 @@ import * as Path from 'effect/Path'
 import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ProviderDirectory, ResourceOwners, Settings,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
-  SessionControl, Threads, Launch, CommandLineage, ScheduledTasks } from '@nessie/t3-session-source/engine'
+  SessionControl, Threads, Launch, CommandLineage, EffectClaims, Outbox, ScheduledTasks }
+  from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
 import { createSessionRuntimeLayers, ProviderHost, NativeChildProcesses,
   ProviderCredentialReferences, SessionResourceTargets, TurnControl, RuntimeRequests,
@@ -39,6 +40,12 @@ const engineSettingsRequired: Settings.ServerSettingsService extends Engine ? tr
 const engineLineageRequired: CommandLineage.SessionCommandLineage extends Engine ? true : false = true
 const readsNeedNoLineage: CommandLineage.SessionCommandLineage extends Reads ? true : false = false
 const workerCleanupRequired: ResourceOwners.ResourceCleanupService extends Worker ? true : false = true
+const workerClaimOwnerRequired: EffectClaims.SessionEffectClaimAuthority extends Worker ? true : false = true
+const runtimeClaimOwnerRequired: EffectClaims.SessionEffectClaimAuthority extends Runtime ? true : false = true
+const readsNeedNoClaimOwner: EffectClaims.SessionEffectClaimAuthority extends Reads ? true : false = false
+declare const decodedPendingEffect: Outbox.OrchestrationEffectV2
+// @ts-expect-error A decoded pending effect is not the scoped original claim candidate.
+const unsealedClaim: Outbox.OrchestrationEffectClaimCandidate = { effect: decodedPendingEffect }
 const sharedSqlRequired: SqlClient.SqlClient extends Shared ? true : false = true
 const sharedProjectionRequired: ProjectionStore.ProjectionStoreV2 extends Shared ? true : false = false
 const engineEventSinkRequired: EventSink.EventSinkV2 extends Engine ? true : false = false
@@ -66,6 +73,7 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 // @ts-expect-error The original dedicated schema cannot be replaced with an ordinary value.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
+  workerClaimOwnerRequired, runtimeClaimOwnerRequired, readsNeedNoClaimOwner, unsealedClaim,
   engineLineageRequired, readsNeedNoLineage,
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   runtimeDirectoryRequired, engineDirectoryRequired,

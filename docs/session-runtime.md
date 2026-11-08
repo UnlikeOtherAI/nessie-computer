@@ -287,9 +287,10 @@ unchanged. The original pre-Queue encoder can consume this same fiber context
 when its post-association writer is implemented.
 
 This metadata is not sealed authority. Supplying the Context reference cannot
-authorize a claim, recovery, native launch or frame. The worker's claim query and
-settlement behavior are unchanged; production activation still refuses. A real
-admission must select eligible work before `claimNext` changes durable state.
+authorize a claim, recovery, native launch or frame. Settlement keeps its original
+behavior; the protected worker now uses the separate preclaim boundary below.
+Production activation still refuses. A real admission must select eligible work
+before a claim changes durable state.
 Failing an imported effect after claim would already increment its attempt and
 acquire its lease, so an executor-side refusal alone is insufficient.
 
@@ -341,7 +342,7 @@ closure still revoke it. Current original admission and a fresh finite effect
 consumer remain required before any outbox claim; none is manufactured from
 these relationships. The production worker/open path remains unavailable.
 
-The current ten-family replay has 283 extraction and 36 privacy operations,
+The accepted-predecessor checkpoint has 283 extraction and 36 privacy operations,
 SHA-256 `89878462d70635375fd17d557cd4b6f660ce17a0c2ebcf292573e2777f5b92c3`.
 On Maxis/Node 24.19.0, the strict six-task producer/protocol/CLI build passed;
 15 producer checks, 14 privacy checks, 40 actual-source fixtures, 13 engine and
@@ -350,6 +351,57 @@ original accepted-run/release fragments and cover substituted predecessors,
 unobserved release success, exact replay, concurrent lookup and scope loss.
 The composite consumer still reached 77 contract declarations and zero
 dependency implementations. No native executor binary or provider was launched.
+
+## Admission before the original outbox claim
+
+The original outbox now separates `prepareClaim` from `claimPrepared`.
+Preparation is read-only: it retains the exact raw SQL row, decoded original
+effect, worker and explicit command scope in a private per-outbox WeakMap. The
+opaque candidate is valid only in its preparing Effect Scope. Its getter returns
+a clone; decoded effects, object copies and another outbox cannot create or use
+the token. Command IDs are routing metadata, never authority.
+
+`claimPrepared` consumes that token before asynchronous SQL. Its one conditional
+UPDATE compares every retained row field, the original pending/ordering predicate
+and command scope, then performs the original attempt/lease transition. The SQL
+statement checks the absolute `notAfterMs` against SQLite's current clock, so
+waiting behind a transaction cannot bypass expiry. That low-level bound must be
+positive and at most five seconds ahead; the production owner must supply the
+original verified deadline capped by current parent authorities, without renewal.
+Older unsettled work still blocks later effects on its thread, including older
+commands outside the requested scope. Ordinary `claimNext` shares the original
+selection predicate and keeps its existing behavior.
+
+The protected engine uses `Worker.sessionLayer`, which requires
+`EffectClaims.SessionEffectClaimAuthority`. There is no default or production
+implementation. The worker prepares a scoped candidate, asks that owner for
+current admission and exposes only a one-use conditional-claim callback. It
+accepts only that callback's actual result; fabricated success or a substituted
+row refuses. Execution, cancellation and settlement still use the original
+worker implementation. Admission changes can wake an idle worker independently
+of SQL notifications, and scheduled deadlines use the same command scope.
+
+This is a consumer boundary, not a positive grant producer. Current native
+resource custody holds source/settings/home handles, not the mutable destination
+SQL stage or its pending row. `OwnedCaptureStage` currently exposes a reference
+and held SQL layer only. Independent destination ownership and native observation,
+the current backend admission and its transport still need concrete composition.
+Startup importer/recovery writes also need their own authority before activation.
+Neither captured lineage, reserve, graph nor FRAME authorizes these mutations.
+An uncertain outcome after an actual claim must retain and reconcile its durable
+state; it must not be hand-reset or treated as an unattempted row.
+
+The ten-family replay now has 297 extraction and 36 privacy operations, combined
+SHA-256 `2b94d9362ec510c1e8ad32de5a011f3fc941da4998d5222169a860fba1206a4c`.
+On Maxis/Node 24.19.0, all six source/engine/protocol/CLI build tasks passed;
+15 producer, 14 privacy, 40 source, 13 engine and 105 runtime cases passed with
+zero skips. Eleven new cases use actual original SQLite/outbox/worker code with
+explicitly synthetic admission and executor services. They cover read-only
+preparation, token ownership, stale/cancelled rows, competing claims, transaction
+wait expiry, thread ordering, refusal, cancellation and fabricated success. The
+composite consumer remains 470 files, 77 contract declarations and zero dependency
+implementations. No native binary, provider or installed journey ran. Production
+`open`, admitted recovery and positive native preclaim remain unfinished.
 
 ## Composition and ownership
 

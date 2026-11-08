@@ -23,6 +23,8 @@ import { extractCodexHost } from './codex-host.mjs'
 import { extractCodexSerialization } from './serialization.mjs'
 import { extractCommandLineage } from './command-lineage.mjs'
 import { extractEffectCommand } from './effect-command.mjs'
+import { extractEffectClaims } from './effect-claims.mjs'
+import { extractWorkerClaims } from './worker-claims.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -53,6 +55,8 @@ export const generateExtractionManifest = snapshot => {
   extractColdLaunch(author, redirects, exports)
   extractCommandLineage(author)
   extractEffectCommand(author)
+  extractEffectClaims(author)
+  extractWorkerClaims(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)
   extractCodexHost(author, redirects)
