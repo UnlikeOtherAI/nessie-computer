@@ -1,68 +1,55 @@
 import assert from 'node:assert/strict'
-import { execFile } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import * as crypto from 'node:crypto'
-import * as fs from 'node:fs'
-import { resolve } from 'node:path'
-import { promisify } from 'node:util'
-import { fileURLToPath, pathToFileURL } from 'node:url'
-import { SourceTextModule, SyntheticModule } from 'node:vm'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
-import * as sourceApi from '../../packaging/session-engine/source.mjs'
-import { readSessionEngineSnapshot } from '../../packaging/session-engine/snapshot.mjs'
+import { readRequestSource } from './source-fixture.mjs'
+import { buildRequestPrivacyManifest } from './build-manifest.mjs'
+import { applySessionEngineBoundaryPatches } from '../../packaging/session-engine/patches.mjs'
 import { applyRequestPrivacyPatches, requestPrivacyManifestBytes } from '../../patches/t3-session/requests/index.mjs'
-import { clientConnectionManifestBytes } from '../../patches/t3-session/client-connection/index.mjs'
-import { scratch } from './source-fixture.mjs'
 
-// Optional committed-producer compatibility proof. No checkout, merge, code copy or dependency install.
-const commit = '6dbf5e39ef1289e8fab76d09ca4052efbd855274'
-const executorRoot = fileURLToPath(new URL('../../', import.meta.url))
-const execute = promisify(execFile)
-const readCommitted = async path => (await execute('git', [
-  '--no-replace-objects', '-C', executorRoot, 'show', `${commit}:${path}`,
-], { encoding: 'buffer', maxBuffer: 2 * 1024 * 1024, windowsHide: true, timeout: 10000 })).stdout
+// Execute this checkout's current producer, with its bytes checked against the integrated commit.
+const producerCommit = 'f57a43dc9564b04ccd4d2a254c474773aaee875e'
+const rejectedCommit = 'db4bd5972777bcfae2df4f00f0292581bc17fb97'
+const root = fileURLToPath(new URL('../../', import.meta.url))
+const committed = (commit, path) => execFileSync('git', ['--no-replace-objects', 'show', `${commit}:${path}`], {
+  cwd: root, windowsHide: true, maxBuffer: 2 * 1024 * 1024,
+})
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const extractionBytes = await readCommitted('patches/t3-session/extraction/boundary-patches.json')
-assert.equal(hash(extractionBytes), '49f5dad346bc6bacb1134df0da0ee301071bb4c171b5fb3d765fecc52c671bb6')
-const producerBytes = await readCommitted('packaging/session-engine/patches.mjs')
+const producerInputs = {}
+for (const path of ['packaging/session-engine/patches.mjs', 'packaging/session-engine/engine-snapshot.mjs']) {
+  const bytes = readFileSync(new URL(`../../${path}`, import.meta.url))
+  assert.deepEqual(bytes, committed(producerCommit, path))
+  producerInputs[path] = hash(bytes)
+}
+const extractionPath = 'patches/t3-session/extraction/boundary-patches.json'
+const extractionBytes = readFileSync(new URL(`../../${extractionPath}`, import.meta.url))
+assert.deepEqual(extractionBytes, committed(producerCommit, extractionPath))
+assert.equal(hash(extractionBytes), 'd24f1709b6d7c1211d9987179d3fc727ef51e9c54d7c6900a1fceb8f900f1908')
 const extraction = JSON.parse(extractionBytes)
-assert.equal(extraction.patches.length, 116)
+assert.equal(extraction.patches.length, 124)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))
+assert.equal(privacyFiles.size, 5)
 assert.deepEqual(extraction.patches.filter(patch => privacyFiles.has(patch.file)), [])
 
-// Evaluate the exact committed producer helper with real builtins and C02's actual error class.
-// Its relative default-manifest URL points at this owned checkout's unchanged C02 manifest.
-const module = new SourceTextModule(producerBytes.toString(), {
-  identifier: `${commit}:packaging/session-engine/patches.mjs`,
-  initializeImportMeta: meta => { meta.url = pathToFileURL(resolve(executorRoot, 'packaging/session-engine/patches.mjs')).href },
-})
-const imports = { 'node:crypto': crypto, 'node:fs': fs, './source.mjs': sourceApi }
-await module.link(specifier => {
-  const values = imports[specifier]
-  if (!values) throw new Error('UNEXPECTED_COMMITTED_PRODUCER_IMPORT')
-  return new SyntheticModule(Object.keys(values), function () {
-    for (const [name, value] of Object.entries(values)) this.setExport(name, value)
-  })
-})
-await module.evaluate()
-const snapshot = await readSessionEngineSnapshot(resolve(scratch, 'source.tar'))
-const families = [
-  { id: 'state', bytes: fs.readFileSync(new URL('../../packaging/session-engine/boundary-patches.json', import.meta.url)) },
-  { id: 'client-connection', bytes: clientConnectionManifestBytes },
-  { id: 'extraction', bytes: extractionBytes },
-  { id: 'request-privacy', bytes: requestPrivacyManifestBytes },
-]
-const manifest = module.namespace.composeSessionEnginePatchManifests(snapshot, families)
-const combined = module.namespace.applySessionEngineBoundaryPatches(snapshot, manifest)
-assert.equal(combined.identity.orderedPatchesSha256, hash(manifest))
-assert.equal(combined.identity.archiveSha256, snapshot.identity.archiveSha256)
-const ownPatched = applyRequestPrivacyPatches(snapshot)
-for (const file of privacyFiles) assert.deepEqual(combined.read(file), ownPatched.read(file))
-const port = 'apps/server/src/secrets/SecretRequests.session-port.ts'
-assert.equal(hash(combined.read(port)), '4d81dc85b97e1c1e9032a63b2275e39b74c9df293cabbd8608b361ba2a149c15')
-assert.throws(() => module.namespace.composeSessionEnginePatchManifests(combined, families), /COMPOSITION_REFUSED/)
-console.log(JSON.stringify({ producerCommit: commit, producerHelperSha256: hash(producerBytes),
-  extractionManifestSha256: hash(extractionBytes), privacyManifestSha256: hash(requestPrivacyManifestBytes),
-  combinedManifestSha256: hash(manifest), patchOperations: JSON.parse(manifest).patches.length,
-  privacyFilesUnchangedByExtraction: privacyFiles.size, requiredSecretPortSha256: hash(combined.read(port)),
-  productionIntegration: false, engineTypecheck: false, bundle: false }))
+const { original, snapshot, manifestBytes } = await readRequestSource()
+assert.deepEqual(buildRequestPrivacyManifest(original), requestPrivacyManifestBytes)
+const manifest = JSON.parse(manifestBytes)
+assert.deepEqual(manifest.families.map(family => family.id), ['state', 'client-connection', 'extraction', 'request-privacy'])
+assert.equal(snapshot.identity.orderedPatchesSha256, hash(manifestBytes))
+assert.equal(snapshot.identity.archiveSha256, original.identity.archiveSha256)
+const independent = applyRequestPrivacyPatches(original)
+for (const file of privacyFiles) assert.deepEqual(snapshot.read(file), independent.read(file))
+assert.throws(() => applyRequestPrivacyPatches(snapshot), /SOURCE_MISMATCH/)
+const rejectedBytes = committed(rejectedCommit, 'patches/t3-session/requests/boundary-patches.json')
+assert.equal(hash(rejectedBytes), '8f11f629fb93f3234f4e5ffff8bc49f1bdfa5f0ff773af9c65c16ba5fcf040d3')
+const rejected = applySessionEngineBoundaryPatches(original, rejectedBytes)
+assert.throws(() => applyRequestPrivacyPatches(rejected), /SOURCE_MISMATCH/)
+assert.throws(() => applySessionEngineBoundaryPatches(snapshot, rejectedBytes), /SOURCE_MISMATCH/)
+console.log(JSON.stringify({ producerCommit, producerInputs, extractionManifestSha256: hash(extractionBytes),
+  extractionOperations: extraction.patches.length, privacyManifestSha256: hash(requestPrivacyManifestBytes),
+  combinedManifestSha256: hash(manifestBytes), patchOperations: manifest.patches.length,
+  families: manifest.families, privacyFilesUnchangedByExtraction: privacyFiles.size,
+  finalFiles: Object.fromEntries([...privacyFiles].map(file => [file, hash(snapshot.read(file))])),
+  rejectedBoundaryRefused: true, replayRefused: true, productionIntegration: false, engineTypecheck: false, bundle: false }))
