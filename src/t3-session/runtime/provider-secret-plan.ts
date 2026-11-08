@@ -164,6 +164,12 @@ export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPla
       return yield* Effect.fail(new SessionSecretPlanRefused())
     }
     record.constructed = true // Failed or interrupted construction cannot reread/rebuild this plan.
+    const settingsService = yield* Settings.ServerSettingsService
+    const currentSettings = yield* settingsService.getSettings
+    const managedPolicy = structuredClone(settingsService.managedPolicy)
+    if (canonicalExecutorJson(Schema.encodeSync(ServerSettings)(currentSettings)) !== record.settings) {
+      return yield* Effect.fail(new SessionSecretPlanRefused())
+    }
     retainSecretLifetime(record, launch.signal)
     retainSecretLifetime(record, record.source.signal)
     const environment = record.environment.filter(
@@ -172,9 +178,15 @@ export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPla
     const registry = yield* SelectedProvider.makeSelectedProviderInstance({
       driver: SelectedCodex.SelectedCodexDriver, instanceId: record.target.providerInstanceId,
       entry: record.entry, secrets: { environment, config: [] },
+      managedPolicy,
     }).pipe(Effect.provideService(OriginalCodexFactory.CodexAppServerClientFactory,
       factory))
     yield* recheckSessionProviderSecretPlan(plan)
+    const after = yield* settingsService.getSettings
+    if (canonicalExecutorJson(Schema.encodeSync(ServerSettings)(after)) !== record.settings
+      || canonicalExecutorJson(settingsService.managedPolicy ?? null) !== canonicalExecutorJson(managedPolicy ?? null)) {
+      return yield* Effect.fail(new SessionSecretPlanRefused())
+    }
     if (launch.signal.aborted) return yield* Effect.fail(new SessionSecretPlanRefused())
     return registry
   })

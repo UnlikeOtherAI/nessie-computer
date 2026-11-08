@@ -9,11 +9,12 @@ import { readRequestSource, scratch } from './source-fixture.mjs'
 const { snapshot } = await readRequestSource()
 const loader = createSourceModuleLoader(snapshot, { dependencyDirectory: resolve(scratch, 'dependencies') })
 const Schema = await loader.external('effect/Schema')
+const DateTime = await loader.external('effect/DateTime')
 const S = await loader.load('packages/contracts/src/orchestrationV2.ts')
 const source = stripTypeScriptTypes(readFileSync(new URL('../../src/t3-session/requests/validate.ts', import.meta.url),
   'utf8'), { mode: 'transform' })
 const { validateT3RuntimeAnswer: validate } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
-const time = '2026-01-01T00:00:00.000Z'
+const time = DateTime.makeUnsafe('2026-01-01T00:00:00.000Z')
 const base = { id: 'item:opaque', threadId: 'thread:opaque/雪', runId: null, nodeId: 'node:original',
   providerThreadId: null, providerTurnId: null, nativeItemRef: null, parentItemId: null,
   ordinal: 0, status: 'pending', title: null, startedAt: null, completedAt: null, updatedAt: time }

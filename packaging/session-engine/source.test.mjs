@@ -230,6 +230,33 @@ test('derived source binds exact original ranges and never replaces an existing 
     { code: 'SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED' })
 })
 
+test('only the reviewed provider projection can be derived inside provider-core', async context => {
+  const input = await fixture(context)
+  await prepareSessionEngineSource({ sourceRepository: input.root, archivePath: input.archivePath }, input.spec)
+  const snapshot = await readSessionEngineSnapshot(input.archivePath, input.spec)
+  const original = snapshot.read('engine/index.ts')
+  const target = 'packages/provider-core/src/server/ServerProviderProjection.ts'
+  const patch = { id: 'pure-provider-projection', file: target, beforeSha256: null,
+    afterSha256: hash(original), create: [{ sourceFile: 'engine/index.ts', start: 0,
+      end: original.length, sha256: hash(original) }] }
+  const manifest = () => Buffer.from(JSON.stringify({ format: 1, sourceCommit: input.spec.commit, patches: [patch] }))
+  const applied = applySessionEngineBoundaryPatches(snapshot, manifest())
+  assert.deepEqual(applied.read(target), original)
+  assert.throws(() => applySessionEngineBoundaryPatches(applied, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED' })
+  for (const file of ['packages/provider-core/src/server/Injected.ts',
+    'packages/provider-core/src/server/../ServerProviderProjection.ts',
+    '../packages/provider-core/src/server/ServerProviderProjection.ts']) {
+    patch.file = file
+    assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+      { code: 'SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED' })
+  }
+  patch.file = target
+  patch.create[0].sha256 = '0'.repeat(64)
+  assert.throws(() => applySessionEngineBoundaryPatches(snapshot, manifest()),
+    { code: 'SESSION_ENGINE_BOUNDARY_PATCH_SOURCE_MISMATCH' })
+})
+
 test('the engine graph rejects product, provider, vault and exporter implementations', () => {
   for (const file of ['server.ts', 'ws.ts', 'auth/ServerSecretStore.ts', 'preview/Manager.ts',
     'telemetry/ProviderUsageAnalytics.ts', 'provider/Drivers/CodexDriver.ts', 'provider/ProviderCredentialStore.ts',

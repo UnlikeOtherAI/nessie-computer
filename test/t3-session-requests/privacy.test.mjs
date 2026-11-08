@@ -10,19 +10,20 @@ import {
   applyRequestPrivacyPatches, requestPrivacyManifestBytes, T3_REQUEST_PRIVACY_PATCHES,
 } from '../../patches/t3-session/requests/index.mjs'
 
-const { original, snapshot, privacy } = await readRequestSource()
+const { original, prefix, snapshot, privacy } = await readRequestSource()
 const canary = ['synthetic', 'private', 'C05', '\u{1f9ed}', 'e\u0301'].join('-')
 const noCanary = value => assert.equal(JSON.stringify(value).includes(canary), false)
 const secretTool = 'mcp__t3_code__request_secret'
 const input = { label: 'Token', reason: 'Synthetic operation', clientRequestId: '__proto__', value: ` \r\n${canary} \n` }
 
 test('manifest is reproducible and rejects wrong/intermediate source and replay', () => {
-  assert.deepEqual(buildRequestPrivacyManifest(original), requestPrivacyManifestBytes)
+  assert.deepEqual(buildRequestPrivacyManifest(prefix), requestPrivacyManifestBytes)
   assert.equal(createHash('sha256').update(requestPrivacyManifestBytes).digest('hex'), T3_REQUEST_PRIVACY_PATCHES.manifestSha256)
   assert.throws(() => applyRequestPrivacyPatches(snapshot), /SOURCE_MISMATCH/)
-  const changed = { ...original, read: file => Buffer.concat([original.read(file), Buffer.from(' ')]) }
+  assert.throws(() => applyRequestPrivacyPatches(original), /SOURCE_MISMATCH/)
+  const changed = { ...prefix, read: file => Buffer.concat([prefix.read(file), Buffer.from(' ')]) }
   assert.throws(() => applyRequestPrivacyPatches(changed), /SOURCE_MISMATCH/)
-  const wrong = { ...original, identity: { ...original.identity, commit: '0'.repeat(40) } }
+  const wrong = { ...prefix, identity: { ...prefix.identity, commit: '0'.repeat(40) } }
   assert.throws(() => applyRequestPrivacyPatches(wrong), /MANIFEST_REFUSED/)
   for (const file of new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))) {
     assert.doesNotThrow(() => stripTypeScriptTypes(snapshot.read(file).toString(), { sourceUrl: file }))

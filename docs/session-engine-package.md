@@ -387,9 +387,14 @@ This is a machine-only build/library capability. No UI changes or screenshots
 apply. Canonical vault save/use/delivery, admitted provider/resource/lifecycle
 owners, installed custody, gateway and original-client/mobile parity remain open.
 
-The combined request verifier pins integrated producer `15611588af2ffe71b426b3989a7cee0fd66a04d8`
-and includes the original client registry and finite host patch families before
-extraction. The request-only fixture omits the later workspace family by design;
-the full ten-family source probe retains digest
-`ee31451828ab5dc42b49ed53fc78f0bc38223908bb8e9069f3096115e8dc2303`.
-Neither check qualifies the generated runtime or declarations.
+The combined request verifier preserves producer `15611588af2ffe71b426b3989a7cee0fd66a04d8`
+as historical evidence and separately binds the current producer and extraction
+bytes. It includes client registry and finite host patch families before extraction.
+The request-only fixture omits the later workspace family by design. The current
+ten-family replay is `9a5632d54a59e498bcaa0893f41cfe733adca57033d3d8e3d377524c053ba77f`;
+271 extraction and 36 privacy operations cover both Codex adapters. The reviewed
+pure provider projection is the sole added provider-core derivation path; other
+package paths, traversal, replacement and replay refuse. Fifteen source-producer,
+14 privacy and 34 actual-source fixture cases passed on Maxis/Node 24.19.0.
+The normal compiler, packaged declaration consumer and installed runtime still
+need qualification; these source checks do not establish their success.

@@ -1,9 +1,41 @@
 import { selectedImports } from './author.mjs'
+import { extractProviderSnapshot } from './provider-snapshot.mjs'
+
+const extractSelectionPolicy = author => {
+  const file = 'apps/server/src/policy/managedProviders.ts'
+  const target = 'apps/server/src/policy/managedProviderSelection.ts'
+  const reason = author.between(file, 'export const disallowedDriverReason = (',
+    '/**\n * Variables that replace a provider')
+  const environment = author.between(file, 'const LAUNCH_OVERRIDE_VARIABLES =',
+    "/** Each driver's home variable")
+  const core = reason.replace('export const disallowedDriverReason =',
+    'export const disallowedDriverReasonForLabel =')
+    .replace('  driver: ProviderDriverKind,\n', '  driver: ProviderDriverKind,\n  label: string,\n')
+    .replace('labelFor(driver)', 'label')
+  const wrapper = `export const disallowedDriverReason = (
+  summary: ManagedPolicySummary | undefined,
+  driver: ProviderDriverKind,
+): string | undefined => disallowedDriverReasonForLabel(summary, driver, labelFor(driver));
+
+`
+  author.replace(file, reason, core + wrapper, 'managed-policy-explicit-label-core')
+  author.derive(target, [selectedImports(author.read(file), core + environment, file, target),
+    author.sourcePart(file, core, { current: true }), 'export ', author.sourcePart(file, environment)],
+  'managed-policy-pure-selection')
+  author.replace(file, core, `import { disallowedDriverReasonForLabel, providerHostEnvironment,
+  LAUNCH_OVERRIDE_VARIABLES } from "./managedProviderSelection.ts";
+export { providerHostEnvironment };
+
+`, 'managed-policy-share-selection')
+  author.replace(file, environment, '', 'managed-policy-share-host-filter')
+}
 
 /** One original entry and the original registry view, without reconciliation,
  * cache warming or a resolver. Resolved data is internal construction input,
  * never an authority token or an exported runtime secret getter. */
 export const extractSelectedProvider = (author, redirects) => {
+  extractProviderSnapshot(author)
+  extractSelectionPolicy(author)
   const file = 'apps/server/src/provider/ProviderInstanceRegistry.ts'
   const target = 'apps/server/src/provider/SelectedProviderInstance.ts'
   author.replace(file, 'const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R>(input: {',
@@ -47,6 +79,7 @@ export const makeSelectedProviderInstance = Effect.fn("ProviderInstanceRegistry.
     readonly instanceId: ProviderInstanceId;
     readonly entry: ProviderInstanceConfig;
     readonly secrets: InstanceSecrets;
+    readonly managedPolicy: ManagedPolicySummary | undefined;
   }): Effect.fn.Return<ProviderInstanceRegistry["Service"], never, R | Scope.Scope> {
     const parentScope = yield* Scope.Scope;
     const changes = yield* PubSub.unbounded<void>();
@@ -59,7 +92,9 @@ export const makeSelectedProviderInstance = Effect.fn("ProviderInstanceRegistry.
     };
     const result = yield* buildEntry({
       driversById: new Map([[input.driver.driverKind, input.driver]]),
-      blockedReason: () => undefined, parentScope, instanceId: input.instanceId,
+      blockedReason: driver => ManagedProviders.disallowedDriverReasonForLabel(
+        input.managedPolicy, driver, input.driver.metadata.displayName),
+      parentScope, instanceId: input.instanceId,
       rawInstanceId: input.instanceId, entry: input.entry, deferSecrets: false,
       readSecrets: () => Effect.succeed({ secrets: input.secrets, unreadable: [] }),
     });
@@ -72,7 +107,9 @@ export const makeSelectedProviderInstance = Effect.fn("ProviderInstanceRegistry.
 );
 `
   const body = declarations + secretHelpers + selectedBuild + factory
-  author.derive(target, [selectedImports(author.read(file), body, file, target, redirects),
+  author.derive(target, [`import type { ManagedPolicySummary } from "@t3tools/contracts";\n`
+    + `import * as ManagedProviders from "../policy/managedProviderSelection.ts";\n`,
+    selectedImports(author.read(file), body, file, target, redirects),
     author.sourcePart(file, declarations, { current: true }),
     author.sourcePart(file, secretHelpers, { current: true }),
     ...build.split(enabledProbe).map(part => author.sourcePart(file, part, { current: true })), factory],

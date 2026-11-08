@@ -16,6 +16,31 @@ const codex = 'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts'
 const canary = ['synthetic', 'C05', 'private', 'č', '🧭'].join('-')
 const value = ` \r\n${canary}\u0000\t\n `
 const noCanary = item => assert.equal(JSON.stringify(item).includes(canary), false)
+
+test('selected original construction retains managed-policy denial before any driver effect', async () => {
+  const Selected = await loader.load('apps/server/src/provider/SelectedProviderInstance.ts')
+  const C = await loader.load('packages/contracts/src/index.ts')
+  const Schema = await loader.external('effect/Schema')
+  const instanceId = C.ProviderInstanceId.make('policy-denied')
+  const entry = Schema.decodeUnknownSync(C.ProviderInstanceConfig)({ driver: 'codex', config: {} })
+  const managedPolicy = Schema.decodeUnknownSync(C.ManagedPolicySummary)({ organization: 'Protected Org',
+    lockedSettings: [], limits: { providers: { allowedDrivers: ['claudeAgent'] } } })
+  let created = 0
+  const driver = { driverKind: C.ProviderDriverKind.make('codex'), configSchema: C.CodexSettings,
+    metadata: { displayName: 'Codex', supportsMultipleInstances: true },
+    defaultConfig: () => Schema.decodeSync(C.CodexSettings)({}),
+    create: () => Effect.sync(() => { created++; throw new Error('Blocked driver reached') }) }
+  await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
+    const registry = yield* Selected.makeSelectedProviderInstance({ driver, instanceId, entry,
+      managedPolicy, secrets: { environment: [], config: [] } })
+    assert.equal(yield* registry.getInstance(instanceId), undefined)
+    const unavailable = yield* registry.listUnavailable
+    assert.equal(unavailable.length, 1)
+    assert.match(JSON.stringify(unavailable), /Protected Org.*does not allow the Codex provider/u)
+  })))
+  assert.equal(created, 0)
+})
+
 const nativeInput = sourceFunctions(snapshot, claude, 'function claudeNativeToolInputFromUnknown(',
   '// background_tasks_changed can include subagents already counted by their lifecycle.', ['claudeNativeToolInputFromRecord', 'claudeNativeToolInputValue',
     'inputRecordValue', 'firstStringInputField', 'jsonStringifyForTool'], { isClaudeNativeToolInputRecord: () => true })
@@ -58,32 +83,42 @@ test('actual Claude tool factory excludes canaries on start, failure, completion
   assert.equal(ordinary.turnItem.output, 'ordinary result')
 })
 
-const { codexDynamicToolOutput } = sourceFunctions(snapshot, codex, 'export function codexDynamicToolOutput(',
-  'const projectCodexDynamicToolItem', ['codexDynamicToolOutput'], { CODEX_IMAGE_DATA_URL: /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i })
-const { codexMcpToolOutput } = sourceFunctions(snapshot, codex, 'function codexMcpToolOutput(',
-  '// A hung MCP resource', ['codexMcpToolOutput'], { mcpToolResultOutput: toolOutput.mcpToolResultOutput })
-const { projectCodexDynamicToolItem } = sourceFunctions(snapshot, codex, 'const projectCodexDynamicToolItem =',
-  'function codexNativeItemRef(', ['projectCodexDynamicToolItem'], {
-    ...privacy, ...activity, Effect, codexDynamicToolOutput, codexMcpToolOutput,
-    ...sourceFunctions(snapshot, codex, 'function trimText(', 'function codexPlanStepStatus(', ['trimText', 'nonEmptyText']),
-    ...sourceFunctions(snapshot, codex, 'function codexItemStatus(', '/**\n * The composers let a skill', ['codexItemStatus']),
-    // Real presentation needs a live server/Digest. This supplied metadata probes the factory boundary.
-    mcpToolPresentation: () => Effect.succeed({ title: value }),
-  })
+const codexProjection = path => {
+  const { codexDynamicToolOutput } = sourceFunctions(snapshot, path, 'export function codexDynamicToolOutput(',
+    'const projectCodexDynamicToolItem', ['codexDynamicToolOutput'], { CODEX_IMAGE_DATA_URL: /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/=]+)$/i })
+  const { codexMcpToolOutput } = sourceFunctions(snapshot, path, 'function codexMcpToolOutput(',
+    '// A hung MCP resource', ['codexMcpToolOutput'], { mcpToolResultOutput: toolOutput.mcpToolResultOutput })
+  const { projectCodexDynamicToolItem } = sourceFunctions(snapshot, path, 'const projectCodexDynamicToolItem =',
+    'function codexNativeItemRef(', ['projectCodexDynamicToolItem'], {
+      ...privacy, ...activity, Effect, codexDynamicToolOutput, codexMcpToolOutput,
+      ...sourceFunctions(snapshot, path, 'function trimText(', 'function codexPlanStepStatus(', ['trimText', 'nonEmptyText']),
+      ...sourceFunctions(snapshot, path, 'function codexItemStatus(', '/**\n * The composers let a skill', ['codexItemStatus']),
+      // Real presentation needs a live server/Digest. This supplied metadata probes the factory boundary.
+      mcpToolPresentation: () => Effect.succeed({ title: value }),
+    })
+  return projectCodexDynamicToolItem
+}
 
-test('actual Codex MCP and native dynamic factories exclude input, result, error and preview canaries', async () => {
-  for (const type of ['mcpToolCall', 'dynamicToolCall']) {
-    const item = { type, id: 'native:opaque', server: 't3-code-direct', namespace: 't3-code-direct',
-      tool: 'request_secret', status: 'failed', arguments: { value, label: 'Token' },
-      result: { structuredContent: { value }, content: [{ type: 'text', text: value }] },
-      error: { message: value }, contentItems: [{ type: 'inputText', text: value }] }
-    const projection = await Effect.runPromise(projectCodexDynamicToolItem(item))
-    noCanary(projection)
-    assert.equal(projection.toolName, 't3-code-direct.request_secret')
-    assert.equal(projection.status, 'failed')
-    assert.equal(item.arguments.value, value)
-  }
-})
+for (const [name, path] of [['application', codex], ['selected', codex.replace('.ts', '.session-live.ts')]]) {
+  test(`actual ${name} Codex factories exclude input, result, error and preview canaries`, async () => {
+    const projectCodexDynamicToolItem = codexProjection(path)
+    for (const type of ['mcpToolCall', 'dynamicToolCall']) {
+      const item = { type, id: 'native:opaque', server: 't3-code-direct', namespace: 't3-code-direct',
+        tool: 'request_secret', status: 'failed', arguments: { value, label: 'Token' },
+        result: { structuredContent: { value }, content: [{ type: 'text', text: value }] },
+        error: { message: value }, contentItems: [{ type: 'inputText', text: value }] }
+      const projection = await Effect.runPromise(projectCodexDynamicToolItem(item))
+      noCanary(projection)
+      assert.equal(projection.toolName, 't3-code-direct.request_secret')
+      assert.equal(projection.status, 'failed')
+      assert.equal(item.arguments.value, value)
+    }
+    const ordinary = await Effect.runPromise(projectCodexDynamicToolItem({ type: 'dynamicToolCall',
+      id: 'ordinary', namespace: 'foreign', tool: 'echo', status: 'completed', arguments: { value },
+      contentItems: [{ type: 'inputText', text: value }] }))
+    assert.equal(ordinary.input.value, value)
+  })
+}
 
 test('actual Claude permission-result callback receives exact ephemeral arguments', () => {
   const { permissionResultFromDecision } = sourceFunctions(snapshot, claude, 'export function permissionResultFromDecision(',
@@ -99,10 +134,12 @@ test('actual summaries and MCP preview selectors suppress registered secret valu
   const { summarizeClaudeToolRequest } = sourceFunctions(snapshot, claude, 'function summarizeClaudeToolRequest(',
     'function outputFromClaudeToolResult(', ['summarizeClaudeToolRequest'], { ...privacy, ...nativeInput })
   assert.equal(summarizeClaudeToolRequest('mcp__t3_code__request_secret', nativeInput.claudeNativeToolInputFromRecord({ command: value, value })), 'Request a secret')
-  const { codexMcpAppResourceUri } = sourceFunctions(snapshot, codex, 'function codexMcpAppResourceUri(',
-    'const CODEX_IMAGE_DATA_URL', ['codexMcpAppResourceUri'], { ...privacy, MCP_APP_RESOURCE_SCHEME: 'ui://' })
-  assert.equal(codexMcpAppResourceUri({ type: 'mcpToolCall', server: 't3-code', tool: 'request_secret', mcpAppResourceUri: 'ui://' + value }), undefined)
-  assert.equal(codexMcpAppResourceUri({ type: 'mcpToolCall', server: 'foreign', tool: 'normal', mcpAppResourceUri: 'ui://app' }), 'ui://app')
+  for (const path of [codex, codex.replace('.ts', '.session-live.ts')]) {
+    const { codexMcpAppResourceUri } = sourceFunctions(snapshot, path, 'function codexMcpAppResourceUri(',
+      'const CODEX_IMAGE_DATA_URL', ['codexMcpAppResourceUri'], { ...privacy, MCP_APP_RESOURCE_SCHEME: 'ui://' })
+    assert.equal(codexMcpAppResourceUri({ type: 'mcpToolCall', server: 't3-code', tool: 'request_secret', mcpAppResourceUri: 'ui://' + value }), undefined)
+    assert.equal(codexMcpAppResourceUri({ type: 'mcpToolCall', server: 'foreign', tool: 'normal', mcpAppResourceUri: 'ui://app' }), 'ui://app')
+  }
 })
 
 test('actual native question helpers refuse masked fields before ordinary persistence and preserve ordinary text', async () => {

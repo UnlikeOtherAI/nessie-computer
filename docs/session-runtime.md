@@ -170,6 +170,14 @@ scope cleanup and the original registry view. The selected path exposes no
 mutator, prefetch, resolver, global cache or reload operation. Its escaped view
 cannot return a provider after its scope closes.
 
+Selected construction requires the original full `ServerSettingsService`. Its
+settings must encode to the held plan before and after construction, and its
+managed-policy summary must remain unchanged. The original driver-denial rule
+and host-environment filtering are shared with normal hydration. A missing full
+service cannot be replaced by the inspection reader or an assumed unmanaged policy.
+The original unavailable-result projection is shared separately from process
+and network probes; producing a denial invokes no driver or maintenance effect.
+
 `SelectedCodexDriver` constructs the actual original `makeCodexAdapterV2` and
 shares `makeCodexInstance` with `CodexDriver.create`. It requires real original
 snapshot, text-generation and installation-compatibility services through
@@ -195,18 +203,23 @@ an escaped factory even while the outer reservation remains held.
 This does not activate production `open`. The real snapshot/text-generation
 services, TurnStart/MCP/workspace authority, original effect lineage, association
 placement and post-association writes remain unbound. No new authority follows
-from successfully constructing an adapter. The derived execution adapter also
-needs the same downstream request-privacy edits as the original adapter before
-qualification; extraction copies precede that family in the ordered pipeline.
+from successfully constructing an adapter. Both application and derived execution
+adapters now receive request privacy after extraction. The selected adapter
+excludes the application protocol logger; generation refuses a later logger
+reference until that path has its own privacy interception.
 
 Source-only checks parsed the changed modules without linking/evaluation and
 walked the static runtime imports. The selected closure contains no secret
 resolver or forbidden application host. Its original generated-image Markdown
-path adds pinned `remark-math` 6.0.0, matching the upstream manifest. Root must
-resolve both package locks and regenerate downstream families: the first
-combined replay mismatch is `codex-request-privacy-import` on original
-`CodexAdapterV2.ts`. Sibling manifests were not changed. Five fixtures are authored
-UNRUN. No compiler, tests, native helper or installed user flow ran in this tranche.
+path adds pinned `remark-math` 6.0.0, matching the upstream manifest. Its frozen
+locks and portable contract declarations still require qualification. Root
+regenerated all ten families: 271 extraction and 36 privacy operations, combined
+SHA-256 `9a5632d54a59e498bcaa0893f41cfe733adca57033d3d8e3d377524c053ba77f`.
+On Maxis/Node 24.19.0, the Turbo source gates passed 15 producer checks, 14 privacy
+checks and 34 actual-source fixtures, all with zero skips. These cover selected
+policy denial before any driver effect and canary protection in both adapters.
+The separate built-engine/runtime fixtures, full compiler and installed flows
+remain unqualified.
 
 ## Composition and ownership
 

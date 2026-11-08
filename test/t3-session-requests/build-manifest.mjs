@@ -119,12 +119,32 @@ export const buildRequestPrivacyManifest = snapshot => {
     patch(`${name}-private-tool-before-publication`, file, seam, to)
   }
   patchQuestionAnswers(patch)
+  // Extraction derives the execution adapter before this family runs. Apply
+  // every original adapter privacy transformation to its actual derived bytes.
+  const selectedCodex = codex.replace('.ts', '.session-live.ts')
+  const selectedSource = snapshot.read(selectedCodex).toString()
+  // The extracted execution adapter excludes the application factory and its
+  // protocol logger together. A future logging path needs its own interception.
+  for (const name of ['makeCodexAppServerProtocolLogger', 'redactCodexProtocolValue',
+    'ProviderEventLoggers', 'nativeEventLogger']) {
+    if (selectedSource.includes(name)) throw new Error(`SELECTED_PROTOCOL_LOGGER_UNQUALIFIED:${name}`)
+  }
+  for (const change of patches.filter(change => change.file === codex)) {
+    if (change.id === 'codex-private-protocol-projector' || change.id === 'codex-private-protocol-before-bounds') continue
+    if (change.id === 'codex-request-privacy-import') {
+      const firstImport = snapshot.read(selectedCodex).toString().split('\n')[0]
+      patch(`${change.id}-selected`, selectedCodex, firstImport,
+        change.to.slice(0, -change.from.length) + firstImport)
+    } else patch(`${change.id}-selected`, selectedCodex, change.from, change.to)
+  }
   return Buffer.from(`${JSON.stringify({ format: 1, sourceCommit: snapshot.identity.commit, patches }, null, 2)}\n`)
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const snapshot = await readSessionEngineSnapshot(process.argv[2])
-  const bytes = buildRequestPrivacyManifest(snapshot)
+  const original = await readSessionEngineSnapshot(process.argv[2])
+  const { prepareSessionEngineSnapshot } = await import('../../packaging/session-engine/engine-snapshot.mjs')
+  const { snapshot: prefix } = prepareSessionEngineSnapshot(original)
+  const bytes = buildRequestPrivacyManifest(prefix)
   writeFileSync(new URL('../../patches/t3-session/requests/boundary-patches.json', import.meta.url), bytes)
   console.log(JSON.stringify({ sha256: hash(bytes), patches: JSON.parse(bytes).patches.length }))
 }

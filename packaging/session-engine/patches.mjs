@@ -37,7 +37,9 @@ export const applySessionEngineBoundaryPatches = (snapshot, manifestBytes = defa
   for (const patch of manifest.patches) {
     if (patch.create) {
       if (patch.beforeSha256 !== null || snapshot.files.includes(patch.file) || modified.has(patch.file)
-        || !/^apps\/server\/src\/[\w/.-]+\.ts$/u.test(patch.file) || patch.file.includes('..')
+        || (!/^apps\/server\/src\/[\w/.-]+\.ts$/u.test(patch.file)
+          && patch.file !== 'packages/provider-core/src/server/ServerProviderProjection.ts')
+        || patch.file.includes('..')
         || !Array.isArray(patch.create)) {
         throw new SessionEngineSourceError('SESSION_ENGINE_BOUNDARY_PATCH_CREATE_REFUSED')
       }

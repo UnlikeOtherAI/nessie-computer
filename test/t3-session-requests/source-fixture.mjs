@@ -13,13 +13,14 @@ const loadRequestSource = async () => {
   const repository = process.env.T3_REQUEST_PRIVACY_SOURCE_REPOSITORY
   if (repository) await prepareSessionEngineSource({ sourceRepository: repository, archivePath })
   const original = await readSessionEngineSnapshot(archivePath)
+  const { snapshot: prefix } = prepareSessionEngineSnapshot(original)
   const { snapshot, manifestBytes } = prepareSessionEngineSnapshot(original, {
     additionalPatchFamilies: [{ id: 'request-privacy', bytes: requestPrivacyManifestBytes }],
   })
   const file = 'packages/shared/src/t3McpToolPresentation.ts'
   const source = stripTypeScriptTypes(snapshot.read(file).toString(), { sourceUrl: file })
   const privacy = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`)
-  return { original, snapshot, privacy, manifestBytes }
+  return { original, prefix, snapshot, privacy, manifestBytes }
 }
 let source
 export const readRequestSource = () => source ??= loadRequestSource()

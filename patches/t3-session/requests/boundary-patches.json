@@ -61,24 +61,24 @@
     {
       "id": "codex-request-privacy-import",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "5913ec92bde020cbb23f5cbe3714b314fc9466406a22cc9721cf432418977c74",
-      "afterSha256": "cf425d3f1e6f0beca9afef19112e0deb2b9c729eb472803e02ddcf92848b4d2a",
+      "beforeSha256": "2484ed93b7f035b82ce82158ba3faf043e8b39e9d9d9d4022f61d2f54762988c",
+      "afterSha256": "22415413848d94b457b9c0caf3a63c1745b80b9a00e1862916b9ed3a63a7c6e9",
       "from": "import { pipe } from \"effect/Function\";",
       "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { pipe } from \"effect/Function\";"
     },
     {
       "id": "codex-private-protocol-projector",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "cf425d3f1e6f0beca9afef19112e0deb2b9c729eb472803e02ddcf92848b4d2a",
-      "afterSha256": "be6c8f6394eef103f29a319feaf73f7ee380a02187e2f3446fa4a692d67369d5",
+      "beforeSha256": "22415413848d94b457b9c0caf3a63c1745b80b9a00e1862916b9ed3a63a7c6e9",
+      "afterSha256": "4e8fae1421d185119afd72a4857491a638d81664f31613d14caf85d78b9784b5",
       "from": "export function makeCodexAppServerProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): CodexClient.CodexAppServerClientOptions[\"logger\"] | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  return (event) => {",
       "to": "export function makeCodexAppServerProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): CodexClient.CodexAppServerClientOptions[\"logger\"] | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  const projectRequestPrivacy = createRequestPrivacyProjector();\n\n  return (event) => {"
     },
     {
       "id": "codex-private-protocol-before-bounds",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "be6c8f6394eef103f29a319feaf73f7ee380a02187e2f3446fa4a692d67369d5",
-      "afterSha256": "5d0731ce8bfaf9bd3603ccd8d73bbb502abb3486df02bef1215dff585a424509",
+      "beforeSha256": "4e8fae1421d185119afd72a4857491a638d81664f31613d14caf85d78b9784b5",
+      "afterSha256": "bd47b921f151737b917243f8d9fc95bde27470227a454d5b165d7b1def61aa04",
       "from": "event: redactCodexProtocolValue(boundProviderEventForLogging(event)),",
       "to": "event: redactCodexProtocolValue(boundProviderEventForLogging(projectRequestPrivacy(event))),"
     },
@@ -157,8 +157,8 @@
     {
       "id": "codex-private-preview-refusal",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "5d0731ce8bfaf9bd3603ccd8d73bbb502abb3486df02bef1215dff585a424509",
-      "afterSha256": "b5b67c0f6f79c3fa9e42585a63a64dcd7669ff049b70a73f71b45da8a77038b2",
+      "beforeSha256": "bd47b921f151737b917243f8d9fc95bde27470227a454d5b165d7b1def61aa04",
+      "afterSha256": "5232f9e3e285d0c1fbd5e561e5f266494ed7115086a3995bcb313c23878ba929",
       "from": "  if (item.type !== \"mcpToolCall\") return undefined;",
       "to": "  if (item.type !== \"mcpToolCall\" || isSecretRequestTool(`${item.server}.${item.tool}`)) return undefined;"
     },
@@ -173,24 +173,24 @@
     {
       "id": "codex-private-tool-factory",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "b5b67c0f6f79c3fa9e42585a63a64dcd7669ff049b70a73f71b45da8a77038b2",
-      "afterSha256": "4ef5a761c97bc0c5b721533cd6ee8a9081db72fa8e88bbfcb44511153188b0b0",
+      "beforeSha256": "5232f9e3e285d0c1fbd5e561e5f266494ed7115086a3995bcb313c23878ba929",
+      "afterSha256": "2a82ce9076c5b8cafedce2cd6870fbc59a64caac6cdec73c6b6d958337e83800",
       "from": "  return output === undefined ? projection : { ...projection, output };",
       "to": "  return projectSecretRequestItem(output === undefined ? projection : { ...projection, output });"
     },
     {
       "id": "codex-masked-question-admission",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "4ef5a761c97bc0c5b721533cd6ee8a9081db72fa8e88bbfcb44511153188b0b0",
-      "afterSha256": "7fff7d2d51f3868e941fbcbbcb345687b9e30002a4bbaf2b07b62dfa1515327a",
+      "beforeSha256": "2a82ce9076c5b8cafedce2cd6870fbc59a64caac6cdec73c6b6d958337e83800",
+      "afterSha256": "ede7b2368fa9cca79d40d2e49a9d3ecc85878da07f4fb3484f800e3eaad6cf4b",
       "from": "          const questions = input.questions.map((question, index) => ({",
       "to": "          assertPublicUserInputQuestions(input.questions);\n          const questions = input.questions.map((question, index) => ({"
     },
     {
       "id": "codex-masked-async-question-admission",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "7fff7d2d51f3868e941fbcbbcb345687b9e30002a4bbaf2b07b62dfa1515327a",
-      "afterSha256": "df09226598ed72e36fb06cf43f5d5aa489da74eebb195c11733acf1b23910535",
+      "beforeSha256": "ede7b2368fa9cca79d40d2e49a9d3ecc85878da07f4fb3484f800e3eaad6cf4b",
+      "afterSha256": "2361e5a0925dd28a572ff751c7c043a3019fc88a5bfaf9c58ef070d23ed6f9a2",
       "from": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {",
       "to": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {\n              assertPublicUserInputQuestions(payload.item.questions);"
     },
@@ -205,8 +205,8 @@
     {
       "id": "codex-private-tool-before-publication",
       "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
-      "beforeSha256": "df09226598ed72e36fb06cf43f5d5aa489da74eebb195c11733acf1b23910535",
-      "afterSha256": "fa7a12d764d9cb6b46dfff59aaf034c81a72667317871f0d91b336e17d92bbcd",
+      "beforeSha256": "2361e5a0925dd28a572ff751c7c043a3019fc88a5bfaf9c58ef070d23ed6f9a2",
+      "afterSha256": "4d11cb6815aab0b0b2baeb634a4a28c53a341de0eb6d041b48ca83045a3fc357",
       "from": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event).pipe(Effect.asVoid);",
       "to": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
     },
@@ -241,6 +241,54 @@
       "afterSha256": "8b0a3d3cc3bc6304646e98f9f648593df92a8fd25752f556a04950ec5f8c9574",
       "from": "  for (const question of questions) {\n    const answer = resolvePendingUserInputAnswer(question, draftAnswers[question.id]);\n    if (answer === null) {\n      return null;\n    }",
       "to": "  const seen = new Set<string>();\n  for (const question of questions) {\n    if (seen.has(question.id)) return null;\n    seen.add(question.id);\n    const answer = resolvePendingUserInputAnswer(question,\n      Object.hasOwn(draftAnswers, question.id) ? draftAnswers[question.id] : undefined);\n    if (answer === null) {\n      if (question.required === false) continue;\n      return null;\n    }"
+    },
+    {
+      "id": "codex-request-privacy-import-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "1865ebbaeaa154a25ec235668f7de1d501cb8f876c35395ffd600c048bcd1d25",
+      "afterSha256": "b9eeab1171eb0d24918b348c0057f05be6dc6ac7a714fb5871c537b94ae11474",
+      "from": "import { pipe } from \"effect/Function\";",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { pipe } from \"effect/Function\";"
+    },
+    {
+      "id": "codex-private-preview-refusal-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "b9eeab1171eb0d24918b348c0057f05be6dc6ac7a714fb5871c537b94ae11474",
+      "afterSha256": "bef36ac94bbb8bc925eb45916b853328c6f052d9976c26ff8ffd9c47f4fafa2b",
+      "from": "  if (item.type !== \"mcpToolCall\") return undefined;",
+      "to": "  if (item.type !== \"mcpToolCall\" || isSecretRequestTool(`${item.server}.${item.tool}`)) return undefined;"
+    },
+    {
+      "id": "codex-private-tool-factory-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "bef36ac94bbb8bc925eb45916b853328c6f052d9976c26ff8ffd9c47f4fafa2b",
+      "afterSha256": "9490dcea3aefdaf2f812b62e484831398542f933c9df8a21af6c788d576bc87b",
+      "from": "  return output === undefined ? projection : { ...projection, output };",
+      "to": "  return projectSecretRequestItem(output === undefined ? projection : { ...projection, output });"
+    },
+    {
+      "id": "codex-masked-question-admission-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "9490dcea3aefdaf2f812b62e484831398542f933c9df8a21af6c788d576bc87b",
+      "afterSha256": "44e92bf92d1b40f44e6a65d7e6cb788902027cd37c6a6ed3e9a5d41b70053695",
+      "from": "          const questions = input.questions.map((question, index) => ({",
+      "to": "          assertPublicUserInputQuestions(input.questions);\n          const questions = input.questions.map((question, index) => ({"
+    },
+    {
+      "id": "codex-masked-async-question-admission-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "44e92bf92d1b40f44e6a65d7e6cb788902027cd37c6a6ed3e9a5d41b70053695",
+      "afterSha256": "da7e846b482a3975327359c6a4d348113ab6a6a1e5baf28582807fd96ece6061",
+      "from": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {",
+      "to": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {\n              assertPublicUserInputQuestions(payload.item.questions);"
+    },
+    {
+      "id": "codex-private-tool-before-publication-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "da7e846b482a3975327359c6a4d348113ab6a6a1e5baf28582807fd96ece6061",
+      "afterSha256": "64e6980423b08a060679b8cafddf1ef695dd9408979c789a1d6b1a5ee84bd9ce",
+      "from": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event).pipe(Effect.asVoid);",
+      "to": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
     }
   ]
 }

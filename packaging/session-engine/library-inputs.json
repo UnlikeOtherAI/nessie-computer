@@ -26,7 +26,7 @@
     "patches/t3-session/client-connection/browser-data.ts"
   ],
   "privacyCommit": "da542bbc58a33ec96e7c555b6fd8779e78f92d81",
-  "privacyManifestSha256": "bbc39dd3a7cdcef8109b512e646dab9ad9d51e3223c0fa753da2ae9d8bc4bb05",
+  "privacyManifestSha256": "fd9f41df75646e09f9978fb9a51eebbe40384947d8a7594df6de6d68d4716c76",
   "clientEntryPoint": "packaging/session-engine/core/Client.ts",
   "clientAuthoredInputs": [
     "packaging/session-engine/core/Client.ts",

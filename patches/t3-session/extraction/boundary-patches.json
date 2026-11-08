@@ -1774,6 +1774,138 @@
       "afterSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd"
     },
     {
+      "id": "provider-original-snapshot-projection",
+      "file": "packages/provider-core/src/server/ServerProviderProjection.ts",
+      "create": [
+        {
+          "text": "import type { ServerProviderVersionAdvisory } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "text": "import type { ProviderDriverKind, RuntimeMode, ServerProvider, ServerProviderAuth, ServerProviderSkill, ServerProviderSlashCommand, ServerProviderModel, ServerProviderUpdateRequiredModel, ServerProviderState, ServerProviderUsageLimits } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "sourceFile": "packages/provider-core/src/server/snapshotProbe.ts",
+          "start": 2498,
+          "end": 3185,
+          "sha256": "57d4b8dc6cbde9e195a611cb6ab1d3112fe74051c4f0866650d64ec1519bf5ba"
+        },
+        {
+          "text": "export type ServerProviderBuildInput = {\n  driver?: ProviderDriverKind;\n  presentation: ServerProviderPresentation;\n  enabled: boolean;\n  checkedAt: string;\n  models: ReadonlyArray<ServerProviderModel>;\n  updateRequiredModels?: ReadonlyArray<ServerProviderUpdateRequiredModel>;\n  slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;\n  skills?: ReadonlyArray<ServerProviderSkill>;\n  probe: ProviderProbeResult;\n};\n\n"
+        },
+        {
+          "text": "export function buildServerProviderProjection(input: ServerProviderBuildInput,\n  versionAdvisory: ServerProviderVersionAdvisory | undefined): ServerProviderDraft {\n"
+        },
+        {
+          "sourceFile": "packages/provider-core/src/server/snapshotProbe.ts",
+          "start": 8018,
+          "end": 9629,
+          "sha256": "154ea14b65a77cd73ec39cc5214496e55264098becea90de937e765f8c06a20a"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "297c3dd18ca77d988665dd757f9296fd0b5aac3f1e96ac91c6e9099fab0e075e"
+    },
+    {
+      "id": "provider-share-snapshot-types",
+      "file": "packages/provider-core/src/server/snapshotProbe.ts",
+      "from": "export interface ProviderProbeResult {\n  readonly installed: boolean;\n  readonly version: string | null;\n  readonly status: Exclude<ServerProviderState, \"disabled\">;\n  readonly auth: ServerProviderAuth;\n  readonly message?: string;\n  readonly usageLimits?: ServerProviderUsageLimits;\n}\n\nexport interface ServerProviderPresentation {\n  readonly displayName: string;\n  readonly badgeLabel?: string;\n  readonly showInteractionModeToggle?: boolean;\n  readonly reportsContextWindow?: boolean;\n  readonly supportedRuntimeModes?: ReadonlyArray<RuntimeMode>;\n  readonly supportsConversationRollback?: boolean;\n}\n\nexport type ServerProviderDraft = Omit<ServerProvider, \"instanceId\" | \"driver\">;\n\n",
+      "to": "import { buildServerProviderProjection, type ServerProviderBuildInput,\n  type ProviderProbeResult, type ServerProviderPresentation, type ServerProviderDraft }\n  from \"./ServerProviderProjection.ts\";\nexport type { ProviderProbeResult, ServerProviderPresentation, ServerProviderDraft };\n\n",
+      "beforeSha256": "a1a06061ad02ffd102ece1398ef98cfe64fd967f97626f0fa876487cb734df77",
+      "afterSha256": "789a22acfbbfe48a7dbf426207967606e362ece6791276275550d09fdbee04bc"
+    },
+    {
+      "id": "provider-name-snapshot-input",
+      "file": "packages/provider-core/src/server/snapshotProbe.ts",
+      "from": "export function buildServerProvider(input: {\n  driver?: ProviderDriverKind;\n  presentation: ServerProviderPresentation;\n  enabled: boolean;\n  checkedAt: string;\n  models: ReadonlyArray<ServerProviderModel>;\n  updateRequiredModels?: ReadonlyArray<ServerProviderUpdateRequiredModel>;\n  slashCommands?: ReadonlyArray<ServerProviderSlashCommand>;\n  skills?: ReadonlyArray<ServerProviderSkill>;\n  probe: ProviderProbeResult;\n}): ServerProviderDraft {\n",
+      "to": "export function buildServerProvider(input: ServerProviderBuildInput): ServerProviderDraft {\n",
+      "beforeSha256": "789a22acfbbfe48a7dbf426207967606e362ece6791276275550d09fdbee04bc",
+      "afterSha256": "4f107bee039a40d947790fa797a70a5bab285653a87abb08bbdbf93802b45230"
+    },
+    {
+      "id": "provider-share-snapshot-projection",
+      "file": "packages/provider-core/src/server/snapshotProbe.ts",
+      "from": "  return {\n    displayName: input.presentation.displayName,\n    ...(typeof input.presentation.supportsConversationRollback === \"boolean\"\n      ? { supportsConversationRollback: input.presentation.supportsConversationRollback }\n      : {}),\n    ...(input.presentation.badgeLabel ? { badgeLabel: input.presentation.badgeLabel } : {}),\n    ...(typeof input.presentation.showInteractionModeToggle === \"boolean\"\n      ? { showInteractionModeToggle: input.presentation.showInteractionModeToggle }\n      : {}),\n    ...(typeof input.presentation.reportsContextWindow === \"boolean\"\n      ? { reportsContextWindow: input.presentation.reportsContextWindow }\n      : {}),\n    ...(input.presentation.supportedRuntimeModes === undefined\n      ? {}\n      : { supportedRuntimeModes: [...input.presentation.supportedRuntimeModes] }),\n    enabled: input.enabled,\n    installed: input.probe.installed,\n    version: input.probe.version,\n    status: input.enabled ? input.probe.status : \"disabled\",\n    auth: input.probe.auth,\n    // Drivers with in-app setup replace these CLI-owned defaults.\n    setup: { canAuthenticate: false, canInstall: false },\n    checkedAt: input.checkedAt,\n    ...(input.probe.message ? { message: input.probe.message } : {}),\n    models: input.models,\n    ...(input.updateRequiredModels?.length\n      ? { updateRequiredModels: input.updateRequiredModels }\n      : {}),\n    slashCommands: [...(input.slashCommands ?? [])],\n    skills: [...(input.skills ?? [])],\n    ...(input.probe.usageLimits ? { usageLimits: input.probe.usageLimits } : {}),\n    ...(versionAdvisory ? { versionAdvisory } : {}),\n  };\n}\n\n",
+      "to": "  return buildServerProviderProjection(input, versionAdvisory);\n}\n\n",
+      "beforeSha256": "4f107bee039a40d947790fa797a70a5bab285653a87abb08bbdbf93802b45230",
+      "afterSha256": "feb8f302f6a20255478ce7275474cb769fad8921d3e8d561c096251273a16aaf"
+    },
+    {
+      "id": "unavailable-provider-pure-projection",
+      "file": "apps/server/src/provider/unavailableProviderSnapshot.ts",
+      "from": "import { buildServerProvider } from \"@t3tools/provider-core/server/snapshotProbe\";",
+      "to": "import { buildServerProviderProjection } from \"../../../../packages/provider-core/src/server/ServerProviderProjection.ts\";",
+      "beforeSha256": "0824ad096e0bef2630bbc05d1f03c5f553d56a8e2d52639c88ed68a9bea26c1c",
+      "afterSha256": "59da54e6d5c141369384f627617fcc46480cbe43a0c44df59add75ab36e8ff5d"
+    },
+    {
+      "id": "unavailable-original-projection-call",
+      "file": "apps/server/src/provider/unavailableProviderSnapshot.ts",
+      "from": "  const { setup: _setup, ...base } = buildServerProvider({",
+      "to": "  const { setup: _setup, ...base } = buildServerProviderProjection({",
+      "beforeSha256": "59da54e6d5c141369384f627617fcc46480cbe43a0c44df59add75ab36e8ff5d",
+      "afterSha256": "3f1f8737ab5b91139ded2b0ec41030163bca8e7dfce2c07b72df3c9d1f568b26"
+    },
+    {
+      "id": "unavailable-no-version-probe",
+      "file": "apps/server/src/provider/unavailableProviderSnapshot.ts",
+      "from": "    },\n  });\n\n  return {",
+      "to": "    },\n  }, undefined);\n\n  return {",
+      "beforeSha256": "3f1f8737ab5b91139ded2b0ec41030163bca8e7dfce2c07b72df3c9d1f568b26",
+      "afterSha256": "20eec1708513d11fe276fc75d136c67b76c9f55421136971bccf656d0f5afa2b"
+    },
+    {
+      "id": "managed-policy-explicit-label-core",
+      "file": "apps/server/src/policy/managedProviders.ts",
+      "from": "export const disallowedDriverReason = (\n  summary: ManagedPolicySummary | undefined,\n  driver: ProviderDriverKind,\n): string | undefined => {\n  const allowed = summary?.limits?.providers?.allowedDrivers;\n  return allowed === undefined || allowed.includes(driver)\n    ? undefined\n    : disallowedProviderMessage(summary?.organization, labelFor(driver));\n};\n\n",
+      "to": "export const disallowedDriverReasonForLabel = (\n  summary: ManagedPolicySummary | undefined,\n  driver: ProviderDriverKind,\n  label: string,\n): string | undefined => {\n  const allowed = summary?.limits?.providers?.allowedDrivers;\n  return allowed === undefined || allowed.includes(driver)\n    ? undefined\n    : disallowedProviderMessage(summary?.organization, label);\n};\n\nexport const disallowedDriverReason = (\n  summary: ManagedPolicySummary | undefined,\n  driver: ProviderDriverKind,\n): string | undefined => disallowedDriverReasonForLabel(summary, driver, labelFor(driver));\n\n",
+      "beforeSha256": "b158ef685b05313b3300c99b70ff1a6944a23388a70e3389e7c3d7119c7ce18d",
+      "afterSha256": "9fd531181d2325e32b0c65d4f288b30f88745b51a0efad3adf6d5151da7942e1"
+    },
+    {
+      "id": "managed-policy-pure-selection",
+      "file": "apps/server/src/policy/managedProviderSelection.ts",
+      "create": [
+        {
+          "text": "import { disallowedProviderMessage, type ManagedPolicySummary, ProviderDriverKind } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/policy/managedProviders.ts",
+          "start": 5274,
+          "end": 5645,
+          "sha256": "ecb7bf60fd365b07898459284ca928e5f6ac12e37bdcb29916bbb584003b5e86",
+          "sourceStage": "current",
+          "sourceSha256": "9fd531181d2325e32b0c65d4f288b30f88745b51a0efad3adf6d5151da7942e1"
+        },
+        {
+          "text": "export "
+        },
+        {
+          "sourceFile": "apps/server/src/policy/managedProviders.ts",
+          "start": 5929,
+          "end": 6512,
+          "sha256": "60f351c70afdd58fc2521265b777d0f173a778c73419e7b80944abf47b0d0bd8"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "e55b63e607a0f0c083db8538b6e664aca3cb3b02e325463744a73a7c4e7e3b31"
+    },
+    {
+      "id": "managed-policy-share-selection",
+      "file": "apps/server/src/policy/managedProviders.ts",
+      "from": "export const disallowedDriverReasonForLabel = (\n  summary: ManagedPolicySummary | undefined,\n  driver: ProviderDriverKind,\n  label: string,\n): string | undefined => {\n  const allowed = summary?.limits?.providers?.allowedDrivers;\n  return allowed === undefined || allowed.includes(driver)\n    ? undefined\n    : disallowedProviderMessage(summary?.organization, label);\n};\n\n",
+      "to": "import { disallowedDriverReasonForLabel, providerHostEnvironment,\n  LAUNCH_OVERRIDE_VARIABLES } from \"./managedProviderSelection.ts\";\nexport { providerHostEnvironment };\n\n",
+      "beforeSha256": "9fd531181d2325e32b0c65d4f288b30f88745b51a0efad3adf6d5151da7942e1",
+      "afterSha256": "5e605e050031f053769d7978d3ba035720c1f3a4f60e3a04cde41710ca60d5eb"
+    },
+    {
+      "id": "managed-policy-share-host-filter",
+      "file": "apps/server/src/policy/managedProviders.ts",
+      "from": "const LAUNCH_OVERRIDE_VARIABLES = [\"T3CODE_CODEX_LAUNCH_ARGS\"] as const;\n\n/** The environment provider drivers launch from under the policy clients were told about. */\nexport const providerHostEnvironment = (\n  summary: ManagedPolicySummary | undefined,\n  environment: NodeJS.ProcessEnv,\n): NodeJS.ProcessEnv => {\n  if (summary === undefined) return environment;\n  const next = { ...environment };\n  for (const name of Object.keys(next)) {\n    if (LAUNCH_OVERRIDE_VARIABLES.some((override) => override === name.toUpperCase())) {\n      delete next[name];\n    }\n  }\n  return next;\n};\n\n",
+      "to": "",
+      "beforeSha256": "5e605e050031f053769d7978d3ba035720c1f3a4f60e3a04cde41710ca60d5eb",
+      "afterSha256": "e66da09db43eff82d40e6059d0dc877f4736527e4c942c7e72d8462b574e88fc"
+    },
+    {
       "id": "entry-separate-read-service-type",
       "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
       "from": "const buildEntry = Effect.fn(\"ProviderInstanceRegistry.buildEntry\")(function* <R>(input: {",
@@ -1834,6 +1966,9 @@
       "file": "apps/server/src/provider/SelectedProviderInstance.ts",
       "create": [
         {
+          "text": "import type { ManagedPolicySummary } from \"@t3tools/contracts\";\nimport * as ManagedProviders from \"../policy/managedProviderSelection.ts\";\n"
+        },
+        {
           "text": "import { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Stream from \"effect/Stream\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
         },
         {
@@ -1869,11 +2004,11 @@
           "sourceSha256": "3d6965570710531265de8c64256d2b6465e3c1df57f2bfe22e8b056c9e919af3"
         },
         {
-          "text": "\n/** A fixed selected instance; no mutator, refresh, prefetch or secret resolver. */\nexport const makeSelectedProviderInstance = Effect.fn(\"ProviderInstanceRegistry.makeSelected\")(\n  function* <R>(input: {\n    readonly driver: AnyProviderDriver<R>;\n    readonly instanceId: ProviderInstanceId;\n    readonly entry: ProviderInstanceConfig;\n    readonly secrets: InstanceSecrets;\n  }): Effect.fn.Return<ProviderInstanceRegistry[\"Service\"], never, R | Scope.Scope> {\n    const parentScope = yield* Scope.Scope;\n    const changes = yield* PubSub.unbounded<void>();\n    yield* Effect.addFinalizer(() => PubSub.shutdown(changes));\n    const state: RegistryState = {\n      entries: yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveEntry>>(new Map()),\n      unavailable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ServerProvider>>(new Map()),\n      secretsUnreadable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ProviderInstanceConfig>>(new Map()),\n      changes,\n    };\n    const result = yield* buildEntry({\n      driversById: new Map([[input.driver.driverKind, input.driver]]),\n      blockedReason: () => undefined, parentScope, instanceId: input.instanceId,\n      rawInstanceId: input.instanceId, entry: input.entry, deferSecrets: false,\n      readSecrets: () => Effect.succeed({ secrets: input.secrets, unreadable: [] }),\n    });\n    if (result.kind === \"live\") yield* Ref.set(state.entries, new Map([[input.instanceId, result.live]]));\n    else yield* Ref.set(state.unavailable, new Map([[input.instanceId, result.snapshot]]));\n    // Escaped views cannot return a retired provider after the owning scope closes.\n    yield* Effect.addFinalizer(() => Ref.set(state.entries, new Map()));\n    return registryView(state);\n  },\n);\n"
+          "text": "\n/** A fixed selected instance; no mutator, refresh, prefetch or secret resolver. */\nexport const makeSelectedProviderInstance = Effect.fn(\"ProviderInstanceRegistry.makeSelected\")(\n  function* <R>(input: {\n    readonly driver: AnyProviderDriver<R>;\n    readonly instanceId: ProviderInstanceId;\n    readonly entry: ProviderInstanceConfig;\n    readonly secrets: InstanceSecrets;\n    readonly managedPolicy: ManagedPolicySummary | undefined;\n  }): Effect.fn.Return<ProviderInstanceRegistry[\"Service\"], never, R | Scope.Scope> {\n    const parentScope = yield* Scope.Scope;\n    const changes = yield* PubSub.unbounded<void>();\n    yield* Effect.addFinalizer(() => PubSub.shutdown(changes));\n    const state: RegistryState = {\n      entries: yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveEntry>>(new Map()),\n      unavailable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ServerProvider>>(new Map()),\n      secretsUnreadable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ProviderInstanceConfig>>(new Map()),\n      changes,\n    };\n    const result = yield* buildEntry({\n      driversById: new Map([[input.driver.driverKind, input.driver]]),\n      blockedReason: driver => ManagedProviders.disallowedDriverReasonForLabel(\n        input.managedPolicy, driver, input.driver.metadata.displayName),\n      parentScope, instanceId: input.instanceId,\n      rawInstanceId: input.instanceId, entry: input.entry, deferSecrets: false,\n      readSecrets: () => Effect.succeed({ secrets: input.secrets, unreadable: [] }),\n    });\n    if (result.kind === \"live\") yield* Ref.set(state.entries, new Map([[input.instanceId, result.live]]));\n    else yield* Ref.set(state.unavailable, new Map([[input.instanceId, result.snapshot]]));\n    // Escaped views cannot return a retired provider after the owning scope closes.\n    yield* Effect.addFinalizer(() => Ref.set(state.entries, new Map()));\n    return registryView(state);\n  },\n);\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "e9e6886602d7ec6b9247659784e048213d95324c682cd25556720b00cd629ba4"
+      "afterSha256": "4256d8376e5ab206dd2695d5011e6b30f424feeed58646e62282950ed90336a3"
     },
     {
       "id": "codex-original-client-factory-port",
@@ -2120,11 +2255,11 @@
       "file": "apps/server/src/provider/SelectedCodexDriver.ts",
       "create": [
         {
-          "text": "import { CodexSettings, ProviderDriverKind } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\nimport * as Digest from \"effect/crypto/Digest\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Path from \"effect/Path\";\nimport * as HostProcess from \"@t3tools/shared/HostProcess\";\nimport type { ProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderDriverError } from \"@t3tools/provider-core/server/errors\";\nimport { mergeProviderInstanceEnvironment } from \"@t3tools/provider-core/server/instanceEnvironment\";\nimport { expandHomePath } from \"@t3tools/provider-core/server/pathExpansion\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\nimport * as Continuations from \"@t3tools/provider-core/server/ProviderContinuationRequests\";\nimport * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\nimport { ServerConfig } from \"../config.session-port.ts\";\nimport { CodexAppServerClientFactory } from \"../orchestration-v2/Adapters/CodexAdapterV2.session-port.ts\";\nimport { makeCodexAdapterV2, type CodexAdapterV2Options }\n  from \"../orchestration-v2/Adapters/CodexAdapterV2.session-live.ts\";\nimport { resolveCodexHomeLayout, codexContinuationIdentity } from \"./CodexHomeLayout.session-pure.ts\";\nimport { makeCodexInstance } from \"./CodexInstance.ts\";\n\n/** Real original services are required. There is no pending/ready stand-in,\n * refresh suppression or default text-generation implementation here. */\nexport class SelectedCodexServices extends Context.Service<SelectedCodexServices, {\n  readonly instanceId: ProviderInstance[\"instanceId\"];\n  readonly snapshot: ProviderInstance[\"snapshot\"];\n  readonly textGeneration: ProviderInstance[\"textGeneration\"];\n  readonly compatibility: NonNullable<CodexAdapterV2Options[\"compatibility\"]>;\n}>()(\"nessie/session-engine/SelectedCodexServices\") {}\n\nexport type SelectedCodexDriverEnv = SelectedCodexServices | CodexAppServerClientFactory |\n  Digest.Digest | FileSystem.FileSystem | Path.Path | IdAllocator.IdAllocatorV2 |\n  Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig;\n\nexport const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {\n  driverKind: ProviderDriverKind.make(\"codex\"),\n  metadata: { displayName: \"Codex\", supportsMultipleInstances: true },\n  configSchema: CodexSettings,\n  defaultConfig: () => Schema.decodeSync(CodexSettings)({}),\n  create: Effect.fn(\"CodexDriver.createSelected\")(function* (input) {\n    // A saved overlay requires materializeCodexShadowHome: mkdir, symlink,\n    // replacement and private-auth checks. Launch/reserve do not grant it.\n    if (input.config.setupMode === \"managed\" || input.config.shadowHomePath.trim()\n      || !input.config.homePath.trim()) return yield* new ProviderDriverError({\n        driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n        detail: \"Selected Codex home preparation is not admitted.\",\n      });\n    const services = yield* SelectedCodexServices;\n    if (services.instanceId !== input.instanceId) return yield* new ProviderDriverError({\n      driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n      detail: \"Selected Codex services belong to another instance.\",\n    });\n    const environment = yield* mergeProviderInstanceEnvironment(input.environment, yield* HostProcess.Environment);\n    const homeLayout = yield* resolveCodexHomeLayout(input.config);\n    const orchestrationAdapter = yield* makeCodexAdapterV2({\n      instanceId: input.instanceId,\n      settings: { ...input.config, enabled: input.enabled,\n        binaryPath: expandHomePath(input.config.binaryPath, yield* HostProcess.HomeDirectory),\n        homePath: homeLayout.effectiveHomePath ?? \"\" },\n      environment, clientFactory: yield* CodexAppServerClientFactory,\n      digest: yield* Digest.Digest, fileSystem: yield* FileSystem.FileSystem,\n      idAllocator: yield* IdAllocator.IdAllocatorV2, serverConfig: yield* ServerConfig,\n      continuationRequests: yield* Continuations.ProviderContinuationRequests,\n      onUsageLimits: services.snapshot.applyUsageLimits, compatibility: services.compatibility,\n    });\n    return makeCodexInstance({ ...input, continuationIdentity: codexContinuationIdentity(homeLayout),\n      snapshot: services.snapshot, textGeneration: services.textGeneration, orchestrationAdapter });\n  }),\n};\n"
+          "text": "import { CodexSettings, ProviderDriverKind } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\nimport * as Digest from \"effect/crypto/Digest\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Path from \"effect/Path\";\nimport * as HostProcess from \"@t3tools/shared/HostProcess\";\nimport type { ProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderDriverError } from \"@t3tools/provider-core/server/errors\";\nimport { mergeProviderInstanceEnvironment } from \"@t3tools/provider-core/server/instanceEnvironment\";\nimport { expandHomePath } from \"@t3tools/provider-core/server/pathExpansion\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\nimport * as Continuations from \"@t3tools/provider-core/server/ProviderContinuationRequests\";\nimport * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\nimport { ServerConfig } from \"../config.session-port.ts\";\nimport { ServerSettingsService } from \"../serverSettings.session-port.ts\";\nimport * as ManagedProviders from \"../policy/managedProviderSelection.ts\";\nimport { CodexAppServerClientFactory } from \"../orchestration-v2/Adapters/CodexAdapterV2.session-port.ts\";\nimport { makeCodexAdapterV2, type CodexAdapterV2Options }\n  from \"../orchestration-v2/Adapters/CodexAdapterV2.session-live.ts\";\nimport { resolveCodexHomeLayout, codexContinuationIdentity } from \"./CodexHomeLayout.session-pure.ts\";\nimport { makeCodexInstance } from \"./CodexInstance.ts\";\n\n/** Real original services are required. There is no pending/ready stand-in,\n * refresh suppression or default text-generation implementation here. */\nexport class SelectedCodexServices extends Context.Service<SelectedCodexServices, {\n  readonly instanceId: ProviderInstance[\"instanceId\"];\n  readonly snapshot: ProviderInstance[\"snapshot\"];\n  readonly textGeneration: ProviderInstance[\"textGeneration\"];\n  readonly compatibility: NonNullable<CodexAdapterV2Options[\"compatibility\"]>;\n}>()(\"nessie/session-engine/SelectedCodexServices\") {}\n\nexport type SelectedCodexDriverEnv = SelectedCodexServices | CodexAppServerClientFactory |\n  Digest.Digest | FileSystem.FileSystem | Path.Path | IdAllocator.IdAllocatorV2 |\n  Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig |\n  ServerSettingsService;\n\nexport const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {\n  driverKind: ProviderDriverKind.make(\"codex\"),\n  metadata: { displayName: \"Codex\", supportsMultipleInstances: true },\n  configSchema: CodexSettings,\n  defaultConfig: () => Schema.decodeSync(CodexSettings)({}),\n  create: Effect.fn(\"CodexDriver.createSelected\")(function* (input) {\n    // A saved overlay requires materializeCodexShadowHome: mkdir, symlink,\n    // replacement and private-auth checks. Launch/reserve do not grant it.\n    if (input.config.setupMode === \"managed\" || input.config.shadowHomePath.trim()\n      || !input.config.homePath.trim()) return yield* new ProviderDriverError({\n        driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n        detail: \"Selected Codex home preparation is not admitted.\",\n      });\n    const services = yield* SelectedCodexServices;\n    if (services.instanceId !== input.instanceId) return yield* new ProviderDriverError({\n      driver: ProviderDriverKind.make(\"codex\"), instanceId: input.instanceId,\n      detail: \"Selected Codex services belong to another instance.\",\n    });\n    const settingsService = yield* ServerSettingsService;\n    const hostEnvironment = ManagedProviders.providerHostEnvironment(\n      settingsService.managedPolicy, yield* HostProcess.Environment);\n    const environment = yield* mergeProviderInstanceEnvironment(input.environment, hostEnvironment);\n    const homeLayout = yield* resolveCodexHomeLayout(input.config);\n    const orchestrationAdapter = yield* makeCodexAdapterV2({\n      instanceId: input.instanceId,\n      settings: { ...input.config, enabled: input.enabled,\n        binaryPath: expandHomePath(input.config.binaryPath, yield* HostProcess.HomeDirectory),\n        homePath: homeLayout.effectiveHomePath ?? \"\" },\n      environment, clientFactory: yield* CodexAppServerClientFactory,\n      digest: yield* Digest.Digest, fileSystem: yield* FileSystem.FileSystem,\n      idAllocator: yield* IdAllocator.IdAllocatorV2, serverConfig: yield* ServerConfig,\n      continuationRequests: yield* Continuations.ProviderContinuationRequests,\n      onUsageLimits: services.snapshot.applyUsageLimits, compatibility: services.compatibility,\n    });\n    return makeCodexInstance({ ...input, continuationIdentity: codexContinuationIdentity(homeLayout),\n      snapshot: services.snapshot, textGeneration: services.textGeneration, orchestrationAdapter });\n  }),\n};\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "87107f4bf78b125091585ea390eb5651f6dde5d6a228be040d9d6dcce71ea222"
+      "afterSha256": "c78eabd27ed90b03fc178d24e829c7b58602622761376d366e6eb4dd0e8372f4"
     },
     {
       "id": "session-manager-exclude-metric-decorator",

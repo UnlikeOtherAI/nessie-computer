@@ -18,7 +18,7 @@
     "test:t3-session-workspace-source": "node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-workspace/source.test.mjs",
     "test:t3-session-workspace": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-workspace/*.test.ts",
     "test:t3-session-broker": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-lane.test.ts test/t3-effect-authority-client.test.ts test/t3-retained-operation-binding.test.ts test/t3-session-inspections.test.ts test/t3-finite-fragments.test.ts test/t3-native-execution-transport.test.ts",
-    "test:session-engine-source": "node --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
+    "test:session-engine-source": "node --max-old-space-size=512 --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
     "test:t3-session-interactive": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-interactive/*.test.mjs",
     "test:t3-session-request-prepare": "node --max-old-space-size=512 test/t3-session-requests/prepare-dependencies.mjs && pnpm --dir .artifacts/c05-requests/dependencies install --frozen-lockfile --ignore-scripts --ignore-workspace --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
     "test:t3-session-request-source": "node --max-old-space-size=512 test/t3-session-requests/verify-combined.mjs && node --max-old-space-size=512 --test --experimental-test-isolation=none test/t3-session-requests/privacy.test.mjs test/t3-session-requests/structural-adversaries.test.mjs",

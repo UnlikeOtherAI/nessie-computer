@@ -122,6 +122,8 @@ import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as Continuations from "@t3tools/provider-core/server/ProviderContinuationRequests";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import { ServerConfig } from "../config.session-port.ts";
+import { ServerSettingsService } from "../serverSettings.session-port.ts";
+import * as ManagedProviders from "../policy/managedProviderSelection.ts";
 import { CodexAppServerClientFactory } from "../orchestration-v2/Adapters/CodexAdapterV2.session-port.ts";
 import { makeCodexAdapterV2, type CodexAdapterV2Options }
   from "../orchestration-v2/Adapters/CodexAdapterV2.session-live.ts";
@@ -139,7 +141,8 @@ export class SelectedCodexServices extends Context.Service<SelectedCodexServices
 
 export type SelectedCodexDriverEnv = SelectedCodexServices | CodexAppServerClientFactory |
   Digest.Digest | FileSystem.FileSystem | Path.Path | IdAllocator.IdAllocatorV2 |
-  Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig;
+  Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig |
+  ServerSettingsService;
 
 export const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {
   driverKind: ProviderDriverKind.make("codex"),
@@ -159,7 +162,10 @@ export const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDri
       driver: ProviderDriverKind.make("codex"), instanceId: input.instanceId,
       detail: "Selected Codex services belong to another instance.",
     });
-    const environment = yield* mergeProviderInstanceEnvironment(input.environment, yield* HostProcess.Environment);
+    const settingsService = yield* ServerSettingsService;
+    const hostEnvironment = ManagedProviders.providerHostEnvironment(
+      settingsService.managedPolicy, yield* HostProcess.Environment);
+    const environment = yield* mergeProviderInstanceEnvironment(input.environment, hostEnvironment);
     const homeLayout = yield* resolveCodexHomeLayout(input.config);
     const orchestrationAdapter = yield* makeCodexAdapterV2({
       instanceId: input.instanceId,
