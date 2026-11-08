@@ -160,6 +160,24 @@ pub fn descriptor(
     create: bool,
 ) -> Result<(Descriptor, Key), String> {
     let context = authenticate_graph(root, caller, release, state, executor)?;
+    descriptor_from_context(root, executor, create, context)
+}
+pub fn runtime_descriptor(
+    root: &Path,
+    caller: &Process,
+    release: &Release,
+    state: &State,
+    executor: &str,
+) -> Result<(Descriptor, Key), String> {
+    let context = authenticate_runtime(root, caller, release, state, executor)?;
+    descriptor_from_context(root, executor, false, context)
+}
+fn descriptor_from_context(
+    root: &Path,
+    executor: &str,
+    create: bool,
+    context: DescriptorContext,
+) -> Result<(Descriptor, Key), String> {
     let key = Key::open(root, executor, create)?;
     let descriptor = Descriptor {
         version: 1,

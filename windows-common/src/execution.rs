@@ -262,6 +262,9 @@ impl Challenge {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Launch {
+    pub process_purpose: ProcessPurpose,
+    #[serde(default,skip_serializing_if="Option::is_none")]
+    pub history: Option<crate::execution_process::HistoryInvocation>,
     pub command: String,
     pub args: Vec<String>,
     pub cwd: String,
@@ -269,6 +272,11 @@ pub struct Launch {
 }
 impl Launch {
     pub fn validate(&self) -> Result<(), String> {
+        match (&self.process_purpose,&self.history) {
+            (ProcessPurpose::Provider,None)=>(),
+            (ProcessPurpose::Provider,Some(_))|(_,None)=>return Err(REJECTED.into()),
+            (purpose,Some(history))=>history.validate(purpose)?,
+        }
         if !std::path::Path::new(&self.command).is_absolute()
             || !std::path::Path::new(&self.cwd).is_absolute()
             || self.args.len() > 256

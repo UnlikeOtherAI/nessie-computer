@@ -63,6 +63,11 @@ enum Input {
         nonce: String,
         role: CompanionRole,
     },
+    Provider {
+        graph_id: String,
+        nonce: String,
+        admission: nessie_windows_common::execution::SignedAdmission,
+    },
 }
 fn random() -> Result<[u8; 32], String> {
     let mut value = [0u8; 32];
@@ -168,6 +173,41 @@ fn connection(mut file: File, stopped: Arc<AtomicBool>, companions: bool) -> Res
     )
     .map_err(|_| REJECTED)?;
     match input {
+        Input::Provider {
+            graph_id,
+            nonce,
+            admission,
+        } => {
+            if !companions
+                || !nessie_windows_common::custody::valid_nonce(&graph_id)
+                || !nessie_windows_common::custody::valid_nonce(&nonce)
+            {
+                return Err(REJECTED.into());
+            }
+            let graph = GRAPHS
+                .lock()
+                .map_err(|_| REJECTED)?
+                .get(&graph_id)
+                .cloned()
+                .ok_or(REJECTED)?;
+            if caller.generation != graph.generation
+                || graph.release_digest != release.digest
+                || !caller.alive()
+            {
+                return Err(REJECTED.into());
+            }
+            nessie_windows_common::execution_isolation::verify(&caller)?;
+            crate::execution_provider::start(
+                file,
+                caller,
+                stopped,
+                &graph_id,
+                &nonce,
+                &hex(&random()?),
+                &graph.key,
+                admission,
+            )
+        }
         Input::Start { executor_id } => {
             if companions {
                 return Err(REJECTED.into());

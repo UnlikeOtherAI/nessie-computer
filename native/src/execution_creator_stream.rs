@@ -27,11 +27,30 @@ fn send(output: &Arc<Mutex<File>>, value: &serde_json::Value) -> Result<(), Stri
     protected_pipe::write(&mut guard, value).map_err(|_| REJECTED.into())
 }
 pub fn run(
+    file: File,
+    child: Child,
+    nonce: String,
+    requester: Process,
+    stopped: Arc<AtomicBool>,
+) -> Result<(), String> {
+    run_inner(file, child, nonce, requester, stopped, false)
+}
+pub fn run_provider(
+    file: File,
+    child: Child,
+    nonce: String,
+    requester: Process,
+    stopped: Arc<AtomicBool>,
+) -> Result<(), String> {
+    run_inner(file, child, nonce, requester, stopped, true)
+}
+fn run_inner(
     mut file: File,
     mut child: Child,
     nonce: String,
     requester: Process,
     stopped: Arc<AtomicBool>,
+    provider: bool,
 ) -> Result<(), String> {
     let output = Arc::new(Mutex::new(file.try_clone().map_err(|_| REJECTED)?));
     let failed = Arc::new(AtomicBool::new(false));
@@ -115,6 +134,9 @@ pub fn run(
             if let Some(value) = reader.poll(&mut file).map_err(|_| REJECTED)? {
                 match value["kind"].as_str() {
                     Some("stdin") => {
+                        if provider {
+                            return Err(REJECTED.into());
+                        }
                         if value.as_object().is_none_or(|v| v.len() != 3)
                             || value["sequence"].as_u64() != Some(sequence + 1)
                         {
@@ -140,7 +162,15 @@ pub fn run(
                         send(&output, &json!({"kind":"written","sequence":sequence}))?;
                     }
                     Some("stdinEnd") => {
-                        child.stdin.take();
+                        if provider {
+                            crate::execution_provider::service(
+                                nessie_windows_common::execution_process::Request::End {
+                                    nonce: nonce.clone(),
+                                },
+                            )?;
+                        } else {
+                            child.stdin.take();
+                        }
                         send(&output, &json!({"kind":"inputEnded"}))?;
                     }
                     Some("stop") => break,
@@ -158,19 +188,30 @@ pub fn run(
     stop?;
     // Service observes the exact job independently; no exit/kill boolean is clearance.
     let mut cleared = false;
+    let mut completion = serde_json::Value::Null;
     for _ in 0..100 {
-        if service_channel::call(
-            &Operation::ExecutionCreator {
-                request: Request::Clear {
+        let result = if provider {
+            crate::execution_provider::service(
+                nessie_windows_common::execution_process::Request::Clear {
                     nonce: nonce.clone(),
                 },
-            },
-            PIN,
-        )
-        .is_ok_and(|v| v["cleared"] == true)
-        {
-            cleared = true;
-            break;
+            )
+        } else {
+            service_channel::call(
+                &Operation::ExecutionCreator {
+                    request: Request::Clear {
+                        nonce: nonce.clone(),
+                    },
+                },
+                PIN,
+            )
+        };
+        if let Ok(value) = result {
+            if value["cleared"] == true {
+                completion = value;
+                cleared = true;
+                break;
+            }
         }
         std::thread::sleep(Duration::from_millis(20));
     }
@@ -187,5 +228,8 @@ pub fn run(
             &json!({"kind":"error","code":"T3_NATIVE_DELIVERY_UNKNOWN"}),
         )?;
     }
-    send(&output, &json!({"kind":"closed","cleared":true}))
+    send(
+        &output,
+        &json!({"kind":"closed","cleared":true,"completion":completion}),
+    )
 }

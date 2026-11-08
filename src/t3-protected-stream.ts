@@ -23,6 +23,7 @@ export class ProtectedT3Process extends EventEmitter {
   readonly ready: Promise<void>
   pid = 0
   exitCode: number | null = null
+  completion: unknown
   #wire: ProtectedWire
   #buffer = Buffer.alloc(0)
   #blocked = new Set<Readable>()
@@ -39,7 +40,7 @@ export class ProtectedT3Process extends EventEmitter {
   #readyReject!: (error: Error) => void
   #verifyReady: (frame: Frame) => number
 
-  constructor(wire: ProtectedWire, verifyReady: (frame: Frame) => number) {
+  constructor(wire: ProtectedWire, verifyReady: (frame: Frame) => number, inputMode: 'companion' | 'finite' = 'companion') {
     super()
     this.#wire = wire
     this.#verifyReady = verifyReady
@@ -60,6 +61,7 @@ export class ProtectedT3Process extends EventEmitter {
     this.stderr = output()
     this.stdin = new Writable({ highWaterMark: 16_384,
       write: (chunk: Buffer, _encoding, callback) => {
+        if (inputMode === 'finite') { callback(protectedDeliveryUnknown()); return }
         void this.#writeBytes(chunk).then(() => callback(), error => callback(error as Error))
       },
       final: callback => {
@@ -167,6 +169,7 @@ export class ProtectedT3Process extends EventEmitter {
           this.#pending = undefined
         }
         this.#settled = true
+        this.completion = structuredClone(frame.completion)
         clearTimeout(this.#stopTimer)
         this.stdout.push(null)
         this.stderr.push(null)
