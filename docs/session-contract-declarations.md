@@ -23,6 +23,12 @@ annotations fail the producer. TypeScript stays pinned at 5.9.3 with library
 checks enabled and the existing 5120 MiB compiler ceiling. No source preparation
 family needs regeneration for these type-only annotations.
 
+Original JSON imports remain checked data inputs. The producer emits declarations
+for their importing TypeScript modules; it does not request a declaration from
+TypeScript for a JSON data module. The engine fixture checks inferred JSON types
+and rejects an incompatible annotation, so excluding JSON from declaration emit
+does not exclude it from semantic checking or source provenance.
+
 `typecheck.contractNaming` records original source and annotation hashes.
 `typecheck.declarations.files` and `sharedContractTypes` bind the shared `.d.ts`
 tree. Contract provenance records compiler declaration production instead of

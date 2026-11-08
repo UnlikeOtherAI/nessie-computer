@@ -75,6 +75,22 @@ test('normal engine package runs original SQLite migrations, history, replay, pr
   run([resolve(directory, 'run.mjs')])
 })
 
+test('declaration production checks original JSON data without requesting a data-module declaration', async () => {
+  const base = resolve(root, '.artifacts/json-declarations')
+  await mkdir(base, { recursive: true })
+  const directory = await mkdtemp(resolve(base, 'run-'))
+  const entry = 'apps/server/src/version.ts'
+  const data = 'apps/server/package.json'
+  const files = new Map([[entry, 'import release from "../package.json";\nexport const version = release.version;\n'],
+    [data, '{"version":"original-release"}']])
+  const snapshot = { files: [...files.keys()], read: path => Buffer.from(files.get(path)) }
+  const checked = await typecheckSessionState(snapshot, `t3-source:${entry}`, { declarationDirectory: directory })
+  assert.deepEqual(Object.keys(checked.declarations.files).sort(), ['index.d.ts', 'source/apps/server/src/version.d.ts'])
+  assert.match(await readFile(resolve(directory, 'source/apps/server/src/version.d.ts'), 'utf8'), /version: string/u)
+  files.set(entry, 'import release from "../package.json";\nexport const version: number = release.version;\n')
+  await assert.rejects(typecheckSessionState(snapshot, `t3-source:${entry}`), /not assignable to type 'number'/u)
+})
+
 test('runtime/type/notices provenance binds generated package files and excludes embedded Effect and synthetic entries', async () => {
   const dist = resolve(root, 'dist')
   const provenance = JSON.parse(await readFile(resolve(dist, 'engine.provenance.json'), 'utf8'))

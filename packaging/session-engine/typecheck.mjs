@@ -110,9 +110,14 @@ export const typecheckSessionState = async (snapshot, entryPoint,
   if (declarations) {
     const emitDiagnostics = []
     for (const source of program.getSourceFiles()) {
-      if (!source.isDeclarationFile && !slash(source.fileName).includes('/node_modules/')) {
+      // JSON is checked input data. TypeScript emits no declaration for it;
+      // consumers use the declarations inferred from the importing TS module.
+      if (!source.isDeclarationFile && !ts.isJsonSourceFile(source)
+        && !slash(source.fileName).includes('/node_modules/')) {
         const result = program.emit(source, declarations.writeFile, undefined, true)
-        if (result.emitSkipped && !result.diagnostics.length) throw new Error('Session declaration emit was skipped.')
+        if (result.emitSkipped && !result.diagnostics.length) {
+          throw new Error(`Session declaration emit was skipped: ${source.fileName}`)
+        }
         emitDiagnostics.push(...result.diagnostics)
       }
     }
