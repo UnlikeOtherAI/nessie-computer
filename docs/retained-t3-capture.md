@@ -1,5 +1,23 @@
 # Retained T3 capture
 
+The source-only [catalog read composition](retained-t3-catalog.md) extends these
+guarded wrappers with original shell/archive/family/history operations. Physical,
+human, publication and actual transport bindings remain required; it grants no
+new authority and changes no historical privacy classification.
+
+Read-return and capture-failure races from review `8a11f81` now have authored
+regressions in `producer-boundaries.test.mjs`, included in the importer gate.
+The read guard arbitrates publication after both enclosing producer promises
+finish. Capture/resume record a durable attempt observation before opening the
+source and use a transactional CAS on alias, physical root, environment,
+generation and incarnation before withdrawing availability after failure.
+Begin/recover/complete refresh that observation inside their existing transaction.
+Late failures retain their attempt evidence but cannot withdraw a newer capture,
+a recovered same-generation publication or a recreated alias. Current failures
+still withdraw the observed publication. These changes remain source-only until
+the coordinator's combined normal-engine qualification; no separate install is
+required or authorized by this note.
+
 This is a machine-only, unbound passive importer. It adds no daemon capability,
 bridge adoption, provider, lifecycle, transport, native payload or UI. It does not
 make retained sessions reachable in Nessie. Local data completion does not mean

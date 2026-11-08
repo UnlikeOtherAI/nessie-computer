@@ -3,6 +3,7 @@ import { journalTransaction, requireCapture } from './sqlite.js'
 import type { CaptureDatabase, SqlRow } from './sqlite.js'
 import type { ProvenT3Source } from '../import/manifest.js'
 import type { NativeHistoryAlias } from '../ownership/continuity.js'
+import { CaptureAttempts, type CaptureAttempt } from './capture-attempts.js'
 
 export interface CapturedIdentity {
   readonly threadId: string
@@ -14,6 +15,7 @@ export interface CapturedIdentity {
  */
 export class T3CaptureJournal {
   private readonly database: CaptureDatabase
+  readonly attempts: CaptureAttempts
   constructor(ownedDatabase: CaptureDatabase) {
     this.database = ownedDatabase
     ownedDatabase.exec(`
@@ -45,6 +47,7 @@ export class T3CaptureJournal {
       );
     `)
     ownedDatabase.prepare('INSERT OR IGNORE INTO t3_capture_snapshot_key VALUES (1, ?)').run(randomBytes(32).toString('hex'))
+    this.attempts = new CaptureAttempts(ownedDatabase)
   }
 
   snapshotKey(): string {
@@ -80,7 +83,7 @@ export class T3CaptureJournal {
       this.generation(generation)?.phase === 'ready', 'capture_history_not_published')
   }
 
-  begin(source: ProvenT3Source, generation: string, stageReference: string): void {
+  begin(source: ProvenT3Source, generation: string, stageReference: string, attempt?: CaptureAttempt): void {
     const conflict = journalTransaction(this.database, () => {
       const alias = this.database.prepare('SELECT physical_root FROM t3_capture_root_aliases WHERE admitted_root = ?')
         .get(source.admittedRootKey)
@@ -104,6 +107,7 @@ export class T3CaptureJournal {
         .run(generation, source.physicalRootKey, stageReference)
       this.database.prepare(`UPDATE t3_capture_roots SET generation = ?, catalog_generation = NULL,
         hydrated_generation = NULL, available = 1 WHERE physical_root = ?`).run(generation, source.physicalRootKey)
+      if (attempt) this.attempts.bind(attempt)
       return false
     })
     // Conflict evidence must commit even though import is refused.
@@ -119,7 +123,7 @@ export class T3CaptureJournal {
     })
   }
 
-  recover(source: ProvenT3Source, generation: string): void {
+  recover(source: ProvenT3Source, generation: string, attempt?: CaptureAttempt): void {
     journalTransaction(this.database, () => {
       const root = this.root(source.physicalRootKey)
       const job = this.generation(generation)
@@ -128,6 +132,7 @@ export class T3CaptureJournal {
         job?.physical_root === source.physicalRootKey && (job.phase === 'captured' || job.phase === 'ready'),
       'capture_not_resumable')
       this.database.prepare('UPDATE t3_capture_roots SET available = 1 WHERE physical_root = ?').run(source.physicalRootKey)
+      if (attempt) this.attempts.bind(attempt)
     })
   }
 
@@ -135,7 +140,7 @@ export class T3CaptureJournal {
    * Root advancement, alias conflicts and publication recheck share this write lock.
    */
   complete(source: ProvenT3Source, generation: string, identities: readonly CapturedIdentity[],
-    aliases: readonly NativeHistoryAlias[]): void {
+    aliases: readonly NativeHistoryAlias[], attempt?: CaptureAttempt): void {
     journalTransaction(this.database, () => {
       this.requireCurrent(source.physicalRootKey, generation)
       const phase = this.generation(generation)?.phase
@@ -160,6 +165,7 @@ export class T3CaptureJournal {
         .run(generation)
       this.database.prepare(`UPDATE t3_capture_roots SET catalog_generation = ?, hydrated_generation = ?,
         last_ready_generation = ? WHERE physical_root = ?`).run(generation, generation, generation, source.physicalRootKey)
+      if (attempt) this.attempts.bind(attempt)
     })
   }
 
@@ -194,5 +200,10 @@ export class T3CaptureJournal {
 
   catalog(physicalRootKey: string): readonly SqlRow[] {
     return this.database.prepare('SELECT * FROM t3_capture_catalog WHERE physical_root = ? ORDER BY thread_id').all(physicalRootKey)
+  }
+
+  catalogIdentity(physicalRootKey: string, threadId: string): SqlRow | undefined {
+    return this.database.prepare('SELECT * FROM t3_capture_catalog WHERE physical_root = ? AND thread_id = ?')
+      .get(physicalRootKey, threadId)
   }
 }
