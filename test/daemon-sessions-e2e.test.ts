@@ -44,7 +44,11 @@ const send = (response: ServerResponse, data: unknown, status = 200): void => {
   response.end(JSON.stringify(status === 200 ? { data } : { error: data }))
 }
 
-type Queued = { envelope: ExecutorCommandEnvelope; accepted: boolean; resolve: (result: Record<string, unknown>) => void }
+type Queued = {
+  envelope: ExecutorCommandEnvelope
+  accepted: boolean
+  resolve: (result: Record<string, unknown>) => void
+}
 
 const startFakeNessie = async (options: { strict?: boolean } = {}) => {
   let sequence = 0
@@ -86,7 +90,9 @@ const startFakeNessie = async (options: { strict?: boolean } = {}) => {
         }
         if (body.activeCommand) return send(response, { command: null, cancellation: null })
         const next = queue.find((entry) => !entry.accepted)
-        return send(response, { command: next ? (({ sessionId: _s, agentName: _a, ...old }) => old)(next.envelope) : null })
+        // An older Nessie's envelope carries no session.
+        const old = next && (({ sessionId: _s, agentName: _a, ...rest }) => rest)(next.envelope)
+        return send(response, { command: old ?? null })
       }
       case '/api/executor-daemon/commands/receipt': {
         const receipt = body.receipt as { commandId: string; state: string }
@@ -139,12 +145,19 @@ const fixture = async (options: { strict?: boolean } = {}) => {
   await writeFile(join(workspace, 'report.md'), 'hello')
   const nessie = await startFakeNessie(options)
   const keys = generateKeyPairSync('ed25519')
+  // command.run needs a guest VM configured; none starts, because nothing here is allowed to run.
   const state: ExecutorLocalState = {
     apiBaseUrl: nessie.apiBaseUrl,
+    browserSandbox: {
+      allowedOrigins: ['https://app.example.test'], guestInitrdBuilderPath: join(workspace, 'builder'),
+      guestRuntimeBundlePath: join(workspace, 'runtime'), kernelPath: join(workspace, 'kernel'),
+      vmHelperPath: join(workspace, 'helper'),
+    },
     commandPolicy: { mode: 'allowlist', allowlist: [], denylist: [] },
     descriptor: {
       limits: { maxCommandRuntimeSeconds: 30, maxResultBytes: 65_536, maxSessions: 1 },
-      operationKeys: ['file.list', 'file.read', 'command.run', 'sandbox.stop'], profiles: ['workspace_sandbox'],
+      operationKeys: ['file.list', 'file.read', 'command.run', 'workspace.review', 'sandbox.stop'],
+      profiles: ['workspace_sandbox'],
       revision: 1, workspaceFolders: ['workspace'],
     },
     executorId: EXECUTOR_ID,
@@ -192,8 +205,8 @@ test('a program waiting for its owner holds only itself: a read in the same sess
     const [session] = await readSessions(stateDir)
     assert.equal(session?.sessionId, SESSION)
     assert.equal(session?.agentName, 'Builder')
-    assert.deepEqual(session?.commands.map((command) => [command.kind, command.status, command.program, command.requestId]),
-      [['program', 'waiting_for_owner', 'docker', request?.id]])
+    const shown = session?.commands.map((command) => [command.kind, command.status, command.program, command.requestId])
+    assert.deepEqual(shown, [['program', 'waiting_for_owner', 'docker', request?.id]])
 
     await writeProgramRequestAnswer(stateDir, request!.id, 'deny')
     const refused = await program
