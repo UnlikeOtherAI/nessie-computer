@@ -1,5 +1,5 @@
-// The local console is the same document on macOS and Windows. Only this
-// process-local transport differs. Neither host permits remote navigation.
+// Nessie Computer's console is the same document on macOS and Windows. Only
+// this process-local transport differs. Neither host permits remote navigation.
 // A host event hands its handler the event's payload — a Tauri event's
 // `payload`, a macOS CustomEvent's `detail` — or null when it carries none.
 window.executorNative = window.__TAURI__ ? {
@@ -16,9 +16,10 @@ window.executorNative = window.__TAURI__ ? {
   },
 }
 
-// Folder sync. The page names a team, a choice and public identifiers; the
-// host reads every path it opens from the CLI's own status, and every change
-// reaches `nessie-executor sync` as JSON on standard input, never on argv.
+// Documents (folder sync). The page names a team, a choice and public
+// identifiers; the host reads every path it opens from the CLI's own status,
+// and every change reaches the CLI's `sync` verb as JSON on standard input,
+// never on argv.
 Object.assign(window.executorNative, {
   /** The native folder picker; the chosen path, or null. */
   syncPickFolder: () => window.executorNative.invoke('executor_sync_pick_folder'),
@@ -32,7 +33,7 @@ Object.assign(window.executorNative, {
   /** Opens the sync folder (`root`) or Deleted files (`trash`), or shows a listed conflict's file (`file`). */
   syncOpenPath: (executorId, location, relPath) => window.executorNative.invoke('executor_open_path',
     { executorId, location, ...(relPath ? { relPath } : {}) }),
-  /** Opens this computer's Sync tab in Nessie, at the address the handshake gave. */
+  /** Opens this computer's Documents tab in Nessie, at the address the handshake gave. */
   syncOpenNessie: (executorId) => window.executorNative.invoke('executor_sync_open_nessie', { executorId }),
   /** The local trash: `{ entries: [{ entryId, relPath, deletedAt }] }`. */
   syncTrashList: (executorId) => window.executorNative.invoke('executor_sync_trash_list', { executorId }),
