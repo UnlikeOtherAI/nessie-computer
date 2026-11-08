@@ -10,6 +10,8 @@ enum NessieExecutorMenuBarApp {
 
     @MainActor
     static func main() {
+        // The command line's `settings login`: answered before anything of the app exists.
+        if let command = LoginItemCommand.parse(CommandLine.arguments) { exit(LoginItemCommandRunner.run(command)) }
         let application = NSApplication.shared
         application.setActivationPolicy(.accessory)
         // Before a status item, a controller or a daemon child exists. A Mac with
