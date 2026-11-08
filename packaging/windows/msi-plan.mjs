@@ -18,6 +18,9 @@ export const INSTALLED_FILES = [
   'nessie-computer-updater.exe',
   'nessie-executor-service.exe',
   'nessie-executor-tray.exe',
+  // The command line on the machine PATH, under its name and its older one.
+  'nessie-computer.cmd',
+  'nessie-executor.cmd',
 ]
 
 /**

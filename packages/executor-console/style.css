@@ -94,6 +94,21 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .need small { color: var(--muted); display: block; }
 .need-failure { border-left-color: var(--error); }
 .need .actions { margin-top: 8px; }
+/* Now working: one row per session, its commands beneath, Stop on the right. */
+#overview-working { margin-bottom: 20px; }
+#overview-working .hint { margin: 0; }
+.sessions { list-style: none; margin: 0; padding: 0; }
+.session { padding: 10px 0; border-top: 1px solid var(--line); }
+.session:last-child { border-bottom: 1px solid var(--line); }
+.session-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.session-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
+.session-stop { flex-shrink: 0; padding: 4px 10px; font-size: 13px; }
+.commands { list-style: none; margin: 4px 0 0; padding: 0 0 0 14px; color: var(--muted); font-size: 13px; }
+.command { overflow-wrap: anywhere; padding: 1px 0; }
+.command::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin: 0 8px 2px -14px; background: var(--on); }
+.command-queued::before { background: var(--control); }
+.command-waiting_for_owner::before { background: var(--wait); }
+.command code { color: var(--text); }
 .team-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
 .team-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .team-card h3 { overflow-wrap: anywhere; min-width: 0; }
@@ -180,10 +195,10 @@ details.access-developers summary { cursor: pointer; font-weight: 600; padding: 
 @media (max-width: 470px) {
   main, header { padding-left: 16px; padding-right: 16px; }
   .tabs, .team-row, #error { margin-left: 16px; margin-right: 16px; }
-  .team-card .actions button, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
+  .team-card .actions button, .session-stop, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
   .list-row { flex-wrap: wrap; }
 }
 
 /* Content text is selectable; controls are not. */
 button, [role=tab], select, summary, .switch, .toggle, .tabs, label, footer { -webkit-user-select: none; user-select: none; }
-input, textarea, output, pre, code, p, h1, h2, h3, li, .team-summary, .team-audience { -webkit-user-select: text; user-select: text; }
+input, textarea, output, pre, code, p, h1, h2, h3, li, .team-summary, .team-audience, .command { -webkit-user-select: text; user-select: text; }

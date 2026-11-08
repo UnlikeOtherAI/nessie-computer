@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "bin": {
+    "nessie-computer": "./dist/index.js",
     "nessie-executor": "./dist/index.js"
   },
   "scripts": {

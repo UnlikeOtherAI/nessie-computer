@@ -55,7 +55,9 @@ export const stageMacManagedRelease = async (runtimeDirectory, payloadDirectory,
   const launcher = `#!/bin/sh\nset -eu\nunset NODE_OPTIONS NODE_PATH LD_PRELOAD DYLD_INSERT_LIBRARIES DYLD_LIBRARY_PATH\n`
     + `exec '${MAC_MANAGED_ROOT}/releases/${releaseDigest}/nessie-executor-native' managed-runtime -- "$@"\n`
   const bin = join(resolve(payloadDirectory), 'usr/local/bin')
-  await mkdir(bin, { recursive: true }); await writeFile(join(bin, 'nessie-executor'), launcher, { mode: 0o755 })
+  await mkdir(bin, { recursive: true })
+  // `nessie-computer` is the command's name; `nessie-executor` stays for what already calls it.
+  for (const command of ['nessie-computer', 'nessie-executor']) await writeFile(join(bin, command), launcher, { mode: 0o755 })
   await mkdir(scriptsDirectory, { recursive: true })
   await writeFile(join(scriptsDirectory, 'postinstall'), `#!/bin/sh\nset -eu\n`
     + `exec '${MAC_MANAGED_ROOT}/releases/${releaseDigest}/nessie-executor-native' managed-custody-install\n`,

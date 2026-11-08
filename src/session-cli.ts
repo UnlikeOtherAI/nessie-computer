@@ -1,4 +1,4 @@
-import { readSessions, type SessionView } from './session-snapshot.js'
+import { readSessions, type SessionCommandView, type SessionView } from './session-snapshot.js'
 import { isSessionId, requestSessionStop } from './session-stops.js'
 import { assertOwnerOnlyStatePath } from './state-security.js'
 
@@ -50,18 +50,27 @@ export const parseSessionsArguments = (args: string[], usage: () => never): Sess
   return undefined
 }
 
-const STATUS_WORDS = { running: 'running', queued: 'waiting to start', waiting_for_owner: 'waiting for you' } as const
+/** What one command is doing, in the console's words: "running `npm test`", "waiting for you: `docker build`". */
+export const describeSessionCommand = (command: SessionCommandView): string => {
+  const program = command.program && `\`${[command.program, ...command.args ?? []].join(' ')}\``
+  const work = command.kind === 'program' ? program ?? 'a program'
+    : command.kind === 'file' ? `${command.operation === 'write' ? 'writing' : 'reading'} ${command.path ?? 'files'}`
+      : command.kind === 'browser' ? `browsing ${command.site ?? 'a website'}`
+        : command.kind === 'mcp' ? `using ${command.app ?? 'a local app'}`
+          : command.program ? `working in ${command.program}` : 'coding'
+  if (command.status === 'queued') return `waiting to start: ${work}`
+  if (command.status === 'waiting_for_owner') return `waiting for you: ${work}`
+  return command.kind === 'program' ? `running ${work}` : work
+}
+
+/** One session and its commands as lines; `heading` names it. */
+export const describeSession = (session: SessionView, heading: string): string =>
+  `${heading}\n${session.commands.map((command) => `  ${describeSessionCommand(command)}`).join('\n')}\n`
 
 const describe = (sessions: readonly SessionView[]): string => {
   if (sessions.length === 0) return 'No agent is working on this computer right now.\n'
-  return sessions.map((session) => {
-    const lines = session.commands.map((command) => {
-      const object = command.program ? [command.program, ...command.args ?? []].join(' ')
-        : command.path ?? command.site ?? command.app ?? command.kind
-      return `  ${STATUS_WORDS[command.status]}: ${object}`
-    })
-    return `${session.agentName ?? 'An agent'} (session ${session.sessionId})\n${lines.join('\n')}\n`
-  }).join('')
+  return sessions.map((session) => describeSession(session,
+    `${session.agentName ?? 'An agent'} (session ${session.sessionId})`)).join('')
 }
 
 const readTeam = async (stateDir: string): Promise<SessionView[]> => {
@@ -88,15 +97,23 @@ const run = async (command: SessionsCliCommand, write: (text: string) => void): 
   if (!(await readTeam(command.stateDir)).some((session) => session.sessionId === command.id)) {
     throw new SessionCommandError('SESSION_NOT_RUNNING', 'That session has no work on this computer now.')
   }
-  await requestSessionStop(command.stateDir, command.id)
-  // The running team ends the session's work within moments; the list printed is the one after that.
-  let sessions = await readSessions(command.stateDir)
-  for (let waited = 0; waited < STOP_SETTLE_MS && sessions.some((session) => session.sessionId === command.id);
+  const sessions = await stopTeamSession(command.stateDir, command.id)
+  write(command.json ? `${JSON.stringify(sessions)}\n` : 'Stopped. The agent\'s work in that session ended on this computer.\n')
+}
+
+/**
+ * Saves the owner's Stop for the team's running daemon and waits, briefly,
+ * for it to end the session's work. Answers the team's list after that.
+ */
+export const stopTeamSession = async (stateDir: string, sessionId: string): Promise<SessionView[]> => {
+  await requestSessionStop(stateDir, sessionId)
+  let sessions = await readSessions(stateDir)
+  for (let waited = 0; waited < STOP_SETTLE_MS && sessions.some((session) => session.sessionId === sessionId);
     waited += STOP_CHECK_MS) {
     await sleep(STOP_CHECK_MS)
-    sessions = await readSessions(command.stateDir)
+    sessions = await readSessions(stateDir)
   }
-  write(command.json ? `${JSON.stringify(sessions)}\n` : 'Stopped. The agent\'s work in that session ended on this computer.\n')
+  return sessions
 }
 
 /** Runs the verb; answers its exit code. */

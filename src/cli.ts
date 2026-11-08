@@ -1,23 +1,25 @@
 /**
- * The executor's commands: pairing, configuration, the daemon and its local
- * tools. `index.ts` loads this only for them; the built-in servers it starts
- * per session or per agent (`builtin-mcp-cli.ts`) never load the daemon.
+ * Nessie Computer's command line. The commands a person types
+ * (`cli-user.ts`) come first; the rest are the plumbing verbs the apps and
+ * services call: pairing, configuration, the daemon and its local tools.
+ * `index.ts` loads this only for them; the built-in servers it starts per
+ * session or per agent (`builtin-mcp-cli.ts`) never load the daemon.
  */
-import { existingClaudeChannelConfiguration } from './existing-session/setup.js'
 import { dirname } from 'node:path'
-import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
+import { setExistingSessionsEnabled } from './existing-session/settings.js'
 
 import { claimExecutor, heartbeatExecutor } from './daemon.js'
-import { readOwnerPause, setOwnerPaused } from './owner-pause.js'
+import { setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
+import { ProgramRequestError } from './program-requests.js'
 import { runSessionsCommand } from './session-cli.js'
-import { listProgramRequests, ProgramRequestError } from './program-requests.js'
 import { ExecutorApiError } from './api-client.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
 import { serveExecutor } from './daemon-server.js'
 import { readAudience } from './audience.js'
-import { describeExecutorWithLocalApps } from './describe.js'
-import { runDistributionCli } from './distribution-cli.js'
+import { describeTeam } from './cli-describe.js'
+import { teamPaused } from './cli-teams.js'
+import { isUserCommand, runUserCli } from './cli-user.js'
 import { offerUpdateAtLaunch, runUpdateCli } from './updates/cli.js'
 import { runMacServiceCli } from './service-macos.js'
 import { runServiceRestartCli } from './service-restart-cli.js'
@@ -46,9 +48,8 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand, type ParsedCommand } from './cli-arguments.js'
+import { parseCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
 import { requestedMcpServers } from './mcp-server-changes.js'
-import { describeFolderSync } from './folder-sync/console-state.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
 import { defaultPairingDirectory } from './pairing-code-directory.js'
@@ -63,13 +64,9 @@ import {
   type ExecutorLocalState,
 } from './state-store.js'
 
-/** A pause file that cannot be read counts as paused, as it does in the daemon. */
-const ownerPaused = async (stateDir: string): Promise<boolean> =>
-  (await readOwnerPause(stateDir).catch(() => ({ paused: true }))) !== null
-
 /** The heartbeat a one-shot command sends says what the running daemon's would. */
 const ownerPauseReport = async (stateDir: string) => ({
-  paused: await ownerPaused(stateDir),
+  paused: await teamPaused(stateDir),
   refused: () => { process.stderr.write('This Nessie cannot show that the team is paused; it stays paused here.\n') },
 })
 
@@ -179,17 +176,38 @@ const readPairingInput = async (): Promise<{
 }
 
 export const run = async (args: string[]): Promise<void> => {
+  // The apps' Now working verbs (`session-cli.ts`); `nessie-computer sessions` without a state folder is a person's.
+  if ((args[0] === 'sessions' || args[0] === 'session') && args.includes('--state-dir')) {
+    const command = parseCommand(args)
+    if (command.kind === 'sessions' || command.kind === 'session-stop') {
+      process.exitCode = await runSessionsCommand(command, (text) => { process.stdout.write(text) })
+      return
+    }
+  }
+  if (isUserCommand(args)) {
+    offerUpdateAtLaunch(args)
+    process.exitCode = await runUserCli(args)
+    return
+  }
   if (await (await import('./chatgpt-service-attestation.js')).runChatgptServiceAttestation(args)) return
   if (await (await import('./personal-chatgpt-cli.js')).runPersonalChatgptCli(args)) return
   if (await (await import('./chatgpt-credential-runtime.js')).runChatgptCredentialRuntime(args)) return
-  if (runDistributionCli(args) || await runUpdateCli(args)) return
+  if (await runUpdateCli(args)) return
   offerUpdateAtLaunch(args)
   if (await runMacServiceCli(args)) return
   if (await runServiceRestartCli(args)) return
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
   if (await runLocalSettingsCli(args)) return
-  const command = parseCommand(args)
+  let command: ParsedCommand
+  try {
+    command = parseCommand(args)
+  } catch (error) {
+    if (!(error instanceof UnknownCommandError)) throw error
+    // No command by that name: the commands people type say so, with a pointer to help.
+    process.exitCode = await runUserCli(args)
+    return
+  }
   if (command.kind === 'pair') {
     const input = command.pairingInputFromStandardInput
       ? await readPairingInput()
@@ -292,10 +310,6 @@ export const run = async (args: string[]): Promise<void> => {
     })
     return
   }
-  if (command.kind === 'sessions' || command.kind === 'session-stop') {
-    process.exitCode = await runSessionsCommand(command, (text) => { process.stdout.write(text) })
-    return
-  }
   if (command.kind === 'pause' || command.kind === 'resume' || command.kind === 'program-requests'
     || command.kind === 'program-request-answer' || command.kind === 'audience') {
     try {
@@ -360,18 +374,13 @@ export const run = async (args: string[]): Promise<void> => {
     return
   }
   if (command.kind === 'describe') {
-    process.stdout.write(`${JSON.stringify({ ...await describeExecutorWithLocalApps(state),
-      paused: await ownerPaused(command.stateDir),
-      pendingProgramRequests: (await listProgramRequests(command.stateDir)).length,
-      folderSync: await describeFolderSync(command.stateDir, state.executorId),
-      existingCodingSessionsEnabled: await existingSessionsEnabled(command.stateDir),
-      existingClaudeChannelConfiguration: existingClaudeChannelConfiguration(state, command.stateDir) }, undefined, 2)}\n`)
+    process.stdout.write(`${JSON.stringify(await describeTeam(command.stateDir, state), undefined, 2)}\n`)
     return
   }
   if (command.kind === 'connect') {
     const live = await claimExecutor(command.stateDir, state)
     // A paused team connects paused: Nessie hears it before it could route anything here.
-    if (await ownerPaused(command.stateDir)) {
+    if (await teamPaused(command.stateDir)) {
       await heartbeatExecutor(live, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
         await ownerPauseReport(command.stateDir))
     }

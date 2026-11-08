@@ -55,7 +55,7 @@ test('sessions lists what the running daemon reports, and nothing once that daem
 
     out.length = 0
     await runSessionsCommand({ json: false, kind: 'sessions', stateDir }, (text) => { out.push(text) })
-    assert.match(out.join(''), /Sales agent .*\n {2}running: npm test\n {2}waiting to start: report\.md\n/u)
+    assert.match(out.join(''), /Sales agent .*\n {2}running `npm test`\n {2}waiting to start: reading report\.md\n/u)
 
     assert.deepEqual(await readSessions(stateDir, () => false), [], 'a list whose daemon is not alive says nothing')
   })

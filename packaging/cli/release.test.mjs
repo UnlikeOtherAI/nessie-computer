@@ -16,6 +16,13 @@ test('release input cannot change artifact paths or insert formula code', () => 
   assert.equal(archiveName('1.2.3'), 'nessie-executor_1.2.3_darwin_arm64.tar.gz')
 })
 
+test('the Homebrew formula installs nessie-computer beside the older nessie-executor', () => {
+  const formula = homebrewFormula('1.2.3', 'c'.repeat(64))
+  assert.match(formula, /bin\.install_symlink "nessie-executor" => "nessie-computer"/)
+  assert.match(formula, /assert_equal "nessie-computer 1\.2\.3", shell_output\("#\{bin\}\/nessie-computer --version"\)/)
+  assert.doesNotMatch(formula.split('def caveats')[1].split('end')[0], /nessie-executor login|executor-id/)
+})
+
 test('native Linux packages keep the runtime and service at their trusted locations', () => {
   for (const format of ['deb', 'rpm']) {
     const config = linuxPackage('1.0.0', '/build/payload', format, '/temporary/signing-key.asc')
@@ -115,6 +122,9 @@ test('app manifests refuse moving URLs and retain the actual installed app versi
   assert.equal(Object.keys(manifests).length, 3)
   assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /PackageVersion: 0.0.1500/)
   assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /Scope: machine/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /Commands:\n {2}- nessie-computer\n {2}- nessie-executor\n/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /DisplayName: Nessie Computer\n/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.locale.en-US.yaml'], /PackageName: Nessie Computer\nPackageUrl/)
   assert.throws(() => wingetManifests({ version: '1.0.0', tag: 'v1.0.0', sha256: 'a'.repeat(64) }), /ProductCode/)
 })
 test('standalone manifests use public releases while Desktop companions retain their publishing repository', () => {
@@ -122,6 +132,7 @@ test('standalone manifests use public releases while Desktop companions retain t
   assert.equal(stableAppTag('executor-v1.0.0'), 'executor-v1.0.0')
   const input = { app: 'executor', version: '1.0.0', tag: 'executor-v1.0.0', sha256: 'b'.repeat(64) }
   assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.0/'))
+  assert.match(appCask(input), /name "Nessie Computer"[\s\S]*app "Nessie Executor\.app"/)
   assert.ok(appCask({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie' })
     .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
   const manifests = wingetManifests({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie',

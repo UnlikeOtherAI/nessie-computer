@@ -20,6 +20,8 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
   window.remedies = []
   window.syncStates = {}
   window.audiences = {}
+  window.sessions = [] // §11.5: [{ executorId, sessionId, agentName?, startedAt, commands: [{ id, kind, status, … }] }]
+  window.stopped = []
   window.enabled = false
   window.autoRestart = true
   window.restarts = 0
@@ -199,6 +201,16 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       return window.audiences[id]
     }
     if (command === 'executor_program_requests') return window.requests.filter((request) => !id || request.executorId === id)
+    if (command === 'executor_sessions') {
+      if (window.sessionsOffline) throw new Error('offline')
+      return window.sessions.filter((session) => !id || session.executorId === id).map((session) => ({ ...session, commands: session.commands.map((c) => ({ ...c })) }))
+    }
+    if (command === 'executor_stop_session') {
+      if (window.failStop) throw new Error(window.failStop)
+      window.stopped.push({ executorId: id, sessionId: args.sessionId })
+      window.sessions = window.sessions.filter((session) => session.sessionId !== args.sessionId)
+      return window.sessions.map((session) => ({ ...session }))
+    }
     if (command === 'executor_answer_program_request') {
       const request = window.requests.find((entry) => entry.id === args.id)
       window.answers = (window.answers ?? []).concat([{ id: args.id, answer: args.answer }])
@@ -285,7 +297,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
 /** Every file `index.html` loads, shell and team tabs alike, in load order. */
 export const consoleFiles = {
   shell: ['index.html', 'style.css', 'native.js', 'i18n.js', 'main.js', 'errors-words.js', 'errors.js', 'teams-words.js', 'teams.js',
-    'overview-words.js', 'overview-summary.js', 'overview.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'updates.js',
+    'overview-words.js', 'overview-summary.js', 'overview.js', 'overview-working-words.js', 'overview-working.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'updates.js',
     'settings-words.js', 'settings.js'],
   teamTabs: ['autosave.js', 'team-drafts.js', 'access-words.js', 'access.js', 'access-sections.js', 'access-programs.js',
     'documents-reasons-words.js', 'documents-words.js', 'documents.js', 'ai-words.js', 'ai.js', 'chatgpt-words.js', 'chatgpt.js',
