@@ -143,9 +143,12 @@ test('original page input/output remains typed and unbound owner denies before r
     assert.equal(full.messages.length, 360)
     // Actual original cursor and page shape; no local reducer/page DTO.
     const window = new DatabaseSync(f.destination(captured.generation), { readOnly: true })
-    try { assert.ok(window.prepare('SELECT COUNT(*) AS n FROM orchestration_v2_projection_turn_items').get().n > 200) }
+    try {
+      assert.ok(window.prepare('SELECT COUNT(*) AS n FROM orchestration_v2_projection_turn_items').get().n > 200)
+    }
     finally { window.close() }
-    const snapshot = await readRetainedSnapshotWindow(f.ports, f.manifest, f.source.admittedRootKey, captured.generation,
+    const snapshot = await readRetainedSnapshotWindow(f.ports, f.manifest,
+      f.source.admittedRootKey, captured.generation,
       S.ThreadId.make(f.ids[0]), { rowLimit: 25 })
     const bounded = ThreadStream.buildBoundedThreadStreamSnapshot({ ...snapshot,
       compactTurnItems: true, dedupeBodies: true, compactIds: true })

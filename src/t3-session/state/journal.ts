@@ -84,7 +84,8 @@ export class T3CaptureJournal {
     journalTransaction(this.database, () => {
       const root = this.root(source.physicalRootKey)
       const job = this.generation(generation)
-      requireCapture(root?.environment_id === source.environmentId && root?.conflict === 0 && root.generation === generation &&
+      requireCapture(root?.environment_id === source.environmentId && root?.conflict === 0 &&
+        root.generation === generation &&
         job?.physical_root === source.physicalRootKey && (job.phase === 'captured' || job.phase === 'ready'),
       'capture_not_resumable')
       this.database.prepare('UPDATE t3_capture_roots SET available = 1 WHERE physical_root = ?').run(source.physicalRootKey)
@@ -112,7 +113,8 @@ export class T3CaptureJournal {
         this.database.prepare(`INSERT OR IGNORE INTO t3_capture_native_aliases
           (physical_root, thread_id, provider_thread_id, driver, native_id, strength, continuation_home, history_home, home_proof)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .run(source.physicalRootKey, alias.threadId, alias.providerThreadId, alias.driver, alias.nativeId, alias.strength,
+          .run(source.physicalRootKey, alias.threadId, alias.providerThreadId,
+            alias.driver, alias.nativeId, alias.strength,
             alias.continuationHomeKey, alias.historyHomeKey, alias.homeProofReference)
       }
       this.database.prepare(`UPDATE t3_capture_generations SET phase = 'ready', failure_code = NULL WHERE generation = ?`)

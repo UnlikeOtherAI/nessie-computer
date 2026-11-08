@@ -16,7 +16,9 @@ const migrations = JSON.parse(readFileSync(join(tiny.directory, 'import/migratio
 const source = { admittedRootKey: 'fixture:admission', physicalRootKey: 'fixture:inode', environmentId: 'env:雪',
   layout: 'v2-80', databaseRole: 'authoritative-v2' }
 const manifest = { revision: 'fixture:manifest', homes: [{ admittedRootKey: source.admittedRootKey, kind: 'configured-home' }] }
-const owner = { withReadScope: async (_input, use) => use({ recheckSource: async () => {}, recheckThread: async () => {} }) }
+const owner = { withReadScope: async (_input, use) => use({
+  recheckSource: async () => {}, recheckThread: async () => {},
+}) }
 const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex')
 
 function fixture(name) {
@@ -69,7 +71,7 @@ test('one supported WAL snapshot, next generation sees additions, no source pers
     assert.notEqual(before.wal, afterWrite.wal)
     assert.deepEqual(before.schema, afterWrite.schema)
     await capture(f, async snapshot => {
-      for (const table of snapshot.tables) [...snapshot.rows(table)]
+      for (const table of snapshot.tables) Array.from(snapshot.rows(table))
       const table = snapshot.tables.find(entry => entry.name === 'orchestration_v2_projection_threads')
       assert.equal([...snapshot.rows(table)].length, 1)
       assert.throws(() => [...snapshot.rows({ name: 'auth_credentials' })], /table_not_admitted/u)
@@ -205,6 +207,8 @@ test('migration manifest matches exact committed upstream objects without replac
   const git = args => execFileSync('git', ['--no-replace-objects', '-C', reference, ...args], { encoding: 'utf8' })
   assert.equal(git(['rev-parse', `${revision}^{tree}`]).trim(), 'b0ba4dad62fa11e0a1fd21f5d351d75926d7559e')
   const original = git(['show', `${revision}:apps/server/src/persistence/Migrations.ts`])
-  assert.deepEqual([...original.matchAll(/\[(\d+), "([^"]+)", Migration\d+\]/gu)].map(row => [Number(row[1]), row[2]]), migrations)
-  assert.equal(tablesForLayout('v2-80').some(row => /outbox|auth|secret|webhook|schedule|recovery|launch_workflow/u.test(row.name)), false)
+  assert.deepEqual([...original.matchAll(/\[(\d+), "([^"]+)", Migration\d+\]/gu)]
+    .map(row => [Number(row[1]), row[2]]), migrations)
+  assert.equal(tablesForLayout('v2-80').some(row =>
+    /outbox|auth|secret|webhook|schedule|recovery|launch_workflow/u.test(row.name)), false)
 })

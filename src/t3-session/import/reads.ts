@@ -49,17 +49,20 @@ async function readPage<A>(ports: RetainedCapturePorts, manifest: T3SourceManife
 
 export function readRetainedProjection(ports: RetainedCapturePorts, manifest: T3SourceManifest,
   admittedRootKey: string, generation: string, threadId: S.ThreadId) {
-  return readPage(ports, manifest, admittedRootKey, generation, threadId, service => service.getThreadProjection(threadId))
+  return readPage(ports, manifest, admittedRootKey, generation, threadId,
+    service => service.getThreadProjection(threadId))
 }
 
 export function readRetainedHistoryPage(ports: RetainedCapturePorts, manifest: T3SourceManifest,
   admittedRootKey: string, generation: string,
   ...input: Parameters<ThreadReadService['Service']['getThreadHistoryPage']>) {
-  return readPage(ports, manifest, admittedRootKey, generation, input[0], service => service.getThreadHistoryPage(...input))
+  return readPage(ports, manifest, admittedRootKey, generation, input[0],
+    service => service.getThreadHistoryPage(...input))
 }
 
 export function readRetainedSnapshotWindow(ports: RetainedCapturePorts, manifest: T3SourceManifest,
   admittedRootKey: string, generation: string,
   ...input: Parameters<ThreadReadService['Service']['getThreadSnapshotWindow']>) {
-  return readPage(ports, manifest, admittedRootKey, generation, input[0], service => service.getThreadSnapshotWindow(...input))
+  return readPage(ports, manifest, admittedRootKey, generation, input[0],
+    service => service.getThreadSnapshotWindow(...input))
 }

@@ -108,7 +108,8 @@ for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capa
       let failure
       try { await capture(f) } catch (error) { failure = error }
       assert.ok(failure)
-      assert.match(failure.message, /capture_(question_classification|privacy_incomplete|masked_attachment_unsupported)/u)
+      assert.match(failure.message,
+        /capture_(question_classification|privacy_incomplete|masked_attachment_unsupported)/u)
       assert.equal(inspect(failure).includes(canary), false)
       const root = f.ports.journal.root(f.source.physicalRootKey)
       assert.equal(root.last_ready_generation, first.generation)
