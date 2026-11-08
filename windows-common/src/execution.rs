@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 #[path = "execution_inspection.rs"]
 mod inspection;
 pub use inspection::Inspection;
+#[cfg(test)]
+#[path = "execution_tests.rs"]
+mod tests;
 pub const ADMISSION_DOMAIN: &str = "nessie.t3.execution.admission.v1";
 pub const INSPECTION_DOMAIN: &str = "nessie.t3.execution.inspection.v1";
 pub const ISSUER_DOMAIN: &str = "nessie.t3.execution.issuer.v1";
@@ -295,6 +298,7 @@ pub enum Request {
     Prepare {
         executor_id: String,
         reservation_id: String,
+        provider_session_id: String,
         launch: Launch,
     },
     Launch {
@@ -352,8 +356,14 @@ impl Request {
             Self::Prepare {
                 executor_id,
                 reservation_id,
+                provider_session_id,
                 launch,
-            } if identifier(executor_id) && valid_nonce(reservation_id) => launch.validate(),
+            } if identifier(executor_id)
+                && valid_nonce(reservation_id)
+                && identifier(provider_session_id) =>
+            {
+                launch.validate()
+            }
             Self::Observe {
                 executor_id,
                 reservation_id,
@@ -401,7 +411,6 @@ impl Graph {
         if self.version != 1
             || !valid_nonce(&self.nonce)
             || self.source_revision != "25bf84ab07f53f141c20239c63e383823a9d5ea0"
-            || self.targets.is_empty()
             || self.targets.len() > 256
             || self.expires_at_ms <= now
             || self.issued_at_ms > now.saturating_add(2000)

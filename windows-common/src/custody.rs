@@ -47,6 +47,7 @@ pub enum RuntimeKind {
     deny_unknown_fields
 )]
 pub enum Operation {
+    ExecutionResource { request: Box<crate::execution_resource::Request> },
     Execution { request: crate::execution::Request },
     Status,
     HostCheck,
@@ -84,6 +85,7 @@ pub fn valid_nonce(value: &str) -> bool {
 }
 pub fn validate(operation: &Operation) -> Result<(), String> {
     let valid = match operation {
+        Operation::ExecutionResource { request } => return request.validate(),
         Operation::Execution { request } => return request.validate(),
         Operation::Status | Operation::HostCheck => true,
         Operation::Register {

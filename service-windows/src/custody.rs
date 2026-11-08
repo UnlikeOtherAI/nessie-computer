@@ -126,6 +126,14 @@ pub fn handle(
     reconcile(&mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
+        Operation::ExecutionResource { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution_resource::handle(root,&caller,&release,&state,*request)?
+        }
+        Operation::Execution { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution::handle(root, &caller, &release, &state, request)?
+        }
         Operation::Status => {
             process::interactive(&caller)?;
             serde_json::json!({"status":"verified","protocolVersion":1,"guardVersion":VERSION,
@@ -163,7 +171,7 @@ pub fn handle(
             kind,
         } => {
             machine.admit(&release.digest)?;
-            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential) {
+            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential | RuntimeKind::T3SessionGraph) {
                 machine.admit_daemon(&release.digest)?;
             }
             let machine = matches!(
@@ -199,14 +207,20 @@ pub fn handle(
                 return Err(REJECTED.into());
             }
             let child = Process::open(child_pid)?;
+            let execution_graph=kind==RuntimeKind::T3SessionGraph;
+            if execution_graph {
+                if caller.sid!="S-1-5-18"||caller.session!=0||!state.fences.is_empty()
+                    ||!owner_registered(root,&child.sid){return Err(REJECTED.into());}
+                nessie_windows_common::process::interactive(&child)?;
+                nessie_windows_common::execution_isolation::verify(&child)?;
+            }
             let parent = process::snapshot()?
                 .into_iter()
                 .find(|entry| entry.pid == child_pid)
                 .ok_or(REJECTED)?
                 .parent;
             if parent != pid
-                || child.sid != caller.sid
-                || child.session != caller.session
+                || (!execution_graph&&(child.sid != caller.sid||child.session != caller.session))
                 || child.image != release.runtime.node_executable
                 || job_members(&job_name)? != vec![child_pid]
             {
@@ -229,8 +243,8 @@ pub fn handle(
                 guard_version: VERSION,
                 supervisor: caller.generation.clone(),
                 child: child.generation,
-                owner_sid: caller.sid.clone(),
-                session_id: caller.session,
+                owner_sid: child.sid,
+                session_id: child.session,
                 release_digest,
                 job_name,
                 kind,

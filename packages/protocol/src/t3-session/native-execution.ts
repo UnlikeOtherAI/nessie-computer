@@ -97,7 +97,7 @@ export const T3ExecutionGraphPayloadSchema = z.object({ version: z.literal(1), n
   sourceRevision: z.literal('25bf84ab07f53f141c20239c63e383823a9d5ea0'),
   targets: z.array(z.object({ kind: z.enum(['thread', 'project', 'environment', 'workspace', 'attachment',
     'terminal', 'scheduled-task', 'provider-instance', 'turn-item']), id: z.string().min(1).max(32768),
-  scope: z.enum(['existing', 'create', 'resolve']), environmentId: id.optional() }).strict()).min(1).max(256),
+  scope: z.enum(['existing', 'create', 'resolve']), environmentId: id.optional() }).strict()).max(256),
   custody: T3ExecutionCustodySchema, issuedAtMs: millis, expiresAtMs: millis,
 }).strict()
 export type T3ExecutionGraph = z.infer<typeof T3ExecutionGraphPayloadSchema>
@@ -118,5 +118,6 @@ export const T3ExecutionInspectionSchema = z.object({ version: z.literal(1), ins
 export type T3ExecutionInspection = z.infer<typeof T3ExecutionInspectionSchema>
 export const T3ExecutionPreparationPayloadSchema = T3ExecutionReservationPayloadSchema.extend({
   launchDigest: sha,
+  providerSessionId: id,
 }).strict()
 export type T3ExecutionPreparation = z.infer<typeof T3ExecutionPreparationPayloadSchema>

@@ -63,7 +63,6 @@ impl Inspection {
             || self.issued_at_ms > now.saturating_add(2000)
             || self.expires_at_ms <= self.issued_at_ms
             || self.expires_at_ms - self.issued_at_ms > 5000
-            || self.targets.is_empty()
             || self.targets.len() > 256
         {
             return Err(REJECTED.into());

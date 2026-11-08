@@ -13,7 +13,7 @@
     "test:t3-session-control-source": "node --max-old-space-size=256 --test --test-concurrency=1 test/t3-session-control/source.test.mjs",
     "test:t3-session-control": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-control/controls.test.mjs test/t3-session-control/receipts.test.mjs test/t3-session-control/schedules.test.mjs",
     "test:t3-session-runtime": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-runtime/*.test.mjs",
-    "test:executor-private-assignments": "node --test --test-concurrency=1 --import tsx test/coding-session-authority.test.ts test/session-effect-channel.test.ts test/agent-process-input.test.ts test/agent-byte-transport.test.ts test/t3-session-effect.test.ts",
+    "test:executor-private-assignments": "node --test --test-concurrency=1 --import tsx test/coding-session-authority.test.ts test/session-effect-channel.test.ts test/agent-process-input.test.ts test/agent-byte-transport.test.ts test/t3-session-effect.test.ts test/t3-native-execution-contract.test.ts",
     "test:t3-session-files": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-files/*.test.mjs",
     "test:t3-session-workspace-source": "node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-workspace/source.test.mjs",
     "test:t3-session-workspace": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-workspace/*.test.ts",

@@ -31,6 +31,20 @@ mod log;
 use nessie_windows_common::runtime as manifest;
 #[cfg(windows)]
 mod custody;
+#[cfg(windows)]
+mod execution;
+#[cfg(windows)]
+mod execution_admission;
+#[cfg(windows)]
+mod execution_context;
+#[cfg(windows)]
+mod execution_key;
+#[cfg(windows)]
+mod execution_observation;
+#[cfg(windows)]
+mod execution_preparation;
+#[cfg(windows)]
+mod execution_resource;
 mod custody_store;
 mod paths;
 #[cfg(windows)]
