@@ -17,8 +17,15 @@ Media errors retain named declarations; launch file-boundary failures map into
 the original launch error. Persistent cleanup still joins every failure before
 retry. Strictness and library checking remain enabled.
 
-This checkpoint proves the package build only. Focused package tests, installed
-runtime, native custody, database and browser journeys remain separate gates.
+The focused Turbo gates now pass 20 client tests and 11 engine tests with zero
+skips, using the same checkout's generated package. They include strict Bundler
+and NodeNext consumers, original SQLite migrations, nine history pages over 360
+rows, replay/pruned-cursor recovery, inherited history and reopen. The browser
+host binds the current global fetch to each platform layer, so one retired
+host's HTTP implementation cannot remain the next host's dependency.
+
+These checks used Node 24.19.0. Packaged Node 22, installed runtime, native
+custody, PostgreSQL admission and actual browser journeys remain separate gates.
 
 The [T12 control source](t3-session-control.md) adds `SessionControl` and the
 required `ScheduledTasks` port through `core/Control.ts`, registered in the exact
