@@ -68,7 +68,9 @@ export const managedMcpOperations = (
  * {@link localAppsRevision}.
  */
 export const withLocalApps = (
-  state: ExecutorLocalState, discovered: readonly DiscoveredLocalApp[], policy: LocalMcpPolicy = localMcpPolicyOf(state),
+  state: ExecutorLocalState,
+  discovered: readonly DiscoveredLocalApp[],
+  policy: LocalMcpPolicy = localMcpPolicyOf(state),
 ): ExecutorLocalState => {
   const servers = composeLocalMcpServers(state.mcpServers ?? [], discovered, policy)
   const operationKeys = managedMcpOperations(state.descriptor.operationKeys, policy, servers.length)
@@ -146,7 +148,8 @@ export const describeLocalApps = (
 ): LocalAppDescription[] => {
   const policy = localMcpPolicyOf(state)
   const owner = (state.mcpServers ?? []).filter((server) => server.source === undefined && !isBridge(server))
-  const fronted = new Set(composeLocalMcpServers(state.mcpServers ?? [], discovered, policy).map((server) => server.name))
+  const fronted = new Set(composeLocalMcpServers(state.mcpServers ?? [], discovered, policy)
+    .map((server) => server.name))
   const named = new Set(owner.map((server) => server.name))
   const reason = (app: DiscoveredLocalApp): LocalAppDescription['reason'] => {
     if (policy.mode === 'listed') return 'listed_only'

@@ -41,7 +41,9 @@ test('an audience answer names agents, people and projects within its bounds', (
     { ...answer, email: 'owner@example.test' },
     { ...answer, people: Array.from({ length: EXECUTOR_AUDIENCE_NAMED_MAXIMUM + 1 }, (_, index) => (
       { name: `Person ${index}`, isOwner: false })) },
-  ]) assert.equal(ExecutorDaemonAudienceResponseSchema.safeParse(wrong).success, false, JSON.stringify(wrong).slice(0, 80))
+  ]) {
+    assert.equal(ExecutorDaemonAudienceResponseSchema.safeParse(wrong).success, false, JSON.stringify(wrong).slice(0, 80))
+  }
 })
 
 test('a heartbeat says ownerPaused only while paused, and Nessie has a reason for it', () => {

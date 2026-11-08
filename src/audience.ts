@@ -26,7 +26,9 @@ export const requestAudience = async (
   if (!state.connectionEpoch) {
     throw new Error('This team is not connected yet. Start Nessie Computer, then try again.')
   }
-  const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt: now().toISOString() }
+  const payload = {
+    connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt: now().toISOString(),
+  }
   const request = ExecutorDaemonAudienceRequestSchema.parse({
     ...payload, signature: signExecutorDaemonPayload(state.machinePrivateKey, 'audience', payload),
   })

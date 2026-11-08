@@ -30,7 +30,9 @@ export const PROGRAM_TRUST_KEYS = ['claudeCode', 'codex', 't3Code', 'unlikeother
   readonly ProgramTrustKey[]
 
 /** Every built-in entry on, which is what a new pairing writes. */
-export const allProgramTrust = (): ProgramTrust => ({ unlikeotherai: true, claudeCode: true, codex: true, t3Code: true })
+export const allProgramTrust = (): ProgramTrust => ({
+  unlikeotherai: true, claudeCode: true, codex: true, t3Code: true,
+})
 
 /**
  * The command each named built-in starts. T3 Code's desktop app writes a
