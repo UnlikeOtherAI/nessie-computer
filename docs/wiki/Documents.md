@@ -10,8 +10,9 @@ It syncs every document you can read in that team. There is nothing to pick.
 
 1. Open the **Documents** tab and pick the team from the **Team** list.
 2. Turn on **Keep a copy of Sales · Acme's documents on this computer**.
-3. Nessie Computer suggests a folder (a *Nessie* folder in your Documents). To
-   use another, choose **Change…** and pick a folder.
+3. Nessie Computer suggests the main folder (a *Nessie* folder in your
+   Documents, or the one your other teams already use) and shows the team's
+   subfolder inside it. To use another main folder, choose **Change…**.
 4. If the folder already has files, it asks **Add these files to Nessie?** and
    says how many. Choose **Add and sync** or **Cancel**.
 5. The first time, Nessie asks you to confirm: choose **Allow in Nessie**,
@@ -19,6 +20,33 @@ It syncs every document you can read in that team. There is nothing to pick.
    before that.
 
 The status line then shows **Up to date**, or **Syncing 12 files** while it works.
+
+## Several teams
+
+Each team has its own **Documents** switch, so you choose team by team. Pick
+the team from the **Team** list, then turn its switch on or off; the other
+teams aren't affected.
+
+All teams can share one main folder. Each team gets its own subfolder inside
+it, by organisation and then team:
+
+```
+Documents/Nessie/
+  UnlikeOtherAI/
+    Platform/
+      My Documents/
+      Website relaunch/
+    Research/
+      My Documents/
+  Acme/
+    Sales/
+```
+
+The tab shows where the selected team's files go, for example
+*"Platform · UnlikeOtherAI's documents go in Nessie/UnlikeOtherAI/Platform"*.
+Every team is offered the same main folder; choose **Change…** if you want a
+team somewhere else. A team that already synced before this layout keeps its
+existing folder.
 
 ## What syncs
 

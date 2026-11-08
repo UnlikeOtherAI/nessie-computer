@@ -41,6 +41,10 @@ Yes. Add as many ChatGPT plans as you have, personal or company. See
 All the documents you can read in that team. You only choose the folder. See
 [Documents](Documents).
 
+**I sync documents for several teams. Do they get mixed up?**
+No. Each team has its own subfolder (organisation, then team) inside the main
+folder, and its own switch. See [Documents → Several teams](Documents#several-teams).
+
 **What happened to "Nessie Executor"?**
 It's the same software, now called Nessie Computer. The `nessie-executor`
 command still works.
