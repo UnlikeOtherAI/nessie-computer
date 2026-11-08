@@ -1,5 +1,10 @@
 # Executor-owned T3 session engine
 
+The normal workspace import is `@nessie/t3-session-source/engine`. Its
+[package contract](session-engine-package.md) covers the generated runtime/types,
+shared contract identity, frozen producer prerequisite and bounded verification.
+It is a machine-only library, with execution owners still required.
+
 The machine-only contract foundation lives in `packages/t3-session-source` and
 `packages/protocol/src/t3-session`. It preserves the original 78-file contract
 closure and all three upstream contract entries, with Effect 4.1.2 external and
@@ -401,8 +406,9 @@ recorded separately below. Node 24 qualification does not establish packaged
 Node 22 compatibility: the reader path additionally checks `isTransaction` and
 `setAuthorizer`, and the source uses SQLite worker/backup APIs.
 
-There is no published standalone session library at this revision. The lack of
-an export is a refactoring task, not a reason to substitute a transcript adapter.
+The workspace now exports the generated engine library; it is not an npm or
+installed-runtime release. Consumers use the package export and its declared
+Turbo build prerequisite. Synthetic probe paths are not consumer APIs.
 The real lower engine seams are:
 
 1. `OrchestrationEventStore.layer` and `OrchestrationCommandReceipts.layer`.

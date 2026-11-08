@@ -7,12 +7,15 @@ const slash = text => text.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 
 /** Convert compiler-only virtual paths into a portable, ordinary declaration tree. */
-export const declarationWriter = ({ virtualRoot, executorRoot, resolver }) => {
+export const declarationWriter = ({ virtualRoot, executorRoot, resolver, sharedContracts = false }) => {
   const files = new Map()
+  const contractRoot = 'packages/contracts/src/'
+  const sourceLocation = path => sharedContracts && path.startsWith(contractRoot)
+    ? `../source/${path.slice(contractRoot.length)}` : `source/${path}`
   const location = file => {
     const normalized = slash(file)
     if (normalized.toLowerCase().startsWith(virtualRoot.toLowerCase())) {
-      return `source/${normalized.slice(virtualRoot.length).replace(/\.tsx?$/u, '.d.ts')}`
+      return sourceLocation(normalized.slice(virtualRoot.length).replace(/\.tsx?$/u, '.d.ts'))
     }
     const local = slash(relative(executorRoot, file))
     if (local.startsWith('../')) throw new Error('Declaration source lies outside the owned source closure.')
@@ -24,7 +27,7 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver }) => {
       || specifier.startsWith('@nessie/t3-session-source/contracts')) {
       const resolved = resolver.resolve(specifier)
       if (resolved.kind !== 'source') throw new Error('Workspace declaration did not resolve to pinned source.')
-      target = `source/${resolved.path.replace(/\.tsx?$/u, '.js')}`
+      target = sourceLocation(resolved.path.replace(/\.tsx?$/u, '.js'))
     } else if (slash(specifier).toLowerCase().startsWith(virtualRoot.toLowerCase())) {
       target = location(specifier).replace(/\.d\.ts$/u, '.js')
     } else if (specifier.startsWith('.')) {
@@ -53,7 +56,9 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver }) => {
     files.set(path, portableModule(source, text, path))
   }
   const addSourceTypes = source => {
-    const path = `source/${slash(source.fileName).slice(virtualRoot.length)}`
+    const local = slash(source.fileName).slice(virtualRoot.length)
+    if (sharedContracts && local.startsWith(contractRoot)) return
+    const path = `source/${local}`
     files.set(path, portableModule(source.fileName, source.text, path))
   }
   const save = async (directory, entryPoint) => {

@@ -65,15 +65,67 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 `T3_REQUEST_PRIVACY_SOURCE_ARCHIVE`. For a dedicated dlx store use
 `--config.store-dir=<owned-store>`; pnpm 10.22 rejects `--store-dir` for dlx.
 
-## Package boundary being implemented
+## Package interface
 
 The owning export is `@nessie/t3-session-source/engine`, alongside the existing
 contracts/settings/relay and build-helper exports. One split build must generate
 engine and contracts from the same exact patched snapshot, share portable types,
 and leave Effect 4.1.2 external for ordinary consumer resolution. Producer-only
 module counts do not establish the consumer's actual physical/runtime identity.
+The runtime is `dist/engine.js`; its declaration entry is
+`dist/engine-types/index.d.ts`. The contract barrels retain
+`dist/types/{index,settings,relay}.d.ts` and share their checked, patched
+`dist/source/*.ts` with the engine's type-source closure. The generated build
+helper at `dist/build/input.mjs` retains the existing `/build` API in a packed
+consumer. Its source helper remains unchanged and hash-checkable.
+
+```ts
+import { createSessionStateLayers, createSessionReadLayers, Sqlite,
+  EnvironmentIdentity, SourceContracts } from '@nessie/t3-session-source/engine'
+import { ThreadId } from '@nessie/t3-session-source/contracts'
+```
+
+`SourceContracts` is the actual original module namespace shared with the
+contracts entry. Keep one `state = createSessionStateLayers()` and pass it to
+`createSessionReadLayers(state)` and, when its owners are ready,
+`createSessionEngineLayers(state)`. Recreating state would lose the retained
+outbox wakeup reference. Import and factory construction open no database and
+start no providers, worker consumers, recovery or lifecycle.
+
+The original read layer type remains
+`Layer<SessionStateServices | LegacyImporter.LegacyV1ThreadImporter |
+ThreadReadService, never, SqlClient.SqlClient>`. Supply the real SQL layer.
+`Sqlite.layerFromPath` needs Effect FileSystem and Path; use the declared Node
+platform services for a Node host. Calling `getThreadTranscript` additionally
+needs `EnvironmentIdentity.ServerEnvironmentIdentity`. Shell streams still need
+the original project enrichment port. Higher layers retain their real settings,
+provider and cleanup requirements; the package supplies no fallback owners.
+
+The declared `prepare:engine` Turbo prerequisite prepares the verified source
+cache and performs only the isolated producer's frozen, script/workspace/
+pnpmfile-disabled install. The ordinary `build` task emits one split graph;
+Effect and Node platform packages stay external and pinned at 4.1.2. Markdown
+runtime dependencies remain bundled from the frozen patched producer. Their
+declared public packages also satisfy the portable upstream type-source imports.
+The package includes the complete original MIT notice, dependency notices and
+unchanged first-party FSL licence. Previous generated output generations are
+retained under the owning package's ignored build directory.
+
+```powershell
+pnpm.cmd exec turbo run build --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+pnpm.cmd exec turbo run test:t3-session-engine --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+```
+
+`library-inputs.json` registers the exact authored files admitted to this graph.
+T04 must add each actual owned adapter file to `authoredInputs` and export its
+namespace through `core/Engine.ts`; the build rejects unregistered imports.
+There are no wildcard directories or runtime source loaders. T04 is not
+implemented here. The producer's existing `buildSessionEngineModule` and
+`buildSessionStateModule` APIs remain available for their explicit source/probe
+uses; probes are never package exports.
+
 Package runtime, normal consumer identity/history, reproducibility and final-byte
-Node 22 qualification remain pending at this checkpoint.
+Node 22 qualification remain pending at this implementation checkpoint.
 
 This is a machine-only build/library capability. No UI changes or screenshots
 apply. Canonical vault save/use/delivery, admitted provider/resource/lifecycle

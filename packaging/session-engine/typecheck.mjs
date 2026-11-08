@@ -8,7 +8,7 @@ const tools = fileURLToPath(new URL('.', import.meta.url))
 const slash = path => path.replaceAll('\\', '/')
 
 /** Type-check the real source closure without writing upstream files into a checkout. */
-export const typecheckSessionState = async (snapshot, entryPoint, { declarationDirectory } = {}) => {
+export const typecheckSessionState = async (snapshot, entryPoint, { declarationDirectory, sharedContracts } = {}) => {
   const { default: ts } = await import('typescript')
   const virtualRoot = `${slash(resolve(tools, '.virtual-t3-source'))}/`
   const sourcePath = path => {
@@ -67,7 +67,7 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
     return ts.resolveModuleName(name, containingFile, options, host).resolvedModule
   })
   const declarations = declarationDirectory
-    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver }) : undefined
+    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver, sharedContracts }) : undefined
   if (declarations) host.writeFile = declarations.writeFile
   const program = ts.createProgram([resolve(entryPoint)], options, host)
   // Full upstream schema inference exceeds TS's declaration serializer. Check the complete graph;

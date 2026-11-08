@@ -29,7 +29,7 @@ const writeImmutable = async (path, bytes) => {
   await writeFile(path, bytes, { flag: 'wx', mode: 0o600 })
 }
 
-const dependencyNotices = async inputs => {
+export const sessionDependencyNotices = async inputs => {
   const packages = new Map()
   let effectRoot
   for (const input of inputs) {
@@ -110,7 +110,7 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
   const bytes = result.outputFiles[0].contents
   const notices = {
     upstream: { ...snapshot.identity, license: snapshot.read('LICENSE').toString('utf8') },
-    dependencies: await dependencyNotices(inputs),
+    dependencies: await sessionDependencyNotices(inputs),
   }
   const provenance = {
     format: 1, kind: engine ? proof ? 'synthetic-history-proof' : 'session-engine-library'

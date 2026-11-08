@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "entryPoint": "packaging/session-engine/core/Engine.ts",
+  "contractsCommit": "4dbabb20e42ce9b6c8381f64d3e80d43bde912aa",
+  "contractsInputSha256": "bff917e9ce29b6023c3c756ee395672b17545d7d5825a5321a264790f6a37c5e",
+  "authoredInputs": [
+    "packaging/session-engine/core/Engine.ts",
+    "packaging/session-engine/core/EngineLayers.ts",
+    "packaging/session-engine/core/ReadLayers.ts",
+    "packaging/session-engine/core/StateLayers.ts"
+  ],
+  "privacyCommit": "fdfdfed264be073a085a893ff3916fdd11c65f72",
+  "privacyManifestSha256": "85f076324103220a4dce9358684899de8f6cfa3eb4121fcf88a6dd8bfdf13a04"
+}
