@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 import { ExecutorCodingSessionOwnerKeySchema, ExecutorCodingSessionSummarySchema } from './executor-coding-sessions.js'
 import { ExecutorSessionAnswerSchema, ExecutorSessionRequestListSchema } from './executor-session-requests.js'
+import { ExecutorCodingSessionAuthoritySchema } from './executor-session-authority.js'
 
 export const EXECUTOR_TERMINAL_COLS = 120
 export const EXECUTOR_TERMINAL_ROWS = 36
@@ -20,6 +21,7 @@ export type ExecutorSessionScreen = z.infer<typeof ExecutorSessionScreenSchema>
 export const ExecutorSessionViewRequestSchema = z.object({
   sessionId: z.string().uuid(),
   ownerKey: ExecutorCodingSessionOwnerKeySchema,
+  codingSessionAuthority: ExecutorCodingSessionAuthoritySchema.optional(),
 }).strict()
 export type ExecutorSessionViewRequest = z.infer<typeof ExecutorSessionViewRequestSchema>
 

@@ -27,10 +27,13 @@ export const claimManagedStart = async (
       || meta.originalManagedStart.executorId !== executorId
       || meta.originalManagedStart.originalOwnerGeneration !== originalOwnerGeneration
       || meta.originalManagedStart.startCommandId !== commandId) throw uncertain()
+    const outcome = await readJson<Record<string, unknown>>(join(directory, `${commandId}.outcome.json`))
+    const proof = managedSessionEvidence(meta.originalManagedStart, meta.sessionId, meta.ownerKey)
+    if (!outcome || outcome.sessionId !== meta.sessionId || outcome.startCommandId !== commandId
+      || outcome.evidenceDigest !== proof.evidenceDigest || outcome.phase !== 'request_and_host_created'
+      || !outcome.result || typeof outcome.result !== 'object' || Array.isArray(outcome.result)) throw uncertain()
     // Replay the original structural outcome. Never read history or restart a host during reconciliation.
-    return { sessionId: record.sessionId, replay: { sessionId: record.sessionId, status: 'starting',
-      agent: meta.agent, title: meta.title, replayed: true,
-      startEvidence: managedSessionEvidence(meta.originalManagedStart, meta.sessionId, meta.ownerKey) } }
+    return { sessionId: record.sessionId, replay: outcome.result as Record<string, unknown> }
   }
   const previous = await readJson<StartRecord>(path)
   if (previous) return replay(previous)
@@ -49,4 +52,22 @@ export const claimManagedStart = async (
     sessionId: record.sessionId, at: new Date().toISOString() })
   if (claimed) throw uncertain()
   return { sessionId: record.sessionId }
+}
+
+/** A durable creation-phase receipt, after the original request and actual host creation have completed. */
+export const recordManagedStartOutcome = async (
+  stateDir: string, authority: ExecutorCodingSessionAuthority, result: Record<string, unknown>,
+): Promise<void> => {
+  const proof = result.startEvidence
+  if (!proof || typeof proof !== 'object' || Array.isArray(proof)) throw uncertain()
+  const evidence = proof as Record<string, unknown>
+  if (evidence.startCommandId !== authority.commandId || evidence.executorId !== authority.executorId
+    || evidence.originalOwnerGeneration !== authority.originalOwnerGeneration || evidence.ownerKey !== authority.ownerKey) {
+    throw uncertain()
+  }
+  const outcome = { phase: 'request_and_host_created', sessionId: evidence.sessionId,
+    startCommandId: authority.commandId, evidenceDigest: evidence.evidenceDigest, result }
+  const path = join(stateDir, 'accepted-starts', `${authority.commandId}.outcome.json`)
+  if (!await createJsonExclusive(path, outcome)
+    && JSON.stringify(await readJson<unknown>(path)) !== JSON.stringify(outcome)) throw uncertain()
 }

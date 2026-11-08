@@ -16,7 +16,8 @@ import {
 } from './meta-keys.js'
 import type { PathRewriter } from './path-rewrite.js'
 import { PersonalInferenceAuthoritySchema, ExecutorCodingSessionAuthoritySchema,
-  ExecutorSessionPairingSourceSchema } from '@nessie/executor-protocol'
+  ExecutorSessionPairingSourceSchema, executorCodingSessionResultScope } from '@nessie/executor-protocol'
+import { preparedManagedSessionAuthority } from './session-authority.js'
 
 /**
  * `nessie-executor serve-coding-session-mcp --config <abs path>`: the
@@ -75,6 +76,7 @@ const FIXED_VALUE_KEYS = new Set([
 
 /** The last pass over an answer: every string value, keyed as above. */
 export const rewriteCodingAnswer = (value: unknown, rewriter: PathRewriter, key?: string): unknown => {
+  if (key === 'resultScope' || key === 'startEvidence') return value
   if (typeof value === 'string') {
     return key !== undefined && FIXED_VALUE_KEYS.has(key) ? rewriter.rewritePaths(value) : rewriter.rewrite(value)
   }
@@ -97,14 +99,19 @@ export const serveCodingSessionMcp = async (configPath: string): Promise<void> =
     const meta = codingBridgeCallMeta(request.params._meta)
     try {
       const result = await bridge.call(request.params.name, request.params.arguments, meta)
-      return { content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer(result, bridge.rewriter)) }] }
+      const scope = preparedManagedSessionAuthority(meta)
+      return { content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer({ ...result,
+        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}) }, bridge.rewriter)) }] }
     } catch (error) {
       const known = error instanceof CodingBridgeError
-      // The full error stays in the daemon's local log; only a code and fixed text travel.
-      if (!known) process.stderr.write(`[coding-sessions] ${error instanceof Error ? error.message : String(error)}\n`)
+      // No raw failure detail enters the daemon log or its result journal.
+      if (!known) process.stderr.write('[coding-sessions] unexpected bridge failure\n')
+      let scope: ReturnType<typeof preparedManagedSessionAuthority>
+      try { scope = preparedManagedSessionAuthority(meta) } catch { /* Expired authority cannot publish a result. */ }
       const answer = {
         code: known ? error.code : 'coding_session_unavailable',
         message: known ? error.message : 'The coding-sessions bridge could not complete that call.',
+        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}),
       }
       return { isError: true, content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer(answer, bridge.rewriter)) }] }
     }

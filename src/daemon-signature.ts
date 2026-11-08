@@ -4,6 +4,7 @@ import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 export type ExecutorDaemonSignatureDomain =
   | 'session_view'
+  | 'session_authority'
   | 'attachment'
   | 'browser_cookie_import.poll'
   | 'browser_cookie_import.upload'

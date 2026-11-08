@@ -103,7 +103,8 @@ export const prepareManagedBridgeCall = async (
 ): Promise<ExecutorCodingSessionAuthority | null> => {
   const source = await readSessionPairingSource(directory, meta.sessionPairingSource)
   if (source.kind === 'unbound_local') return null
-  const authority = readManagedSessionAuthority(meta.codingSessionAuthority, tool, meta.commandId, source, meta.ownerKey)
+  const operation = tool === 'session_conversation' ? 'session_view' : tool
+  const authority = readManagedSessionAuthority(meta.codingSessionAuthority, operation, meta.commandId, source, meta.ownerKey)
   if (authority.connectionEpoch !== meta.connectionEpoch) throw unavailable()
   if (tool === 'session_list') {
     const input = args && typeof args === 'object' ? args as Record<string, unknown> : {}

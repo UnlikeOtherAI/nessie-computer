@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path'
 import { ExecutorCodingSessionCloseSchema, type PersonalInferenceAuthority,
   type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { listManagedSessions } from './managed-session-list.js'
-import { claimManagedStart } from './managed-session-start.js'
+import { claimManagedStart, recordManagedStartOutcome } from './managed-session-start.js'
 import { managedSessionEvidence, preparedManagedSessionAuthority,
   readSessionPairingSource, requireManagedSessionEvidence } from './session-authority.js'
 import { assertPersonalHostExecution } from '../personal-host-execution.js'
@@ -257,6 +257,9 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       return { sessionId: claimed.sessionId, ...await briefStatus(paths), replayed: true }
     }
     const paths = codingSessionPaths(stateDir, sessionId)
+    if (authority && Date.parse(authority.expiresAt) <= Date.now()) {
+      throw new CodingBridgeError('coding_session_authority_unavailable', 'Original session authority expired.')
+    }
     await mkdir(paths.inbox, { recursive: true, mode: 0o700 })
     const { rootName, path, title } = target
     const meta: CodingSessionMeta = {
@@ -266,11 +269,19 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       ...(personalAuthority ? { personalAuthority } : {}),
       ...(target.command ? { command: target.command, cwd: target.cwd! } : {}),
     }
-    await createJsonExclusive(paths.meta, meta)
+    const created = await createJsonExclusive(paths.meta, meta)
+    if (authority && !created) throw new CodingBridgeError('coding_session_start_outcome_unknown',
+      'The original start metadata conflicts. Reconcile the original command before starting again.')
+    if (authority && Date.parse(authority.expiresAt) <= Date.now()) {
+      throw new CodingBridgeError('coding_session_start_outcome_unknown', 'The original start requires reconciliation.')
+    }
     await writeRequest(paths, { id: commandId, kind: 'start', text: target.prompt, at: meta.createdAt })
     await ensureHost(paths, sessionId, true)
-    return { sessionId, status: 'starting', agent, ...(target.command ? {} : { root: rootName, path }), title,
+    const result = { sessionId, status: 'starting', agent, ...(target.command ? {} : { root: rootName, path }), title,
+      ...(authority ? { startPhase: 'request_and_host_created' } : {}),
       ...(meta.originalManagedStart ? { startEvidence: managedSessionEvidence(meta.originalManagedStart, sessionId, ownerKey) } : {}) }
+    if (authority) await recordManagedStartOutcome(stateDir, authority, result)
+    return result
   }
 
   /** send, interrupt and close: one request per executor command, then a live host. */

@@ -68,10 +68,40 @@ export const ExecutorCodingSessionAuthoritySchema = z.object({
 })
 export type ExecutorCodingSessionAuthority = z.infer<typeof ExecutorCodingSessionAuthoritySchema>
 
+/** Rotating lease dates are transport freshness, not a change to the command's immutable operation or selection. */
+export const executorSessionCommandArgumentProjection = (payload: Record<string, unknown>): Record<string, unknown> => {
+  const parsed = ExecutorCodingSessionAuthoritySchema.safeParse(payload.codingSessionAuthority)
+  if (!parsed.success) return payload
+  const scope: Record<string, unknown> = { ...parsed.data }
+  delete scope.issuedAt
+  delete scope.expiresAt
+  return { ...payload, codingSessionAuthority: scope }
+}
+
 /** This acknowledgement describes the exact executed selection; fresh admission is still required to publish it. */
 export const executorCodingSessionResultScope = (scope: ExecutorCodingSessionAuthority) => ({
   version: scope.version, executorId: scope.executorId, originalOwnerGeneration: scope.originalOwnerGeneration,
   ownerKey: scope.ownerKey, commandId: scope.commandId, operation: scope.operation, purpose: scope.purpose,
   connectionEpoch: scope.connectionEpoch, authorizationRevision: scope.authorizationRevision,
   filter: scope.filter, admissions: scope.admissions,
+  ...(scope.nextCursor ? { nextCursor: scope.nextCursor } : {}),
 })
+
+export const ExecutorSessionAuthorityCheckSchema = z.object({
+  executorId: uuid, connectionEpoch: z.string().regex(/^\d+$/u), commandId: uuid,
+  selectionDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+  kind: z.enum(['command', 'view', 'action']), phase: z.enum(['execute', 'publish']),
+  requestNonce: uuid,
+  observedAt: z.string().datetime(), signature: z.string().min(32).max(256),
+}).strict()
+export type ExecutorSessionAuthorityCheck = z.infer<typeof ExecutorSessionAuthorityCheckSchema>
+
+export const ExecutorSessionAuthorityCheckedSchema = z.object({
+  commandId: uuid, selectionDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+  phase: z.enum(['execute', 'publish']), purpose: z.enum(['read', 'control']),
+  requestNonce: uuid, requestDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+  connectionEpoch: z.string().regex(/^\d+$/u), authorizationRevision: z.number().int().positive(),
+  validUntil: z.string().datetime(),
+  authority: ExecutorCodingSessionAuthoritySchema,
+}).strict()
+export type ExecutorSessionAuthorityChecked = z.infer<typeof ExecutorSessionAuthorityCheckedSchema>
