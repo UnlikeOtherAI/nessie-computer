@@ -19,7 +19,9 @@ export const verifyAccessTab = async (browser, ui, output) => {
     const shot = (name) => screenshot(page, output, `${host}-access-${name}`)
     assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on Access')
     assert.equal(await page.locator('#tab-access h2').count(), 0, 'the tab and the dropdown already name it: no heading')
-    assert.equal(await page.locator('#tab-access .hint:visible, #tab-access p.intro').count(), 0, 'no hint lines: explanations sit behind "?"')
+    // The only visible small lines are the consequence beside the mode and empty-list statuses; explanations sit behind "?".
+    assert.deepEqual(await page.locator('#tab-access .hint:visible').evaluateAll((nodes) => nodes.map((node) => node.id)),
+      ['access-mode-consequence', 'access-websites-empty'])
 
     // Folders: a new team starts with one; the name agents use beside the path; the last folder's Remove waits (the runtime keeps one).
     assert.match(await page.locator('#access-folder-list').textContent(), /Nessie.*Agents call it nessie/)
@@ -34,8 +36,8 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await waitConfigured(page, 0)
     assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.workspaceFolders.map((folder) => folder.name), ['nessie', 'site'])
     await page.locator('#access-folder-list .list-row').nth(1).waitFor()
-    await page.getByText('Agents’ browser, sandboxed commands and coding sessions here need exactly one folder.').waitFor()
-    assert.equal(await page.locator('#access-last-folder').isHidden(), true)
+    await page.waitForFunction(() => /exactly one folder/.test(document.querySelector('#access-folders-help .help-tip').textContent))
+    assert.doesNotMatch(await helpText(page, 'access-folders-help'), /Keep at least one folder/)
     await shot('two-folders')
     await page.getByRole('button', { name: 'Stop sharing Site with Platform · UnlikeOtherAI' }).click()
     await page.waitForFunction(() => window.teams['team-0'].folders.length === 1)
@@ -72,7 +74,7 @@ export const verifyAccessTab = async (browser, ui, output) => {
     for (const name of ['Allow Apps from UnlikeOtherAI', 'Allow Codex', 'Allow T3 Code']) await page.getByRole('switch', { name }).click()
     await page.getByRole('button', { name: 'Remove git' }).click()
     assert.equal(await page.locator('#access-after').textContent(), 'After Apply: no programs')
-    await page.getByText('No programs means agents in Platform · UnlikeOtherAI start nothing on this computer.').waitFor()
+    await page.getByText('Agents start nothing on this computer.').waitFor()
     await shot('programs-none-pending')
     await page.getByRole('button', { name: 'Apply' }).click()
     await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: no programs')
