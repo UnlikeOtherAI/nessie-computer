@@ -275,8 +275,12 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     if (authority && Date.parse(authority.expiresAt) <= Date.now()) {
       throw new CodingBridgeError('coding_session_start_outcome_unknown', 'The original start requires reconciliation.')
     }
-    await writeRequest(paths, { id: commandId, kind: 'start', text: target.prompt, at: meta.createdAt })
-    await ensureHost(paths, sessionId, true)
+    const written = await writeRequest(paths, { id: commandId, kind: 'start', text: target.prompt, at: meta.createdAt })
+    if (authority && !written) throw new CodingBridgeError('coding_session_start_outcome_unknown',
+      'The original start request conflicts. Reconcile the original command before starting again.')
+    const host = await ensureHost(paths, sessionId, true)
+    if (authority && host !== 'spawned' && host !== 'live') throw new CodingBridgeError('coding_session_start_outcome_unknown',
+      'The original host creation is unconfirmed. Reconcile the original command before starting again.')
     const result = { sessionId, status: 'starting', agent, ...(target.command ? {} : { root: rootName, path }), title,
       ...(authority ? { startPhase: 'request_and_host_created' } : {}),
       ...(meta.originalManagedStart ? { startEvidence: managedSessionEvidence(meta.originalManagedStart, sessionId, ownerKey) } : {}) }

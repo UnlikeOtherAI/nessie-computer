@@ -19,6 +19,8 @@ commands publish one scoped text document; raw failures and sidecars are refused
 A managed start records its immutable outcome only after request writing and
 host creation return. An absent outcome remains uncertain; replay does not
 synthesize success or restart a host.
+An existing request or an unconfirmed host spawn also leaves the outcome
+uncertain; neither can produce a successful creation receipt.
 
 The render-free `test:executor-private-assignments` gate uses the ordinary Node
 test runner through Turbo. Its schema/evidence tests require no Windows ACL
