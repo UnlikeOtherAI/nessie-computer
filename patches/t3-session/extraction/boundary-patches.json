@@ -1743,27 +1743,35 @@
       "file": "apps/server/src/provider/ProviderInstanceSecretPlan.ts",
       "create": [
         {
-          "text": "import type { ProviderInstanceConfig, SecretReference, SettingsSecretSlot }\n  from \"@t3tools/contracts\";\nimport { secretReferencesInSettings } from \"@t3tools/contracts\";\nimport type * as Schema from \"effect/Schema\";\n\nexport interface ProviderInstanceSecretPlan {\n  readonly environment: ReadonlyArray<{ readonly index: number; readonly name: string;\n    readonly reference: SecretReference }>;\n  readonly config: ReadonlyArray<SettingsSecretSlot & { readonly reference: SecretReference }>;\n  readonly references: ReadonlyArray<SecretReference>;\n}\n\n/** Exact environment order followed by the original codec's declared config slots. */\nexport const planProviderInstanceSecrets = (schema: Schema.Top | undefined,\n  entry: ProviderInstanceConfig): ProviderInstanceSecretPlan => {\n  const environment = (entry.environment ?? []).flatMap((variable, index) =>\n    typeof variable.value === \"string\" ? [] : [{ index, name: variable.name, reference: variable.value }]);\n  const config = schema === undefined ? [] : secretReferencesInSettings(schema, entry.config);\n  return { environment, config,\n    references: [...environment.map(slot => slot.reference), ...config.map(slot => slot.reference)] };\n};\n"
+          "text": "import type { ProviderInstanceConfig, SecretReference, SettingsSecretSlot,\n  ProviderInstanceEnvironment, ResolvedProviderInstanceEnvironment }\n  from \"@t3tools/contracts\";\nimport { secretReferencesInSettings } from \"@t3tools/contracts\";\nimport type * as Schema from \"effect/Schema\";\n\nexport interface ProviderInstanceSecretPlan {\n  readonly environment: ReadonlyArray<{ readonly index: number; readonly name: string;\n    readonly reference: SecretReference }>;\n  readonly config: ReadonlyArray<SettingsSecretSlot & { readonly reference: SecretReference }>;\n  readonly references: ReadonlyArray<SecretReference>;\n}\n\n/** Exact environment order followed by the original codec's declared config slots. */\nexport const planProviderInstanceSecrets = (schema: Schema.Top | undefined,\n  entry: ProviderInstanceConfig): ProviderInstanceSecretPlan => {\n  const environment = (entry.environment ?? []).flatMap((variable, index) =>\n    typeof variable.value === \"string\" ? [] : [{ index, name: variable.name, reference: variable.value }]);\n  const config = schema === undefined ? [] : secretReferencesInSettings(schema, entry.config);\n  return { environment, config,\n    references: [...environment.map(slot => slot.reference), ...config.map(slot => slot.reference)] };\n};\n\n/** Original variable conversion. Pure data transformation, never read authority. */\nexport const resolveProviderEnvironmentVariable = (variable: ProviderInstanceEnvironment[number],\n  secret: string | undefined): ResolvedProviderInstanceEnvironment[number] | undefined => {\n  if (typeof variable.value === \"string\") return { ...variable, value: variable.value };\n  if (secret === undefined || secret.trim() === \"\") return undefined;\n  return { ...variable, value: secret, sensitive: true };\n};\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "ad5e949c23a03358c2f53f2c32f5ceb3eb47b29a2cb9adfd7e48816b4a2bf9d2"
+      "afterSha256": "15fc739b4dc734be176b77f1cc28d16d27d3ceaff56728d2400141c65bbb44f4"
     },
     {
       "id": "provider-use-original-secret-plan",
       "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
       "from": "import {\n  providerInstanceConfigEnabledFlag,\n  ProviderInstanceId,\n  type ProviderInstanceConfig,\n  type ProviderInstanceConfigMap,\n  type ProviderInstanceEnvironment,\n  type ProviderDriverKind,\n  type ResolvedProviderInstanceEnvironment,\n  type SecretReference,\n  secretReferencesInSettings,\n  type ServerProvider,\n  type SettingsSecretSlot,\n  withSettingsSecrets,\n} from \"@t3tools/contracts\";",
-      "to": "import { planProviderInstanceSecrets } from \"./ProviderInstanceSecretPlan.ts\";\nimport {\n  providerInstanceConfigEnabledFlag,\n  ProviderInstanceId,\n  type ProviderInstanceConfig,\n  type ProviderInstanceConfigMap,\n  type ProviderInstanceEnvironment,\n  type ProviderDriverKind,\n  type ResolvedProviderInstanceEnvironment,\n  type SecretReference,\n  secretReferencesInSettings,\n  type ServerProvider,\n  type SettingsSecretSlot,\n  withSettingsSecrets,\n} from \"@t3tools/contracts\";",
+      "to": "import { planProviderInstanceSecrets, resolveProviderEnvironmentVariable }\n  from \"./ProviderInstanceSecretPlan.ts\";\nimport {\n  providerInstanceConfigEnabledFlag,\n  ProviderInstanceId,\n  type ProviderInstanceConfig,\n  type ProviderInstanceConfigMap,\n  type ProviderInstanceEnvironment,\n  type ProviderDriverKind,\n  type ResolvedProviderInstanceEnvironment,\n  type SecretReference,\n  secretReferencesInSettings,\n  type ServerProvider,\n  type SettingsSecretSlot,\n  withSettingsSecrets,\n} from \"@t3tools/contracts\";",
       "beforeSha256": "40ec3e81ac65121018a6b22e280cd4cfa10162980790a545e740aac29675266c",
-      "afterSha256": "a0d77b9cc3b9a7e008bec0ab937ffde8bfad10d432683fb72d1ac6e43a6f4a52"
+      "afterSha256": "698fa6e4515f46eac00887954e4b9a83d77bf3fb5cddbecfea8785237b0cc604"
     },
     {
       "id": "provider-secret-read-exact-plan",
       "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
       "from": "  const configFields = configSecretReferences(driver, entry);\n  const references = [\n    ...secretReferencesIn(variables),\n    ...configFields.map(({ reference }) => reference),\n  ];",
       "to": "  const plan = planProviderInstanceSecrets(driver?.configSchema, entry);\n  const configFields = plan.config;\n  const references = plan.references;",
-      "beforeSha256": "a0d77b9cc3b9a7e008bec0ab937ffde8bfad10d432683fb72d1ac6e43a6f4a52",
-      "afterSha256": "4f4748acb973e11993d6c744fea73c9e53baab295009d386511f102be4825769"
+      "beforeSha256": "698fa6e4515f46eac00887954e4b9a83d77bf3fb5cddbecfea8785237b0cc604",
+      "afterSha256": "b55c23f6315e833348f60df227c5c9de4974bb0a181873edcc5f56160f95d767"
+    },
+    {
+      "id": "provider-share-environment-slot-installation",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "from": "    if (typeof variable.value === \"string\") return [{ ...variable, value: variable.value }];\n    const secret = next();\n    if (secret === undefined) {\n      unreadable.push(variable.name);\n      return [];\n    }\n    return [{ ...variable, value: secret, sensitive: true }];",
+      "to": "    const resolved = resolveProviderEnvironmentVariable(variable,\n      typeof variable.value === \"string\" ? undefined : next());\n    if (resolved === undefined) {\n      unreadable.push(variable.name);\n      return [];\n    }\n    return [resolved];",
+      "beforeSha256": "b55c23f6315e833348f60df227c5c9de4974bb0a181873edcc5f56160f95d767",
+      "afterSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd"
     },
     {
       "id": "session-manager-exclude-metric-decorator",
@@ -1853,19 +1861,19 @@
       "file": "apps/server/src/provider/ProviderInstanceRegistry.session-live.ts",
       "create": [
         {
-          "text": "import { planProviderInstanceSecrets } from \"./ProviderInstanceSecretPlan.ts\";\nimport { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceConfigMap, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Equal from \"effect/Equal\";\nimport * as Exit from \"effect/Exit\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport * as SecretResolver from \"@t3tools/secret-provider-core/server/SecretResolver\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport * as ProviderInstanceRegistryMutator from \"./ProviderInstanceRegistryMutator.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
+          "text": "import { planProviderInstanceSecrets, resolveProviderEnvironmentVariable } from \"./ProviderInstanceSecretPlan.ts\";\nimport { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceConfigMap, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Equal from \"effect/Equal\";\nimport * as Exit from \"effect/Exit\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport * as SecretResolver from \"@t3tools/secret-provider-core/server/SecretResolver\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport * as ProviderInstanceRegistryMutator from \"./ProviderInstanceRegistryMutator.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
         },
         {
           "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
-          "start": 1406,
-          "end": 23731,
-          "sha256": "ae58e07799437d446cc2e05de9343426e307ac6054f66831e9f80c4a064e99c2",
+          "start": 1444,
+          "end": 23742,
+          "sha256": "9640ef244d5f99215b138b5cde2618e8e7db434115dafe60dd77d2486ae9621a",
           "sourceStage": "current",
-          "sourceSha256": "4f4748acb973e11993d6c744fea73c9e53baab295009d386511f102be4825769"
+          "sourceSha256": "e2622704bc6305aa9af8d32a180b9da8ddcfe89f72280ba6be9abda689b56ecd"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "6b65b92d16e709579ad900cde2ae34ba990bff45bf1162d0cec053721b2b2ab7"
+      "afterSha256": "543bf7b40cc5981e8a852eb7e856746c68ea24c5d64e44a420d156c427c5138a"
     },
     {
       "id": "original-finalization-live",
