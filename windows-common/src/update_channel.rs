@@ -1,7 +1,7 @@
 //! Bounded control calls to the authenticated SYSTEM updater, shared by CLI and tray.
 use std::{
     fs::File,
-    io::{Read, Write},
+    io::Write,
     os::windows::{ffi::OsStrExt, io::FromRawHandle},
     time::{Duration, Instant},
 };
@@ -124,7 +124,7 @@ fn exchange(request: &serde_json::Value, eku: Option<&str>) -> Result<serde_json
             }
         } else {
             let mut buffer = [0; 1024];
-            match stream.read(&mut buffer) {
+            match crate::pipe_io::read(&stream, &mut buffer) {
                 Ok(0) => return Err(Failure::at("response_eof")),
                 Ok(count) => response.extend_from_slice(&buffer[..count]),
                 Err(error) if error.raw_os_error() == Some(ERROR_NO_DATA as i32) => {}
