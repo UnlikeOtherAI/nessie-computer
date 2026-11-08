@@ -82,14 +82,25 @@ These native APIs still require the runtime owner's immutable original serialize
 hooks to capture operation context before enqueue/SDK transport writes. Exporting
 them is not evidence that the original SDK integration or installed journey works.
 
-Home selection has a separate remaining composition requirement: the physical
-resource owner is adding service-only resolution of the admitted provider-home
-handles and a retained candidate-path identity matcher. Preparation must retain
-those guards and recheck them through creation/use; string equality or a drive
-letter alias cannot prove a launch home. The original provider's exact home-env
-mapping must come from the runtime adapter. Until that integration and the
-original serializer hook are present, this source is not eligible for a positive
-installed provider journey.
+Home selection uses `execution_launch_homes::hold`, composed with the physical
+resource owner's `resolve_launch_homes` and `match_launch_home`. Preparation retains
+the returned guards and rechecks them before selection, registration, resume and
+frame use. Codex's actual CODEX_HOME must match the credential reference (the
+shadow home when configured); its continuation/history references remain the
+shared home. Claude's explicit CLAUDE_CONFIG_DIR must match its configured home;
+HOME/USERPROFILE remain untouched, preserving original keychain grouping.
+Defaults and inherited home guesses are refused by this execution resource scope.
+
+After actual OS file-ID matching under the graph's retained owner token, the
+service uses the guard's canonical volume-GUID path for the provider home. It
+hashes and holds that exact final Launch, before backend launch admission. There
+is no later environment rewrite. Directory handles alone cannot pin a drive/SUBST
+device mapping, so an original drive-letter spelling is not retained as proof.
+History options.dir and process cwd remain original workspace selections, never
+native-home aliases. This consumer requires parent integration of physical
+producer `77be11620622812af1a44391326035c853b15441`; its compiler and installed
+verification remain the root's responsibility. Original serializer integration is
+also still required before a positive installed provider journey.
 
 Authored fixtures cover creator selector injection, distinct history methods and
 Windows argument/environment encoding. Only builtin Node syntax checks, rustfmt

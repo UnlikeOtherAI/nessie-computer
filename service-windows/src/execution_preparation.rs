@@ -15,6 +15,7 @@ struct Prepared {
     launch_digest: String,
     _image: File,
     launch: Launch,
+    homes: Vec<crate::execution_resource::HeldLaunchHome>,
 }
 static PREPARED: Mutex<BTreeMap<String, Prepared>> = Mutex::new(BTreeMap::new());
 pub fn hold(
@@ -22,8 +23,15 @@ pub fn hold(
     descriptor: &Descriptor,
     release: &Release,
     launch: Launch,
+    homes: Vec<crate::execution_resource::HeldLaunchHome>,
 ) -> Result<Value, String> {
     launch.validate()?;
+    if homes.is_empty() {
+        return Err(REJECTED.into());
+    }
+    for home in &homes {
+        home.recheck()?;
+    }
     let mut environment_names = std::collections::BTreeSet::new();
     if launch
         .environment
@@ -84,6 +92,7 @@ pub fn hold(
             launch_digest,
             _image: image,
             launch,
+            homes,
         },
     );
     Ok(result)
@@ -98,6 +107,9 @@ pub fn recheck(id: &str, descriptor: &Descriptor, digest: &str) -> Result<(), St
     let held = held.get(id).ok_or(REJECTED)?;
     if held.descriptor != *descriptor || held.launch_digest != digest {
         return Err(REJECTED.into());
+    }
+    for home in &held.homes {
+        home.recheck()?;
     }
     Ok(())
 }
