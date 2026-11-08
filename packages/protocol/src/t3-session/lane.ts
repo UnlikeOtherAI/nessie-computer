@@ -7,6 +7,7 @@ import { ExecutorT3Result, ExecutorT3Error } from './reply.js'
 import { ExecutorT3HttpRequest, ExecutorT3HttpReply, ExecutorT3HttpFailure } from './http-transport.js'
 import { ExecutorT3TransportError, type T3_SOURCE_COMMIT } from './routing.js'
 import { ExecutorT3Descriptors } from './methods.js'
+import type { RetainedImportLease } from '../retained-import.js'
 
 /** One daemon lane carries the original envelopes, without native conversation DTOs. */
 export const ExecutorT3LaneOperation = Schema.Union([ExecutorT3Request, ExecutorT3HttpRequest])
@@ -38,6 +39,10 @@ export const decodeT3LaneProvenance = Schema.decodeUnknownSync(Schema.Struct({
 export type ExecutorT3LaneDelivery = {
   readonly requestDigest: string;
   readonly provenance?: T3LaneProvenance;
+  /** Private daemon delivery only. Each descriptor is bound to this exact
+   * original request and relay; local native consent still must be consumed.
+   */
+  readonly catalogLeases?: readonly RetainedImportLease[];
 }
 
 export const T3_LANE_LIMITS = Object.freeze({

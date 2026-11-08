@@ -323,3 +323,22 @@ most 512 MiB. Check the reservation and at least 12 GiB free on Maxis before eac
 heavy command. This first batch requires no database service, native build,
 provider binary, browser or personal profile. The full provider journey is a
 separate bounded qualification after native/provider prerequisites integrate.
+
+## Operation-bound catalog delivery
+
+The existing signed session lane carries `ExecutorT3LaneDelivery.catalogLeases`
+only to the private daemon. Descriptors use the canonical retained-import schema,
+with the original request SHA, keyed relay digest, correlation and exact scope.
+The receiver bounds their count/bytes, rejects missing operation bindings,
+bootstrap purposes, expired descriptors and substituted requests, and freezes a
+decoded copy before dispatch. Active retries must retain identical descriptors;
+credits cannot extend their expiry. A local deadline cancels demand even while
+an exchange is stalled. These checks establish correlation only.
+The held runtime must still consume each matching real local native grant through
+`local.authority(lease, retainedImportOperationBinding(...))`.
+
+The backend issuer/replay producer, private encrypted spool composition and held
+runtime adapter must be integrated before any read is ready. Multi-grant runtime
+composition remains unsupported and must fail atomically. Native effects remain
+unbound. Three additional lane fixtures are authored but unrun; this checkpoint
+has only bounded non-evaluating syntax checks, no compiler, native or runtime proof.
