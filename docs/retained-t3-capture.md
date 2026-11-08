@@ -71,8 +71,9 @@ ServerSecretStore, native transcripts or arbitrary attachment files.
 The first preflight retains only bounded thread/request/question IDs and explicit
 boolean `isSecret` classification. Absent markers may resolve from another exact
 occurrence of the same request/question in this pinned source transaction; they
-never inherit classification from another request or thread. Missing, malformed
-or conflicting classification fails the whole capture. Wording is never used.
+never inherit classification from another request or thread. Missing classification uses the explicitly withheld representation in
+[historical question privacy](historical-question-privacy.md). Malformed or
+conflicting classification and missing request provenance still fail capture. Wording is never used.
 The second preflight projects and validates every row before any session INSERT;
 the final pass repeats that projection over the same read transaction.
 It uses the same patched original `RequestPrivacy` namespace:
@@ -86,12 +87,11 @@ correlation retains opaque IDs, not a second cache of secret values.
 
 Masked question defaults, option values/previews, runtime answers and embedded
 `questionAnswer` values are projected before the original codecs strip native
-mask flags. Answer values retain their original shape when public. Masked
-attachments with nonempty descriptors fail explicitly because their delivery
-cannot be reconstructed safely here. Each capture uses fresh classification;
+mask flags. Answer values retain their original shape when public. Masked and unknown-classification attachments retain inert IDs, types, sizes
+and ordering with names/MIME/source metadata withheld; no delivery is inferred. Each capture uses fresh classification;
 reusing a preflight object is refused. Resume reads only the already projected
-generation, and refresh reclassifies source data. Unknown classification is an
-incomplete source, never permission to omit a session or claim subset parity.
+generation, and refresh reclassifies source data. Unknown classification is explicitly withheld, never permission to omit a
+session or claim full-fidelity parity. This correction passed the synthetic original-engine gate described below.
 
 Original codecs validate stored entities/events and strip unsupported fields.
 Typed runtime-request references become `not_resumable`, with no native callback
@@ -157,10 +157,11 @@ never resume of the prior stage. No timestamp rewriting, arbitrary ordinal
 assignment or omission is used. These are separate source-layout contracts.
 
 Historical original question codecs may erase `isSecret` everywhere in a
-snapshot. Such sessions still refuse capture. Recoverable authoritative
-classification or a justified safe representation is an **ALL-session blocker**,
-owned separately from this currentness correction; green synthetic marker
-fixtures do not discharge it.
+snapshot. The source correction now preserves these sessions with explicit
+unknown-classification redactions; see [its evidence and limits](historical-question-privacy.md).
+Its original-engine gate now passes both marker-bearing and actual codec-erased
+question cases. ALL-session live acceptance still requires the unbound physical
+and original-human producers and complete real-machine coverage.
 
 Each refresh allocates a new staging generation and resets destination legacy
 completion markers. Fresh original read/import services invalidate process
@@ -174,6 +175,13 @@ absence never resurrects or deletes one. Native alias candidate sets preserve
 every app history, separate homes and weak references, without electing a writer.
 
 ## Gates and evidence
+
+Historical-question code/test revision `e6807fca397168348b630dea27b0e2d60b81dbf7`
+passed normal build/typecheck, 15 source cases and all 32 original-engine importer
+cases on Maxis/Node 22.23.1, zero failures/skips. This supersedes missing-mask
+refusal and masked-attachment refusal for the documented safe representation.
+See [the exact value/descriptor contract](historical-question-privacy.md).
+Original physical/human authority and live all-machine parity remain unclaimed.
 
 The currentness correction passed ordinary executor build/typecheck and the
 registered importer gate on Maxis with owned Node 22.23.1: **27 passed, zero

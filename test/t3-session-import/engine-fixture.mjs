@@ -19,7 +19,8 @@ export const syntheticOwner = { withReadScope: async (_input, use) => use({
   recheckSource: async () => {}, recheckThread: async () => {},
 }) }
 
-export async function engineFixture({ threads = 3, messages = 360, legacy = false } = {}) {
+export async function engineFixture({ threads = 3, messages = 360, legacy = false,
+  firstMessageId = 'message:0', firstMessageText = 'ordinary transcript 0 雪' } = {}) {
   const directory = resolve('.artifacts/t04-engine', randomUUID())
   mkdirSync(directory, { recursive: true })
   const path = join(directory, 'synthetic-source.sqlite')
@@ -42,7 +43,8 @@ export async function engineFixture({ threads = 3, messages = 360, legacy = fals
     for (let index = 0; index < messages; index++) {
       yield* sql`INSERT INTO projection_thread_messages
         (message_id, thread_id, role, text, is_streaming, created_at, updated_at)
-        VALUES (${`message:${index}`}, ${ids[0]}, ${index % 2 ? 'assistant' : 'user'}, ${`ordinary transcript ${index} 雪`},
+        VALUES (${index === 0 ? firstMessageId : `message:${index}`}, ${ids[0]}, ${index % 2 ? 'assistant' : 'user'},
+        ${index === 0 ? firstMessageText : `ordinary transcript ${index} 雪`},
         0, ${new Date(Date.UTC(2020, 0, 1, 0, index)).toISOString()}, ${new Date(Date.UTC(2020, 0, 1, 0, index)).toISOString()})`
     }
   }))

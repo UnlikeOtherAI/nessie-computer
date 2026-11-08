@@ -3,20 +3,26 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { tablesForLayout } from '../../dist/t3-session/import/layout.js'
+import * as Schema from 'effect/Schema'
+import { SourceContracts as S } from '@nessie/t3-session-source/engine'
 
 export const at = '2020-01-01T00:00:00.000Z'
 export const canary = 'synthetic-mask-only-秘密-7a2'
 export const ordinary = 'obyčejná odpověď, keep exactly'
 
 export function addQuestion(f, { thread = f.ids[0], request = 'request:masked',
-  id = `item:${request}:${thread}`, mask = true, answer = canary, ordinal = 1000 } = {}) {
+  id = `item:${request}:${thread}`, mask = true, answer = canary, ordinal = 1000,
+  codecStored = false, attachments = [] } = {}) {
   const base = JSON.parse(f.writer.prepare('SELECT payload_json FROM orchestration_v2_projection_turn_items LIMIT 1')
     .get().payload_json)
-  const value = { ...base, id, threadId: thread, type: 'user_input_request', requestId: request, ordinal,
+  let value = { ...base, id, threadId: thread, type: 'user_input_request', requestId: request, ordinal,
     questions: [{ id: 'q:reused', header: 'Synthetic', question: 'Synthetic field',
       options: [{ label: 'Synthetic option', description: 'Synthetic description', value: answer, preview: answer }],
       ...(mask === undefined ? {} : { isSecret: mask }), initialAnswer: answer }],
-    questionAnswer: { requestId: request, answers: { 'q:reused': [answer] }, attachmentsByQuestionId: {} } }
+    questionAnswer: { requestId: request, answers: { 'q:reused': [answer] },
+      questionTextById: { 'q:reused': 'Synthetic field' }, attachmentsByQuestionId: { 'q:reused': attachments } } }
+  if (codecStored) value = Schema.encodeSync(S.OrchestrationV2TurnItemJson)(
+    Schema.decodeUnknownSync(S.OrchestrationV2TurnItemJson)(value))
   f.writer.prepare(`INSERT INTO orchestration_v2_projection_turn_items
     (turn_item_id, thread_id, ordinal, type, status, updated_at, payload_json)
     VALUES (?, ?, ?, 'user_input_request', 'completed', ?, ?)`).run(id, thread, ordinal, at, JSON.stringify(value))

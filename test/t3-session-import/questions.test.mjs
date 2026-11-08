@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { prepareTinySources } from './tiny-source.mjs'
 
 const tiny = await prepareTinySources()
-const { CaptureQuestions } = await tiny.load('import/questions')
+const { CaptureQuestions, UNKNOWN_QUESTION_VALUE } = await tiny.load('import/questions')
 const question = (requestId, isSecret) => ({ type: 'user_input_request', requestId,
   questions: [{ id: 'same', isSecret, initialAnswer: 'synthetic' }] })
 const answer = id => ({ kind: 'user_input', id, answers: { same: ['synthetic'] } })
@@ -27,11 +27,18 @@ for (const reversed of [false, true]) {
   })
 }
 
-test('missing classification, unsupported marker, conflicting reuse and absent request fail explicitly', () => {
-  for (const row of [question('unknown', undefined), answer('unknown')]) {
+test('unknown classification is withheld; orphan, malformed and conflicting provenance still refuse', () => {
+  const unknown = new CaptureQuestions()
+  unknown.transform(answer('unknown'), 'thread')
+  unknown.transform(question('unknown', undefined), 'thread')
+  unknown.complete()
+  assert.deepEqual(unknown.transform(answer('unknown'), 'thread', marker).answers.same, [UNKNOWN_QUESTION_VALUE])
+  assert.equal(unknown.transform(question('unknown', undefined), 'thread', marker).questions[0].initialAnswer,
+    UNKNOWN_QUESTION_VALUE)
+  for (const row of [answer('unknown')]) {
     const privacy = new CaptureQuestions()
     privacy.transform(row, 'thread')
-    assert.throws(() => privacy.complete(), /classification_unknown/u)
+    assert.throws(() => privacy.complete(), /provenance_unknown/u)
   }
   const privacy = new CaptureQuestions()
   assert.throws(() => privacy.transform(question('unknown', 'false'), 'thread'), /classification_unknown/u)
@@ -55,10 +62,72 @@ test('a classified occurrence covers codec-stripped copies, never another reques
   privacy.transform(question('request', true), 'thread')
   privacy.complete()
   assert.equal(privacy.transform(question('request', undefined), 'thread', marker).questions[0].initialAnswer, '[REDACTED]')
-  assert.throws(() => privacy.transform(answer('different'), 'thread', marker), /classification_unknown/u)
+  assert.throws(() => privacy.transform(answer('different'), 'thread', marker), /provenance_unknown/u)
   const bounded = new CaptureQuestions()
   assert.throws(() => {
     for (let index = 0; index < 8193; index++) bounded.transform(question(String(index), true), 't')
   }, /privacy_incomplete/u)
   assert.throws(() => new CaptureQuestions().transform(question('x'.repeat(1025), true), 't'), /privacy_incomplete/u)
+})
+
+test('unknown answers preserve array positions, arbitrary keys and exact public shapes', () => {
+  const privacy = new CaptureQuestions()
+  const item = question('unknown', undefined)
+  item.questions.push({ id: '__proto__', options: [] })
+  const response = { ...answer('unknown'), answers: { same: ['first', 'second'], ['__proto__']: { nested: 'value' } } }
+  privacy.transform(response, 'thread')
+  privacy.transform(item, 'thread')
+  privacy.complete()
+  const projected = privacy.transform(response, 'thread', marker)
+  assert.deepEqual(projected.answers.same, [UNKNOWN_QUESTION_VALUE, UNKNOWN_QUESTION_VALUE])
+  assert.equal(projected.answers.__proto__, UNKNOWN_QUESTION_VALUE)
+  assert.deepEqual(Object.keys(projected.answers), ['same', '__proto__'])
+})
+
+test('native copies require the same thread, provider thread, turn and driver; conflicting request binding refuses', () => {
+  const privacy = new CaptureQuestions()
+  const binding = { providerThreadId: 'pt', providerTurnId: 'turn',
+    nativeItemRef: { driver: 'claude', nativeId: 'native', strength: 'strong' } }
+  privacy.transform({ ...question('unknown', undefined), ...binding, responseMode: 'message' }, 'thread')
+  privacy.complete()
+  const tool = { type: 'dynamic_tool', ...binding, input: 'synthetic', output: 'synthetic' }
+  assert.equal(privacy.transform(tool, 'thread', marker).input, UNKNOWN_QUESTION_VALUE)
+  for (const other of [{ ...tool, providerTurnId: 'other' }, { ...tool, providerThreadId: 'other' }]) {
+    assert.deepEqual(privacy.transform(other, 'thread', marker), other)
+  }
+  assert.deepEqual(privacy.transform(tool, 'other-thread', marker), tool)
+  assert.throws(() => privacy.transform({ ...question('other', false), ...binding }, 'thread'), /provenance_conflict/u)
+  assert.throws(() => new CaptureQuestions().transform({ ...question('a', undefined),
+    questionAnswer: { requestId: 'b', answers: { same: ['synthetic'] } } }, 'thread'), /provenance_conflict/u)
+})
+
+test('attachment references redact every scoped descriptor and refuse conflicting public reuse', () => {
+  const privacy = new CaptureQuestions()
+  const attachment = { type: 'image', id: 'opaque_id', name: 'synthetic', mimeType: 'image/png', sizeBytes: 7,
+    source: { preview: 'synthetic' } }
+  const item = { ...question('a', undefined), questionAnswer: { requestId: 'a',
+    attachmentsByQuestionId: { same: [attachment] }, answers: {} } }
+  privacy.transform(item, 'thread')
+  privacy.complete()
+  assert.deepEqual(privacy.projectAttachments([attachment], 'thread'), [{ type: 'image', id: 'opaque_id',
+    name: UNKNOWN_QUESTION_VALUE, mimeType: 'image/x-withheld', sizeBytes: 7 }])
+  assert.deepEqual(privacy.projectAttachments([attachment], 'other-thread'), [attachment])
+  privacy.transform({ ...question('b', false), questionAnswer: { requestId: 'b',
+    attachmentsByQuestionId: { same: [attachment] }, answers: {} } }, 'thread')
+  assert.throws(() => privacy.complete(), /attachment_classification_conflict/u)
+})
+
+test('duplicate unknown question IDs retain both positions; partial masks cannot classify their shared answer', () => {
+  const privacy = new CaptureQuestions()
+  const duplicate = question('duplicate', undefined)
+  duplicate.questions.push({ ...duplicate.questions[0], initialAnswer: 'second' })
+  privacy.transform(duplicate, 'thread')
+  privacy.transform(answer('duplicate'), 'thread')
+  privacy.complete()
+  assert.deepEqual(privacy.transform(duplicate, 'thread', marker).questions.map(value => value.initialAnswer),
+    [UNKNOWN_QUESTION_VALUE, UNKNOWN_QUESTION_VALUE])
+  const mixed = structuredClone(duplicate)
+  mixed.questions[0].isSecret = false
+  assert.throws(() => new CaptureQuestions().transform(mixed, 'thread'), /provenance_conflict/u)
+  assert.throws(() => privacy.transform(question('duplicate', false), 'thread'), /provenance_conflict/u)
 })

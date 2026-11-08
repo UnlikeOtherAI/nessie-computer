@@ -4,7 +4,6 @@ import { test } from 'node:test'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Stream from 'effect/Stream'
-import * as Schema from 'effect/Schema'
 import { createSessionStateLayers, createSessionReadLayers, EventStore, ThreadReadService,
   ThreadStream, SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3, resumeRetainedT3 } from '../../dist/t3-session/import/capture.js'
@@ -16,7 +15,8 @@ import { addQuestion, addAnswer, addEvent, assertDestinationsClean,
 const capture = f => captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
 const resume = (f, generation) => resumeRetainedT3(f.ports, f.manifest, f.source.admittedRootKey, generation)
 
-test('actual capture redacts before SQLite, caches, original replay/export, resume and V2 refresh', async t => {
+for (const codecStored of [false, true]) {
+test(`actual capture redacts SQLite, caches, replay/export, resume/refresh; original codec=${codecStored}`, async t => {
   const f = await engineFixture({ messages: 4 })
   const logs = []
   for (const method of ['log', 'warn', 'error', 'info', 'debug']) {
@@ -26,7 +26,9 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
     // Runtime requests precede turn items in the admitted table order; event
     // replay also deliberately encounters a resolved answer before its question.
     const answer = addAnswer(f)
-    const question = addQuestion(f)
+    const question = addQuestion(f, { codecStored, attachments: [{ type: 'file', id: 'synthetic_attachment',
+      name: canary, mimeType: 'text/plain', sizeBytes: 1 }] })
+    if (codecStored) assert.equal(Object.hasOwn(question.questions[0], 'isSecret'), false)
     const eventIds = [addEvent(f, 'runtime-request.updated', answer), addEvent(f, 'turn-item.updated', question)]
     addAnswer(f, { request: 'request:public', answer: ordinary })
     addQuestion(f, { request: 'request:public', mask: false, answer: ordinary, ordinal: 1001 })
@@ -61,7 +63,7 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
     }).pipe(Effect.provide(reads.layer.pipe(Layer.provideMerge(sqlLayer(f.destination(first.generation))))))))
     await resume(f, first.generation)
     // A later V2 answer must be classified again on refresh.
-    addQuestion(f, { request: 'request:late', ordinal: 1003 })
+    addQuestion(f, { request: 'request:late', ordinal: 1003, codecStored })
     addAnswer(f, { request: 'request:late' })
     const next = await capture(f)
     assert.notEqual(next.generation, first.generation)
@@ -75,8 +77,9 @@ test('actual capture redacts before SQLite, caches, original replay/export, resu
     assert.equal(logs.join('\n').includes(canary), false)
   } finally { f.close() }
 })
+}
 
-for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capacity', 'masked-attachment']) {
+for (const scenario of ['unknown', 'conflict', 'orphan-answer', 'capacity']) {
   test(`actual capture rejects ${scenario} before session inserts, retaining prior catalog`, async t => {
     const f = await engineFixture({ messages: 4 })
     const logs = []
@@ -87,16 +90,7 @@ for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capa
       else if (scenario === 'capacity') {
         for (let index = 0; index < 8193; index++) addQuestion(f, { request: `request:${index}`, ordinal: 1000 + index })
       } else {
-        const value = addQuestion(f, { mask: scenario === 'unknown' ? 'unknown' : true })
-        if (scenario === 'missing' || scenario === 'masked-attachment') {
-          if (scenario === 'missing') delete value.questions[0].isSecret
-          else value.questionAnswer.attachmentsByQuestionId = { 'q:reused': [{
-            type: 'file', id: 'synthetic_attachment', name: canary, mimeType: 'text/plain', sizeBytes: 1,
-          }] }
-          Schema.decodeUnknownSync(S.OrchestrationV2TurnItemJson)(value)
-          f.writer.prepare('UPDATE orchestration_v2_projection_turn_items SET payload_json = ? WHERE turn_item_id = ?')
-            .run(JSON.stringify(value), value.id)
-        }
+        addQuestion(f, { mask: scenario === 'unknown' ? 'unknown' : true })
         if (scenario === 'conflict') {
           addQuestion(f, { id: 'item:conflict', mask: false, ordinal: 1001, answer: ordinary })
         }
@@ -106,7 +100,7 @@ for (const scenario of ['missing', 'unknown', 'conflict', 'orphan-answer', 'capa
       try { await capture(f) } catch (error) { failure = error }
       assert.ok(failure)
       assert.match(failure.message,
-        /capture_(question_classification|privacy_incomplete|masked_attachment_unsupported)/u)
+        /capture_(question_classification|question_provenance|privacy_incomplete)/u)
       assert.equal(inspect(failure).includes(canary), false)
       const root = f.ports.journal.root(f.source.physicalRootKey)
       assert.equal(root.last_ready_generation, first.generation)
