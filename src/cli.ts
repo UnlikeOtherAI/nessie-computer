@@ -47,7 +47,7 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand, type ParsedCommand } from './cli-arguments.js'
+import { parseCommand, UnknownCommandError, type ParsedCommand } from './cli-arguments.js'
 import { requestedMcpServers } from './mcp-server-changes.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -190,7 +190,15 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
   if (await runLocalSettingsCli(args)) return
-  const command = parseCommand(args)
+  let command: ParsedCommand
+  try {
+    command = parseCommand(args)
+  } catch (error) {
+    if (!(error instanceof UnknownCommandError)) throw error
+    // No command by that name: the commands people type say so, with a pointer to help.
+    process.exitCode = await runUserCli(args)
+    return
+  }
   if (command.kind === 'pair') {
     const input = command.pairingInputFromStandardInput
       ? await readPairingInput()

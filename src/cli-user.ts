@@ -99,10 +99,11 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
     }
     const handler = await handlers(command)
     if (!handler) {
-      throw new CliUsageError(options.words[0] === 'access' || options.words[0] === 'ai'
-        ? `Say which part: ${HELP_ENTRIES.filter((entry) => entry.command.startsWith(`${options.words[0]} `))
+      const group = options.words[0] === 'access' || options.words[0] === 'ai' ? options.words[0] : undefined
+      throw new CliUsageError(group
+        ? `Say which part: ${HELP_ENTRIES.filter((entry) => entry.command.startsWith(`${group} `))
           .map((entry) => entry.command).join(', ')}.`
-        : `nessie-computer has no command "${options.words.join(' ')}".`, options.words[0])
+        : `nessie-computer has no command "${options.words.join(' ')}".`, group)
     }
     let found: Promise<LabelledTeam[]> | undefined
     const teams = () => {

@@ -117,4 +117,7 @@ test('the real entry routes help and --version, and leaves plumbing as it was', 
   const plumbing = cli(['describe'])
   assert.equal(plumbing.status, 1)
   assert.match(plumbing.stderr, /^Usage: nessie-executor login/u)
+  const typo = cli(['acess', 'show'])
+  assert.equal(typo.status, 2)
+  assert.match(typo.stderr, /^nessie-computer has no command "acess show"\.\nSee nessie-computer help\.\n$/u)
 })
