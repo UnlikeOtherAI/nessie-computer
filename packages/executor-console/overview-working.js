@@ -87,7 +87,8 @@
     const stop = row.querySelector('.session-stop')
     stop.textContent = t('working.stop')
     stop.setAttribute('aria-label', `${t('working.stop')} ${label(session)}`)
-    row.querySelector('.commands').replaceChildren(...(Array.isArray(session.commands) ? session.commands : []).map(commandRow))
+    const commands = Array.isArray(session.commands) ? session.commands : []
+    row.querySelector('.commands').replaceChildren(...commands.map(commandRow))
   }
 
   /** Rows keep their place: a session already shown is updated where it is, new ones are appended, gone ones removed. */
