@@ -12,7 +12,7 @@
   const ADD_TEAM = '+'
   const TAB_KEY = 'nc.tab'
   // The window reopens on the tab a person last used, even after the page reloads.
-  const remembered = () => { try { return localStorage.getItem(TAB_KEY) } catch { return null } }
+  const remembered = () => { try { return window.localStorage.getItem(TAB_KEY) } catch { return null } }
   let currentTab = TABS.includes(remembered()) ? remembered() : 'access'
   const viewListeners = new Set()
 
@@ -143,7 +143,7 @@
   const showTab = (tab) => {
     if (!TABS.includes(tab)) return
     currentTab = tab
-    try { localStorage.setItem(TAB_KEY, tab) } catch { /* a page without storage still shows the tab */ }
+    try { window.localStorage.setItem(TAB_KEY, tab) } catch { /* a page without storage still shows the tab */ }
     for (const button of tabs) {
       const selected = button.dataset.tab === tab
       button.setAttribute('aria-selected', String(selected))
@@ -176,7 +176,6 @@
 
   // Static words. Everything else is written by the script that owns it.
   document.title = t('shell.title')
-  byId('app-title').textContent = t('shell.title')
   for (const button of tabs) button.textContent = t(`shell.${button.dataset.tab}`)
   byId('tablist').setAttribute('aria-label', t('shell.tabs'))
   byId('team-select-label').textContent = t('shell.team')
@@ -217,7 +216,9 @@
     let link = null
     try { link = await invoke('executor_launch_link') } catch { return false }
     if (link?.connect) await nc.pairing.open()
-    else if (link && (link.section === null || link.section === undefined || TABS.includes(link.section))) await openSection(link.section ?? null, link)
+    else if (link && (link.section === null || link.section === undefined || TABS.includes(link.section))) {
+      await openSection(link.section ?? null, link)
+    }
     return Boolean(link)
   }
 

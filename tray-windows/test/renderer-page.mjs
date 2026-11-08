@@ -110,9 +110,13 @@ export const assertFits = async (page, label) => {
       for (const node of [scope, ...scope.querySelectorAll('*')]) {
         if (node.closest('[hidden]') || !node.getClientRects().length || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT'
           || node.classList.contains('visually-hidden') || node.getAttribute('aria-hidden') === 'true') continue
+        // A "?" wrapper holds its tip absolutely positioned beside it; the tip itself is measured.
+        if (node.classList.contains('help')) continue
         const box = node.getBoundingClientRect()
         const name = node.id || node.className || node.tagName
         if (box.right > edge) found.push(`${name} runs past its container by ${Math.round(box.right - edge)}px`)
+        // An open tip hangs below its row; the row's own words are not clipped by it.
+        if (node.querySelector('.help-tip:not([hidden])')) continue
         if (['BUTTON', 'P', 'H1', 'H2', 'H3', 'LI', 'SPAN', 'SMALL', 'LABEL', 'OUTPUT'].includes(node.tagName)
           && node.scrollWidth > node.clientWidth + 1 && node.clientWidth > 0) found.push(`${name} clips its text`)
       }

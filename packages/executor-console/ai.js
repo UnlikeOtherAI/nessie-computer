@@ -17,7 +17,8 @@ window.aiTab = (() => {
     <button type="button" id="ai-refresh"></button>`
   // "On this computer" comes first, above ChatGPT plans (contract §12).
   tab.prepend(window.aiLocal.section, document.createElement('hr'))
-  // What a plan or a server is sits behind "?" beside each heading; on Windows the plans' "?" also says how the first plan connects.
+  // What a plan or a server is sits behind "?" beside each heading; on Windows the
+  // plans' "?" also says how the first plan connects.
   const plansHelp = nc.help('')
   plansHelp.id = 'ai-plans-hint'
   nc.byId('ai-plans-title').after(plansHelp)

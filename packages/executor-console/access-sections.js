@@ -112,7 +112,8 @@
       render: ({ input, label }) => {
         setText(`access-folders-title`, t('sections.folders'))
         // What the folders are for, why the last Remove is off, and why several folders stop some work — one "?".
-        // (The runtime keeps at least one folder; the browser, sandboxed commands and coding sessions need exactly one.)
+        // (The runtime keeps at least one folder; the browser, sandboxed commands and
+        // coding sessions need exactly one folder.)
         help.set([t('folders.intro', { team: label }), input.workspaceFolders.length === 1 ? t('folders.last') : null,
           input.workspaceFolders.length >= 2 ? t('folders.multiple') : null].filter(Boolean).join(' '))
         add.textContent = t('folders.add')

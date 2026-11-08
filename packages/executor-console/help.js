@@ -16,7 +16,7 @@
   /** Keeps the tip inside the window and inside the dialog or page it belongs to. */
   const place = (wrap, tip) => {
     tip.style.left = '0px'
-    const bound = (wrap.closest('dialog, main, .team-row') ?? document.body).getBoundingClientRect()
+    const bound = (wrap.closest('dialog, [role=tabpanel], .team-row, .needs') ?? document.body).getBoundingClientRect()
     const right = Math.min(bound.right, window.innerWidth) - 8
     const box = tip.getBoundingClientRect()
     if (box.right > right) tip.style.left = `${Math.round(right - box.right)}px`
