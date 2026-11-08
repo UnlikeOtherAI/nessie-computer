@@ -137,6 +137,8 @@ pub(super) fn replace_when_clear(manifest: &Manifest, directory: &Path,
             if ordering == std::cmp::Ordering::Equal { return Err("update.version_conflict"); }
         }
     }
+    #[cfg(target_os = "macos")]
+    super::macos_bundle::refuse_older_application(&manifest.version)?;
     if !super::unix_clearance::ready()? { return Ok(false); }
     verify_publishers(manifest, directory)?;
     let package = package(manifest, directory)?;
