@@ -29,6 +29,27 @@ under the original `owner: "provider"` domain. Original auth grouping and its
 profile adoption or credential access. Native custody must implement resolution
 against its actual association; no producer is installed in this checkpoint.
 
+Call-site audit at `25bf84ab` corrects that provisional dependency: the original
+host method takes two plain strings, but its actual Cursor caller passes
+`"cursor"` and a branded `ProviderInstanceId`. Codex's ChatGPT auth calls the
+excluded `ProviderCredentialStore` directly with `"codex-chatgpt"` and
+`"codex-chatgpt-registration"`, also keyed by `ProviderInstanceId`. That store
+hashes the tuple into a T3-owned storage key. Neither original native Codex
+client factory nor Claude query transport calls the host credential method.
+There is **no authoritative mapping** from that tuple to `nativeId`, native
+home keys or auth grouping. The provisional reference lookup must remain
+unbound; it must not be implemented with a guessed key or hash. Final runtime
+composition must replace it with the integrated verified-grant/native
+association producer contract.
+
+T07's finite native-effect producer is `VerifiedT3EffectGrant`, issued by
+`createT3EffectAuthorityClient(...).issue(selection, signal)` and consumed by
+T03C's `requestT3EffectAuthority(directory, grant, signal)`. Native receivers
+must compare the verified grant's issuer origin with the protected directory's
+current enrolled origin. `requestDigest` comes from the signed backend offer,
+never a local input hash. These source interfaces do not establish that the
+private issuer or final native composition has been integrated or qualified.
+
 `sessionResourceCleanupLayer` selects the original cleanup body, retaining its
 attachment resolution/deletion, concurrency and error conversion. Required
 `SessionResourceTargets` supplies actual `terminals.close({threadId,

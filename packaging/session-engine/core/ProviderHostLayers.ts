@@ -12,6 +12,10 @@ import { resolveAttachmentPath } from 't3-source:apps/server/src/attachmentStore
  * Original ProviderHost behavior over executor-owned paths/settings and native
  * references. Resolving a reference is not admission. Each native effect still
  * consumes its signed operation through the protected custody transport.
+ * The namespace/bindingId lookup is provisional and has no original Codex or
+ * Claude native caller. No production resolver is supplied: legacy storage
+ * identifiers cannot be mapped to a native association or auth grouping key.
+ * Final composition must use the integrated verified-grant producer contract.
  */
 export const sessionProviderHostLayer = Layer.effect(ProviderHost.ProviderHost, Effect.gen(function* () {
   const config = yield* Config.ServerConfig
