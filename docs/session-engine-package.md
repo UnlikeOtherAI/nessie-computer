@@ -122,8 +122,9 @@ pnpm.cmd exec turbo run test:t3-session-engine --filter=@nessie/t3-session-sourc
 ```
 
 `library-inputs.json` registers the exact authored files admitted to this graph.
-T04 must add each actual owned adapter file to `authoredInputs` and export its
-namespace through `core/Engine.ts`; the build rejects unregistered imports.
+Adapters actually co-built into this graph must add each actual owned file to
+`authoredInputs` and export their namespace through `core/Engine.ts`; the build
+rejects unregistered imports. Ordinary package consumers remain outside this graph.
 Admission checks the complete first-party TypeScript program, including erased
 type-only imports and authored `.d.ts`, as well as runtime bundler inputs. Both
 closures are recorded with file hashes. The focused regression refuses an
@@ -131,8 +132,12 @@ unregistered type-only declaration before emit, then passes after registration.
 For files outside the existing package/producer/patch roots, register the same
 exact paths in the public and private Turbo build/typecheck inputs. Admission
 does not silently widen filesystem inputs or cache coverage.
-There are no wildcard directories or runtime source loaders. T04 is not
-implemented here. The producer's existing `buildSessionEngineModule` and
+There are no wildcard directories or runtime source loaders. The separate
+[T04 source checkpoint](retained-t3-capture.md) consumes the normal package and
+adds only a `RequestPrivacy` namespace re-export of the same patched original
+shared module in the already registered engine entry. Its updated normal package,
+Node 22 and consumer gates remain unrun; all earlier hashes below describe the
+historical package. The producer's existing `buildSessionEngineModule` and
 `buildSessionStateModule` APIs remain available for their explicit source/probe
 uses; probes are never package exports.
 

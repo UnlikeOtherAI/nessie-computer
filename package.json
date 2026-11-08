@@ -39,7 +39,9 @@
     "test:conversation-control": "node scripts/run-tests.mjs --test-concurrency=1 test/session-conversation-control.test.ts test/coding-session-daemon.test.ts",
     "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/owner-requests-gate.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-request-scope.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts",
     "test:t3-session-client-connection": "node --test --test-concurrency=1 test/t3-session-client-connection/urls.test.mjs",
-    "test:t3-session-client-http-auth": "node --max-old-space-size=1536 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/http-auth.test.mjs"
+    "test:t3-session-client-http-auth": "node --max-old-space-size=1536 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/http-auth.test.mjs",
+    "test:t3-session-import-source": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/source.test.mjs",
+    "test:t3-session-import": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/engine.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -51,7 +53,9 @@
     "undici": "^8.11.2",
     "zod": "^3.25.76",
     "@nessie/executor-protocol": "workspace:*",
-    "@nessie/executor-support": "workspace:*"
+    "@nessie/executor-support": "workspace:*",
+    "@nessie/t3-session-source": "workspace:*",
+    "effect": "4.1.2"
   },
   "devDependencies": {
     "@types/node": "^20.19.24",
@@ -64,7 +68,7 @@
     "esbuild": "^0.25.12",
     "sharp": "^0.35.3",
     "playwright-core": "^1.62.1",
-    "effect": "4.1.2"
+    "@effect/platform-node": "4.1.2"
   },
   "packageManager": "pnpm@10.22.0",
   "license": "FSL-1.1-ALv2",

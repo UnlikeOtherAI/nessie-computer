@@ -20,6 +20,9 @@ importers:
       '@nessie/local-inference-host':
         specifier: workspace:*
         version: link:packages/local-inference-host
+      '@nessie/t3-session-source':
+        specifier: workspace:*
+        version: link:packages/t3-session-source
       '@xterm/addon-serialize':
         specifier: 0.13.0
         version: 0.13.0(@xterm/xterm@5.5.0)
@@ -29,6 +32,9 @@ importers:
       cross-spawn:
         specifier: ^7.0.6
         version: 7.0.6
+      effect:
+        specifier: 4.1.2
+        version: 4.1.2
       jose:
         specifier: 6.2.3
         version: 6.2.3
@@ -39,6 +45,9 @@ importers:
         specifier: ^3.25.76
         version: 3.25.76
     devDependencies:
+      '@effect/platform-node':
+        specifier: 4.1.2
+        version: 4.1.2(effect@4.1.2)(redis@6.3.1)
       '@types/node':
         specifier: ^20.19.24
         version: 20.19.43
@@ -48,9 +57,6 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.58.0
         version: 8.72.1(eslint@10.14.0)(typescript@5.9.3)
-      effect:
-        specifier: 4.1.2
-        version: 4.1.2
       esbuild:
         specifier: ^0.25.12
         version: 0.25.12
