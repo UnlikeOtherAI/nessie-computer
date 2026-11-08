@@ -32,7 +32,7 @@ export const sessionDispatchScope = Effect.gen(function* () {
     const close = (): Promise<void> => {
       if (closing) return closing
       ended = true
-      controller.abort()
+      controller.abort(caller.aborted ? caller.reason : undefined)
       caller.removeEventListener('abort', abort)
       closing = (async () => {
         // The adapter's signal interrupts a blocked pull. Join it before return
