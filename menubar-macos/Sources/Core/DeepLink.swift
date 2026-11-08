@@ -33,6 +33,23 @@ public enum DeepLink: Equatable, Sendable {
         }
     }
 
+    /// How a second copy of the app hands the links it was opened with to the
+    /// running one: their text, at most eight, in a distributed notification.
+    public static let handoverKey = "links"
+    private static let handoverMaximum = 8
+
+    public static func handoverUserInfo(_ urls: [URL]) -> [String: Any]? {
+        let links = urls.filter { parse($0) != nil }.prefix(handoverMaximum).map(\.absoluteString)
+        return links.isEmpty ? nil : [handoverKey: Array(links)]
+    }
+
+    /// The links in a handover, parsed again: whoever posted it, only a link
+    /// this parser accepts is followed.
+    public static func handedOver(_ userInfo: [AnyHashable: Any]?) -> [DeepLink] {
+        guard let texts = userInfo?[handoverKey] as? [String] else { return [] }
+        return texts.prefix(handoverMaximum).compactMap { URL(string: $0).flatMap(parse) }
+    }
+
     private static func open(_ items: [URLQueryItem]) -> DeepLink? {
         guard Set(items.map(\.name)).isSubset(of: ["section", "team"]),
               items.count == Set(items.map(\.name)).count else { return nil }

@@ -182,6 +182,18 @@ final class ExecutorController: ObservableObject {
         return try ProgramRequest.decodeList(data)
     }
 
+    /// The team's sessions and their commands, read fresh from its CLI.
+    func fetchSessions(executorId: String) async throws -> [[String: Any]] {
+        let data = try await requireRunner().output(ExecutorCLI.sessions(stateDirectory: stateDirectory))
+        return try WorkingSessions.consoleRows(data, executorId: executorId)
+    }
+
+    /// The owner's Stop for one of this team's sessions: its daemon ends that
+    /// session's work and tells Nessie. Nothing else in the team stops.
+    func stopSession(_ sessionId: String) async throws {
+        _ = try await requireRunner().output(ExecutorCLI.stopSession(id: sessionId, stateDirectory: stateDirectory))
+    }
+
     /// The owner's answer, given only on this computer. `always` adds the
     /// program to this team's rules through the CLI's own writer.
     func answer(_ requestId: String, _ answer: ProgramRequestAnswer) async throws {

@@ -56,4 +56,24 @@ final class DeepLinkTests: XCTestCase {
             XCTAssertNil(parse(link), link)
         }
     }
+
+    /// A copy launched by a link while another copy runs hands the link over
+    /// instead of losing it; the running copy parses it again and follows only
+    /// what it would have followed itself.
+    func testASecondCopyHandsItsLinksToTheRunningOne() throws {
+        let urls = try [
+            "nessie-computer://open?section=access&team=0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11",
+            "https://example.com/not-a-link",
+            "nessie-computer://connect"
+        ].map { try XCTUnwrap(URL(string: $0)) }
+        let userInfo = DeepLink.handoverUserInfo(urls)
+        XCTAssertEqual(DeepLink.handedOver(userInfo), [
+            .open(ConsoleTarget(section: .access, executorId: "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11")),
+            .connect
+        ])
+        XCTAssertNil(DeepLink.handoverUserInfo([]), "no link: the running copy opens Overview")
+        XCTAssertEqual(DeepLink.handedOver([DeepLink.handoverKey: ["nessie-computer://pause", 7]]), [])
+        XCTAssertEqual(DeepLink.handedOver([DeepLink.handoverKey: ["nessie-computer://pause"]]), [])
+        XCTAssertEqual(DeepLink.handedOver(nil), [])
+    }
 }

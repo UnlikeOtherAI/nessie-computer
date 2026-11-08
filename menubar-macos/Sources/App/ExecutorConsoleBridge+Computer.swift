@@ -1,7 +1,7 @@
 import AppKit
 
-/// The commands about the whole computer: Pause all, program requests,
-/// settings, logs and the native pickers.
+/// The commands about the whole computer: Pause all, the work agents do here
+/// (`ExecutorConsoleBridge+Work.swift`), settings, logs and the native pickers.
 extension ExecutorConsoleBridge {
     /// The answer when `command` is one of these; `nil` when it is a team's.
     func invokeComputer(_ command: String, args: [String: Any]) async throws -> Any? {
@@ -12,14 +12,9 @@ extension ExecutorConsoleBridge {
             // `null` (or no id) means every team: Pause all.
             try await connections.setPaused(args["executorId"] as? String, paused: paused)
             return view()
-        case "executor_program_requests":
-            return try await programRequests(args["executorId"] as? String)
-        case "executor_answer_program_request":
-            guard let answer = (args["answer"] as? String).flatMap(ProgramRequestAnswer.init(rawValue:)) else {
-                throw ExecutorRefusal(.invalidRequest)
-            }
-            try await team(args).answer(text(args, "id"), answer)
-            return try await programRequests(nil)
+        case "executor_program_requests", "executor_answer_program_request",
+             "executor_sessions", "executor_stop_session":
+            return try await invokeWork(command, args: args)
         case "executor_open_logs": DaemonLog.open()
         case "executor_open_nessie": try await openNessie(args)
         case "executor_update_setup":
@@ -41,18 +36,6 @@ extension ExecutorConsoleBridge {
         default: return nil
         }
         return NSNull()
-    }
-
-    /// The open requests of one team, or of every team, read fresh from each
-    /// team's CLI rather than from what the menu last saw.
-    private func programRequests(_ executorId: String?) async throws -> [[String: Any]] {
-        let teams = try executorId.map { [try team(["executorId": $0])] } ?? connections.teams
-        var rows: [[String: Any]] = []
-        for controller in teams {
-            guard let id = controller.model.description?.executorId else { continue }
-            rows += try await controller.fetchProgramRequests().map { $0.consoleRow(executorId: id) }
-        }
-        return rows
     }
 
     /// "Open Nessie" opens the Nessie a team is paired with: the named team's,
