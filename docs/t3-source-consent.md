@@ -6,6 +6,12 @@ qualified**. The physical producer is documented in [physical sources](t3-physic
 Other operating systems/architectures refuse. No live parity or all-machine
 coverage follows from either implementation.
 
+The actual whole-source review now forwards its transient native snapshot through
+the tray-owned managed daemon's inherited pipes; capture, publication and finite
+read registration follow [the runtime handoff](retained-runtime-handoff.md).
+Selected grants remain unsupported in that capture doorway. Nothing is installed
+or qualified by the source integration.
+
 ## Home and user actions
 
 The existing bundled executor console's Settings section owns local T3 review.
@@ -123,8 +129,10 @@ After local revocation/expiry the serving process ends; the backend can reconcil
 an already returned identical signed proof, but cannot ask a dead process for a
 new proof. No daemon `alive:true` or caller-supplied public key is accepted.
 
-The tray retains its broker pipe until Stop, expiry, tray exit or a failed outer
-scope. Broker exit closes the protected child, source handles and receipt issuer.
+The tray retains its broker pipe until proved daemon drain/refusal, expiry, tray
+exit or broker disconnect. Stop requests that drain; an uncertain handoff does
+not imply release and prevents replacement. Broker exit closes the protected
+child, source handles and receipt issuer.
 No-argument guards never constitute remote proof. Backend enrollment/grant
 revocation remains independently authoritative even while a local receipt lives.
 
@@ -139,13 +147,15 @@ the transport and do not confer source-owner consent. The fixed `t3-retained
 
 `executor_retained_snapshot(executorId)` returns `{challenge,receipt,expiresAtMs}`
 only for the tray's retained local approval. This snapshot is not authority.
-The **remaining parent integration** is to forward it through the existing local
-daemon doorway solely into `withRetainedImportLocally(stateDirectory,
-{challenge,receipt}, callback)` from T05. T04's real capture/catalog/read must run
-inside that callback with its returned authority. There is no direct tray
+The tray now forwards it through its owned managed child's inherited liveness
+pipe, using the bounded [runtime handoff](retained-runtime-handoff.md). The already
+claimed daemon runs `withCapturedRetainedRuntime`, whose original local consumer
+is `withRetainedImportLocally(stateDirectory, {challenge,receipt}, callback)`.
+Actual capture, publication and catalog/read remain inside that callback with
+its returned authority. There is no direct tray
 `consent.commit`, fake original-owner port, durable approval JSON or substitute
-capture implementation. The UI reports local approval; import completion remains
-unclaimed until this composition and its qualification land.
+capture implementation. The UI reports local approval; real import completion
+and installed availability remain unclaimed until qualification.
 
 Historical-human evidence remains unbound. Pinned original T3
 `25bf84ab07f53f141c20239c63e383823a9d5ea0` has no authenticated V2 creation receipt;

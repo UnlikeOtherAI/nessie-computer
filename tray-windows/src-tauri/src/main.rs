@@ -41,6 +41,7 @@ mod state;
 mod sync_status;
 mod update_controls;
 mod retained_import;
+mod retained_parent;
 mod user_connections;
 mod user_runtime;
 

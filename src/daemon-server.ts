@@ -1,4 +1,6 @@
-import type { Readable } from 'node:stream'
+import type { Readable, Writable } from 'node:stream'
+import { createRetainedDaemonRuntime } from './t3-session/runtime/daemon-handoff.js'
+import { attachRetainedParentHandoff } from './t3-session/runtime/parent-handoff.js'
 import { registerMachineT3Sources } from './t3-session/source/owner.js'
 import { enableLocalSessionBridge } from './local-session-bridge.js'
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
@@ -33,7 +35,7 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { createExecutorMcpSessionManager } from './mcp-session-manager.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
-import { createT3SessionLane, type T3SessionLaneRuntime } from './t3-session-lane.js'
+import { createT3SessionLane } from './t3-session-lane.js'
 import { createDaemonCadence } from './daemon-cadence.js'
 import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
 import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.js'
@@ -56,11 +58,18 @@ const withinShutdownBudget = (work: Promise<void>): Promise<void> => Promise.rac
 export const serveExecutor = async (
   stateDir: string,
   state: ExecutorLocalState,
-  options: { parentLiveness?: Readable; runtime?: ExecutorRuntime; t3Sessions?: T3SessionLaneRuntime } = {},
+  options: { parentLiveness?: Readable; retainedParentOutput?: Writable; runtime?: ExecutorRuntime } = {},
 ): Promise<void> => {
   const daemonLease = await acquireExecutorDaemonLease(stateDir)
   let protectionRuntime: Awaited<ReturnType<PersonalInferenceGuard['registerRuntime']>> | null = null
   let releaseT3Sources: (() => void) | undefined
+  let retained: ReturnType<typeof createRetainedDaemonRuntime> | undefined
+  let retainedParent: ReturnType<typeof attachRetainedParentHandoff> | undefined
+  let retainedFailure: unknown
+  const closeRetained = async () => {
+    try { await retained?.close() } catch (error) { retainedFailure ??= error }
+    try { await retainedParent?.close() } catch (error) { retainedFailure ??= error }
+  }
   try {
     if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
       protectionRuntime = await PersonalInferenceGuard.open().registerRuntime(`executor:${state.executorId}`)
@@ -69,6 +78,15 @@ export const serveExecutor = async (
     const localInference = await startExecutorLocalInferenceSupervisor(stateDir, live)
     live = localInference.state
     releaseT3Sources = registerMachineT3Sources(stateDir, live.executorId)
+    let wakeRetained = () => undefined as void
+    const retainedRuntime = createRetainedDaemonRuntime(stateDir, () => live, () => wakeRetained(),
+      status => retainedParent?.report(status))
+    retained = retainedRuntime
+    if (options.retainedParentOutput) {
+      if (!options.parentLiveness) throw new Error('retained_handoff_parent_required')
+      retainedParent = attachRetainedParentHandoff(options.parentLiveness, options.retainedParentOutput,
+        retainedRuntime.accept, retainedRuntime.close)
+    }
     const browserSessions = createExecutorBrowserSessionManager(stateDir, live)
     const commandSessions = createExecutorCommandSessionManager(stateDir, live)
     const codingSessions = createExecutorCodingSessionManager(stateDir, live)
@@ -94,9 +112,9 @@ export const serveExecutor = async (
     const relayScreens = createSessionViewRelay(
       codingBridge, ownerRequestsGate.understood, ownerRequestsGate.holdReports,
     )
-    const t3Lane = options.t3Sessions ? createT3SessionLane(options.t3Sessions) : null
+    const t3Lane = createT3SessionLane(retainedRuntime.lane)
     const screenPoll = createNonOverlappingExecutorTask(async () => {
-      await Promise.allSettled([relayScreens(live), ...(t3Lane ? [t3Lane.exchangeT3SessionOperations(live)] : [])])
+      await Promise.allSettled([relayScreens(live), t3Lane.exchangeT3SessionOperations(live)])
     })
     void localMcp.refresh().catch(() => undefined)
     let shuttingDown = false
@@ -161,6 +179,7 @@ export const serveExecutor = async (
         )
         void codingBridge.close(close).catch(() => undefined)
       } catch (error) {
+        await retainedRuntime.stopCurrent()
         await browserSessions.stopAll()
         await commandSessions.stopAll()
         await codingSessions.stopAll()
@@ -191,6 +210,7 @@ export const serveExecutor = async (
     const idle = () => !commandPoll.current() && !screenPoll.current()
       && browserSessions.isIdle() && commandSessions.isIdle() && codingSessions.isIdle()
       && localInference.supervisor.isIdle()
+      && !retainedRuntime.busy()
     const pollTick = createNonOverlappingExecutorTask(async () => {
       if (shuttingDown) return
       if (drainingForUpdate && idle() && await codingBridge.isIdle() && drainingForUpdate && idle()) {
@@ -209,6 +229,7 @@ export const serveExecutor = async (
       commands: commandPoll, sessions: screenPoll, heartbeat,
       sessionsHot: () => relayScreens.hot() || Boolean(t3Lane?.hot()), monitorHot: monitor.watching,
     })
+    wakeRetained = () => { if (!shuttingDown) cadence.wake(['sessions']) }
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live,
       onReady: (pollSeconds, connectionEpoch) => {
@@ -240,6 +261,9 @@ export const serveExecutor = async (
       localMcp.stop()
       doorbell.stop()
       t3Lane?.close()
+      // Capture, publication, read demand and native/server withdrawal join
+      // before global API cancellation and physical source owner release.
+      await closeRetained()
       changes.stop()
       clearInterval(commandInterval)
       clearInterval(existingInterval)
@@ -262,7 +286,9 @@ export const serveExecutor = async (
       ])
     }
   } finally {
+    await closeRetained()
     releaseT3Sources?.()
     try { await protectionRuntime?.release() } finally { await daemonLease.release() }
+    if (retainedFailure) throw retainedFailure
   }
 }

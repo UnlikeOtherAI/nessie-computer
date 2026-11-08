@@ -264,8 +264,9 @@ finite bootstrap read/publication scope does not authorize whole-source capture
 or prove inherited/shared closure. No caller-supplied cold capture lease remains.
 Publication must use the graph's existing `publish` with the same callback's separate
 `local.bootstrapAuthority('publish')`; capture authority cannot replace it.
-The callback now exposes the held finite-read lane described below. A tray
-snapshot-to-daemon consumer is still required before it is user reachable.
+The callback exposes the held finite-read lane described below. The Windows
+tray-to-existing-daemon consumer is implemented in [the retained handoff](retained-runtime-handoff.md);
+its actual installed journey remains unqualified.
 
 Signed reads separately require the integrated
 `retainedImportOperationBinding(lease, actualDecodedRequest, delivery.requestDigest)`
@@ -358,12 +359,14 @@ bounded non-evaluating syntax checks, no compiler, native or runtime proof.
 
 `withCapturedRetainedRuntime(stateDirectory, { challenge, receipt }, use, signal)`
 now passes `{ held, graph, storage, lane, signal }` to `use`. `lane` implements
-the existing `T3SessionLaneRuntime` interface. Supply it to `serveExecutor`'s
-existing `options.t3Sessions` inside this callback. Observe the callback's
-`signal`, stop intake and drain the daemon lane before returning. No second
-transport, replay queue or engine graph is created. Tray snapshot delivery and
-that daemon registration remain an integration prerequisite; this internal
-adapter alone is not a reachable or qualified capability.
+the existing `T3SessionLaneRuntime` interface. The running daemon's transient
+registry now attaches it after actual purpose-bound publication and detaches it
+before this callback returns. The unused pre-start `options.t3Sessions` injection
+has been removed: never wrap a second `serveExecutor` around this callback.
+The inherited-pipe tray doorway, cancellation and joined shutdown are documented
+in [the retained handoff](retained-runtime-handoff.md). No second transport,
+replay queue or engine graph is created. Source registration does not establish
+an installed or qualified capability.
 
 `runtime/retained-lane.ts` composes the port inside the original held catalog
 callback. It verifies the exact source object and capture generation, actual

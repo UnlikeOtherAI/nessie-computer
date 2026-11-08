@@ -11,7 +11,7 @@ export interface CapturedRetainedRuntime {
   readonly held: HeldRetainedRuntimeSource
   readonly graph: HeldRetainedCatalogGraph
   readonly storage: RetainedCaptureWorkspace
-  /** Supply this port to the existing daemon t3Sessions option, inside this callback only. */
+  /** Attached to the existing daemon's transient registry only while this callback is held. */
   readonly lane: T3SessionLaneRuntime
   /** Observe this signal and drain the daemon lane before returning. */
   readonly signal: AbortSignal
