@@ -20,21 +20,25 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.getByRole('heading', { name: 'Access for Platform · UnlikeOtherAI' }).waitFor()
     assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on Access')
 
-    // Folders: the name agents use beside the path; the last folder's Remove waits (the runtime keeps one).
+    // Folders: a new team starts with one; the name agents use beside the path; the last folder's Remove waits (the runtime keeps one).
     assert.match(await page.locator('#access-folder-list').textContent(), /Nessie.*Agents call it nessie/)
-    assert.equal(await page.locator('#access-folder-list .list-row').count(), 2)
-    await shot('folders')
-    await page.getByRole('button', { name: 'Add folder…' }).click()
-    await waitConfigured(page, 0)
-    assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.workspaceFolders.map((folder) => folder.name), ['nessie', 'shared', 'site'])
-    await page.locator('#access-folder-list .list-row').nth(2).waitFor()
-    await page.getByRole('button', { name: 'Stop sharing Nessie with Platform · UnlikeOtherAI' }).click()
-    await page.getByRole('button', { name: 'Stop sharing Site with Platform · UnlikeOtherAI' }).click()
-    await page.waitForFunction(() => window.teams['team-0'].folders.length === 1)
+    assert.equal(await page.locator('#access-folder-list .list-row').count(), 1)
     assert.equal(await page.getByRole('button', { name: /Stop sharing/ }).isDisabled(), true)
     await page.getByText('Keep at least one folder.').waitFor()
+    assert.equal(await page.locator('#access-several-folders').isHidden(), true)
+    await shot('folders')
+    // A second folder is allowed, and the tab says plainly what then stops working (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
+    await page.getByRole('button', { name: 'Add folder…' }).click()
+    await waitConfigured(page, 0)
+    assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.workspaceFolders.map((folder) => folder.name), ['nessie', 'site'])
+    await page.locator('#access-folder-list .list-row').nth(1).waitFor()
+    await page.getByText('Agents’ browser, sandboxed commands and coding sessions here need exactly one folder.').waitFor()
+    assert.equal(await page.locator('#access-last-folder').isHidden(), true)
+    await shot('two-folders')
+    await page.getByRole('button', { name: 'Stop sharing Site with Platform · UnlikeOtherAI' }).click()
+    await page.waitForFunction(() => window.teams['team-0'].folders.length === 1)
+    assert.equal(await page.locator('#access-several-folders').isHidden(), true)
     assert.equal(await page.evaluate(() => window.restarts), 0, 'a save never restarts the team')
-    await shot('last-folder')
 
     // Programs: "Currently allowed" is the saved state; edits wait for Apply behind a before/after line.
     assert.equal(await current(page), 'Currently allowed: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code.')
@@ -114,12 +118,21 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.locator('#access-websites').scrollIntoViewIfNeeded()
     await shot('websites')
 
-    // Local apps: every installed app on with a switch; one no longer installed says so.
-    assert.equal(await page.locator('#access-local-app-list .list-row').count(), 3)
+    // Local apps: every installed app on with a switch, named by where it was found; one no longer installed says so;
+    // one the owner named gets Remove instead of a switch.
+    assert.equal(await page.locator('#access-local-app-list .list-row').count(), 4)
+    assert.match(await page.locator('#access-local-app-list').textContent(), /kelpie.*From UnlikeOtherAI.*filesystem.*From your Claude Code setup.*figma.*From your Codex setup/s)
     await page.getByText('Not installed any more', { exact: false }).waitFor()
+    assert.match(await page.locator('#access-local-app-list .list-row').first().textContent(), /my-tool.*Added by you/)
     await page.getByRole('switch', { name: 'Let Platform · UnlikeOtherAI use kelpie' }).click()
     await page.waitForFunction(() => window.teams['team-0'].mcpPolicy.disabled[0] === 'kelpie')
     assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.mcpPolicy, { mode: 'installed', disabled: ['kelpie'] })
+    await page.locator('#access-localApps').scrollIntoViewIfNeeded()
+    await shot('local-apps')
+    await page.getByRole('button', { name: 'Remove my-tool from Platform · UnlikeOtherAI' }).click()
+    await page.waitForFunction(() => window.teams['team-0'].mcpServers.length === 0)
+    assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.mcpServers, [])
+    assert.equal(await page.locator('#access-local-app-list .list-row').count(), 3)
 
     // Coding assistants live under For developers; the switch saves when pressed; the Claude Code recipe is a dialog.
     assert.equal(await page.locator('#access-existing-sessions').isVisible(), false)
@@ -163,6 +176,17 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.getByText('This version of Nessie Computer doesn’t list local apps yet.', { exact: false }).waitFor()
     assert.deepEqual(errors, [])
     await context.close()
+  }
+  // A built-in the runtime cannot verify on this computer is shown, off and unavailable, never switchable.
+  {
+    const context = await browser.newContext({ viewport: { width: 640, height: 680 }, locale: 'en-GB' })
+    await context.addInitScript(() => { window.uoaSignatureUnavailable = true })
+    const opened = await openAccess(browser, ui, { host: 'macos', context })
+    await opened.page.getByText('Not available on this computer.').waitFor()
+    assert.equal(await opened.page.getByRole('switch', { name: 'Allow Apps from UnlikeOtherAI' }).isDisabled(), true)
+    assert.equal(await opened.page.getByRole('switch', { name: 'Allow Claude Code' }).isDisabled(), false)
+    assert.deepEqual(opened.errors, [])
+    await opened.context.close()
   }
 
   // Every locale fits in the desktop and the smallest window, light and dark; Czech, dark and the smallest window are kept as pictures.

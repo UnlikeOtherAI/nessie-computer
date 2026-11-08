@@ -108,9 +108,9 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .failure-details summary { font-size: 12px; margin: 6px 0 2px; }
 .failure-details p { font-size: 12px; color: var(--muted); margin: 0; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
 /* Connect a team */
-#code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }
-#pairing-code { font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
-#pairing-code.expired { color: var(--muted); text-decoration: line-through; }
+#code-row, .code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }
+#pairing-code, #ai-connection-code { font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
+#pairing-code.expired, #ai-connection-code.expired { color: var(--muted); text-decoration: line-through; }
 #copy-code { padding: 5px 9px; font-size: 12px; }
 #pairing-getting { color: var(--muted); }
 /* Settings */

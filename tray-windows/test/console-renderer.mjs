@@ -45,7 +45,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     // Connect a team asks for a code at once, with no address field in sight.
     await page.getByRole('button', { name: 'Connect a team', exact: true }).first().click()
     await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
-    assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { replace: false, apiBaseUrl: 'https://api.nessie.works' })
+    assert.deepEqual((await lastCall(page, 'executor_pairing_start')).args, { apiBaseUrl: 'https://api.nessie.works' })
     assert.equal(await page.locator('#pairing-server').isVisible(), false)
     assert.equal(await page.locator('#pairing-instruction').textContent(), 'In Nessie, open Computers and choose Add a computer.')
     assert.equal(await page.getByRole('dialog').getByText(/fingerprint/i).count(), 0)
@@ -90,7 +90,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.locator('#overview-connected:not([hidden])').waitFor()
     assert.equal(await page.locator('#connect-dialog').evaluate((dialog) => dialog.open), false)
     assert.equal(await page.locator('#connected-title').textContent(), 'Connected to Platform · UnlikeOtherAI')
-    await page.locator('#connected-body').getByText('Agents in this team can now use: 2 folders · UnlikeOtherAI apps, Claude Code, Codex, T3 Code · all local apps · no websites.').waitFor()
+    await page.locator('#connected-body').getByText('Agents in this team can now use: 1 folder · UnlikeOtherAI apps, Claude Code, Codex, T3 Code · all local apps · no websites.').waitFor()
     assert.equal(await status(), 'Working for 1 team')
     await shot('connected')
     await page.getByRole('button', { name: 'Done', exact: true }).click()
@@ -244,7 +244,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.locator('#pairing-instruction').getByText('V Nessie otevřete Počítače a zvolte Přidat počítač.').waitFor()
     await shot('connect-cs')
     await page.evaluate(() => window.claimInNessie())
-    await page.locator('#connected-body').getByText('2 složky · aplikace UnlikeOtherAI, Claude Code, Codex, T3 Code · všechny místní aplikace · žádné weby').waitFor()
+    await page.locator('#connected-body').getByText('1 složka · aplikace UnlikeOtherAI, Claude Code, Codex, T3 Code · všechny místní aplikace · žádné weby').waitFor()
     assert.equal(await page.locator('#status-sentence').textContent(), 'Pracuje pro 1 tým')
     await page.locator('.team-card .status-word').getByText('Pracuje').waitFor()
     await shot('connected-cs')
@@ -266,6 +266,36 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await context.close()
   }
 
+  // A nessie-computer:// link that started the Windows app opens its section once; macOS has no such command and is not asked twice.
+  {
+    const context = await browser.newContext({ viewport: { width: 640, height: 680 }, locale: 'en-GB' })
+    await context.addInitScript(() => { window.launchLink = { section: 'documents', executorId: 'team-1' } })
+    const opened = await openConsole(browser, ui, { host: 'windows', paired: 2, sync: null, context })
+    await opened.page.getByRole('heading', { name: 'Documents for Research · UnlikeOtherAI' }).waitFor()
+    assert.equal(await opened.page.locator('#team-select').inputValue(), 'team-1')
+    assert.equal(await callCount(opened.page, 'executor_launch_link'), 1)
+    assert.deepEqual(opened.errors, [])
+    journeys++
+    await opened.context.close()
+  }
+  // On Windows a team's ChatGPT plans run on a second, service-owned connection: one card, one dropdown entry, its state on the team's card.
+  {
+    const { context, page, errors, shot } = await open({ host: 'windows', paired: 2 })
+    await page.locator('#team-cards .team-card').nth(1).waitFor()
+    await page.evaluate(() => window.claimPlanInNessie('team-0'))
+    await page.locator('.team-card', { hasText: 'Platform · UnlikeOtherAI' }).getByText('ChatGPT plan connection: Working').waitFor()
+    assert.equal(await page.locator('#team-cards .team-card').count(), 2)
+    assert.equal(await page.locator('#status-sentence').textContent(), 'Working for 2 teams')
+    await page.getByRole('tab', { name: 'Access' }).click()
+    assert.deepEqual(await page.locator('#team-select option').evaluateAll((options) => options.map((option) => option.value)), ['team-0', 'team-1'])
+    await page.getByRole('tab', { name: 'Overview' }).click()
+    await page.evaluate(() => { window.paired[2].daemonStatus = 'stopped'; window.paired[2].failure = { message: 'Service connection lost.' } })
+    await page.locator('#needs-you-list').getByText('Platform · UnlikeOtherAI — ChatGPT plan connection is not connected').waitFor()
+    await shot('plan-connection')
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
   // Dark follows the OS; the same tokens, no white page.
   {
     const { context, page, errors, shot } = await open({ host: 'windows', dark: true, paired: 2 })

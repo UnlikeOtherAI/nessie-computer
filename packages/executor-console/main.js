@@ -114,7 +114,7 @@
   // ---- tabs and the team row
   const tabs = [...document.querySelectorAll('[role=tab]')]
   const renderTeamRow = () => {
-    const teams = nc.team.list()
+    const teams = nc.team.teams()
     const scoped = TEAM_TABS.includes(currentTab)
     byId('team-row').hidden = !scoped || !teams.length
     byId('no-team').hidden = !scoped || Boolean(teams.length)
@@ -190,6 +190,17 @@
   }
   for (const tab of TABS) listen(`tray://section/${tab}`, (target) => attempt(() => openSection(tab, target)))
   listen('tray://connect', () => attempt(() => nc.pairing.open()))
+  /**
+   * A `nessie-computer://` link that started the app is handed over once the
+   * page asks for it (Windows). A host without the command answers with a
+   * refusal, which means no link.
+   */
+  const openLaunchLink = async () => {
+    let link = null
+    try { link = await invoke('executor_launch_link') } catch { return }
+    if (link?.connect) await nc.pairing.open()
+    else if (TABS.includes(link?.section)) await openSection(link.section, link)
+  }
 
   window.addEventListener('DOMContentLoaded', () => {
     nc.team.onListChange(renderTeamRow)
@@ -198,6 +209,7 @@
     attempt(async () => {
       try { await nc.team.refresh() } catch (error) { reportError(error) }
       try { await nc.pairing.restore() } catch (error) { reportError(error) }
+      await openLaunchLink()
     })
     setInterval(() => { nc.team.refresh().catch((error) => reportError(error)) }, 5000)
     showTab('overview')

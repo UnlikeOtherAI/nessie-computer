@@ -10,6 +10,7 @@ window.aiTab = (() => {
     <h2 id="ai-heading"></h2>
     <div class="section-heading"><h3 id="ai-plans-title"></h3><button type="button" id="ai-add-chatgpt"></button></div>
     <p class="hint" id="ai-plans-hint"></p>
+    <p class="hint" id="ai-connection-needed" hidden></p>
     <div id="ai-chatgpt-list"></div>
     <hr>
     <div class="section-heading"><h3 id="ai-endpoints-title"></h3><button type="button" id="ai-add-endpoint"></button></div>
@@ -46,6 +47,12 @@ window.aiTab = (() => {
   }
   /** The name a plan shows: its own, or "ChatGPT plan N" by its place in the list. */
   const planName = (profile, index) => profile.label ?? t('planName', { n: index + 1 })
+  /**
+   * The connection that holds the team's plans. On macOS that is the team
+   * itself; on Windows it is the service connection, which a team this app
+   * runs gets through the one-time flow in ai-connection.js.
+   */
+  const planConnection = () => nc.team.planConnectionOf(nc.team.current())
 
   const load = async () => {
     const asked = ++request
@@ -56,8 +63,12 @@ window.aiTab = (() => {
     for (const id of ['ai-chatgpt-list', 'ai-endpoint-list']) nc.byId(id).textContent = t('loading')
     nc.byId('ai-error').hidden = true
     if (!executorId) return
+    const plansOn = planConnection()
+    nc.byId('ai-connection-needed').hidden = Boolean(plansOn)
+    nc.byId('ai-connection-needed').textContent = t('connection.needed', { team: nc.team.label(executorId) })
     const results = await Promise.allSettled([
-      nc.invoke('executor_personal_chatgpt', { executorId, operation: { operation: 'status' } }),
+      plansOn ? nc.invoke('executor_personal_chatgpt', { executorId: plansOn, operation: { operation: 'status' } })
+        : Promise.resolve({ profiles: [], reason: null }),
       nc.invoke('executor_inference_connections', { executorId, operation: { operation: 'status' } }),
     ])
     if (asked !== request || executorId !== nc.team.current()) return
@@ -68,7 +79,7 @@ window.aiTab = (() => {
       plans = accounts.value.profiles
       for (const [index, profile] of plans.entries()) {
         planList.append(row(planName(profile, index), nc.t(`chatgpt.phases.${profile.phase}`), profile.profileId,
-          () => window.chatgptDialog.open(executorId, profile.profileId)))
+          () => window.chatgptDialog.open(plansOn, profile.profileId)))
       }
       if (!plans.length) planList.textContent = accounts.value.reason
         ? nc.t(`chatgpt.unavailable.${accounts.value.reason in window.chatgptDialog.reasons ? accounts.value.reason : 'other'}`) : t('emptyPlans')
@@ -87,7 +98,13 @@ window.aiTab = (() => {
   }
   const shown = () => nc.view.current() === 'ai' && Boolean(nc.team.current())
   const refresh = () => { if (shown()) nc.attempt(load) }
-  nc.byId('ai-add-chatgpt').onclick = () => nc.attempt(() => window.chatgptDialog.open(nc.team.current(), null, plans.length + 1))
+  /** The first plan on a team this Windows app runs first connects the service to the team; then the plan is named and signed in. */
+  const addPlan = async () => {
+    const executorId = nc.team.current()
+    const plansOn = planConnection() ?? await window.aiConnection.connect(executorId)
+    if (plansOn && executorId === nc.team.current()) await window.chatgptDialog.open(plansOn, null, plans.length + 1)
+  }
+  nc.byId('ai-add-chatgpt').onclick = () => nc.attempt(addPlan, { target: nc.byId('ai-add-chatgpt') })
   nc.byId('ai-add-endpoint').onclick = () => window.inferenceEndpoints.open(null)
   nc.byId('ai-refresh').onclick = () => nc.attempt(load)
   nc.view.onChange(refresh)

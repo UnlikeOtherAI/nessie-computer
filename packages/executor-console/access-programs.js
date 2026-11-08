@@ -7,7 +7,9 @@
   const nc = window.nc
   const access = window.accessTab
   const t = access.t
+  // The built-ins come from `describe.programDefaults` (contract §4.3); their switches are `commandPolicy.trusted`.
   const BUILTINS = ['unlikeotherai', 'claudeCode', 'codex', 't3Code']
+  const defaults = (saved) => (saved.programDefaults ?? []).filter((entry) => BUILTINS.includes(entry.id))
   const SHELLS = new Set(['bash', 'dash', 'fish', 'ksh', 'sh', 'zsh'])
   const drafts = new Map() // executorId → the command policy as edited, not yet applied
   let nodes = null
@@ -143,15 +145,18 @@
     }
   }
 
-  const renderList = (draft, label) => access.keepFocus(nodes['program-list'], () => {
+  const renderList = (draft, saved, label) => access.keepFocus(nodes['program-list'], () => {
     const list = nodes['program-list']
     list.replaceChildren()
     const listed = draft.mode === 'allowlist'
-    for (const key of BUILTINS) {
+    for (const entry of defaults(saved)) {
+      const key = entry.id
       const name = t(`programs.builtins.${key}`)
       const toggle = access.toggle({ label: t('programs.switchLabel', { program: name }), checked: Boolean(draft.trusted?.[key]),
-        disabled: !listed, onchange: (on) => setTrusted(key, on) })
-      list.append(access.row({ name, detail: key === 'unlikeotherai' ? t('programs.signed') : undefined, control: toggle, key, disabled: !listed }))
+        disabled: !listed || !entry.available, onchange: (on) => setTrusted(key, on) })
+      const detail = [entry.verifiedBy === 'signature' ? t('programs.signed') : null, entry.available ? null : t('programs.unavailable')]
+        .filter(Boolean).join(' ')
+      list.append(access.row({ name, detail: detail || undefined, control: toggle, key, disabled: !listed || !entry.available }))
     }
     for (const rule of draft.allowlist) {
       const program = programOf(rule) ?? rule
@@ -181,7 +186,7 @@
     nodes['mode-all-text'].textContent = t('programs.modeAny')
     nodes['mode-consequence'].textContent = t('programs.consequence')
     nodes[`mode-${draft.mode}`].checked = true
-    renderList(draft, label)
+    renderList(draft, saved, label)
     nodes['advanced-summary'].textContent = t('programs.advanced')
     nodes['allowlist-label'].textContent = t('programs.allowed')
     nodes['denylist-label'].textContent = t('programs.blocked')

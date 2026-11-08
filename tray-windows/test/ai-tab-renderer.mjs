@@ -18,9 +18,28 @@ export const verifyAiTab = async (browser, ui, output) => {
         assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on AI')
         assert.doesNotMatch(await page.locator('#tab-ai').innerText(), RETIRED_WORDS)
         if (size === 'desktop') await shot('empty')
+        // On Windows the first plan first connects the background service to the team: one more pairing code, claimed in Nessie.
+        const windows = host === 'windows'
+        assert.equal(await page.locator('#ai-connection-needed').isVisible(), windows)
+        if (english && windows) assert.match(await page.locator('#ai-connection-needed').textContent(), /Adding the first plan connects it to Platform · UnlikeOtherAI/)
         // Adding a plan prefills an editable name and needs the restriction understood before Sign in with ChatGPT.
         for (const n of [1, 2]) {
           await page.locator('#ai-add-chatgpt').click()
+          if (windows && n === 1) {
+            await page.waitForFunction(() => document.getElementById('ai-connection-code').textContent === '01234567')
+            if (english) assert.equal(await page.locator('#ai-connection-title').textContent(), 'Connect ChatGPT plans for Platform · UnlikeOtherAI')
+            assert.deepEqual((await lastCall(page, 'executor_chatgpt_connection_start')).args, { executorId: 'team-0' })
+            await assertFits(page, `${host} ${locale} ${size} plan connection dialog`)
+            if (size === 'desktop') await shot('connect-plans')
+            await page.locator('#ai-connection-open-nessie').click()
+            assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, {})
+            await page.evaluate(() => window.claimPlanInNessie('team-0'))
+            await page.waitForFunction(() => !document.getElementById('ai-connection-dialog').open)
+            await page.waitForFunction(() => document.getElementById('chatgpt-dialog').open)
+            assert.equal(await page.locator('#ai-connection-needed').isHidden(), true)
+            assert.equal((await lastCall(page, 'executor_personal_chatgpt')).args.executorId, 'team-0-plans', 'plans live on the service connection')
+            if (english) assert.equal(await page.locator('#chatgpt-team').textContent(), 'Platform · UnlikeOtherAI', 'the dialog names the team, not the connection')
+          }
           await page.waitForFunction((value) => document.getElementById('chatgpt-name').value === value, await page.evaluate((i) => window.nc.t('ai.planName', { n: i }), n))
           if (english) {
             assert.equal(await page.locator('#chatgpt-title').textContent(), 'Add a ChatGPT plan')
