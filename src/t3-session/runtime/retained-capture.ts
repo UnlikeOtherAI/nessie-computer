@@ -1,4 +1,3 @@
-import { RetainedImportLeaseSchema, type RetainedImportLease } from '@nessie/executor-protocol'
 import { captureRetainedT3, resumeRetainedT3, type RetainedCapturePorts } from '../import/capture.js'
 import { withHeldRetainedCatalogGraph, type HeldRetainedCatalogGraph } from '../catalog/held-graph.js'
 import { machineT3Sources } from '../source/owner.js'
@@ -13,24 +12,26 @@ export interface CapturedRetainedRuntime {
 }
 
 /**
- * Internal production handoff for a real tray snapshot and separately issued
- * canonical capture lease. A serialized receipt alone never grants reading.
- * The real local producer consumes consent and the actual authority checks its
+ * Internal production handoff for a real tray snapshot. Capture authority comes
+ * only from the actual consent.commit activation inside the held callback.
+ * A serialized receipt alone never grants reading. The authority checks its
  * lease at every capture boundary. No user identities or source rows are invented.
  */
 export async function withCapturedRetainedRuntime<A>(stateDirectory: string,
-  input: { readonly challenge: unknown; readonly receipt: unknown; readonly captureLease: RetainedImportLease },
+  input: { readonly challenge: unknown; readonly receipt: unknown },
   use: (runtime: CapturedRetainedRuntime) => Promise<A>, caller: AbortSignal): Promise<A> {
-  const lease = RetainedImportLeaseSchema.parse(input.captureLease)
-  requireCapture(lease.purpose === 'capture', 'retained_import_wrong_purpose')
-  return withRetainedRuntimeSource(stateDirectory, input, held =>
-    withRetainedCaptureWorkspace(stateDirectory, held.local.source.physicalRootKey, async storage => {
+  return withRetainedRuntimeSource(stateDirectory, input, held => {
+    const local = held.local
+    // Selected-thread bootstrap reads prove only their finite approved scope.
+    // They cannot authorize this whole-source capture or inherited closure.
+    requireCapture(local.challenge.selection.kind === 'whole_source', 'retained_import_capture_requires_whole_source')
+    const importRead = local.bootstrapAuthority('capture')
+    requireCapture(importRead.captureGeneration === local.captureGeneration, 'retained_capture_generation_mismatch')
+    return withRetainedCaptureWorkspace(stateDirectory, local.source.physicalRootKey, async storage => {
       const signal = AbortSignal.any([held.signal, storage.signal])
-      const local = held.local
-      requireCapture(lease.captureGeneration === local.captureGeneration, 'retained_capture_generation_mismatch')
       const manifest = await held.checked(() => machineT3Sources(local.challenge.executorId).manifest())
       const ports: RetainedCapturePorts = {
-        workspace: storage.workspace, journal: storage.journal, importRead: local.authority(lease),
+        workspace: storage.workspace, journal: storage.journal, importRead,
         source: {
           // The capture snapshot's existing port consumes this exact held
           // callback. It must not open a second source connection or substitute
@@ -61,5 +62,6 @@ export async function withCapturedRetainedRuntime<A>(stateDirectory: string,
       storage.assertCurrent()
       signal.throwIfAborted()
       return withHeldRetainedCatalogGraph(ports, local, graph => use({ held, graph, storage }), signal)
-    }, held.signal), caller)
+    }, held.signal)
+  }, caller)
 }

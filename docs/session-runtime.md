@@ -252,19 +252,27 @@ workspace, original capture/resume and `withHeldRetainedCatalogGraph`. It passes
 the exact local source, database and physical recheck into capture, and the joined
 source/workspace signal into the held graph. Existing generations use original
 fingerprint/high-water recovery; partial captures are never silently replaced.
-The current internal signature accepts a separately validated capture lease.
-Production bootstrap must instead obtain that lease after actual signed
-`consent.commit` within the held callback. The retained owner's forthcoming
-`local.bootstrapAuthority('capture' | 'publish')` supplies this; it is not yet
-integrated in this checkpoint. No tray consumer or ready announcement is installed.
+The handoff accepts only `{ challenge, receipt }`; it obtains
+`local.bootstrapAuthority('capture')` after actual signed `consent.commit`
+within the held callback. The parent-integrated retained owner supplies the
+activation descriptors and checks the real native grant and backend lease.
+The authority's capture generation must match the held local generation.
+Selected-thread consent is refused before acquiring destination storage: its
+finite bootstrap read/publication scope does not authorize whole-source capture
+or prove inherited/shared closure. No caller-supplied cold capture lease remains.
+Publication must use the graph's existing `publish` with the same callback's separate
+`local.bootstrapAuthority('publish')`; capture authority cannot replace it.
+No tray consumer or ready announcement is installed.
 
-Signed reads separately require the exact parent-integrated
+Signed reads separately require the integrated
 `retainedImportOperationBinding(lease, actualDecodedRequest, delivery.requestDigest)`
 and `local.authority(lease, binding)`. Their canonical digest, relay HMAC,
 correlation/scope and actual local consent must all match. Bootstrap capture or
 publication leases cannot authorize arbitrary lane callers. Unsupported requests
 with multiple grants must refuse atomically, never union their scopes or emit
 partial original results. Retried operation leases keep their fixed deadlines.
+The signed `catalogLeases` delivery carrier is still pending parent integration;
+these functions alone do not bind `describe/open` or advertise read readiness.
 
 Two workspace fixtures exercise real SQL service reuse, persisted reopen,
 competing writer refusal, invalid/duplicate references, escaped handles and
