@@ -32,7 +32,9 @@ test('parsed receipt and arbitrary successful recheck cannot mint protected call
   let calls = 0
   const parsed = T3ExecutionResourceReceiptSchema.parse(receipt())
   const forged = { receipt: parsed, settingsBytes: new Uint8Array(), providerReferences: [],
-    signal: new AbortController().signal, recheck: async () => { calls += 1 } } satisfies T3ExecutionResourceScope
+    signal: new AbortController().signal, recheck: async () => { calls += 1 },
+    withReadonlySourceSnapshot: async () => { throw new Error('unissued source snapshot') },
+  } satisfies T3ExecutionResourceScope
   await assert.rejects(recognizeT3ExecutionResource(forged), /not_issued/u)
   assert.equal(calls, 0)
 })

@@ -2,6 +2,8 @@
 #[cfg(windows)] mod execution_settings;
 #[cfg(windows)] mod execution_resource;
 #[cfg(windows)] mod execution_link;
+#[cfg(windows)] mod execution_snapshot;
+#[cfg(all(windows, test))] mod execution_snapshot_tests;
 #[cfg(all(windows, test))] mod execution_settings_tests;
 #[cfg(windows)] mod resource;
 #[cfg(windows)] mod sqlite;

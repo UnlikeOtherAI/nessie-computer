@@ -1,13 +1,14 @@
 import { createHmac } from 'node:crypto'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
-import type { CaptureDatabase, SqlRow } from '../state/sqlite.js'
+import type { SqlRow } from '../state/sqlite.js'
 import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from './manifest.js'
 import { tablesForLayout, selectCaptureRows, legacyThreads, legacyMessages, legacyPullRequests } from './layout.js'
 import type { CaptureTable } from './layout.js'
 import type { RetainedOriginalOwnerPort, RetainedReadScope } from '../ownership/continuity.js'
 import { withRetainedReadScope } from '../ownership/continuity.js'
 import type { RetainedImportAuthorityPort } from '../ownership/import-scope.js'
-import migrationManifest from './migration-manifest.json' with { type: 'json' }
+import { checkT3SourceLayout } from '../source/layout-check.js'
+export { checkT3SourceLayout } from '../source/layout-check.js'
 
 export interface T3SourceSnapshot {
   readonly source: ProvenT3Source
@@ -15,27 +16,6 @@ export interface T3SourceSnapshot {
   readonly tables: readonly CaptureTable[]
   rows(table: CaptureTable): Iterable<SqlRow>
   fingerprint(key: string): { digest: string; legacyDigest: string }
-}
-
-export function checkT3SourceLayout(database: CaptureDatabase, source: ProvenT3Source, tables: readonly CaptureTable[]): void {
-  requireCapture(source.layout === 'v2-80' || source.layout === 'legacy-54', 'unsupported_source_layout')
-  const head = source.layout === 'v2-80' ? 80 : 54
-  requireCapture(source.databaseRole === (head === 80 ? 'authoritative-v2' : 'sole-legacy'), 'source_role_mismatch')
-  requireCapture(database.prepare("SELECT name FROM sqlite_schema WHERE type = 'table' AND name = 'effect_sql_migrations'")
-    .get(), 'unsupported_source_migration')
-  const migrations = database.prepare('SELECT migration_id, name FROM effect_sql_migrations ORDER BY migration_id').all()
-  requireCapture(migrations.length === head, 'unsupported_source_migration')
-  for (const [index, row] of migrations.entries()) {
-    const expected = migrationManifest[index]
-    requireCapture(expected && row.migration_id === expected[0] && row.name === expected[1], 'unsupported_source_migration')
-  }
-  for (const entry of tables) {
-    const schema = database.prepare("SELECT type, sql FROM sqlite_schema WHERE name = ?").get(entry.name)
-    requireCapture(schema?.type === 'table' && typeof schema.sql === 'string' &&
-      /^CREATE TABLE\s/iu.test(schema.sql), 'unsupported_source_table')
-    const columns = new Set(database.prepare('SELECT name FROM pragma_table_info(?)').all(entry.name).map(row => row.name))
-    requireCapture(entry.columns.every(column => columns.has(column)), 'unsupported_source_columns')
-  }
 }
 
 /** A supported read transaction pins WAL-visible schema and rows. No migrations,

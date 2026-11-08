@@ -1,4 +1,4 @@
-# Held execution settings and provider homes
+# Held execution source, settings and provider homes
 
 Status: authored Windows x64 implementation, pending combined integration and
 qualification. No compiler, native build, signed install, provider or personal
@@ -37,6 +37,10 @@ helper generation, held configuration and digest; only that fixed protected
 native role can confirm after obtaining `AffirmedOwner`. A CLI boolean, daemon
 JSON or another helper cannot confirm it. This bounded ceremony is a local
 source-registration link, separate from execution issuer/UOA/command authority.
+Link version 2 explicitly grants local reads of **settings and session snapshots**.
+Its `sourceAccess: settings-and-session-snapshot` value participates in the exact
+stored metadata match. A version 1 settings-only link cannot silently enable
+session reads; it requires another protected local affirmation.
 
 The service-owned `execution-source-links/<executorId>/<SHA256(admittedRootKey)>.json` stores only
 product-specific linkage metadata: owner SID, exact configuration identity,
@@ -63,6 +67,53 @@ renewing human/backend authority. Closure invalidates recognition and zeroes
 the original byte buffer. Escaped scopes refuse. Never copy/log/serialize/return
 settings: original files can contain inline credentials. Buffer zeroing does not
 claim to erase every transient V8 JSON/base64 representation.
+
+## Finite readonly source snapshots
+
+The same issued `T3ExecutionResourceScope` now exposes:
+
+```ts
+withReadonlySourceSnapshot<A>(
+  use: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>,
+): Promise<A>
+```
+
+`T3ExecutionSourceSnapshot` is exported from `src/t3-session/source/execution.ts`:
+`source: ProvenT3Source`, `database: CaptureDatabase`, `sourceHighWater: number`,
+`resourceGeneration: string`, and `recheck(): Promise<void>`. `CaptureDatabase`
+is the existing structural type in `src/t3-session/state/sqlite.ts`. It accepts
+only the fixed `import/layout.ts` capture SELECTs and schema/migration queries;
+`exec` and statement `run` refuse. Runtime owns the separate destination writer
+and adapts these reads for the original importer. This port is not a writable
+Effect SqlClient and supplies no database path.
+
+The producer owns BEGIN, the first schema read that pins the WAL snapshot,
+original migration/table/role validation, and COMMIT or ROLLBACK. It uses the
+already-open `ExecutionResource.source.database`; no second reader, source
+copy, attachment, provider startup or original T3 server is created. A private
+native snapshot token binds each fixed query/cursor to that transaction. Only
+one snapshot may be active. Closing finalizes abandoned cursors; old tokens and
+escaped statements cannot read the next snapshot. Callback failure invalidates
+the resource. Returning from the outer scope with an unfinished snapshot refuses.
+
+Every native read, row step, finalization and transaction return checks the
+physical source before and after, with the execution handler additionally
+checking current service-held registration, settings, graph custody and ACLs
+before any rows leave the protected channel. Recheck around every dependent
+await in the consumer. The native resource generation identifies this held
+lease, never the destination writer/capture generation. Ordinary source WAL
+appends are consistent within the pinned snapshot and visible to a later one.
+
+This prospective local read grant supplies no historical-human or publication
+authority. The fixed catalogue retains original V2/sole-legacy roles, table
+filters and order. Runtime9 must apply the existing original historical privacy
+projection (including unknown VALUE withholding) before exposing/importing values,
+and compare frozen legacy digests against its destination journal before
+activation. Frozen-legacy reads remain available through the fixed catalogue for
+that comparison. A first observed digest is an unattested baseline, never proof
+of original-copy creation. No retained owner/import grant is borrowed or minted.
+The shared physical layout validator lives in `source/layout-check.ts` so this
+path does not load passive ownership composition to obtain schema validation.
 
 ## Native and service boundary
 
@@ -174,8 +225,13 @@ ServerSettings, ProviderInstanceConfigMap and both original driver codecs.
 The native counterpart substitutes disposable absolute home directories and
 verifies all three Claude role refs, exact original instance ID, wire-only
 normalization and absence of refs for source `claude`.
+`execution_snapshot_tests.rs` authors actual same-connection/WAL visibility,
+fixed-row order, abandoned-cursor cleanup, stale-token/sticky refusal, private
+table/raw SQL/write/nested transaction denial, retained-opcode denial, and
+physical expiry/replacement at query/next/finalize/return boundaries. These
+SQLite component tests issue no service admission and remain unrun.
 
-Four changed TypeScript modules passed non-evaluating Node builtin syntax
+Five TypeScript modules in the snapshot tranche passed non-evaluating Node builtin syntax
 parsing with a 192 MiB heap; `git diff --check` passed. No implementation import,
 test suite, compiler or native code was executed.
 

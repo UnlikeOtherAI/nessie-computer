@@ -37,6 +37,24 @@ unsafe extern "C" fn authorize(_: *mut c_void, action: c_int, first: *const c_ch
 
 pub struct Database { api: &'static Api, raw: *mut c_void, statements: HashMap<u64, *mut c_void>, next: u64, v2: bool }
 impl Database {
+    /// Shared fixed-read wire; neither resource lane accepts caller SQL.
+    pub(super) fn dispatch_read(&mut self, request: &Value) -> Result<Value, NativeError> {
+        let fields = request.as_object().ok_or_else(fail)?;
+        match request["op"].as_str().ok_or_else(fail)? {
+            "query" => {
+                if fields.keys().any(|key| !["op", "query", "table"].contains(&key.as_str()))
+                    || fields.contains_key("table") && !request["table"].is_string() { return Err(fail()); }
+                self.query(request["query"].as_str().ok_or_else(fail)?, request["table"].as_str())
+            },
+            "next" | "finalize" => {
+                if fields.len() != 2 { return Err(fail()); }
+                let id = request["statement"].as_u64().ok_or_else(fail)?;
+                if request["op"] == "next" { self.next(id) }
+                else { self.finish(id)?; Ok(json!({})) }
+            },
+            _ => Err(fail()),
+        }
+    }
     pub fn verify_files(&self, main: &str, wal: Option<&str>) -> Result<(), NativeError> {
         super::sqlite_handles::verify_main(self.api, self.raw, main)?;
         if let Some(wal) = wal { super::sqlite_handles::verify_wal(self.api, self.raw, wal)?; }

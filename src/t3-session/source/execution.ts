@@ -1,8 +1,25 @@
 import { createHash } from 'node:crypto'
+import * as Schema from 'effect/Schema'
+import { EnvironmentId } from '@nessie/t3-session-source/contracts'
 import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import { openNativeT3ExecutionResources } from './native.js'
+import { heldSourceDatabase } from './database.js'
+import type { CaptureDatabase } from '../state/sqlite.js'
+import type { ProvenT3Source } from '../import/manifest.js'
+import { tablesForLayout } from '../import/layout.js'
+import { checkT3SourceLayout } from './layout-check.js'
+
+export interface T3ExecutionSourceSnapshot {
+  readonly source: ProvenT3Source
+  /** Fixed catalogue SELECTs only. Producer owns transaction control. */
+  readonly database: CaptureDatabase
+  readonly sourceHighWater: number
+  /** Native resource lifetime only; never a capture or runtime writer UUID. */
+  readonly resourceGeneration: string
+  recheck(): Promise<void>
+}
 
 export interface T3ExecutionResourceScope {
   /** Decode with original ServerSettings in the protected graph callback only.
@@ -11,6 +28,7 @@ export interface T3ExecutionResourceScope {
   readonly receipt: T3ExecutionResourceReceipt
   readonly providerReferences: readonly T3ExecutionProviderResource[]
   readonly signal: AbortSignal
+  withReadonlySourceSnapshot<A>(use: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>): Promise<A>
   recheck(): Promise<void>
 }
 const scopes = new WeakMap<T3ExecutionResourceScope, () => Promise<void>>()
@@ -53,6 +71,7 @@ export async function withT3ExecutionResources<A>(input: {
   let bytes: Buffer | undefined
   let scope: T3ExecutionResourceScope | undefined
   let timer: ReturnType<typeof setInterval> | undefined
+  let snapshotActive = false
   const stop = () => {
     live = false
     abort.abort(new CaptureFailure('t3_execution_resource_closed'))
@@ -60,10 +79,13 @@ export async function withT3ExecutionResources<A>(input: {
     bytes?.fill(0)
     void native.close()
   }
+  const assertLive = () => {
+    input.signal?.throwIfAborted()
+    requireCapture(live && !abort.signal.aborted, 't3_execution_resource_closed')
+  }
   const recheck = async () => {
     try {
-      input.signal?.throwIfAborted()
-      requireCapture(live && !abort.signal.aborted, 't3_execution_resource_closed')
+      assertLive()
       native.exchange({ op: 'recheck' })
     } catch (error) { stop(); throw error }
   }
@@ -77,6 +99,64 @@ export async function withT3ExecutionResources<A>(input: {
     requireCapture(receipt.evidence.source.executorId === input.executorId
       && receipt.evidence.source.admittedRootKey === input.admittedRootKey
       && receipt.custody.runtime.pid === process.pid, 't3_execution_resource_mismatch')
+    const rawSource = receipt.evidence.source
+    const source: ProvenT3Source = Object.freeze({ admittedRootKey: rawSource.admittedRootKey,
+      physicalRootKey: rawSource.physicalRootKey, environmentId: Schema.decodeUnknownSync(EnvironmentId)(rawSource.environmentId),
+      layout: rawSource.layout, databaseRole: rawSource.databaseRole })
+    const withReadonlySourceSnapshot = async <A>(useSnapshot: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>): Promise<A> => {
+      assertLive()
+      requireCapture(!snapshotActive, 't3_execution_source_snapshot_busy')
+      snapshotActive = true
+      let snapshotId: string | undefined
+      let open = false
+      const assertSnapshot = () => {
+        assertLive()
+        requireCapture(open && snapshotActive, 't3_execution_source_snapshot_closed')
+      }
+      try {
+        await recheck()
+        const opened = native.exchange({ op: 'executionSnapshotOpen' })
+        requireCapture(typeof opened.snapshotId === 'string' && /^[a-f0-9]{64}$/u.test(opened.snapshotId),
+          't3_execution_source_snapshot_invalid')
+        snapshotId = opened.snapshotId
+        open = true
+        const reads = heldSourceDatabase(request => {
+          assertSnapshot()
+          try {
+            const result = native.exchange({ op: 'executionSnapshotRead', snapshotId, request })
+            assertSnapshot()
+            return result
+          } catch (error) { stop(); throw error }
+        }, source.layout)
+        const database: CaptureDatabase = Object.freeze({
+          exec() { throw new CaptureFailure('source_write_refused') },
+          prepare(sql: string) { assertSnapshot(); return reads.prepare(sql) },
+        })
+        checkT3SourceLayout(database, source, tablesForLayout(source.layout))
+        const sourceHighWater = source.layout === 'v2-80'
+          ? database.prepare('SELECT COALESCE(MAX(sequence), 0) AS sequence FROM orchestration_events').get()?.sequence : 0
+        requireCapture(typeof sourceHighWater === 'number' && Number.isSafeInteger(sourceHighWater) && sourceHighWater >= 0,
+          'invalid_source_sequence')
+        const recheckSnapshot = async () => { assertSnapshot(); await recheck(); assertSnapshot() }
+        const snapshot: T3ExecutionSourceSnapshot = Object.freeze({ source, database, sourceHighWater,
+          resourceGeneration: receipt.resourceGeneration, recheck: recheckSnapshot })
+        await recheckSnapshot()
+        const result = await useSnapshot(snapshot)
+        await recheckSnapshot()
+        native.exchange({ op: 'executionSnapshotClose', snapshotId, action: 'COMMIT' })
+        open = false
+        await recheck()
+        return result
+      } catch (error) {
+        if (open && live) {
+          try { native.exchange({ op: 'executionSnapshotClose', snapshotId, action: 'ROLLBACK' }) }
+          catch { stop() }
+        }
+        stop()
+        if (error instanceof CaptureFailure) throw error
+        throw new CaptureFailure('t3_execution_source_snapshot_unavailable')
+      } finally { open = false; snapshotActive = false }
+    }
     const encoded = answer.settingsBase64
     requireCapture(typeof encoded === 'string' && encoded.length <= Math.ceil(T3_EXECUTION_SETTINGS_LIMIT / 3) * 4
       && /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u.test(encoded),
@@ -92,7 +172,7 @@ export async function withT3ExecutionResources<A>(input: {
         requireCapture(live && !abort.signal.aborted, 't3_execution_resource_closed')
         return heldBytes
       },
-      receipt, providerReferences: receipt.evidence.providerReferences, signal: abort.signal, recheck,
+      receipt, providerReferences: receipt.evidence.providerReferences, signal: abort.signal, recheck, withReadonlySourceSnapshot,
     })
     scopes.set(scope, recheck)
     // Renewal checks actual service/native resources. It does not renew any
@@ -101,6 +181,7 @@ export async function withT3ExecutionResources<A>(input: {
     timer.unref()
     await recheck()
     const result = await use(scope)
+    requireCapture(!snapshotActive, 't3_execution_source_snapshot_still_open')
     await recheck()
     native.exchange({ op: 'close' })
     return result

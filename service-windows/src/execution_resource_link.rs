@@ -58,7 +58,8 @@ fn metadata(root: &Path, executor: &str, caller: &Process, key: &str,
         return Err(REJECTED.into());
     }
     pins.push(owner_file); pins.push(state_file);
-    Ok((json!({"version":1,"purpose":"execution-source-registration","executorId":executor,
+    Ok((json!({"version":2,"purpose":"execution-source-registration",
+        "sourceAccess":"settings-and-session-snapshot","executorId":executor,
         "ownerSid":caller.sid,"admittedRootKey":key,
         "physicalRootKey":format!("windows-file-id:{}",sha(source.description.identity.as_bytes())),
         "configurationIdentity":config.description.identity,"configurationDigest":digest,
