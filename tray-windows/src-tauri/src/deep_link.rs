@@ -2,7 +2,7 @@
 //! on this computer with one.
 //!
 //! ```text
-//! nessie-computer://open?section=<overview|access|documents|ai|settings>[&team=<executorId>]
+//! nessie-computer://open[?section=<access|documents|ai|settings>][&team=<executorId>]
 //! nessie-computer://connect
 //! ```
 //!
@@ -20,7 +20,8 @@ pub const SCHEME: &str = "nessie-computer";
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Link {
-    Open(ConsoleSection, ConsoleTarget),
+    /// A section, or `None` for the window as it was.
+    Open(Option<ConsoleSection>, ConsoleTarget),
     Connect,
 }
 
@@ -56,7 +57,7 @@ pub fn parse(text: &str) -> Option<Link> {
                     _ => return None,
                 }
             }
-            Some(Link::Open(section?, ConsoleTarget { executor_id: team }))
+            Some(Link::Open(section, ConsoleTarget { executor_id: team }))
         }
         _ => None,
     }
@@ -116,18 +117,21 @@ mod tests {
     #[test]
     fn a_link_names_a_section_and_optionally_a_team() {
         assert_eq!(parse("nessie-computer://open?section=access"),
-            Some(Link::Open(ConsoleSection::Access, ConsoleTarget::default())));
+            Some(Link::Open(Some(ConsoleSection::Access), ConsoleTarget::default())));
         assert_eq!(parse(&format!("nessie-computer://open?section=documents&team={TEAM}")),
-            Some(Link::Open(ConsoleSection::Documents, ConsoleTarget::team(TEAM))));
+            Some(Link::Open(Some(ConsoleSection::Documents), ConsoleTarget::team(TEAM))));
         assert_eq!(parse(&format!("nessie-computer://open/?team={}&section=ai", TEAM.to_uppercase())),
-            Some(Link::Open(ConsoleSection::Ai, ConsoleTarget::team(TEAM))));
+            Some(Link::Open(Some(ConsoleSection::Ai), ConsoleTarget::team(TEAM))));
+        // No section: the window as it was, on the tab last used.
+        assert_eq!(parse("nessie-computer://open"), Some(Link::Open(None, ConsoleTarget::default())));
+        assert_eq!(parse(&format!("nessie-computer://open?team={TEAM}")), Some(Link::Open(None, ConsoleTarget::team(TEAM))));
         assert_eq!(parse("nessie-computer://connect"), Some(Link::Connect));
     }
 
     #[test]
     fn anything_else_is_not_followed_at_all() {
         for link in [
-            "nessie-computer://open",
+            "nessie-computer://open?section=overview",
             "nessie-computer://open?section=billing",
             "nessie-computer://open?section=access&team=../x",
             "nessie-computer://open?section=access&section=ai",

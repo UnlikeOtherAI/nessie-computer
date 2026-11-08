@@ -44,7 +44,7 @@ enum FrenchWords {
         case .resume: return "Reprendre"
         case .allTeams: return "Toutes les équipes"
         case .openComputer: return "Ouvrir Nessie Computer…"
-        case .addThisComputer: return "Ajouter cet ordinateur…"
+        case .addAnotherTeam: return "Ajouter une autre équipe…"
         case .openNessie: return "Ouvrir Nessie"
         case .quit: return "Quitter Nessie Computer"
         case .quitWhileWorking:

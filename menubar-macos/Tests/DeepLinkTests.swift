@@ -20,7 +20,8 @@ final class DeepLinkTests: XCTestCase {
                 .open(ConsoleTarget(section: section, executorId: team))
             )
         }
-        XCTAssertEqual(parse("nessie-computer://open"), .open(ConsoleTarget(section: .overview)))
+        XCTAssertEqual(parse("nessie-computer://open"), .open(ConsoleTarget()), "no section: the window as it was")
+        XCTAssertEqual(parse("nessie-computer://open?team=\(team)"), .open(ConsoleTarget(executorId: team)))
         XCTAssertEqual(
             parse("NESSIE-COMPUTER://OPEN?section=access&team=\(team.uppercased())"),
             .open(ConsoleTarget(section: .access, executorId: team))

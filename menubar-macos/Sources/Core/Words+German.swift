@@ -43,7 +43,7 @@ enum GermanWords {
         case .resume: return "Fortsetzen"
         case .allTeams: return "Alle Teams"
         case .openComputer: return "Nessie Computer öffnen …"
-        case .addThisComputer: return "Diesen Computer hinzufügen …"
+        case .addAnotherTeam: return "Weiteres Team hinzufügen …"
         case .openNessie: return "Nessie öffnen"
         case .quit: return "Nessie Computer beenden"
         case .quitWhileWorking: return "Nessie Computer beenden – Agenten stoppen, bis Sie es wieder öffnen"

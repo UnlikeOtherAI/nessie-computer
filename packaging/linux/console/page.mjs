@@ -15,6 +15,6 @@ export const linuxSoftwarePage = (source) => {
 <title>Nessie Computer</title><link rel="stylesheet" href="style.css"></head><body><main>
 ${section('<section id="software-updates"', '</section>')}
 </main>${section('<dialog id="update-dialog"', '</dialog>')}
-<script src="native.js"></script><script src="i18n.js"></script><script src="updates-words.js"></script><script src="updates.js"></script>
+<script src="native.js"></script><script src="i18n.js"></script><script src="help.js"></script><script src="updates-words.js"></script><script src="updates.js"></script>
 </body></html>\n`
 }

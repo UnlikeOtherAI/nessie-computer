@@ -43,7 +43,7 @@ enum ItalianWords {
         case .resume: return "Riprendi"
         case .allTeams: return "Tutti i team"
         case .openComputer: return "Apri Nessie Computer…"
-        case .addThisComputer: return "Aggiungi questo computer…"
+        case .addAnotherTeam: return "Aggiungi un altro team…"
         case .openNessie: return "Apri Nessie"
         case .quit: return "Esci da Nessie Computer"
         case .quitWhileWorking: return "Esci da Nessie Computer — gli agenti si fermano finché non lo riapri"

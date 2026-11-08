@@ -52,7 +52,7 @@ enum CzechWords {
         case .resume: return "Pokračovat"
         case .allTeams: return "Všechny týmy"
         case .openComputer: return "Otevřít Nessie Computer…"
-        case .addThisComputer: return "Přidat tento počítač…"
+        case .addAnotherTeam: return "Přidat další tým…"
         case .openNessie: return "Otevřít Nessie"
         case .quit: return "Ukončit Nessie Computer"
         case .quitWhileWorking: return "Ukončit Nessie Computer — agenti se zastaví, dokud ho znovu neotevřete"

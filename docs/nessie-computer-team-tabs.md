@@ -99,14 +99,14 @@ Model servers: name, address, where it runs, optional key.
 
 On Windows plans live on the background service's connection
 (`tray-windows/src-tauri/README.md` → ChatGPT plans). A team this app runs
-shows one sentence saying so; its first **Add a ChatGPT plan** opens
+says so behind the plans heading's "?"; its first **Add a ChatGPT plan** opens
 `ai-connection.js`: `executor_chatgpt_connection_start` (one Windows prompt),
-the pairing code with "In Nessie, open Computers and choose Add a computer"
-and **Open Nessie to finish** (`executor_open_nessie {}`, the host adds the
-code), `executor_chatgpt_connection_status` polled until `paired`, then the
-plan dialog on the linked connection. The connection is the team's **ChatGPT
-plan connection**: the Overview card carries its state on one line, and it
-is never a second team in the dropdown.
+the pairing code with "Enter this code in Nessie under Computers › Add a
+computer." and **Open Nessie to finish** (`executor_open_nessie {}`, the host
+adds the code), `executor_chatgpt_connection_status` polled until `paired`,
+then the plan dialog on the linked connection. The connection is the team's
+**ChatGPT plan connection**: its failure names the team in the Needs you
+strip, and it is never a second team in the dropdown.
 
 ## Verification
 

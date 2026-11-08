@@ -155,8 +155,9 @@ the workspace file operations are not affected.
 and projects the team lets reach this computer, with
 `POST /api/executor-daemon/audience` signed by the machine key under
 `nessie.executor.daemon.audience.v1` over `{ connectionEpoch, executorId,
-observedAt }`. The answer is shown and discarded: it is never stored and never
-grants or narrows access.
+observedAt }`. The answer is printed by the CLI and discarded: it is never
+stored and never grants or narrows access. The window does not show it
+(ruling, 8 Nov).
 
 ## What `describe` reports
 

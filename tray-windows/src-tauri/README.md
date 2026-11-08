@@ -20,8 +20,8 @@ original identifiers so upgrades and installed scripts keep working.
   ──────────
   Pause | Resume                    several teams: All teams, then one line per team (✓ paused)
   ──────────
-  Open Nessie Computer…
-  Add this computer…                the window, straight onto a new pairing code
+  Open Nessie Computer…            the window, on the tab last used
+  Add another team…                 the window, straight onto a new pairing code
   Open Nessie                       the paired server's Computers page
   ──────────
   Quit Nessie Computer
@@ -37,8 +37,8 @@ original identifiers so upgrades and installed scripts keep working.
   green when a team is working, amber only when the owner has something to
   do, red when the service cannot be reached.
 - **Program requests** arrive as a toast with **Allow once**, **Always allow
-  {program}** and **Don't allow**. Clicking the toast opens Overview on its
-  team. Saves never post toasts.
+  {program}** and **Don't allow**. Clicking the toast opens the window on its
+  team; the request waits in the Needs you strip. Saves never post toasts.
 - The menu, toasts and dialog titles are in en-GB, en-US, cs, de, es, fr and
   it, chosen from the Windows display language (`src/words*.rs`).
 - The installer adds a **Nessie Computer** Start menu shortcut. Its
@@ -103,8 +103,9 @@ Windows account that connected it (the service's `programRequests`,
 team out. Sessions are read through the CLI only when the daemon rewrote its
 `sessions.json`, or every 30 seconds while it names work.
 
-Section events are `tray://section/<overview|access|documents|ai|settings>`
-with an optional `{ executorId }`, and `tray://connect`.
+Section events are `tray://section/<access|documents|ai|settings>` and
+`tray://open` (the window as it was) with an optional `{ executorId }`, and
+`tray://connect`.
 
 ## ChatGPT plans on Windows
 

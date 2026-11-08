@@ -10,7 +10,7 @@ import Foundation
 public enum DeepLink: Equatable, Sendable {
     /// `nessie-computer://open?section=<section>[&team=<executorId>]`
     case open(ConsoleTarget)
-    /// `nessie-computer://connect`: Add this computer.
+    /// `nessie-computer://connect`: Add another team.
     case connect
 
     public static let scheme = "nessie-computer"
@@ -53,7 +53,7 @@ public enum DeepLink: Equatable, Sendable {
     private static func open(_ items: [URLQueryItem]) -> DeepLink? {
         guard Set(items.map(\.name)).isSubset(of: ["section", "team"]),
               items.count == Set(items.map(\.name)).count else { return nil }
-        var section = ConsoleSection.overview
+        var section: ConsoleSection?
         if let named = items.first(where: { $0.name == "section" }) {
             guard let value = named.value.flatMap(ConsoleSection.init(rawValue:)) else { return nil }
             section = value

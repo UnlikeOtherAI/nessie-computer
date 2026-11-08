@@ -1,7 +1,7 @@
-// Add this computer. Opening the dialog asks Nessie for a code straight away;
+// Add another team. Opening the dialog asks Nessie for a code straight away;
 // the person types it in Nessie under Computers › Add a computer, and the
 // claim there finishes the pairing. The computer asks nothing else, and the
-// server address stays behind "Use your organisation's own Nessie server".
+// server address stays behind "Own Nessie server".
 (() => {
   const nc = window.nc
   const { byId, invoke, t, attempt } = nc
@@ -61,7 +61,7 @@
 
   /**
    * The claim in Nessie finishes the pairing: the first status that reads
-   * `paired` closes the dialog, selects the team and shows the connected card.
+   * `paired` closes the dialog, selects the team and opens its Access tab.
    */
   const finish = async (next) => {
     render(next)
@@ -70,7 +70,8 @@
     await nc.team.refresh()
     if (next.executorId) {
       nc.team.select(next.executorId)
-      nc.overview.connected(next.executorId)
+      nc.view.show('access')
+      nc.footer.note(t('pairing.connected', { team: nc.team.label(next.executorId) }))
     }
   }
 
@@ -123,12 +124,12 @@
     if (open(view)) { render(view); return }
     await start(DEFAULT_SERVER, null)
   }
-  /** An attempt left open when the app last closed reopens its dialog. */
+  /** An attempt left open when the app last closed reopens its dialog; answers whether it did. */
   const restore = async () => {
     const next = await invoke('executor_pairing_status')
     render(next)
     if (open(next)) nc.dialogs.open('connect-dialog')
-    return next
+    return open(next)
   }
 
   byId('connect-title').textContent = t('pairing.title')
@@ -140,7 +141,9 @@
   byId('pairing-renew').textContent = t('pairing.newCode')
   byId('connect-advanced-summary').textContent = t('pairing.advanced')
   byId('pairing-server-label').textContent = t('pairing.serverLabel')
-  byId('pairing-server-hint').textContent = t('pairing.serverHint')
+  const serverHelp = nc.help(t('pairing.serverHint'), { describes: byId('pairing-server') })
+  serverHelp.id = 'pairing-server-help'
+  byId('pairing-server-label').after(serverHelp)
   byId('pairing-server-use').textContent = t('pairing.useServer')
   byId('pairing-server').placeholder = 'https://nessie.example.com'
 

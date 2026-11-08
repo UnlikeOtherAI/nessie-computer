@@ -43,7 +43,7 @@ enum EnglishWords {
         case .resume: return "Resume"
         case .allTeams: return "All teams"
         case .openComputer: return "Open Nessie Computer…"
-        case .addThisComputer: return "Add this computer…"
+        case .addAnotherTeam: return "Add another team…"
         case .openNessie: return "Open Nessie"
         case .quit: return "Quit Nessie Computer"
         case .quitWhileWorking: return "Quit Nessie Computer — agents stop until you open it again"

@@ -9,7 +9,7 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
     private var webView: WKWebView?
     private var bridge: ExecutorConsoleBridge?
     private var entryURL: URL?
-    private var target = ConsoleTarget(section: .overview)
+    private var target = ConsoleTarget()
     private var connect = false
     private var update = false
 
@@ -21,9 +21,9 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
         selectSection()
     }
 
-    /// Add this computer, over Overview: the page asks for a code at once.
+    /// Add another team, over the tab last used: the page asks for a code at once.
     func showConnect() {
-        show(ConsoleTarget(section: .overview))
+        show(ConsoleTarget())
         connect = true
         selectSection()
     }

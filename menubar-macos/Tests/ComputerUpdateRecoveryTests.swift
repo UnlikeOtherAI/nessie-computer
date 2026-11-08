@@ -60,7 +60,7 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
             XCTAssertEqual(stuck.status, Word.statusUpdatesStuck.text(in: language))
             XCTAssertNotEqual(stuck.status, Word.statusNoTeam.text(in: language))
             XCTAssertEqual(stuck.needsYou?.title, Word.needsYouUpdatesStuck.text(in: language))
-            XCTAssertEqual(stuck.needsYou?.target, ConsoleTarget(section: .overview))
+            XCTAssertEqual(stuck.needsYou?.target, ConsoleTarget())
             XCTAssertEqual(stuck.icon, .needsYou)
         }
         let english = ComputerMenuModel(teams: [], updatesStuck: true, language: .britishEnglish)

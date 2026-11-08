@@ -19,23 +19,26 @@ window.inferenceEndpoints = (() => {
       <input id="endpoint-address" type="url" maxlength="512" required placeholder="http://192.168.1.90:8080/v1">
       <label id="endpoint-scope-label" for="endpoint-scope"></label>
       <select id="endpoint-scope"><option value="local" id="endpoint-local"></option><option value="network" id="endpoint-network"></option></select>
-      <label id="endpoint-key-label" for="endpoint-key"></label>
+      <div class="label-row"><label id="endpoint-key-label" for="endpoint-key"></label></div>
       <input id="endpoint-key" type="password" maxlength="4096" autocomplete="new-password">
-      <p id="endpoint-key-hint" class="hint"></p>
       <label class="toggle" id="endpoint-clear-key-row" hidden><input id="endpoint-clear-key" type="checkbox"><span id="endpoint-clear-key-copy"></span></label>
       <p class="dialog-error" role="alert" hidden></p>
       <div class="actions"><button type="button" id="endpoint-remove" class="danger" hidden></button><button type="button" id="endpoint-close"></button><button type="submit" id="endpoint-save" class="primary"></button></div>
     </form>`
   document.body.append(dialog)
   const byId = nc.byId
+  const keyHelp = nc.help('', { describes: byId('endpoint-key') })
+  keyHelp.id = 'endpoint-key-hint'
+  byId('endpoint-key-label').after(keyHelp)
   const open = (endpoint) => {
     const executorId = nc.team.current()
     if (!executorId) return
     executor = executorId
     endpointId = endpoint?.id ?? crypto.randomUUID()
     for (const [id, key] of [['title', 'serverTitle'], ['name-label', 'name'], ['address-label', 'address'], ['scope-label', 'scope'],
-      ['local', 'local'], ['network', 'network'], ['key-label', 'key'], ['key-hint', 'keyHint'], ['clear-key-copy', 'clearKey'],
+      ['local', 'local'], ['network', 'network'], ['key-label', 'key'], ['clear-key-copy', 'clearKey'],
       ['remove', 'remove'], ['close', 'close'], ['save', 'save']]) byId(`endpoint-${id}`).textContent = t(key)
+    keyHelp.set(t('keyHint'))
     byId('endpoint-name').value = endpoint?.name ?? ''
     byId('endpoint-address').value = endpoint?.baseUrl ?? ''
     byId('endpoint-scope').value = endpoint?.scope ?? 'local'

@@ -12,7 +12,7 @@ final class WordsTests: XCTestCase {
         .needsYou(team: "T", reason: .diskFull), .needsYou(team: "T", reason: .notConnected),
         .needsYouReinstall, .needsYouUnreadableTeam, .needsYouConfirmComputer, .needsYouMany(3), .pause, .resume,
         .allTeams, .openComputer,
-        .addThisComputer,
+        .addAnotherTeam,
         .openNessie, .quit, .quitWhileWorking, .iconIdle, .iconWorking, .iconNeedsYou, .teamNameUnavailable,
         .programRequestTitle(agent: "Ada", program: "git"), .programRequestTitle(agent: nil, program: "git"),
         .programRequestBody(team: "T", command: "git status"), .allowOnce, .alwaysAllow(program: "git"), .dontAllow,
@@ -73,16 +73,16 @@ final class WordsTests: XCTestCase {
         XCTAssertEqual(say(.needsYouMany(6)), "Potřebuje vás: 6 věcí — otevřete Nessie Computer")
     }
 
-    /// The menu item uses the window's words for pairing (contract §2), with the menu's ellipsis.
-    func testAddThisComputerMatchesTheWindowInEveryLanguage() {
+    /// The menu item uses the window's words for pairing (contract §13), with the menu's ellipsis.
+    func testAddAnotherTeamMatchesTheWindowInEveryLanguage() {
         let expected: [NativeLanguage: String] = [
-            .britishEnglish: "Add this computer…", .americanEnglish: "Add this computer…",
-            .czech: "Přidat tento počítač…", .german: "Diesen Computer hinzufügen …",
-            .spanish: "Añadir este ordenador…", .french: "Ajouter cet ordinateur…",
-            .italian: "Aggiungi questo computer…"
+            .britishEnglish: "Add another team…", .americanEnglish: "Add another team…",
+            .czech: "Přidat další tým…", .german: "Weiteres Team hinzufügen …",
+            .spanish: "Añadir otro equipo…", .french: "Ajouter une autre équipe…",
+            .italian: "Aggiungi un altro team…"
         ]
         for language in NativeLanguage.allCases {
-            XCTAssertEqual(Word.addThisComputer.text(in: language), expected[language], "\(language)")
+            XCTAssertEqual(Word.addAnotherTeam.text(in: language), expected[language], "\(language)")
         }
     }
 

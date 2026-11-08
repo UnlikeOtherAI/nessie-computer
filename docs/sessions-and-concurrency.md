@@ -197,9 +197,9 @@ nessie-executor session stop --state-dir <dir> --id <sessionId> [--json]
 ```
 
 `sessions --json` prints an array, empty when the team's daemon is not
-running. This is the shape the console's **Now working** reads
-(`packages/executor-console/README.md`, "Host commands"); the apps' bridges
-add `executorId` to each session:
+running. This is the shape `nessie-computer sessions` prints; the apps'
+bridges add `executorId` to each session (the window no longer lists
+sessions — ruling, 8 Nov):
 
 ```json
 [{
@@ -249,8 +249,8 @@ seconds for the daemon to apply it and prints the list after that with
 `program-requests --json` entries gain `commandId`, `sessionId` and
 `agentName` when the command carried them.
 
-A person's `nessie-computer sessions [list|stop <id>]` (Command reference,
-"Now working") reads and stops the same lists across teams; with
+A person's `nessie-computer sessions [list|stop <id>]` (Command reference)
+reads and stops the same lists across teams; with
 `--state-dir` the words are the apps' plumbing verbs above.
 
 The apps' bridges mirror the verbs: `executor_sessions { executorId? }`
