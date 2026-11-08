@@ -209,6 +209,38 @@
       "afterSha256": "fa7a12d764d9cb6b46dfff59aaf034c81a72667317871f0d91b336e17d92bbcd",
       "from": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event).pipe(Effect.asVoid);",
       "to": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
+    },
+    {
+      "id": "question-requiredness-contract",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "b52f7f71f8fdcbd713c4ebd61be7fbffe9901e47f1c2a34a83431b85f8cbcc0b",
+      "afterSha256": "5750b005fee2f659d317312640b79f538d4159aefa1d8897dfdf4e342c43b231",
+      "from": "  readonly initialAnswer?: string | undefined;",
+      "to": "  readonly initialAnswer?: string | undefined;\n  readonly required?: boolean | undefined;"
+    },
+    {
+      "id": "question-custom-exact-string",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "5750b005fee2f659d317312640b79f538d4159aefa1d8897dfdf4e342c43b231",
+      "afterSha256": "9556eefd2274cedb9a2b29cb25def377d3ccc1aa5b7e79107a52862ff283fd57",
+      "from": "  const trimmed = value.trim();\n  return trimmed.length > 0 ? trimmed : null;",
+      "to": "  return value.length > 0 ? value : null;"
+    },
+    {
+      "id": "question-optional-explicit-empty",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "9556eefd2274cedb9a2b29cb25def377d3ccc1aa5b7e79107a52862ff283fd57",
+      "afterSha256": "dd0e99c63999f75155d3ad05e347e39937a3c6241240eafefa3a1b927788b717",
+      "from": "      : question.initialAnswer !== undefined",
+      "to": "      : question.initialAnswer !== undefined || question.required === false"
+    },
+    {
+      "id": "question-own-drafts-and-duplicate-ids",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "dd0e99c63999f75155d3ad05e347e39937a3c6241240eafefa3a1b927788b717",
+      "afterSha256": "8b0a3d3cc3bc6304646e98f9f648593df92a8fd25752f556a04950ec5f8c9574",
+      "from": "  for (const question of questions) {\n    const answer = resolvePendingUserInputAnswer(question, draftAnswers[question.id]);\n    if (answer === null) {\n      return null;\n    }",
+      "to": "  const seen = new Set<string>();\n  for (const question of questions) {\n    if (seen.has(question.id)) return null;\n    seen.add(question.id);\n    const answer = resolvePendingUserInputAnswer(question,\n      Object.hasOwn(draftAnswers, question.id) ? draftAnswers[question.id] : undefined);\n    if (answer === null) {\n      if (question.required === false) continue;\n      return null;\n    }"
     }
   ]
 }

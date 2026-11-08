@@ -52,8 +52,12 @@ in Nessie; ordinary computer access does not disclose them.
 
 ## Discovery and observation
 
-Recent native history follows T3 Code's 30-day, 5,000-session bound. Claude saved
-project transcripts join the active registry. Codex pages its native state-backed
+Claude saved project transcripts join the active registry, including retained
+old and empty files. Ambiguous transcript paths refuse detail selection. The
+shared summary facade remains bounded; the separately admitted
+[Claude source adapter](native-claude-history.md) adds full supported inventory
+and finite history paging with explicit completeness and current binding limits.
+Codex pages its native state-backed
 thread list without resuming threads. Stable identities include provider profile
 and native ID. Discovery does not imply a thread is running: unknown stays unknown.
 The full inventory travels in stable 32-row batches. Only a completed batch can

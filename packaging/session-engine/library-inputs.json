@@ -4,11 +4,22 @@
   "contractsCommit": "4dbabb20e42ce9b6c8381f64d3e80d43bde912aa",
   "contractsInputSha256": "bff917e9ce29b6023c3c756ee395672b17545d7d5825a5321a264790f6a37c5e",
   "authoredInputs": [
+    "packaging/session-engine/core/Control.ts",
     "packaging/session-engine/core/Engine.ts",
     "packaging/session-engine/core/EngineLayers.ts",
+    "packaging/session-engine/core/ProviderHostLayers.ts",
+    "packaging/session-engine/core/FileLayers.ts",
     "packaging/session-engine/core/ReadLayers.ts",
-    "packaging/session-engine/core/StateLayers.ts"
+    "packaging/session-engine/core/Client.ts",
+    "packaging/session-engine/core/ResourceLayers.ts",
+    "packaging/session-engine/core/RuntimeLayers.ts",
+    "packaging/session-engine/core/SessionLifecycle.ts",
+    "packaging/session-engine/core/StateDirectoryLock.ts",
+    "packaging/session-engine/core/StateLayers.ts",
+    "src/t3-session/requests/validate.ts",
+    "patches/t3-session/workspace/Engine.ts"
   ],
-  "privacyCommit": "7567a431d3404a0c3a2610c23bebbc4e8eb6ff5f",
-  "privacyManifestSha256": "98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9"
+  "privacyCommit": "da542bbc58a33ec96e7c555b6fd8779e78f92d81",
+  "privacyManifestSha256": "bbc39dd3a7cdcef8109b512e646dab9ad9d51e3223c0fa753da2ae9d8bc4bb05",
+  "clientEntryPoint": "packaging/session-engine/core/Client.ts"
 }

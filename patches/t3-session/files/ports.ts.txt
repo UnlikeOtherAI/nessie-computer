@@ -1,0 +1,52 @@
+import type { AssetResource, AttachmentCreateUploadUrlInput, AttachmentCreateUploadUrlResult,
+  AssetCreateUrlResult, ChatAttachment, ToolActivityNativeAppReference } from "@t3tools/contracts";
+import * as Context from "effect/Context";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+
+export class FileBoundaryError extends Schema.TaggedError<FileBoundaryError>()("FileBoundaryError", {
+  code: Schema.Literals(["unbound", "denied", "expired", "revoked", "changed"]),
+}) {}
+
+/** No default implementation or T3 credential store. Runtime custody owns the key. */
+export class AssetSigner extends Context.Service<AssetSigner, {
+  readonly sign: (payload: string) => Effect.Effect<string, FileBoundaryError>;
+  readonly verify: (payload: string, signature: string) => Effect.Effect<boolean, FileBoundaryError>;
+}>()("t3/assets/AssetSigner") {}
+
+/** Must reject executor state, provider credential homes and unadmitted physical resources. */
+export class FilePathPolicy extends Context.Service<FilePathPolicy, {
+  readonly isInternal: (path: string) => Effect.Effect<boolean, FileBoundaryError>;
+}>()("nessie/t3/FilePathPolicy") {}
+
+export const makeIsServerInternalPath = Effect.map(FilePathPolicy, policy => policy.isInternal);
+
+/** Original service identity; no native app resolver or process launcher is imported. */
+export class NativeAppIconResolver extends Context.Service<NativeAppIconResolver, {
+  readonly resolve: (app: ToolActivityNativeAppReference) => Effect.Effect<string | null>;
+}>()("t3/assets/NativeAppIconResolver") {}
+
+/** REQUIRED, UNBOUND. The signed runtime resource owner supplies this service after
+ * original-human and physical-root admission. These callbacks are consumers of that
+ * proof, never proof producers; no production layer may be made from caller input.
+ * Rechecks bind selected team, original source/thread, actor, epoch, generation and
+ * expiry. Pending ids belong to the uploader and admitted destination; a filename
+ * prefix is never ownership. URL bindings must survive receipt replay/reconnect.
+ */
+export class FileAccess extends Context.Service<FileAccess, {
+  readonly recheck: () => Effect.Effect<void, FileBoundaryError>;
+  readonly upload: (input: AttachmentCreateUploadUrlInput) => Effect.Effect<void, FileBoundaryError>;
+  readonly bindUpload: (input: AttachmentCreateUploadUrlInput, result: AttachmentCreateUploadUrlResult)
+    => Effect.Effect<void, FileBoundaryError>;
+  readonly pending: (attachmentId: string, operation: "upload" | "delete") => Effect.Effect<void, FileBoundaryError>;
+  readonly uploadDigest: (attachmentId: string) => Effect.Effect<string | undefined, FileBoundaryError>;
+  readonly uploaded: (attachmentId: string, sizeBytes: number, sha256: string) => Effect.Effect<void, FileBoundaryError>;
+  readonly claim: (threadId: string, attachments: ReadonlyArray<ChatAttachment>) => Effect.Effect<void, FileBoundaryError>;
+  readonly bindClaim: (threadId: string, before: ReadonlyArray<ChatAttachment>, after: ReadonlyArray<ChatAttachment>)
+    => Effect.Effect<void, FileBoundaryError>;
+  readonly asset: (resource: AssetResource) => Effect.Effect<void, FileBoundaryError>;
+  readonly bindAsset: (resource: AssetResource, result: AssetCreateUrlResult) => Effect.Effect<void, FileBoundaryError>;
+  /** Returns the original expiry from the immutable, actor/source-bound URL receipt. */
+  readonly assetToken: (token: string, relativePath: string) => Effect.Effect<number, FileBoundaryError>;
+  readonly path: (path: string, operation: "read" | "write") => Effect.Effect<void, FileBoundaryError>;
+}>()("nessie/t3/FileAccess") {}

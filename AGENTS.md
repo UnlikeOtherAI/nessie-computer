@@ -14,6 +14,7 @@ Turbo using `scripts/turbo.public.json`; package tests must retain their build
 prerequisites. Windows state tests require the real native ACL helper beside
 their test Node. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
+Session tool schemas, shared input-dependent receipt policy and the unbound admission boundary follow [MCP adapters](docs/session-mcp-adapters.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
@@ -49,4 +50,11 @@ The daemon doorbell, live session requests, owner answers and `request_secret` f
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
 Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
-The generated `/engine` package export, exact authored-input registration and its `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
+The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration and `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
+Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
+Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).
+Runtime composition, opaque ProviderHost references, scoped operation slots and the combined qualification gate follow [session runtime](docs/session-runtime.md); native/provider producers remain required.
+The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
+Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).
+Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
+Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.

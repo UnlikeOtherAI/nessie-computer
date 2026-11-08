@@ -25,7 +25,7 @@ await ensurePinnedSourceObject({ repository, upstream: T3_SESSION_ENGINE_SOURCE.
   commit: T3_SESSION_ENGINE_SOURCE.commit })
 await prepareSessionEngineSource({ sourceRepository: repository, archivePath: archive })
 const original = await readSessionEngineSnapshot(archive)
-const prepared = await prepareLibrarySnapshot(original)
+const prepared = await prepareLibrarySnapshot(original, { sourceRepository: repository })
 const { snapshot } = prepared
 const resolver = createSessionEngineSourceResolver(snapshot)
 // The protocol ledger binds the original application's declarations, not extracted server line shifts.

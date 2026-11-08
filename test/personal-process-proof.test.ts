@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
-import { startAgentProcess } from '../src/coding-session/agent-process.js'
+import { AgentProcessStopUnproved, startAgentProcess } from '../src/coding-session/agent-process.js'
 import { createCodingProcessControl, type CodingProcessControl } from '../src/coding-session/process-control.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { PersonalInferenceGuard } from '../src/personal-inference-guard.js'
@@ -95,7 +95,7 @@ test('natural coding exit retains child birth evidence and lease until positive 
     const child = await startAgentProcess({ control, paths, folder: directory, env: process.env,
       log: () => undefined, personalAuthority: authority, personalGuard: guard,
     }, [process.execPath, '-e', 'setTimeout(() => process.exit(0), 50)'], () => undefined)
-    await child.exited
+    assert.equal((await child.exited).clearance, 'unknown')
     let registrations = (await guard.status()).registrations
     assert.equal(registrations.length, 1)
     assert.equal(registrations[0]!.execution!.identity.pid, child.identity.pid)
@@ -111,6 +111,56 @@ test('natural coding exit retains child birth evidence and lease until positive 
     }, ['missing'], () => undefined), /no spawn/u)
     assert.equal((await guard.status()).registrations.length, 0)
   } finally {
+    if (packaged === undefined) delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
+    else process.env.NESSIE_EXECUTOR_PACKAGED_CLI = packaged
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+test('every coding child retains stop debt without a personal lease, and retries only clearance', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-no-lease-proof-'))
+  const paths = codingSessionPaths(directory, randomUUID())
+  const security = { platform: 'win32' as const, helper: verifyInferenceTestState }
+  await ensureOwnerOnlyStateDirectory(directory, security)
+  const guard = PersonalInferenceGuard.open({ directory, security })
+  const packaged = process.env.NESSIE_EXECUTOR_PACKAGED_CLI
+  delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
+  let verdict: 'stopped' | 'unknown' = 'unknown'
+  let proofs = 0
+  let childClosed: Promise<void> | undefined
+  const control: CodingProcessControl = {
+    spawnAgent: (command, args, options) => {
+      const child = spawn(command, args, { ...options, windowsHide: true, stdio: 'pipe' })
+      childClosed = new Promise(resolve => child.once('close', () => resolve()))
+      return child
+    },
+    identify: async pid => ({ pid, startedAt: '100' }),
+    descendants: async () => [], killTree: async () => undefined, killChildTree: async () => false,
+    stopTree: async () => { proofs++; return verdict },
+  }
+  try {
+    await mkdir(paths.dir, { recursive: true })
+    const context = { control, paths, folder: directory, env: process.env, log: () => undefined, personalGuard: guard }
+    const child = await startAgentProcess(context,
+      [process.execPath, '-e', 'setTimeout(() => process.exit(0), 50)'], () => undefined)
+    assert.deepEqual(await child.exited, { code: 0, clearance: 'unknown' })
+    assert.equal(await child.confirmHostExecutionStopped(), false)
+    verdict = 'stopped'
+    assert.equal(await child.confirmHostExecutionStopped(), true)
+    const proved = proofs
+    assert.equal(await child.confirmHostExecutionStopped(), true)
+    assert.equal(proofs, proved, 'cleared child cannot acquire a new stop debt')
+    const { stopTree: _stopTree, ...withoutProof } = control
+    await assert.rejects(startAgentProcess({ ...context, control: { ...withoutProof,
+      spawnAgent: () => { throw new Error('must refuse before spawn') },
+    } }, ['fixture'], () => undefined), AgentProcessStopUnproved)
+    await assert.rejects(startAgentProcess({ ...context, control: { ...control,
+      identify: async () => undefined,
+    } }, [process.execPath, '-e', 'process.exit(0)'], () => undefined), error => (
+      error instanceof AgentProcessStopUnproved && error.spawnedPid !== undefined && error.identity === undefined
+    ))
+  } finally {
+    await childClosed
     if (packaged === undefined) delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
     else process.env.NESSIE_EXECUTOR_PACKAGED_CLI = packaged
     await rm(directory, { recursive: true, force: true })

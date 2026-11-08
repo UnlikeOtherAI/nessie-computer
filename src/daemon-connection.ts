@@ -16,6 +16,11 @@ import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-cli
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import { signedDescriptorForState } from './pair.js'
 import { loadExecutorState, saveExecutorState, type ExecutorLocalState } from './state-store.js'
+import { createHash } from 'node:crypto'
+import { dirname } from 'node:path'
+import { ExecutorSessionPairingSourceSchema } from '@nessie/executor-protocol'
+import { acceptSessionPairingSource } from './coding-session/session-authority.js'
+import { codingSessionsServerConfigPath, isBuiltinCodingSessionsServer } from './coding-sessions-policy.js'
 
 type ClaimDependencies = {
   api: Pick<ExecutorApiClient, 'issueChallenge' | 'claim' | 'submitDescriptor'>
@@ -38,7 +43,15 @@ export const claimExecutor = async (
   })
   // Another local writer may have changed policy while the claim was in flight.
   const persisted = await dependencies.loadState(stateDir)
-  const next = { ...persisted, connectionEpoch: connection.connectionEpoch }
+  const parsedSource = ExecutorSessionPairingSourceSchema.safeParse(connection.sessionPairingSource)
+  const source = parsedSource.success && parsedSource.data.executorId === persisted.executorId
+    && parsedSource.data.machinePublicKeyDigest === createHash('sha256').update(persisted.machinePublicKey).digest('hex')
+    ? parsedSource.data : undefined
+  const next = { ...persisted, connectionEpoch: connection.connectionEpoch, sessionPairingSource: source }
+  if (source) for (const server of next.mcpServers ?? []) {
+    const config = isBuiltinCodingSessionsServer(server) ? codingSessionsServerConfigPath(server) : undefined
+    if (config) await acceptSessionPairingSource(dirname(config), source)
+  }
   const submit = () => dependencies.api.submitDescriptor(next.apiBaseUrl, {
     connectionEpoch: connection.connectionEpoch, descriptor: signedDescriptorForState(next),
     executorId: next.executorId,

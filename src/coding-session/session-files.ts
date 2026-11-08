@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -128,15 +129,21 @@ export const writeJsonAtomic = async (path: string, value: unknown): Promise<voi
 }
 
 /** Creates `path` only if it does not exist; `false` means somebody already did. */
-export const createJsonExclusive = async (path: string, value: unknown): Promise<boolean> => {
+export const createJsonExclusive = async (
+  path: string, value: unknown, effect?: SessionEffectAuthority,
+): Promise<boolean> => {
   let handle
   try {
+    await effect?.consume()
+    effect?.assertLive()
     handle = await open(path, 'wx', 0o600)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
     throw error
   }
   try {
+    await effect?.consume()
+    effect?.assertLive()
     await handle.writeFile(`${JSON.stringify(value)}\n`, 'utf8')
   } finally {
     await handle.close()

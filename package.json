@@ -7,7 +7,18 @@
     "nessie-executor": "./dist/index.js"
   },
   "scripts": {
+    "test:t3-physical-source": "node --max-old-space-size=384 --test scripts/native-ci-inputs.test.mjs && node scripts/run-tests.mjs --test-concurrency=1 test/t3-session-source-adapter.test.ts",
+    "test:t3-physical-source-installed": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-source/producer.test.mjs",
+    "test:t3-native-codex": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-native-codex/*.test.ts",
+    "test:t3-session-control-source": "node --max-old-space-size=256 --test --test-concurrency=1 test/t3-session-control/source.test.mjs",
+    "test:t3-session-control": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-control/controls.test.mjs test/t3-session-control/receipts.test.mjs test/t3-session-control/schedules.test.mjs",
+    "test:t3-session-runtime": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-runtime/*.test.mjs",
+    "test:executor-private-assignments": "node --test --test-concurrency=1 --import tsx test/coding-session-authority.test.ts test/session-effect-channel.test.ts test/agent-process-input.test.ts test/t3-session-effect.test.ts",
+    "test:t3-session-files": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-files/*.test.mjs",
+    "test:t3-session-workspace-source": "node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-workspace/source.test.mjs",
+    "test:t3-session-workspace": "node --max-old-space-size=512 --test --test-concurrency=1 --import tsx test/t3-session-workspace/*.test.ts",
     "test:session-engine-source": "node --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
+    "test:t3-session-interactive": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-interactive/*.test.mjs",
     "test:t3-session-request-prepare": "node --max-old-space-size=512 test/t3-session-requests/prepare-dependencies.mjs && pnpm --dir .artifacts/c05-requests/dependencies install --frozen-lockfile --ignore-scripts --ignore-workspace --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
     "test:t3-session-request-source": "node --max-old-space-size=512 test/t3-session-requests/verify-combined.mjs && node --max-old-space-size=512 --test --experimental-test-isolation=none test/t3-session-requests/privacy.test.mjs test/t3-session-requests/structural-adversaries.test.mjs",
     "test:t3-session-request-fixtures": "node --max-old-space-size=512 --experimental-vm-modules --test --experimental-test-isolation=none test/t3-session-requests/*.test.mjs",
@@ -40,8 +51,9 @@
     "test:live-sessions": "node scripts/run-tests.mjs --test-concurrency=1 test/daemon-doorbell.test.ts test/owner-requests-gate.test.ts test/session-view-relay.test.ts test/existing-coding-sessions.test.ts test/session-request-book.test.ts test/session-request-scope.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/coding-session-claude.test.ts test/coding-session-codex.test.ts test/coding-session-capabilities.test.ts",
     "test:t3-session-client-connection": "node --test --test-concurrency=1 test/t3-session-client-connection/urls.test.mjs",
     "test:t3-session-client-http-auth": "node --max-old-space-size=1536 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/http-auth.test.mjs",
-    "test:t3-session-import-source": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/source.test.mjs test/t3-session-import/questions.test.mjs",
-    "test:t3-session-import": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/engine.test.mjs test/t3-session-import/privacy-destination.test.mjs test/t3-session-import/historical-questions.test.mjs test/t3-session-import/currentness.test.mjs"
+    "test:t3-session-import-source": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/source.test.mjs test/t3-session-import/questions.test.mjs test/t3-session-import/original-owner.test.mjs",
+    "test:t3-session-import": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-import/engine.test.mjs test/t3-session-import/privacy-destination.test.mjs test/t3-session-import/historical-questions.test.mjs test/t3-session-import/currentness.test.mjs test/t3-session-import/producer-boundaries.test.mjs test/t3-session-import/attempt-currentness.test.mjs",
+    "test:t3-session-catalog": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-catalog/catalog.test.mjs test/t3-session-catalog/authority.test.mjs test/t3-session-catalog/history.test.mjs test/t3-session-catalog/shared-selection.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

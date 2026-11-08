@@ -17,7 +17,8 @@ import {
 } from '@nessie/executor-protocol'
 
 import { loadExecutorMcpCatalog, executorMcpCatalogPage, PROBE_YIELDED, type SessionCatalog } from './mcp-session-catalog.js'
-import { settleExecutorMcpImages, type ExecutorMcpImageSink } from './mcp-images.js'
+import type { ExecutorMcpImageSink } from './mcp-images.js'
+import { publishExecutorMcpResult, type ExecutorMcpCallGuard } from './mcp-result-publication.js'
 import {
   ExecutorMcpServerError,
   findExecutorLocalMcpServer,
@@ -89,6 +90,7 @@ export type ExecutorMcpSessionManager = {
     meta?: Record<string, unknown>,
     images?: ExecutorMcpImageSink,
     signal?: AbortSignal,
+    guard?: ExecutorMcpCallGuard,
   ) => Promise<Record<string, unknown>>
   probe: (server: string) => Promise<ExecutorMcpProbeOutcome>
   stopAll: () => Promise<void>
@@ -390,10 +392,17 @@ export const createExecutorMcpSessionManager = (
       if ('code' in catalog) return catalog
       return executorMcpCatalogPage(catalog, cursor, maxResultBytes)
     }, { signal, authority }),
-    callTool: (server, tool, args, meta, images, signal) => withSession(server, async (session) => {
+    callTool: (server, tool, args, meta, images, signal, guard) => withSession(server, async (session) => {
       // Custody metadata is consumed by admission. Custom programs receive
       // their tool arguments, not the owner's private run/identity projection.
-      const requestMeta = meta === undefined ? undefined : { ...meta }
+      let requestMeta = meta === undefined ? undefined : { ...meta }
+      if (guard) {
+        try { requestMeta = await guard.prepareMeta() }
+        catch {
+          await closeSession(server, session)
+          return failure('EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', 'Original session authority is unavailable.')
+        }
+      }
       if (requestMeta && !session.trustedCodingBridge) delete requestMeta['nessie/personal-authority']
       let result
       try {
@@ -411,38 +420,22 @@ export const createExecutorMcpSessionManager = (
         )
       } catch (error) {
         if (session.dead) {
-          log(`local MCP server "${server}" died during tools/call`, error)
+          log(`local MCP server "${server}" died during tools/call`, guard ? undefined : error)
           return unavailable(`The MCP server "${server}" stopped during the call.`)
         }
-        log(`local MCP server "${server}" failed tools/call`, error)
+        log(`local MCP server "${server}" failed tools/call`, guard ? undefined : error)
         return failure(
           'EXECUTOR_MCP_CALL_FAILED',
           `The MCP server "${server}" refused the call to "${tool}".`,
         )
       }
-      // The images leave first, into the sink's keeping, so what is measured
-      // below is the result that will be journaled and sent.
-      const settled = await settleExecutorMcpImages(result as Record<string, unknown>, images, log)
-      const document: Record<string, unknown> = settled.isError === true
-        ? { ...settled, code: 'EXECUTOR_MCP_CALL_FAILED', success: false }
-        : { ...settled, success: true }
-      // Measured as it is returned, `code` and `success` included. An isError
-      // result measured before its code was added could pass here, be refused
-      // by the control plane's own cap, and leave the receipt nowhere to go.
-      const resultBytes = Buffer.byteLength(JSON.stringify(document))
       // Viewer history never becomes an agent tool result or enters the command journal.
       const resultBudget = session.trustedCodingBridge && meta?.['nessie/daemon-control'] === true
         && tool === 'session_conversation' ? 1024 * 1024 : maxResultBytes
-      if (resultBytes > resultBudget) {
-        return {
-          code: 'EXECUTOR_MCP_RESULT_TOO_LARGE',
-          maxResultBytes: resultBudget,
-          message: `The MCP server "${server}" answered with ${resultBytes} bytes, over the ${resultBudget}-byte result budget.`,
-          resultBytes,
-          success: false,
-        }
-      }
-      return document
+      const published = await publishExecutorMcpResult(result as Record<string, unknown>, { server, tool,
+        maxResultBytes: resultBudget, images, log, validate: guard?.validateResult })
+      if (published.code === 'EXECUTOR_CODING_SESSION_RESULT_WITHHELD') await closeSession(server, session)
+      return published
     }, { signal, authority: meta?.['nessie/personal-authority'] }),
     probe: async (server) => {
       // A probe goes behind every command that is waiting or arrives while it

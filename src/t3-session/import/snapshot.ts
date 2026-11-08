@@ -15,7 +15,7 @@ export interface T3SourceSnapshot {
   fingerprint(key: string): { digest: string; legacyDigest: string }
 }
 
-function checkLayout(database: CaptureDatabase, source: ProvenT3Source, tables: readonly CaptureTable[]): void {
+export function checkT3SourceLayout(database: CaptureDatabase, source: ProvenT3Source, tables: readonly CaptureTable[]): void {
   requireCapture(source.layout === 'v2-80' || source.layout === 'legacy-54', 'unsupported_source_layout')
   const head = source.layout === 'v2-80' ? 80 : 54
   requireCapture(source.databaseRole === (head === 80 ? 'authoritative-v2' : 'sole-legacy'), 'source_role_mismatch')
@@ -39,7 +39,8 @@ function checkLayout(database: CaptureDatabase, source: ProvenT3Source, tables: 
 /** A supported read transaction pins WAL-visible schema and rows. No migrations,
  * checkpoint, immutable URI, write pragma, source copy or auxiliary file read.
  * The resource producer must open readOnly:true, retain the physical lease and
- * refuse replacement through both rechecks. No production producer is installed.
+ * refuse replacement through both rechecks. Windows source implementation still
+ * requires native/installed qualification; historical-human admission is unbound.
  */
 export async function withT3SourceSnapshot<A>(
   port: AdmittedT3SourcePort | undefined,
@@ -68,7 +69,7 @@ export async function withT3SourceSnapshot<A>(
         database.prepare('SELECT schema_version FROM pragma_schema_version').get()
         await recheck()
         await reads.recheckSource()
-        checkLayout(database, source, tables)
+        checkT3SourceLayout(database, source, tables)
         const sourceHighWater = source.layout === 'v2-80'
           ? database.prepare('SELECT COALESCE(MAX(sequence), 0) AS sequence FROM orchestration_events').get()?.sequence : 0
         requireCapture(typeof sourceHighWater === 'number' && Number.isSafeInteger(sourceHighWater) && sourceHighWater >= 0,
