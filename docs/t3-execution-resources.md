@@ -160,6 +160,58 @@ writer generations are fixed at first binding for the scope. Native
 `resourceGeneration` names this registration only; it is not a writer UUID,
 capture generation or historical provenance.
 
+## Service-only launch home matching
+
+`service-windows/src/execution_resource.rs` exports within the service crate:
+
+```rust
+resolve_launch_homes(resource_id: &str, caller: &Process,
+    context: &DescriptorContext, graph: &Graph) -> Result<ResolvedLaunchHomes, String>
+match_launch_home(actual_graph: &Process, candidate: &Path,
+    resolved: &ResolvedLaunchHome) -> Result<HeldLaunchHome, String>
+```
+
+Resolution requires the exact **already accepted** Graph nonce/payload digest,
+current source/settings/link lease, owner/session and graph custody, runtime/source
+generations, and exact instance/driver/role references. It does not accept a new
+Graph or grant an effect. The returned `continuation`, `history`, and `credential`
+objects have `canonical_path() -> &Path` and `identity() -> &str` getters plus private
+provenance. Paths come from `GetFinalPathNameByHandleW(VOLUME_NAME_GUID)` on the
+actual duplicated provider-home directory handles. All matching duplicate aliases
+must still resolve to the same object. These structs have no serialization or
+wire schema; no paths or keys reach the graph or ordinary daemon.
+
+The matcher requires `actual_graph.generation == descriptor.custody.runtime`.
+It opens that retained process's actual token with TOKEN_QUERY|TOKEN_DUPLICATE,
+duplicates a scoped impersonation token, verifies its source-owner SID, and
+impersonates only while opening directory metadata. Existing thread impersonation
+refuses. It never changes token/process ACLs or enables privileges. The protected
+creator's existing SYSTEM/service-only token rights supply this access; ordinary
+daemon tokens cannot substitute. RAII restores the service identity before any
+resource/service-state checks or return. Failure to revert terminates the service
+rather than continuing under the wrong principal.
+
+The candidate's whole absolute local directory chain excludes write/delete sharing
+and all reparse points. Its final file ID and owner ACL must match the resolved
+reference. Retained security notifications make ACL change-and-restore sticky.
+No auth.json, history file, secret or other directory child is read. The guard
+retains the chain and graph handle until the consumer drops it; `recheck()` checks
+both candidate objects and the current accepted resource/Graph. Unsupported paths,
+missing token rights, changed generations, revoked links or expired resources
+refuse. These are component-source guarantees pending native qualification.
+
+`HeldLaunchHome.canonical_path() -> Result<PathBuf, String>` rechecks before
+returning the volume GUID path. There is no immutable DOS-device-map producer:
+holding directories does **not** pin a drive-letter/SUBST alias. Preparation must
+use this verified canonical path in the actual provider-home environment **before**
+hashing/holding Launch, then supply only that held payload to SYSTEM creation.
+No post-sign rewrite or raw path equality is valid. Retain the guards and recheck
+at preparation, selection, registration, resume and frame use. Original workspace
+cwd/options.dir are separate command targets, not provider-home references.
+The native preparation owner coordinates exact CODEX_HOME/CLAUDE_CONFIG_DIR
+selection with the original runtime adapter; this resolver infers no such mapping
+from continuationIdentity and reads no credentials.
+
 ## Original semantics and supported references
 
 Read-only source proof is T3 `25bf84ab07f53f141c20239c63e383823a9d5ea0`:
@@ -230,6 +282,11 @@ fixed-row order, abandoned-cursor cleanup, stale-token/sticky refusal, private
 table/raw SQL/write/nested transaction denial, retained-opcode denial, and
 physical expiry/replacement at query/next/finalize/return boundaries. These
 SQLite component tests issue no service admission and remain unrun.
+Service component tests also author real directory/volume-GUID alias identity,
+retained replacement exclusion, wrong owner, traversal/UNC/reparse refusal and
+sticky ACL restoration. Unlinked Graphs still cannot obtain home resolution.
+They do not claim positive protected-token impersonation or a provider launch;
+those require the installed service/creator lane.
 
 Five TypeScript modules in the snapshot tranche passed non-evaluating Node builtin syntax
 parsing with a 192 MiB heap; `git diff --check` passed. No implementation import,
