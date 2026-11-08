@@ -333,12 +333,15 @@ temporary Git fetch/retry and resolver metadata fixtures. It does not build the
 engine. Source cache recovery fetches only a missing exact commit object, keeps
 failed work and prior objects, and still verifies the original tree and capsule.
 
-The request owner's existing fixtures are registered as `test:t3-session-requests`
-on `@nessie/executor` (public root task). Set
+The request owner gates are `test:t3-session-request-source` and
+`test:t3-session-request-fixtures` on `@nessie/executor` (public root tasks). Set
 `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and `T3_REQUEST_PRIVACY_SOURCE_ARCHIVE` to
-the verified source and capsule, and prepare the fixture's isolated pinned
-dependencies as documented by its `prepare-dependencies.mjs`. This registration
-does not qualify the pending corrected privacy patch or a canonical vault port.
+the verified source and capsule. The source gate first verifies the combined
+manifest. The fixture gate declares `test:t3-session-request-prepare`, which
+prepares and installs the isolated frozen Effect 4.1.2 dependency with scripts,
+workspace and pnpmfile hooks disabled. `test:t3-session-requests` aggregates both.
+Registration does not qualify a complete engine composition or canonical vault
+port. The source-only correction is committed separately by the privacy owner.
 
 The engine build emits `.mjs`, provenance/licenses, the original capsule, one
 `.patches.json` and `.declarations/index.d.ts`. Large upstream inferred schemas

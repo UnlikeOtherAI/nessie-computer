@@ -8,7 +8,10 @@
   },
   "scripts": {
     "test:session-engine-source": "node --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
-    "test:t3-session-requests": "node --experimental-vm-modules --test --test-concurrency=1 test/t3-session-requests/*.test.mjs",
+    "test:t3-session-request-prepare": "node --max-old-space-size=512 test/t3-session-requests/prepare-dependencies.mjs && pnpm --dir .artifacts/c05-requests/dependencies install --frozen-lockfile --ignore-scripts --ignore-workspace --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
+    "test:t3-session-request-source": "node --max-old-space-size=512 test/t3-session-requests/verify-combined.mjs && node --max-old-space-size=512 --test --experimental-test-isolation=none test/t3-session-requests/privacy.test.mjs test/t3-session-requests/structural-adversaries.test.mjs",
+    "test:t3-session-request-fixtures": "node --max-old-space-size=512 --experimental-vm-modules --test --experimental-test-isolation=none test/t3-session-requests/*.test.mjs",
+    "test:t3-session-requests": "pnpm run test:t3-session-request-source && pnpm run test:t3-session-request-fixtures",
     "test:t3-session-engine-plugins": "node packaging/session-engine/plugin-proof.mjs",
     "test:executor-pairing": "node --test --test-concurrency=1 --import tsx test/pairing-code.test.ts test/pairing-code-cli.test.ts",
     "test:public-portability": "node scripts/run-tests.mjs --test-concurrency=1 packaging/cli/public-boundary.test.mjs test/coding-session-daemon.test.ts",
