@@ -1,4 +1,5 @@
 import { effectTransport } from './effect-transport.js'
+import { createAgentProcessInput } from './agent-process-input.js'
 import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { createWriteStream } from 'node:fs'
 import type { ChildProcess } from 'node:child_process'
@@ -64,15 +65,22 @@ export class AgentStartError extends Error {
   constructor(readonly reason: string) { super(reason) }
 }
 
+/** The caller must retain this identity as stop debt; process exit alone cannot clear it. */
+export class AgentProcessStopUnproved extends AgentStartError {
+  constructor(readonly identity?: CodingProcessIdentity, readonly spawnedPid?: number) { super('provider_stop_unproved') }
+}
+
+export type AgentProcessExit = { code: number | null; clearance: 'stopped' | 'unknown' }
+
 export type AgentProcess = {
-  confirmHostExecutionStopped?: (
+  confirmHostExecutionStopped: (
     snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority,
   ) => Promise<boolean>
   identity: CodingProcessIdentity
   write: (text: string, effect?: SessionEffectAuthority) => Promise<void>
-  writeProtocol: (text: string) => void
+  writeProtocol: (text: string) => Promise<void>
   endInput: (effect?: SessionEffectAuthority) => Promise<void>
-  exited: Promise<{ code: number | null }>
+  exited: Promise<AgentProcessExit>
   alive: () => boolean
   stderrTail: () => string[]
 }
@@ -106,6 +114,7 @@ export const startAgentProcess = async (
   effect?: SessionEffectAuthority,
 ): Promise<AgentProcess> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
+  if (!context.control.stopTree) throw new AgentProcessStopUnproved()
   const protectionLease = await admitPersonalHostExecution('coding/terminal', context.personalAuthority, context.personalGuard)
   let child: ChildProcess
   try {
@@ -122,9 +131,9 @@ export const startAgentProcess = async (
   })
   if (!spawned || child.pid === undefined) {
     if (child.pid === undefined) await protectionLease?.release()
+    if (child.pid !== undefined) throw new AgentProcessStopUnproved(undefined, child.pid)
     throw new AgentStartError('agent_missing')
   }
-  await effectTransport(child)?.ready
   let done = false
   // `close` means stdout has been read to the end, so the turn's last line is
   // parsed first. A descendant still holding the pipe would delay it forever,
@@ -157,31 +166,46 @@ export const startAgentProcess = async (
   void ended.then(() => log.end())
   child.stdin?.on('error', () => undefined)
   if (child.stdout) createInterface({ input: child.stdout }).on('line', onLine)
-  await protectionLease?.bindExecution({ pid: child.pid })
+  let bindingError: unknown
+  try { await protectionLease?.bindExecution({ pid: child.pid }) } catch (error) { bindingError = error }
   // Through the agent guard this is the agent's own identity, which the guard reports; otherwise the child's.
-  const identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid))
+  let identity: CodingProcessIdentity | undefined
+  try { identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid)) }
+  catch { /* An identification failure cannot discharge this child's stop debt. */ }
   if (!identity) {
     // With no start time, no later kill could tell this process from whatever
     // inherits its pid, so it does not keep running. The handle is still ours.
-    const exitedOnItsOwn = done || !codingProcessIsAlive(child.pid)
+    await context.control.killChildTree(child).catch(() => false)
     if (!done) child.kill('SIGKILL')
-    await ended
     // Unknown descendants keep their registration; never call release here.
-    throw new AgentStartError(exitedOnItsOwn ? agentFailureReason(tail) : 'containment_failed')
+    throw new AgentProcessStopUnproved(undefined, child.pid)
   }
   if (context.control.containment) identity.containment = context.control.containment
-  try { await protectionLease?.bindExecution(identity) }
-  catch (error) { await context.control.killTree(identity).catch(() => undefined); throw error }
   let released = false
+  let clearing: Promise<boolean> | undefined
   const confirmHostExecutionStopped = async (
     snapshot: readonly CodingProcessIdentity[] = [], authority?: SessionEffectAuthority,
   ): Promise<boolean> => {
     if (released) return true
-    // The legacy killTree's void completion is deliberately never a release proof.
-    if (!context.control.stopTree || await context.control.stopTree(identity, snapshot, authority) !== 'stopped') return false
-    await protectionLease?.release()
-    released = true
-    return true
+    await authority?.consume()
+    authority?.assertLive()
+    clearing ??= (async () => {
+      // Every child requires positive proof, even without a personal credential lease.
+      if (await context.control.stopTree!(identity, snapshot, authority) !== 'stopped') return false
+      await protectionLease?.release()
+      released = true
+      return true
+    })().finally(() => { clearing = undefined })
+    return clearing
+  }
+  try {
+    if (bindingError) throw bindingError
+    await protectionLease?.bindExecution(identity)
+    await effectTransport(child)?.ready
+  }
+  catch (error) {
+    if (!await confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(identity)
+    throw error
   }
   // Through the agent guard the process this host started is the guard, not the
   // agent. A guard that ends while this host lives — killed, or out of memory —
@@ -191,35 +215,22 @@ export const startAgentProcess = async (
   // tree is killed, identity-checked, before this host hears that it exited;
   // an agent that has really gone is not there to kill, and no pid alive under
   // its number means no table read at all.
-  const exited = ended.then(async (result) => {
+  const exited: Promise<AgentProcessExit> = ended.then(async (result) => {
     if (context.control.identifySpawned && codingProcessIsAlive(identity.pid)) {
       await context.control.killTree(identity).catch(() => undefined)
     }
-    if (protectionLease) await confirmHostExecutionStopped().catch(() => false)
-    return result
+    const stopped = await confirmHostExecutionStopped().catch(() => false)
+    return { ...result, clearance: stopped ? 'stopped' : 'unknown' }
   })
+  const input = createAgentProcessInput(child)
   return {
-    ...(protectionLease ? { confirmHostExecutionStopped } : {}),
+    confirmHostExecutionStopped,
     identity,
-    write: async (text, authority) => {
-      const transport = effectTransport(child)
-      if (transport) return transport.broker.send('input', text, authority)
-      await authority?.consume()
-      authority?.assertLive()
-      if (!done && child.stdin?.writable) child.stdin.write(text)
-      else throw new AgentStartError('agent_exited')
-    },
-    writeProtocol: (text) => {
-      const transport = effectTransport(child)
-      if (transport) {
-        void transport.broker.send('reply', text).catch(() => context.log('Provider reply transport refused.'))
-      } else if (!done && child.stdin?.writable) child.stdin.write(text)
-    },
-    endInput: async (authority) => {
-      await effectTransport(child)?.broker.send('end', '', authority)
+    ...input,
+    endInput: (authority) => input.endInput(() => {
       if (context.control.endInput) context.control.endInput(child)
       else child.stdin?.end()
-    },
+    }, authority),
     exited,
     alive: () => !done,
     stderrTail: () => [...tail],

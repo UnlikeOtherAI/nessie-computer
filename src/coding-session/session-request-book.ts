@@ -37,7 +37,7 @@ export type HostAnswer = Omit<ExecutorSessionAnswer, 'secret'> & { secretSaved?:
 export type SessionRequestResponder = {
   answer: (answer: HostAnswer, effect?: SessionEffectAuthority) => void | Promise<void>
   /** The request ended unanswered; the provider is told so if it still listens. */
-  withdraw: (status: 'cancelled' | 'expired', reason: string) => void
+  withdraw: (status: 'cancelled' | 'expired', reason: string) => void | Promise<void>
 }
 
 export type AnswerProblem = ExecutorSessionAnswerProblem
@@ -112,17 +112,20 @@ export class SessionRequestBook {
   }
 
   /** The provider resolved or withdrew one request itself. */
-  withdraw(id: string, status: 'cancelled' | 'expired', reason: string): void {
+  async withdraw(id: string, status: 'cancelled' | 'expired', reason: string): Promise<void> {
     const entry = this.#entries.find((candidate) => candidate.request.id === id && candidate.request.status === 'pending')
     if (!entry) return
     this.settle(entry, status, reason)
-    entry.responder?.withdraw(status, reason)
+    try { await entry.responder?.withdraw(status, reason) }
+    catch (error) { this.settle(entry, 'expired', 'delivery_unknown'); throw error }
   }
 
   /** Ends every pending request unanswered; answers the provider for each that still listens. */
-  withdrawAll(status: 'cancelled' | 'expired', reason: string): number {
+  async withdrawAll(status: 'cancelled' | 'expired', reason: string): Promise<number> {
     const pending = this.#entries.filter((entry) => entry.request.status === 'pending')
-    for (const entry of pending) this.withdraw(entry.request.id, status, reason)
+    const outcomes = await Promise.allSettled(pending.map(entry => this.withdraw(entry.request.id, status, reason)))
+    const failed = outcomes.find(outcome => outcome.status === 'rejected')
+    if (failed?.status === 'rejected') throw failed.reason
     return pending.length
   }
 

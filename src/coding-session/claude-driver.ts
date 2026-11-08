@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto'
 import {
   agentFailureReason,
   AgentStartError,
+  AgentProcessStopUnproved,
   startAgentProcess,
   type AgentDriver,
   type AgentDriverContext,
@@ -49,6 +50,11 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   let interruptRequested = false
   let interruptReason: string | undefined
   let ending = false
+  let stopDebt: AgentProcessStopUnproved | undefined
+  const replyFailed = (): void => {
+    context.update({ status: 'interrupted', reason: 'provider_reply_unknown' })
+    void stop().catch(() => context.log('Provider stop clearance remains unknown.'))
+  }
 
   const beginTurn = (): void => {
     const state = context.state()
@@ -70,7 +76,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     interruptReason = undefined
   }
 
-  const handle = (signals: ClaudeSignals, ready: { resolve: () => void; reject: (error: Error) => void }): void => {
+  const handle = async (signals: ClaudeSignals, ready: { resolve: () => void; reject: (error: Error) => void }): Promise<void> => {
     for (const event of signals.events) context.emit(event)
     if (signals.ready) ready.resolve()
     if (signals.initializeFailed) ready.reject(new AgentStartError('agent_exited'))
@@ -80,11 +86,11 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       context.update({ agentSessionId: sessionId, agentSessionStarted: true })
     }
     if (signals.active) beginTurn()
-    if (signals.unsupportedControlRequest) agent?.write(claudeUnsupportedLine(signals.unsupportedControlRequest))
-    if (signals.prompt) ask(signals.prompt)
+    if (signals.unsupportedControlRequest) await agent?.writeProtocol(claudeUnsupportedLine(signals.unsupportedControlRequest))
+    if (signals.prompt) await ask(signals.prompt)
     if (signals.cancelledControlRequest) {
       const id = asked.get(signals.cancelledControlRequest)
-      if (id) context.requests.withdraw(id, 'cancelled', 'provider_cancelled')
+      if (id) await context.requests.withdraw(id, 'cancelled', 'provider_cancelled')
     }
     if (signals.test) context.update({ lastTest: signals.test })
     if (signals.backgroundTasks !== undefined) context.update({ backgroundTasks: signals.backgroundTasks })
@@ -95,11 +101,11 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   const asked = new Map<string, string>()
 
   /** A permission prompt or question: the owner's to answer, unless it is the session's own secret tool. */
-  const ask = (prompt: NonNullable<ClaudeSignals['prompt']>): void => {
+  const ask = async (prompt: NonNullable<ClaudeSignals['prompt']>): Promise<void> => {
     const asker = agent
     const plan = planClaudeRequest(prompt, context.projector, context.folder, context.roots)
     if (plan.kind === 'allow') {
-      asker?.writeProtocol(plan.line)
+      await asker?.writeProtocol(plan.line)
       return
     }
     const opened = context.requests.open(plan.draft, {
@@ -110,19 +116,19 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         if (reply.stopsTurn) interruptRequested = true
         if (asker?.alive()) await asker.write(reply.line, effect)
       },
-      withdraw: (_status, reason) => {
+      withdraw: async (_status, reason) => {
         asked.delete(prompt.requestId)
-        if (asker?.alive() && reason !== 'provider_cancelled') asker.writeProtocol(plan.withdraw(reason))
+        if (asker?.alive() && reason !== 'provider_cancelled') await asker.writeProtocol(plan.withdraw(reason))
       },
     })
     // A prompt the protocol cannot carry is turned down rather than left waiting on nobody.
     if (opened) asked.set(prompt.requestId, opened.id)
     else if (!context.requests.ownerReachable()) {
       // Nessie has not shown it can ask the owner: denied as every prompt was before it could.
-      asker?.writeProtocol(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
+      await asker?.writeProtocol(plan.answer({ requestId: '', decision: 'decline', feedback: CLAUDE_NO_OWNER_MESSAGE }).line)
     } else {
       context.log('a permission prompt could not be shown to the owner')
-      asker?.writeProtocol(plan.withdraw('unreadable_request'))
+      await asker?.writeProtocol(plan.withdraw('unreadable_request'))
     }
   }
 
@@ -147,27 +153,34 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         sessionId, resume, ...(context.maxBudgetUsd === undefined ? {} : { maxBudgetUsd: context.maxBudgetUsd }),
         ...(context.secretServer ? { mcpServer: context.secretServer } : {}),
       }),
-    ], (line) => handle(current.accept(line), readyHooks), effect)
+    ], (line) => { void handle(current.accept(line), readyHooks).catch(replyFailed) }, effect)
+      .catch(error => {
+        if (error instanceof AgentProcessStopUnproved) {
+          stopDebt = error
+          if (error.identity) context.update({ agentIdentity: error.identity })
+        }
+        throw error
+      })
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
-    void spawned.exited.then(({ code }) => {
-      if (!spawned.confirmHostExecutionStopped && agent === spawned) agent = undefined
-      const reason = agentFailureReason(spawned.stderrTail())
+    void spawned.exited.then(async ({ code, clearance }) => {
+      if (clearance === 'stopped' && agent === spawned) agent = undefined
+      const reason = clearance === 'unknown' ? 'provider_stop_unproved' : agentFailureReason(spawned.stderrTail())
       rejectReady(new AgentStartError(reason))
       // Nothing is left to answer what this process asked.
-      for (const id of asked.values()) context.requests.withdraw(id, 'expired', 'provider_exited')
+      for (const id of asked.values()) await context.requests.withdraw(id, 'expired', 'provider_exited')
       asked.clear()
       // An agent we are stopping, or one whose session is already closed, exited as asked.
       if (ending || context.state().status === 'closed') return
       context.log(`claude exited with code ${code}`)
       const busy = current.busy()
-      context.update({ ...(!spawned.confirmHostExecutionStopped ? { agentIdentity: undefined } : {}),
+      context.update({ ...(clearance === 'stopped' ? { agentIdentity: undefined } : {}),
         backgroundTasks: undefined })
-      if (busy || context.state().status === 'working' || context.state().status === 'starting') {
+      if (clearance === 'unknown' || busy || context.state().status === 'working' || context.state().status === 'starting') {
         context.emit({ kind: 'system', subtype: 'agent_exited', reason })
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
       }
-    })
+    }).catch(replyFailed)
     await effect?.consume()
     effect?.assertLive()
     await spawned.write(claudeControlLine('initialize'), effect)
@@ -181,7 +194,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   }
 
   const ensureAgent = async (effect?: SessionEffectAuthority): Promise<AgentProcess> => {
+    if (stopDebt) throw stopDebt
     if (agent?.alive()) return agent
+    if (agent || context.state().agentIdentity) await stop(effect)
     starting ??= start(effect).finally(() => { starting = undefined })
     return starting
   }
@@ -189,28 +204,33 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
     const identity = current?.identity ?? context.state().agentIdentity
-    if (!identity) return
+    if (!identity) { if (stopDebt) throw stopDebt; return }
     ending = true
-    const snapshot = await context.control.descendants(identity)
-    await effect?.consume()
-    effect?.assertLive()
-    if (current?.alive()) {
-      if (effect) await current.write(claudeControlLine('end_session'), effect)
-      await current.endInput(effect)
-      await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
-    }
-    await effect?.consume()
-    effect?.assertLive()
-    const stopped = current?.confirmHostExecutionStopped
-      ? await current.confirmHostExecutionStopped(snapshot, effect)
-      : (await context.control.killTree(identity, snapshot, effect), true)
-    if (stopped) agent = undefined
-    // An interrupt the ended process never answered belongs to it, not to the next turn.
-    interruptRequested = false
-    interruptReason = undefined
-    // Its background tasks went with it.
-    context.update({ ...(stopped ? { agentIdentity: undefined } : {}), backgroundTasks: undefined })
-    ending = false
+    try {
+      const snapshot = await context.control.descendants(identity)
+      await effect?.consume()
+      effect?.assertLive()
+      if (current?.alive()) {
+        try {
+          if (effect) await current.write(claudeControlLine('end_session'), effect)
+          await current.endInput(effect)
+          await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
+        } catch { context.log('Graceful provider shutdown was not acknowledged; checking tree clearance.') }
+      }
+      await effect?.consume()
+      effect?.assertLive()
+      const stopped = current
+        ? await current.confirmHostExecutionStopped(snapshot, effect)
+        : await context.control.stopTree?.(identity, snapshot, effect) === 'stopped'
+      if (!stopped) throw new AgentProcessStopUnproved(identity)
+      stopDebt = undefined
+      if (stopped) agent = undefined
+      // An interrupt the ended process never answered belongs to it, not to the next turn.
+      interruptRequested = false
+      interruptReason = undefined
+      // Its background tasks went with it.
+      context.update({ ...(stopped ? { agentIdentity: undefined } : {}), backgroundTasks: undefined })
+    } finally { ending = false }
   }
 
   return {
@@ -240,7 +260,8 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       context.update({ status: 'closed', reason, turnStartedAt: undefined })
     },
     endIdle: stop,
-    running: () => agent?.alive() === true || starting !== undefined,
+    running: () => agent !== undefined || starting !== undefined || stopDebt !== undefined
+      || context.state().agentIdentity !== undefined,
     busy: () => starting !== undefined || agent?.alive() === true && stream?.busy() === true,
   }
 }

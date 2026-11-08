@@ -48,3 +48,19 @@ test('receiver rejects substituted nonce/digest, stale permits and duplicate seq
     } finally { host.close(); child.close() }
   }
 })
+
+test('an owning-route refusal cannot become permission through a later stale permit', async () => {
+  const [host, child] = pair()
+  try {
+    const wire = JSON.stringify({ kind: 'launch', data: '{}', scope: scope() })
+    host.send({ type: 'offer', seq: 1, wire })
+    const receiver = new EffectReceiver(child), operation = await receiver.next()
+    const refused = assert.rejects(operation.consume())
+    const challenge = await host.read()
+    host.send({ ...challenge, type: 'refuse' })
+    await refused
+    host.send({ ...challenge, type: 'permit', validUntil: Date.now() + 1_000 })
+    // The abandoned challenge cannot satisfy a new consumption attempt.
+    await assert.rejects(operation.consume())
+  } finally { host.close(); child.close() }
+})

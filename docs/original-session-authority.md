@@ -142,3 +142,41 @@ test entry instead. Signed-route fixtures invoked by development Node remain
 separate from a synthetic installed journey through the normal coding bridge.
 No helper override, fixture-only managed entry or relaxed service admission is
 introduced. Personal providers and existing conversations are not test inputs.
+
+## Provider input acknowledgement and stop debt
+
+`AgentProcess.writeProtocol(text)` returns `Promise<void>`. The same ordered
+input lane carries ordinary input, structural automatic replies and end-input.
+It awaits the native receiver outcome, or the writable callback for an
+unpackaged pipe. That acknowledges transport delivery, not provider completion.
+Exit, pipe failure, timeout or rejected authority fails the lane permanently;
+a late callback cannot revive it. Do not replay uncertain input. Automatic
+replies cannot carry provider methods or grant a human operation. Codex result
+and error responses await this promise. Request withdrawal also awaits its
+reply and records `delivery_unknown` when acknowledgement fails.
+
+Every `AgentProcess` exposes `confirmHostExecutionStopped(snapshot?, effect?)`.
+`exited` resolves `{ code, clearance: 'stopped' | 'unknown' }`; an exit code is
+never clearance. A positive `stopTree` result is required even without personal
+credentials. Unknown clearance retains the identity, prevents completed close
+and replacement, and can be reconciled by another clearance attempt. Startup
+failure throws `AgentProcessStopUnproved` with the identity when known, or the
+spawned PID when identification failed. The PID is debt evidence, never a
+replacement birth identity. Missing proof capability refuses before spawn.
+Host recovery and supersession obey the same rule. POSIX group/table sweeps
+still report unknown; they do not become kernel containment proof.
+
+The original T3 adapters must use these low-level contracts directly. This is
+not permission to replace original `makeCodexAdapterV2` or the Claude runner
+with Nessie's managed driver queue. T3 finite-effect authority needs the
+broker/authentication producers' verified in-process grant, including exact
+executor, environment, thread, provider session, epoch, runtime generation,
+request digest and explicit native association. Managed `session_start`
+authority cannot stand in for that grant.
+
+The focused `test:executor-private-assignments` gate includes
+`agent-process-input.test.ts` and receiver refusal/late-permit cases;
+`test:personal-inference` includes leased and unleased stop-debt cases;
+`test:live-sessions` covers the changed async withdrawal consumers. These new
+cases are authored, not run in the source-only continuation. Protected signed
+launch, revocation and crash journeys remain separately required.

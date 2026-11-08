@@ -31,7 +31,7 @@ export class CodexAppConnection {
   constructor(
     private readonly write: (line: string, effect?: SessionEffectAuthority) => void | Promise<void>,
     private readonly timeoutMs = 60_000,
-    private readonly reply: (line: string) => void = line => { void write(line) },
+    private readonly reply: (line: string) => void | Promise<void> = line => write(line),
   ) {}
 
   request(method: string, params: Record<string, unknown>, effect?: SessionEffectAuthority): Promise<unknown> {
@@ -56,11 +56,11 @@ export class CodexAppConnection {
   async respond(id: string | number, result: Record<string, unknown>, effect?: SessionEffectAuthority): Promise<void> {
     const line = `${JSON.stringify({ id, result })}\n`
     if (effect) await this.write(line, effect)
-    else this.reply(line)
+    else await this.reply(line)
   }
 
-  respondError(id: string | number, message: string): void {
-    this.reply(`${JSON.stringify({ id, error: { code: -32601, message } })}\n`)
+  async respondError(id: string | number, message: string): Promise<void> {
+    await this.reply(`${JSON.stringify({ id, error: { code: -32601, message } })}\n`)
   }
 
   /** One stdout line: an answer settles its request; a notification or a server request is returned. */

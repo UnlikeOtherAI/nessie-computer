@@ -202,12 +202,12 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   // creates it on the first message, and refuses `--session-id` for an id it
   // already has. So an unconfirmed id is dropped and the next agent starts
   // afresh — given the first message again (`deliver`), which the lost one took with it.
-  if (state.agentSessionId !== undefined && state.agentSessionStarted !== true) update({ agentSessionId: undefined })
   if (state.agentIdentity) {
     log('stopping the previous host\'s agent')
-    await control.killTree(state.agentIdentity)
+    if (await control.stopTree?.(state.agentIdentity) !== 'stopped') throw new AgentStartError('provider_stop_unproved')
     update({ agentIdentity: undefined })
   }
+  if (state.agentSessionId !== undefined && state.agentSessionStarted !== true) update({ agentSessionId: undefined })
 
   let driver: AgentDriver | undefined
   let retiring = false
@@ -307,16 +307,16 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     } else if (request.kind === 'answer') {
       const answer = request.answer && unsealHostAnswer(request.answer, answerKey, context.projector)
       // Sealed for a key this host does not hold: nothing can deliver it, so the request ends rather than waits.
-      if (request.answer && !answer) book.withdraw(request.answer.requestId, 'expired', 'answer_unreadable')
+      if (request.answer && !answer) await book.withdraw(request.answer.requestId, 'expired', 'answer_unreadable')
       const problem = answer ? await book.answer(answer, effect) : 'answer_shape_mismatch'
       if (problem) log(`an answer was not delivered: ${problem}`)
     } else if (request.kind === 'close') {
-      book.withdrawAll('cancelled', 'session_closed')
+      await book.withdrawAll('cancelled', 'session_closed')
       // The daemon's close carries its categorical reason; an owner's carries none.
       if (driver) await driver.close(request.reason, effect)
       else update({ status: 'closed', reason: request.reason, turnStartedAt: undefined })
     } else if (request.kind === 'interrupt') {
-      book.withdrawAll('cancelled', 'turn_interrupted')
+      await book.withdrawAll('cancelled', 'turn_interrupted')
       await driver?.interrupt(undefined, effect)
       // Ctrl-C is a key the terminal's program handles as it likes: a shell stays open, so it never ends one.
       if (driver?.busy() && meta.agent !== 'terminal') pendingInterrupt ??= { at: Date.now(), turn: state.turn }
@@ -343,7 +343,10 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
       // Another host owns the session now. Stop our agent and leave without writing.
       superseded = true
       const identity = state.agentIdentity
-      if (identity) await control.killTree(identity)
+      if (driver) await driver.endIdle()
+      else if (identity && await control.stopTree?.(identity) !== 'stopped') {
+        throw new AgentStartError('provider_stop_unproved')
+      }
       process.exit(0)
     })().catch((error: unknown) => log(`heartbeat failed: ${String(error)}`))
   }, HOST_HEARTBEAT_MS)
@@ -422,9 +425,11 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     clearInterval(heartbeat)
     await events.close()
     // Nothing is left to answer what is still pending once this host stops serving.
-    if (!superseded) book.withdrawAll('expired', 'provider_exited')
-    await requestWrites
-    if (!superseded) await writer.flush()
+    try { if (!superseded) await book.withdrawAll('expired', 'provider_exited') }
+    finally {
+      await requestWrites
+      if (!superseded) await writer.flush()
+    }
   }
   return superseded ? 'superseded' : retiring ? 'retired' : 'finished'
 }
