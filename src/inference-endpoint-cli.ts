@@ -3,8 +3,6 @@ import { z } from 'zod'
 import { loadExecutorState } from './state-store.js'
 import { changeInferenceEndpoint, defaultInferenceEndpoint, readInferenceEndpoints } from './inference-endpoints.js'
 import { createLocalModelServerBackend } from './local-model-server.js'
-import { createLocalOpenAiBackend } from './openai-local-observed.js'
-import { inferenceNetworkFetch } from './inference-endpoint-network.js'
 import { parseLocalOpenAiConfig } from './openai-local-config.js'
 
 export const InferenceEndpointOperation = z.discriminatedUnion('operation', [
@@ -21,9 +19,7 @@ export const inferenceEndpointStatus = async (directory: string) => {
   const endpoints = await readInferenceEndpoints(directory) ?? [defaultInferenceEndpoint()]
   return { endpoints: await Promise.all(endpoints.map(async endpoint => {
     const { config } = endpoint
-    const backend = config.networkServiceConfirmed
-      ? createLocalOpenAiBackend(async () => config, inferenceNetworkFetch)
-      : createLocalModelServerBackend(async () => config)
+    const backend = createLocalModelServerBackend(async () => config)
     const summary = { id: endpoint.id, name: endpoint.name, baseUrl: config.baseUrl,
       scope: config.networkServiceConfirmed ? 'network' : 'local', hasApiKey: Boolean(config.apiKey) }
     try {

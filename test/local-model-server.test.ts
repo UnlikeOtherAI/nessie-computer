@@ -92,3 +92,14 @@ test('a server that went away is offline, not mistaken for another kind', async 
   })
   await assert.rejects(backend.observe(), /endpoint_unavailable/)
 })
+
+test('a LAN address uses OpenAI-compatible discovery without loopback Ollama probes', async () => {
+  const requests: string[] = []
+  const config = parseLocalOpenAiConfig({ baseUrl: 'http://strata.local:8080/v1', networkServiceConfirmed: true })
+  const backend = createLocalModelServerBackend(async () => config, {
+    ollamaFetch: async () => { assert.fail('LAN endpoints must not use the loopback-only Ollama transport') },
+    openAiFetch: strata(requests),
+  })
+  assert.equal((await backend.observe())[0]?.name, 'qwen3.8-flash')
+  assert.deepEqual(requests, ['http://strata.local:8080/v1/models', 'http://strata.local:8080/props'])
+})

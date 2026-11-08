@@ -2,12 +2,14 @@ import { createOllamaBackend, type LocalInferenceBackend } from './local-inferen
 import { DEFAULT_OLLAMA_ORIGIN, defaultOllamaFetch, detectOllama, type OllamaFetch } from './ollama-client.js'
 import { localModelServerOrigin, type LocalOpenAiConfig } from './openai-local-config.js'
 import { createLocalOpenAiBackend, localOpenAiFetch, type LocalOpenAiFetch } from './openai-local-observed.js'
+import { inferenceNetworkFetch } from './inference-endpoint-network.js'
 
 /** What answers at the owner's address, for the local status command. */
 export const localModelServerKind = async (
   config: LocalOpenAiConfig | null, ollamaFetch: OllamaFetch = defaultOllamaFetch,
 ): Promise<'ollama' | 'openai'> => {
   if (!config) return 'ollama'
+  if (config.networkServiceConfirmed) return 'openai'
   const origin = localModelServerOrigin(config)
   // Ollama serves plain HTTP only; an HTTPS address is an OpenAI-compatible server.
   if (new URL(origin).protocol !== 'http:') return 'openai'
@@ -34,6 +36,9 @@ export const createLocalModelServerBackend = (
   const current = async (): Promise<LocalInferenceBackend> => {
     const config = await readConfig()
     if (!config) return ollamaAt(DEFAULT_OLLAMA_ORIGIN)
+    if (config.networkServiceConfirmed) {
+      return createLocalOpenAiBackend(async () => config, options.openAiFetch ?? inferenceNetworkFetch)
+    }
     return await localModelServerKind(config, ollamaFetch) === 'ollama'
       ? ollamaAt(localModelServerOrigin(config)) : openai
   }

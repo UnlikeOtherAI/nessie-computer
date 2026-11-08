@@ -1,8 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { LocalInferenceBackend, ObservedInferenceModel } from './local-inference-backend.js'
 import { createLocalModelServerBackend } from './local-model-server.js'
-import { createLocalOpenAiBackend } from './openai-local-observed.js'
-import { inferenceNetworkFetch } from './inference-endpoint-network.js'
 import { LEGACY_ENDPOINT_ID, type InferenceEndpoint } from './inference-endpoints.js'
 
 const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -13,9 +11,8 @@ const scopedModel = (endpoint: InferenceEndpoint, model: ObservedInferenceModel)
   providerModelId: model.providerModelId ?? model.name,
   manifestDigest: digest([endpoint.id, endpoint.config.baseUrl, model.manifestDigest]),
 })
-const backendFor = (endpoint: InferenceEndpoint): LocalInferenceBackend => endpoint.config.networkServiceConfirmed
-  ? createLocalOpenAiBackend(async () => endpoint.config, inferenceNetworkFetch)
-  : createLocalModelServerBackend(async () => endpoint.config)
+const backendFor = (endpoint: InferenceEndpoint): LocalInferenceBackend =>
+  createLocalModelServerBackend(async () => endpoint.config)
 
 /** One signed host advertises distinct endpoint models; one unavailable server cannot hide another. */
 export const createInferenceEndpointBackend = (
