@@ -200,7 +200,8 @@ const routes: Array<{ method: string; path: RegExp; operation: string; handle: H
     const request = parseSigned(server, FolderSyncHandshakeRequestSchema, body)
     const named = request.wantsOrganizationName && server.handshakeNamesOrganization
     return FolderSyncHandshakeResponseSchema.parse({
-      status: server.status, teamLabel: server.teamLabel, ...(named ? { organizationName: server.organizationName } : {}),
+      status: server.status, teamLabel: server.teamLabel,
+      ...(named ? { organizationName: server.organizationName } : {}),
       computerLabel: server.computerLabel, includeSensitive: true,
       manageUrl: `https://unlikeotherai.nessie.test/team/computers/${server.executorId}?tab=sync`,
       limits: {

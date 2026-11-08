@@ -31,7 +31,8 @@ export const syncRootPresent = async (config: FolderSyncConfig, executorId: stri
 export const ensureTeamFolder = async (
   config: FolderSyncConfig,
   context: {
-    stateDir: string; executorId: string; names: () => Promise<TeamFolderNames>; now: number; security?: StateSecurityDeps
+    stateDir: string; executorId: string; names: () => Promise<TeamFolderNames>; now: number
+    security?: StateSecurityDeps
   },
 ): Promise<string> => {
   if (!config.teamFolder) {
