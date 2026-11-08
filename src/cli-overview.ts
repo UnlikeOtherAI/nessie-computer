@@ -143,7 +143,9 @@ const pauseOrResume = (paused: boolean) => async (run: CliRun): Promise<void> =>
   const command = paused ? 'pause' : 'resume'
   acceptOnly(run.options, command)
   operands(run.options, 1, 0, command)
-  const chosen = selectTeams(await run.teams(), run.options.team, command, true)
+  // Every connection without --team, a team's ChatGPT plan connection included, as the window's Pause does.
+  const chosen = run.options.team === undefined ? await run.connections()
+    : selectTeams(await run.teams(), run.options.team, command, false)
   if (!chosen.length) throw new CliRefusal('NO_TEAMS', 'No teams are connected to this computer.')
   const results = []
   for (const team of chosen) {

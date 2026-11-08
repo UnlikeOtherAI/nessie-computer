@@ -66,10 +66,12 @@ const watch = async (run: CliRun, teams: readonly LabelledTeam[], context: CliCo
 export const runRequests = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'requests')
   const [action = 'list', id] = operands(run.options, 1, 2, 'requests')
-  const all = await run.teams()
+  // Every connection without --team, so a request on a team's ChatGPT plan connection is listed too.
+  const chosen = async () => (run.options.team === undefined ? run.connections()
+    : selectTeams(await run.teams(), run.options.team, 'requests', false))
   if (action === 'list' || action === 'watch') {
     if (id !== undefined) throw new CliUsageError(`requests ${action} takes no id.`, 'requests')
-    const teams = selectTeams(all, run.options.team, 'requests', true)
+    const teams = await chosen()
     if (action === 'watch') await watch(run, teams, run.context)
     const requests = await requestsOf(run, teams)
     if (run.options.json) printJson(run.context, requests.map(asJson))
@@ -79,7 +81,7 @@ export const runRequests = async (run: CliRun): Promise<void> => {
   const answer = ANSWERS[action]
   if (!answer) throw new CliUsageError(`requests has no "${action}". Use list, allow-once, always, deny or watch.`, 'requests')
   if (id === undefined) throw new CliUsageError(`Give the request id: nessie-computer requests ${action} <id>.`, 'requests')
-  const request = findRequest(await requestsOf(run, selectTeams(all, run.options.team, 'requests', true)), id)
+  const request = findRequest(await requestsOf(run, await chosen()), id)
   await run.ops(request.team).answer(request, answer)
   if (run.options.json) printJson(run.context, { ...asJson(request), answer })
   else run.context.out(answer === 'once' ? `Allowed ${request.program} this once.\n`
