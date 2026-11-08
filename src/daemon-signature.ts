@@ -19,6 +19,7 @@ export type ExecutorDaemonSignatureDomain =
   | 'poll'
   | 'receipt'
   | 'sync'
+  | 'teams'
 
 /** Signs a bounded executor control-plane request with the paired machine key. */
 export const signExecutorDaemonPayload = (
