@@ -5,7 +5,7 @@ import { saveAccess } from './cli-describe.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
 import type { CliRun } from './cli-user.js'
-import { PROGRAM_TRUST_KEYS, type ProgramTrust, type ProgramTrustKey } from './program-trust.js'
+import type { ProgramTrust, ProgramTrustKey } from './program-trust.js'
 import { loadExecutorState } from './state-store.js'
 
 /**
@@ -25,12 +25,15 @@ const BUILTIN_WORDS: Record<string, ProgramTrustKey> = {
 
 const noTrust = (): ProgramTrust => ({ unlikeotherai: false, claudeCode: false, codex: false, t3Code: false })
 
+/** The order the window lists the built-ins in. */
+const BUILTIN_ORDER: readonly ProgramTrustKey[] = ['unlikeotherai', 'claudeCode', 'codex', 't3Code']
+
 /** "Only these: Apps from UnlikeOtherAI, Claude Code, npm *", "Any program", "No programs" — the window's words. */
 export const programRuleSummary = (policy: LocalCommandPolicy): string => {
   if (policy.mode === 'all') {
     return policy.denylist.length ? `Any program except ${listed(policy.denylist)}` : 'Any program'
   }
-  const builtins = PROGRAM_TRUST_KEYS.filter((key) => policy.trusted?.[key]).map((key) => BUILTIN_NAMES[key])
+  const builtins = BUILTIN_ORDER.filter((key) => policy.trusted?.[key]).map((key) => BUILTIN_NAMES[key])
   const allowed = [...builtins, ...policy.allowlist]
   if (allowed.length === 0) return 'No programs'
   return `Only these: ${allowed.join(', ')}${policy.denylist.length ? `; blocked: ${policy.denylist.join(', ')}` : ''}`
@@ -49,7 +52,7 @@ const showPolicy = (run: CliRun, label: string, policy: LocalCommandPolicy): voi
     printJson(run.context, policy)
     return
   }
-  const builtins = PROGRAM_TRUST_KEYS.map((key) => [BUILTIN_NAMES[key], policy.trusted?.[key] ? 'on' : 'off'])
+  const builtins = BUILTIN_ORDER.map((key) => [BUILTIN_NAMES[key], policy.trusted?.[key] ? 'on' : 'off'])
   run.context.out([`${label} may start: ${policy.mode === 'all' ? 'Any program' : 'Only these programs'}`,
     `Currently allowed: ${programRuleSummary(policy)}.`, '', 'Built in:', columns(builtins, '  '),
     `Added by you: ${listed(policy.allowlist)}`, `Blocked: ${listed(policy.denylist)}`, '',
