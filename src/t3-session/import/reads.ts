@@ -4,6 +4,8 @@ import { createSessionStateLayers, createSessionReadLayers, ThreadReadService,
   SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { requireCapture } from '../state/sqlite.js'
 import type { RetainedReadScope } from '../ownership/continuity.js'
+import { withRetainedReadScope } from '../ownership/continuity.js'
+import { retainedCaptureAuthority } from './capture.js'
 import type { RetainedCapturePorts } from './capture.js'
 import type { T3SourceManifest } from './manifest.js'
 
@@ -14,12 +16,12 @@ async function readPage<A>(ports: RetainedCapturePorts, manifest: T3SourceManife
   generation: string, threadId: S.ThreadId,
   read: (service: ThreadReadService['Service'], lease: RetainedReadScope) => Effect.Effect<A, unknown>) {
   const sourcePort = ports.source
-  const originalOwner = ports.originalOwner
+  const originalOwner = retainedCaptureAuthority(ports)
   requireCapture(sourcePort && originalOwner, 'required_retained_read_producers')
   requireCapture(manifest.homes.some(home => home.admittedRootKey === admittedRootKey), 'source_not_in_manifest')
   return sourcePort.withReadonlySource(manifest, admittedRootKey, async (source, _database, recheck) =>
-    originalOwner.withReadScope({ source, physicalSourceRecheck: recheck,
-      captureGeneration: generation, purpose: 'retained-history-read' }, async lease => {
+    withRetainedReadScope(originalOwner, { source, physicalSourceRecheck: recheck,
+      captureGeneration: generation }, async lease => {
       await recheck()
       await lease.recheckSource()
       await lease.recheckThread(threadId)

@@ -1,5 +1,6 @@
 import type { SourceContracts } from '@nessie/t3-session-source/engine'
 import type { ProvenT3Source } from '../import/manifest.js'
+import type { RetainedImportAuthorityPort } from './import-scope.js'
 
 /** REQUIRED, UNBOUND. T03C's immutable accepted managed-start admissions do not
  * establish the original human for legacy/native/external retained sessions.
@@ -15,6 +16,7 @@ export interface RetainedReadScope {
   recheckThread(threadId: SourceContracts.ThreadId): Promise<void>
 }
 export interface RetainedOriginalOwnerPort {
+  readonly basis?: 'historical-continuity'
   withReadScope<A>(input: {
     readonly source: ProvenT3Source
     /** Exact live function issued by the resource producer, recognized by the
@@ -25,6 +27,17 @@ export interface RetainedOriginalOwnerPort {
     readonly captureGeneration: string
     readonly purpose: 'retained-history-read'
   }, use: (lease: RetainedReadScope) => Promise<A>): Promise<A>
+}
+
+/** Distinct authority bases meet only at the content reader; prospective consent
+ * is never asserted to be original human ownership. No fallback after denial.
+ */
+export function withRetainedReadScope<A>(authority: RetainedOriginalOwnerPort | RetainedImportAuthorityPort,
+  input: { source: ProvenT3Source; physicalSourceRecheck: () => Promise<void>; captureGeneration: string },
+  use: (lease: RetainedReadScope) => Promise<A>): Promise<A> {
+  return authority.basis === 'prospective-import-grant'
+    ? authority.withReadScope({ ...input, purpose: 'retained-import-read' }, use)
+    : authority.withReadScope({ ...input, purpose: 'retained-history-read' }, use)
 }
 
 /** REQUIRED native-resource proof, not inferred from paths or provider-instance IDs. */

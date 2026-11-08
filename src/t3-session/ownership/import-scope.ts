@@ -1,0 +1,198 @@
+import { performance } from 'node:perf_hooks'
+import { RetainedImportLeaseSchema, RetainedImportChallengeSchema, RetainedImportLocalReceiptSchema,
+  RetainedImportVerificationSchema, RetainedImportLiveProofSchema,
+  RetainedImportGrantStatusSchema, canonicalExecutorJson, type RetainedImportLease,
+  type RetainedImportChallenge } from '@nessie/executor-protocol'
+import type { SourceContracts } from '@nessie/t3-session-source/engine'
+import { machineT3Sources } from '../source/owner.js'
+import type { RetainedImportConsentLease } from '../source/consent-consumer.js'
+import type { ProvenT3Source } from '../import/manifest.js'
+import type { RetainedReadScope } from './continuity.js'
+import type { RetainedCatalogAuthorityPort } from '../catalog/selection.js'
+import { requireCapture } from '../state/sqlite.js'
+import { retainedImportPost } from './import-transport.js'
+
+export interface RetainedImportReadScope extends RetainedReadScope {
+  readonly basis: 'prospective-import-grant'
+  readonly grantId: string
+  readonly selectionKey: string
+  readonly legacyCopyProvenance: 'not_attested_by_original_source'
+  recheckSelection(): Promise<void>
+}
+export interface RetainedImportAuthorityPort {
+  readonly basis: 'prospective-import-grant'
+  readonly captureGeneration: string
+  withReadScope<A>(input: { source: ProvenT3Source; physicalSourceRecheck: () => Promise<void>;
+    captureGeneration: string; purpose: 'retained-import-read' },
+  use: (scope: RetainedImportReadScope) => Promise<A>): Promise<A>
+  withPublicationScope<A>(input: { source: ProvenT3Source; physicalSourceRecheck: () => Promise<void>;
+    captureGeneration: string; purpose: 'retained-import-publish' },
+  use: (scope: RetainedImportReadScope) => Promise<A>): Promise<A>
+}
+
+export interface RetainedImportLocalContext {
+  readonly grant: { grantId: string; generation: string; status: 'active'; basis: 'prospective_import';
+    legacyCopyProvenance: 'not_attested_by_original_source' }
+  readonly challenge: RetainedImportChallenge
+  readonly source: ProvenT3Source
+  readonly physicalSourceRecheck: () => Promise<void>
+  readonly captureGeneration: string
+  /** Local liveness only; server read admission is checked by authority scopes. */
+  recheckLocalConsent(): Promise<void>
+  authority(lease: RetainedImportLease): RetainedImportAuthorityPort & RetainedCatalogAuthorityPort
+}
+
+/** Real local+server composition. The serialized descriptor grants nothing until
+ * both the protected native approval and the current backend lease are rechecked.
+ */
+function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImportLease,
+  consent: RetainedImportConsentLease):
+  RetainedImportAuthorityPort & RetainedCatalogAuthorityPort {
+  const lease = RetainedImportLeaseSchema.parse(raw)
+  requireCapture(lease.grantId === consent.challenge.challengeId
+    && lease.generation === consent.challenge.grantGeneration
+    && lease.sourceOwnerGeneration === consent.receipt.issuerInstance
+    && lease.localApprovalId === consent.receipt.receiptId, 'retained_import_consent_substitution')
+  // Freeze a parsed copy so a caller cannot widen selection while awaiting I/O.
+  if (lease.selection.kind === 'threads') {
+    Object.freeze(lease.selection.threadIds)
+    Object.freeze(lease.selection.projectIds)
+  }
+  Object.freeze(lease.selection)
+  Object.freeze(lease)
+
+  const withScope = async <A>(input: { source: ProvenT3Source; physicalSourceRecheck: () => Promise<void>;
+    captureGeneration: string }, use: (scope: RetainedImportReadScope) => Promise<A>): Promise<A> => {
+    const owner = machineT3Sources(lease.executorId)
+    const live = await owner.recognize(input.physicalSourceRecheck)
+    requireCapture(live.source === input.source && live.executorId === lease.executorId
+      && input.source.environmentId === lease.environmentId && input.source.physicalRootKey === lease.physicalRootKey
+      && input.source.admittedRootKey === lease.admittedRootKey && input.captureGeneration === lease.captureGeneration
+      && live.databaseIdentity === lease.databaseIdentity && live.environmentIdentity === lease.environmentIdentity,
+    'retained_import_source_substitution')
+    const startedAt = Date.now()
+    const monotonic = performance.now()
+    const remaining = Math.min(60_000, Date.parse(lease.expiresAt) - startedAt)
+    requireCapture(remaining > 0, 'retained_import_lease_expired')
+    let active = true
+    const requireLive = () => requireCapture(active && Date.now() >= startedAt
+      && Date.now() < Date.parse(lease.expiresAt) && performance.now() - monotonic < remaining,
+    'retained_import_lease_expired_or_closed')
+    const recheck = async (threadId?: SourceContracts.ThreadId) => {
+      try {
+        requireLive()
+        const current = await owner.recognize(input.physicalSourceRecheck)
+        requireCapture(current.source === input.source && current.executorId === lease.executorId,
+          'retained_import_source_replaced')
+        const verification = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
+          operation: 'verification.issue', grantId: lease.grantId, purpose: 'recheck', leaseId: lease.leaseId,
+        }))
+        const liveProof = RetainedImportLiveProofSchema.parse(await consent.recheck(verification))
+        const answer = await retainedImportPost(stateDirectory, {
+          operation: 'lease.check', leaseId: lease.leaseId, token: lease.token, grantId: lease.grantId, liveProof,
+          generation: lease.generation, sourceOwnerGeneration: lease.sourceOwnerGeneration,
+          selectionKey: lease.selectionKey,
+          source: { executorId: lease.executorId, environmentId: lease.environmentId,
+            physicalRootKey: lease.physicalRootKey, admittedRootKey: lease.admittedRootKey,
+            databaseIdentity: lease.databaseIdentity, environmentIdentity: lease.environmentIdentity,
+            captureGeneration: lease.captureGeneration }, purpose: lease.purpose, ...(threadId ? { threadId } : {}),
+        }) as { basis?: string; selection?: unknown; selectionKey?: string; generation?: string; expiresAt?: string }
+        requireCapture(answer.basis === 'prospective_import' && answer.generation === lease.generation
+          && answer.expiresAt === lease.expiresAt && answer.selectionKey === lease.selectionKey
+          && canonicalExecutorJson(answer.selection) === canonicalExecutorJson(lease.selection),
+        'retained_import_server_scope_changed')
+        requireLive()
+        requireCapture((await owner.recognize(input.physicalSourceRecheck)).source === input.source,
+          'retained_import_source_replaced')
+        requireLive()
+      } catch (error) { active = false; throw error }
+    }
+    const scope: RetainedImportReadScope = Object.freeze({ basis: 'prospective-import-grant', grantId: lease.grantId,
+      selectionKey: lease.selectionKey, legacyCopyProvenance: 'not_attested_by_original_source',
+      recheckSource: () => recheck(), recheckThread: recheck, recheckSelection: () => recheck() })
+    try {
+      await recheck()
+      const result = await use(scope)
+      await recheck()
+      return result
+    } finally { active = false }
+  }
+
+  const authority: RetainedImportAuthorityPort & RetainedCatalogAuthorityPort = {
+    basis: 'prospective-import-grant', captureGeneration: lease.captureGeneration,
+    withReadScope: async (input, use) => {
+      requireCapture(input.purpose === 'retained-import-read' && (lease.purpose === 'capture' || lease.purpose === 'read'),
+        'retained_import_wrong_purpose')
+      // The original whole-root capture cannot claim completeness for a subset.
+      requireCapture(lease.purpose !== 'capture' || lease.selection.kind === 'whole_source',
+        'retained_import_capture_requires_whole_source')
+      requireCapture(lease.purpose !== 'read' || lease.selection.kind === 'whole_source',
+        'retained_import_inherited_closure_unproven')
+      return withScope(input, use)
+    },
+    withPublicationScope: async (input, use) => {
+      requireCapture(input.purpose === 'retained-import-publish' && lease.purpose === 'publish',
+        'retained_import_wrong_purpose')
+      return withScope(input, use)
+    },
+    withCatalogReadScope: async (input, use) => {
+      requireCapture(input.purpose === 'retained-catalog-read' && lease.purpose === 'catalog',
+        'retained_import_wrong_purpose')
+      return withScope(input, scope => use({ ...scope,
+        selection: lease.selection.kind === 'whole_source'
+          ? { basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'environment-owner' }
+          : { basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'threads',
+              threadIds: lease.selection.threadIds, projectIds: lease.selection.projectIds },
+      }))
+    },
+  }
+  return Object.freeze(authority)
+}
+
+/** Tray receipt submission and all dependent local work share one actual native
+ * consumption. The callback cannot outlive the held source or native issuer.
+ * Remote activation requires the separately enrolled issuer signature and the
+ * one-use native live proof. A failure withdraws the local reservation.
+ */
+export async function withRetainedImportLocally<A>(stateDirectory: string,
+  input: { challenge: unknown; receipt: unknown },
+  use: (result: RetainedImportLocalContext) => Promise<A>): Promise<A> {
+  const challenge = RetainedImportChallengeSchema.parse(input.challenge)
+  const receipt = RetainedImportLocalReceiptSchema.parse(input.receipt)
+  const owner = machineT3Sources(challenge.executorId)
+  return owner.withReadonlySource(await owner.manifest(), challenge.admittedRootKey,
+    async (source, _database, physicalSourceRecheck) => {
+      const verification = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
+        operation: 'verification.issue', grantId: challenge.challengeId, purpose: 'consume',
+      }))
+      const consent = await owner.consumeRetainedImportApproval({ challenge, receipt, physicalSourceRecheck, verification })
+      let committed = false
+      try {
+        await consent.recheck()
+        const grant = RetainedImportGrantStatusSchema.parse(await retainedImportPost(stateDirectory, {
+          operation: 'consent.commit', challenge, receipt,
+          liveProof: RetainedImportLiveProofSchema.parse(consent.initialProof) }))
+        requireCapture(grant.status === 'active' && grant.grantId === challenge.challengeId
+          && grant.generation === challenge.grantGeneration, 'retained_import_commit_substitution')
+        committed = true
+        await consent.recheck()
+        const result = await use({ grant: { ...grant, status: 'active' }, source, physicalSourceRecheck,
+          challenge, captureGeneration: challenge.captureGeneration,
+          recheckLocalConsent: () => consent.recheck(),
+          authority: lease => createRetainedImportAuthority(stateDirectory, lease, consent) })
+        await consent.recheck()
+        return result
+      } finally {
+        try {
+          if (committed) {
+            const withdrawal = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
+              operation: 'verification.issue', grantId: challenge.challengeId, purpose: 'revoke',
+            }))
+            const liveProof = RetainedImportLiveProofSchema.parse(await consent.revoke(withdrawal))
+            await retainedImportPost(stateDirectory, { operation: 'consent.withdraw',
+              grantId: challenge.challengeId, liveProof })
+          }
+        } finally { await consent.revoke() }
+      }
+    })
+}
