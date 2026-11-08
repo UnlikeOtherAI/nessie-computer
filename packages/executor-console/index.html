@@ -28,6 +28,7 @@
     <button role="tab" id="tab-button-folders" data-tab="folders" aria-controls="tab-folders" aria-selected="false" tabindex="-1">Folders</button>
     <button role="tab" id="tab-button-commands" data-tab="commands" aria-controls="tab-commands" aria-selected="false" tabindex="-1">Commands</button>
     <button role="tab" id="tab-button-sync" data-tab="sync" aria-controls="tab-sync" aria-selected="false" tabindex="-1">Sync</button>
+    <button role="tab" id="tab-button-ai" data-tab="ai" aria-controls="tab-ai" aria-selected="false" tabindex="-1">AI</button>
     <button role="tab" id="tab-button-settings" data-tab="settings" aria-controls="tab-settings" aria-selected="false" tabindex="-1">Settings</button>
   </div>
   <p id="error" role="alert" hidden></p>
@@ -101,6 +102,16 @@
           <div id="sync-conflict-list"></div>
         </section>
       </div>
+    </section>
+    <section id="tab-ai" role="tabpanel" aria-labelledby="tab-button-ai" hidden>
+      <div class="section-heading"><h2>ChatGPT</h2><button id="ai-add-chatgpt"></button></div>
+      <div id="ai-chatgpt-list"></div>
+      <hr>
+      <div class="section-heading"><h2 id="ai-endpoints-title"></h2><button id="ai-add-endpoint"></button></div>
+      <p class="hint" id="ai-endpoints-hint"></p>
+      <div id="ai-endpoint-list"></div>
+      <p id="ai-error" class="field-error" role="alert" hidden></p>
+      <button id="ai-refresh"></button>
     </section>
     <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
       <label class="toggle"><input type="checkbox" id="autostart"> Open Nessie Executor when I log in</label>
@@ -191,6 +202,8 @@
   <dialog id="chatgpt-dialog" aria-labelledby="chatgpt-title">
     <h2 id="chatgpt-title" tabindex="-1">ChatGPT</h2>
     <p id="chatgpt-team"></p>
+    <label id="chatgpt-name-label" for="chatgpt-name"></label>
+    <div class="ai-name-row"><input id="chatgpt-name" maxlength="80"><button id="chatgpt-rename"></button></div>
     <p id="chatgpt-disclosure"></p>
     <p id="chatgpt-status" role="status"></p>
     <label id="chatgpt-profile-label" for="chatgpt-profile"></label>
@@ -208,6 +221,23 @@
       <button id="chatgpt-close" class="dialog-close"></button>
     </div>
   </dialog>
+  <dialog id="endpoint-dialog" aria-labelledby="endpoint-title">
+    <h2 id="endpoint-title"></h2>
+    <form id="endpoint-form">
+      <label id="endpoint-name-label" for="endpoint-name"></label>
+      <input id="endpoint-name" maxlength="80" required>
+      <label id="endpoint-address-label" for="endpoint-address"></label>
+      <input id="endpoint-address" type="url" maxlength="512" required placeholder="http://192.168.1.90:8080/v1">
+      <label id="endpoint-scope-label" for="endpoint-scope"></label>
+      <select id="endpoint-scope"><option value="local" id="endpoint-local"></option><option value="network" id="endpoint-network"></option></select>
+      <label id="endpoint-key-label" for="endpoint-key"></label>
+      <input id="endpoint-key" type="password" maxlength="4096" autocomplete="new-password">
+      <p id="endpoint-key-hint" class="hint"></p>
+      <label class="toggle" id="endpoint-clear-key-row" hidden><input id="endpoint-clear-key" type="checkbox"><span id="endpoint-clear-key-copy"></span></label>
+      <p class="dialog-error" role="alert" hidden></p>
+      <div class="actions"><button type="button" id="endpoint-remove" class="danger" hidden></button><button type="button" id="endpoint-close" class="dialog-close"></button><button type="submit" id="endpoint-save" class="primary"></button></div>
+    </form>
+  </dialog>
   <dialog id="sync-existing-dialog" aria-labelledby="sync-existing-title">
     <h2 id="sync-existing-title" tabindex="-1"></h2>
     <p id="sync-existing-body"></p>
@@ -222,6 +252,6 @@
     <p class="dialog-error" role="alert" hidden></p>
     <div class="actions"><button type="button" id="sync-deleted-open"></button><button type="button" id="sync-deleted-close" class="dialog-close"></button></div>
   </dialog>
-  <script src="native.js"></script><script src="updates-words.js"></script><script src="updates.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="chatgpt.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
+  <script src="native.js"></script><script src="updates-words.js"></script><script src="updates.js"></script><script src="autosave.js"></script><script src="main.js"></script><script src="chatgpt-words.js"></script><script src="ai-words.js"></script><script src="chatgpt.js"></script><script src="ai.js"></script><script src="inference-endpoints.js"></script><script src="teams.js"></script><script src="team-drafts.js"></script><script src="pairing-words.js"></script><script src="pairing.js"></script><script src="permissions.js"></script><script src="sync-reasons-words.js"></script><script src="sync-words.js"></script><script src="sync.js"></script>
 </body>
 </html>

@@ -113,14 +113,15 @@ const keepFocus = (container, rebuild, fallback) => {
  * another.
  */
 const renderTeamState = () => {
-  const scoped = TEAM_TABS.includes(currentTab)
-  const loading = scoped && Boolean(currentExecutorId) && description?.executorId !== currentExecutorId
+  const scoped = TEAM_TABS.includes(currentTab) || currentTab === 'ai'
+  const loading = TEAM_TABS.includes(currentTab) && Boolean(currentExecutorId) && description?.executorId !== currentExecutorId
   byId('no-team').hidden = !(scoped && !currentExecutorId)
   byId('team-loading').hidden = !loading
   byId('team-loading-text').textContent = !loading ? ''
     : loadFailed ? `Couldn’t load settings for ${teamLabel(currentExecutorId)}.`
       : `Loading settings for ${teamLabel(currentExecutorId)}…`
   byId('team-reload').hidden = !loadFailed
+  byId('tab-ai').hidden = currentTab !== 'ai' || !currentExecutorId
   for (const tab of TEAM_TABS) byId(`tab-${tab}`).hidden = currentTab !== tab || !currentExecutorId || loading
 }
 
@@ -150,6 +151,7 @@ const selectTeam = async (executorId) => {
   byId('connection').value = executorId ?? ''
   renderTeamState()
   if (executorId && TEAM_TABS.includes(currentTab)) await loadDescription()
+  if (currentTab === 'ai') await loadAi()
 }
 
 const tabs = [...document.querySelectorAll('[role=tab]')]
@@ -162,6 +164,7 @@ const showTab = async (tab) => {
   }
   byId('tab-teams').hidden = tab !== 'teams'
   byId('tab-settings').hidden = tab !== 'settings'
+  if (tab === 'ai') void loadAi()
   renderTeamState()
   if (TEAM_TABS.includes(tab) && currentExecutorId && description?.executorId !== currentExecutorId) await loadDescription()
 }
@@ -198,7 +201,7 @@ const openSection = async (tab, target) => {
   if (executorId && listed) await selectTeam(executorId)
   await showTab(tab)
 }
-for (const [event, tab] of [['teams', 'teams'], ['settings', 'settings'], ['reach', 'folders'], ['tools', 'commands'], ['sync', 'sync']]) {
+for (const [event, tab] of [['teams', 'teams'], ['settings', 'settings'], ['reach', 'folders'], ['tools', 'commands'], ['sync', 'sync'], ['ai', 'ai']]) {
   listen(`tray://section/${event}`, (target) => attempt(() => openSection(tab, target)))
 }
 listen('tray://pair', () => attempt(openPairDialog))

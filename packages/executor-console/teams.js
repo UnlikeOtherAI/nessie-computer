@@ -62,10 +62,10 @@ const renderConnections = () => keepFocus(byId('executors-list'), () => {
     remove.dataset.key = connection.executorId
     remove.onclick = () => openRemove(connection.executorId)
     const chatgpt = document.createElement('button')
-    chatgpt.textContent = 'ChatGPT'
+    chatgpt.textContent = 'AI'
     chatgpt.className = 'chatgpt-doorway'
-    chatgpt.setAttribute('aria-label', `ChatGPT · ${label}`)
-    chatgpt.onclick = () => openChatgpt(connection.executorId)
+    chatgpt.setAttribute('aria-label', `AI · ${label}`)
+    chatgpt.onclick = () => attempt(() => openSection('ai', { executorId: connection.executorId }))
     row.append(name, chatgpt, remove)
     list.append(row)
   }

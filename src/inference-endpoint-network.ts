@@ -24,7 +24,8 @@ export const inferenceEndpointUrl = (value: string): string => {
 }
 
 export const resolveInferenceAddresses = async (hostname: string,
-  resolve: (host: string) => Promise<string[]> = async host => (await lookup(host, { all: true })).map(item => item.address),
+  resolve: (host: string) => Promise<string[]> = async host =>
+    (await lookup(host, { all: true })).map(item => item.address),
 ): Promise<string[]> => {
   const host = hostname.replace(/^\[|\]$/g, '')
   const addresses = isIP(host) ? [host] : await resolve(host)

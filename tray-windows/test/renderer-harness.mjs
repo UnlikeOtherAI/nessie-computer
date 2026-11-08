@@ -14,7 +14,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ui = join(root, 'packages/executor-console')
 const output = join(root, '.artifacts/executor-console')
 const files = ['index.html', 'style.css', 'native.js', 'autosave.js', 'main.js', 'chatgpt-words.js', 'chatgpt.js',
-  'teams.js', 'team-drafts.js', 'pairing-words.js', 'pairing.js', 'permissions.js',
+  'ai-words.js', 'ai.js', 'inference-endpoints.js', 'teams.js', 'team-drafts.js', 'pairing-words.js', 'pairing.js', 'permissions.js',
   'sync-reasons-words.js', 'sync-words.js', 'sync.js', 'updates-words.js', 'updates.js']
 await mkdir(output, { recursive: true })
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
@@ -110,7 +110,8 @@ try {
     assert.equal(await page.getByRole('button', { name: 'Remove UnlikeOtherAI / Research from this computer' }).count(), 1)
     await page.screenshot({ path: join(output, `${host}-teams.png`), fullPage: true })
 
-    await page.getByRole('button', { name: 'ChatGPT · UnlikeOtherAI / Platform', exact: true }).click()
+    await page.getByRole('button', { name: 'AI · UnlikeOtherAI / Platform', exact: true }).click()
+        await page.locator('#ai-chatgpt-list button').first().click()
     await page.locator('#chatgpt-status').getByText('Not signed in', { exact: true }).waitFor()
     assert.equal(await page.locator('#chatgpt-start').isDisabled(), true)
     await page.locator('#chatgpt-restriction').check()
