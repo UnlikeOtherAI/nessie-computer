@@ -119,4 +119,27 @@ final class ExecutorCLIInvocationTests: XCTestCase {
             ["pairing-cancel", "--json", "--state-dir", stateDirectory]
         )
     }
+
+    /// Pause and Resume are their own verbs: neither is a stop, and neither
+    /// carries anything on standard input.
+    func testPauseAndResumeNameOnlyTheTeam() {
+        XCTAssertEqual(
+            ExecutorCLI.pause(stateDirectory: stateDirectory).arguments, ["pause", "--state-dir", stateDirectory]
+        )
+        XCTAssertEqual(
+            ExecutorCLI.resume(stateDirectory: stateDirectory).arguments, ["resume", "--state-dir", stateDirectory]
+        )
+        XCTAssertNil(ExecutorCLI.pause(stateDirectory: stateDirectory).standardInput)
+    }
+
+    func testRequestsAndAudienceAreReadAsJSON() {
+        XCTAssertEqual(
+            ExecutorCLI.programRequests(stateDirectory: stateDirectory).arguments,
+            ["program-requests", "--state-dir", stateDirectory, "--json"]
+        )
+        XCTAssertEqual(
+            ExecutorCLI.audience(stateDirectory: stateDirectory).arguments,
+            ["audience", "--state-dir", stateDirectory, "--json"]
+        )
+    }
 }

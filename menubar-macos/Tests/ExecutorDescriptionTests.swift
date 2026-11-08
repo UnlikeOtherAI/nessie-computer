@@ -58,4 +58,20 @@ final class ExecutorDescriptionTests: XCTestCase {
             (try ExecutorDescription.decode(Data(describeFixtureJSON.utf8))).guestSessionNote
         )
     }
+
+    /// Pause and program requests ride on `describe`; a runtime that predates
+    /// them still decodes, as not paused with nothing waiting.
+    func testPauseAndRequestsAreReadFromDescribe() throws {
+        let older = sampleDescription()
+        XCTAssertFalse(older.isPaused)
+        XCTAssertNil(older.pendingProgramRequests)
+        let newer = describeFixtureJSON.replacingOccurrences(
+            of: "\"executorId\": \"32b7de69-e303-46d6-b864-8a99a80d25e6\",",
+            with: "\"executorId\": \"32b7de69-e303-46d6-b864-8a99a80d25e6\", \"paused\": true, "
+                + "\"pendingProgramRequests\": 2,"
+        )
+        let description = try ExecutorDescription.decode(Data(newer.utf8))
+        XCTAssertTrue(description.isPaused)
+        XCTAssertEqual(description.pendingProgramRequests, 2)
+    }
 }

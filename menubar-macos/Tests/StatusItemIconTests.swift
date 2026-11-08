@@ -7,7 +7,7 @@ final class StatusItemIconTests: XCTestCase {
     /// a mark a person cannot see — and `contentTintColor` does not apply to a
     /// non-template image, so the tint that was supposed to save it did nothing.
     func testEveryStateIsATemplateImage() {
-        for icon in [MenuIcon.stopped, .running, .needsAttention] {
+        for icon in [MenuIcon.idle, .working, .needsYou] {
             XCTAssertTrue(
                 StatusItemIcon.image(for: icon).isTemplate,
                 "\(icon) must be a template image so the system tints it for this menu bar"
@@ -18,20 +18,20 @@ final class StatusItemIconTests: XCTestCase {
     /// One letter, always the same box, so a person learns where it is once and
     /// does not have to hunt for a different picture each time the state changes.
     func testEveryStateOccupiesTheSameFootprint() {
-        for icon in [MenuIcon.stopped, .running, .needsAttention] {
+        for icon in [MenuIcon.idle, .working, .needsYou] {
             XCTAssertEqual(StatusItemIcon.image(for: icon).size, StatusItemIcon.size)
         }
         XCTAssertEqual(StatusItemIcon.size, NSSize(width: 18, height: 18))
     }
 
-    /// The defect this replaces: `.stopped` stroked `markPath`, a composite of
+    /// The defect this replaces: the quiet state stroked `markPath`, a composite of
     /// two stems plus the diagonal. Stroking outlines every subpath, interior
     /// edges included, so at 18pt the letter became hairline loops. A stroked
     /// state is detectable from the drawing alone — an outline leaves the
     /// letter's inside transparent, while a fill does not — so this asserts on
     /// the pixels rather than trusting the source to stay a fill.
     func testNoStateIsDrawnAsAnOutline() throws {
-        for icon in [MenuIcon.stopped, .running, .needsAttention] {
+        for icon in [MenuIcon.idle, .working, .needsYou] {
             let opaque = try coverage(of: icon)
             XCTAssertGreaterThan(
                 opaque.interiorFilled, 0.6,
@@ -40,28 +40,28 @@ final class StatusItemIconTests: XCTestCase {
         }
     }
 
-    /// Stopped and running are the same letter at different tints, so they must
+    /// Idle and working are the same mark at different tints, so they must
     /// cover the same pixels and differ in what those pixels contain.
     func testStoppedAndRunningAreTheSameLetterAtDifferentTints() throws {
-        let stopped = try XCTUnwrap(StatusItemIcon.image(for: .stopped).tiffRepresentation)
-        let running = try XCTUnwrap(StatusItemIcon.image(for: .running).tiffRepresentation)
-        XCTAssertNotEqual(stopped, running, "stopped and running must be distinguishable")
-        let stoppedCoverage = try coverage(of: .stopped)
-        let runningCoverage = try coverage(of: .running)
+        let stopped = try XCTUnwrap(StatusItemIcon.image(for: .idle).tiffRepresentation)
+        let running = try XCTUnwrap(StatusItemIcon.image(for: .working).tiffRepresentation)
+        XCTAssertNotEqual(stopped, running, "idle and working must be distinguishable")
+        let stoppedCoverage = try coverage(of: .idle)
+        let runningCoverage = try coverage(of: .working)
         XCTAssertEqual(
             stoppedCoverage.anyInk, runningCoverage.anyInk, accuracy: 0.02,
             "the same letter must cover the same area whatever the tint"
         )
         XCTAssertLessThan(
             stoppedCoverage.meanAlpha, runningCoverage.meanAlpha * 0.7,
-            "stopped must read as the quieter of the two"
+            "idle must read as the quieter of the two"
         )
     }
 
     /// What a template image must never be: empty. An all-transparent status
     /// item looks exactly like an app that failed to launch.
     func testTheMarkActuallyCoversPartOfItsBox() throws {
-        for icon in [MenuIcon.stopped, .running, .needsAttention] {
+        for icon in [MenuIcon.idle, .working, .needsYou] {
             let measured = try coverage(of: icon)
             XCTAssertGreaterThan(measured.anyInk, 0.15, "\(icon) draws almost nothing")
             XCTAssertLessThan(measured.anyInk, 0.95, "\(icon) fills its whole box")
@@ -149,38 +149,10 @@ final class StatusItemIconTests: XCTestCase {
         )
     }
 
-    func testEveryStateNamesItselfForVoiceOver() {
-        XCTAssertEqual(StatusItemIcon.accessibilityDescription(for: .stopped), "Nessie Executor, stopped")
-        XCTAssertEqual(StatusItemIcon.accessibilityDescription(for: .running), "Nessie Executor, running")
-        XCTAssertEqual(
-            StatusItemIcon.accessibilityDescription(for: .needsAttention),
-            "Nessie Executor, needs attention"
-        )
-    }
-}
-
-final class ConsoleSectionTests: XCTestCase {
-    /// The status menu has one line per section and each one has to land on that
-    /// section: a menu line that opened the wrong screen is the navigation
-    /// failure this window was built to fix.
-    func testEveryMenuLineRoundTripsToItsSection() {
-        XCTAssertEqual(ConsoleSection.allCases, [.settings, .reach, .tools, .sync])
-        for section in ConsoleSection.allCases {
-            XCTAssertEqual(ConsoleSection(rawValue: section.rawValue), section)
-            XCTAssertEqual(section.menuTitle, "\(section.title)…")
-            XCTAssertFalse(section.subtitle.isEmpty)
-            XCTAssertFalse(section.symbolName.isEmpty)
-        }
-    }
-
-    func testAnUnknownMenuIdSelectsNothing() {
-        for raw in ["", "header", "quit", "Settings"] {
-            XCTAssertNil(ConsoleSection(rawValue: raw), "\(raw.debugDescription) must select nothing")
-        }
-    }
-
-    func testTheSelectorLabelsAreDistinct() {
-        XCTAssertEqual(Set(ConsoleSection.allCases.map(\.title)).count, ConsoleSection.allCases.count)
-        XCTAssertEqual(Set(ConsoleSection.allCases.map(\.symbolName)).count, ConsoleSection.allCases.count)
+    /// VoiceOver hears the sentence the menu chose, in the person's language.
+    func testTheImageCarriesTheDescriptionItIsGiven() {
+        let menu = ComputerMenuModel(teams: [], language: .czech)
+        let image = StatusItemIcon.image(for: menu.icon, description: menu.iconDescription)
+        XCTAssertEqual(image.accessibilityDescription, "Nessie Computer: nepracuje")
     }
 }

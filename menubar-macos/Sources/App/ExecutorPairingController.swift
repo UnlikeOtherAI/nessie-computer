@@ -42,7 +42,7 @@ final class ExecutorPairingController: ObservableObject {
                 stateDirectory: stateDirectory
             ))
         } catch {
-            failure = "Nessie could not start pairing. Check the address, then try again."
+            failure = (error as? ExecutorRefusal)?.message ?? Word.pairingFailed.text
         }
     }
 
@@ -58,7 +58,7 @@ final class ExecutorPairingController: ObservableObject {
     private func perform(_ invocation: ExecutorCLIInvocation) {
         guard !busy else { return }
         guard let runner else {
-            failure = "Nessie Executor needs to be reinstalled before this Mac can pair."
+            failure = PackagedRuntime.missingRefusal
             return
         }
         busy = true

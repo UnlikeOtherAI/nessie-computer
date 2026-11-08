@@ -1,0 +1,47 @@
+import Foundation
+
+/// What a team is called everywhere this app names one: `{team} · {organisation}`.
+///
+/// The names come from the CLI's pairing status, read live from Nessie and held
+/// in memory for display only. A team whose names are not known yet is never
+/// shown by its id or its API address; it says so instead.
+public struct TeamNames: Equatable, Sendable {
+    public let executorId: String
+    public let teamName: String?
+    public let organizationName: String?
+    public let apiBaseUrl: String?
+
+    public init(executorId: String, teamName: String?, organizationName: String?, apiBaseUrl: String?) {
+        self.executorId = executorId
+        self.teamName = teamName
+        self.organizationName = organizationName
+        self.apiBaseUrl = apiBaseUrl
+    }
+}
+
+public enum TeamLabel {
+    /// Every team's label, by executor id. Two teams that would read the same
+    /// get their server's host after the name, so a person can tell them apart.
+    public static func labels(for teams: [TeamNames], language: NativeLanguage = .current) -> [String: String] {
+        let plain = teams.map { (team: $0, label: label($0, language: language)) }
+        var counts: [String: Int] = [:]
+        plain.forEach { counts[$0.label, default: 0] += 1 }
+        var labels: [String: String] = [:]
+        for entry in plain {
+            let host = entry.team.apiBaseUrl.flatMap { URLComponents(string: $0)?.host }
+            if counts[entry.label, default: 0] > 1, let host, !host.isEmpty {
+                labels[entry.team.executorId] = "\(entry.label) (\(host))"
+            } else {
+                labels[entry.team.executorId] = entry.label
+            }
+        }
+        return labels
+    }
+
+    private static func label(_ team: TeamNames, language: NativeLanguage) -> String {
+        let parts = [team.teamName, team.organizationName]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return parts.isEmpty ? Word.teamNameUnavailable.text(in: language) : parts.joined(separator: " · ")
+    }
+}

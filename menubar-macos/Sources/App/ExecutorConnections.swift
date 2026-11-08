@@ -2,17 +2,16 @@ import Combine
 import Foundation
 import SwiftUI
 
-/// One controller per account: selecting a view never stops another connection.
+/// Every team on this Mac, one controller each. Nothing here is "selected":
+/// the menu speaks about all teams at once, and every action names its team.
 @MainActor
 final class ExecutorConnections: ObservableObject {
     @Published private(set) var controllers: [ExecutorController]
-    @Published var selectedDirectory: String
     private let isDevelopmentBuild: Bool
     private var observations: Set<AnyCancellable> = []
-
-    var selected: ExecutorController {
-        controllers.first { $0.stateDirectory == selectedDirectory } ?? controllers[0]
-    }
+    /// The directory the last Connect a team used, so the pairing dialog's
+    /// status checks follow that attempt and no other.
+    private var connectingDirectory: String?
 
     init(isDevelopmentBuild: Bool) {
         self.isDevelopmentBuild = isDevelopmentBuild
@@ -30,7 +29,6 @@ final class ExecutorConnections: ObservableObject {
             )]
         }
         controllers = initialControllers
-        selectedDirectory = initialControllers[0].stateDirectory
         controllers.forEach(observe)
     }
 
@@ -40,19 +38,88 @@ final class ExecutorConnections: ObservableObject {
             .store(in: &observations)
     }
 
-    func label(_ controller: ExecutorController) -> String {
-        let pairing = controller.pairing.state
-        let name = [pairing?.machineName, pairing?.connectionName].compactMap { $0 }.joined(separator: " · ")
-        let server = pairing?.apiBaseUrl ?? controller.model.description?.apiBaseUrl
-        return server.map { "\(name) · \($0)" } ?? "New team"
+    /// The paired teams, in a stable order.
+    var teams: [ExecutorController] { controllers.filter { $0.model.description != nil } }
+
+    func team(_ executorId: String) -> ExecutorController? {
+        controllers.first { $0.model.description?.executorId == executorId }
     }
 
-    func add() {
-        if let unfinished = controllers.first(where: {
-            !ExecutorPaths.hasPairingFile($0.stateDirectory)
-        }) {
-            selectedDirectory = unfinished.stateDirectory
-            return
+    /// `{team} · {organisation}` for every paired team, by executor id.
+    func labels() -> [String: String] {
+        TeamLabel.labels(for: teams.compactMap { controller in
+            guard let description = controller.model.description else { return nil }
+            let pairing = controller.pairing.state
+            return TeamNames(
+                executorId: description.executorId,
+                teamName: pairing?.teamName,
+                organizationName: pairing?.organizationName,
+                apiBaseUrl: pairing?.apiBaseUrl ?? description.apiBaseUrl
+            )
+        })
+    }
+
+    /// The menu, computed from every team's latest reading.
+    func menuModel() -> ComputerMenuModel {
+        let labels = labels()
+        var unreadable = 0
+        var runtimeMissing = false
+        var teams: [TeamSnapshot] = []
+        for controller in controllers {
+            switch controller.model.pairing {
+            case .unpaired: continue
+            case .unavailable:
+                if controller.runtimeMissing { runtimeMissing = true } else { unreadable += 1 }
+            case let .paired(description):
+                teams.append(TeamSnapshot(
+                    executorId: description.executorId,
+                    label: labels[description.executorId] ?? Word.teamNameUnavailable.text,
+                    daemon: controller.model.daemon,
+                    connecting: controller.busy,
+                    paused: description.isPaused,
+                    failure: controller.failure,
+                    retrying: controller.retrying,
+                    pendingProgramRequests: description.pendingProgramRequests ?? 0,
+                    documents: description.folderSync.flatMap(FolderSyncLine.init)
+                ))
+            }
+        }
+        return ComputerMenuModel(teams: teams, unreadableTeams: unreadable, runtimeMissing: runtimeMissing)
+    }
+
+    /// "Open Nessie" from the menu: the first team's Nessie, or the hosted one
+    /// before any team is connected.
+    var nessieConsoleURL: URL {
+        (teams.first ?? controllers[0]).nessieConsoleURL()
+    }
+
+    var nessieOrigin: String { (teams.first ?? controllers[0]).apiOrigin }
+
+    /// A Connect a team attempt whose code is showing, without starting one.
+    var openAttempt: ExecutorController? {
+        controllers.first { $0.pairing.state?.isPending == true }
+    }
+
+    /// Pause or resume one team, or every team (`nil`). Each team's choice is
+    /// saved by its own CLI call, so one that fails leaves the others done.
+    func setPaused(_ executorId: String?, paused: Bool) async throws {
+        let targets = executorId.map { id in teams.filter { $0.model.description?.executorId == id } } ?? teams
+        guard !targets.isEmpty else { throw ExecutorRefusal(.teamNotFound) }
+        var firstRefusal: Error?
+        for controller in targets {
+            do { try await controller.setPaused(paused) } catch { firstRefusal = firstRefusal ?? error }
+        }
+        if let firstRefusal { throw firstRefusal }
+    }
+
+    // MARK: - Connect a team
+
+    /// The directory a new team connects in: an unfinished one if there is
+    /// one, otherwise a fresh directory of its own.
+    func prepareConnect() -> ExecutorController {
+        if let unfinished = controllers.first(where: { !ExecutorPaths.hasPairingFile($0.stateDirectory) }) {
+            connectingDirectory = unfinished.stateDirectory
+            return unfinished
         }
         let controller = ExecutorController(
             isDevelopmentBuild: isDevelopmentBuild,
@@ -60,14 +127,24 @@ final class ExecutorConnections: ObservableObject {
         )
         controllers.append(controller)
         observe(controller)
-        selectedDirectory = controller.stateDirectory
+        connectingDirectory = controller.stateDirectory
         controller.start()
+        return controller
     }
 
-    /// Forgets a connection whose team was removed. The list is never empty:
-    /// an unpaired placeholder at the preferred directory takes its place.
+    /// The attempt the pairing dialog is following: one with a code still
+    /// open, else the one Connect a team last used, else a fresh one.
+    func connectingController() -> ExecutorController {
+        controllers.first { ExecutorStateDiscovery.pendingAttemptBlocksStart(in: $0.stateDirectory) }
+            ?? controllers.first { $0.stateDirectory == connectingDirectory }
+            ?? prepareConnect()
+    }
+
+    /// Forgets a team that was disconnected. The list is never empty: an
+    /// unpaired placeholder at the preferred directory takes its place.
     func remove(_ controller: ExecutorController) {
         controller.retire()
+        LegacyStopPreference.forget(controller.stateDirectory)
         controllers.removeAll { $0 === controller }
         if controllers.isEmpty {
             let placeholder = ExecutorController(
@@ -78,11 +155,9 @@ final class ExecutorConnections: ObservableObject {
             observe(placeholder)
             placeholder.start()
         }
-        if !controllers.contains(where: { $0.stateDirectory == selectedDirectory }) {
-            selectedDirectory = controllers[0].stateDirectory
-        }
     }
 
     func start() { controllers.forEach { $0.start() } }
+    func refresh() { controllers.forEach { $0.refresh() } }
     func shutdown() { controllers.forEach { $0.shutdown() } }
 }

@@ -48,65 +48,34 @@ final class FolderSyncLineTests: XCTestCase {
         XCTAssertNil(try line("a_state_from_a_newer_runtime"))
     }
 
-    func testTheMenuLineIsShortAndPlain() {
-        let titled = { (line: FolderSyncLine) in
-            folderSyncMenuTitle(FolderSyncOverview(executorId: "team", line: line))
+    /// Only what the owner has to settle becomes a "Needs you" line; work in
+    /// progress, an idle copy and a paused one never do.
+    func testOnlyWhatTheOwnerMustSettleNeedsThem() {
+        let asks: [(FolderSyncLine, NeedsYouReason)] = [
+            (.conflicts(3), .documentConflicts(3)), (.needsAttention, .documentsNeedChecking),
+            (.allowInNessie, .allowDocumentsInNessie), (.allowAgainInNessie, .allowDocumentsAgain),
+            (.folderMissing, .documentsFolderMissing), (.diskFull, .diskFull)
+        ]
+        for (line, reason) in asks {
+            XCTAssertEqual(line.needsYouReason, reason)
+            XCTAssertTrue(line.needsYou)
         }
-        XCTAssertEqual(folderSyncMenuTitle(nil), "Sync…")
-        XCTAssertEqual(titled(.upToDate), "Sync: up to date")
-        XCTAssertEqual(titled(.off), "Sync: off")
-        XCTAssertEqual(titled(.conflicts(1)), "Sync: 1 conflict")
-        XCTAssertEqual(titled(.conflicts(3)), "Sync: 3 conflicts")
-        XCTAssertEqual(titled(.syncing(1)), "Sync: syncing 1 file")
-        XCTAssertEqual(titled(.syncing(12)), "Sync: syncing 12 files")
-        XCTAssertEqual(titled(.syncing(0)), "Sync: syncing")
-        XCTAssertEqual(titled(.allowInNessie), "Sync: allow it in Nessie")
-    }
-
-    func testTheLineIsAboutTheTeamThatMostNeedsThePerson() throws {
-        let teams = { (summaries: [FolderSyncSummary?]) in
-            FolderSyncOverview.mostDemanding(summaries.enumerated().map {
-                (executorId: "team-\($0.offset)", summary: $0.element)
-            })
+        for line in [FolderSyncLine.off, .notPrivate, .paused, .upToDate, .starting, .offline, .syncing(4)] {
+            XCTAssertNil(line.needsYouReason, "\(line) is not the owner's to settle")
         }
-        XCTAssertNil(teams([]))
-        // A runtime that predates sync describes no folderSync; that team is left out.
-        XCTAssertNil(teams([nil]))
-        XCTAssertEqual(
-            teams([try summary("up_to_date"), try summary("up_to_date", counts: ["openConflicts": 2]),
-                   try summary("root_missing")]),
-            FolderSyncOverview(executorId: "team-1", line: .conflicts(2))
-        )
-        XCTAssertEqual(
-            teams([try summary("off", enabled: false), try summary("paused"), nil, try summary("up_to_date")])?
-                .executorId,
-            "team-3"
-        )
-        XCTAssertEqual(teams([try summary("off", enabled: false), try summary("off", enabled: false)])?.executorId,
-                       "team-0")
     }
 
-    func testTheToolTipNamesSyncOnlyWhenItNeedsThePerson() {
-        let header = "Nessie Executor — running"
-        XCTAssertEqual(menuToolTip(header: header, sync: nil), header)
-        XCTAssertEqual(menuToolTip(header: header, sync: FolderSyncOverview(executorId: "team", line: .syncing(4))),
-                       header)
-        XCTAssertEqual(
-            menuToolTip(header: header, sync: FolderSyncOverview(executorId: "team", line: .conflicts(3))),
-            "Nessie Executor — running\nSync: 3 conflicts"
-        )
-    }
-
-    /// Sync that needs the person is amber whatever the daemon is doing.
-    func testSyncThatNeedsThePersonIsAmber() {
+    /// Documents that need the owner light the icon whatever the daemon is doing.
+    func testDocumentsThatNeedTheOwnerAreAmber() {
         for daemon in [DaemonState.running, .stopped] {
-            let model = MenuModel(pairing: .paired(sampleDescription()), daemon: daemon)
-            XCTAssertEqual(menuIcon(for: model, syncNeedsYou: true), .needsAttention)
+            let team = TeamSnapshot(executorId: "team", label: "Sales · Acme", daemon: daemon, documents: .conflicts(2))
+            let menu = ComputerMenuModel(teams: [team], language: .britishEnglish)
+            XCTAssertEqual(menu.icon, .needsYou)
+            XCTAssertEqual(menu.needsYou?.title, "Needs you: Sales · Acme — 2 document conflicts")
+            XCTAssertEqual(menu.needsYou?.target, ConsoleTarget(section: .documents, executorId: "team"))
         }
-        XCTAssertEqual(
-            menuIcon(for: MenuModel(pairing: .paired(sampleDescription()), daemon: .running), syncNeedsYou: false),
-            .running
-        )
+        let quiet = TeamSnapshot(executorId: "team", label: "Sales · Acme", daemon: .running, documents: .syncing(2))
+        XCTAssertEqual(ComputerMenuModel(teams: [quiet]).icon, .working)
     }
 
     /// The describe the menu bar already runs carries the summary; one from a
@@ -129,21 +98,29 @@ final class FolderSyncLineTests: XCTestCase {
 }
 
 final class ConsoleTargetTests: XCTestCase {
-    /// The menu line opens the page through the same event the Windows tray
-    /// sends, and its payload names the team — as JSON, so no id can escape it.
+    /// The menu and links open the page through the same event the Windows
+    /// tray sends, and its payload names the team — as JSON, so no id can escape it.
     func testTheEventNamesTheSectionAndCarriesTheTeamAsJSON() throws {
-        let target = ConsoleTarget(section: .sync, executorId: "32b7de69-e303-46d6-b864-8a99a80d25e6")
-        XCTAssertEqual(target.eventName, "tray://section/sync")
+        let target = ConsoleTarget(section: .documents, executorId: "32b7de69-e303-46d6-b864-8a99a80d25e6")
+        XCTAssertEqual(target.eventName, "tray://section/documents")
         XCTAssertEqual(
             target.script,
-            "window.dispatchEvent(new CustomEvent('tray://section/sync', "
+            "window.dispatchEvent(new CustomEvent('tray://section/documents', "
                 + "{ detail: {\"executorId\":\"32b7de69-e303-46d6-b864-8a99a80d25e6\"} }))"
         )
         XCTAssertEqual(
-            ConsoleTarget(section: .reach).script,
-            "window.dispatchEvent(new CustomEvent('tray://section/reach', { detail: null }))"
+            ConsoleTarget(section: .overview).script,
+            "window.dispatchEvent(new CustomEvent('tray://section/overview', { detail: null }))"
         )
-        let hostile = ConsoleTarget(section: .sync, executorId: "'}))</script>\"").script
+        let hostile = ConsoleTarget(section: .access, executorId: "'}))</script>\"").script
         XCTAssertFalse(hostile.contains("'}))</script>\""), "the id is escaped inside the JSON payload")
+    }
+
+    /// The five tabs of the contract, in its order, and the Connect a team event.
+    func testTheSectionsAreTheWindowsTabs() {
+        XCTAssertEqual(ConsoleSection.allCases.map(\.rawValue), ["overview", "access", "documents", "ai", "settings"])
+        XCTAssertEqual(
+            ConsoleTarget.connectScript, "window.dispatchEvent(new CustomEvent('tray://connect', { detail: null }))"
+        )
     }
 }

@@ -40,8 +40,7 @@ public struct PackagedRuntime: Equatable, Sendable {
 
     /// The refusal a person sees when the app was assembled without its runtime.
     /// It names the remedy, because a missing runtime is not transient.
-    public static let missingRefusal =
-        "the packaged executor runtime is missing — reinstall Nessie Executor"
+    public static var missingRefusal: String { Word.runtimeMissing.text }
 
     public static func locate(
         in resourceDirectory: URL?,

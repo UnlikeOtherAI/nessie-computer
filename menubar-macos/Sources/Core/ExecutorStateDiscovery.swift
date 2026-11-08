@@ -45,9 +45,7 @@ public enum ExecutorStateDiscovery {
             }
             return .success(candidates.isEmpty ? [preferredDirectory] : candidates.sorted())
         } catch {
-            return .failure(ExecutorRefusal(
-                "Nessie could not check this Mac's existing connections. Resolve their access before pairing again."
-            ))
+            return .failure(ExecutorRefusal(.existingTeamsUnreadable))
         }
     }
 
@@ -60,7 +58,7 @@ public enum ExecutorStateDiscovery {
             return false
         }
         if attributes[.type] as? FileAttributeType == .typeSymbolicLink {
-            throw ExecutorRefusal("An existing connection needs attention.")
+            throw ExecutorRefusal(.existingTeamNeedsAttention)
         }
         return attributes[.type] as? FileAttributeType == .typeDirectory
     }
@@ -72,7 +70,7 @@ public enum ExecutorStateDiscovery {
             do {
                 let attributes = try fileManager.attributesOfItem(atPath: path)
                 guard attributes[.type] as? FileAttributeType == .typeRegular else {
-                    throw ExecutorRefusal("An existing connection needs attention.")
+                    throw ExecutorRefusal(.existingTeamNeedsAttention)
                 }
                 return true
             } catch let error as NSError where error.domain == NSCocoaErrorDomain

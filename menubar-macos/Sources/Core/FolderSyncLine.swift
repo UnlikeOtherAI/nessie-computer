@@ -1,9 +1,9 @@
 import Foundation
 
 /// `describe --json`'s `folderSync`: the fields of the console's
-/// `FolderSyncConsoleState` the menu's Sync line needs. The Windows tray reads
-/// the same fields from `sync status --json`, so both apps derive their line
-/// from the same facts.
+/// `FolderSyncConsoleState` the menu needs to know whether a team's documents
+/// need the owner. The Windows tray reads the same fields from
+/// `sync status --json`, so both apps decide from the same facts.
 public struct FolderSyncSummary: Equatable, Decodable, Sendable {
     public struct Counts: Equatable, Decodable, Sendable {
         public let pendingUploads: Int
@@ -19,7 +19,7 @@ public struct FolderSyncSummary: Equatable, Decodable, Sendable {
     public let counts: Counts
 }
 
-/// What the Sync line says about one team.
+/// The state of one team's documents copy, as the menu reads it.
 public enum FolderSyncLine: Equatable, Sendable {
     case off
     case notPrivate
@@ -73,78 +73,19 @@ public enum FolderSyncLine: Equatable, Sendable {
         }
     }
 
-    /// Something only the person can settle: the menu bar icon turns amber.
-    public var needsYou: Bool {
+    /// Something only the person can settle, named for the "Needs you" line.
+    public var needsYouReason: NeedsYouReason? {
         switch self {
-        case .conflicts, .needsAttention, .allowInNessie, .allowAgainInNessie, .folderMissing, .diskFull:
-            return true
-        default:
-            return false
+        case let .conflicts(count): return .documentConflicts(count)
+        case .needsAttention: return .documentsNeedChecking
+        case .allowInNessie: return .allowDocumentsInNessie
+        case .allowAgainInNessie: return .allowDocumentsAgain
+        case .folderMissing: return .documentsFolderMissing
+        case .diskFull: return .diskFull
+        default: return nil
         }
     }
 
-    var rank: Int {
-        if needsYou { return 5 }
-        switch self {
-        case .syncing, .starting, .offline: return 4
-        case .upToDate: return 3
-        case .paused: return 2
-        case .notPrivate: return 1
-        default: return 0
-        }
-    }
-
-    public var label: String { "Sync: \(text)" }
-
-    private var text: String {
-        switch self {
-        case .off: return "off"
-        case .notPrivate: return "not on a shared computer"
-        case .paused: return "paused"
-        case .upToDate: return "up to date"
-        case .starting: return "starting"
-        case .offline: return "offline"
-        case .syncing(0): return "syncing"
-        case let .syncing(count): return "syncing \(count) \(count == 1 ? "file" : "files")"
-        case let .conflicts(count): return "\(count) \(count == 1 ? "conflict" : "conflicts")"
-        case .needsAttention: return "needs your attention"
-        case .allowInNessie: return "allow it in Nessie"
-        case .allowAgainInNessie: return "allow it again in Nessie"
-        case .folderMissing: return "folder missing"
-        case .diskFull: return "disk full"
-        }
-    }
-}
-
-/// The team the Sync line is about, and what it says.
-public struct FolderSyncOverview: Equatable, Sendable {
-    public let executorId: String
-    public let line: FolderSyncLine
-
-    public init(executorId: String, line: FolderSyncLine) {
-        self.executorId = executorId
-        self.line = line
-    }
-
-    /// The team that most needs the person; the first listed wins a tie.
-    public static func mostDemanding(_ teams: [(executorId: String, summary: FolderSyncSummary?)]) -> Self? {
-        var best: Self?
-        for team in teams {
-            guard let summary = team.summary, let line = FolderSyncLine(summary) else { continue }
-            if let current = best, current.line.rank >= line.rank { continue }
-            best = Self(executorId: team.executorId, line: line)
-        }
-        return best
-    }
-}
-
-/// The menu line: the status when one is known, otherwise a plain doorway.
-public func folderSyncMenuTitle(_ overview: FolderSyncOverview?) -> String {
-    overview?.line.label ?? "Sync…"
-}
-
-/// The icon's tooltip names sync only when it needs the person.
-public func menuToolTip(header: String, sync overview: FolderSyncOverview?) -> String {
-    guard let overview, overview.line.needsYou else { return header }
-    return "\(header)\n\(overview.line.label)"
+    /// The menu bar icon turns amber.
+    public var needsYou: Bool { needsYouReason != nil }
 }
