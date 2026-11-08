@@ -1,5 +1,11 @@
 # Generated session-engine package
 
+The [T12 control source](t3-session-control.md) adds `SessionControl` and the
+required `ScheduledTasks` port through `core/Control.ts`, registered in the exact
+authored-input list. It adds the `session-control` patch family before request
+privacy. This five-family source needs fresh normal package, consumer and privacy
+qualification; the historical four-family results below do not qualify it.
+
 T02C owns private worktree `C:/Users/ondre/.t3/worktrees/Nessie/t3-a1536d78`,
 branch `t3/session-engine-runtime-package`, from exact private base
 `8eb6f35ddbeb8805130f8ec3b48a149fc6fce6e2`. Its public branch is
@@ -67,6 +73,18 @@ The request commands require explicit `T3_REQUEST_PRIVACY_SOURCE_REPOSITORY` and
 `--config.store-dir=<owned-store>`; pnpm 10.22 rejects `--store-dir` for dlx.
 
 ## Package interface
+
+The combined 8 November source candidate registers state, client connection,
+extraction/runtime, catalog, files, session control, request privacy and workspace
+families in that order. Bounded Node 24.19 checks on Maxis applied every exact
+patch against pinned Git objects and parsed 131 affected TypeScript modules.
+The combined manifest SHA-256 is
+`4c923f711eccd2309209f052cc508119229284f40aa348f12da23d60ee72b754`.
+Workspace fragments now bind the exact current extraction stage; their earlier
+offsets could not be applied to original-capsule bytes in a combined build.
+The generator and its fixture use the same normal preceding family composition.
+This is source/syntax evidence only. The normal compiler, consumer fixtures,
+native custody and user/tool journeys have not qualified this candidate.
 
 The owning export is `@nessie/t3-session-source/engine`, alongside the existing
 contracts/settings/relay and build-helper exports. One split build must generate
@@ -154,6 +172,74 @@ Syntax and manifest identity checks do not qualify those runtime/type consumers;
 their registered normal-package and Node 22 gates must run again.
 
 ## Runtime and browser checks
+
+### Original browser client entry (source checkpoint, not yet qualified)
+
+`@nessie/t3-session-source/client` exports the pinned mobile
+`buildThreadListV2Items`, `buildThreadListV2ListItems`, `buildArchivedThreadGroups`
+and their `ThreadListV2Item`, `ThreadListV2Layout`, `ThreadListV2ListItem`,
+`ArchivedThreadGroup` and `ArchivedThreadSortOrder` types. It also exports the
+original `OrchestrationV2Projection`, `ThreadHistoryMerge`, `ThreadState`,
+`Threads`, `ThreadHistoryController`, `Shell` and `SourceContracts` namespaces.
+Use these in the existing mobile Home/catalog and thread screens. Preserve the
+original environment/thread IDs, project grouping and selector ordering;
+UOA admission and the native Codex/Claude catalog remain separate host inputs.
+The shared canonical native catalog operation is `listExecutorSessionCatalog`.
+
+The client entry never imports `/engine`. It participates in the same split
+build and strict TypeScript program as the engine and contracts; its real
+compiler-generated declarations live at `dist/engine-types/client.d.ts` and
+reference the same contract type tree. Effect remains the ordinary external
+4.1.2 dependency. Original client telemetry hashing requires the external
+`@noble/hashes` 1.8.0; the frozen producer and public locks contain the upstream
+integrity and dependency-free snapshot. Browser consumers resolve its browser
+export condition. The private consuming workspace must incorporate that same
+dependency when the coordinator combines manifests.
+
+`client-source.json` admits eleven exact mobile Git objects from pinned commit
+`25bf84ab07f53f141c20239c63e383823a9d5ea0`, tree
+`b0ba4dad62fa11e0a1fd21f5d351d75926d7559e`. The producer reads them from its own
+verified source cache with Git replacement objects disabled; it never reads the
+reference checkout's working files. The mobile source selection follows
+top-level declarations and conservative lexical dependencies using the build's
+TypeScript parser. Selected function, type and initializer statements retain
+their original bytes. Only import/re-export lists and relative module suffixes
+change. Unused native hooks and menu adapters are excluded. Unregistered source,
+selected native externals, dynamic/type imports and changed bytes fail closed.
+The original shared client-runtime packages remain unsliced and use the same
+registered patch composition. No reducer is recreated.
+
+`engine.provenance.json` records the mobile manifest identity, selected file
+hashes, original statement byte ranges and hashes, plus the reachable client
+output graph. That graph rejects server source, authored engine chunks, Node
+builtins and platform/native dependencies before output publication. A normal
+browser bundle fixture separately resolves all external dependencies. The
+client export supplies original factories and selectors, not a second store,
+server, identity authority or source-readiness result.
+
+The normal package `test` includes the client fixtures. The focused gate is:
+
+```powershell
+pnpm.cmd exec turbo run test:t3-session-client --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1
+```
+
+It retains the normal build prerequisite and tests exact original selector
+membership/order, archive groups, shared codecs and Effect controller lifetime,
+strict Bundler/NodeNext consumers, browser isolation and extraction provenance
+and refusal. These fixtures are **authored, not run** at this source checkpoint.
+The coordinator must qualify the combined manifests in the serial heavy window,
+then verify the original Home, cold links, account/team changes and recovery
+through the real runtime. Historical engine results below do not qualify this
+new client entry.
+
+Source checks on Maxis / Node 24.19.0 used a 384 MiB heap: the three builtin
+`test/client/graph.test.mjs` cases passed; all eleven supplemental Git hashes and
+the pinned tree verified; eleven changed JavaScript modules passed `node --check`
+and four TypeScript files passed builtin type stripping. `git diff --check`
+passed. Type stripping is syntax evidence only. No dependency installation,
+compiler, Turbo, database, server, browser or native work ran for this entry.
+
+### Historical engine qualification
 
 The first normal package gate passed four cases on Node 24.19.0. The final
 registered gate passed six cases on the independently downloaded official Node

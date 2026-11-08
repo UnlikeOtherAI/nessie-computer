@@ -25,6 +25,10 @@ test('normal library import shares original codecs, Context tags and the consume
   run([resolve(import.meta.dirname, 'runtime.mjs')])
 })
 
+test('normal engine composes original request refusals, resource cleanup and opaque host references', () => {
+  run([resolve(import.meta.dirname, 'composition.mjs')])
+})
+
 test('browser contracts remain independently bundleable through their normal package entries', async () => {
   const result = await build({ absWorkingDir: root, stdin: { contents:
     `export { ThreadId } from '@nessie/t3-session-source/contracts';
@@ -80,7 +84,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '8abd5bb0fd7818503b849a65a05440c1522fcdc1001b4fbd91f106e9cd65b6f1')
+    '4c923f711eccd2309209f052cc508119229284f40aa348f12da23d60ee72b754')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   for (const file of provenance.modules) {
     const bytes = await readFile(resolve(dist, file.path))

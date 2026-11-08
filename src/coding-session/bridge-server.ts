@@ -11,9 +11,13 @@ import {
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_CONNECTION_META,
 } from './meta-keys.js'
 import type { PathRewriter } from './path-rewrite.js'
-import { PersonalInferenceAuthoritySchema } from '@nessie/executor-protocol'
+import { PersonalInferenceAuthoritySchema, ExecutorCodingSessionAuthoritySchema,
+  ExecutorSessionPairingSourceSchema, executorCodingSessionResultScope } from '@nessie/executor-protocol'
+import { preparedManagedSessionAuthority } from './session-authority.js'
 
 /**
  * `nessie-executor serve-coding-session-mcp --config <abs path>`: the
@@ -41,12 +45,18 @@ export const codingBridgeCallMeta = (meta: unknown): CodingBridgeCallMeta => {
   const command = fields[CODING_SESSION_COMMAND_META]
   const commandRules = commandRulesOf(fields[CODING_SESSION_COMMAND_RULES_META])
   const personalAuthority = PersonalInferenceAuthoritySchema.safeParse(fields['nessie/personal-authority'])
+  const sessionAuthority = ExecutorCodingSessionAuthoritySchema.safeParse(fields[CODING_SESSION_AUTHORITY_META])
+  const source = ExecutorSessionPairingSourceSchema.safeParse(fields[CODING_SESSION_PAIRING_SOURCE_META])
+  const connection = fields[CODING_SESSION_CONNECTION_META]
   return {
     ...(typeof owner === 'string' ? { ownerKey: owner } : {}),
     ...(typeof command === 'string' ? { commandId: command } : {}),
     daemonControl: fields[CODING_SESSION_DAEMON_CONTROL_META] === true,
     ...(commandRules ? { commandRules } : {}),
     ...(personalAuthority.success ? { personalAuthority: personalAuthority.data } : {}),
+    ...(sessionAuthority.success ? { codingSessionAuthority: sessionAuthority.data } : {}),
+    ...(source.success ? { sessionPairingSource: source.data } : {}),
+    ...(typeof connection === 'string' ? { connectionEpoch: connection } : {}),
   }
 }
 
@@ -66,6 +76,7 @@ const FIXED_VALUE_KEYS = new Set([
 
 /** The last pass over an answer: every string value, keyed as above. */
 export const rewriteCodingAnswer = (value: unknown, rewriter: PathRewriter, key?: string): unknown => {
+  if (key === 'resultScope' || key === 'startEvidence') return value
   if (typeof value === 'string') {
     return key !== undefined && FIXED_VALUE_KEYS.has(key) ? rewriter.rewritePaths(value) : rewriter.rewrite(value)
   }
@@ -88,14 +99,19 @@ export const serveCodingSessionMcp = async (configPath: string): Promise<void> =
     const meta = codingBridgeCallMeta(request.params._meta)
     try {
       const result = await bridge.call(request.params.name, request.params.arguments, meta)
-      return { content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer(result, bridge.rewriter)) }] }
+      const scope = preparedManagedSessionAuthority(meta)
+      return { content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer({ ...result,
+        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}) }, bridge.rewriter)) }] }
     } catch (error) {
       const known = error instanceof CodingBridgeError
-      // The full error stays in the daemon's local log; only a code and fixed text travel.
-      if (!known) process.stderr.write(`[coding-sessions] ${error instanceof Error ? error.message : String(error)}\n`)
+      // No raw failure detail enters the daemon log or its result journal.
+      if (!known) process.stderr.write('[coding-sessions] unexpected bridge failure\n')
+      let scope: ReturnType<typeof preparedManagedSessionAuthority>
+      try { scope = preparedManagedSessionAuthority(meta) } catch { /* Expired authority cannot publish a result. */ }
       const answer = {
         code: known ? error.code : 'coding_session_unavailable',
         message: known ? error.message : 'The coding-sessions bridge could not complete that call.',
+        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}),
       }
       return { isError: true, content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer(answer, bridge.rewriter)) }] }
     }

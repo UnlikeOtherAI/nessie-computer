@@ -88,6 +88,43 @@ fn current_user_sid() -> Result<OwnedSid, NativeError> {
     sid
 }
 
+/// The retained source reader checks the object already held, not its pathname.
+pub fn verify_owner_only_handle(handle: HANDLE) -> Result<(), NativeError> {
+    let user = current_user_sid()?;
+    let system = local_system_sid()?;
+    let mut owner: PSID = std::ptr::null_mut();
+    let mut dacl: *mut ACL = std::ptr::null_mut();
+    let mut descriptor: PSECURITY_DESCRIPTOR = std::ptr::null_mut();
+    let code = unsafe { windows_sys::Win32::Security::Authorization::GetSecurityInfo(
+        handle, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION,
+        &mut owner, std::ptr::null_mut(), &mut dacl, std::ptr::null_mut(), &mut descriptor) };
+    if code != ERROR_SUCCESS { return Err(NativeError::new(IO_FAILURE)); }
+    let valid = !owner.is_null() && unsafe { EqualSid(owner, user.pointer()) } != 0
+        && admits_only(dacl, &user, &system, true);
+    unsafe { LocalFree(descriptor as HLOCAL); }
+    if valid { Ok(()) } else { Err(NativeError::new(REJECTED)) }
+}
+
+pub fn private_pipe_descriptor() -> Result<PSECURITY_DESCRIPTOR, NativeError> {
+    use windows_sys::Win32::Security::Authorization::{ConvertSidToStringSidW,
+        ConvertStringSecurityDescriptorToSecurityDescriptorW};
+    let user = current_user_sid()?;
+    let mut sid = std::ptr::null_mut();
+    if unsafe { ConvertSidToStringSidW(user.pointer(), &mut sid) } == 0 {
+        return Err(NativeError::new(IO_FAILURE));
+    }
+    let mut length = 0;
+    while unsafe { *sid.add(length) } != 0 { length += 1; }
+    let text = String::from_utf16(unsafe { std::slice::from_raw_parts(sid, length) });
+    unsafe { LocalFree(sid.cast()); }
+    let text = text.map_err(|_| NativeError::new(IO_FAILURE))?;
+    let mut descriptor = std::ptr::null_mut();
+    let sddl = wide(&format!("O:{text}D:P(A;;GA;;;{text})(A;;GA;;;SY)"));
+    if unsafe { ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl.as_ptr(), 1,
+        &mut descriptor, std::ptr::null_mut()) } == 0 { return Err(NativeError::new(IO_FAILURE)); }
+    Ok(descriptor)
+}
+
 /// A machine attestation may run only in the installed service account or
 /// SYSTEM's session zero. An elevated administrator is not a substitute.
 pub fn verify_service_context() -> Result<(), NativeError> {

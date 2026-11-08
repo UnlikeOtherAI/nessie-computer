@@ -10,7 +10,7 @@ const slash = path => path.replaceAll('\\', '/')
 
 /** Type-check the real source closure without writing upstream files into a checkout. */
 export const typecheckSessionState = async (snapshot, entryPoint,
-  { declarationDirectory, sharedContracts, assertAuthoredInputs } = {}) => {
+  { declarationDirectory, sharedContracts, assertAuthoredInputs, additionalEntries = {} } = {}) => {
   const { default: ts } = await import('typescript')
   const virtualRoot = `${slash(resolve(tools, '.virtual-t3-source'))}/`
   const sourcePath = path => {
@@ -73,7 +73,9 @@ export const typecheckSessionState = async (snapshot, entryPoint,
       resolveModule: (specifier, source) => ts.resolveModuleName(specifier, source, options, host)
         .resolvedModule?.resolvedFileName }) : undefined
   if (declarations) host.writeFile = declarations.writeFile
-  const program = ts.createProgram([resolve(entryPoint)], options, host)
+  const entries = { index: resolve(entryPoint), ...Object.fromEntries(Object.entries(additionalEntries)
+    .map(([name, path]) => [name, resolve(path)])) }
+  const program = ts.createProgram(Object.values(entries), options, host)
   const authoredInputs = Object.fromEntries(program.getSourceFiles()
     .filter(source => sourcePath(source.fileName) === undefined && !slash(source.fileName).includes('/node_modules/'))
     .map(source => [slash(relative(resolve(tools, '../..'), source.fileName)),
@@ -104,5 +106,5 @@ export const typecheckSessionState = async (snapshot, entryPoint,
   }
   return { compiler: ts.version, sourceFiles: program.getSourceFiles().length, libraryChecks: true,
     authoredInputs,
-    ...(declarations ? { declarations: await declarations.save(declarationDirectory, resolve(entryPoint)) } : {}) }
+    ...(declarations ? { declarations: await declarations.save(declarationDirectory, entries) } : {}) }
 }

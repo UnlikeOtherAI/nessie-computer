@@ -71,7 +71,7 @@ test('saved Claude discovery and transcript reads preserve native identity, tool
     assert.equal(await readNativeTranscript('claude', join(dir, 'elsewhere'), file, id), null)
     const old = new Date(Date.now() - 31 * 86400_000)
     await utimes(file, old, old)
-    assert.equal((await listSavedClaudeSessions(dir)).length, 0)
+    assert.equal((await listSavedClaudeSessions(dir)).length, 1, 'older retained Claude sessions remain discoverable')
   } finally { await rm(dir, { recursive: true, force: true }) }
 })
 

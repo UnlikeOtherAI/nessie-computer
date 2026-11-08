@@ -14,6 +14,45 @@ const saveItem = (f, item) => f.writer.prepare(
   'UPDATE orchestration_v2_projection_turn_items SET payload_json = ? WHERE turn_item_id = ?',
 ).run(JSON.stringify(item), item.id)
 
+for (const codecStored of [false, true]) {
+  test(`classified context labels are withheld even with sentinel descriptors: codecStored=${codecStored}`, async () => {
+    const f = await engineFixture({ messages: 4 })
+    try {
+      const marker = codecStored ? UNKNOWN_QUESTION_VALUE : '[REDACTED]'
+      const attachments = ['file', 'image'].map(type => ({ type, id: `sentinel_${type}`,
+        name: marker, mimeType: `${type === 'image' ? 'image' : 'application'}/x-withheld`, sizeBytes: 17 }))
+      const question = addQuestion(f, { codecStored, attachments })
+      addEvent(f, 'turn-item.updated', question)
+      const template = JSON.parse(f.writer.prepare(
+        "SELECT payload_json FROM orchestration_v2_projection_turn_items WHERE type = 'user_message' LIMIT 1",
+      ).get().payload_json)
+      const records = attachments.map(attachment => ({ version: 1, contextId: `context_${attachment.type}`,
+        kind: attachment.type, attachmentId: attachment.id, label: canary, name: attachment.name,
+        mimeType: attachment.mimeType, sizeBytes: attachment.sizeBytes }))
+      // Sentinel-shaped descriptors do not classify an unrelated attachment.
+      const unrelated = { ...records[0], contextId: 'context_unrelated', attachmentId: 'unrelated_file',
+        label: ordinary }
+      const item = encode(S.OrchestrationV2TurnItemJson, { ...template, id: 'item:sentinel-context', ordinal: 1001,
+        text: ordinary, attachments, context: { version: 1, records: [...records, unrelated] } })
+      f.writer.prepare(`INSERT INTO orchestration_v2_projection_turn_items
+        (turn_item_id, thread_id, ordinal, type, status, updated_at, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+        .run(item.id, item.threadId, item.ordinal, item.type, item.status, item.updatedAt, JSON.stringify(item))
+      addEvent(f, 'turn-item.updated', item)
+      const receipt = await captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
+      const full = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
+        receipt.generation, S.ThreadId.make(f.ids[0]))
+      const captured = full.turnItems.find(value => value.id === item.id)
+      assert.deepEqual(captured.context.records, [
+        ...records.map(record => ({ ...record, label: marker })), unrelated,
+      ])
+      assert.deepEqual(captured.attachments, attachments)
+      assert.deepEqual(Object.keys(full.turnItems.find(value => value.id === question.id).questionAnswer.answers),
+        ['q:reused'])
+      assertDestinationsClean(f)
+    } finally { f.close() }
+  })
+}
+
 test('original codec history retains exact catalog/order and withholds question copies and attachment previews', async () => {
   const f = await engineFixture({ messages: 4 })
   try {

@@ -1,20 +1,40 @@
 # T3 request privacy source patches
 
-Status: P02 correction with masked-initial-answer follow-up, 8 November 2026. This machine-only build input is
+Status: T13 source changes, unqualified, 8 November 2026. This machine-only build input is
 consumed by the existing session-engine snapshot composer. Its supported entry
 points are the source proof and synthetic provider fixtures below. It adds no
 available session runtime or UI. Canonical saving and scoped delivery remain
 unbound; this does not complete P17 or authorize confidential provider use.
 
-## Provenance and composition
+T13 adds four narrow patches to the original shared `pendingUserInput` helper:
+exact custom whitespace, optional omission/explicit empty answers, own-property
+draft lookup and duplicate-question refusal. `RequestAnswers` exposes that
+original helper through the existing engine package. The same export adds
+`validateT3RuntimeAnswer`, which uses original contracts and checks current
+request/item/provider affinity and offered answers before resolution. It is not
+an authority grant, callback registry, engine replacement or secret port.
+Masked native forms remain refused. Historical projection is unchanged.
+
+The current request manifest has **30 operations across six original paths**,
+SHA-256 `bbc39dd3a7cdcef8109b512e646dab9ad9d51e3223c0fa753da2ae9d8bc4bb05`.
+Static four-family composition has 181 operations, SHA-256
+`eca9b441d3ab2c0d3f96d620b088a2ae188dcc7cdeace5173d4830e99e67957b`.
+Original-codec validation and shared-helper fixtures are authored in
+`test/t3-session-requests/{answer-validation,question-answers}.test.mjs`.
+Only bounded source generation/syntax and Git whitespace checks have run for
+this change; the normal producer/typecheck, source and fixture gates must run
+in the allocated serial window before qualifying this new tuple. Previous
+results below cover the previous tuple only.
+
+## Previous qualified tuple and composition
 
 Original T3 commit `25bf84ab07f53f141c20239c63e383823a9d5ea0`, tree
 `b0ba4dad62fa11e0a1fd21f5d351d75926d7559e`: 2,859 files, 52,121,600 archive
 bytes, SHA-256 `6ec4dc60aa5b92dabbf69c55b408b1db87d77d0a132cbc1fbca61daa0b4f7096`.
 Preparation reads committed Git objects and preserves the MIT attribution.
 
-`patches/t3-session/requests/boundary-patches.json` contains 26 ordered operations
-on five upstream paths. Its corrected SHA-256 is
+The preceding request manifest contained 26 ordered operations
+on five upstream paths. Its corrected SHA-256 was
 `98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9`.
 Each operation binds the revision, unique source seam and full before/after file
 hashes. The authored `tool-privacy.ts` fragment enters the existing registered
@@ -48,8 +68,9 @@ This is source compatibility evidence, not a co-build or runtime claim.
 
 Authored files remain below 500 lines. The attributed upstream adapters and
 registry already exceed that cap; this patch does not copy them into first-party
-source files. No producer, manifest registration, Prisma, native, root package,
-lockfile, UI or original `SecretRequests` implementation is modified here.
+source files. T13 adds the request validator to the engine's authored-input
+registration and Turbo inputs. No native app, lockfile or original
+`SecretRequests` implementation changes.
 
 ## Rejected checkpoint and corrections
 
@@ -185,5 +206,12 @@ F02 owns registration. Final co-build qualification still requires its corrected
 committed contract alias/mapping tuple, the committed corrected privacy/hash,
 current producer, one resolver/dependency root/Effect 4.1.2, ordinary strict
 exported consumer, actual import smoke and same-artifact SQLite history/replay.
+The T13 context-label correction uses the exact attachment/request association,
+even if a stored name and MIME already equal the privacy sentinel. It does not
+infer classification from a descriptor's text. Actual-engine historical fixtures
+cover explicit masks, unknown masks, file/image context labels, unrelated labels,
+original IDs and destination SQLite/WAL bytes. These new cases are authored,
+not executed; the earlier importer acceptance does not qualify this correction.
+
 No co-build, packaged Node 22, real provider/vault/UOA, browser, native/device
 or installed runtime claim is made by this source checkpoint.

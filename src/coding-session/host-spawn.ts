@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { executorChildCommand } from '../executor-child-command.js'
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
@@ -56,6 +57,7 @@ export const executorRuntimeDigest = (entry: string): Promise<string> => {
 }
 
 export type HostSpawnOptions = {
+  effect?: SessionEffectAuthority
   userManager?: () => UserManager | undefined
   runUnit?: UnitRunner
 }
@@ -83,7 +85,7 @@ export const spawnCodingSessionHost = async (input: {
   if (manager) {
     await log.close()
     const started = await startHostInUserUnit({
-      argv, hostLog: input.paths.hostLog, sessionId: input.sessionId, manager,
+      effect: options.effect, argv, hostLog: input.paths.hostLog, sessionId: input.sessionId, manager,
       ...(options.runUnit ? { run: options.runUnit } : {}),
     })
     if (started) return { mode: 'unit', pid: started.pid }
@@ -93,6 +95,8 @@ export const spawnCodingSessionHost = async (input: {
     return spawnCodingSessionHost(input, { ...options, userManager: () => undefined })
   }
   try {
+    await options.effect?.consume()
+    options.effect?.assertLive()
     const child = spawn(argv[0]!, argv.slice(1), {
       detached: true, env: process.env, stdio: ['ignore', log.fd, log.fd], windowsHide: true,
     })
@@ -150,6 +154,7 @@ export const ensureCodingSessionHost = async (input: {
   paths: CodingSessionPaths
   sessionId: string
 }, options: HostSpawnOptions & { fresh?: boolean } = {}): Promise<HostAssurance> => {
+  await options.effect?.consume()
   const lock = await readHostLock(input.paths.lock)
   if (lock && !hostLockIsStale(lock)) {
     const digest = await executorRuntimeDigest(input.entry)
@@ -167,7 +172,7 @@ export const ensureCodingSessionHost = async (input: {
   if (attempts >= MAX_HOST_SPAWN_ATTEMPTS) return 'failed'
   await unlink(input.paths.spawnMarker).catch(() => undefined)
   const next: SpawnMarker = { at: now, attempts: attempts + 1 }
-  if (!await createJsonExclusive(input.paths.spawnMarker, next)) return 'starting'
+  if (!await createJsonExclusive(input.paths.spawnMarker, next, options.effect)) return 'starting'
   const spawned = await spawnCodingSessionHost(input, options)
   if (spawned.pid !== undefined) {
     // Only while the marker is still this spawn's: a host that already served deleted it.
