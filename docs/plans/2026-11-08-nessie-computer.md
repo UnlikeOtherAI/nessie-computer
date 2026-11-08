@@ -482,29 +482,27 @@ Nessie's setting, not the computer's.
   funded by the owner's subscription, never Ledger credits; plain errors when
   the computer is offline, paused, or the CLI signs out.
 
-## 13. Team names (rulings, 8 Nov) and less text
+## 13. Team names, layout and less text (rulings, 8 Nov — supersede earlier sections)
 
-**Team names never depend on a person.** A team ID → name is not a secret
-(the names are shown anyway). The old path — Nessie replaying the pairing
-person's frozen UOA identity to read `/org/me` — is removed.
-- **UOA:** public, unauthenticated, rate-limited batch lookup by team ID that
-  returns display fields only: `teamId, teamName, teamSlug, orgId, orgName,
-  orgSlug, avatarUrl?`. Unknown IDs are omitted. No membership, roles or
-  anything else. (Tranche U1 defines the route; recorded here when final.)
-- **Nessie:** `POST /api/executor-daemon/teams` (or the existing pairing
-  connection route, extended): body `{ entries: [{ executorId, observedAt,
-  signature }] }`, each signed with that team's key; answer per executor
-  `{ executorId, uoa: { orgId, teamId, baseUrl } }`, or for an install with no
-  UOA `{ executorId, local: { organizationName, teamName } }`. No person, no
-  UOA call needed. Nessie rings the doorbell topic `team` when a team is
-  renamed through Nessie.
-- **Computer:** stores the UOA IDs (display metadata, never an authority) from
-  the pairing claim or that answer; asks UOA for every team's names in one
-  call; keeps a display-only label in the team's folder; refreshes every 15
-  minutes and on the `team` wake; never shows a known name as blank.
+**Team names never depend on a person.** A team ID → name is not a secret.
+- **UOA:** public, unauthenticated batch lookup by team ID, display fields
+  only (tranche U1; route recorded here when final).
+- **Nessie:** `POST /api/executor-daemon/teams`, entries each signed with that
+  team's key → per executor `{ executorId, organizationName, teamName }`.
+  Nessie calls UOA's public lookup in one call; stores nothing; unbound
+  installs answer local names. The person-gated path is removed.
+- **Computer:** one batched call when the app starts and hourly; display-only
+  label in each team's folder; every surface reads it; never blank a known name.
 
-**Less text (ruling):** the app shows controls, short labels and status, not
-explanations. Every explanatory sentence moves into a **?** button beside the
-control it explains (tooltip on hover and keyboard focus, read by screen
-readers). Only consequence lines that change a decision stay visible in one
-short line (e.g. "Programs run as you"). All seven locales.
+**Layout:** no Overview. One team dropdown above the tabs controls Access ·
+Documents · AI · Settings; its last item **＋ Add another team** shows a code
+at once (no team yet → the window opens on the code). A slim **Needs you**
+strip under the dropdown only when something waits. Settings: the team (Pause/
+Resume, Disconnect…), then the computer (open at login, restart, updates,
+logs). Menus: "Add another team…". Web keeps **Add a computer**.
+
+**Dropped (over-engineering):** "Who can send work here" (audience endpoint,
+`who`, bridge, UI) and "Now working" in the app (CLI `sessions` stays).
+
+**Less text:** controls, short labels and status only; explanations go behind
+a **?** tooltip; only one-line consequences that change a decision stay visible.
