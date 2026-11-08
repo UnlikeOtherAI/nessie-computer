@@ -4,6 +4,7 @@ import test from 'node:test'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, T3_SOURCE_COMMIT,
   T3_EXECUTION_GRAPH_DOMAIN, T3_EXECUTION_FRAME_PREPARATION_DOMAIN, T3_EXECUTION_RESERVATION_DOMAIN,
+  T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
   T3NativeExecutionOperationSchema,
   type T3ExecutionReceipt, type T3NativeExecutionOperationIntake,
 } from '@nessie/executor-protocol/t3-session'
@@ -30,7 +31,7 @@ function fixture() {
     requestSha256: hash(JSON.stringify(encodeExecutorT3LaneOperation(request))),
     relayHmac: 'hmac-sha256:' + 'a'.repeat(64), actorReference: hash('actor'), initiationReference: hash('origin'),
     sourceRootKey: 'physical:one', sourceGeneration: 'capture:one', driver: 'codex' as const,
-    continuationHomeKey: 'continuation:one', historyHomeKey: 'history:one', credentialBindingId: 'credential:one' }
+    continuationHomeKey: 'continuation:one', historyHomeKey: 'history:one', credentialBindingId: 'c'.repeat(64) }
   const generation = { pid: 1, startedAt: 'start', bootId: 'boot' }
   const custody = { service: generation, controller: generation, supervisor: generation, runtime: generation,
     jobName: 'Global\\NessieCustody-' + '1'.repeat(64),
@@ -53,6 +54,30 @@ function fixture() {
   const controller = new AbortController()
   return { request, delivery, state, admission, signed, key, graphId, reservationId, controller, receipt, custody,
     signal: controller.signal, generation }
+}
+
+// Unverified metadata for refusal/transport checks only. No native producer,
+// tool process, enrolled proof, read, value or positive authority is simulated.
+function secretReadFixture() {
+  const f = fixture(), issuedAtMs = Date.now() - 1000
+  const observed = { version: 1, action: 'selected-provider-secret-read', binding: f.admission.binding,
+    acceptedGraphNonce: '7'.repeat(64), planId: 'd'.repeat(64), planDigest: hash('plan'), readId: 'e'.repeat(64),
+    evidence: { resourceId: 'f'.repeat(64), resourceGeneration: hash('resource'), settingsIdentity: 'held-settings',
+      settingsDigest: '0'.repeat(64), providerInstanceId: 'codex', providerConfigDigest: hash('config'),
+      secretProvidersDigest: hash('providers'), credentialHomeReferenceId: f.admission.binding.credentialBindingId,
+      custody: f.custody },
+    slot: { index: 0, name: 'FIXTURE_SLOT',
+      reference: { provider: 'one_password', reference: 'op://Fixture/Item/field' } },
+    recipient: { slotId: '1'.repeat(64), generation: f.generation },
+    tool: { kind: 'one_password', installationDigest: hash('installation'), imageDigest: hash('tool'), version: '1',
+      account: 'fixture.test', ownerProfileIdentity: 'fixture-owner', environmentDigest: hash('environment'),
+      processDescriptorDigest: hash('process') },
+    maxValueBytes: 65536, nonce: 'e'.repeat(64), issuedAtMs, expiresAtMs: issuedAtMs + 5000 }
+  const preparationReceipt = f.receipt(T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN, observed)
+  preparationReceipt.payload = JSON.stringify(observed, null, 2)
+  const candidate = { ...observed, issuerKeyId: preparationReceipt.keyId,
+    preparationReceiptDigest: hash(preparationReceipt.payload), nonce: '2'.repeat(64), issuedAtMs: Date.now() }
+  return { ...f, observed, preparationReceipt, candidate }
 }
 
 test('native client signs only the saved relay selector and preserves exact admission bytes', async () => {
@@ -174,5 +199,61 @@ test('injected response keys and expired phase envelopes cannot become transport
     const api = createExecutorApi({ fetchImpl: async () => new Response(JSON.stringify({ data: response })) })
     const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
     await assert.rejects(port.phase({ phase: 'reserve', graphId: f.graphId }, f.signal))
+  }
+})
+
+test('secret read request preserves the original relay, receipt and remaining total deadline', async () => {
+  const f = secretReadFixture()
+  let calls = 0
+  const api = { nativeExecution: async (_url: string, input: T3NativeExecutionOperationIntake,
+    options?: { signal?: AbortSignal; timeoutMs?: number }) => {
+    calls++
+    const { signature, ...payload } = input
+    assert.equal(input.operation, 'execution.secretRead')
+    assert.equal(input.relayHmac, f.delivery.requestDigest)
+    assert.equal(input.correlationId, f.request.correlationId)
+    assert.equal(verify(null, Buffer.from(canonicalExecutorPayload(
+      'nessie.executor.daemon.t3_native_execution.v1', payload)), f.key.publicKey,
+    Buffer.from(signature, 'base64url')), true)
+    assert.ok(options?.timeoutMs && options.timeoutMs <= 4000 && options.timeoutMs > 0)
+    assert.deepEqual('input' in input && input.input, { preparationReceipt: f.preparationReceipt })
+    // Refusal, not a fabricated positive enrolled/native response.
+    throw new Error('T3_EXECUTION_AUTHORITY_UNAVAILABLE')
+  } }
+  const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+  await assert.rejects(port.secretRead({ preparationReceipt: f.preparationReceipt }, f.signal), /UNAVAILABLE/u)
+  assert.equal(calls, 1)
+})
+
+test('expired or mismatched secret observations refuse before any HTTP request', async () => {
+  for (const change of [{ issuedAtMs: Date.now() - 6000, expiresAtMs: Date.now() - 1000 },
+    { acceptedGraphNonce: '0'.repeat(64) }]) {
+    const f = secretReadFixture()
+    let calls = 0
+    const api = createExecutorApi({ fetchImpl: async () => { calls++; throw new Error('HTTP reached') } })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    const receipt = { ...f.preparationReceipt, payload: JSON.stringify({ ...f.observed, ...change }) }
+    await assert.rejects(port.secretRead({ preparationReceipt: receipt }, f.signal))
+    assert.equal(calls, 0)
+  }
+})
+
+test('secret response cannot reset the observation window or substitute any held destination', async () => {
+  for (const change of ['renew', 'recipient', 'digest', 'key', 'expired']) {
+    const f = secretReadFixture()
+    const candidate = { ...f.candidate }
+    if (change === 'renew') candidate.expiresAtMs = candidate.issuedAtMs + 5000
+    if (change === 'recipient') candidate.recipient = { ...candidate.recipient, slotId: '3'.repeat(64) }
+    if (change === 'digest') candidate.preparationReceiptDigest = hash(JSON.stringify(f.observed))
+    if (change === 'key') candidate.issuerKeyId = '3'.repeat(64)
+    if (change === 'expired') { candidate.issuedAtMs -= 6000; candidate.expiresAtMs = Date.now() - 1 }
+    let calls = 0
+    const api = createExecutorApi({ fetchImpl: async () => {
+      calls++
+      return new Response(JSON.stringify({ data: f.signed(candidate) }))
+    } })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    await assert.rejects(port.secretRead({ preparationReceipt: f.preparationReceipt }, f.signal))
+    assert.equal(calls, 1)
   }
 })

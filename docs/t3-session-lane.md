@@ -151,3 +151,11 @@ registration remain runtime-owned integration prerequisites. The new
 fetch-boundary fixtures cover exact original selectors/signatures, frame receipt
 byte digests, injected selectors, source replacement, cancellation, expiry and
 bounded responses. They are authored, not run at the source checkpoint.
+
+The operation-bound transport also exposes `secretRead({preparationReceipt}, signal)`
+through the same finite route and strict operation schema. It retains the
+original graph/relay closure and remaining total observation deadline; the
+protected service independently verifies the resulting signed admission.
+Runtime owns its explicit protected-child dispatch and private sink. The live
+native read producer and independent no-prompt proof remain prerequisites; see
+[prelaunch secret reads](prelaunch-secret-read.md#signed-daemon-secret-read-request).

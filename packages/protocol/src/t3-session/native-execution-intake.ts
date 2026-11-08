@@ -15,14 +15,20 @@ export const T3NativeExecutionFrameInputSchema = z.object({
   reservationId: id, frameReceipt: T3ExecutionReceiptSchema,
 }).strict()
 export type T3NativeExecutionFrameInput = z.infer<typeof T3NativeExecutionFrameInputSchema>
+export const T3NativeExecutionSecretReadInputSchema = z.object({
+  preparationReceipt: T3ExecutionReceiptSchema,
+}).strict()
+export type T3NativeExecutionSecretReadInput = z.infer<typeof T3NativeExecutionSecretReadInputSchema>
 
 /** Finite protected-child messages. No caller actor, request, binding, key,
  * homes, frame bytes or raw method/hash selector travels through this port.
  */
 const phase = z.object({ operation: z.literal('execution.phase'), input: T3NativeExecutionPhaseInputSchema }).strict()
 const frame = z.object({ operation: z.literal('execution.frame'), input: T3NativeExecutionFrameInputSchema }).strict()
+const secretRead = z.object({ operation: z.literal('execution.secretRead'),
+  input: T3NativeExecutionSecretReadInputSchema }).strict()
 const receipt = z.object({ operation: z.literal('execution.receipt'), receipt: T3ExecutionReceiptSchema }).strict()
-export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation', [phase, frame, receipt])
+export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation', [phase, frame, secretRead, receipt])
 export type T3NativeExecutionOperation = z.infer<typeof T3NativeExecutionOperationSchema>
 
 const envelope = z.object({ executorId: z.string().uuid(),
@@ -34,6 +40,7 @@ const originalOperation = envelope.extend({ environmentId: z.string().min(1).max
 }).strict()
 export const T3NativeExecutionIntakeSchema = z.discriminatedUnion('operation', [
   originalOperation.extend(phase.shape), originalOperation.extend(frame.shape), originalOperation.extend(receipt.shape),
+  originalOperation.extend(secretRead.shape),
   envelope.extend({ operation: z.literal('execution.issuer.offer'), descriptor: T3ExecutionIssuerDescriptorSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.proof'), receipt: T3ExecutionReceiptSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.pending') }),
