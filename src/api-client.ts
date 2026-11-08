@@ -12,6 +12,7 @@ import type {
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
 import type { T3LaneExchange, T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
 import type { T3EffectAuthorityCheck, T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
+import type { T3CatalogPublicationExchange, T3CatalogPublicationReceipt } from '@nessie/executor-protocol/t3-session'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
 
@@ -43,6 +44,8 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
+  publishT3Catalog: (baseUrl: string, input: T3CatalogPublicationExchange,
+    options?: ExecutorSyncRequestOptions) => Promise<T3CatalogPublicationReceipt>
   t3EffectIssuerKeys: (baseUrl: string, options?: ExecutorSyncRequestOptions) => Promise<unknown>
   checkT3EffectAuthority: (baseUrl: string, input: T3EffectAuthorityCheck,
     options?: ExecutorSyncRequestOptions) => Promise<T3EffectAuthorityChecked>
@@ -216,6 +219,8 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
+    publishT3Catalog: (baseUrl, input, options) =>
+      post(baseUrl, '/api/executor-daemon/t3/catalog', input, options?.timeoutMs, options?.signal),
     t3EffectIssuerKeys: (baseUrl, options) => request(normalizeUrl(baseUrl, '/.well-known/jwks.json'),
       { method: 'GET', redirect: 'error' }, options?.timeoutMs ?? requestTimeoutMs, async response => {
         if (!response.ok || !response.body) throw new ExecutorApiError('T3 issuer keys unavailable.')
