@@ -128,7 +128,8 @@ const startFakeNessie = async (options: { strict?: boolean } = {}) => {
       },
     })
   })
-  return { ...nessie, run, close: () => new Promise<void>((resolve) => server.close(() => resolve())) }
+  // The same object the routes update, so `revision` stays current.
+  return Object.assign(nessie, { run, close: () => new Promise<void>((resolve) => server.close(() => resolve())) })
 }
 
 const eventually = async (what: string, check: () => boolean | Promise<boolean>, timeoutMs = 15_000): Promise<void> => {
