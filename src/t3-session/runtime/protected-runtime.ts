@@ -145,7 +145,9 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
       inspections: new Map(), started: Promise.resolve() }
     jobs.set(key, job)
     job.started = Promise.resolve().then(async () => {
+      assertCurrent(job)
       job.child = await startProtectedT3Graph(state().executorId, job.stop.signal)
+      assertCurrent(job)
       job.child.stderr.resume()
       job.child.on('error', () => { void close(job) })
       const timer = setTimeout(() => { void close(job) }, 300_000)
@@ -184,17 +186,21 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
         if (!live || cleanupFailure) throw protectedRuntimeRefused()
         if (process.platform !== 'win32' || process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') return
         const snapshot = state()
+        const expected = identity(snapshot)
         const manifest = await machineT3Sources(snapshot.executorId).manifest()
-        if (!live || identity(snapshot) !== identity(state()) || manifest.homes.length > 64) {
+        if (!live || expected !== identity(state()) || manifest.homes.length > 64) {
           throw protectedRuntimeRefused()
         }
         const selected = new Set(manifest.homes.map(home => home.admittedRootKey))
-        for (const [key, job] of jobs) if (!selected.has(key) || job.identity !== identity(snapshot)
+        for (const [key, job] of jobs) if (!selected.has(key) || job.identity !== expected
           || job.cleared && job.retryAt !== undefined && job.retryAt <= Date.now()) {
           await close(job)
           jobs.delete(key)
         }
-        for (const key of selected) if (!jobs.has(key)) begin(key)
+        for (const key of selected) if (!jobs.has(key)) {
+          if (!live || expected !== identity(state())) throw protectedRuntimeRefused()
+          begin(key)
+        }
       })().finally(() => { refreshing = undefined })
       return refreshing
     },

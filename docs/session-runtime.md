@@ -671,6 +671,8 @@ The fixed `t3-session-runtime` CLI now reads SYSTEM's startup frame exactly once
 through `readProtectedT3GraphStartup`. Its later bounded NDJSON channel accepts
 only a configured admitted-root selector, inspect/accept/release/describe and
 close. It receives no source path, settings DTO, machine key or executable.
+All entry failures become a fixed refusal before the CLI error printer; startup
+and original-request decoder diagnostics never cross that boundary.
 Settings and the source snapshot come from `withT3ExecutionResources` inside
 that protected process. It imports once through `withSessionExecutionState` and
 holds the original graph until the channel, source or writer closes.
@@ -685,7 +687,9 @@ and registration linkage remain native-owned before any source read.
 existing source registry and single signed lane. Configured roots select which
 children to start; only a returned actual held descriptor announces inspection.
 Each request fences executor, epoch, source and writer. Heartbeat replacement,
-source removal, shutdown and update draining withdraw announcements and join
+including a replacement during registry lookup or protected startup, refuses
+before sending a source selector to the child. Source removal,
+shutdown and update draining withdraw announcements and join
 service-positive child clearance before daemon custody releases. A cleared child
 may be recreated after a bounded delay; unknown startup/clearance is retained as
 unavailable rather than retried as if no process existed.

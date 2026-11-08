@@ -9,6 +9,12 @@ import type { HeldSessionInspectionRuntime } from './inspection-runtime.js'
  * subsequent frames carry only source selectors and finite inspection demand.
  * It never loads enrollment state, receives a machine key or spawns a fallback. */
 export async function runProtectedT3SessionRuntime(args: readonly string[]): Promise<void> {
+  try { await run(args) } catch { throw protectedRuntimeRefused() }
+}
+
+// The CLI's error printer must never receive a startup/schema diagnostic that
+// could contain private bootstrap bytes, original request input or settings.
+async function run(args: readonly string[]): Promise<void> {
   if (args.length || process.platform !== 'win32' || process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') {
     throw protectedRuntimeRefused()
   }
