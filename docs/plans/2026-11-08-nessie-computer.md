@@ -256,6 +256,16 @@ Both natives implement the same commands; Linux keeps its software-section subse
 | `executor_open_logs` | — | opens the logs folder |
 | `executor_pairing_start` | `{ apiBaseUrl? }` | as today; no ChatGPT option |
 
+Settled during delivery (both hosts implement exactly this):
+- **Remedy ids** for `executor_apply_remedy`: `reProposePolicy`, `restartExecutor`,
+  `openNessie`. The console may also handle "open Nessie" by calling
+  `executor_open_nessie` itself.
+- **`executor_open_nessie { executorId? }`**: the host builds the URL from its
+  own paired server and adds `?create=1&code=<code>` itself while a pairing
+  code is showing. The page never passes a path or URL.
+- Removed: `executor_reconnect`, `executor_notify`, `executor_hide_status`.
+  Every team command requires `executorId`.
+
 `executor_hide_status` and the in-page Close go away. The console translates
 failures itself (one translator, keyed by `code`, all locales); the Swift
 `ExecutorFailure` table moves into the console and remedies call
