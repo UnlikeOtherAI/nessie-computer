@@ -52,6 +52,26 @@ export const generateSessionControlManifest = snapshot => {
     '                    ThreadManagementProviderInstanceDisabledError: (cause) =>')
   author.replace(target, startup, '', 'control-executor-startup-boundary')
 
+  // Inspection and command execution share the exact original external-to-internal
+  // input conversion. Inspection does not claim uploads or run the launch body.
+  const mappedLaunch = author.between(target, 'ThreadMessageIntake.launchThread({', '}).pipe(') + '})'
+  const mappedInput = mappedLaunch.slice('ThreadMessageIntake.launchThread('.length, -1)
+  author.replace(target, mappedLaunch, 'ThreadMessageIntake.launchThread(toLaunchInput(input, provenance))',
+    'control-share-launch-input')
+  const launchDeclaration = 'export const launchThread = (input: OrchestrationV2ThreadLaunchInput,'
+  author.replace(target, launchDeclaration,
+    `const toLaunchInput = (input: OrchestrationV2ThreadLaunchInput,
+  provenance: ThreadManagementProvenance): ThreadLaunch.ThreadLaunchInput => (${mappedInput});
+
+/** Only original read/ID selection; the caller must still obtain command authority. */
+export const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput,
+  provenance: ThreadManagementProvenance) => Effect.gen(function* () {
+    const launches = yield* ThreadLaunch.ThreadLaunchService;
+    return yield* launches.prepareTarget(toLaunchInput(input, provenance));
+  });
+
+${launchDeclaration}`, 'control-original-prelaunch-mapping')
+
   const schedules = 'apps/server/src/scheduledTasks/ScheduledTaskService.ts'
   const port = schedules.replace('.ts', '.session-port.ts')
   const webhook = author.between(schedules, 'export interface WebhookTriggerRequest extends', 'const webhookFilters =')

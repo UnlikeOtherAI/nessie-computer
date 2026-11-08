@@ -415,3 +415,49 @@ imports, compiler, SQL, tests, native processes or user-facing journey ran.
 No shared manifests or tool registrations changed. Combined qualification must
 exercise valid publication/read, multigrant refusal, expiry, epoch/source loss,
 replay and drained teardown through the actual signed lane and tool doorways.
+
+## Original launch inspection
+
+The extraction now gives the original `ThreadLaunchService` a scoped
+`prepareTarget` operation. `SessionControl.prepareLaunchTarget` shares the exact
+original wire-to-launch conversion with `launchThread`. Selection runs the
+original Scratch normalization, project/clone checks, provider enablement,
+receipt recovery, ID allocator and reusable-thread validation. It stops before
+folder allocation, worktree preparation and command acceptance. The same original
+launch service retains at most 64 prepared command selections. Its actual launch
+reuses the held original ID; a different selection for that command refuses.
+Scope release removes only its own record. Original receipt replay still takes
+precedence over allocation. This is an internal finite selection, not command
+acceptance, native reserve or a signed execution graph.
+
+`runtime/launch-target.ts` holds that selection and the original request privately.
+Recheck verifies the exact canonical original request, current state writer,
+original target and current configured instance. Inspection decodes the exact
+original `CodexSettings` or `ClaudeSettings` through the held original settings
+service, retaining the app's `claudeAgent` identity separately from the native
+`claude` driver spelling. It neither constructs a provider instance nor resolves
+a secret. An unknown/unconfigured driver, disabled instance or changed settings
+refuses. Native homes and credential bindings must come from the protected held
+resource producer; no `continuationIdentity` is converted into a native home.
+
+The inspection challenge binds all original request targets and current human
+initiation. The protected graph receipt must bind the service-held resource,
+runtime generation and release. Neither this internal selection nor a retained
+read announcement replaces that receipt. `launchDigest` is deliberately absent:
+it belongs to the later native preparation receipt over the exact held process
+descriptor, after original authorized preparation and before spawning.
+
+Source extraction also selects the original provider session manager, instance
+registry and finalization implementation into separate live modules. Only the
+session manager's telemetry decorators are removed. These modules are not yet
+registered in the executing composition: the original registry's eager startup
+must not run during inspection, and the actual event/turn/resource closure and
+per-operation SDK byte transport still need binding. No empty registry or
+successful callback is used as a substitute.
+
+The fixed protected `t3-session-runtime` entry, held execution resource producer,
+native graph signing, original adapter serialization and immutable Claude history
+entry are not yet composed at this checkpoint. Four config/refusal fixtures are
+authored and unrun; they cannot establish positive native authority. Source-only
+syntax parsing covered twelve modules at 256 MiB without linking/evaluation.
+No compiler, SQL, tests, provider/native launch, install or manual journey ran.
