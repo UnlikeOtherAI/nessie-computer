@@ -49,6 +49,12 @@
         <h2 id="overview-needs-title"></h2>
         <ul id="needs-you-list" class="needs"></ul>
       </section>
+      <section id="overview-working" aria-labelledby="overview-working-title" hidden>
+        <h2 id="overview-working-title" tabindex="-1"></h2>
+        <p id="working-error" class="field-error" role="alert" hidden></p>
+        <p id="working-empty" class="hint"></p>
+        <ul id="working-list" class="sessions" hidden></ul>
+      </section>
       <section id="overview-teams" aria-labelledby="overview-teams-title" hidden>
         <div class="section-heading"><h2 id="overview-teams-title"></h2><button id="overview-connect" class="primary" data-action="connect"></button></div>
         <div id="team-cards"></div>
@@ -127,6 +133,13 @@
     <p id="pairing-announce" class="visually-hidden" role="status"></p>
   </dialog>
 
+  <dialog id="stop-session-dialog" aria-labelledby="stop-session-title">
+    <h2 id="stop-session-title" tabindex="-1"></h2>
+    <p id="stop-session-body"></p>
+    <p class="dialog-error" role="alert" hidden></p>
+    <div class="actions"><button type="button" id="stop-session-cancel" class="dialog-close"></button><button id="stop-session-confirm" class="danger"></button></div>
+  </dialog>
+
   <dialog id="disconnect-dialog" aria-labelledby="disconnect-title">
     <h2 id="disconnect-title" tabindex="-1"></h2>
     <p id="disconnect-body"></p>
@@ -144,6 +157,8 @@
   <script src="overview-words.js"></script>
   <script src="overview-summary.js"></script>
   <script src="overview.js"></script>
+  <script src="overview-working-words.js"></script>
+  <script src="overview-working.js"></script>
   <script src="pairing-words.js"></script>
   <script src="pairing.js"></script>
   <script src="updates-words.js"></script>
