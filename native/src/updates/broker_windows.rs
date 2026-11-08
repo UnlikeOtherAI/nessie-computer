@@ -98,7 +98,7 @@ fn service_main(_arguments: Vec<OsString>) {
         .and_then(|()| crate::updates::windows_peer::allow_verification())
         .and_then(|()| {
             let _ = handle.set_service_status(status(ServiceState::Running));
-            serve(stopped)
+            serve(stopped).map_err(|_| ERROR)
         });
     let mut final_status = status(ServiceState::Stopped);
     if outcome.is_err() {
