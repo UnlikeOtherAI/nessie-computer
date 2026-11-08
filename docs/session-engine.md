@@ -12,8 +12,10 @@ The machine-only contract foundation lives in `packages/t3-session-source` and
 closure and all three upstream contract entries, with Effect 4.1.2 external and
 shared ESM chunks. `dist/provenance.json` binds the capsule, selected source,
 generated modules, declaration dependencies, transforms and public dependency lock.
-TypeScript 5.9.3 checks the original source; declaration barrels preserve source
-types with recorded module-suffix changes to avoid TS7056 expansion limits.
+TypeScript 5.9.3 checks the original source and emits shared portable `.d.ts`
+files. Invariant-checked names for exact original constructors avoid TS7056
+expansion limits without publishing implementation `.ts` to consumers; see
+[contract declarations](session-contract-declarations.md).
 Strict NodeNext and Bundler consumers resolve the actual export maps with full
 library checking and negative Type/Encoded fixtures. The protocol subpath exports
 its built declarations. Model preference fields, provider-refresh side effects,

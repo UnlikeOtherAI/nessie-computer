@@ -6,12 +6,25 @@ import { isBuiltin } from 'node:module'
 const slash = text => text.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 
+/** Public contract entries share the compiler's declaration graph with the engine. */
+export const writeContractDeclarationEntries = async directory => {
+  await mkdir(resolve(directory, 'types'), { recursive: true })
+  const files = []
+  for (const entry of ['index', 'settings', 'relay']) {
+    const path = `types/${entry}.d.ts`
+    const text = `/// <reference lib="es2023.array" />\nexport * from "./source/${entry}.js";\n`
+    await writeFile(resolve(directory, path), text, { flag: 'wx' })
+    files.push({ path, sha256: hash(text) })
+  }
+  return files
+}
+
 /** Convert compiler-only virtual paths into a portable, ordinary declaration tree. */
 export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolveModule, sharedContracts = false }) => {
   const files = new Map()
   const contractRoot = 'packages/contracts/src/'
   const sourceLocation = path => sharedContracts && path.startsWith(contractRoot)
-    ? `../source/${path.slice(contractRoot.length)}` : `source/${path}`
+    ? `../types/source/${path.slice(contractRoot.length)}` : `source/${path}`
   const location = file => {
     const normalized = slash(file)
     if (normalized.toLowerCase().startsWith(virtualRoot.toLowerCase())) {
@@ -59,12 +72,6 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolve
     const path = location(source)
     files.set(path, portableModule(source, text, path))
   }
-  const addSourceTypes = source => {
-    const local = slash(source.fileName).slice(virtualRoot.length)
-    if (sharedContracts && local.startsWith(contractRoot)) return
-    const path = `source/${local}`
-    files.set(path, portableModule(source.fileName, source.text, path))
-  }
   const save = async (directory, entryPoints) => {
     for (const [name, entryPoint] of Object.entries(entryPoints)) {
       if (!/^[a-z]+$/u.test(name)) throw new Error('Declaration entry name refused.')
@@ -84,8 +91,8 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolve
       identities[path] = hash(content)
     }
     return { entry: 'index.d.ts', entries: Object.keys(entryPoints).map(name => `${name}.d.ts`),
-      upstream: 'compiler-declarations-with-shared-contract-source', files: identities,
+      upstream: 'compiler-declarations-with-shared-contract-declarations', files: identities,
       sha256: hash(JSON.stringify(identities)) }
   }
-  return { writeFile: writeDeclaration, addSourceTypes, save }
+  return { writeFile: writeDeclaration, save }
 }
