@@ -11,7 +11,7 @@ menu. It always says what is going on.
 | Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; Overview says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
-| Red (Windows) | **Background service isn't running** | Choose **Start it**, or reinstall Nessie Computer. |
+| Red (Windows) | **Can't reach the Nessie Computer service** | The background service isn't answering. Restart Windows; if the icon stays red, reinstall Nessie Computer. |
 
 Every problem on **Overview** comes with one button that fixes it. **Details**
 underneath shows the technical message, which helps if you contact support.
@@ -40,17 +40,17 @@ The program isn't on the team's [Programs](Programs) list. When the agent asks,
 answer the request under **Needs you**. If you missed it, add the program on
 **Access → Programs**.
 
-### "Another copy of this computer connected to Nessie"
+### "Another copy of this team connected to Nessie after this computer did"
 The same team was connected from another computer, or Nessie Computer files
-were copied between machines. Choose **Reconnect here** to take the connection
+were copied between machines. Choose **Connect again** to take the connection
 back to this computer. If you didn't expect a second computer, check the
 computer's page in Nessie first.
 
-### "This computer's settings are older than Nessie expects"
-Usually after reinstalling or restoring a backup. Choose **Send current
-settings again**. Nothing about what agents can use changes.
+### "This computer's copy of the team's settings is older than the one Nessie recorded"
+Usually after reinstalling or restoring a backup. Choose **Send these settings
+again**. Nothing about what agents can use changes.
 
-### "This computer's key no longer matches"
+### "Nessie did not accept this computer's signature"
 The team was connected again from somewhere else, or the computer's files were
 restored. [Disconnect](Disconnect-or-uninstall) the team and
 [connect it](Add-this-computer) again.
