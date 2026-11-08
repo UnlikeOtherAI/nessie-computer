@@ -116,9 +116,10 @@ fn close_found(found: Vec<(Process, String)>, grace: Duration, announce: bool) -
     };
     let started = Instant::now();
     let _event = announce.then(signal_install).flatten();
+    let ours: BTreeSet<u32> = found.iter().map(|(process, _)| process.generation.pid).collect();
     for (process, name) in &found {
         if name == RUNTIME {
-            break_console(process.generation.pid);
+            break_console(process.generation.pid, &ours);
         }
     }
     let (apps, rest): (Vec<_>, Vec<_>) = found.into_iter().partition(|(_, name)| name == TRAY);
@@ -203,11 +204,19 @@ pub fn install_signalled() -> bool {
     unsafe { WaitForSingleObject(event.0, 0) == WAIT_OBJECT_0 }
 }
 
+/// Whether a console may be sent Ctrl+Break: every process attached to it is
+/// one of ours (team processes from the install folder) or this one. A daemon
+/// sharing a person's terminal is left to the grace period instead.
+pub fn console_is_ours(attached: &[u32], ours: &BTreeSet<u32>, me: u32) -> bool {
+    !attached.is_empty() && attached.iter().all(|pid| *pid == me || ours.contains(pid))
+}
+
 /// Ctrl+Break on the daemon's own hidden console (the launcher starts it with
 /// `CREATE_NO_WINDOW`). This process ignores the event it sends itself.
-fn break_console(pid: u32) {
+fn break_console(pid: u32, ours: &BTreeSet<u32>) {
     use windows_sys::Win32::System::Console::{
-        AttachConsole, FreeConsole, GenerateConsoleCtrlEvent, SetConsoleCtrlHandler, CTRL_BREAK_EVENT,
+        AttachConsole, FreeConsole, GenerateConsoleCtrlEvent, GetConsoleProcessList, SetConsoleCtrlHandler,
+        CTRL_BREAK_EVENT,
     };
     unsafe extern "system" fn ignore(_event: u32) -> windows_sys::core::BOOL {
         1
@@ -215,10 +224,15 @@ fn break_console(pid: u32) {
     unsafe {
         SetConsoleCtrlHandler(Some(ignore), 1);
         FreeConsole();
-        if AttachConsole(pid) != 0 {
-            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-            FreeConsole();
+        if AttachConsole(pid) == 0 {
+            return;
         }
+        let mut attached = [0_u32; 64];
+        let count = GetConsoleProcessList(attached.as_mut_ptr(), attached.len() as u32) as usize;
+        if count <= attached.len() && console_is_ours(&attached[..count], ours, std::process::id()) {
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        }
+        FreeConsole();
     }
 }
 

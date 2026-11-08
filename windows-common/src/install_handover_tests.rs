@@ -34,6 +34,16 @@ fn the_services_own_processes_are_left_to_the_service_stop() {
     assert_eq!(found, [20, 21, 22, 30]);
 }
 
+#[test]
+fn ctrl_break_goes_only_to_a_console_no_one_else_shares() {
+    let ours = BTreeSet::from([20, 21]);
+    assert!(console_is_ours(&[21, 99], &ours, 99));
+    assert!(console_is_ours(&[20, 21, 99], &ours, 99));
+    // A person's terminal, or anything else on that console, keeps it from being broken.
+    assert!(!console_is_ours(&[21, 7, 99], &ours, 99));
+    assert!(!console_is_ours(&[], &ours, 99));
+}
+
 /// A copy of a program under one of the team images' names, started from a
 /// temporary folder the way a daemon runs from the install folder.
 fn start_from(folder: &Path, name: &str, program: &Path, args: &[&str]) -> (std::process::Child, PathBuf) {
