@@ -27,9 +27,9 @@ The code works once. If it runs out, choose **Get a new code**.
 
 ## What the team can use straight away
 
-- **Folders:** a *Nessie* folder in your home folder (created for you) and the
-  computer's shared folder (`/Users/Shared` on a Mac, `C:\Users\Public` on
-  Windows).
+- **Folders:** a *Nessie* folder in your home folder, created for you. Agents'
+  own browser and sandbox work with exactly one folder, so add others only if
+  you need them.
 - **Programs:** apps from UnlikeOtherAI, Claude Code, Codex and T3 Code. Agents
   ask before running anything else. See [Programs](Programs).
 - **Local apps:** every app on the computer that agents can talk to.

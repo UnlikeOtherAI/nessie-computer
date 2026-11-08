@@ -41,7 +41,9 @@ const agentId = '00000000-0000-4000-8000-000000000802'
 const actorUserId = '00000000-0000-4000-8000-000000000803'
 const runId = '00000000-0000-4000-8000-000000000804'
 const digest = `sha256:${'c'.repeat(64)}`
-const commandRules = { mode: 'allowlist' as const, allowlist: ['claude *'], denylist: ['git push *'] }
+const rules = { mode: 'allowlist' as const, allowlist: ['claude *'], denylist: ['git push *'] }
+/** The daemon reads the rules as it stamps each call. */
+const commandRules = () => rules
 
 const facts: ExecutorCodingSessionsFacts = {
   serverName: 'coding-sessions', agents: ['claude'], permissionMode: { claude: 'acceptEdits' },
@@ -104,7 +106,7 @@ test('owner, command id and command rules reach the built-in bridge as reserved 
     const ownerKey = `sha256:${createHash('sha256').update(`${executorId}|${agentId}|${actorUserId}`).digest('hex')}`
     assert.equal(codingSessionOwnerKey(executorId, owner), ownerKey)
     assert.deepEqual(toBridge.meta, {
-      'nessie/command': 'command-a', 'nessie/owner': ownerKey, 'nessie/command-rules': commandRules,
+      'nessie/command': 'command-a', 'nessie/owner': ownerKey, 'nessie/command-rules': rules,
     }, 'the rules this daemon runs under decide what a terminal may start')
     assert.deepEqual(toBridge.echoed, modelArguments, 'the model\'s arguments pass through untouched')
 
@@ -115,7 +117,7 @@ test('owner, command id and command rules reach the built-in bridge as reserved 
     assert.deepEqual(toOther.echoed, modelArguments)
 
     const unowned = echoOf(await run('command-c', { args: { server: 'coding-sessions', tool: 'echo' }, runId }))
-    assert.deepEqual(unowned.meta, { 'nessie/command': 'command-c', 'nessie/command-rules': commandRules },
+    assert.deepEqual(unowned.meta, { 'nessie/command': 'command-c', 'nessie/command-rules': rules },
       'without a stamped owner the bridge refuses')
 
     for (const payload of [
@@ -151,9 +153,9 @@ test('a ticket context is part of the owner key, and without one the key is the 
   const args = { server: 'coding-sessions', tool: 'echo', arguments: {} }
   try {
     const withContext = echoOf(await run('command-t1', { args, owner: { agentId, actorUserId, contextId }, runId }))
-    assert.deepEqual(withContext.meta, { 'nessie/command': 'command-t1', 'nessie/owner': ticket, 'nessie/command-rules': commandRules })
+    assert.deepEqual(withContext.meta, { 'nessie/command': 'command-t1', 'nessie/owner': ticket, 'nessie/command-rules': rules })
     const without = echoOf(await run('command-t2', { args, owner: { agentId, actorUserId }, runId }))
-    assert.deepEqual(without.meta, { 'nessie/command': 'command-t2', 'nessie/owner': plain, 'nessie/command-rules': commandRules })
+    assert.deepEqual(without.meta, { 'nessie/command': 'command-t2', 'nessie/owner': plain, 'nessie/command-rules': rules })
     // A context in any other spelling never becomes a key: the envelope refuses it by name.
     const refused = await run('command-t3', { args, owner: { agentId, actorUserId, contextId: contextId.toUpperCase() }, runId })
     assert.equal(refused.code, 'EXECUTOR_COMMAND_ARGUMENTS_INVALID')

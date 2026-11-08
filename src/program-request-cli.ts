@@ -3,6 +3,7 @@ import { configureExecutorLocalPolicy } from './pair.js'
 import { programRequestRule } from './program-request-gate.js'
 import {
   listProgramRequests,
+  ProgramRequestError,
   waitingProgramRequest,
   writeProgramRequestAnswer,
   type ProgramRequest,
@@ -40,7 +41,9 @@ export const printProgramRequests = async (
  * Answers one waiting request. "always" first saves `<program> *` through the
  * ordinary policy writer, so the running team applies it live; only once that
  * is saved does the answer reach the daemon, so a failed save leaves the
- * request waiting for another answer.
+ * request waiting for another answer. A program named by its path is saved by
+ * its file name: later launches by that name start without asking, while a
+ * launch by path still asks, because no rule can name a path.
  */
 export const answerProgramRequest = async (
   stateDir: string,
@@ -51,11 +54,18 @@ export const answerProgramRequest = async (
   const request = await waitingProgramRequest(stateDir, input.id)
   if (input.answer === 'always') {
     const rule = programRequestRule(request.program)
-    if (!rule) throw new Error(`${request.program} cannot be saved as a rule. Choose once or deny.`)
+    if (!rule) {
+      throw new ProgramRequestError('PROGRAM_REQUEST_RULE_NOT_SAVED',
+        `${request.program} cannot be saved as a rule. Choose once or deny.`)
+    }
     const rules = localCommandPolicyOf(state)
     if (!rules.allowlist.includes(rule)) {
       await configureExecutorLocalPolicy(stateDir, state, state.descriptor.operationKeys,
         undefined, undefined, undefined, undefined, undefined, {}, { ...rules, allowlist: [...rules.allowlist, rule] })
+        .catch((error: unknown) => {
+          throw new ProgramRequestError('PROGRAM_REQUEST_RULE_NOT_SAVED', `${rule} was not saved, so the request still waits: ${
+            error instanceof Error ? error.message : String(error)}`)
+        })
     }
   }
   await writeProgramRequestAnswer(stateDir, request.id, input.answer)

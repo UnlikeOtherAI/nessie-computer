@@ -242,6 +242,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       if (input.allowedOrigins) team.allowedOrigins = input.allowedOrigins
       if (input.mcpPolicy) team.mcpPolicy = input.mcpPolicy
       if (input.mcpServers) team.mcpServers = input.mcpServers
+      if (input.mcpServerRemovals) team.mcpServers = team.mcpServers.filter((server) => !input.mcpServerRemovals.includes(server.name))
       // The daemon applies this live: its status is untouched, and nothing restarts.
       if (window.failAfterWrite) throw new Error(window.failAfterWrite)
       return describe(id)

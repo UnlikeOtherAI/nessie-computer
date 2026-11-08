@@ -263,7 +263,9 @@ export type ExecutorPreparedPairing = {
   workspaceFolders: ExecutorWorkspaceFolder[]
 }
 
-const statePath = (stateDir: string): string => resolve(stateDir, STATE_FILE)
+/** The file every save of a team's state replaces atomically; the running daemon watches it. */
+export const executorStatePath = (stateDir: string): string => resolve(stateDir, STATE_FILE)
+const statePath = executorStatePath
 const pairingPath = (stateDir: string): string => resolve(stateDir, PAIRING_FILE)
 export const deepTestSourceGrantPath = (stateDir: string): string =>
   resolve(stateDir, DEEPTEST_SOURCE_GRANT_FILE)

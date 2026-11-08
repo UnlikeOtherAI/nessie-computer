@@ -41,7 +41,7 @@ export const daemonToolsKey = (state: ExecutorLocalState): string => canonicalEx
 
 const buildDaemonTools = (
   state: ExecutorLocalState,
-  commandRules: LocalCommandPolicy,
+  commandRules: () => LocalCommandPolicy,
   ownerRequestsGate: OwnerRequestsGate,
   runtime: ExecutorRuntime | undefined,
 ): DaemonTools => {
@@ -72,8 +72,8 @@ export type DaemonToolbox = {
 
 export const createDaemonToolbox = (input: {
   live: DaemonLiveState
-  /** Live command rules: read at each call, so a saved or once-allowed rule needs no rebuild. */
-  commandRules: LocalCommandPolicy
+  /** The command rules, read as each call is stamped, so a saved or once-allowed rule needs no rebuild. */
+  commandRules: () => LocalCommandPolicy
   ownerRequestsGate: OwnerRequestsGate
   runtime?: ExecutorRuntime
   /** Settles once nothing outside the command lane uses the current set (the session view relay). */

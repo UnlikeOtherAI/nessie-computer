@@ -17,7 +17,7 @@ import { executeExecutorCommand } from '../src/daemon.js'
 import { createDaemonLiveState, liveView } from '../src/daemon-live-state.js'
 import type { ExecutorMcpSessionManager } from '../src/mcp-session-manager.js'
 import { answerProgramRequest } from '../src/program-request-cli.js'
-import { createProgramRequestGate } from '../src/program-request-gate.js'
+import { createProgramRequestGate, programRequestRule } from '../src/program-request-gate.js'
 import {
   listProgramRequests,
   openProgramRequestStore,
@@ -212,41 +212,47 @@ test('always saves "<program> *" through the policy writer before the waiting la
   }
 })
 
+const bridgeState = (stateDir: string) => {
+  const bridge = {
+    name: 'coding-sessions',
+    command: [process.execPath, 'bridge.mjs', 'serve-coding-session-mcp', '--config', join(stateDir, 'c.json')],
+    env: { [CODING_SESSIONS_CONFIG_DIGEST_ENV]: `sha256:${'c'.repeat(64)}` },
+  }
+  const facts: ExecutorCodingSessionsFacts = {
+    serverName: 'coding-sessions', agents: ['claude'], permissionMode: { claude: 'acceptEdits' },
+    allowedToolCount: 0, environmentNames: [], rootNames: ['nessie'], configDigest: `sha256:${'c'.repeat(64)}`,
+  }
+  return stateWith(rules(['claude *']), {
+    descriptor: {
+      codingSessions: facts, limits: { maxCommandRuntimeSeconds: 30, maxResultBytes: 65_536, maxSessions: 1 },
+      mcpServers: ['coding-sessions'], operationKeys: ['mcp.tools', 'mcp.call'], profiles: ['workspace_sandbox'], revision: 1,
+    },
+    mcpServers: [bridge],
+  })
+}
+
+/** The bridge's side, as the MCP transport delivers it: the rules are serialized at the call. */
+const bridgeSessions = (launched: string[][]) => ({
+  callTool: async (_server: string, _tool: string, args: { command: string[] }, meta: Record<string, unknown>) => {
+    const sent = JSON.parse(JSON.stringify(meta['nessie/command-rules'])) as LocalCommandPolicy
+    if (localTerminalCommandRefusal(sent, args.command)) return { code: 'coding_session_command_refused', success: false }
+    launched.push(args.command)
+    return { success: true }
+  },
+}) as unknown as ExecutorMcpSessionManager
+
+const terminalCall = (command: string[]) => envelope('mcp.call', {
+  server: 'coding-sessions', tool: 'session_start', arguments: { agent: 'terminal', command },
+})
+
 test('a terminal launch refused as not allowlisted is asked about, and the bridge gets the lent rule', { skip }, async () => {
   const stateDir = await stateDirectory()
   try {
-    const bridge = {
-      name: 'coding-sessions',
-      command: [process.execPath, 'bridge.mjs', 'serve-coding-session-mcp', '--config', join(stateDir, 'c.json')],
-      env: { [CODING_SESSIONS_CONFIG_DIGEST_ENV]: `sha256:${'c'.repeat(64)}` },
-    }
-    const facts: ExecutorCodingSessionsFacts = {
-      serverName: 'coding-sessions', agents: ['claude'], permissionMode: { claude: 'acceptEdits' },
-      allowedToolCount: 0, environmentNames: [], rootNames: ['nessie'], configDigest: `sha256:${'c'.repeat(64)}`,
-    }
-    const live = createDaemonLiveState(stateWith(rules(['claude *']), {
-      descriptor: {
-        codingSessions: facts, limits: { maxCommandRuntimeSeconds: 30, maxResultBytes: 65_536, maxSessions: 1 },
-        mcpServers: ['coding-sessions'], operationKeys: ['mcp.tools', 'mcp.call'], profiles: ['workspace_sandbox'], revision: 1,
-      },
-      mcpServers: [bridge],
-    }))
+    const live = createDaemonLiveState(bridgeState(stateDir))
     const stamped = liveView(() => live.commandRules)
     const launched: string[][] = []
-    const mcpSessions = {
-      callTool: async (_server: string, _tool: string, args: { command: string[] }, meta: Record<string, unknown>) => {
-        // What crosses to the bridge is serialized at the call, as the MCP transport does.
-        const sent = JSON.parse(JSON.stringify(meta['nessie/command-rules'])) as LocalCommandPolicy
-        if (localTerminalCommandRefusal(sent, args.command)) return { code: 'coding_session_command_refused', success: false }
-        launched.push(args.command)
-        return { success: true }
-      },
-    } as unknown as ExecutorMcpSessionManager
-    const call = envelope('mcp.call', {
-      server: 'coding-sessions', tool: 'session_start', arguments: { agent: 'terminal', command: ['htop', '-d', '5'] },
-    })
-    const result = executeExecutorCommand(stateDir, live.current, call, {
-      mcpSessions, codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
+    const result = executeExecutorCommand(stateDir, live.current, terminalCall(['htop', '-d', '5']), {
+      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
       programRequests: admissionFor(stateDir, live),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
@@ -257,4 +263,33 @@ test('a terminal launch refused as not allowlisted is asked about, and the bridg
   } finally {
     await rm(stateDir, { force: true, recursive: true })
   }
+})
+
+test('a terminal program named by its path is asked about and runs once; always would save its name', { skip }, async () => {
+  const stateDir = await stateDirectory()
+  try {
+    const live = createDaemonLiveState(bridgeState(stateDir))
+    const stamped = liveView(() => live.commandRules)
+    const launched: string[][] = []
+    // An absolute path on any host: only listed programs may start, so the rules refuse it as a path.
+    const program = process.execPath
+    const result = executeExecutorCommand(stateDir, live.current, terminalCall([program, '--version']), {
+      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
+      programRequests: admissionFor(stateDir, live),
+    })
+    const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
+    assert.equal(request.program, program)
+    assert.deepEqual(await result, { success: true })
+    assert.deepEqual(launched, [[program, '--version']])
+    assert.equal(live.commandRules.mode, 'allowlist', 'the loan ended with the launch')
+  } finally {
+    await rm(stateDir, { force: true, recursive: true })
+  }
+})
+
+test('the rule "always" saves names the program, or the file a path names', () => {
+  assert.equal(programRequestRule('pnpm', 'linux'), 'pnpm *')
+  assert.equal(programRequestRule('/opt/homebrew/bin/htop', 'darwin'), 'htop *')
+  assert.equal(programRequestRule('C:\\Tools\\Htop.EXE', 'win32'), 'Htop *')
+  assert.equal(programRequestRule('my tool', 'linux'), undefined)
 })

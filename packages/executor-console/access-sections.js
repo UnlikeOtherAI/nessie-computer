@@ -195,17 +195,17 @@
   access.register('localApps', (() => {
     let list; let intro; let empty
     const inForce = (input, saved) => t('save.inForce.localApps', { list: access.list((saved?.localApps ?? [])
-      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name)
-        && !input.mcpServers?.every((server) => server.name !== app.name))
+      .filter((app) => !input.mcpPolicy?.disabled.includes(app.name) && !input.mcpServerRemovals?.includes(app.name))
       .map((app) => app.name)) })
-    /** Removing an owner-named app sends the owner's list without it; the discovered ones are the runtime's to keep. */
+    /**
+     * Removing an owner-named app sends only its name. The page never sees a
+     * server's environment, so it never sends the list back: the runtime keeps
+     * every other server exactly as stored.
+     */
     const removeConfigured = (app, saved) => access.edit({ section: 'localApps', target: list, inForce: (draft) => inForce(draft, saved),
       mutate: (draft) => {
-        const named = (saved.reach.mcpServers ?? []).filter((server) => server.source === undefined)
-        const owned = named.filter((server) => server.name !== app.name)
-        if (owned.length === named.length) return false
-        draft.mcpServers = owned.map((server) => ({ name: server.name, command: [...server.command],
-          ...(server.cwd ? { cwd: server.cwd } : {}) }))
+        if (draft.mcpServerRemovals?.includes(app.name)) return false
+        draft.mcpServerRemovals = [...(draft.mcpServerRemovals ?? []), app.name]
       } })
     return {
       build: (node) => {
@@ -224,7 +224,7 @@
         access.keepFocus(list, () => {
           list.replaceChildren()
           for (const app of apps ?? []) {
-            if (input.mcpServers?.every((server) => server.name !== app.name) && app.source === 'configured') continue
+            if (app.source === 'configured' && input.mcpServerRemovals?.includes(app.name)) continue
             if (app.source === 'configured') {
               const remove = button(t('folders.remove'), () => removeConfigured(app, saved), { 'aria-label': t('localApps.removeLabel', { app: app.name, team: label }) })
               list.append(access.row({ name: app.name, detail: t('programs.ownerAdded'), control: remove, key: app.name }))

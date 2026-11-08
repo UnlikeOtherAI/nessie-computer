@@ -68,7 +68,7 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
     }
     await configureExecutorLocalPolicy(directory, state, state.descriptor.operationKeys,
       undefined, undefined, undefined, undefined, undefined, {}, policy)
-    process.stdout.write('Permissions saved on this computer. Restart its daemon to apply them.\n')
+    process.stdout.write('Permissions saved on this computer. A running team uses them within a second.\n')
   } else if (existing === undefined) process.stdout.write(`${JSON.stringify({ ...current,
     existingCodingSessionsEnabled: await existingSessionsEnabled(directory) }, null, 2)}\n`)
   return true

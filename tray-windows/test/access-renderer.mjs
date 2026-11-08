@@ -131,7 +131,10 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await shot('local-apps')
     await page.getByRole('button', { name: 'Remove my-tool from Platform · UnlikeOtherAI' }).click()
     await page.waitForFunction(() => window.teams['team-0'].mcpServers.length === 0)
-    assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.mcpServers, [])
+    // Only the name travels: the page never sees a server's environment, so it never sends the list back.
+    const removal = (await lastCall(page, 'executor_configure')).args.configurationInput
+    assert.deepEqual(removal.mcpServerRemovals, ['my-tool'])
+    assert.equal('mcpServers' in removal, false)
     assert.equal(await page.locator('#access-local-app-list .list-row').count(), 3)
 
     // Coding assistants live under For developers; the switch saves when pressed; the Claude Code recipe is a dialog.
