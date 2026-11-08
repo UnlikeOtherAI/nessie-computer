@@ -32,9 +32,11 @@ enum EnglishWords {
             return parts.joined(separator: " · ")
         case .statusConnecting: return "Connecting…"
         case .statusNotConnected: return "Not connected — open Nessie Computer"
+        case .statusUpdatesStuck: return "Updates are stuck — teams can’t start"
         case let .needsYou(team, why): return "Needs you: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Needs you: reinstall Nessie Computer"
         case .needsYouUnreadableTeam: return "Needs you: a team on this Mac can’t be read"
+        case .needsYouUpdatesStuck: return "Needs you: updates are stuck — open Nessie Computer"
         case let .needsYouMany(value): return "Needs you: \(value) things — open Nessie Computer"
         case .pause: return "Pause"
         case .resume: return "Resume"

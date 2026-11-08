@@ -32,9 +32,11 @@ enum ItalianWords {
             return parts.joined(separator: " · ")
         case .statusConnecting: return "Connessione…"
         case .statusNotConnected: return "Non connesso — apri Nessie Computer"
+        case .statusUpdatesStuck: return "Gli aggiornamenti sono bloccati — i team non possono avviarsi"
         case let .needsYou(team, why): return "Serve il tuo intervento: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Serve il tuo intervento: reinstalla Nessie Computer"
         case .needsYouUnreadableTeam: return "Serve il tuo intervento: un team su questo Mac non è leggibile"
+        case .needsYouUpdatesStuck: return "Serve il tuo intervento: aggiornamenti bloccati — apri Nessie Computer"
         case let .needsYouMany(value): return "Serve il tuo intervento: \(value) cose — apri Nessie Computer"
         case .pause: return "Metti in pausa"
         case .resume: return "Riprendi"

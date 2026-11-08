@@ -40,9 +40,11 @@ enum CzechWords {
             return parts.joined(separator: " · ")
         case .statusConnecting: return "Připojování…"
         case .statusNotConnected: return "Nepřipojeno — otevřete Nessie Computer"
+        case .statusUpdatesStuck: return "Aktualizace se zasekly — týmy nejde spustit"
         case let .needsYou(team, why): return "Potřebuje vás: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Potřebuje vás: přeinstalujte Nessie Computer"
         case .needsYouUnreadableTeam: return "Potřebuje vás: tým na tomto Macu nelze načíst"
+        case .needsYouUpdatesStuck: return "Potřebuje vás: aktualizace se zasekly — otevřete Nessie Computer"
         case let .needsYouMany(value):
             return "Potřebuje vás: \(count(value, "věc", "věci", "věcí")) — otevřete Nessie Computer"
         case .pause: return "Pozastavit"

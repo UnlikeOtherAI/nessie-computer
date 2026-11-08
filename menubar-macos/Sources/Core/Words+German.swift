@@ -32,9 +32,11 @@ enum GermanWords {
             return parts.joined(separator: " · ")
         case .statusConnecting: return "Verbinden …"
         case .statusNotConnected: return "Nicht verbunden – Nessie Computer öffnen"
+        case .statusUpdatesStuck: return "Updates hängen – Teams können nicht starten"
         case let .needsYou(team, why): return "Braucht Sie: \(team) – \(reason(why))"
         case .needsYouReinstall: return "Braucht Sie: Nessie Computer neu installieren"
         case .needsYouUnreadableTeam: return "Braucht Sie: Ein Team auf diesem Mac kann nicht gelesen werden"
+        case .needsYouUpdatesStuck: return "Braucht Sie: Updates hängen – Nessie Computer öffnen"
         case let .needsYouMany(value): return "Braucht Sie: \(value) Dinge – Nessie Computer öffnen"
         case .pause: return "Pausieren"
         case .resume: return "Fortsetzen"
