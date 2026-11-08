@@ -14,7 +14,7 @@ const settings = (entry, overrides = {}) => Schema.decodeUnknownSync(ServerSetti
 })
 // This supplies settings data only, never a positive graph/native admission.
 const read = value => Effect.runPromise(readConfiguredSessionProvider(projectId, instanceId).pipe(
-  Effect.provideService(Settings.ServerSettingsService, {
+  Effect.provideService(Settings.ServerSettingsReadService, {
     getSettings: Effect.succeed(value),
     start: Effect.die('Inspection must not start the settings owner'),
     ready: Effect.die('Inspection must use an already held settings owner'),

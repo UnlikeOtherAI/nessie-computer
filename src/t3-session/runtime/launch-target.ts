@@ -1,15 +1,27 @@
 import * as Effect from 'effect/Effect'
 import * as Schema from 'effect/Schema'
+import type * as Scope from 'effect/Scope'
+import type { ProviderInstanceId, ThreadId } from '@nessie/t3-session-source/contracts'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { ExecutorT3Request, requestTargets } from '@nessie/executor-protocol/t3-session'
 import { SessionControl } from '@nessie/t3-session-source/engine'
 import { SessionStateOwner } from './state-owner.js'
 import { readConfiguredSessionProvider } from './configured-provider.js'
+import type { ConfiguredSessionProviderEffect } from './configured-provider.js'
+import type { SessionStateError } from './paths.js'
+import type { EffectValue, EffectFailure, EffectServices } from './effect-types.js'
 
 type LaunchRequest = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
-type Success<T> = T extends Effect.Effect<infer A, infer _E, infer _R> ? A : never
-type Instance = Success<ReturnType<typeof readConfiguredSessionProvider>>
-type Target = Success<ReturnType<typeof SessionControl.prepareLaunchTarget>>
+type Instance = EffectValue<ConfiguredSessionProviderEffect>
+type Selection = ReturnType<typeof SessionControl.prepareLaunchTarget>
+type Target = EffectValue<Selection>
+type TargetErrors = SessionLaunchTargetRefused | SessionStateError
+  | EffectFailure<ConfiguredSessionProviderEffect> | EffectFailure<Target['assertCurrent']>
+type TargetServices = SessionStateOwner | EffectServices<ConfiguredSessionProviderEffect>
+  | EffectServices<Target['assertCurrent']>
+export type SessionLaunchTargetPreparation = Effect.Effect<PreparedSessionLaunchTarget,
+  TargetErrors | EffectFailure<Selection>, TargetServices | EffectServices<Selection> | Scope.Scope>
+export type SessionLaunchTargetCheck = Effect.Effect<void, TargetErrors, TargetServices>
 
 export class SessionLaunchTargetRefused extends Error {
   constructor() { super('T3_EXECUTING_LAUNCH_TARGET_REFUSED'); this.name = 'SessionLaunchTargetRefused' }
@@ -37,17 +49,17 @@ export class PreparedSessionLaunchTarget {
     Object.freeze(this)
   }
 
-  get providerInstanceId() { return this.target.providerInstanceId }
-  get driverKind() {
+  get providerInstanceId(): ProviderInstanceId { return this.target.providerInstanceId }
+  get driverKind(): Instance['driverKind'] {
     const held = instances.get(this)
     if (!held) throw new SessionLaunchTargetRefused()
     return held.instance.driverKind
   }
   /** Explicit native transport mapping; the original app driver identity is retained above. */
   get driver(): 'codex' | 'claude' { return this.driverKind === 'codex' ? 'codex' : 'claude' }
-  get threadId() { return this.target.threadId }
+  get threadId(): ThreadId { return this.target.threadId }
 
-  static readonly prepare = (original: LaunchRequest) =>
+  static readonly prepare = (original: LaunchRequest): SessionLaunchTargetPreparation =>
     Effect.gen(function* () {
       // Decode a private copy. The backend inspection challenge binds this same
       // original request, not a payload amended with the allocated thread ID.
@@ -73,7 +85,8 @@ export class PreparedSessionLaunchTarget {
 
 /** Requires the same original configured instance and writer. A cloned
  * object, escaped target, changed provider config or rewritten request refuses. */
-export const recheckSessionLaunchTarget = (selection: PreparedSessionLaunchTarget, request: LaunchRequest) =>
+export const recheckSessionLaunchTarget = (selection: PreparedSessionLaunchTarget,
+  request: LaunchRequest): SessionLaunchTargetCheck =>
   Effect.gen(function* () {
     const held = instances.get(selection)
     if (!held || canonicalExecutorJson(Schema.encodeSync(ExecutorT3Request)(request)) !== held.requestBytes
@@ -91,4 +104,5 @@ export const recheckSessionLaunchTarget = (selection: PreparedSessionLaunchTarge
     yield* owner.assertCurrent
   })
 
-export const prepareSessionLaunchTarget = PreparedSessionLaunchTarget.prepare
+export const prepareSessionLaunchTarget: typeof PreparedSessionLaunchTarget.prepare =
+  PreparedSessionLaunchTarget.prepare

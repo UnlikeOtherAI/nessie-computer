@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import * as Effect from 'effect/Effect'
+import type * as Scope from 'effect/Scope'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { encodeExecutorT3LaneOperation, requestTargets, T3ExecutionInspectionSchema,
   T3ExecutionSignedAdmissionSchema, T3ExecutionGraphPayloadSchema, T3_EXECUTION_GRAPH_DOMAIN,
@@ -8,11 +9,19 @@ import { encodeExecutorT3LaneOperation, requestTargets, T3ExecutionInspectionSch
 import { createT3ExecutionNativeClient } from '../../t3-execution-native-client.js'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import { prepareSessionLaunchTarget, recheckSessionLaunchTarget,
-  type PreparedSessionLaunchTarget } from './launch-target.js'
-import { readSessionExecutionResources } from './execution-resources.js'
+  type PreparedSessionLaunchTarget, type SessionLaunchTargetPreparation, type SessionLaunchTargetCheck }
+  from './launch-target.js'
+import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
+import type { EffectFailure, EffectServices } from './effect-types.js'
 
 type LaunchRequest = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type InspectionDelivery = { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string }
+export type SessionExecutionGraphPreparation = Effect.Effect<HeldSessionExecutionGraph,
+  SessionExecutionGraphRefused | EffectFailure<SessionLaunchTargetPreparation | SessionExecutionResourcesEffect>,
+  EffectServices<SessionLaunchTargetPreparation | SessionExecutionResourcesEffect> | Scope.Scope>
+export type SessionExecutionGraphRecognition = Effect.Effect<PreparedSessionLaunchTarget,
+  SessionExecutionGraphRefused | EffectFailure<SessionLaunchTargetCheck | SessionExecutionResourcesEffect>,
+  EffectServices<SessionLaunchTargetCheck | SessionExecutionResourcesEffect>>
 type Record = { selection: PreparedSessionLaunchTarget; source: T3ExecutionResourceScope;
   receipt: T3ExecutionReceipt; relayHmac: string; resourceGeneration: string }
 const records = new WeakMap<HeldSessionExecutionGraph, Record>()
@@ -39,7 +48,7 @@ export class HeldSessionExecutionGraph {
   }
 
   static readonly prepare = (request: LaunchRequest, delivery: InspectionDelivery,
-    source: T3ExecutionResourceScope) => Effect.gen(function* () {
+    source: T3ExecutionResourceScope): SessionExecutionGraphPreparation => Effect.gen(function* () {
     const signed = T3ExecutionSignedAdmissionSchema.parse(delivery.inspection)
     // Parsing rejects substitutions before native work; ONLY the native service
     // verifies the backend signature/current enrollment before signing a graph.
@@ -69,8 +78,8 @@ export class HeldSessionExecutionGraph {
     if (inspection.sourceRootKey !== bound.receipt.evidence.source.physicalRootKey) {
       return yield* Effect.fail(new SessionExecutionGraphRefused())
     }
-    const native = yield* Effect.tryPromise(signal => createT3ExecutionNativeClient(request.executorId,
-      AbortSignal.any([source.signal, deadline, signal])))
+    const native = yield* Effect.tryPromise({ try: signal => createT3ExecutionNativeClient(request.executorId,
+      AbortSignal.any([source.signal, deadline, signal])), catch: () => new SessionExecutionGraphRefused() })
     yield* assertDeadline
     if (native.descriptor.keyId !== inspection.issuerKeyId
       || canonicalExecutorJson(native.descriptor.custody) !== canonicalExecutorJson(bound.receipt.custody)) {
@@ -89,8 +98,8 @@ export class HeldSessionExecutionGraph {
     }
     yield* readSessionExecutionResources(source, selection)
     yield* assertDeadline
-    const receipt = yield* Effect.tryPromise(signal => native.graph(signed, bound.receipt.resourceId, graph,
-      AbortSignal.any([source.signal, deadline, signal])))
+    const receipt = yield* Effect.tryPromise({ try: signal => native.graph(signed, bound.receipt.resourceId, graph,
+      AbortSignal.any([source.signal, deadline, signal])), catch: () => new SessionExecutionGraphRefused() })
     yield* assertDeadline
     yield* readSessionExecutionResources(source, selection)
     const observed = T3ExecutionGraphPayloadSchema.parse(JSON.parse(receipt.payload))
@@ -110,7 +119,7 @@ export class HeldSessionExecutionGraph {
  * The caller must still consume the actual reserve/command/launch admissions.
  */
 export const recognizeSessionExecutionGraph = (held: HeldSessionExecutionGraph, request: LaunchRequest,
-  delivery: ExecutorT3LaneDelivery) => Effect.gen(function* () {
+  delivery: ExecutorT3LaneDelivery): SessionExecutionGraphRecognition => Effect.gen(function* () {
   const record = records.get(held)
   if (!record || !delivery.executionGraph || !delivery.provenance
     || delivery.requestDigest !== record.relayHmac
@@ -125,4 +134,4 @@ export const recognizeSessionExecutionGraph = (held: HeldSessionExecutionGraph, 
   return record.selection
 })
 
-export const prepareSessionExecutionGraph = HeldSessionExecutionGraph.prepare
+export const prepareSessionExecutionGraph: typeof HeldSessionExecutionGraph.prepare = HeldSessionExecutionGraph.prepare

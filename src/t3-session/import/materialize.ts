@@ -2,7 +2,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as Schema from 'effect/Schema'
 import * as SqlClient from 'effect/sql/SqlClient'
-import { createSessionStateLayers, createSessionReadLayers, LegacyImporter,
+import { createSessionStateLayers, createSessionReadLayers, LegacyImporter, Sqlite,
   SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import type { CapturedIdentity } from '../state/journal.js'
@@ -14,9 +14,11 @@ import { CapturePrivacy, recheckRow } from './privacy.js'
 /** This SQL layer is ONLY the owner's isolated destination, initialized through
  * the normal engine's Sqlite layer. Never pass an admitted source connection.
  */
+type OriginalSqliteLayer = ReturnType<typeof Sqlite.layerFromPath>
+export type OwnedCaptureSqlError = OriginalSqliteLayer extends Layer.Layer<infer _A, infer E, infer _R> ? E : never
 export interface OwnedCaptureStage {
   readonly reference: string
-  readonly sql: Layer.Layer<SqlClient.SqlClient, unknown>
+  readonly sql: Layer.Layer<SqlClient.SqlClient, OwnedCaptureSqlError>
 }
 export interface OwnedCaptureWorkspacePort {
   createGeneration(generation: string): Promise<OwnedCaptureStage>

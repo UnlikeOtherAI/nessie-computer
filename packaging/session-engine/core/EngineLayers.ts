@@ -6,6 +6,7 @@ import * as Orchestrator from 't3-source:apps/server/src/orchestration-v2/Orches
 import * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 import * as Launch from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchService.ts'
 import * as LaunchSelection from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchSelection.ts'
+import * as CloneState from 't3-source:apps/server/src/project/ProjectCloneState.ts'
 import * as LegacyImporter from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import * as Policy from 't3-source:apps/server/src/orchestration-v2/RuntimePolicy.ts'
 import * as CommandPolicy from 't3-source:apps/server/src/orchestration-v2/CommandPolicy.ts'
@@ -36,7 +37,7 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   // Cold inspection builds only the original stores, allocator and selection.
   // In particular it does not construct command executors, forks or providers.
   const inspection = LaunchSelection.layer.pipe(
-    Layer.provideMerge(Layer.mergeAll(state.layer, IdAllocator.layer)),
+    Layer.provideMerge(Layer.mergeAll(state.layer, IdAllocator.layer, CloneState.readLayer)),
   )
   const adapters = Adapters.layerFromProviderInstanceRegistry.pipe(Layer.provide(shared))
   const providerEvents = ProviderEvents.layer.pipe(Layer.provideMerge(shared))
@@ -63,7 +64,7 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
     effectExecutor, worker, continuationConsumer, layer: Layer.mergeAll(launch, recovery) }
 }
 
-export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator, Launch, LaunchSelection,
+export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator, Launch, LaunchSelection, CloneState,
   Policy, CommandPolicy, Forks, Handoffs, Adapters, Switches, Output, Recovery, Continuations, Worker }
 export * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementService.session-api.ts'
 export { layerWithLegacyImporter as threadManagementLayer }

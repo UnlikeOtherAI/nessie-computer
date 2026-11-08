@@ -802,6 +802,110 @@
       "afterSha256": "4abc11bc71237fd8ccc91d2247a0dfb2fca51236ccdafe0377ad4cf99c69f938"
     },
     {
+      "id": "inspection-settings-read-contract",
+      "file": "apps/server/src/serverSettings.session-port.ts",
+      "from": "deModelSelection, resolveSourceControlWriterModelSelection } from \"@t3tools/shared/serverSettings\";\n",
+      "to": "deModelSelection, resolveSourceControlWriterModelSelection } from \"@t3tools/shared/serverSettings\";\n\nexport class ServerSettingsReadService extends Context.Service<ServerSettingsReadService,\n  Pick<ServerSettingsService[\"Service\"], \"getSettings\">>()(\"nessie/session-engine/ServerSettingsRead\") {}\n",
+      "beforeSha256": "159c3bfc67575845cda90b8bf8daf406c6edfdd519c419db311aef8261b96c8e",
+      "afterSha256": "8034412ff1c5b178474c7e62eccd6379a9afb07ef11c41f4a5d177e4dcd68120"
+    },
+    {
+      "id": "inspection-original-clone-map",
+      "file": "apps/server/src/project/ProjectCloneState.ts",
+      "create": [
+        {
+          "text": "import type { ProjectCloneSnapshot, SourceControlCloneProtocol, SourceControlRepositoryInfo } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Fiber from \"effect/Fiber\";\nimport * as Ref from \"effect/Ref\";\nimport { ProjectCloneTracker, type ProjectCloneHooks } from \"./ProjectCloneTracker.session-port.ts\";\n"
+        },
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Layer from \"effect/Layer\";\nimport type { ProjectId } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/project/ProjectCloneTracker.ts",
+          "start": 2996,
+          "end": 3447,
+          "sha256": "8bddec83601bd7ad0705502a41cde987207b942d29e0af908f66739d7d78736c"
+        },
+        {
+          "text": "export class ProjectCloneState extends Context.Service<ProjectCloneState, {\n  readonly clones: Ref.Ref<Map<ProjectId, TrackedClone>>;\n}>()(\"t3/project/ProjectCloneState\") {}\nexport const stateLayer = Layer.effect(ProjectCloneState, Effect.gen(function* () {\n  const clones = yield* Ref.make(new Map<ProjectId, TrackedClone>());\n  return { clones };\n}));\nexport const readLayer = Layer.effect(ProjectCloneReadService, Effect.gen(function* () {\n  const { clones } = yield* ProjectCloneState;\n"
+        },
+        {
+          "sourceFile": "apps/server/src/project/ProjectCloneTracker.ts",
+          "start": 12465,
+          "end": 12627,
+          "sha256": "bfae0a0f8e9b512b4ceba9909c620347025402fb64a9bdd98e492a7619451a41"
+        },
+        {
+          "text": "  return { get };\n})).pipe(Layer.provideMerge(stateLayer));\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "be8035fd885d65dee386d6b527282a44d9a52288cebc91bb520ebcb1009bc729"
+    },
+    {
+      "id": "inspection-clone-read-tag-import",
+      "file": "apps/server/src/project/ProjectCloneState.ts",
+      "from": "import type { ProjectCloneSnapshot, SourceControlCloneProtocol, SourceControlRepositoryInfo } from \"@t3tools/contracts\";",
+      "to": "import { ProjectCloneReadService } from \"./ProjectCloneTracker.session-port.ts\";\nimport type { ProjectCloneSnapshot, SourceControlCloneProtocol, SourceControlRepositoryInfo } from \"@t3tools/contracts\";",
+      "beforeSha256": "be8035fd885d65dee386d6b527282a44d9a52288cebc91bb520ebcb1009bc729",
+      "afterSha256": "6bada3f6e50e1a800ff716ad3428da1aea4258ed92b86441a011bb3973653d14"
+    },
+    {
+      "id": "share-original-clone-state-type",
+      "file": "apps/server/src/project/ProjectCloneTracker.ts",
+      "from": "interface TrackedClone {\n  readonly snapshot: ProjectCloneSnapshot;\n  readonly fiber: Fiber.Fiber<unknown, unknown> | null;\n  readonly hooks: ProjectCloneHooks;\n  readonly input: {\n    /** What git is given; may carry credentials and never leaves the server. */\n    readonly cloneUrl: string;\n    readonly destinationPath: string;\n    readonly repository: SourceControlRepositoryInfo | null;\n    readonly protocol: SourceControlCloneProtocol;\n  };\n}\n\n",
+      "to": "",
+      "beforeSha256": "4abc11bc71237fd8ccc91d2247a0dfb2fca51236ccdafe0377ad4cf99c69f938",
+      "afterSha256": "170609a882d6780270f36852365b8a49f0921cb2c85daadc6dac0440a545f237"
+    },
+    {
+      "id": "share-original-clone-state-instance",
+      "file": "apps/server/src/project/ProjectCloneTracker.ts",
+      "from": "  const clones = yield* Ref.make(new Map<ProjectId, TrackedClone>());",
+      "to": "  const { clones } = yield* ProjectCloneState;",
+      "beforeSha256": "170609a882d6780270f36852365b8a49f0921cb2c85daadc6dac0440a545f237",
+      "afterSha256": "090249cfa5d6a2b28a18b5f335c131d656dcaeef672f29cfe79120518480643b"
+    },
+    {
+      "id": "share-original-clone-state-layer",
+      "file": "apps/server/src/project/ProjectCloneTracker.ts",
+      "from": "export const layer = Layer.effect(ProjectCloneTracker, make);",
+      "to": "export const layer = Layer.effect(ProjectCloneTracker, make).pipe(Layer.provide(stateLayer));",
+      "beforeSha256": "090249cfa5d6a2b28a18b5f335c131d656dcaeef672f29cfe79120518480643b",
+      "afterSha256": "ecffd84a2fe327402d0d65bd6a0aca8e0a148bc0b7e6bee642cc9f247f51bc7f"
+    },
+    {
+      "id": "share-original-clone-state-import",
+      "file": "apps/server/src/project/ProjectCloneTracker.ts",
+      "from": "import { SourceControlProviderKind } from \"@t3tools/contracts\";",
+      "to": "import { ProjectCloneState, stateLayer, type TrackedClone } from \"./ProjectCloneState.ts\";\nimport { SourceControlProviderKind } from \"@t3tools/contracts\";",
+      "beforeSha256": "ecffd84a2fe327402d0d65bd6a0aca8e0a148bc0b7e6bee642cc9f247f51bc7f",
+      "afterSha256": "4553fd1aee27ac22b726650cb416aca20d63a1b13d2af3e36e99f55da2cac3e5"
+    },
+    {
+      "id": "share-clone-record-type",
+      "file": "apps/server/src/project/ProjectCloneState.ts",
+      "from": "interface TrackedClone {",
+      "to": "export interface TrackedClone {",
+      "beforeSha256": "6bada3f6e50e1a800ff716ad3428da1aea4258ed92b86441a011bb3973653d14",
+      "afterSha256": "9adf177c1aec388a7d39a72864cc8e6391e5e7d930e24d957e9fb06aeef6e42c"
+    },
+    {
+      "id": "inspection-clone-read-contract",
+      "file": "apps/server/src/project/ProjectCloneTracker.session-port.ts",
+      "from": "ateThread?: { projectId?: ProjectId } }).createThread;\n  return createThread?.projectId ?? null;\n}\n\n",
+      "to": "ateThread?: { projectId?: ProjectId } }).createThread;\n  return createThread?.projectId ?? null;\n}\n\n\nexport class ProjectCloneReadService extends Context.Service<ProjectCloneReadService,\n  Pick<ProjectCloneTracker[\"Service\"], \"get\">>()(\"nessie/session-engine/ProjectCloneRead\") {}\n",
+      "beforeSha256": "29a3b0f55cc9dfbfb689df422ea2d9b9072a6664d2252ef1b4814c7419385eb6",
+      "afterSha256": "d8653be854866fa08f7a37b7980a94ebc7d0727cd83af4e6dc53c86c40ff1bf5"
+    },
+    {
+      "id": "inspection-clone-guard-read-contract",
+      "file": "apps/server/src/project/ProjectCloneTracker.session-port.ts",
+      "from": "tracker: ProjectCloneTracker[\"Service\"],",
+      "to": "tracker: Pick<ProjectCloneTracker[\"Service\"], \"get\">,",
+      "beforeSha256": "d8653be854866fa08f7a37b7980a94ebc7d0727cd83af4e6dc53c86c40ff1bf5",
+      "afterSha256": "4e999d03016a8084f03b89bedb2be7c2e576164d329f45feca8029defed63246"
+    },
+    {
       "id": "extract-api:apps/server/src/orchestration-v2/Orchestrator.ts",
       "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
       "create": [
@@ -1571,7 +1675,7 @@
           "text": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.session-port.ts\";\nimport { CommandId, ThreadId } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Option from \"effect/Option\";\nimport { resolveProjectProviderInstanceEnabled, type ProjectId } from \"@t3tools/contracts\";\nimport { ThreadLaunchError, selectThreadLaunchTargetInput, type ThreadLaunchSelectionInput,\n  type ThreadLaunchService } from \"./ThreadLaunchService.session-port.ts\";\nimport { ThreadManagementProviderInstanceDisabledError, type ThreadManagementServiceShape } from \"./ThreadManagementService.session-api.ts\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport * as Context from \"effect/Context\";\nimport * as Layer from \"effect/Layer\";\ntype ProjectSelection = { readonly id: ProjectId; readonly workspaceRoot: string };\nimport * as ServerSettings from \"../serverSettings.session-port.ts\";\nimport * as ProjectStore from \"./ProjectStore.ts\";\nimport * as CommandReceiptStore from \"./CommandReceiptStore.ts\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\n"
         },
         {
-          "text": "const make = Effect.gen(function* () {\n  const storedProjects = yield* ProjectStore.ProjectStoreV2;\n  const projections = yield* ProjectionStore.ProjectionStoreV2;\n  const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;\n  const ids = yield* IdAllocator.IdAllocatorV2;\n  const cloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;\n  const serverSettings = yield* ServerSettings.ServerSettingsService;\n"
+          "text": "const make = Effect.gen(function* () {\n  const storedProjects = yield* ProjectStore.ProjectStoreV2;\n  const projections = yield* ProjectionStore.ProjectionStoreV2;\n  const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;\n  const ids = yield* IdAllocator.IdAllocatorV2;\n  const cloneTracker = yield* ProjectCloneTracker.ProjectCloneReadService;\n  const serverSettings = yield* ServerSettings.ServerSettingsReadService;\n"
         },
         {
           "text": "  const mapError =\n    (input: ThreadLaunchSelectionInput, operation: ThreadLaunchError[\"operation\"], threadId?: ThreadId) =>\n    (cause: unknown) =>\n      new ThreadLaunchError({\n        operation,\n        commandId: input.commandId,\n        projectId: input.projectId,\n        ...(threadId === undefined ? {} : { threadId }),\n        cause,\n      });\n\n  const readReceipt = (input: ThreadLaunchSelectionInput, commandId: CommandId) =>\n    receipts\n      .getByCommandId(commandId)\n      .pipe(Effect.mapError(mapError(input, \"read-receipt\", input.threadId)));\n\n"
@@ -1592,7 +1696,7 @@
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "c9a96b835d99622426c641aad905d063e54ca59b3d76818587c06cd25191bb46"
+      "afterSha256": "ef0e9d2e8a1e220a6b06edbd4bb8dfc46e1905b8d6778c93a5e013e7aa74643f"
     },
     {
       "id": "cold-launch-remove-high-layer-selection",
