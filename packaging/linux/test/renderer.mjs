@@ -58,6 +58,8 @@ try {
     await page.getByText('Automatic updates are off.', { exact: false }).waitFor()
     await page.locator('#update-check').click()
     await page.getByRole('dialog').waitFor()
+    await page.getByRole('button', { name: 'Remind me in 24 hours', exact: true }).waitFor()
+    await page.getByText('Version 1.0.3 is available. Update now, or ask again in 24 hours.', { exact: true }).waitFor()
     await capture('offer')
     await page.locator('#update-prompt-remind').click()
     await page.getByRole('dialog').waitFor({ state: 'hidden' })
