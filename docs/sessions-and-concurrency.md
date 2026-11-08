@@ -249,6 +249,10 @@ seconds for the daemon to apply it and prints the list after that with
 `program-requests --json` entries gain `commandId`, `sessionId` and
 `agentName` when the command carried them.
 
+A person's `nessie-computer sessions [list|stop <id>]` (Command reference,
+"Now working") reads and stops the same lists across teams; with
+`--state-dir` the words are the apps' plumbing verbs above.
+
 The apps' bridges mirror the verbs: `executor_sessions { executorId? }`
 answers every team's sessions (or one team's) with `executorId` added, and
 `executor_stop_session { executorId, sessionId }` answers the new list.
