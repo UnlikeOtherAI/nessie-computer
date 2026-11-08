@@ -10,6 +10,7 @@ menu. It always says what is going on.
 | Grey | **No team connected** | Choose **Add this computer**. |
 | Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; Overview says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
+| Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
 | Red (Windows) | **Background service isn't running** | Choose **Start it**, or reinstall Nessie Computer. |
 
 Every problem on **Overview** comes with one button that fixes it. **Details**

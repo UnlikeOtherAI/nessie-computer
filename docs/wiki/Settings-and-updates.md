@@ -16,13 +16,21 @@ Settings shows the **Installed version** and whether a newer one is available.
 
 - **Install updates automatically:** when on, updates install by themselves.
   They wait for agents' work to finish first. Your teams, access and sign-ins
-  stay as they are.
+  stay as they are. While an update waits, new work can't start for up to an
+  hour. If work is still running after that, teams carry on and the update
+  tries again about six hours later.
 - When it's off, Nessie Computer tells you when an update is ready. Choose
   **Update to {version}** or **Remind me in 24 hours**.
 - **Check for updates** checks now.
 
 On a Mac, updates need Nessie Computer's background helper. If Settings shows
 **Set up updates**, choose it and switch the helper on in System Settings.
+
+If Overview or Settings says **Updates are stuck — teams can't start**, the
+helper isn't answering. Choose **Restart updates**. Your teams, access and
+sign-ins stay on the computer. When you install a newer Nessie Computer on a
+Mac, it restarts the helper once by itself, so the helper picks up the new
+version.
 
 If you installed with a package manager (such as `apt` or `dnf`), update with
 that tool; Settings says so.
