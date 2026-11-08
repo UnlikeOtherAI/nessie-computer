@@ -15,8 +15,8 @@ original identifiers so upgrades and installed scripts keep working.
 - **Left-click** opens the window. **Right-click** opens the menu:
 
   ```text
-  {Status sentence}                 Working for 2 teams / Paused / Not connected — open Nessie Computer
-  {Needs you: …}                    program requests, ownership, documents, a failure with a fix
+  {Status sentence}                 Working for 2 teams · 1 paused / Paused / Not connected — open Nessie Computer
+  {Needs you: {team} — {reason}}    or "Needs you: 3 things — open Nessie Computer"
   ──────────
   Pause | Resume                    several teams: All teams, then one line per team (✓ paused)
   ──────────
@@ -29,12 +29,15 @@ original identifiers so upgrades and installed scripts keep working.
   Teams read `{teamName} · {organizationName}`, with ` ({serverHost})` when
   two teams on different servers would read the same. Names come from each
   connection's pairing status and are kept in memory only; an unknown name
-  reads "Team name not available yet". Pause and Resume ask nothing.
+  reads "Team name not available yet". Pause and Resume ask nothing. The
+  sentences, the Needs you rules and their translations are the macOS menu
+  bar's, so both platforms say the same thing.
 - **Icon:** grey when nothing is working (nothing connected, or all paused),
   green when a team is working, amber only when the owner has something to
   do, red when the service cannot be reached.
 - **Program requests** arrive as a toast with **Allow once**, **Always allow
-  {program}** and **Don't allow**. Clicking the toast opens Overview.
+  {program}** and **Don't allow**. Clicking the toast opens Overview on its
+  team. Saves never post toasts.
 - The menu, toasts and dialog titles are in en-GB, en-US, cs, de, es, fr and
   it, chosen from the Windows display language (`src/words*.rs`).
 - The installer adds a **Nessie Computer** Start menu shortcut. Its
@@ -58,17 +61,17 @@ service's ChatGPT plan connection to the same team pause together.
 |---|---|---|
 | `executor_view` | — | `{ kind: 'reachable', executors: [Row] }` or `{ kind: 'unreachable', reason }` |
 | `executor_set_paused` | `{ executorId: string \| null, paused }` | the new view; a team id pauses every connection of that team |
-| `executor_apply_remedy` | `{ executorId, remedy: 'restart' \| 'repropose' \| 'open_nessie' }` | the new view |
+| `executor_apply_remedy` | `{ executorId, remedy: 'reProposePolicy' \| 'restartExecutor' \| 'openNessie' }` | the new view |
 | `executor_audience` | `{ executorId }` | the CLI's `audience --json` answer |
 | `executor_program_requests` | `{ executorId? }` | `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: 'once' \| 'always' \| 'deny' }` | every team's remaining requests |
 | `executor_configure` | as before | describe; applied live, never restarts the team |
 | `executor_open_logs` | — | opens the service's logs folder |
-| `executor_open_nessie` | `{ executorId? , apiBaseUrl?, code? }` | opens `<console>/admin/computers` for that team's server, or for `apiBaseUrl` with `?create=1&code=<code>` while pairing; neither: the first team's server |
+| `executor_open_nessie` | `{ executorId? }` | that team's Computers page; with no team, while a pairing code is showing, `/admin/computers?create=1&code=<code>` on that attempt's server, else the first team's server. The page never passes an address or a code |
 | `executor_pairing_start` | `{ apiBaseUrl? }` | the pairing view; defaults to `https://api.nessie.works` |
 | `executor_pairing_status` / `executor_pairing_cancel` | `{ executorId? }` / — | as before |
 | `executor_launch_link` | — | the link this copy was started with, once: `{ section, executorId? }`, `{ connect: true }` or `null` |
-| `executor_chatgpt_connection_start` / `_status` / `_cancel` | `{ executorId }` / — / — | see below |
+| `executor_chatgpt_connection_start` / `_status` / `_cancel` | `{ executorId }` | see below |
 
 `Row` is `{ executorId, daemonStatus, paused, failure?: { code?, message },
 pendingProgramRequests, workspaceConfigured, connection: 'user' | 'service',
@@ -76,8 +79,11 @@ chatgptConnectionId? }`. `failure` is present while the connection is not
 running and is the last line the daemon or `connect` wrote; `code` names the
 API's error code when the line is one of its fixed refusals
 (`windows-common/src/failure.rs`). Removed: `executor_start`, `executor_stop`,
-`executor_set_running`, `executor_reconnect`, `executor_hide_status`, and the
-pairing commands' `replace` and `personalPlanConnection` arguments.
+`executor_set_running`, `executor_reconnect`, `executor_hide_status`,
+`executor_notify`, and the pairing commands' `replace` and
+`personalPlanConnection` arguments. Every team command names its team with
+`executorId`; `executor_set_paused` takes `null` for every team and
+`executor_program_requests` may omit it for every team.
 
 Section events are `tray://section/<overview|access|documents|ai|settings>`
 with an optional `{ executorId }`, and `tray://connect`.
@@ -98,10 +104,10 @@ team therefore offers no ChatGPT option, and the AI tab adds what a plan needs:
    `Nessie` folder, and asks the service for a pairing code on that team's own
    server. The answer is the pairing view (`code`, `expiresAt`, `status`).
    Show the code with "In Nessie, open Computers and choose **Add a
-   computer**", and **Open Nessie to finish** via
-   `executor_open_nessie({ executorId, code })` — the team's server, with the
-   code. Poll `executor_chatgpt_connection_status()`; `executor_chatgpt_connection_cancel()`
-   abandons it.
+   computer**", and **Open Nessie to finish** via `executor_open_nessie({})`:
+   while the code shows, the app opens that attempt's server on **Add a
+   computer** with the code. Poll `executor_chatgpt_connection_status({ executorId })`;
+   `executor_chatgpt_connection_cancel({ executorId })` abandons it.
 3. When the status reads `paired`, the service starts that connection, the
    view's user row gains `chatgptConnectionId`, and step 1 applies. The owner
    then names the plan and signs in with ChatGPT.

@@ -79,7 +79,7 @@ impl Supervisor {
     ) -> Result<(), String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.run_to_completion(
             configure_arguments(&state_dir, operation_keys),
@@ -90,11 +90,11 @@ impl Supervisor {
     pub fn describe(&mut self, executor_id: &str) -> Result<serde_json::Value, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         let output = self.run_to_completion_with_output(
             describe_arguments(&state_dir),
-            "This executor's local state could not be read.",
+            "This team’s settings on this computer could not be read.",
         )?;
         serde_json::from_str(&output)
             .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())
@@ -111,7 +111,7 @@ impl Supervisor {
     ) -> Result<(), String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.run_to_completion_with_input(
             configure_input_arguments(&state_dir),
@@ -134,7 +134,7 @@ impl Supervisor {
     pub fn remove(&mut self, executor_id: &str, requested_by: Option<&str>) -> Result<bool, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.stop(executor_id)?;
         if unowned_daemon_is_stopping(&state_dir) {
@@ -164,7 +164,7 @@ impl Supervisor {
     /// here, and the directory with it once nothing else is left.
     fn forget(&mut self, executor_id: &str, state_dir: &Path) -> Result<(), String> {
         if has_executor_state(state_dir) {
-            return Err("The executor reported the connection removed but its state is still here.".to_owned());
+            return Err("The team was disconnected but its settings are still here.".to_owned());
         }
         self.children.remove(executor_id);
         match fs::remove_file(state_dir.join(PAIRED_BY_FILE)) {
@@ -200,7 +200,7 @@ impl Supervisor {
             let _ = fs::remove_dir_all(&staging);
         })?;
         let fingerprint = parse_fingerprint(&output).ok_or_else(|| {
-            "Nessie executor pairing succeeded but returned no fingerprint.".to_owned()
+            "Pairing succeeded but returned no fingerprint.".to_owned()
         })?;
         Ok((self.promote(&staging, paired_by)?, fingerprint))
     }
@@ -236,7 +236,7 @@ impl Supervisor {
             let _ = child.kill();
             let _ = child.wait();
             return Err(
-                "Nessie executor pairing was rejected. No pairing output was retained.".to_owned(),
+                "Pairing was rejected. No pairing output was retained.".to_owned(),
             );
         }
         let mut output = String::new();
@@ -251,22 +251,22 @@ impl Supervisor {
     pub(crate) fn promote(&self, staging: &Path, paired_by: Option<&str>) -> Result<String, String> {
         let state: serde_json::Value = serde_json::from_slice(
             &fs::read(staging.join(crate::paths::EXECUTOR_STATE_FILE))
-                .map_err(|_| "Nessie executor pairing left no usable state.".to_owned())?,
+                .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?,
         )
-        .map_err(|_| "Nessie executor pairing left no usable state.".to_owned())?;
+        .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?;
         let executor_id = state
             .get("executorId")
             .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| "Nessie executor pairing left no usable state.".to_owned())?
+            .ok_or_else(|| "Pairing left no usable settings on this computer.".to_owned())?
             .to_owned();
         let destination = executor_state_dir(&self.root, &executor_id)?;
         if destination.exists() {
-            return Err("This executor is already paired on this computer.".to_owned());
+            return Err("This team is already connected on this computer.".to_owned());
         }
         fs::create_dir_all(executors_root(&self.root))
-            .map_err(|_| "Nessie Computer could not store the new executor's state.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         fs::rename(staging, &destination)
-            .map_err(|_| "Nessie Computer could not store the new executor's state.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         if let Some(sid) = paired_by {
             fs::write(destination.join(PAIRED_BY_FILE), format!("{sid}\n"))
                 .map_err(|_| "Nessie Computer could not record the pairing account.".to_owned())?;

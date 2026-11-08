@@ -29,9 +29,6 @@ url = "2"
 # tampered resource cannot repaint the tray.
 tauri = { version = "2.11.2", features = ["image-png", "tray-icon"] }
 tauri-plugin-dialog = "2.7.2"
-# Windows toasts, such as the console's "Settings saved". The same version as
-# Nessie Desktop, so both apps show notifications through one implementation.
-tauri-plugin-notification = "2.3.3"
 tauri-plugin-opener = "2.5.4"
 # One copy per person: a second launch, or a nessie-computer:// link, is
 # handed to the copy already running, which shows its window.
@@ -41,8 +38,8 @@ tauri-plugin-single-instance = "~2.4.5"
 # elevated relaunch, the workspace ACL grant the service account depends on,
 # and the display language the menu is written in.
 [target."cfg(windows)".dependencies]
-# Program request toasts need buttons, which the notification plugin does not
-# offer on desktop. This is the crate it already uses to show toasts.
+# Program request toasts need buttons: Allow once, Always allow, Don't allow.
+# The same crate Tauri's notification plugin shows Windows toasts with.
 tauri-winrt-notification = "0.8.1"
 windows-sys = { version = "0.61.2", features = [
   "Win32_Foundation",

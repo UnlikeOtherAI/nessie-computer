@@ -93,7 +93,7 @@ pub fn executor_copy_code(code: String) -> Result<(), String> {
         Ok(())
     }
     #[cfg(not(windows))]
-    Err("This is the Windows executor console.".into())
+    Err("This works on Windows only.".into())
 }
 
 // ── Folder sync ────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ pub fn executor_copy_code(code: String) -> Result<(), String> {
 // app opens comes from the CLI's own `sync status --json`, and every change
 // goes to `nessie-executor sync --input-stdin` as JSON, never on argv.
 
-const SYNC_UNAVAILABLE: &str = "Folder sync works for teams added in this app under your Windows account.";
+const SYNC_UNAVAILABLE: &str = "Documents sync for teams connected in this app under your Windows account.";
 const SYNC_INVALID: &str = "Invalid folder sync action.";
 
 fn is_uuid(value: &str) -> bool {
@@ -118,7 +118,7 @@ fn is_uuid(value: &str) -> bool {
 fn sync_cli(
     executor_id: &str, tail: &[&str], input: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    if !is_uuid(executor_id) { return Err("Invalid executor identity.".into()); }
+    if !is_uuid(executor_id) { return Err("Invalid team identity.".into()); }
     if !crate::user_connections::owns(executor_id) { return Err(SYNC_UNAVAILABLE.into()); }
     let mut arguments = vec!["sync".to_owned(), "--executor".to_owned(), executor_id.to_owned()];
     arguments.extend(tail.iter().map(|part| (*part).to_owned()));

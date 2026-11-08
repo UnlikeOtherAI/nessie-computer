@@ -4,8 +4,8 @@
 //! A request waits on the daemon for up to two minutes, so the toast is shown
 //! as soon as a poll sees it. The answer goes back through the same path the
 //! window uses, to whichever supervisor runs the team; only this person, on
-//! this computer, can give it. Clicking the toast itself opens Overview, where
-//! the request is listed too. Each request is shown once.
+//! this computer, can give it. Clicking the toast itself opens Overview on its
+//! team, where the request is listed too. Each request is shown once.
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -45,8 +45,8 @@ fn shortened(text: &str, limit: usize) -> String {
 #[derive(Debug, PartialEq, Eq)]
 pub struct ToastText {
     pub title: String,
-    pub command: String,
-    pub team: String,
+    /// "{team}: {command}", as on macOS.
+    pub body: String,
     pub buttons: [(String, &'static str); 3],
 }
 
@@ -60,10 +60,10 @@ pub fn toast_text(request: &TeamRequest, team_label: &str, words: &Words) -> Toa
         .chain(request.request.args.iter().map(String::as_str))
         .collect::<Vec<_>>()
         .join(" ");
+    let command = shortened(&command.replace(char::is_control, " "), MAX_COMMAND_CHARACTERS);
     ToastText {
         title,
-        command: shortened(&command.replace(char::is_control, " "), MAX_COMMAND_CHARACTERS),
-        team: fill(words.request_team, &[("team", team_label)]),
+        body: fill(words.request_body, &[("team", team_label), ("command", &command)]),
         buttons: [
             (words.allow_once.to_owned(), "once"),
             (fill(words.always_allow, &[("program", &program)]), "always"),
@@ -120,13 +120,15 @@ fn show(app: &AppHandle, request: &TeamRequest, team_label: &str, words: &'stati
     use crate::menu::{ConsoleSection, ConsoleTarget};
     use tauri::Emitter;
     use tauri_winrt_notification::{Duration as Shown, Toast};
+    if let Err(reason) = crate::notification::register_identity(&app.config().identifier) {
+        eprintln!("{reason}");
+    }
     let text = toast_text(request, team_label, words);
     let handle = app.clone();
     let (executor_id, id) = (request.executor_id.clone(), request.request.id.clone());
     let mut toast = Toast::new(&app.config().identifier)
         .title(&text.title)
-        .text1(&text.command)
-        .text2(&text.team)
+        .text1(&text.body)
         .duration(Shown::Long);
     for (label, action) in &text.buttons {
         toast = toast.add_button(label, action);
@@ -141,7 +143,7 @@ fn show(app: &AppHandle, request: &TeamRequest, team_label: &str, words: &'stati
             }
             _ => {
                 crate::commands::show_status(&handle);
-                let _ = handle.emit_to("status", &ConsoleSection::Overview.event(), ConsoleTarget::default());
+                let _ = handle.emit_to("status", &ConsoleSection::Overview.event(), ConsoleTarget::team(&executor_id));
             }
         });
         Ok(())
@@ -183,8 +185,7 @@ mod tests {
         let text = toast_text(&request(Some("Builder"), "python", &["build.py", "--release"]), "Sales · Acme",
             table(Locale::EnGb));
         assert_eq!(text.title, "Builder wants to run python");
-        assert_eq!(text.command, "python build.py --release");
-        assert_eq!(text.team, "In Sales · Acme");
+        assert_eq!(text.body, "Sales · Acme: python build.py --release");
         assert_eq!(text.buttons.map(|(label, action)| format!("{label}={action}")),
             ["Allow once=once", "Always allow python=always", "Don’t allow=deny"]);
         let czech = toast_text(&request(None, "npm", &[]), "Prodej · Acme", table(Locale::Cs));
@@ -196,7 +197,8 @@ mod tests {
     fn long_or_multi_line_commands_stay_one_short_line() {
         let long = request(None, &"p".repeat(60), &["a\nb", &"x".repeat(200)]);
         let text = toast_text(&long, "T", table(Locale::EnGb));
-        assert!(text.command.chars().count() <= 120 && !text.command.contains('\n'));
+        let command = text.body.trim_start_matches("T: ");
+        assert!(command.chars().count() <= 120 && !text.body.contains('\n'));
         assert!(text.title.ends_with("…"));
     }
 

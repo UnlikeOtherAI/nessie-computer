@@ -165,23 +165,18 @@ pub async fn executor_view() -> Result<ServiceView, String> {
     tauri::async_runtime::spawn_blocking(view).await.map_err(|error| error.to_string())
 }
 
-/// Opens the Computers page of the server a team is paired with, of a server
-/// being paired with (with its pairing code), or of the first team's server.
+/// Opens a team's Nessie: the Computers page of the server that team is
+/// paired with. With no team, the attempt whose pairing code is on screen
+/// (with that code, on **Add a computer**), or else the first team's server.
+/// The page names only a team; the address is always this app's own.
 #[tauri::command]
-pub async fn executor_open_nessie(
-    app: AppHandle,
-    executor_id: Option<String>,
-    api_base_url: Option<String>,
-    code: Option<String>,
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let server = match (executor_id, api_base_url) {
-            (Some(executor_id), None) => team_server(&executor_id)?,
-            (None, Some(server)) => server,
-            (None, None) => default_server(),
-            (Some(_), Some(_)) => return Err("Name a team or a server, not both.".to_owned()),
-        };
-        open_nessie(&app, &server, code.as_deref())
+pub async fn executor_open_nessie(app: AppHandle, executor_id: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || match executor_id {
+        Some(executor_id) => open_nessie(&app, &team_server(&executor_id)?, None),
+        None => match crate::pairing_code::showing_code() {
+            Some(showing) => open_nessie(&app, &showing.api_origin, Some(&showing.code)),
+            None => open_nessie(&app, &default_server(), None),
+        },
     })
     .await
     .map_err(|error| error.to_string())?

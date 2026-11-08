@@ -327,8 +327,8 @@ mod tests {
     #[test]
     fn a_refusal_reaches_the_person_in_the_services_own_words() {
         assert_eq!(
-            decode(r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#),
-            Err("This executor has not been paired on this computer.".to_owned()),
+            decode(r#"{"status":"error","reason":"This team is not connected on this computer."}"#),
+            Err("This team is not connected on this computer.".to_owned()),
         );
     }
 

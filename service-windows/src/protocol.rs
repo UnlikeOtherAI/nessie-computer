@@ -299,7 +299,7 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             executor_id,
             operation,
         } => Ok(Command::PersonalAttestation {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
             operation: crate::service_chatgpt::parse_operation(operation)?,
         }),
         Request::PairingStart {
@@ -314,7 +314,7 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
         Request::PairingStatus { executor_id } => {
             if let Some(ref id) = executor_id {
                 if !valid_identifier(id) {
-                    return Err("The executor id is malformed.".to_owned());
+                    return Err("The team id is malformed.".to_owned());
                 }
             }
             Ok(Command::PairingStatus { executor_id })
@@ -335,22 +335,22 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             executor_id,
             operation_keys,
         } => Ok(Command::Configure {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
             operation_keys: workspace_operation_keys(operation_keys)?,
         }),
         Request::ConfigureInput {
             executor_id,
             configuration_input,
         } => Ok(Command::ConfigureInput {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
             configuration_input,
         }),
         Request::InferenceConnections { executor_id, operation } => Ok(Command::InferenceConnections {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
             operation: nessie_windows_common::inference_control::validate(operation)?,
         }),
         Request::Describe { executor_id } => Ok(Command::Describe {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::EnrollControlClient {} => Ok(Command::EnrollControlClient),
         Request::Pair {
@@ -365,34 +365,34 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             workspace_root: workspace_root(workspace)?,
         })),
         Request::Remove { executor_id } => Ok(Command::Remove {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::SetPaused { executor_id, paused } => Ok(Command::SetPaused {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
             paused,
         }),
         Request::ProgramRequests { executor_id } => Ok(Command::ProgramRequests {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::AnswerProgramRequest { executor_id, id, answer } => {
             if !nessie_windows_common::owner_controls::valid_request_id(&id) {
                 return Err("That request is no longer listed.".to_owned());
             }
             Ok(Command::AnswerProgramRequest {
-                executor_id: identifier(executor_id, "executor id")?,
+                executor_id: identifier(executor_id, "team id")?,
                 id,
                 answer: Answer::parse(&answer)?,
             })
         }
         Request::Audience { executor_id } => Ok(Command::Audience {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::Start { executor_id } => Ok(Command::Start {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::Status => Ok(Command::Status),
         Request::Stop { executor_id } => Ok(Command::Stop {
-            executor_id: identifier(executor_id, "executor id")?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
     }
 }

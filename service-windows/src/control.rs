@@ -226,7 +226,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
     }
 
@@ -242,7 +242,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
         assert!(!directory.path().join("executors").exists());
     }

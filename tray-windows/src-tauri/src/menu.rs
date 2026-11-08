@@ -90,13 +90,11 @@ pub enum MenuAction {
     Unknown,
 }
 
+/// The Needs you line's id: the section it opens, and the team when it names one.
 pub fn needs_id(needs: &NeedsYou) -> String {
-    match needs {
-        NeedsYou::Requests(_) => "needs:overview".to_owned(),
-        NeedsYou::OwnerConfirmation { executor_id } | NeedsYou::Failure { executor_id, .. } => {
-            format!("needs:overview:{executor_id}")
-        }
-        NeedsYou::Documents { executor_id, .. } => format!("needs:documents:{executor_id}"),
+    match &needs.executor_id {
+        Some(executor_id) => format!("needs:{}:{executor_id}", needs.section.name()),
+        None => format!("needs:{}", needs.section.name()),
     }
 }
 
@@ -159,8 +157,8 @@ pub fn pause_lines(teams: &[Team], words: &Words) -> PauseLines {
 pub fn build<R: Runtime>(app: &AppHandle<R>, overview: &Overview, words: &Words) -> tauri::Result<Menu<R>> {
     let menu = Menu::new(app)?;
     menu.append(&MenuItem::with_id(app, "status", &overview.status, false, None::<&str>)?)?;
-    if let Some((needs, text)) = &overview.needs_you {
-        menu.append(&MenuItem::with_id(app, needs_id(needs), text, true, None::<&str>)?)?;
+    if let Some(needs) = &overview.needs_you {
+        menu.append(&MenuItem::with_id(app, needs_id(needs), &needs.text, true, None::<&str>)?)?;
     }
     match pause_lines(&overview.teams, words) {
         PauseLines::None => {}
@@ -222,11 +220,14 @@ mod tests {
 
     #[test]
     fn needs_you_opens_its_exact_place() {
-        assert_eq!(parse_menu_id(&needs_id(&NeedsYou::Requests(2))),
+        let needs = |section, executor_id: Option<&str>| NeedsYou {
+            text: "Needs you".to_owned(), section, executor_id: executor_id.map(str::to_owned),
+        };
+        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Overview, None))),
             MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()));
-        assert_eq!(parse_menu_id(&needs_id(&NeedsYou::Documents { executor_id: TEAM.to_owned(), label: "S".to_owned() })),
+        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Documents, Some(TEAM)))),
             MenuAction::Open(ConsoleSection::Documents, ConsoleTarget::team(TEAM)));
-        assert_eq!(parse_menu_id(&needs_id(&NeedsYou::OwnerConfirmation { executor_id: TEAM.to_owned() })),
+        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Overview, Some(TEAM)))),
             MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::team(TEAM)));
     }
 

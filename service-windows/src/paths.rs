@@ -63,7 +63,7 @@ pub fn logs_root(root: &Path) -> PathBuf {
 /// becomes a path segment.
 pub fn executor_state_dir(root: &Path, executor_id: &str) -> Result<PathBuf, String> {
     if !valid_identifier(executor_id) {
-        return Err("The executor id is malformed.".to_owned());
+        return Err("The team id is malformed.".to_owned());
     }
     Ok(executors_root(root).join(executor_id))
 }

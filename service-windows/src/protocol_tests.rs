@@ -35,7 +35,7 @@ fn accepts_only_safe_executor_identifiers() {
     }
     assert_eq!(
         parse_request(r#"{"command":"start","executorId":"../state"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
 }
 
@@ -191,10 +191,10 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
     assert!(stopped.contains(
         r#""failure":{"code":"EXECUTOR_CONNECTION_FENCED","message":"Executor connection is fenced."}"#
     ));
-    let refusal = Response::error("This executor has not been paired on this computer.").encode();
+    let refusal = Response::error("This team is not connected on this computer.").encode();
     assert_eq!(
         refusal.trim_end(),
-        r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#,
+        r#"{"status":"error","reason":"This team is not connected on this computer."}"#,
     );
 }
 
@@ -231,7 +231,7 @@ fn remove_names_one_validated_executor_and_nothing_else() {
     );
     assert_eq!(
         parse_request(r#"{"command":"remove","executorId":"../executors"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
     // The state directory is derived from the id; a caller may not name one.
     for line in [

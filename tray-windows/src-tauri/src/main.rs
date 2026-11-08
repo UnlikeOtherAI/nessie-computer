@@ -93,7 +93,7 @@ fn apply(app: &AppHandle, view: &ServiceView) {
         let _ = tray.set_icon(Some(icon));
     }
     let tooltip = match &overview.needs_you {
-        Some((_, needs)) => format!("{}\n{needs}", overview.status),
+        Some(needs) => format!("{}\n{}", overview.status, needs.text),
         None => overview.status.clone(),
     };
     let _ = tray.set_tooltip(Some(tooltip));
@@ -190,7 +190,11 @@ fn handle_menu(app: &AppHandle, id: &str) {
         MenuAction::OpenNessie => {
             let app = app.clone();
             std::thread::spawn(move || {
-                if let Err(reason) = commands::open_nessie(&app, &commands::default_server(), None) {
+                let opened = match pairing_code::showing_code() {
+                    Some(showing) => commands::open_nessie(&app, &showing.api_origin, Some(&showing.code)),
+                    None => commands::open_nessie(&app, &commands::default_server(), None),
+                };
+                if let Err(reason) = opened {
                     commands::notify(&app, words::words().open_nessie_failed, reason);
                 }
             });
@@ -271,7 +275,6 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
@@ -316,7 +319,6 @@ fn main() {
             pairing_code::executor_chatgpt_connection_start,
             pairing_code::executor_chatgpt_connection_status,
             pairing_code::executor_chatgpt_connection_cancel,
-            notification::executor_notify,
             executor_launch_link,
         ])
         .setup(|app| {

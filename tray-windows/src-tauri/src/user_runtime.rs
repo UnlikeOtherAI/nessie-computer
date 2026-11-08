@@ -55,7 +55,7 @@ pub fn wait(child: &mut Child, duration: Duration) -> Result<bool, String> {
             return if status.success() {
                 Ok(true)
             } else {
-                Err("The local executor refused the request. Check its configuration and server connection.".into())
+                Err("Nessie Computer’s command-line tool refused the request. Check the team’s settings and connection.".into())
             };
         }
         if Instant::now() >= deadline {
@@ -94,11 +94,11 @@ pub fn run(
     }
     let mut child = command
         .spawn()
-        .map_err(|_| "Could not start the local executor.")?;
+        .map_err(|_| "Could not start Nessie Computer’s command-line tool.")?;
     let output = child
         .stdout
         .take()
-        .ok_or("Could not read the local executor.")?;
+        .ok_or("Could not read Nessie Computer’s command-line tool.")?;
     let reader = thread::spawn(move || {
         let mut bytes = Vec::new();
         output
@@ -109,7 +109,7 @@ pub fn run(
     let mut errors = child
         .stderr
         .take()
-        .ok_or("Could not read the local executor.")?;
+        .ok_or("Could not read Nessie Computer’s command-line tool.")?;
     // Drained to the end so the child never blocks on a full pipe; only the tail is kept.
     let error_reader = thread::spawn(move || {
         let (mut tail, mut chunk) = (Vec::new(), [0u8; 4096]);
@@ -142,17 +142,17 @@ pub fn run(
             let printed = error_reader.join().ok().and_then(|bytes| refusal(&bytes));
             return Err(match outcome {
                 Err(generic) => printed.unwrap_or(generic),
-                Ok(_) => "The local executor request timed out.".into(),
+                Ok(_) => "Nessie Computer’s command-line tool did not answer in time.".into(),
             });
         }
     }
     let _ = error_reader.join();
     let bytes = reader
         .join()
-        .map_err(|_| "Could not read the local executor.")?
-        .map_err(|_| "Could not read the local executor.")?;
+        .map_err(|_| "Could not read Nessie Computer’s command-line tool.")?
+        .map_err(|_| "Could not read Nessie Computer’s command-line tool.")?;
     if bytes.len() > 1_048_576 {
-        return Err("The executor response was too large.".into());
+        return Err("The command-line tool’s answer was too large.".into());
     }
     // connect, configure, pause, resume and answers print acknowledgements; only their success matters.
     if !matches!(
@@ -163,7 +163,7 @@ pub fn run(
         return Ok(serde_json::Value::Null);
     }
     serde_json::from_slice(&bytes)
-        .map_err(|_| "The local executor returned an invalid response.".into())
+        .map_err(|_| "Nessie Computer’s command-line tool gave an answer this app can’t read.".into())
 }
 
 #[cfg(test)]

@@ -199,7 +199,7 @@ mod tests {
             assert_eq!(phrases.len(), english.len());
             for ((name, phrase), (_, reference)) in phrases.iter().zip(&english) {
                 assert!(!phrase.trim().is_empty(), "{locale:?} {name} is empty");
-                for placeholder in ["{n}", "{team}", "{program}", "{agent}"] {
+                for placeholder in ["{n}", "{team}", "{program}", "{agent}", "{reason}", "{command}"] {
                     assert_eq!(phrase.contains(placeholder), reference.contains(placeholder),
                         "{locale:?} {name} must keep {placeholder}");
                 }

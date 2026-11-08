@@ -221,7 +221,7 @@ impl Supervisor {
     pub fn start(&mut self, executor_id: &str) -> Result<String, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         if state_dir.join("executor-pairing-code.json").exists() {
             return Err("Finish pairing this computer before starting it.".to_owned());
@@ -275,11 +275,11 @@ impl Supervisor {
         command.stdin(Stdio::piped()).stderr(Stdio::piped());
         let mut child = command
             .spawn()
-            .map_err(|_| "Nessie Computer could not start the executor daemon.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not start this team’s connection.".to_owned())?;
         let parent_liveness = child
             .stdin
             .take()
-            .ok_or_else(|| "Nessie Computer could not supervise the executor daemon.".to_owned())?;
+            .ok_or_else(|| "Nessie Computer could not watch this team’s connection.".to_owned())?;
         let stderr = child.stderr.take().map(StderrTail::watch).unwrap_or_default();
         self.children.insert(
             executor_id.to_owned(),
@@ -402,7 +402,7 @@ impl Supervisor {
         if daemon
             .child
             .try_wait()
-            .map_err(|_| "Nessie Computer could not inspect the executor daemon.".to_owned())?
+            .map_err(|_| "Nessie Computer could not check this team’s connection.".to_owned())?
             .is_some()
         {
             return Ok("stopped".to_owned());
@@ -415,7 +415,7 @@ impl Supervisor {
         }
         self.children.insert(executor_id.to_owned(), daemon);
         Err(
-            "The executor is still stopping. Nessie Computer will not force-kill a sandbox daemon."
+            "This team is still stopping. Nessie Computer never force-stops a running sandbox."
                 .to_owned(),
         )
     }

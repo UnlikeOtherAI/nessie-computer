@@ -40,9 +40,9 @@ pub enum Remedy {
 impl Remedy {
     pub fn parse(value: &str) -> Result<Self, String> {
         match value {
-            "restart" => Ok(Self::Restart),
-            "repropose" => Ok(Self::Repropose),
-            "open_nessie" => Ok(Self::OpenNessie),
+            "restartExecutor" => Ok(Self::Restart),
+            "reProposePolicy" => Ok(Self::Repropose),
+            "openNessie" => Ok(Self::OpenNessie),
             _ => Err("That fix is not available here.".to_owned()),
         }
     }
@@ -146,11 +146,13 @@ mod tests {
     }
 
     #[test]
-    fn remedies_are_three_words_from_the_console() {
-        assert_eq!(Remedy::parse("restart"), Ok(Remedy::Restart));
-        assert_eq!(Remedy::parse("repropose"), Ok(Remedy::Repropose));
-        assert_eq!(Remedy::parse("open_nessie"), Ok(Remedy::OpenNessie));
-        assert!(Remedy::parse("reinstall").is_err());
+    fn remedies_are_the_three_ids_the_console_sends() {
+        assert_eq!(Remedy::parse("restartExecutor"), Ok(Remedy::Restart));
+        assert_eq!(Remedy::parse("reProposePolicy"), Ok(Remedy::Repropose));
+        assert_eq!(Remedy::parse("openNessie"), Ok(Remedy::OpenNessie));
+        for other in ["restart", "repropose", "open_nessie", "reinstall"] {
+            assert!(Remedy::parse(other).is_err(), "{other}");
+        }
     }
 
     #[test]

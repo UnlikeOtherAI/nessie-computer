@@ -28,7 +28,7 @@ impl Supervisor {
     fn paired_state_dir(&self, executor_id: &str) -> Result<std::path::PathBuf, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         Ok(state_dir)
     }
@@ -158,7 +158,7 @@ mod tests {
     fn an_unpaired_team_is_refused_before_anything_runs() {
         let root = tempfile::tempdir().unwrap();
         let mut host = supervisor(root.path());
-        let refusal = Err("This executor has not been paired on this computer.".to_owned());
+        let refusal = Err("This team is not connected on this computer.".to_owned());
         assert_eq!(host.set_paused(TEAM, true), refusal);
         assert_eq!(host.audience(TEAM).map(|_| ()), refusal);
         assert_eq!(host.program_requests(TEAM, Some("S-1-5-21-1")).map(|_| ()), refusal);
