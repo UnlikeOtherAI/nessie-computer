@@ -1,7 +1,8 @@
-# Mounted T3 client connection URLs
+# T3 client connection URLs and UOA lifecycle
 
-This is T19's source-only URL patch family. It does not register a UOA account,
-start a T3 server, provide a gateway or establish installed/mobile compatibility.
+This is T19's source-only URL and registry patch family, with an unbound UOA
+account/bootstrap adapter. It does not register a live UOA account, start a T3
+server, provide a gateway or establish installed/mobile compatibility.
 It keeps the existing T3 remote synchronization, session screens, reducers,
 history, queue, outbox and command semantics.
 
@@ -27,7 +28,7 @@ The capsule-family manifest SHA-256 is
 the separate web manifest SHA-256 is
 `8006831332ef2361ef137d19f800a0d6abfe573281836db6ccd688f3bfc89e78`.
 
-`index.mjs` exports `T3_CLIENT_CONNECTION_PATCHES` with both manifest digests,
+`index.mjs` exports `T3_CLIENT_CONNECTION_PATCHES` with the URL, web and registry manifest digests,
 and `applyClientConnectionPatches(snapshot)` /
 `applyWebConnectionPatches(snapshot)`. Both delegate to the committed
 `packaging/session-engine/patches.mjs` verifier. They copy no tar parser,
@@ -225,8 +226,9 @@ changed by this tranche. T02 owns final deterministic patch composition, source
 inventory and generated browser-safe exports. The coordinator advances the
 private executor pin only after public integration.
 
-T19B still needs the canonical UOA account adapter, complete entitled directory
-registration and cleanup/renewal after T08/T09; no fake Clerk JWT is introduced.
+T19B's adapter source is described below. Its canonical UOA account, complete
+entitled directory and durable account-cleanup bindings still need T08/T09
+integration; no fake Clerk JWT is introduced.
 The reserved future fork files are:
 
 - `apps/mobile/src/features/cloud/CloudAuthProvider.tsx`,
@@ -250,3 +252,135 @@ dispatch/error boundary. Capability configuration must exclude usage/billing
 surfaces in the later client fork. A future T3 fork/release, actual T3 sync against the
 gateway, config/readiness lifecycle, phone byte transfers and native installed
 evidence remain separate deliveries.
+
+## T19B source checkpoint — 8 November 2026
+
+`registry-patches.json` adds two upstream files to the nine-file URL inventory:
+
+| Upstream file | Change |
+| --- | --- |
+| `packages/client-runtime/src/connection/registry.ts` | Remove the live entry and close its original supervisor before persistent cleanup. Retain failed credential/cache/outbox/trust cleanup for repeated empty reconciliation, and refuse reinstallation until it succeeds. Failed credential replacement or changed addresses withdraw the old connection. Preserve explicit disabled intent across refresh and renewal. |
+| `packages/client-runtime/src/platform/storageDocument.ts` | Persist the existing disabled-environment preference for platform entries, which intentionally have no saved connection target. Both original mobile and web storage adapters use this function. |
+
+`applyRegistryConnectionPatches` uses the same full-file hashes and unique seams
+as the URL family. T02 must include `registryConnectionManifestBytes` after the
+client URL family in the final ordered manifest; no shared producer/export
+registration is changed here. There are now **11 changed upstream files total**.
+No Home screen, session screen, catalog grouping, history reducer, outbox reducer,
+provider or server composition changes. The original reference checkout is read
+only through committed Git objects at `25bf84ab07f53f141c20239c63e383823a9d5ea0`.
+
+Three first-party TypeScript modules live beside the manifests:
+
+- `uoa-account.ts` owns expiring connection leases only. `setAccount`, `refresh`
+  and `dispose` share one serialized registry mutation path. A subject, org,
+  selected team or sign-in-session change cancels old discovery/bootstrap and
+  withdraws registrations. Late replies cannot reintroduce the previous scope.
+  Directory order and exact environment IDs survive. Offline status is not
+  interpreted as deletion. Transient failures retain existing leases only until
+  expiry; explicit denial withdraws them. Account and credential deadlines have
+  independent withdrawal timers. No profiles, memberships or session history
+  are stored in this adapter.
+- `uoa-bootstrap.ts` runs the original Effect descriptor and OAuth functions.
+  It confines endpoints to the configured HTTPS API origin and environment
+  mount, checks the expected original environment and protocol before requesting
+  bootstrap material, and checks the returned endpoint/expiry before exchange.
+  A DPoP token cannot enter the bearer-registration path. The existing mounted
+  URL family still owns HTTP, WS, ticket and DPoP target semantics.
+- `uoa-runtime.ts` acquires the original registry and HTTP services in their
+  scope. It connects the lifecycle to `reconcilePlatform` and the real bootstrap
+  function, translates original authentication/scope denials, and disposes on
+  scope exit. Importing it starts nothing. It has no Clerk or usage-service
+  dependency and creates no second session store.
+
+These modules are not registered in a shipped fork or engine export. They are
+source for the compatible client's existing account/platform boundary. T19's
+next composition step must bind them only after the parent integrates T08/T09;
+an injected port is not proof of a live authority or ready source.
+
+### Exact prerequisite interfaces
+
+The host must supply `UoaRuntimePorts`, calling the canonical operations that
+also back UI/WebMCP/MCP. Do not create a second directory or auth endpoint:
+
+1. Current UOA account events supply stable `subject`, `organizationId`,
+   `teamId`, non-secret `sessionId` and `expiresAt` in epoch milliseconds.
+   `sessionId` changes on reauthentication, not routine token refresh. Logout,
+   revoked admission and selected-team changes call `setAccount` immediately.
+   These client references confer no authority: T08 checks current UOA admission
+   and exact selected team for every directory/connect operation.
+2. `prepare(account, signal)` completes the existing account transition's
+   durable credential/cache/composer/outbox cleanup, including a persisted
+   previous account on cold start. It must retain failed cleanup for a later
+   process restart. Registration and refresh remain blocked if it fails. The
+   registry's new in-memory retry set alone cannot establish crash recovery.
+   Bind this through the original mobile/web account/catalog storage boundary;
+   do not supply a successful no-op or a new identity store.
+3. `list(account, signal)` returns the complete owner-entitled selected-team
+   directory as `UoaEnvironment[]`, preserving its order, labels and exact
+   `environmentId` plus `endpoint.httpBaseUrl/wsBaseUrl`. Include offline entries.
+   A malformed/duplicate identity set fails closed. No project filter or native
+   Codex/Claude substitution may change the T3 environment identities.
+4. `connect(account, environmentId, signal)` returns the decoded original
+   `{environmentId, endpoint, credential, expiresAt}` shape. Its credential is
+   short-lived one-use bootstrap material. Endpoints are canonical public
+   `/t3/environments/<opaque-route-key>/` paths; `expiresAt` is an ISO timestamp.
+   Both directory and connect map real revoked/expired/forbidden admission to
+   `UoaConnectionDenied`, and preserve transient failure separately. Offline
+   executor presence must not require contacting a separate T3 server to mint
+   a gateway-scoped credential. If T08 cannot authorize offline entries yet,
+   automatic offline registration remains blocked; no placeholder token is used.
+5. T09 serves the original descriptor, form-encoded `/oauth/token`, HTTP APIs
+   and WS ticket/socket schemas under that mount, with truthful config/source
+   readiness. Descriptor acceptance is not a readiness verdict. No client code
+   here marks retained capture or a native source ready.
+
+The account surface and mobile `connection/platform.ts` must consume these
+operations, preserve foreground/network-path wakeups, and retire old Clerk
+account gates rather than impersonate them. Existing account UI translation,
+cold-link presentation, WebMCP/MCP bindings and final browser/mobile composition
+remain owner integration work. No user-facing strings are introduced here.
+
+### Verification recorded at this checkpoint
+
+On Maxis, Windows, Node `24.19.0`, public base
+`7bfc7da24ecc5908004c367e6f21121ad3c83bd8` and private base
+`426cafa72642f6addd72712779e3da639bb26084`, these source/tiny commands passed:
+
+```powershell
+$env:T3_CLIENT_CONNECTION_SOURCE_REPOSITORY = 'C:/Users/ondre/Projects/t3code'
+node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-client-connection/uoa-account.test.mjs
+node --max-old-space-size=384 --test --test-concurrency=1 test/t3-session-client-connection/registry-source.test.mjs
+```
+
+Results: **12 lifecycle tests and 2 source tests passed, zero skips**. Lifecycle
+tests use synthetic directory, registry and clock ports. The source probe reads
+the two exact original Git objects, verifies all patch hashes, strips TypeScript
+with Node, and executes the patched catalog preference function. Node syntax
+checks passed for both newly authored runtime fixture files and stripped all
+three first-party TypeScript files. This is not a TypeScript typecheck.
+
+The following fixtures are **authored, syntax checked, not run**. They require
+an owned pinned Effect dependency root and the parent's serial heavy window:
+
+```powershell
+node --max-old-space-size=512 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/registry-runtime.test.mjs
+node --max-old-space-size=512 --experimental-vm-modules --test --test-concurrency=1 test/t3-session-client-connection/uoa-bootstrap.test.mjs
+```
+
+The registry fixture uses the actual pinned registry and supervisor with
+synthetic storage/transport to cover withdrawal despite multiple failures,
+retry, failed credential renewal, cold identity lookup, offline/reconnect and
+disabled intent. The bootstrap fixture uses original HTTP/descriptor/OAuth
+modules and codecs with synthetic fetch responses to cover the mounted happy
+path, wrong descriptor, changed endpoint, expired/cancelled authority and token
+type mismatch. They establish no acceptance until actually executed. Run the
+existing URL and HTTP/auth gates alongside them in the authorized window; their
+historical results above were not rerun for this checkpoint. T01 owns adding
+the new files to the appropriate focused Turbo tasks.
+
+No install, compiler, Turbo, database, server, browser, native build, signing,
+provider mutation, personal-history read or memory polling ran in this tranche.
+Strict typecheck, runtime fixtures, real UOA denial/revocation, cold links through
+the original mobile Home flow, gateway offline/reconnect, selected-team changes,
+and UI/WebMCP/MCP user journeys remain unverified and required before delivery.
