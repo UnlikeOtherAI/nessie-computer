@@ -3,6 +3,12 @@
  * A prepared ID lives only in this same original service's enclosing scope. */
 export const extractPrelaunch = author => {
   const file = 'apps/server/src/orchestration-v2/ThreadLaunchService.ts'
+  author.replace(file, 'import * as CommandReceiptStore from "./CommandReceiptStore.ts";',
+    'import * as ProjectStore from "./ProjectStore.ts";\n'
+      + 'import * as CommandReceiptStore from "./CommandReceiptStore.ts";', 'prelaunch-stored-project-import')
+  author.replace(file, '  const projects = yield* ProjectService.ProjectService;',
+    '  const projects = yield* ProjectService.ProjectService;\n'
+      + '  const storedProjects = yield* ProjectStore.ProjectStoreV2;', 'prelaunch-stored-project-owner')
   const target = `export interface ThreadLaunchTarget {
   readonly threadId: ThreadId;
   readonly projectId: ProjectId;
@@ -29,6 +35,14 @@ export const extractPrelaunch = author => {
   const originalSelection = prefix.slice(start.length).replace(nested, '')
   const cachedSelection = originalSelection.replace('          reusableLaunchReceipt?.threadId ??\n',
     '          reusableLaunchReceipt?.threadId ??\n          prepared.get(input.commandId)?.threadId ??\n')
+    .replace('request.workspaceStrategy.type === "worktree" &&',
+      '!inspection && request.workspaceStrategy.type === "worktree" &&')
+    .replace('projects.getById(input.projectId).pipe(',
+      '(inspection ? storedProjects.getShell(input.projectId) : projects.getById(input.projectId)).pipe(')
+    .replace('          yield* validateReusableThread(input, candidateThreadId);',
+      '          if (inspection) return yield* mapError(input, "update-thread")'
+        + '("Existing empty-thread inspection requires admitted transcript preparation.");\n'
+        + '          yield* validateReusableThread(input, candidateThreadId);')
   if (cachedSelection === originalSelection) throw new Error('Prelaunch original ID allocation seam changed')
   const replacement = `  const prepared = new Map<CommandId, {
     readonly signature: string; readonly threadId: ThreadId; holders: number;
@@ -39,10 +53,11 @@ export const extractPrelaunch = author => {
   // signed operation still binds the entire original request, including content.
   const selectionSignature = (input: ThreadLaunchInput) =>
     JSON.stringify({ ...input, initialMessage: undefined });
-  const resolveTarget = Effect.fn("ThreadLaunchService.resolveTarget")(function* (request: ThreadLaunchInput) {
+  const resolveTarget = Effect.fn("ThreadLaunchService.resolveTarget")(
+    function* (request: ThreadLaunchInput, inspection = false) {
 ${cachedSelection}
     const existing = prepared.get(input.commandId);
-    if (existing && (existing.signature !== selectionSignature(input) || existing.threadId !== candidateThreadId)) {
+    if (existing && (existing.signature !== selectionSignature(request) || existing.threadId !== candidateThreadId)) {
       return yield* mapError(input, "create-thread")("Prepared launch target changed.");
     }
     return { input, project, launchReceipt, reusableLaunchReceipt, candidateThreadId };
@@ -51,15 +66,15 @@ ${cachedSelection}
   const prepareTarget: ThreadLaunchService["Service"]["prepareTarget"] = Effect.fn(
     "ThreadLaunchService.prepareTarget",
   )(function* (request) {
-    const resolved = yield* resolveTarget(request);
+    const resolved = yield* resolveTarget(request, true);
     const { input, project, candidateThreadId } = resolved;
     let record = prepared.get(input.commandId);
-    if (record && (record.signature !== selectionSignature(input) || record.threadId !== candidateThreadId)) {
+    if (record && (record.signature !== selectionSignature(request) || record.threadId !== candidateThreadId)) {
       return yield* mapError(input, "create-thread")("Concurrent launch target changed.");
     }
     if (!record) {
       if (prepared.size >= 64) return yield* mapError(input, "create-thread")("Launch target capacity reached.");
-      record = { signature: selectionSignature(input), threadId: candidateThreadId, holders: 0 };
+      record = { signature: selectionSignature(request), threadId: candidateThreadId, holders: 0 };
       prepared.set(input.commandId, record);
     }
     const held = record;
@@ -73,7 +88,7 @@ ${cachedSelection}
       if (!active || prepared.get(input.commandId) !== held) {
         return yield* mapError(input, "create-thread")("Launch target scope closed.");
       }
-      const current = yield* resolveTarget(request);
+      const current = yield* resolveTarget(request, true);
       if (current.candidateThreadId !== candidateThreadId || current.project.id !== project.id
         || current.project.workspaceRoot !== project.workspaceRoot) {
         return yield* mapError(input, "resolve-project")("Launch target identity changed.");

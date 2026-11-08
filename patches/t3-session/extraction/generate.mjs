@@ -14,6 +14,7 @@ import { extractRuntimeLive } from './runtime-live.mjs'
 import { extractProviderHost } from './provider-host.mjs'
 import { extractPrelaunch } from './prelaunch.mjs'
 import { extractProviderLive } from './provider-live.mjs'
+import { extractProviderEvents } from './provider-events.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -41,6 +42,7 @@ export const generateExtractionManifest = snapshot => {
   extractProviderHost(author)
   extractPrelaunch(author)
   extractProviderLive(author, redirects)
+  extractProviderEvents(author)
   for (const [relative, symbols] of [
     ['Orchestrator', [['const', 'isOrchestratorProjectionError'], ['function', 'runtimePolicyCeilingCause']]],
     ['CheckpointRollbackService', [['const', 'isCheckpointRollbackExecutionError']]],

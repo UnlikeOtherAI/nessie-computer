@@ -3,7 +3,7 @@ import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
-import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ResourceOwners, Settings,
+import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ProviderDirectory, ResourceOwners, Settings,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
   SessionControl, Threads, Launch, ScheduledTasks } from '@nessie/t3-session-source/engine'
@@ -28,11 +28,13 @@ type Host = Input<typeof sessionProviderHostLayer>
 const hostCredentialProducerRequired: ProviderCredentialReferences extends Host ? true : false = true
 const noRawCredentials: 'credentials' extends keyof ProviderHost.ProviderHost['Service'] ? false : true = true
 const runtimeNativeRequired: NativeChildProcesses.ChildProcessSpawner extends Runtime ? true : false = true
-const runtimeProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Runtime ? true : false = true
+const runtimeProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Runtime ? true : false = false
+const runtimeDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Runtime ? true : false = true
 const runtimeCleanupRequired: ResourceOwners.ResourceCleanupService extends Runtime ? true : false = false
 const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
-const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = true
+const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
+const engineDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Engine ? true : false = true
 const engineSettingsRequired: Settings.ServerSettingsService extends Engine ? true : false = true
 const workerCleanupRequired: ResourceOwners.ResourceCleanupService extends Worker ? true : false = true
 const sharedSqlRequired: SqlClient.SqlClient extends Shared ? true : false = true
@@ -63,6 +65,7 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
+  runtimeDirectoryRequired, engineDirectoryRequired,
   runtimeCredentialsRequired, runtimeResourceOwnersRequired, runtimeControlRequired, runtimeRequestsRequired,
   hostCredentialProducerRequired, noRawCredentials,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,

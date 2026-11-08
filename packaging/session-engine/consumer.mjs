@@ -18,7 +18,7 @@ let module = relative(dirname(fixture), resolve(declarations, 'index.js')).repla
 if (!module.startsWith('.')) module = `./${module}`
 const content = `import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
-import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ResourceOwners, Settings,
+import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ProviderDirectory, ResourceOwners, Settings,
   ProjectionStore, EventSink,
   ThreadMessageIntake, SecretRequests } from '${module}'
 type Input<T> = T extends Layer.Layer<infer _Out, infer _Error, infer Required> ? Required : never
@@ -28,7 +28,8 @@ type Worker = Input<ReturnType<typeof createSessionEngineLayers>['worker']>
 type Shared = Input<ReturnType<typeof createSessionEngineLayers>['shared']>
 const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
-const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = true
+const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
+const engineDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Engine ? true : false = true
 const engineSettingsRequired: Settings.ServerSettingsService extends Engine ? true : false = true
 const workerCleanupRequired: ResourceOwners.ResourceCleanupService extends Worker ? true : false = true
 const sharedSqlRequired: SqlClient.SqlClient extends Shared ? true : false = true
@@ -40,7 +41,8 @@ const invalidCommand: Command = { type: 'invented-command' }
 type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer']>[0]
 // @ts-expect-error A plain value cannot substitute for the original dedicated request schema.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
-void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
+void [readSqlRequired, readProviderRequired, engineProviderRequired, engineDirectoryRequired,
+  engineSettingsRequired, workerCleanupRequired,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, invalidCommand, invalidSecret]
 `
 const existing = await readFile(fixture, 'utf8').catch(error => {
