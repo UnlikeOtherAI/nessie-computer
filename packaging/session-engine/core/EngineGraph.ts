@@ -1,0 +1,33 @@
+import * as Effect from 'effect/Effect'
+import * as Layer from 'effect/Layer'
+import { createSessionEngineLayers } from './EngineLayers.ts'
+import { createSessionRuntimeLayers } from './RuntimeLayers.ts'
+
+export class SessionEngineGraphClosed extends Error {
+  constructor() { super('T3_SESSION_ENGINE_GRAPH_CLOSED'); this.name = 'SessionEngineGraphClosed' }
+}
+
+/** One owner scope and memo map across cold inspection and admitted activation.
+ * Creating this owner builds no layer. Each returned effect still requires its
+ * actual original host services; this owner confers no execution authority.
+ * The enclosing runtime must interrupt/join demand before closing its scope.
+ */
+export const makeSessionEngineGraph = Effect.gen(function* () {
+  const scope = yield* Effect.scope
+  const memo = yield* Layer.makeMemoMap
+  const layers = createSessionEngineLayers()
+  const runtime = createSessionRuntimeLayers(layers.state, layers)
+  let open = true
+  yield* Effect.addFinalizer(() => Effect.sync(() => { open = false }))
+  const build = <A, E, R>(layer: Layer.Layer<A, E, R>) => Effect.suspend(() =>
+    open ? Layer.buildWithMemoMap(layer, memo, scope) : Effect.fail(new SessionEngineGraphClosed()))
+  return {
+    inspection: build(layers.inspection),
+    activate: build(runtime.layer),
+    launch: build(layers.launch),
+    recovery: build(layers.recovery),
+    worker: build(layers.worker),
+    continuationConsumer: build(layers.continuationConsumer),
+    finalization: build(layers.finalization),
+  }
+})

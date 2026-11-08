@@ -32,6 +32,7 @@ export const generateSessionControlManifest = snapshot => {
     + 'import type { OrchestrationV2Command, OrchestrationV2ThreadLaunchInput, OrchestrationV2ThreadLaunchResult, OrchestrationV2DispatchCommandResult } from "@t3tools/contracts";\n'
     + 'import type { ThreadManagementProvenance } from "./ThreadManagementService.session-api.ts";\n'
     + 'import * as ThreadLaunch from "./ThreadLaunchService.ts";\n'
+    + 'import * as LaunchSelection from "./ThreadLaunchSelection.ts";\n'
   author.derive(target, [imports,
     'type Services<T> = T extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;\n',
     'export const dispatchCommand = (command: OrchestrationV2Command, provenance: ThreadManagementProvenance): Effect.Effect<OrchestrationV2DispatchCommandResult, OrchestrationV2DispatchCommandError, Services<ReturnType<typeof ThreadMessageIntake.dispatchCommand>> | ThreadLaunch.ThreadLaunchService> => Effect.gen(function* () {\n'
@@ -56,22 +57,24 @@ export const generateSessionControlManifest = snapshot => {
     '                    ThreadManagementProviderInstanceDisabledError: (cause) =>')
   author.replace(target, startup, '', 'control-executor-startup-boundary')
 
-  // Inspection and command execution share the exact original external-to-internal
-  // input conversion. Inspection does not claim uploads or run the launch body.
+  // Keep original full launch conversion and receipt semantics. Inspection uses
+  // only the selection fields and never manufactures creation provenance.
   const mappedLaunch = author.between(target, 'ThreadMessageIntake.launchThread({', '}).pipe(') + '})'
   const mappedInput = mappedLaunch.slice('ThreadMessageIntake.launchThread('.length, -1)
-  author.replace(target, mappedLaunch, 'ThreadMessageIntake.launchThread(toLaunchInput(input, provenance))',
+  author.replace(target, mappedLaunch, 'ThreadMessageIntake.launchThread(toAdmittedLaunchInput(input, provenance))',
     'control-share-launch-input')
   const launchDeclaration = 'export const launchThread = (input: OrchestrationV2ThreadLaunchInput,'
   author.replace(target, launchDeclaration,
-    `const toLaunchInput = (input: OrchestrationV2ThreadLaunchInput,
+    `export const toAdmittedLaunchInput = (input: OrchestrationV2ThreadLaunchInput,
   provenance: ThreadManagementProvenance): ThreadLaunch.ThreadLaunchInput => (${mappedInput});
 
+export const toLaunchTargetInput = (input: OrchestrationV2ThreadLaunchInput): ThreadLaunch.ThreadLaunchSelectionInput =>
+  ThreadLaunch.selectThreadLaunchTargetInput(input);
+
 /** Only original read/ID selection; the caller must still obtain command authority. */
-export const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput,
-  provenance: ThreadManagementProvenance) => Effect.gen(function* () {
-    const launches = yield* ThreadLaunch.ThreadLaunchService;
-    return yield* launches.prepareTarget(toLaunchInput(input, provenance));
+export const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput) => Effect.gen(function* () {
+    const launches = yield* LaunchSelection.ThreadLaunchSelection;
+    return yield* launches.prepareTarget(toLaunchTargetInput(input));
   });
 
 ${launchDeclaration}`, 'control-original-prelaunch-mapping')

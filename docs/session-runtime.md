@@ -418,9 +418,12 @@ replay and drained teardown through the actual signed lane and tool doorways.
 
 ## Original launch inspection
 
-The extraction now gives the original `ThreadLaunchService` a scoped
-`prepareTarget` operation. `SessionControl.prepareLaunchTarget` shares the exact
-original wire-to-launch conversion with `launchThread`. Selection runs the
+The extraction gives the original launch a separate scoped
+`ThreadLaunchSelection` service. `SessionControl.prepareLaunchTarget(input)`
+uses `selectThreadLaunchTargetInput`: only command ID, optional thread ID/reuse,
+project ID and model selection. It does not accept, invent or stamp provenance.
+`toAdmittedLaunchInput(input, provenance)` retains the original full launch
+conversion and takes provenance from authenticated command admission. Selection runs the
 original project/clone checks, provider enablement, receipt recovery and ID
 allocator. Inspection reads the original stored project shell without queuing
 repository enrichment. Scratch normalization remains in authorized launch:
@@ -428,7 +431,7 @@ its original helper runs Git and cannot be invoked by inspection. Reusing an
 existing empty thread without an accepted receipt is explicitly refused during
 inspection because original validation can import its transcript. It stops before
 folder allocation, worktree preparation and command acceptance. The same original
-launch service retains at most 64 prepared command selections. Its actual launch
+selection service retains at most 64 prepared command selections. Its actual launch
 reuses the held original ID; a different selection for that command refuses.
 Scope release removes only its own record. Original receipt replay still takes
 precedence over allocation. This is an internal finite selection, not command
@@ -490,3 +493,29 @@ source for its port and live implementation. This build does not qualify native
 custody, installed execution, or production availability. The earlier 20 client
 and 11 engine test passes precede these live-layer changes; this revision needs
 its own test run.
+
+Cold inspection now builds only the original persistence services, allocator,
+clone-state reader and configured settings. It does not construct the full
+thread-management service, orchestrator, provider directory, session manager,
+workspace preparation, command executor or worker. The original authorized
+launch consumes the same `ThreadLaunchSelection` tag and retains its Scratch,
+project-enrichment and transcript-dependent validation in the executing branch.
+Original command receipt digest/idempotency semantics remain in that branch;
+the opaque runtime selection separately checks the full original request.
+
+`makeSessionEngineGraph` owns one Effect scope and explicit memo map. Its
+`inspection` and `activate` effects therefore share the original stores,
+outbox, allocator and selection table across separate phase builds. `activate`
+builds the existing runtime lifecycle/host composition with those same layer
+objects. Required original services remain required; none is mocked by the
+factory. Closing the owner refuses subsequent builds. Runtime demand must be
+interrupted and joined before that owner closes, as in `sessionOperationScope`.
+This internal owner is neither an authority grant nor an execution announcement.
+
+Three more fixtures cover shared phase selection, closed-graph refusal and the
+absence of provenance from inspection while the actual launch conversion keeps
+authenticated provenance. Normal TypeScript consumer fixtures assert that cold
+inspection requires SQL/settings but not provider directory/session/cleanup.
+All new fixtures are unrun. Builtin parsing at 256 MiB parsed 123 composed patched
+modules and 11 changed local modules without linking or evaluating application
+code. No compiler, tests, SQL, native launch or manual journey ran for this split.

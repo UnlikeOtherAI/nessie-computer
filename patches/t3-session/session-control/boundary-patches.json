@@ -7,7 +7,7 @@
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "create": [
         {
-          "text": "import * as Effect from \"effect/Effect\";\nimport { OrchestrationV2DispatchCommandError, OrchestrationV2ThreadLaunchError } from \"@t3tools/contracts\";\nimport * as ThreadManagementService from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadMessageIntake from \"./ThreadMessageIntake.ts\";\nimport { projectThreadProjectionForWire } from \"./WireProjection.ts\";\nimport { userFacingDispatchErrorMessage } from \"./UserFacingErrors.ts\";\nimport type { OrchestrationV2Command, OrchestrationV2ThreadLaunchInput, OrchestrationV2ThreadLaunchResult, OrchestrationV2DispatchCommandResult } from \"@t3tools/contracts\";\nimport type { ThreadManagementProvenance } from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadLaunch from \"./ThreadLaunchService.ts\";\n"
+          "text": "import * as Effect from \"effect/Effect\";\nimport { OrchestrationV2DispatchCommandError, OrchestrationV2ThreadLaunchError } from \"@t3tools/contracts\";\nimport * as ThreadManagementService from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadMessageIntake from \"./ThreadMessageIntake.ts\";\nimport { projectThreadProjectionForWire } from \"./WireProjection.ts\";\nimport { userFacingDispatchErrorMessage } from \"./UserFacingErrors.ts\";\nimport type { OrchestrationV2Command, OrchestrationV2ThreadLaunchInput, OrchestrationV2ThreadLaunchResult, OrchestrationV2DispatchCommandResult } from \"@t3tools/contracts\";\nimport type { ThreadManagementProvenance } from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadLaunch from \"./ThreadLaunchService.ts\";\nimport * as LaunchSelection from \"./ThreadLaunchSelection.ts\";\n"
         },
         {
           "text": "type Services<T> = T extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;\n"
@@ -64,47 +64,47 @@
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "1dbaf40db32056a1a7e1ebefce7bbf13c524c04a17df2c32bc6b431cbf591765"
+      "afterSha256": "5c105fdf45088f28ecd57c8fa281ecc64f5949a4c5e6d18928867cffce9c6463"
     },
     {
       "id": "control-dispatch-provenance",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "createdBy: \"user\",\n                          creationSource:\n                            \"creationSource\" in command ? command.creationSource : \"web\",",
       "to": "...provenance,",
-      "beforeSha256": "1dbaf40db32056a1a7e1ebefce7bbf13c524c04a17df2c32bc6b431cbf591765",
-      "afterSha256": "b18e02d3d17077701215ae6b9c64eba4f92bfc51479e3379ba642ac902546e76"
+      "beforeSha256": "5c105fdf45088f28ecd57c8fa281ecc64f5949a4c5e6d18928867cffce9c6463",
+      "afterSha256": "c75db6fc16b3f7e03eedcfdee660b99f63abcf2a56b4a0d21734d5c16ac12a31"
     },
     {
       "id": "control-launch-provenance",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "createdBy: \"user\",\n                    creationSource: input.creationSource ?? \"web\",",
       "to": "...provenance,",
-      "beforeSha256": "b18e02d3d17077701215ae6b9c64eba4f92bfc51479e3379ba642ac902546e76",
-      "afterSha256": "90c833e70488366b586d49439af056202a8f72dbbb771ab4a4941435362db7b2"
+      "beforeSha256": "c75db6fc16b3f7e03eedcfdee660b99f63abcf2a56b4a0d21734d5c16ac12a31",
+      "afterSha256": "b10cdc97b326d4c16b6076908fabb13eb0774db5050708fbfe9e3bd1e49363a8"
     },
     {
       "id": "control-executor-startup-boundary",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "                    ServerRuntimeStartupError: (cause) =>\n                      new OrchestrationV2ThreadLaunchError({\n                        commandId: input.commandId,\n                        projectId: input.projectId,\n                        message: \"Failed to launch thread\",\n                        cause,\n                      }),\n",
       "to": "",
-      "beforeSha256": "90c833e70488366b586d49439af056202a8f72dbbb771ab4a4941435362db7b2",
-      "afterSha256": "ff33ecd93808151148f4e9a05388024e8c5d3e0c561289ae622ce779aa924438"
+      "beforeSha256": "b10cdc97b326d4c16b6076908fabb13eb0774db5050708fbfe9e3bd1e49363a8",
+      "afterSha256": "9d75bc0b43144b6e0a2e05236f80c3488e680558f1a0297f769377803938f907"
     },
     {
       "id": "control-share-launch-input",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "ThreadMessageIntake.launchThread({\n                    commandId: input.commandId,\n                    ...(input.threadId === undefined ? {} : { threadId: input.threadId }),\n                    ...(input.reuseExistingThread === undefined\n                      ? {}\n                      : { reuseExistingThread: input.reuseExistingThread }),\n                    projectId: input.projectId,\n                    title: input.title,\n                    ...(input.generateTitle === undefined\n                      ? {}\n                      : { generateTitle: input.generateTitle }),\n                    modelSelection: input.modelSelection,\n                    runtimeMode: input.runtimeMode,\n                    interactionMode: input.interactionMode,\n                    workspaceStrategy: input.workspaceStrategy,\n                    ...(input.initialMessage === undefined\n                      ? {}\n                      : {\n                          initialMessage: {\n                            ...(input.initialMessage.messageId === undefined\n                              ? {}\n                              : { messageId: input.initialMessage.messageId }),\n                            text: input.initialMessage.text,\n                            attachments: input.initialMessage.attachments,\n                            ...(input.initialMessage.context === undefined\n                              ? {}\n                              : { context: input.initialMessage.context }),\n                          },\n                        }),\n                    ...provenance,\n})",
-      "to": "ThreadMessageIntake.launchThread(toLaunchInput(input, provenance))",
-      "beforeSha256": "ff33ecd93808151148f4e9a05388024e8c5d3e0c561289ae622ce779aa924438",
-      "afterSha256": "8f2deaa7f0d3a317c0141796b2e8e92ac8d2abb17afb8dc1c6c8d55d1649c6bf"
+      "to": "ThreadMessageIntake.launchThread(toAdmittedLaunchInput(input, provenance))",
+      "beforeSha256": "9d75bc0b43144b6e0a2e05236f80c3488e680558f1a0297f769377803938f907",
+      "afterSha256": "9692a53b611cd6953ebe6008273f6343b588d261c159cc723efcbbc0ed2ca488"
     },
     {
       "id": "control-original-prelaunch-mapping",
       "file": "apps/server/src/orchestration-v2/SessionControl.ts",
       "from": "export const launchThread = (input: OrchestrationV2ThreadLaunchInput,",
-      "to": "const toLaunchInput = (input: OrchestrationV2ThreadLaunchInput,\n  provenance: ThreadManagementProvenance): ThreadLaunch.ThreadLaunchInput => ({\n                    commandId: input.commandId,\n                    ...(input.threadId === undefined ? {} : { threadId: input.threadId }),\n                    ...(input.reuseExistingThread === undefined\n                      ? {}\n                      : { reuseExistingThread: input.reuseExistingThread }),\n                    projectId: input.projectId,\n                    title: input.title,\n                    ...(input.generateTitle === undefined\n                      ? {}\n                      : { generateTitle: input.generateTitle }),\n                    modelSelection: input.modelSelection,\n                    runtimeMode: input.runtimeMode,\n                    interactionMode: input.interactionMode,\n                    workspaceStrategy: input.workspaceStrategy,\n                    ...(input.initialMessage === undefined\n                      ? {}\n                      : {\n                          initialMessage: {\n                            ...(input.initialMessage.messageId === undefined\n                              ? {}\n                              : { messageId: input.initialMessage.messageId }),\n                            text: input.initialMessage.text,\n                            attachments: input.initialMessage.attachments,\n                            ...(input.initialMessage.context === undefined\n                              ? {}\n                              : { context: input.initialMessage.context }),\n                          },\n                        }),\n                    ...provenance,\n});\n\n/** Only original read/ID selection; the caller must still obtain command authority. */\nexport const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput,\n  provenance: ThreadManagementProvenance) => Effect.gen(function* () {\n    const launches = yield* ThreadLaunch.ThreadLaunchService;\n    return yield* launches.prepareTarget(toLaunchInput(input, provenance));\n  });\n\nexport const launchThread = (input: OrchestrationV2ThreadLaunchInput,",
-      "beforeSha256": "8f2deaa7f0d3a317c0141796b2e8e92ac8d2abb17afb8dc1c6c8d55d1649c6bf",
-      "afterSha256": "22a459076d145d186eb4c5318e4811e25d94cefc5de7ef75b00c8af8dc5c273c"
+      "to": "export const toAdmittedLaunchInput = (input: OrchestrationV2ThreadLaunchInput,\n  provenance: ThreadManagementProvenance): ThreadLaunch.ThreadLaunchInput => ({\n                    commandId: input.commandId,\n                    ...(input.threadId === undefined ? {} : { threadId: input.threadId }),\n                    ...(input.reuseExistingThread === undefined\n                      ? {}\n                      : { reuseExistingThread: input.reuseExistingThread }),\n                    projectId: input.projectId,\n                    title: input.title,\n                    ...(input.generateTitle === undefined\n                      ? {}\n                      : { generateTitle: input.generateTitle }),\n                    modelSelection: input.modelSelection,\n                    runtimeMode: input.runtimeMode,\n                    interactionMode: input.interactionMode,\n                    workspaceStrategy: input.workspaceStrategy,\n                    ...(input.initialMessage === undefined\n                      ? {}\n                      : {\n                          initialMessage: {\n                            ...(input.initialMessage.messageId === undefined\n                              ? {}\n                              : { messageId: input.initialMessage.messageId }),\n                            text: input.initialMessage.text,\n                            attachments: input.initialMessage.attachments,\n                            ...(input.initialMessage.context === undefined\n                              ? {}\n                              : { context: input.initialMessage.context }),\n                          },\n                        }),\n                    ...provenance,\n});\n\nexport const toLaunchTargetInput = (input: OrchestrationV2ThreadLaunchInput): ThreadLaunch.ThreadLaunchSelectionInput =>\n  ThreadLaunch.selectThreadLaunchTargetInput(input);\n\n/** Only original read/ID selection; the caller must still obtain command authority. */\nexport const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput) => Effect.gen(function* () {\n    const launches = yield* LaunchSelection.ThreadLaunchSelection;\n    return yield* launches.prepareTarget(toLaunchTargetInput(input));\n  });\n\nexport const launchThread = (input: OrchestrationV2ThreadLaunchInput,",
+      "beforeSha256": "9692a53b611cd6953ebe6008273f6343b588d261c159cc723efcbbc0ed2ca488",
+      "afterSha256": "8afb10052cc53c8b6007a9ee113ea5106250c1ed98c4717646197f850f6f3ced"
     },
     {
       "id": "extract-schedule-control-port",
