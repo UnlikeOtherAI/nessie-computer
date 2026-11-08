@@ -1,6 +1,6 @@
 # T3 request privacy source patches
 
-Status: P02 source correction, 8 November 2026. This machine-only build input is
+Status: P02 correction with masked-initial-answer follow-up, 8 November 2026. This machine-only build input is
 consumed by the existing session-engine snapshot composer. Its supported entry
 points are the source proof and synthetic provider fixtures below. It adds no
 available session runtime or UI. Canonical saving and scoped delivery remain
@@ -15,7 +15,7 @@ Preparation reads committed Git objects and preserves the MIT attribution.
 
 `patches/t3-session/requests/boundary-patches.json` contains 26 ordered operations
 on five upstream paths. Its corrected SHA-256 is
-`85f076324103220a4dce9358684899de8f6cfa3eb4121fcf88a6dd8bfdf13a04`.
+`98310d0219cab3a2183a9cb5ca9215823a42afb66bd9a0a830aed59f19b0a3c9`.
 Each operation binds the revision, unique source seam and full before/after file
 hashes. The authored `tool-privacy.ts` fragment enters the existing registered
 shared module; it adds no resolver or runtime package export.
@@ -26,7 +26,7 @@ The public base is `f57a43dc9564b04ccd4d2a254c474773aaee875e`, with T02's
 The unchanged producer composes state → T19 capsule → extraction → corrected
 request privacy, then applies that combined manifest exactly once to the verified
 original capsule. The freshly computed result has **177 operations**, SHA-256
-`39ce53a11d6b526e1b154fa54fd2e0e50777c3c916b996bb178a26b15ba69a7a`.
+`8abd5bb0fd7818503b849a65a05440c1522fcdc1001b4fbd91f106e9cd65b6f1`.
 The operation count happens to match a historical tuple; this digest was computed
 from the current four families and does not reuse that historical acceptance.
 T19's separate web manifest does not enter the engine capsule.
@@ -40,7 +40,7 @@ This is source compatibility evidence, not a co-build or runtime claim.
 
 | Upstream path | Final SHA-256 |
 | --- | --- |
-| `packages/shared/src/t3McpToolPresentation.ts` | `4fc71fbeda78ceb9bb1dabf61e8063470a99d2e30dfd76c956f471d13db1a5b6` |
+| `packages/shared/src/t3McpToolPresentation.ts` | `378e84e03da9fac1b0c308c8499761c243f1ace65c0cc7624f450e62568d360e` |
 | `packages/contracts/src/secretRequest.ts` | `8cc1a8a1b485dbdce28aa2e29a87bac63c1679e5f062634a03fc9660f273488b` |
 | `packages/client-runtime/src/secretRequest.ts` | `122ffc23a5f431633e4326d55776ad2e581698d2d812aba0a2f613a1d4b7b6f1` |
 | `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` | `dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d` |
@@ -103,6 +103,11 @@ Native `isSecret` questions remain refused before ordinary persistence with
 `canonical_secret_question_port_required`, including Codex asynchronous forms.
 T13 must supply a canonical field/ordinal port before reopening that path.
 Question IDs such as `__proto__` and original ordinals survive public projection.
+The original question schema's `initialAnswer` is also sensitive when an explicit
+`isSecret` marker is present. The follow-up adds that exact structural field to
+the existing projection; ordinary unmasked initial answers remain ordinary data.
+This does not recover mask markers removed before a caller invokes the projector.
+The retained-capture caller still needs its separate classification-order repair.
 
 ## Remaining admission boundaries
 
@@ -134,6 +139,17 @@ passed **27 tests, zero skips**, under a 512 MiB heap. The standalone current
 composition proof also passed. The fixture dependency root is owned by this
 worktree and contains only frozen Effect 4.1.2, installed without scripts,
 workspace hooks or copied outputs, after checking at least 10 GiB free RAM.
+
+The masked-initial-answer follow-up reran the registered Turbo source and fixture
+tasks sequentially on Maxis: **14 source checks and 27 fixture checks passed,
+zero skips**, including the strengthened masked-question regression. The exact
+fixture preparation and frozen script-disabled single-Effect install ran first;
+Turbo used `--only` to avoid repeating that preparation. Fresh host headroom was
+checked against 12 GiB and each Node heap was capped at 512 MiB. The new manifest
+and combined digests above supersede the earlier `85f076`/`39ce53` source tuple.
+The normal generated package, portable type consumers and Node 22 co-build have
+not been requalified with this changed helper; their earlier hashes remain
+historical evidence, not acceptance of these bytes.
 
 The fixtures execute the actual shared helper, real dedicated/pasted codecs,
 original answer helper, provider factories, native callback, protocol loggers

@@ -10,7 +10,7 @@ const REQUEST_PRIVACY_LIMIT = Symbol("request privacy limit");
 const PRIVATE_REQUEST_FIELDS = new Set([
   "value", "secret", "input", "arguments", "output", "result", "error", "content",
   "structuredContent", "contentItems", "message", "text", "preview", "updatedInput",
-  "answer", "answers", "initialValue", "default", "defaultValue",
+  "answer", "answers", "initialValue", "initialAnswer", "default", "defaultValue",
 ]);
 const REQUEST_ID_FIELDS = ["id", "callId", "call_id", "tool_use_id"] as const;
 const REQUEST_STRING_METADATA = new Set([
