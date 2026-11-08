@@ -52,7 +52,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     if (state === 'prompt' && (!before || copyOnly)) {
       // The native notification opens Settings before presenting the alert.
       await page.evaluate(() => window.emitTray('tray://section/settings'))
-    } else await page.getByRole('tab', { name: 'Settings', exact: true }).click()
+    } else await page.getByRole('tab').last().click() // Settings, in whichever language the page speaks
     if (!before || copyOnly) await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_update_control'))
     return { context, page, errors }
   }
