@@ -222,17 +222,19 @@ fn break_console(pid: u32, ours: &BTreeSet<u32>) {
         1
     }
     unsafe {
+        SetConsoleCtrlHandler(Some(ignore), 1);
         FreeConsole();
         if AttachConsole(pid) == 0 {
             return;
         }
-        // Registered once attached: a handler added before AttachConsole did
-        // not keep the event from ending this process.
         SetConsoleCtrlHandler(Some(ignore), 1);
         let mut attached = [0_u32; 64];
         let count = GetConsoleProcessList(attached.as_mut_ptr(), attached.len() as u32) as usize;
         if count <= attached.len() && console_is_ours(&attached[..count], ours, std::process::id()) {
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+            // The event arrives on a thread of its own: leaving the console
+            // before it has, this process was ended by it instead of ignoring it.
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         FreeConsole();
     }
