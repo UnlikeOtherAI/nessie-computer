@@ -1,10 +1,33 @@
 # Automatic executor updates
 
-Status: **not released**. Native installer adapters and local update controls
-are implemented in source. Installed A-to-B acceptance on Windows, macOS and
-Linux has not passed, and the transition release remains unpublished. The published 0.9.1 prerelease and sequence-1 stable/preview
-catalogs contain only the Apple-silicon DMG. They do not provide a complete
-stable distribution or establish installed upgrade acceptance.
+Status: **preview published; stable acceptance incomplete**. Immutable release
+[1.0.12](https://github.com/UnlikeOtherAI/nessie-executor/releases/tag/executor-v1.0.12)
+contains signed Windows x64 MSI, Apple-silicon DMG and Linux x64 DEB/RPM packages
+from `e799a7aa3dc53d8430a925ba3027b2039adca7ae`. Anonymous downloads matched
+all recorded hashes and sizes on 8 November 2026, including both Linux detached
+signatures. The protected publisher produced preview catalogue sequence 2;
+its Ed25519 signature and exact match with the immutable archive were verified.
+It was issued at `2026-11-08T07:32:08.234Z` and expires thirty days later.
+The complete stable channel is not enabled. Its legacy sequence-1 catalogue
+still contains only the 0.9.1 Apple-silicon DMG.
+
+The original signed Windows 1.0.12 MSI installed successfully on Maxis. Its
+machine-PATH CLI passed ordinary desktop-token version/source, policy readback,
+Check and invalid-action exit-code checks. FedoraMaxis installed the signed
+1.0.12 RPM with SELinux enforcing; the updater is active with zero restarts.
+The installed GNOME application opened through its packaged entry, showed
+1.0.12, saved automatic off, requested Check and restored automatic on.
+
+Finder installed the signed 1.0.12 app on Dictator. The protected factory still
+reports 0.9.0 at `879a601`; app copying alone does not replace that factory.
+The new preview superseded its retained 0.9.1 transaction with 1.0.12, preserving
+the transaction history and custody records. Runtime clearance and a coordinated
+restart remain pending. The 1.0.13 signed B candidates cover all four formats
+at the same source and are staged in an unpublished draft.
+
+No catalogue-driven A-to-B upgrade is claimed. Notification, reminder, explicit
+Update, interrupted-transaction/reboot recovery, retained pairing/reconnect and
+post-upgrade local-provider requests remain installed release prerequisites.
 
 The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
@@ -13,8 +36,8 @@ background helper. See [the helper trust contract](macos-update-helper.md).
 Local signed candidates 1.0.2 and 1.0.3 now exist for all four formats at
 `a24bd9c2bf40201693baa1ddca9ffb7713619d2c`: timestamped Azure-signed Windows
 MSIs, Developer ID signed/notarized/stapled Apple-silicon DMGs, and signed
-Linux DEB/RPM packages and repository metadata. They remain unpublished and
-have not passed installed A-to-B acceptance. The local GUI and CLI changes require new candidates before release.
+Linux DEB/RPM packages and repository metadata. Those earlier candidates remain unpublished and were superseded by the
+1.0.12/1.0.13 candidates above; they do not establish installed A-to-B acceptance.
 
 Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.11
 at `9d8fef9` installed normally on Maxis; its non-elevated controls can read
@@ -23,8 +46,8 @@ SYSTEM worker completed its first catalog check and returned idle with no
 recorded failures. Its managed CLI passed under the non-elevated desktop token
 and passed again after a normal SCM service restart. The runtime admission
 transport no longer requires a legacy pairing-control grant.
-The notarized macOS candidates pass signature and Gatekeeper checks but are
-not installed. Fedora's signed 1.0.2 package has passed service recovery and a
+Earlier notarized macOS candidates passed signature and Gatekeeper checks;
+the current installed-app/protected-factory distinction is recorded above. Fedora's signed 1.0.2 package has passed service recovery and a
 machine restart. None of these candidates establishes stable A-to-B acceptance.
 macOS signing uses the existing GUI session and Developer ID identity; no
 additional Installer certificate or account setup is required.
@@ -384,8 +407,9 @@ dependencies; no Python package download occurs at app launch.
 Focused native protocol checks run on Fedora with
 `python3 packaging/linux/test/console_test.py`. The local headless renderer
 journey is `node packaging/linux/test/renderer.mjs`; keep it out of CI.
-Installed GNOME entry, reminder and reboot checks remain release acceptance
-work until the signed candidate is exercised on FedoraMaxis.
+The installed GNOME entry and policy/check readback passed on FedoraMaxis with
+signed 1.0.12. Notification, reminder and catalogue-driven reboot recovery remain
+release acceptance work.
 
 ## Windows source verification context
 
@@ -451,9 +475,9 @@ that protected directory in the machine PATH. New terminals can use
 `nessie-executor updates status --json` and the ordinary CLI commands. The wrapper
 passes arguments to the fixed native managed-runtime entry; it never invokes an
 ambient Node binary, selects an update origin or supplies credentials. Windows
-Installer owns PATH registration and removes it on uninstall. The typed-command,
-argument/exit-code and launch-notification journeys still need the installed
-candidate; the prior edge MSI exposed no `nessie-executor` command on Maxis.
+Installer owns PATH registration and removes it on uninstall. Installed 1.0.12 passed command discovery through machine PATH, ordinary-user
+argument handling and invalid-action exit code. Launch-notification acceptance
+remains pending; the prior edge MSI exposed no `nessie-executor` command on Maxis.
 
 ## Windows installed setup and rollback
 
