@@ -637,7 +637,9 @@ closure interrupt and join preparation, native companion cleanup and all demand
 before releasing the selection. Native Promise interruption joins the same
 pending call, including its positive-clearance cleanup; it never retries a write.
 `withRecognized` holds the entire admitted callback and supplies its scoped abort
-signal, so a returned target cannot end lifetime tracking before dispatch drains.
+signal and the frozen canonical acceptance record, so the reserve selector can
+use that exact backend graph ID. The record is retention metadata, never a signed
+phase grant. A returned target cannot end lifetime tracking before dispatch drains.
 The cold context checks challenge source/capture/writer generation against the
 actual held imported state before creating the native graph receipt.
 

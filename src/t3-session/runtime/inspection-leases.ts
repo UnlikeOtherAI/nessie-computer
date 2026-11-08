@@ -44,7 +44,8 @@ export interface SessionInspectionLeases {
   accept(request: Request, accepted: T3LaneInspectionAccepted, signal: AbortSignal): Promise<void>
   release(inspectionId: string): Promise<void>
   withRecognized<A>(request: Request, delivery: ExecutorT3LaneDelivery, signal: AbortSignal,
-    use: (target: PreparedSessionLaunchTarget, signal: AbortSignal) => Promise<A>): Promise<A>
+    use: (target: PreparedSessionLaunchTarget, signal: AbortSignal,
+      accepted: Readonly<T3LaneInspectionAccepted>) => Promise<A>): Promise<A>
 }
 
 /** Receipt creation is finite, but the original allocated target is held in its
@@ -213,7 +214,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
       if (lease.closing || lease.signal.aborted || lease.expiresAt <= Date.now()) {
         throw new SessionExecutionGraphRefused()
       }
-      const graph = lease.graph, scope = lease.scope
+      const graph = lease.graph, scope = lease.scope, accepted = lease.accepted
       const operation = Effect.uninterruptibleMask(restore => Effect.gen(function* () {
         const child = yield* owner.recognize(graph, request, delivery).pipe(Effect.forkIn(scope))
         return yield* restore(Fiber.join(child)).pipe(Effect.onInterrupt(() => Fiber.interrupt(child)))
@@ -222,7 +223,7 @@ export const makeSessionInspectionLeases = (owner: SessionInspectionContext):
       const pending = (async () => {
         const target = await Effect.runPromise(operation, { signal: demandSignal })
         demandSignal.throwIfAborted()
-        return use(target, demandSignal)
+        return use(target, demandSignal, accepted)
       })()
       lease.demand.add(pending)
       try {

@@ -138,7 +138,7 @@ export function createProtectedSessionRuntime(state: () => ExecutorLocalState, w
     releaseInspection: release,
     // Cold availability is not execution. The original admitted activation and
     // serializer must be composed here before this method can dispatch commands.
-    open: async function* () { throw protectedRuntimeRefused() },
+    open: () => { throw protectedRuntimeRefused() },
   }
   const begin = (key: string) => {
     const job: Job = { key, identity: identity(state()), stop: new AbortController(), calls: new Map(),
