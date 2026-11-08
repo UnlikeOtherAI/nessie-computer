@@ -628,3 +628,22 @@ Catalog and file wrappers name their original codecs and Effect services; SQL
 transaction errors remain explicit. The retained wake uses the actual
 `session_views` cadence topic. These compiler results establish neither native
 execution nor installed readiness; focused runtime and provider tests continue.
+
+`makeSessionInspectionLeases` retains a separate child Effect Scope for each
+original inspection. Its independent timer uses the supplied original admission
+resource deadline, not the five-second signing window. Exact retries keep that
+deadline; changing it refuses. Parent cancellation, explicit release and owner
+closure interrupt and join preparation, native companion cleanup and all demand
+before releasing the selection. Native Promise interruption joins the same
+pending call, including its positive-clearance cleanup; it never retries a write.
+`withRecognized` holds the entire admitted callback and supplies its scoped abort
+signal, so a returned target cannot end lifetime tracking before dispatch drains.
+The cold context checks challenge source/capture/writer generation against the
+actual held imported state before creating the native graph receipt.
+
+This internal owner is not yet a registered lane. Exact ACK metadata and its
+shorter canonical parent expiry still require the parent-integrated inspection
+lifecycle contract. No command or provider authority is inferred from retaining
+the scope. Four refusal/cancellation fixtures are authored and unrun; six changed
+modules passed builtin parsing without application evaluation. No compiler,
+package tests, native launch or manual journey ran for this checkpoint.

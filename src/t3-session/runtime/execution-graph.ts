@@ -13,6 +13,7 @@ import { prepareSessionLaunchTarget, recheckSessionLaunchTarget,
   from './launch-target.js'
 import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
 import type { EffectFailure, EffectServices } from './effect-types.js'
+import { joinedNativeEffect } from './native-effect.js'
 
 type LaunchRequest = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type InspectionDelivery = { readonly inspection: T3ExecutionSignedAdmission; readonly relayHmac: string }
@@ -78,8 +79,8 @@ export class HeldSessionExecutionGraph {
     if (inspection.sourceRootKey !== bound.receipt.evidence.source.physicalRootKey) {
       return yield* Effect.fail(new SessionExecutionGraphRefused())
     }
-    const native = yield* Effect.tryPromise({ try: signal => createT3ExecutionNativeClient(request.executorId,
-      AbortSignal.any([source.signal, deadline, signal])), catch: () => new SessionExecutionGraphRefused() })
+    const native = yield* joinedNativeEffect(signal => createT3ExecutionNativeClient(request.executorId,
+      AbortSignal.any([source.signal, deadline, signal])), () => new SessionExecutionGraphRefused())
     yield* assertDeadline
     if (native.descriptor.keyId !== inspection.issuerKeyId
       || canonicalExecutorJson(native.descriptor.custody) !== canonicalExecutorJson(bound.receipt.custody)) {
@@ -98,8 +99,8 @@ export class HeldSessionExecutionGraph {
     }
     yield* readSessionExecutionResources(source, selection)
     yield* assertDeadline
-    const receipt = yield* Effect.tryPromise({ try: signal => native.graph(signed, bound.receipt.resourceId, graph,
-      AbortSignal.any([source.signal, deadline, signal])), catch: () => new SessionExecutionGraphRefused() })
+    const receipt = yield* joinedNativeEffect(signal => native.graph(signed, bound.receipt.resourceId, graph,
+      AbortSignal.any([source.signal, deadline, signal])), () => new SessionExecutionGraphRefused())
     yield* assertDeadline
     yield* readSessionExecutionResources(source, selection)
     const observed = T3ExecutionGraphPayloadSchema.parse(JSON.parse(receipt.payload))
