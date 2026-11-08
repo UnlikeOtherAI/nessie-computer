@@ -15,6 +15,7 @@ Commands follow the window:
 | Window | Command |
 |---|---|
 | Overview | `nessie-computer status`, `teams`, `who` |
+| Settings → Help | `nessie-computer help`, `--version` |
 | Connect a team / Disconnect | `nessie-computer connect`, `disconnect` |
 | Pause / Resume | `nessie-computer pause`, `resume` |
 | Access tab | `nessie-computer access …` (`folders`, `programs`, `websites`, `local-apps`, `coding-assistants`) |
@@ -29,7 +30,7 @@ Commands follow the window:
 - `nessie-computer help` lists commands; `nessie-computer help <command>` (or
   `<command> --help`) explains one, with examples.
 - Exit code 0 means it worked. Any other code means it didn't, and the message
-  says why.
+  says why: 1 refused or failed, 2 typed wrong, 3 waiting timed out.
 
 ## Tutorial: check a computer
 
@@ -47,7 +48,7 @@ Needs you: Sales agent wants to run `npm test` (Sales · Acme)
 ```sh
 $ nessie-computer access show --team Sales
 Sales · Acme can use:
-  Folders     nessie (~/Nessie)
+  Folders     nessie (/home/me/Nessie)
   Programs    Only these: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code
   Websites    none
   Local apps  all installed (kelpie)
@@ -55,6 +56,9 @@ Sales · Acme can use:
 ```
 
 ## Tutorial: connect a Linux server
+
+On Windows, connect a team in the Nessie Computer app. Teams its background
+service runs can't be changed from the command line yet; use the app for them.
 
 On the server (as the user the agents should run as):
 
@@ -86,12 +90,12 @@ nessie-computer access programs block "git push *" --team Sales
 
 ```sh
 $ nessie-computer requests list
-ID        TEAM           AGENT         PROGRAM          WAITS
-r-7f3a    Sales · Acme   Sales agent   npm test         1 min 42 s
+ID        TEAM          AGENT         PROGRAM   WAITS
+7f3a9c21  Sales · Acme  Sales agent   npm test  1 min 42 s
 
-$ nessie-computer requests allow-once r-7f3a
-$ nessie-computer requests always r-7f3a      # allows `npm` from now on
-$ nessie-computer requests deny r-7f3a
+$ nessie-computer requests allow-once 7f3a9c21
+$ nessie-computer requests always 7f3a      # allows `npm` from now on
+$ nessie-computer requests deny 7f3a
 ```
 
 ## Tutorial: scripts

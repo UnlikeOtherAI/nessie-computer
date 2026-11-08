@@ -3,6 +3,9 @@
 Every command is `nessie-computer <command> [options]`. `nessie-executor` is
 the same command under its older name.
 
+On Windows, teams the app's background service runs can't be changed from the
+command line yet; use the Nessie Computer app for them.
+
 Options every command accepts:
 
 | Option | Meaning |
@@ -24,7 +27,7 @@ What Nessie Computer and each team are doing, and anything that needs you.
 ```sh
 nessie-computer status [--team <team>] [--json]
 ```
-Each team shows **Working**, **Paused** or **Not connected** (with the reason).
+Each team shows **Working**, **Paused**, **Needs you** or **Not connected** (with the reason).
 
 ### `teams`
 List connected teams: label, status, server and id.
@@ -41,16 +44,6 @@ Read from Nessie each time; nothing is stored.
 nessie-computer who [--team <team>] [--json]
 ```
 
-### `sessions`
-What agents are doing on this computer right now: one session per agent run,
-with the commands running in it. Sessions run side by side, and so do the
-commands inside one.
-
-```sh
-nessie-computer sessions [list] [--team <team>] [--json]
-nessie-computer sessions stop <session-id>      # cancels everything in that session
-```
-
 ---
 
 ## Connecting
@@ -65,6 +58,8 @@ nessie-computer connect [--server <https://address>] [--no-wait] [--json]
 - `--no-wait` — print the code and return; `status` shows when it's done.
 
 On Linux, a connected team starts at boot and keeps running after you log out.
+On a Mac it runs in the background and starts when you log in. On Windows,
+connect a team in the Nessie Computer app.
 
 ### `disconnect`
 End a team's connection to this computer and delete its settings here. Your
@@ -85,7 +80,7 @@ lasts until you resume, across restarts and updates.
 
 ```sh
 nessie-computer pause  [--team <team>]     # without --team: every team
-nessie-computer resume [--team <team>]
+nessie-computer resume [--team <team>]     # without --team: every team
 ```
 
 ---
@@ -105,7 +100,8 @@ nessie-computer access folders [list]          [--team <team>]
 nessie-computer access folders add <path>      [--name <name>] [--team <team>]
 nessie-computer access folders remove <name|path> [--team <team>]
 ```
-`--name` sets the name agents use (default: from the folder's name).
+`--name` sets the name agents use (default: from the folder's name). Keep at
+least one folder; to end a team's access, disconnect it.
 
 ### `access programs`
 ```sh
@@ -135,8 +131,13 @@ Apps on this computer agents can talk to (MCP servers).
 nessie-computer access local-apps [list]   [--team <team>]
 nessie-computer access local-apps on|off <name> [--team <team>]
 nessie-computer access local-apps all on|off    [--team <team>]
+nessie-computer access local-apps remove <name> [--team <team>]
 ```
-`all on` uses every installed local app, including new ones (the default).
+- `all on` uses every installed local app, including new ones (the default).
+- `all off` switches off every local app found now; apps installed later start
+  switched on.
+- `remove` takes away a local app you added yourself. Apps found on the
+  computer are switched off instead.
 
 ### `access coding-assistants`
 ```sh
@@ -161,7 +162,8 @@ nessie-computer requests always <id>        # adds the program to the team's pro
 nessie-computer requests deny <id>
 nessie-computer requests watch    [--team <team>]   # prints new requests as they arrive
 ```
-A request waits up to 2 minutes, then is refused.
+An id may be shortened to its first characters while it stays unique. A
+request waits up to 2 minutes, then is refused.
 
 ---
 
@@ -189,12 +191,16 @@ nessie-computer documents held restore|delete [--team <team>]
 ### `ai plans` — ChatGPT plans
 ```sh
 nessie-computer ai plans [list]            [--team <team>]
-nessie-computer ai plans add [<name>]      [--team <team>]   # opens ChatGPT sign-in in your browser
+nessie-computer ai plans add [<name>] [--yes] [--team <team>]   # opens ChatGPT sign-in in your browser
 nessie-computer ai plans rename <plan> <new name> [--team <team>]
-nessie-computer ai plans sign-in <plan>    [--team <team>]
+nessie-computer ai plans sign-in <plan> [--yes] [--team <team>]
 nessie-computer ai plans background <plan> on|off [--team <team>]
 nessie-computer ai plans disconnect <plan> [--team <team>]
 ```
+While a ChatGPT plan is signed in, agents can't open terminals or coding tools
+under your account. `add` and `sign-in` ask you to accept that first; `--yes`
+accepts it without asking. On Windows, manage ChatGPT plans in the Nessie
+Computer app.
 
 ### `ai servers` — model servers
 ```sh
@@ -212,14 +218,17 @@ shell history.
 
 ```sh
 nessie-computer settings                       # everything below
-nessie-computer settings login on|off          # open at login
-nessie-computer settings auto-restart on|off   # restart a team if it stops
+nessie-computer settings auto-restart [on|off] # restart a team if it stops
 nessie-computer settings updates               # version and update status
 nessie-computer settings updates check
 nessie-computer settings updates install
 nessie-computer settings updates automatic on|off
-nessie-computer settings logs                  # prints the logs folder
+nessie-computer settings logs                  # prints where the logs are
 ```
+`auto-restart` covers the teams the command line runs as services (Linux, and
+Macs without the app). Teams the app runs follow **Restart a team if it stops**
+in its Settings; on Windows, change it there. **Open Nessie Computer when I log
+in** is set in the app.
 
 ---
 
@@ -227,6 +236,7 @@ nessie-computer settings logs                  # prints the logs folder
 
 ```sh
 nessie-computer help [<command>]
+nessie-computer help plumbing
 nessie-computer --version
 ```
 
@@ -248,7 +258,9 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
 | `audience --state-dir <dir>` | The app's "Who can send work here" |
 | `sync --state-dir <dir> …` | The app's Documents tab |
-| `local-inference endpoint …` | The app's model servers |
+| `local-inference connections …` | The app's model servers |
+| `personal-chatgpt-local --state-dir <dir>` | The app's ChatGPT plans |
+| `unpair --state-dir <dir>` | The app's Disconnect |
 | `enable`, `disable`, `autorestart` | The Linux service |
 | `configure-browser`, `configure-codex` | Setting up the agents' browser and sandbox |
 | `serve-*`, `coding-session-host`, `deeptest-*` | Started by Nessie Computer itself |
