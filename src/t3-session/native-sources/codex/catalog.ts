@@ -85,7 +85,7 @@ export class CodexRetainedCatalog {
     this.progress.set(part, progress)
   }
 
-  /** Only call after all held-resource and original-human checks pass at publication.
+  /** Only call after all held-resource and prospective read-grant checks pass at publication.
    * Sealing supplies data completeness, not a server publication/admission receipt.
    */
   seal(): void {

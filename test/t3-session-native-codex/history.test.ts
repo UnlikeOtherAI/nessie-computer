@@ -111,3 +111,29 @@ test('empty question declarations cannot assert public answer classification', a
   await history.prepare()
   assert.doesNotMatch(JSON.stringify(await history.page()), /CANARY/u)
 })
+
+test('cancellation before and during paging publishes nothing and performs no subsequent read', async () => {
+  const f = fixture([header, message('first'), message('second')])
+  const before = new AbortController()
+  before.abort(new Error('cancelled-before'))
+  await assert.rejects(new CodexRetainedHistory(f.source).prepare(before.signal), /cancelled-before/u)
+  assert.equal(f.reads.length, 0)
+  const history = new CodexRetainedHistory(f.source)
+  await history.prepare()
+  const after = new AbortController()
+  const original = f.source.read
+  let cancelDuringRead = false
+  const source = { ...f.source, async read(offset: number, length: number) {
+    const bytes = await original(offset, length)
+    if (cancelDuringRead) after.abort(new Error('cancelled-during'))
+    return bytes
+  } }
+  const cancellable = new CodexRetainedHistory(source)
+  await cancellable.prepare()
+  const reads = f.reads.length
+  cancelDuringRead = true
+  await assert.rejects(cancellable.page({ signal: after.signal }), /cancelled-during/u)
+  assert.equal(f.reads.length, reads + 1)
+  await assert.rejects(cancellable.page({ signal: after.signal }), /cancelled-during/u)
+  assert.equal(f.reads.length, reads + 1)
+})

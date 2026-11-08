@@ -3,14 +3,14 @@ import { CodexHistoryPrivacy } from './privacy.js'
 import { parseCodexRolloutLine, projectCodexRecord, type CodexRolloutRecord } from './rollout.js'
 
 /** Data-plane view of an ALREADY held read resource. This interface is not an admission producer.
- * The shared native-history port must establish resource and original-human continuity before
- * constructing it, keep the immutable prefix stable and invalidate it on replacement/revocation.
+ * The shared native-history port must establish resource identity and a prospective source-owner read grant
+ * before constructing it, keep the immutable prefix stable and invalidate it on replacement/revocation.
  */
 export interface CodexRolloutBytes {
   readonly identity: CodexNativeIdentity
   readonly resourceRevision: string
   readonly capturedBytes: number
-  read(offset: number, length: number): Promise<Uint8Array>
+  read(offset: number, length: number, signal?: AbortSignal): Promise<Uint8Array>
   recheck(): Promise<void>
 }
 
@@ -35,21 +35,25 @@ const RECORD_LIMIT = 1024 * 1024
 /** Complete forward JSONL traversal with byte cursors; it never seeks to a recent tail.
  * A partial final record is explicitly incomplete, not malformed or silently dropped.
  */
-async function* lines(source: CodexRolloutBytes, start: number): AsyncGenerator<{
+async function* lines(source: CodexRolloutBytes, start: number, signal?: AbortSignal): AsyncGenerator<{
   offset: number; nextOffset: number; record: CodexRolloutRecord
 }> {
   let readAt = start
   let offset = start
   let pending = Buffer.alloc(0)
   while (readAt < source.capturedBytes) {
+    signal?.throwIfAborted()
     await source.recheck()
+    signal?.throwIfAborted()
     const length = Math.min(CHUNK, source.capturedBytes - readAt)
-    const chunk = await source.read(readAt, length)
+    const chunk = await source.read(readAt, length, signal)
+    signal?.throwIfAborted()
     requireCodex(chunk.byteLength === length, 'codex_capture_changed')
     readAt += length
     pending = Buffer.concat([pending, chunk])
     let end = pending.indexOf(10)
     while (end >= 0) {
+      signal?.throwIfAborted()
       requireCodex(end <= RECORD_LIMIT, 'codex_record_too_large')
       let decoded: string
       try { decoded = new TextDecoder('utf-8', { fatal: true }).decode(pending.subarray(0, end)) }
@@ -62,6 +66,7 @@ async function* lines(source: CodexRolloutBytes, start: number): AsyncGenerator<
     }
     requireCodex(pending.length <= RECORD_LIMIT, 'codex_record_too_large')
   }
+  signal?.throwIfAborted()
   await source.recheck()
 }
 
@@ -82,7 +87,8 @@ export class CodexRetainedHistory {
       read: source.read.bind(source), recheck: source.recheck.bind(source) })
   }
 
-  async prepare(): Promise<void> {
+  async prepare(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted()
     requireCodex(!this.attempted, 'codex_history_requires_fresh_capture')
     this.attempted = true
     const { source } = this
@@ -90,7 +96,7 @@ export class CodexRetainedHistory {
       source.resourceRevision.length > 0, 'codex_capture_invalid')
     await source.recheck()
     let first = true
-    for await (const line of lines(source, 0)) {
+    for await (const line of lines(source, 0, signal)) {
       if (first) requireCodex(line.record.type === 'session_meta' &&
         line.record.payload.id === source.identity.nativeId, 'codex_rollout_identity_mismatch')
       // A second header can describe copied fork ancestry, but cannot silently rebind this file.
@@ -104,17 +110,20 @@ export class CodexRetainedHistory {
     requireCodex(!first, 'codex_rollout_header_incomplete')
     this.privacy.complete()
     // Validate the complete projected capture before its first page can claim completeness.
-    for await (const line of lines(source, 0)) {
+    for await (const line of lines(source, 0, signal)) {
       const projected = projectCodexRecord(line.record)
       if (projected.record) this.privacy.apply(projected.record)
     }
     await source.recheck()
+    signal?.throwIfAborted()
     this.ready = true
   }
 
   async page(input: {
-    readonly cursor?: CodexHistoryCursor; readonly limit?: number; readonly byteLimit?: number
+    readonly cursor?: CodexHistoryCursor; readonly limit?: number
+    readonly byteLimit?: number; readonly signal?: AbortSignal
   } = {}) {
+    input.signal?.throwIfAborted()
     requireCodex(this.ready, 'codex_history_preflight_required')
     const { source } = this
     const key = codexIdentityKey(source.identity)
@@ -129,14 +138,15 @@ export class CodexRetainedHistory {
       cursor.capturedBytes === source.capturedBytes && Number.isSafeInteger(start) && start >= 0 &&
       start <= this.throughOffset), 'codex_cursor_stale')
     await source.recheck()
+    input.signal?.throwIfAborted()
     if (start > 0) {
-      const boundary = await source.read(start - 1, 1)
+      const boundary = await source.read(start - 1, 1, input.signal)
       requireCodex(boundary.length === 1 && boundary[0] === 10, 'codex_cursor_not_record_boundary')
     }
     const entries: CodexHistoryEntry[] = []
     let bytes = 0
     let nextOffset = start
-    for await (const line of lines(source, start)) {
+    for await (const line of lines(source, start, input.signal)) {
       const selected = projectCodexRecord(line.record)
       const entry = { offset: line.offset, nextOffset: line.nextOffset, omission: selected.omission,
         record: selected.record ? this.privacy.apply(selected.record) : null }
@@ -146,6 +156,7 @@ export class CodexRetainedHistory {
       entries.push(entry); bytes += size; nextOffset = line.nextOffset
     }
     await source.recheck()
+    input.signal?.throwIfAborted()
     const nextCursor: CodexHistoryCursor | null = nextOffset < this.throughOffset ? {
       sourceKey: key, resourceRevision: source.resourceRevision,
       capturedBytes: source.capturedBytes, offset: nextOffset,

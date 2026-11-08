@@ -2,7 +2,7 @@
 
 The Codex adapter in `src/t3-session/native-sources/codex` supplies passive data
 readers for the shared three-source catalog. It does not advertise a capability
-or establish admission. Native physical-resource and original-human read
+or establish admission. Native physical-resource and prospective source-owner read
 producers, catalog publication and tool registrations are still unbound.
 No installed source or personal history was accessed to author these readers.
 
@@ -57,12 +57,14 @@ each target separately and exclude unauthorized/deleted rows from display.
 ## History and privacy
 
 `CodexRetainedHistory` consumes a held byte-range resource. The shared native
-history port must establish original-human continuity, physical resource
+history port must establish a prospective source-owner import/read grant, physical resource
 identity, immutable prefix length, replacement fencing and current read
 revocation before constructing this data-plane view. Its `recheck` function is
 not an admission factory; fixture callbacks supply no production proof.
 Keep the instance inside the canonical port's live callback and invalidate it
 when that lease ends. Reads must honor the canonical maximum 60-second freshness.
+The grant authorizes a current import/read; it does not assert who authored old
+messages or turn a discovered transcript into retrospective ownership evidence.
 
 Preparation walks every complete JSONL record in 64 KiB reads before any page
 is published, then validates a full projection pass using that correlation.
@@ -102,12 +104,13 @@ from an external caller.
 
 | Operation | Input and result | Grants and retries |
 | --- | --- | --- |
-| `CodexRetainedCatalog.page` | Held source capture; bounded limit and opaque source/watermark cursor → native rows, watermark, next cursor and completion | Fresh selected-team native-source read plus original-human continuity. Tombstones/aliases require independent display filtering. Same capture/cursor replays the same data; a changed capture rejects the cursor. No command receipt. |
+| `CodexRetainedCatalog.page` | Held source capture; bounded limit and opaque source/watermark cursor → native rows, watermark, next cursor and completion | Fresh selected-team prospective source-owner import/read grant. Tombstones/aliases require independent display filtering. Same capture/cursor replays the same data; a changed capture rejects the cursor. No command receipt. |
 | `CodexRetainedHistory.page` | Exact admitted native/history resource; prepared capture, bounded limit/bytes and cursor → ordered native records, omissions, watermark, cursor and explicit completeness | Fresh per-native-history read before bytes and before publication. Revocation/replacement fails; no cached authority. Retry at the same capture/cursor; restart from a new capture after a stale cursor. No command receipt or stream. |
 | `codexAssociationCandidates` | Exact native identity and canonically admitted association candidates → all matching original T3 identities and ambiguity | Each linked app identity needs its own current read grant. Relationship data never renews execution custody. Pure finite lookup, no receipt. |
 
 `readCodexIndexPage` and capture `append`/`seal` are internal preparation steps,
-not additional user-facing tools. Cancellation aborts the read and discards
+not additional user-facing tools. `prepare(signal)` and `page({signal})` check
+cancellation between chunks, records and publication. Cancellation discards
 unpublished data; it never stops native work. Transport correlation IDs remain
 separate from cursors and native identities. No raw provider credentials or
 secret input enter these operations.
