@@ -8,6 +8,9 @@ import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, R
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
   SessionControl, Threads, Launch, ScheduledTasks } from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
+import { createSessionRuntimeLayers, ProviderHost, NativeChildProcesses,
+  ProviderCredentialReferences, SessionResourceTargets, TurnControl, RuntimeRequests,
+  sessionProviderHostLayer } from '@nessie/t3-session-source/engine'
 
 type Input<T> = T extends Layer.Layer<infer _Out, infer _Error, infer Required> ? Required : never
 type Services<T> = T extends Effect.Effect<infer _Out, infer _Error, infer Required> ? Required : never
@@ -15,6 +18,18 @@ type Reads = Input<ReturnType<typeof createSessionReadLayers>['layer']>
 type Engine = Input<ReturnType<typeof createSessionEngineLayers>['layer']>
 type Worker = Input<ReturnType<typeof createSessionEngineLayers>['worker']>
 type Shared = Input<ReturnType<typeof createSessionEngineLayers>['shared']>
+type Runtime = Input<ReturnType<typeof createSessionRuntimeLayers>['layer']>
+const runtimeHostRequired: ProviderHost.ProviderHost extends Runtime ? true : false = false
+const runtimeCredentialsRequired: ProviderCredentialReferences extends Runtime ? true : false = true
+const runtimeResourceOwnersRequired: SessionResourceTargets extends Runtime ? true : false = true
+const runtimeControlRequired: TurnControl.ProviderTurnControlServiceV2 extends Runtime ? true : false = false
+const runtimeRequestsRequired: RuntimeRequests.RuntimeRequestServiceV2 extends Runtime ? true : false = false
+type Host = Input<typeof sessionProviderHostLayer>
+const hostCredentialProducerRequired: ProviderCredentialReferences extends Host ? true : false = true
+const noRawCredentials: 'credentials' extends keyof ProviderHost.ProviderHost['Service'] ? false : true = true
+const runtimeNativeRequired: NativeChildProcesses.ChildProcessSpawner extends Runtime ? true : false = true
+const runtimeProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Runtime ? true : false = true
+const runtimeCleanupRequired: ResourceOwners.ResourceCleanupService extends Runtime ? true : false = false
 const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = true
@@ -47,6 +62,9 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 // @ts-expect-error The original dedicated schema cannot be replaced with an ordinary value.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
+  runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
+  runtimeCredentialsRequired, runtimeResourceOwnersRequired, runtimeControlRequired, runtimeRequestsRequired,
+  hostCredentialProducerRequired, noRawCredentials,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,
   fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret, retainedProjector,
   controlNeedsThreads, controlNeedsLaunch, invalidSchedule]

@@ -9,6 +9,7 @@
   "scripts": {
     "test:t3-session-control-source": "node --max-old-space-size=256 --test --test-concurrency=1 test/t3-session-control/source.test.mjs",
     "test:t3-session-control": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-control/controls.test.mjs test/t3-session-control/receipts.test.mjs test/t3-session-control/schedules.test.mjs",
+    "test:t3-session-runtime": "node --max-old-space-size=512 --test --test-concurrency=1 test/t3-session-runtime/*.test.mjs",
     "test:session-engine-source": "node --test --test-concurrency=1 packaging/session-engine/source.test.mjs",
     "test:t3-session-request-prepare": "node --max-old-space-size=512 test/t3-session-requests/prepare-dependencies.mjs && pnpm --dir .artifacts/c05-requests/dependencies install --frozen-lockfile --ignore-scripts --ignore-workspace --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
     "test:t3-session-request-source": "node --max-old-space-size=512 test/t3-session-requests/verify-combined.mjs && node --max-old-space-size=512 --test --experimental-test-isolation=none test/t3-session-requests/privacy.test.mjs test/t3-session-requests/structural-adversaries.test.mjs",

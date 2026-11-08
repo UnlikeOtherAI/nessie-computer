@@ -4,6 +4,7 @@
     "//#test:t3-session-control-source": { "dependsOn": [], "cache": false,
       "env": ["T3_SESSION_CONTROL_REFERENCE"] },
     "//#test:t3-session-control": { "dependsOn": ["//#build"], "cache": false },
+    "//#test:t3-session-runtime": { "dependsOn": ["//#build"], "cache": false },
     "test:t3-session-source": { "dependsOn": [], "cache": false },
     "//#test:t3-session-import-source": { "dependsOn": [], "cache": false,
       "env": ["T3_SESSION_IMPORT_REFERENCE"] },
