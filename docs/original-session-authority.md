@@ -2,6 +2,13 @@
 
 This source checkpoint is not qualified for release or catalog parity.
 
+The original-adapter byte continuation is documented in
+[protected provider bytes](protected-provider-bytes.md). Its generic SDK stdin
+remains closed pending authenticated serializer correlation. Automatic byte
+replies use observed outstanding request IDs and a fixed unsupported response;
+the older structural reply grammar below is not sufficient for arbitrary SDK
+input authorization.
+
 Bound coding calls use the signed `session_authority` route before execution
 and before result publication. The server consumes the captured human origin,
 original custody and original selected admissions under current connection and

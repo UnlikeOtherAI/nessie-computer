@@ -2,6 +2,7 @@ import { effectTransport } from './effect-transport.js'
 import { createAgentProcessInput } from './agent-process-input.js'
 import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { createWriteStream } from 'node:fs'
+import { basename } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
 import { createInterface } from 'node:readline'
 
@@ -15,6 +16,10 @@ import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
 import type { PersonalInferenceGuard } from '../personal-inference-guard.js'
 import type { SessionRequestBook } from './session-request-book.js'
 import type { SessionSecretServer } from './session-secret-server.js'
+import { createAgentByteTransport, type AgentByteProcess } from './agent-byte-transport.js'
+import { createCodingProcessControl, packagedJobHelper } from './process-control.js'
+import { assertWindowsMachineHostAllowed } from '../windows-machine-host.js'
+import { isT3EffectScope } from './session-effect-scope.js'
 
 /**
  * What both agent drivers share: the context a host gives them, and one
@@ -107,12 +112,48 @@ export const agentFailureReason = (lines: readonly string[]): string => {
   return 'agent_exited'
 }
 
+export type AgentProcessContext = Pick<AgentDriverContext,
+  'control' | 'env' | 'folder' | 'paths' | 'log' | 'personalAuthority' | 'personalGuard'>
+
 export const startAgentProcess = async (
-  context: Pick<AgentDriverContext, 'control' | 'env' | 'folder' | 'paths' | 'log' | 'personalAuthority' | 'personalGuard'>,
+  context: AgentProcessContext,
   argv: readonly string[],
   onLine: (line: string) => void,
   effect?: SessionEffectAuthority,
 ): Promise<AgentProcess> => {
+  if (effect && isT3EffectScope(effect.scope)) throw new AgentStartError('t3_provider_requires_byte_transport')
+  const { child: _child, rawExit: _rawExit, closed: _closed, ...agent } =
+    await startOwnedAgentProcess(context, argv, onLine, effect)
+  return agent
+}
+
+/** Original SDK byte hooks use only the protected creator, never a raw spawn port. */
+export const startAgentByteProcess = async (
+  context: Omit<AgentProcessContext, 'control'>, argv: readonly string[], effect: SessionEffectAuthority,
+): Promise<AgentByteProcess> => {
+  const scope = effect.scope
+  if (process.platform !== 'win32' || process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1'
+    || basename(process.execPath).toLowerCase() !== 'nessie-executor-runtime.exe'
+    || !isT3EffectScope(scope)) throw new AgentStartError('protected_provider_transport_unavailable')
+  const helper = packagedJobHelper()
+  if (!helper) throw new AgentStartError('protected_provider_transport_unavailable')
+  await assertWindowsMachineHostAllowed()
+  const control = createCodingProcessControl('win32', { jobHelper: helper, packaged: true })
+  const owned = await startOwnedAgentProcess({ ...context, control }, argv, undefined, effect)
+  try {
+    if (!effectTransport(owned.child)) throw new AgentStartError('protected_provider_transport_unavailable')
+    return createAgentByteTransport(owned, scope)
+  } catch (error) {
+    if (!await owned.confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(owned.identity)
+    throw error
+  }
+}
+
+const startOwnedAgentProcess = async (
+  context: AgentProcessContext, argv: readonly string[], onLine: ((line: string) => void) | undefined,
+  effect?: SessionEffectAuthority,
+): Promise<AgentProcess & { child: ChildProcess; rawExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  closed: Promise<void> }> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
   if (!context.control.stopTree) throw new AgentProcessStopUnproved()
   const protectionLease = await admitPersonalHostExecution('coding/terminal', context.personalAuthority, context.personalGuard)
@@ -135,13 +176,18 @@ export const startAgentProcess = async (
     throw new AgentStartError('agent_missing')
   }
   let done = false
+  const rawExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+    child.once('exit', (code, signal) => resolve({ code, signal }))
+  })
+  const closed = new Promise<void>(resolve => child.once('close', () => resolve()))
   // `close` means stdout has been read to the end, so the turn's last line is
   // parsed first. A descendant still holding the pipe would delay it forever,
   // so a second after `exit` is enough.
   const ended = new Promise<{ code: number | null }>((settle) => {
     child.once('exit', (code) => {
       done = true
-      setTimeout(() => settle({ code }), 1_000).unref()
+      if (onLine) setTimeout(() => settle({ code }), 1_000).unref()
+      else settle({ code }) // Byte streams drain independently, without a truncating timer.
     })
     child.once('close', (code) => {
       done = true
@@ -149,23 +195,25 @@ export const startAgentProcess = async (
     })
   })
   const tail: string[] = []
-  const log = createWriteStream(context.paths.agentStderr, { flags: 'a', mode: 0o600 })
-  let logged = 0
-  log.on('error', () => undefined)
-  child.stderr?.on('data', (chunk: Buffer) => {
-    if (logged < STDERR_LOG_BYTES) {
-      logged += chunk.byteLength
-      log.write(chunk)
-    }
-    for (const line of chunk.toString('utf8').split(/\r?\n/u)) {
-      if (!line.trim()) continue
-      tail.push(line.slice(0, 500))
-      if (tail.length > STDERR_TAIL_LINES) tail.shift()
-    }
-  })
-  void ended.then(() => log.end())
+  if (onLine) {
+    const log = createWriteStream(context.paths.agentStderr, { flags: 'a', mode: 0o600 })
+    let logged = 0
+    log.on('error', () => undefined)
+    child.stderr?.on('data', (chunk: Buffer) => {
+      if (logged < STDERR_LOG_BYTES) {
+        logged += chunk.byteLength
+        log.write(chunk)
+      }
+      for (const line of chunk.toString('utf8').split(/\r?\n/u)) {
+        if (!line.trim()) continue
+        tail.push(line.slice(0, 500))
+        if (tail.length > STDERR_TAIL_LINES) tail.shift()
+      }
+    })
+    void ended.then(() => log.end())
+  }
   child.stdin?.on('error', () => undefined)
-  if (child.stdout) createInterface({ input: child.stdout }).on('line', onLine)
+  if (child.stdout && onLine) createInterface({ input: child.stdout }).on('line', onLine)
   let bindingError: unknown
   try { await protectionLease?.bindExecution({ pid: child.pid }) } catch (error) { bindingError = error }
   // Through the agent guard this is the agent's own identity, which the guard reports; otherwise the child's.
@@ -224,6 +272,7 @@ export const startAgentProcess = async (
   })
   const input = createAgentProcessInput(child)
   return {
+    child, rawExit, closed,
     confirmHostExecutionStopped,
     identity,
     ...input,
