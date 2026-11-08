@@ -3,12 +3,13 @@ import { RetainedImportLeaseSchema, RetainedImportChallengeSchema, RetainedImpor
   RetainedImportVerificationSchema, RetainedImportLiveProofSchema,
   RetainedImportGrantStatusSchema, canonicalExecutorJson, type RetainedImportLease,
   type RetainedImportChallenge } from '@nessie/executor-protocol'
-import type { SourceContracts } from '@nessie/t3-session-source/engine'
+import { SourceContracts } from '@nessie/t3-session-source/engine'
 import { machineT3Sources } from '../source/owner.js'
 import type { RetainedImportConsentLease } from '../source/consent-consumer.js'
 import type { ProvenT3Source } from '../import/manifest.js'
 import type { RetainedReadScope } from './continuity.js'
-import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort } from '../catalog/selection.js'
+import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort,
+  RetainedCatalogSelection } from '../catalog/selection.js'
 import { requireCapture } from '../state/sqlite.js'
 import type { CaptureDatabase } from '../state/sqlite.js'
 import { retainedImportPost } from './import-transport.js'
@@ -118,10 +119,11 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     } finally { active = false }
   }
 
-  const selection = () => lease.selection.kind === 'whole_source'
-    ? { basis: 'prospective-import-grant' as const, revision: lease.selectionKey, scope: 'environment-owner' as const }
-    : { basis: 'prospective-import-grant' as const, revision: lease.selectionKey, scope: 'threads' as const,
-        threadIds: lease.selection.threadIds, projectIds: lease.selection.projectIds }
+  const selection = (): RetainedCatalogSelection => lease.selection.kind === 'whole_source'
+    ? Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'environment-owner' })
+    : Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'threads',
+        threadIds: Object.freeze(lease.selection.threadIds.map(id => SourceContracts.ThreadId.make(id))),
+        projectIds: Object.freeze(lease.selection.projectIds.map(id => SourceContracts.ProjectId.make(id))) })
   const authority: RetainedImportAuthorityPort & RetainedCatalogAuthorityPort & RetainedCatalogPublicationAuthorityPort = {
     basis: 'prospective-import-grant', captureGeneration: lease.captureGeneration,
     withReadScope: async (input, use) => {

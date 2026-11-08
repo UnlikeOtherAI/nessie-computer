@@ -40,6 +40,8 @@ the distinct prospective `withReadScope`, `withCatalogPublicationScope` and cata
 `withCatalogReadScope`. A scope verifies native liveness and the backend lease
 before/after use and every thread/source/selection recheck. Escaped callbacks fail.
 `recheckLocalConsent` checks only local liveness; it is not server admission.
+Catalog selections use the original source's branded thread/project IDs, with
+frozen arrays that preserve the explicitly granted order.
 
 Capture uses `RetainedCapturePorts.importRead`, never `originalOwner`. The caller
 must provide the existing capture journal/workspace and perform the original
