@@ -29,6 +29,7 @@ pub struct Record {
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum RuntimeKind {
+    T3SessionGraph,
     Guarded,
     MachineAttestation,
     ServiceDaemon,
@@ -46,6 +47,7 @@ pub enum RuntimeKind {
     deny_unknown_fields
 )]
 pub enum Operation {
+    Execution { request: crate::execution::Request },
     Status,
     HostCheck,
     Register {
@@ -82,6 +84,7 @@ pub fn valid_nonce(value: &str) -> bool {
 }
 pub fn validate(operation: &Operation) -> Result<(), String> {
     let valid = match operation {
+        Operation::Execution { request } => return request.validate(),
         Operation::Status | Operation::HostCheck => true,
         Operation::Register {
             child_pid,

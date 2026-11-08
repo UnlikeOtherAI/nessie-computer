@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 export const T3_EXECUTION_ADMISSION_DOMAIN = 'nessie.t3.execution.admission.v1' as const
+export const T3_EXECUTION_INSPECTION_DOMAIN = 'nessie.t3.execution.inspection.v1' as const
 export const T3_EXECUTION_ISSUER_DOMAIN = 'nessie.t3.execution.issuer.v1' as const
 export const T3_EXECUTION_RESERVATION_DOMAIN = 'nessie.t3.execution.reservation.v1' as const
 export const T3_EXECUTION_ASSOCIATION_DOMAIN = 'nessie.t3.execution.association.v1' as const
@@ -93,13 +94,28 @@ export type T3ExecutionIssuerProofPayload = z.infer<typeof T3ExecutionIssuerProo
 /** Original graph owner supplies all resolved request targets; no prelaunch provider identities. */
 export const T3ExecutionGraphPayloadSchema = z.object({ version: z.literal(1), nonce: hex,
   binding: T3ExecutionBindingSchema.omit({ sourceEvidenceDigest: true }),
-  sourceRevision: hex,
+  sourceRevision: z.literal('25bf84ab07f53f141c20239c63e383823a9d5ea0'),
   targets: z.array(z.object({ kind: z.enum(['thread', 'project', 'environment', 'workspace', 'attachment',
     'terminal', 'scheduled-task', 'provider-instance', 'turn-item']), id: z.string().min(1).max(32768),
   scope: z.enum(['existing', 'create', 'resolve']), environmentId: id.optional() }).strict()).min(1).max(256),
   custody: T3ExecutionCustodySchema, issuedAtMs: millis, expiresAtMs: millis,
 }).strict()
 export type T3ExecutionGraph = z.infer<typeof T3ExecutionGraphPayloadSchema>
+/** Nonexecuting backend challenge; source/configuration inspection grants no native launch. */
+export const T3ExecutionInspectionSchema = z.object({ version: z.literal(1), inspectionId: hex,
+  issuerKeyId: hex, nonce: hex, executorId: id, environmentId: id, connectionEpoch: id,
+  runtimeGeneration: id, correlationId: id, commandId: id, requestSha256: sha,
+  relayHmac: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/u), actorReference: sha, initiationReference: sha,
+  sourceRootKey: id, sourceGeneration: id,
+  sourceRevision: T3ExecutionGraphPayloadSchema.shape.sourceRevision,
+  targets: T3ExecutionGraphPayloadSchema.shape.targets,
+  issuedAtMs: millis, expiresAtMs: millis,
+}).strict().superRefine((value, context) => {
+  if (value.expiresAtMs <= value.issuedAtMs || value.expiresAtMs - value.issuedAtMs > 5000) {
+    context.addIssue({ code: 'custom', message: 'Inspection lifetime must be positive and at most 5000ms' })
+  }
+})
+export type T3ExecutionInspection = z.infer<typeof T3ExecutionInspectionSchema>
 export const T3ExecutionPreparationPayloadSchema = T3ExecutionReservationPayloadSchema.extend({
   launchDigest: sha,
 }).strict()

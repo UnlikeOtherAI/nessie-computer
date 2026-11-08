@@ -14,6 +14,7 @@
 mod sid;
 
 pub mod custody;
+pub mod execution;
 pub mod custody_store;
 #[cfg(windows)]
 pub mod custody_observation;
