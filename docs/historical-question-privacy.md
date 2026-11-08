@@ -29,7 +29,8 @@ The evidence is original T3 `25bf84ab07f53f141c20239c63e383823a9d5ea0`:
 
 No inspected admitted field supplies authoritative classification after these
 losses. Native credentials, provider transcript files, current login, titles and
-question wording are not classification sources. No such data is read.
+question wording are not classification sources. No external credential or
+provider transcript store is opened.
 
 ## Projection contract
 
@@ -44,27 +45,41 @@ An exact source-thread/request/question key has three states:
 | --- | --- |
 | Explicit `false`, with no conflicting occurrence | Original question and answer values, including their original shapes |
 | Explicit `true`, with no conflicting occurrence | Existing `[REDACTED]` semantics for defaults, option values/previews and answers |
-| All occurrences lack classification | `[WITHHELD:UNKNOWN_QUESTION_PRIVACY]` in question header/text, initial answer, every option string and answer value |
+| All occurrences lack classification | `[WITHHELD:UNKNOWN_QUESTION_PRIVACY]` in initial answers, option values/previews and response values |
 
 The unknown sentinel is a machine representation of withheld data, not a claim
 that the value was secret or that the user supplied this text. Original answer
 arrays retain element count/order; opaque non-array answers become one sentinel.
-Question IDs and answer-map keys remain exact. `questionTextById`, question-item
-titles and request feedback use the corresponding request/field classification.
+Question IDs, answer-map keys, header/question text, titles and ordinary option
+labels/descriptions remain exact under the existing permitted-descriptor
+contract. Original Claude constructs the question ID from the question text
+(`ClaudeAdapterV2.ts:4625`); its answer-map keys repeat that text. The parent
+confirmed that these descriptors must remain visible and must not be renamed,
+cosmetically redacted or refused merely because the ID equals question text.
+There is no concealment guarantee for text already embedded in identifiers.
+This is value-payload privacy, not whole-message confidentiality or a claim that
+identifiers have been semantically proved secret-free.
+
+`questionTextById` remains the exact descriptor copy. Response feedback bound
+to a question request uses its request classification. Value-bearing fields
+cannot escape masking by being treated as descriptors.
 The unknown marker does not change live question admission or canonical saving.
 
 Masks are collected before original decoding, across all rows and events, so
 answers may precede requests. An explicit marker can cover only an exact matching
 occurrence. Conflicting masks, malformed markers, answers without a declared
 question, embedded request disagreement and SQL/payload identity disagreement
-still fail before destination session inserts. No session is silently skipped.
+still fail before destination session inserts. Duplicate IDs within a question
+array retain their positions when their mask states agree (including all
+unknown). A partial mask on one duplicate or changed multiplicity across
+occurrences refuses: the original answer map carries no ordinal to disambiguate. No session is silently skipped.
 
 Message-mode answer text is correlated only through an observed request and the
 original deterministic message ID, in the same thread. Dynamic-tool copies bind
 the source thread, provider thread, provider turn, driver and native item ID.
 Conflicting request bindings refuse. An original Claude `AskUserQuestion` tool
 without that complete binding withholds its own opaque values as unknown; it
-cannot borrow another request's public classification. Their opaque input/output/title/path fields
+cannot borrow another request's public classification. Their opaque input/output/path fields
 are withheld as a unit when any question is private/unknown; these opaque copies
 do not supply reliable per-question subfield identities. The typed question and
 answer records still retain independently known public fields exactly. Optional
@@ -109,3 +124,14 @@ questions, destination SQLite/raw bytes, original replay/export/cache reads,
 resume/refresh, and scoped message/tool/attachment copies. The source gate adds
 metadata, repeated-ID, conflict and bounded-correlation cases. All new cases are
 unrun pending a PRIMARY window; parser checks do not qualify privacy.
+
+## Qualification attempt and resource release
+
+The owned frozen public install passed on Maxis with official Node 22.23.1 and
+pnpm 10.22.0. Before the first build/typecheck, the guard measured 6.8536 GiB
+free at 2026-11-08T11:20:43Z, below the required 12 GiB floor. It refused before
+Turbo/compiler launch. PRIMARY was released immediately to the coordinator;
+there were no further heavy starts or memory polls. Producer preparation,
+normal build/typecheck and both registered runtime/source gates remain unrun.
+Bounded parser checks now cover three TypeScript and five fixture modules;
+these are syntax evidence only. Preserve the owned worktree and failure logs.

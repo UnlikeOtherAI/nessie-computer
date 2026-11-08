@@ -24,12 +24,15 @@ test('original codec history retains exact catalog/order and withholds question 
     item.providerThreadId = 'provider-thread:historical'
     item.providerTurnId = 'provider-turn:historical'
     item.nativeItemRef = { driver: 'claude', nativeId: 'call:historical', strength: 'strong' }
-    item.title = canary
-    item.questions[0].header = canary
-    item.questions[0].question = canary
-    item.questions[0].options[0].label = canary
-    item.questions[0].options[0].description = canary
-    item.questionAnswer.questionTextById = { 'q:reused': canary }
+    item.title = 'Original question title'
+    item.questions[0].header = 'Original header'
+    item.questions[0].question = 'Original question text'
+    item.questions[0].options[0].label = 'Original option label'
+    item.questions[0].options[0].description = 'Original option description'
+    // The original schema permits duplicate IDs; answer maps have no ordinal.
+    // With no masks both occurrences are preserved and explicitly withheld.
+    item.questions.push(structuredClone(item.questions[0]))
+    item.questionAnswer.questionTextById = { 'q:reused': item.questions[0].question }
     item.questionAnswer.attachmentsByQuestionId = { 'q:reused': [
       { type: 'file', id: 'historical_file', name: canary, mimeType: canary, sizeBytes: 17 },
       { type: 'image', id: 'historical_image', name: canary, mimeType: 'image/png', sizeBytes: 19,
@@ -85,7 +88,15 @@ test('original codec history retains exact catalog/order and withholds question 
     assert.deepEqual(full.turnItems.map(value => ({ turn_item_id: value.id, ordinal: value.ordinal })),
       beforeOrder.map(value => ({ ...value })))
     const captured = full.turnItems.find(value => value.id === item.id)
-    assert.equal(captured.questions[0].header, UNKNOWN_QUESTION_VALUE)
+    assert.equal(captured.title, item.title)
+    assert.equal(captured.questions[0].header, item.questions[0].header)
+    assert.equal(captured.questions[0].question, item.questions[0].question)
+    assert.equal(captured.questions[0].options[0].label, item.questions[0].options[0].label)
+    assert.equal(captured.questions[0].options[0].description, item.questions[0].options[0].description)
+    assert.equal(captured.questions[0].options[0].value, UNKNOWN_QUESTION_VALUE)
+    assert.equal(captured.questions[0].options[0].preview, UNKNOWN_QUESTION_VALUE)
+    assert.deepEqual(captured.questionAnswer.questionTextById, item.questionAnswer.questionTextById)
+    assert.deepEqual(captured.questions.map(value => value.id), ['q:reused', 'q:reused'])
     assert.deepEqual(captured.questionAnswer.attachmentsByQuestionId['q:reused'].map(value =>
       [value.id, value.type, value.sizeBytes]), [['historical_file', 'file', 17], ['historical_image', 'image', 19]])
     // Compare every identity, including archived/deleted/empty and Unicode IDs.
@@ -136,3 +147,35 @@ for (const mismatch of ['thread', 'request', 'item']) {
     } finally { f.close() }
   })
 }
+
+test('original Claude textual question identity stays exact; only value concealment is claimed', async () => {
+  const f = await engineFixture({ messages: 4 })
+  try {
+    const identity = 'Synthetic question used as original identity'
+    const item = addQuestion(f, { codecStored: true })
+    item.questions[0].id = identity
+    item.questions[0].question = identity
+    item.questionAnswer.answers = { [identity]: [canary] }
+    item.questionAnswer.questionTextById = { [identity]: identity }
+    item.questionAnswer.attachmentsByQuestionId = {}
+    saveItem(f, encode(S.OrchestrationV2TurnItemJson, item))
+    const receipt = await captureRetainedT3(f.ports, f.manifest, f.source.admittedRootKey)
+    const full = await readRetainedProjection(f.ports, f.manifest, f.source.admittedRootKey,
+      receipt.generation, S.ThreadId.make(f.ids[0]))
+    const captured = full.turnItems.find(value => value.id === item.id)
+    assert.equal(captured.questions[0].id, identity)
+    assert.equal(captured.questions[0].question, identity)
+    assert.equal(captured.questions[0].header, item.questions[0].header)
+    assert.equal(captured.questions[0].options[0].label, item.questions[0].options[0].label)
+    assert.equal(captured.questions[0].options[0].description, item.questions[0].options[0].description)
+    assert.equal(captured.questions[0].initialAnswer, UNKNOWN_QUESTION_VALUE)
+    assert.equal(captured.questions[0].options[0].value, UNKNOWN_QUESTION_VALUE)
+    assert.equal(captured.questions[0].options[0].preview, UNKNOWN_QUESTION_VALUE)
+    assert.deepEqual(Object.keys(captured.questionAnswer.answers), [identity])
+    assert.deepEqual(captured.questionAnswer.answers[identity], [UNKNOWN_QUESTION_VALUE])
+    assert.deepEqual(captured.questionAnswer.questionTextById, { [identity]: identity })
+    // This is an intentional identity disclosure, not secret-free identity proof.
+    assert.ok(JSON.stringify(captured).includes(identity))
+    assertDestinationsClean(f)
+  } finally { f.close() }
+})

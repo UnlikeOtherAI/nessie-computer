@@ -116,3 +116,18 @@ test('attachment references redact every scoped descriptor and refuse conflictin
     attachmentsByQuestionId: { same: [attachment] }, answers: {} } }, 'thread')
   assert.throws(() => privacy.complete(), /attachment_classification_conflict/u)
 })
+
+test('duplicate unknown question IDs retain both positions; partial masks cannot classify their shared answer', () => {
+  const privacy = new CaptureQuestions()
+  const duplicate = question('duplicate', undefined)
+  duplicate.questions.push({ ...duplicate.questions[0], initialAnswer: 'second' })
+  privacy.transform(duplicate, 'thread')
+  privacy.transform(answer('duplicate'), 'thread')
+  privacy.complete()
+  assert.deepEqual(privacy.transform(duplicate, 'thread', marker).questions.map(value => value.initialAnswer),
+    [UNKNOWN_QUESTION_VALUE, UNKNOWN_QUESTION_VALUE])
+  const mixed = structuredClone(duplicate)
+  mixed.questions[0].isSecret = false
+  assert.throws(() => new CaptureQuestions().transform(mixed, 'thread'), /provenance_conflict/u)
+  assert.throws(() => privacy.transform(question('duplicate', false), 'thread'), /provenance_conflict/u)
+})

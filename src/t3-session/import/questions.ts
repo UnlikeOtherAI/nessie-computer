@@ -15,6 +15,7 @@ export class CaptureQuestions {
   private readonly declared = new Set<string>()
   private readonly requests = new Map<string, Set<string>>()
   private readonly requestDeclarations = new Set<string>()
+  private readonly occurrences = new Map<string, number>()
   private readonly copies = new Map<string, string>()
   private readonly attachments = new Map<string, Set<string>>()
   private bytes = 0
@@ -37,6 +38,38 @@ export class CaptureQuestions {
       const previous = this.masks.get(key)
       requireCapture(previous === undefined || previous === mask, 'capture_question_classification_conflict')
       this.masks.set(key, mask)
+    }
+  }
+
+  private requestKeys(scope: string, request: unknown): Set<string> {
+    const key = JSON.stringify([scope, request])
+    let keys = this.requests.get(key)
+    if (!keys) {
+      this.bytes += Buffer.byteLength(key)
+      requireCapture(this.requests.size < 8192 && this.bytes <= 256 * 1024, 'capture_privacy_incomplete')
+      keys = new Set(); this.requests.set(key, keys)
+    }
+    return keys
+  }
+
+  private observeOccurrences(questions: unknown[], scope: string, request: unknown): void {
+    requireCapture(questions.length <= 8192, 'capture_privacy_incomplete')
+    const groups = new Map<string, unknown[]>()
+    for (const question of questions) {
+      const fields = recordOf(question)
+      requireCapture(fields, 'capture_question_provenance_unknown')
+      const key = this.key(scope, request, fields.id)
+      const masks = groups.get(key) ?? []
+      masks.push(fields.isSecret); groups.set(key, masks)
+    }
+    for (const [key, masks] of groups) {
+      // Answer maps have no question ordinal. Duplicate IDs can share evidence
+      // only when every occurrence in the group supplies the same mask state.
+      requireCapture(masks.every(mask => mask === masks[0]), 'capture_question_provenance_conflict')
+      const count = this.occurrences.get(key)
+      requireCapture(count === undefined || count === masks.length, 'capture_question_provenance_conflict')
+      requireCapture(this.occurrences.has(key) || this.occurrences.size < 8192, 'capture_privacy_incomplete')
+      this.occurrences.set(key, masks.length)
     }
   }
 
@@ -133,10 +166,7 @@ export class CaptureQuestions {
       if (!projectQuestion) {
         this.observe(key, supplied)
         if (declaration) this.declared.add(key)
-        const requestKey = JSON.stringify([scope, request])
-        let keys = this.requests.get(requestKey)
-        if (!keys) { keys = new Set(); this.requests.set(requestKey, keys) }
-        keys.add(key)
+        this.requestKeys(scope, request).add(key)
       }
       const mask = this.masks.get(key)
       if (projectQuestion) requireCapture(this.declared.has(key), 'capture_question_provenance_unknown')
@@ -158,11 +188,7 @@ export class CaptureQuestions {
         this.key(scope, request, 'provenance')
         const requestKey = JSON.stringify([scope, request])
         if (questionItem) this.requestDeclarations.add(requestKey)
-        if (!this.requests.has(requestKey)) {
-          this.bytes += Buffer.byteLength(requestKey)
-          requireCapture(this.requests.size < 8192 && this.bytes <= 256 * 1024, 'capture_privacy_incomplete')
-          this.requests.set(requestKey, new Set())
-        }
+        this.requestKeys(scope, request)
         const nativeKey = questionItem ? this.copyKey(scope, record) : undefined
         if (nativeKey) this.rememberCopy(nativeKey, requestKey)
         if (record.responseMode === 'message' || recordOf(record.responseCapability)?.type === 'message') {
@@ -182,17 +208,18 @@ export class CaptureQuestions {
         if (marker) return Object.fromEntries(Object.entries(record)
             .filter(([key]) => key !== 'context')
             .map(([key, nested]) => [key,
-              ['input', 'output', 'title', 'text', 'viewedImagePath'].includes(key) && nested !== null ? marker
+              ['input', 'output', 'text', 'viewedImagePath'].includes(key) && nested !== null ? marker
                 : key === 'attachments' ? this.projectAttachments(nested, scope, marker) : nested]))
       }
       const result = new Map<string, unknown>()
       for (const [key, nested] of Object.entries(record)) {
-        if (projectQuestion && ((questionItem && key === 'title') ||
-          (runtimeRequest && key === 'feedback' && this.requestDeclarations.has(JSON.stringify([scope, request])))) &&
+        if (projectQuestion && runtimeRequest && key === 'feedback' &&
+          this.requestDeclarations.has(JSON.stringify([scope, request])) &&
           nested !== null) {
           result.set(key, this.requestMarker(JSON.stringify([scope, request])) ?? nested)
         } else if (key === 'questions' && questionItem) {
           requireCapture(Array.isArray(nested), 'capture_question_provenance_unknown')
+          if (!projectQuestion) this.observeOccurrences(nested, scope, request)
           result.set(key, nested.map(question => {
             const fields = recordOf(question)
             requireCapture(fields, 'capture_question_provenance_unknown')
@@ -202,7 +229,7 @@ export class CaptureQuestions {
             requireCapture(projected, 'capture_privacy_incomplete')
             const { isSecret: _mask, ...publicFields } = projected
             if (projectQuestion && mask === undefined) {
-              for (const field of ['header', 'question', 'initialAnswer']) {
+              for (const field of ['initialAnswer']) {
                 if (Object.hasOwn(publicFields, field)) publicFields[field] = UNKNOWN_QUESTION_VALUE
               }
             }
@@ -211,7 +238,8 @@ export class CaptureQuestions {
                 const fields = recordOf(option)
                 requireCapture(fields, 'capture_question_provenance_unknown')
                 const projectedOption = mask === undefined
-                  ? Object.fromEntries(Object.keys(fields).map(key => [key, UNKNOWN_QUESTION_VALUE]))
+                  ? Object.fromEntries(Object.entries(fields).map(([key, value]) =>
+                    [key, key === 'value' || key === 'preview' ? UNKNOWN_QUESTION_VALUE : value]))
                   : recordOf(projectQuestion({ ...fields, isSecret: true }))
                 requireCapture(projectedOption, 'capture_privacy_incomplete')
                 const { isSecret: _optionMask, ...publicOption } = projectedOption
@@ -235,7 +263,6 @@ export class CaptureQuestions {
             if (projectQuestion && mask !== false && key === 'answers') {
               return [id, Array.isArray(answer) ? answer.map(() => marker) : marker]
             }
-            if (projectQuestion && mask === undefined && key === 'questionTextById') return [id, marker]
             return [id, visit(answer, depth + 1)]
           })))
         } else if (projectQuestion && entity && key === 'attachments') {
