@@ -1,228 +1,170 @@
 # T3 request privacy source patches
 
-Status: C05 source compatibility patches and synthetic source execution, 7 November
-2026. This is a machine-only build input. It exposes no session UI or installed
-capability. Canonical saving, scoped use and delivery still require the real
-Nessie broker and installed admission; this tranche does not complete P17.
+Status: P02 source correction, 8 November 2026. This machine-only build input is
+consumed by the existing session-engine snapshot composer. Its supported entry
+points are the source proof and synthetic provider fixtures below. It adds no
+available session runtime or UI. Canonical saving and scoped delivery remain
+unbound; this does not complete P17 or authorize confidential provider use.
 
 ## Provenance and composition
 
-The original T3 commit is `25bf84ab07f53f141c20239c63e383823a9d5ea0`, tree
-`b0ba4dad62fa11e0a1fd21f5d351d75926d7559e`. C02's source preparation verifies
-2,859 files, 52,121,600 archive bytes and SHA-256
-`6ec4dc60aa5b92dabbf69c55b408b1db87d77d0a132cbc1fbca61daa0b4f7096`.
-The original MIT attribution remains in that capsule. Preparation reads committed
-Git objects, including when the reference working tree is dirty.
+Original T3 commit `25bf84ab07f53f141c20239c63e383823a9d5ea0`, tree
+`b0ba4dad62fa11e0a1fd21f5d351d75926d7559e`: 2,859 files, 52,121,600 archive
+bytes, SHA-256 `6ec4dc60aa5b92dabbf69c55b408b1db87d77d0a132cbc1fbca61daa0b4f7096`.
+Preparation reads committed Git objects and preserves the MIT attribution.
 
-`patches/t3-session/requests/boundary-patches.json` contains 26 ordered patches.
-Its SHA-256 is
-`8f11f629fb93f3234f4e5ffff8bc49f1bdfa5f0ff773af9c65c16ba5fcf040d3`.
-Every entry binds the source revision, unique seam and complete before/after
-file hashes; sequential entries on the same file bind intermediate hashes.
-`tool-privacy.ts` is the authored insertion fragment. It is inserted into the
-existing upstream shared registry, keeping its existing package subpath and
-avoiding another first-party runtime resolver or package export.
+`patches/t3-session/requests/boundary-patches.json` contains 26 ordered operations
+on five upstream paths. Its corrected SHA-256 is
+`85f076324103220a4dce9358684899de8f6cfa3eb4121fcf88a6dd8bfdf13a04`.
+Each operation binds the revision, unique source seam and full before/after file
+hashes. The authored `tool-privacy.ts` fragment enters the existing registered
+shared module; it adds no resolver or runtime package export.
 
-`index.mjs` exports `requestPrivacyManifestBytes`, `T3_REQUEST_PRIVACY_PATCHES`
-(`sourceCommit`, `manifestSha256`) and `applyRequestPrivacyPatches(snapshot)`.
-Application uses C02's existing `applySessionEngineBoundaryPatches`; no tar parser,
-resolver, downloader or second source preparer is introduced.
+The public base is `f57a43dc9564b04ccd4d2a254c474773aaee875e`, with T02's
+124-operation extraction manifest
+`d24f1709b6d7c1211d9987179d3fc727ef51e9c54d7c6900a1fceb8f900f1908`.
+The unchanged producer composes state → T19 capsule → extraction → corrected
+request privacy, then applies that combined manifest exactly once to the verified
+original capsule. The freshly computed result has **177 operations**, SHA-256
+`39ce53a11d6b526e1b154fa54fd2e0e50777c3c916b996bb178a26b15ba69a7a`.
+The operation count happens to match a historical tuple; this digest was computed
+from the current four families and does not reuse that historical acceptance.
+T19's separate web manifest does not enter the engine capsule.
 
-The producer must concatenate C02 → unchanged T19 capsule manifest → committed
-T02 extraction → C05, apply once, and record the SHA-256 of that **combined**
-ordered manifest. A separately applied family's digest does not describe the
-co-build. T19's separate web manifest is excluded from the engine capsule.
+`verify-combined.mjs` checks the current composer and extraction bytes against
+committed objects at that base, reproduces the privacy manifest from original
+bytes, checks zero extraction overlap with all five privacy paths, and compares
+their final bytes to independent privacy application. Reapplying privacy or
+applying it to the rejected old boundary fails with `SOURCE_MISMATCH`.
+This is source compatibility evidence, not a co-build or runtime claim.
 
-C05 was authored on public executor `d299129e499862fed79c8672dd53ed0b22df9055`
-in `C:\Users\ondre\.t3\worktrees\Nessie\t3-c54598ec\executor`, branch
-`t3/request-source-privacy`. The private checkout is at
-`ab004ac6bba15a4f85fd9feabe53dc568632a337`, branch
-`t3/t3-session-request-privacy`. No private pin is changed here.
+| Upstream path | Final SHA-256 |
+| --- | --- |
+| `packages/shared/src/t3McpToolPresentation.ts` | `4fc71fbeda78ceb9bb1dabf61e8063470a99d2e30dfd76c956f471d13db1a5b6` |
+| `packages/contracts/src/secretRequest.ts` | `8cc1a8a1b485dbdce28aa2e29a87bac63c1679e5f062634a03fc9660f273488b` |
+| `packages/client-runtime/src/secretRequest.ts` | `122ffc23a5f431633e4326d55776ad2e581698d2d812aba0a2f613a1d4b7b6f1` |
+| `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` | `dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d` |
+| `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts` | `fa7a12d764d9cb6b46dfff59aaf034c81a72667317871f0d91b336e17d92bbcd` |
 
-The ordinary C05 tests compose C02 → T19 → C05. The separate
-`verify-combined.mjs` proof reads only committed T02 Git objects at
-`6dbf5e39ef1289e8fab76d09ca4052efbd855274`, without merging or materializing a
-sibling checkout. It verifies the extraction manifest SHA-256
-`49f5dad346bc6bacb1134df0da0ee301071bb4c171b5fb3d765fecc52c671bb6`
-and executes that commit's unchanged composer/patch application helper (SHA-256
-`7eba3b2c2b3a710a28e09d9e13d1c5b74f44a4018c22b2871a6b53f63f35be10`).
-The four families apply once as **169 operations** with combined manifest SHA-256
-`8558b2b6d864b1a8f4427692c72cd20c1b6377fedd5875894d7115edb0a8a84f`.
-Family IDs are `state`, `client-connection`, `extraction`, `request-privacy`.
-All five final C05 files equal the independent patch output; T02 has zero overlap.
-This proves manifest/source compatibility, not a co-build, typecheck or runtime
-integration. Root's T02 review/integration remains separate. If a later T02
-revision changes one of these paths, regenerate only against its committed
-preceding manifest/file hashes. Dirty sibling bytes are never inputs.
+Authored files remain below 500 lines. The attributed upstream adapters and
+registry already exceed that cap; this patch does not copy them into first-party
+source files. No producer, manifest registration, Prisma, native, root package,
+lockfile, UI or original `SecretRequests` implementation is modified here.
 
-## Exact upstream inventory
+## Rejected checkpoint and corrections
 
-Paths below are relative to the pinned upstream tree. Line counts include the
-whole attributed dependency file; authored first-party code stays below 500
-lines per file. No session screen, reducer, outbox, root manifest, lockfile,
-producer, first-party shared export or native code changes.
+Public `db4bd5972777bcfae2df4f00f0292581bc17fb97`, manifest
+`8f11f629fb93f3234f4e5ffff8bc49f1bdfa5f0ff773af9c65c16ba5fcf040d3`,
+is historical rejected source. Its 18 passing tests missed these defects:
 
-| Upstream file | Original → patched lines | Patches | Purpose |
-| --- | ---: | ---: | --- |
-| `packages/shared/src/t3McpToolPresentation.ts` | 494 → 658 | 1 | Pure structural privacy projections next to the registered tool namespace aliases. |
-| `packages/contracts/src/secretRequest.ts` | 69 → 71 | 2 | Preserve nonempty secret strings in the dedicated wire codec; remove unused trim-schema import. |
-| `packages/client-runtime/src/secretRequest.ts` | 183 → 183 | 1 | Preserve the dedicated answer helper's value exactly. |
-| `apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts` | 12,403 → 12,426 | 14 | Tool factory/publication, protocol logs, approval summaries/reasons, preview refusal and masked-question refusal. |
-| `apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts` | 8,059 → 8,068 | 8 | MCP/dynamic factory/publication, protocol logs, preview refusal and synchronous/asynchronous masked-question refusal. |
+- A Codex `item/tool/call` hid its arguments but did not remember the outer
+  protocol ID. A later `{id,result:{contentItems}}` or error could persist the
+  value. P02 binds both outer IDs and native `params.callId`, preserving numeric
+  versus string identity, request/error/replay correlation and mixed batches.
+- MCP metadata was copied by allowlisted field name. A nested object under
+  `params.status` could carry a value. Each admitted metadata field now checks
+  its scalar type. The supported `nativeItemRef` object projects only its known
+  string members; unknown or malformed metadata is redacted.
+- Primitive members escaped the traversal budget, and traversal continued after
+  exhaustion. Capture now charges every value and property key, bounds UTF-8
+  bytes and depth, and stops immediately. It reads data descriptors rather than
+  invoking getters and avoids an upfront `Object.values`/`Object.entries` copy
+  of untrusted objects. Sparse or oversized arrays are refused at their length.
 
-Complete initial/final hashes:
+One logger invocation allows 32,768 visited values, 1 MiB of string/key UTF-8
+bytes and depth 64. The logger retains at most 8,192 combined call/question IDs,
+256 KiB of encoded correlation keys and 1,024 bytes per typed ID. Duplicate IDs
+consume no additional correlation budget. Exhaustion, cycles, accessor fields
+or unsupported object shapes yield categorical `request_projection_unavailable`
+metadata, including later calls on that logger. No value or fingerprint is cached.
+The boundary expects decoded protocol data, not arbitrary executable Proxy
+objects; JavaScript Proxy traps themselves cannot be made side-effect free.
 
-| File | Original SHA-256 | Final SHA-256 |
-| --- | --- | --- |
-| shared registry | `3215e846e75e9d095a858cc5b1dc70bbd097e82531ba8445f0ec387d0ed21eee` | `ff53108a049c819ecc39b932cc7840336ab176826e6b75aa9245ee4b0b8d6b73` |
-| dedicated codec | `13117ebc9a34854bbf146aff24c748898ac2fec952525a769084e95c9b6392f9` | `8cc1a8a1b485dbdce28aa2e29a87bac63c1679e5f062634a03fc9660f273488b` |
-| dedicated helper | `795884d84e57355ca838da10bb7217f0b75ed0d8bdd6a9035e44afc875aedda4` | `122ffc23a5f431633e4326d55776ad2e581698d2d812aba0a2f613a1d4b7b6f1` |
-| Claude adapter | `7e212d616f62538bc0297973fd272ae20cf306abb46a56519f7959e2b7e1f86b` | `dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d` |
-| Codex adapter | `5913ec92bde020cbb23f5cbe3714b314fc9466406a22cc9721cf432418977c74` | `fa7a12d764d9cb6b46dfff59aaf034c81a72667317871f0d91b336e17d92bbcd` |
+## Preserved semantics
 
-## Data flow and compatibility
+Only exact registered `request_secret` identities are sensitive: `t3-code`,
+`t3_code`, `t3code`, `t3-code-direct`, `t3_code_direct`, qualified with a dot or
+`mcp__<server>__request_secret`. Bare and foreign names remain ordinary tools.
+There is no prose interpretation, keyword detection or secret-substring search.
 
-`isSecretRequestTool` accepts exact registered namespace identities from the
-pinned registry: `t3-code`, `t3_code`, `t3code`, `t3-code-direct` and
-`t3_code_direct`, with `.request_secret` or `mcp__<server>__request_secret`.
-It does not use the presentation resolver's loose regex/parser, infer meaning
-from prose, or classify an arbitrary tool by a `secret` field. Bare and foreign
-`request_secret` names remain ordinary tools. Admitted provider registrations
-must preserve and reserve the actual qualified identities; a future provider
-with a different registration needs an explicit audited identity mapping.
+Sensitive projections run before actual native protocol logging/bounds/summary,
+both tool factories and final Effect publication, approval summaries and preview
+capture. Valid IDs, status and ordinals remain available. Late app-output
+wrappers cannot restore the value. The authorized operation and original native
+callback retain the exact unmodified input; redaction never substitutes fake
+bytes into a save or use operation.
 
-`projectSecretRequestInput` produces a separate public object. Valid ordinary
-label/reason/placeholder/delivery/timeout/retry fields retain their semantics;
-value and unknown malformed fields are redacted. String-encoded/malformed
-arguments are fully redacted. `projectSecretRequestOutput` hides opaque tool
-output, including returned errors and wrappers. `projectSecretRequestItem`
-retains native IDs, provenance, ordinals and status, substitutes a fixed title,
-and applies those projections. It runs in both factories and immediately before
-adapter publication so a late MCP app-output override cannot restore a value.
-Registered secret tools cannot capture MCP app previews into attachment files.
+Dedicated helper and real Effect codecs reject only empty secret strings. They
+preserve whitespace-only strings, CRLF, newlines, Unicode sequences and NUL.
+This is exact supplied string/UTF-8 semantics, not an arbitrary binary wire.
+Ordinary labels, IDs and provider-reference normalization remain as upstream.
 
-Claude approval prompts cannot select an SDK-supplied title, description or
-decision reason containing the argument. The public approval reason is omitted
-for this tool; existing rule/permission classification is retained. The SDK
-callback and `permissionResultFromDecision.updatedInput` receive the **original**
-argument. Redaction never substitutes fake bytes into canonical save/use.
+Native `isSecret` questions remain refused before ordinary persistence with
+`canonical_secret_question_port_required`, including Codex asynchronous forms.
+T13 must supply a canonical field/ordinal port before reopening that path.
+Question IDs such as `__proto__` and original ordinals survive public projection.
 
-Each original protocol logger owns a `createRequestPrivacyProjector()` closure.
-It traverses decoded SDK/MCP records, nested batches and native MCP/dynamic tool
-items before original bounding/summary serialization. Structural `tools/call`
-wrappers require a qualified tool identity or explicit registered server.
-Separate results/errors correlate by opaque call IDs, including replay and
-results preceding calls in one batch. Only call IDs and explicit masked-question
-IDs are retained; no secret value or fingerprint is cached. Traversal and
-metadata limits fail closed to categorical metadata, including subsequent logs.
-Other tool events are unaffected by an earlier secret call.
+## Remaining admission boundaries
 
-Explicit `isSecret: true` fields are redacted in structured native log records,
-including keyed answer maps such as `__proto__`. Field/answer ordinals are not
-renumbered. Native masked questions are refused with
-`canonical_secret_question_port_required` before ordinary question persistence,
-including Claude's early tool event and Codex's asynchronous conversion. The
-request is not marked saved/resolved; its native callback/context retains the
-source request identity. T13 must replace that refusal with a real canonical
-masked-field operation before advertising support.
+The insertion imports no local secret store, lifetime resolver, vault adapter
+or `SecretRequests` implementation. T02's existing session-port interface remains
+unchanged. No fake saved result, cache, file-delivery service or canonical save
+stub is introduced. Original local-vault/cache source must stay outside the
+compiled engine graph.
 
-The dedicated wire still encodes `answer.secret` as a string. Its compatibility
-patch changes validation to `length > 0` without trimming, matching the original
-pasted-secret codec. Empty strings fail; whitespace-only strings, CRLF, newlines,
-NUL and Unicode sequences are preserved. Ordinary IDs, labels, text and provider
-reference syntax keep their original normalization. This promises exact supplied
-string/UTF-8 value semantics, not an arbitrary binary wire format.
+T13 must bind fresh UOA owner/team authority, computer/session/request/provider
+identity, original field/answer ordinals, destination, operation and generation.
+Every supplied secret first saves idempotently through existing canonical
+Infisical storage with metadata-only `Secret`/`SecretGrant` records. It must
+reconcile uncertain outcomes before scoped one-use delivery. Storage and provider
+delivery are separate facts. Cleanup erases transport material and must never
+delete the saved canonical vault record.
 
-## Required canonical port and remaining admission boundaries
+These projections do not erase SDK/vendor/native transcripts, a prior user paste,
+provider/model context, inherited history or external traces. Uncorrelated prose
+errors and arbitrary code strings are not semantically inspected. Historical
+short-secret redaction, backend storage/delivery, draft/outbox privacy, Windows
+ACLs, native custody and installed admission need their own proofs. Source tests
+and a synthetic recording transport sink establish none of those boundaries.
 
-The privacy exports import no `SecretRequests` implementation,
-`secret-provider-core/SecretResolver`, `ServerSecretStore` or vault adapter. The
-shared registry executes as a complete dependency-free source module in the
-fixtures. The original local-vault/cache implementation must remain excluded
-from T02's compiled graph; its mere presence in the immutable archive is not
-permission to import it. No `defaultServerSecretStore`, direct vault primitive,
-local secret vault, process port or fake saved result is introduced.
+## Focused verification
 
-T02 owns extracting the original `SecretRequests` Context tag/interface into its
-session-port module. Its current methods are `answer(input)`,
-`savedRef({threadId, turnItemId})`, `consume({ref, projectId})`,
-`saveToFile({threadId, turnItemId})` and
-`savePasted({threadId, requestNamespace, requestKey, value})`. C05 neither copies
-that interface nor supplies an implementation. In particular,
-`consume({ref, projectId})` alone is not an admitted canonical use contract.
-The combined-manifest proof also verifies the derived session-port SHA-256
-`4d81dc85b97e1c1e9032a63b2275e39b74c9df293cabbd8608b361ba2a149c15`.
+On Windows Maxis, Node 24.19.0 / pnpm 10.22.0, the corrected source and fixtures
+passed **27 tests, zero skips**, under a 512 MiB heap. The standalone current
+composition proof also passed. The fixture dependency root is owned by this
+worktree and contains only frozen Effect 4.1.2, installed without scripts,
+workspace hooks or copied outputs, after checking at least 10 GiB free RAM.
 
-The integrated broker must bind fresh owner/UOA team authority, computer,
-session/request and field/answer ordinals, provider session, destination,
-operation identity and generation. Canonical bytes belong only to existing
-Infisical; `Secret`/`SecretGrant` remain metadata. The real port must authorize,
-save idempotently, reconcile uncertain outcomes, and deliver/use through a
-one-use scoped operation without importing the original lifetime resolver Map.
-Cleanup erases transport references/files only. It must never equate consumption,
-expiry or delivery failure with deleting the canonical saved vault record.
+The fixtures execute the actual shared helper, real dedicated/pasted codecs,
+original answer helper, provider factories, native callback, protocol loggers
+with original persistence filter/bounds/Codex redactor and real Effect queue
+publication. Both loggers execute historical rejected source as well: outer-ID
+result and nested-status canaries leak there and disappear after correction.
+Budget tests exercise 40,000 primitive members, sparse arrays, huge objects,
+per-ID and aggregate UTF-8 bytes, shared correlation count, equivalent batches,
+accessors and immediate array refusal. Original secret bytes remain unchanged.
 
-These projection changes cannot remove a value already present in user chat,
-provider/model context, SDK-owned transcripts, native provider homes, inherited
-history or external traces. Uncorrelated free-text SDK errors and arbitrary code
-strings are not semantically inspected. Provider-native retention and error
-boundaries need separate actual SDK/process evidence before confidential
-cardless use can be admitted. The canonical port must return categorical errors,
-never echo supplied bytes into original MCP service error messages. Historical
-redaction (including the legacy short-value omission), drafts/outbox, backend
-fingerprints/replacement retries, host-file `secret_saved` semantics and external
-SDK secret storage are future T13 work. Source fixtures cannot establish global
-session privacy or canonical save/delivery semantics.
+The pasted-method fixture runs its original Effect body with a synthetic
+recording transport port. It proves handoff bytes and invalid-delivery refusal;
+it does not represent a vault save or provider acceptance.
 
-## Focused execution and integration requests
-
-The tests use C02's verified snapshot and resolver plus the committed T19
-`sourceFunctions` and module-loader helpers from this checkout. They execute
-the actual patched shared module, dedicated/pasted codecs with Effect 4.1.2,
-client helper, both provider factories, native loggers with original bounds and
-summary fallback, publication into real Effect queues, permission-result
-callback, masked-question helpers and unchanged pasted MCP method. There is no
-second sanitizer in the tests. The pasted-method fixture changes only its outer
-object-property delimiter to execute that exact Effect body independently.
-
-Provider presentation and unrelated web-search helpers use explicit synthetic
-fixtures. The pasted MCP method receives a synthetic active-run/authority port
-and a recording transport sink. This proves byte handoff and invalid-delivery
-refusal, not UOA admission or a vault save. The tests do not launch a provider.
-
-On Windows Maxis with Node 24.19.0 and pnpm 10.22.0, all **18 tests passed**, zero
-skips, in about 1.2 seconds, with a 512 MiB heap. Before the final run Maxis had
-14.79 GiB free and 26% CPU load. The isolated Effect-only install used the exact
-integrity from C02's frozen lock, its own ignored dependency/store paths,
-`--ignore-workspace --ignore-scripts --ignore-pnpmfile`, and child/network
-concurrency 1. Jobs waited for at least 10 GiB headroom; no shared resource was
-stopped or displaced.
-
-Reproduce from the executor checkout, under a separately allocated tiny slot:
+From the executor checkout, the registered focused source and fixture Turbo
+gates must preserve these commands and their dependency preparation prerequisite:
 
 ```powershell
 $env:NODE_OPTIONS = '--max-old-space-size=512'
-$env:T3_REQUEST_PRIVACY_SOURCE_REPOSITORY = '<read-only pinned Git reference>'
+$env:TZ = 'UTC'
+$env:T3_REQUEST_PRIVACY_SOURCE_REPOSITORY = '<read-only committed reference>'
 node test/t3-session-requests/prepare-dependencies.mjs
 pnpm --dir .artifacts/c05-requests/dependencies install --ignore-workspace --frozen-lockfile --ignore-scripts --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1 --store-dir .artifacts/c05-requests/store
+node test/t3-session-requests/verify-combined.mjs
 node --experimental-vm-modules --test --experimental-test-isolation=none test/t3-session-requests/*.test.mjs
 ```
 
-`T3_REQUEST_PRIVACY_SOURCE_ARCHIVE` can select an already prepared verified
-capsule. `build-manifest.mjs <verified-source.tar>` reproduces the manifest; it
-does not edit vendor source. With T02's exact committed objects fetched in this
-owned executor repository, `node --experimental-vm-modules
-test/t3-session-requests/verify-combined.mjs` repeats the separate 169-operation
-compatibility proof. That proof ran with 14.24 GiB free and 42% CPU load at its
-fresh headroom check, also under 512 MiB. The fixture lane was released after
-the final scoped rerun exited. The five complete patched files also pass Node's
-TypeScript syntax stripping. Strict engine typecheck/lint/bundle, the combined
-T02 co-build, Turbo task registration, Node 22, real vault/provider/UOA, browser,
-mobile, native ACL/file cleanup and installed admission were not run here.
-
-T01 must register separate pure-source and Effect codec/provider-fixture gates
-through the existing public Turbo graph, preserving the isolated dependency
-preparation prerequisite. No root/package/lock/Turbo/CI files are changed by
-C05. T02 must compose the committed manifest and check the actual resulting
-closure; T13 must implement the canonical save/use/delivery port and replace the
-masked-question refusal only after its scoped proof passes.
+`T3_REQUEST_PRIVACY_SOURCE_ARCHIVE` can select an already verified capsule.
+F02 owns registration. Final co-build qualification still requires its corrected
+committed contract alias/mapping tuple, the committed corrected privacy/hash,
+current producer, one resolver/dependency root/Effect 4.1.2, ordinary strict
+exported consumer, actual import smoke and same-artifact SQLite history/replay.
+No co-build, packaged Node 22, real provider/vault/UOA, browser, native/device
+or installed runtime claim is made by this source checkpoint.
