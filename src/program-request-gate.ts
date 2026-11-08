@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 
 import { formatExecutorCommandPattern, parseExecutorCommandPattern } from '@nessie/executor-protocol'
 
-import type { ProgramRequestAnswer, ProgramRequestStore } from './program-requests.js'
+import type { ProgramRequestAnswer, ProgramRequestOrigin, ProgramRequestStore } from './program-requests.js'
 
 /**
  * Turns "this program is not allowed here" into a question for the computer's
@@ -18,11 +18,11 @@ import type { ProgramRequestAnswer, ProgramRequestStore } from './program-reques
  *   runs at once rather than waiting for that.
  * - **deny**: refused with `owner_declined`.
  *
- * No answer in time is `owner_did_not_answer`. While the launch waits, the
- * agent's call stays open, and the team's one command lane is held with it:
- * every other command for this team waits behind it.
+ * No answer in time is `owner_did_not_answer`. While the launch waits only
+ * its own command waits (`onAsked` hands its slot back to the dispatcher);
+ * every other command of the team keeps running and starting.
  */
-export const MAX_HOLD_MS = 120_000
+export const MAX_HOLD_MS = 15 * 60_000
 /** What a result needs after the hold ends: its receipts, before the command expires. */
 export const RESULT_MARGIN_MS = 5_000
 /** A shorter window is too short for a person to read and answer, so nobody is asked. */
@@ -40,6 +40,10 @@ export type ProgramRequestGate = {
     args: string[]
     /** The command's own expiry. */
     expiresAt: string
+    /** Who asks, as the owner's list shows it. */
+    origin?: ProgramRequestOrigin
+    /** The request now waits for the owner under this id. */
+    onAsked?: (id: string) => void
     signal?: AbortSignal
   }) => Promise<ProgramRequestVerdict>
 }
@@ -77,7 +81,7 @@ export const createProgramRequestGate = (input: {
   const now = input.now ?? Date.now
   const log = input.log ?? ((message: string) => { console.error(`[nessie-executor] ${message}`) })
   return {
-    ask: async ({ program, args, expiresAt, signal }) => {
+    ask: async ({ program, args, expiresAt, origin, onAsked, signal }) => {
       const started = now()
       const deadline = Math.min(started + MAX_HOLD_MS, Date.parse(expiresAt) - RESULT_MARGIN_MS)
       if (!(deadline - started >= MIN_HOLD_MS) || programRequestRule(program) === undefined) {
@@ -87,9 +91,11 @@ export const createProgramRequestGate = (input: {
       await input.store.create({
         id, program, args: [...args],
         requestedAt: new Date(started).toISOString(), expiresAt: new Date(deadline).toISOString(),
+        ...origin,
       })
       log(`program request ${id} waits for the owner to allow ${program}`)
       try {
+        onAsked?.(id)
         while (now() < deadline && !signal?.aborted) {
           const answer = await input.store.answer(id)
           if (answer === 'deny') return { allowed: false, reason: 'owner_declined' }

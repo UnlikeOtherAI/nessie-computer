@@ -10,6 +10,7 @@ import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-
 import { claimExecutor, heartbeatExecutor } from './daemon.js'
 import { readOwnerPause, setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
+import { runSessionsCommand } from './session-cli.js'
 import { listProgramRequests, ProgramRequestError } from './program-requests.js'
 import { ExecutorApiError } from './api-client.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
@@ -289,6 +290,10 @@ export const run = async (args: string[]): Promise<void> => {
       stdin: process.stdin, stdout: process.stdout, stateDir, state: await loadExecutorState(stateDir),
       transport: (state) => createFolderSyncTransport(() => state),
     })
+    return
+  }
+  if (command.kind === 'sessions' || command.kind === 'session-stop') {
+    process.exitCode = await runSessionsCommand(command, (text) => { process.stdout.write(text) })
     return
   }
   if (command.kind === 'pause' || command.kind === 'resume' || command.kind === 'program-requests'

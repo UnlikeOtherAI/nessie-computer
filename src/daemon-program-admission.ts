@@ -5,8 +5,10 @@ import {
 } from '@nessie/executor-protocol'
 
 import { codingSessionsPolicyOf } from './coding-sessions-policy.js'
-import { localCommandPolicyOf, localCommandPolicyPermits, localTerminalCommandDecision } from './command-policy.js'
-import { lendAnyProgram, lendRule, type CommandRulesLoan, type DaemonLiveState } from './daemon-live-state.js'
+import {
+  localCommandPolicyOf, localCommandPolicyPermits, localTerminalCommandDecision, type LocalCommandPolicy,
+} from './command-policy.js'
+import type { OwnerWait } from './command-dispatcher.js'
 import { programRequestRefusal, programRequestRule, type ProgramRequestGate } from './program-request-gate.js'
 import type { ExecutorLocalState } from './state-store.js'
 
@@ -20,30 +22,61 @@ import type { ExecutorLocalState } from './state-store.js'
  * only listed programs may start). The denylist, or any other refusal, is
  * answered exactly as before and nobody is asked.
  *
- * An allowed launch runs inside `run`, which lends the rules it needs for that
- * launch alone (`DaemonLiveState.allowOnce`), so every later check of it — the
- * session manager's for a command, the bridge's for a terminal — permits it.
+ * An allowed launch is admitted with the rules it runs under — the saved
+ * rules plus its own `<program> *`, or for a program named by its path every
+ * program not denied — and those rules travel with that one launch only: the
+ * session manager checks the command against them, and the bridge receives
+ * them stamped on that one call. Nothing else running on the computer, and no
+ * later launch, sees them.
+ *
+ * While the owner is asked, `ownerWait` hands the command's slot back, so
+ * only the asking command waits.
  */
 export type ProgramAdmission = {
   gate: ProgramRequestGate
-  allowOnce: DaemonLiveState['allowOnce']
+  ownerWait?: OwnerWait
 }
 
-export type Admitted = { refusal: Record<string, unknown> } | { run: <T>(work: () => Promise<T>) => Promise<T> }
+/** `rules`: the rules this one launch runs under, when they differ from the saved ones. */
+export type Admitted = { refusal: Record<string, unknown> } | { rules?: LocalCommandPolicy }
 
-const unchanged: Admitted = { run: (work) => work() }
+const unchanged: Admitted = {}
 const DENIED = { code: 'EXECUTOR_COMMAND_DENIED', success: false }
+
+/** One launch's rules: the saved ones with the program's rule. The denylist stays. */
+export const withRule = (saved: LocalCommandPolicy, rule: string): LocalCommandPolicy => (
+  saved.allowlist.includes(rule) ? saved : { ...saved, allowlist: [...saved.allowlist, rule].sort() }
+)
+
+/** One launch's rules for a program named by its path, which no rule can name. The denylist stays. */
+export const withAnyProgram = (saved: LocalCommandPolicy): LocalCommandPolicy => ({ ...saved, mode: 'all' })
 
 const ask = async (
   admission: ProgramAdmission, state: ExecutorLocalState, command: ExecutorCommandEnvelope,
-  program: string, args: string[], signal: AbortSignal | undefined, loan?: CommandRulesLoan,
+  program: string, args: string[], signal: AbortSignal | undefined, anyProgram = false,
 ): Promise<Admitted | null> => {
   const rule = programRequestRule(program)
+  const saved = localCommandPolicyOf(state)
   // A full allowlist has no room for the rule "always" would add.
-  if (!rule || localCommandPolicyOf(state).allowlist.length >= EXECUTOR_COMMAND_ALLOWLIST_MAXIMUM) return null
-  const verdict = await admission.gate.ask({ program, args, expiresAt: command.expiresAt, signal })
+  if (!rule || saved.allowlist.length >= EXECUTOR_COMMAND_ALLOWLIST_MAXIMUM) return null
+  let asked = false
+  const verdict = await admission.gate.ask({
+    program, args, expiresAt: command.expiresAt, signal,
+    origin: {
+      commandId: command.commandId,
+      ...(command.sessionId ? { sessionId: command.sessionId } : {}),
+      ...(command.agentName ? { agentName: command.agentName } : {}),
+    },
+    onAsked: (id) => {
+      asked = true
+      admission.ownerWait?.begin(id)
+    },
+  })
+  // An allowed launch waits for a slot again before it runs; a refused one only reports.
+  if (asked) await admission.ownerWait?.end(verdict.allowed)
+  signal?.throwIfAborted()
   if (!verdict.allowed) return { refusal: programRequestRefusal(program, verdict) }
-  return { run: (work) => admission.allowOnce(loan ?? lendRule(rule), work) }
+  return { rules: anyProgram ? withAnyProgram(saved) : withRule(saved, rule) }
 }
 
 /** A `command.run` the rules refuse: asked about only when allowing every program would permit it. */
@@ -71,9 +104,7 @@ export const admitCommandRun = async (
  * An `mcp.call` that starts a terminal session the rules refuse as not
  * allowlisted, or as a path while only listed programs may start. Every other
  * call — and every other refusal, which the bridge gives itself — passes
- * through unchanged. A path launch is lent "any program not denied" for its
- * own length: no rule can name a path, and the daemon's one command lane keeps
- * the loan to this launch.
+ * through unchanged.
  */
 export const admitTerminalLaunch = async (
   admission: ProgramAdmission | undefined, state: ExecutorLocalState, command: ExecutorCommandEnvelope,
@@ -93,5 +124,5 @@ export const admitTerminalLaunch = async (
   if (decision.allowed) return unchanged
   if (decision.refusal === 'not_allowlisted') return await ask(admission, state, command, program, args, signal) ?? unchanged
   if (decision.refusal !== 'path_needs_allow_all') return unchanged
-  return await ask(admission, state, command, program, args, signal, lendAnyProgram) ?? unchanged
+  return await ask(admission, state, command, program, args, signal, true) ?? unchanged
 }

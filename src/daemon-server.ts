@@ -6,14 +6,10 @@ import { executorApi } from './api-client.js'
 import { createExecutorBrowserSessionManager } from './browser-session-manager.js'
 import { createExecutorCodingSessionManager } from './coding-session-manager.js'
 import { createExecutorCommandSessionManager } from './command-session-manager.js'
-import { claimExecutor, heartbeatExecutor, pollAndExecuteCommand } from './daemon.js'
+import { claimExecutor, heartbeatExecutor } from './daemon.js'
+import { createDaemonCommands } from './daemon-commands.js'
 import { createNonOverlappingExecutorTask, waitForExecutorDaemonShutdown } from './daemon-tasks.js'
-import {
-  commandPollFailureStopsSessions,
-  createExecutorCommandAttachmentStore,
-  sweepExecutorCommandAttachments,
-} from './command-attachments.js'
-import { createExecutorCommandRecoveryStore } from './command-recovery.js'
+import { commandPollFailureStopsSessions } from './command-attachments.js'
 import { FolderSyncEngine } from './folder-sync/engine.js'
 import { startFolderSyncLoop } from './folder-sync/engine-loop.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -28,6 +24,7 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { ownerPausePath } from './owner-pause.js'
 import { createProgramRequestGate } from './program-request-gate.js'
 import { openProgramRequestStore } from './program-requests.js'
+import { sessionStopsPath } from './session-stops.js'
 import { LOCAL_MCP_REFRESH_INTERVAL_MS } from './local-mcp-report.js'
 import { refreshLocalApps } from './local-mcp-apps.js'
 import { localMcpPolicyOf } from './mcp-policy.js'
@@ -101,32 +98,26 @@ export const serveExecutor = async (
       if (drainingForUpdate || pause.paused()) await localInference.supervisor.drain().catch(() => undefined)
       else localInference.supervisor.resume()
     }
-    // One store for the daemon's whole life. Building it per poll re-secured
-    // the runtime directory every second, which on Windows is two native-helper
-    // process spawns a second and nothing at all on POSIX.
-    const recoveryStore = createExecutorCommandRecoveryStore(stateDir)
-    const attachmentStore = createExecutorCommandAttachmentStore(stateDir)
-    // Before the first poll, so no folder a new command writes can be swept.
-    await sweepExecutorCommandAttachments(recoveryStore, attachmentStore).catch((error: unknown) => {
-      console.error('[nessie-executor] attachment sweep failed:', error instanceof Error ? error.message : String(error))
+    // Held commands run side by side, each journaled on its own; the poll only
+    // fetches work, cancellations and closed sessions (`daemon-commands.ts`).
+    let commandsReady = false
+    const commands = createDaemonCommands({
+      stateDir, live, browserSessions, commandSessions, codingSessions, tools, paused: pause.paused, programGate,
+      onChange: () => { if (commandsReady && !shuttingDown) cadence.wake(['commands']) },
     })
+    // Local apps are replaced while no local-app command runs; other work goes on.
+    const refreshTools = createNonOverlappingExecutorTask(() => commands.dispatcher.between('mcp', async () => {
+      if (await toolbox.refresh().catch(() => false)) cadence.wake(['heartbeat'])
+    }))
     const commandPoll = createNonOverlappingExecutorTask(async () => {
+      if (toolbox.stale()) void refreshTools.run().catch(() => undefined)
       try {
-        // Between two commands, so nothing in flight uses the local apps it replaces.
-        if (await toolbox.refresh().catch(() => false)) cadence.wake(['heartbeat'])
-        const current = tools()
-        await pollAndExecuteCommand(stateDir, live.current, {
-          browserSessions, commandSessions, codingSessions, mcpSessions: current.mcpSessions,
-          store: recoveryStore, sidecars: attachmentStore,
-          // The bridge stamps each call with the rules that hold while it runs.
-          codingBridge: current.codingBridge, ownerPaused: pause.paused,
-          programRequests: { gate: programGate, allowOnce: live.allowOnce },
-        })
+        await commands.poll()
       } catch (error) {
-        // An image upload the next poll makes again says nothing about the
-        // connection or the other sessions; stopping them for it ended a
-        // person's browser and coding sessions over one slow answer from Nessie.
-        if (commandPollFailureStopsSessions(error)) {
+        // Held commands report on their own receipts and the heartbeat watches
+        // the connection; a failed poll beside running work ends none of it.
+        // Idle, it stops the sessions as it always has.
+        if (commands.dispatcher.idle() && commandPollFailureStopsSessions(error)) {
           await browserSessions.stopAll()
           await commandSessions.stopAll()
           await codingSessions.stopAll()
@@ -199,7 +190,7 @@ export const serveExecutor = async (
     })
     // Local inference has no tick here: its host holds a socket and claims
     // when Nessie pushes work; only its inventory heartbeat rides the 20 s task.
-    const idle = () => !commandPoll.current() && !screenPoll.current()
+    const idle = () => !commandPoll.current() && commands.dispatcher.idle() && !screenPoll.current()
       && browserSessions.isIdle() && commandSessions.isIdle() && codingSessions.isIdle()
       && localInference.supervisor.isIdle()
     const pollTick = createNonOverlappingExecutorTask(async () => {
@@ -219,6 +210,7 @@ export const serveExecutor = async (
     const cadence = createDaemonCadence({
       commands: commandPoll, sessions: screenPoll, heartbeat,
       sessionsHot: () => tools().relayScreens.hot(), monitorHot: monitor.watching,
+      commandsHot: () => !commands.dispatcher.idle(),
     })
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live.current,
@@ -262,14 +254,21 @@ export const serveExecutor = async (
       // Nessie hears it on the next heartbeat, which goes now.
       cadence.wake(['heartbeat'])
     })
+    // The owner's Stop of a session (`session stop`), applied to its held commands at once.
+    const applyStops = createNonOverlappingExecutorTask(() => commands.applyStops())
     const saved = watchLocalFiles({
-      paths: [executorStatePath(stateDir), ownerPausePath(stateDir)],
+      paths: [executorStatePath(stateDir), ownerPausePath(stateDir), sessionStopsPath(stateDir)],
       onChange: (path) => {
         if (shuttingDown) return
-        void (path === ownerPausePath(stateDir) ? applyPause : applySaved).run().catch(() => undefined)
+        const task = path === ownerPausePath(stateDir) ? applyPause
+          : path === sessionStopsPath(stateDir) ? applyStops : applySaved
+        void task.run().catch(() => undefined)
       },
     })
     if (pause.paused()) await settleLocalInference()
+    // Before the first poll: the journal's commands resume and the owner's stops hold.
+    await commands.start()
+    commandsReady = true
     const commandInterval = setInterval(() => { void pollTick.run().catch(() => undefined) }, 250)
     const existingInterval = setInterval(() => { void existingRefresh.run() }, EXISTING_STATUS_REFRESH_MS)
     existingInterval.unref()
@@ -299,6 +298,7 @@ export const serveExecutor = async (
         ...(commandPoll.current() ? [commandPoll.current()] : []),
         ...(heartbeat.current() ? [heartbeat.current()] : []),
         ...(screenPoll.current() ? [screenPoll.current()] : []),
+        commands.stop(),
       ])
       const { codingBridge, mcpSessions } = tools()
       await Promise.allSettled([

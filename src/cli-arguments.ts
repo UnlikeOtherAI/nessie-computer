@@ -3,6 +3,7 @@ import type { ExecutorLocalMcpServer } from './mcp-servers.js'
 import { parseSyncArguments, type SyncCliCommand } from './folder-sync/sync-cli.js'
 import { secureApiUrl } from './pairing-origin.js'
 import { PROGRAM_REQUEST_ANSWERS, type ProgramRequestAnswer } from './program-requests.js'
+import { parseSessionsArguments, SESSIONS_USAGE, type SessionsCliCommand } from './session-cli.js'
 import { parseExecutorWorkspaceFolderArguments, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 
 /**
@@ -80,6 +81,7 @@ export type ParsedCommand =
   | { executorId: string; kind: 'disable' }
   | { executorId?: string; kind: 'status'; stateRoot?: string }
   | SyncCliCommand
+  | SessionsCliCommand
 
 const usage = (): never => {
   throw new Error(
@@ -123,6 +125,7 @@ const usage = (): never => {
     + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
     + '--answer once|always|deny [--json]\n'
     + '       nessie-executor audience --state-dir <owner-only-path> [--json]\n'
+    + SESSIONS_USAGE
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
     + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
@@ -346,6 +349,7 @@ export const parseCommand = (args: string[]): ParsedCommand => {
     }
   }
   if (command === 'sync') return parseSyncArguments(args, usage)
+  if (command === 'sessions' || command === 'session') return parseSessionsArguments(args, usage)!
   if (command === 'serve') {
     return {
       kind: 'serve',
