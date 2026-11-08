@@ -95,7 +95,8 @@ fn service_main(_arguments: Vec<OsString>) {
     // SCM points at a durable protected image. Repair does not depend on the
     // JavaScript/native payload being fully installed after an interruption.
     let outcome = host::verify_worker()
-        .and_then(|()| crate::updates::windows_peer::allow_verification())
+        .and_then(|()| nessie_windows_common::peer_inspection::allow_verification()
+            .map_err(|_| "update.peer_inspection_unavailable"))
         .and_then(|()| {
             let _ = handle.set_service_status(status(ServiceState::Running));
             serve(stopped).map_err(|_| ERROR)

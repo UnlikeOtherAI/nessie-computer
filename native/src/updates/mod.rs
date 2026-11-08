@@ -1,8 +1,6 @@
 //! Fixed local update operations. Privileged installation never runs JavaScript.
 mod broker;
 mod channel;
-#[cfg(windows)]
-mod windows_peer;
 mod host;
 #[cfg(unix)]
 pub(super) mod admission_unix;

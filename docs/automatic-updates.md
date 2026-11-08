@@ -2,8 +2,8 @@
 
 Status: **not released**. The Windows native installer coordinator and shared
 local controls are implemented in source. No signed installed upgrade has been
-verified, and macOS/Linux installer adapters and the transition release remain
-unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
+verified. Cross-platform installer adapters exist in source; complete stable
+publication and installed upgrade acceptance remain unfinished. The published 0.9.1 prerelease and sequence-1 stable/preview
 catalogs contain only the Apple-silicon DMG. They do not provide a complete
 stable distribution or establish installed upgrade acceptance.
 
@@ -11,14 +11,17 @@ The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
 background helper. See [the helper trust contract](macos-update-helper.md).
 
-Local signing candidates now exist for Windows and macOS. The Windows 0.9.0 MSI
-at `c7ac37d` has verified timestamped signatures and matching extracted payload
-hashes; its native helper and CLI report the expected version/source. The macOS
-0.9.0 app and DMG at `b0e5c3b` passed Developer ID validation, notarization,
-stapling and Gatekeeper. Neither candidate has been installed, published or
-used for an A-to-B upgrade. No additional Installer certificate is required.
-macOS signing uses a temporary launchd job in the existing GUI
-session so SSH does not require another keychain sign-in or copied credentials.
+Signed local candidates exist on Windows, macOS and Linux. Windows 1.0.10
+at `99a4cb8` installed normally on Maxis; its non-elevated controls can read
+status, change and restore the automatic preference, and request a check. The
+SYSTEM worker completed its first catalog check and returned idle with no
+recorded failures. Its managed CLI still rejects startup at the service's
+pairing-only pipe; the separate runtime admission fix below is not yet installed.
+The notarized macOS candidates pass signature and Gatekeeper checks but are
+not installed. Fedora's signed 1.0.2 package has passed service recovery and a
+machine restart. None of these candidates establishes stable A-to-B acceptance.
+macOS signing uses the existing GUI session and Developer ID identity; no
+additional Installer certificate or account setup is required.
 
 The Windows MSI producer requires Node 22 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
@@ -346,119 +349,71 @@ installation, notification, interrupted-transaction recovery or GNOME controls.
 
 ## Windows installed setup and rollback
 
-The signed a24bd9c 1.0.3 MSI passed publisher, profile-EKU, timestamp and SignTool
-verification, but failed its first Maxis installation in SecureUpdaterStateRoot
-(MSI 1722/1603). It is not a usable installed baseline and remains unpublished.
-The default major-upgrade schedule had removed the old product outside the new
-transaction. Maxis was recovered with the existing published signed edge MSI,
-SHA-256 `8a7f7057fd97c13e89bd21b35feb6f15ef5e65aae048f8c67404ca10b1ddf005`.
-Kelpie confirmed its existing pairing, shared folder and provider returned online.
-No pairing or update journal was reset. Edge remains ineligible for stable A-to-B acceptance.
+The signed MSI uses the existing UnlikeOtherAI Azure Artifact Signing identity.
+Major upgrades remove the old product inside the MSI transaction, after
+`InstallInitialize`; failure restores the old product. Installed tests must use
+the original signed MSI. A transform may inject a failure only in a separate
+rollback test, and that result is not an ordinary installation pass.
 
-Protected directory pins now request READ_CONTROL as well as file attributes,
-because [GetSecurityInfo](https://learn.microsoft.com/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo)
-requires that handle right to read owner/DACL information. The trusted-owner,
-write-access, reparse and file-identity checks remain mandatory. Inherit-only
-ACEs do not grant access to the directory itself; each executable input still
-requires its own effective DACL check. The standard Program Files DACL and its
-creator-owner inheritance are covered by a read-only Windows regression. A real Windows
-fixture accepts an Administrators-owned directory with public read/execute and
-rejects public write access; run the native Windows tests elevated as in CI.
-The MSI uses [afterInstallInitialize](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/)
-so old-product removal participates in rollback. Corrected signed installation
-and failed-upgrade rollback remain installed acceptance work.
+The native protected-image pin requests READ_CONTROL for its retained handle.
+Creator-owner inheritance-only ACEs do not grant access to the parent; actual
+files remain independently checked. SYSTEM installer setup may run in the active
+logon session, while live updater and worker roles still require SYSTEM/session 0.
+SCM recovery setup requests SERVICE_CHANGE_CONFIG and SERVICE_START. A real
+one-off test service verifies its failure actions without starting an executable.
 
-The 2fcf592 signed 1.0.4 candidate passed 36 Windows native tests, source gates
-and a forced MSI rollback: edge 0.0.2179 and its running service were restored
-automatically. Normal installation still failed. A diagnostic transform ran
-the exact signed native setup inside the deferred action, captured only public
-runtime hashes/signatures and process identity, and always rolled back. Its
-actual identity was SYSTEM in session 1; all runtime hashes and publishers matched.
+The signed 1.0.4 candidate at `2fcf592` passed a forced-failure rollback test:
+MSI restored the previous installed edge product, service and pairing. That test
+did not validate stable automatic updates. The signed 1.0.10 candidate at
+`99a4cb8` subsequently passed the normal installer, timestamped publisher/EKU
+verification, both automatic services, non-elevated update controls and the first
+background catalog check. Its native gates passed 38 common, 32 native and five
+integration tests on Maxis. It remains unpublished.
 
-MSI setup/removal and protected-image staging now require the real SYSTEM SID
-without restricting the installing session. They still verify the fixed installed
-release, publishers, hashes and protected namespace. Live updater worker/service
-execution retains the separate SYSTEM-and-session-0 requirement. The correction
-needs a fresh signed candidate and real installation before acceptance.
+Nonblocking broker reads preserve Win32 ERROR_NO_DATA rather than Rust's EOF
+mapping. ConnectNamedPipe returning TRUE means the server is listening; only
+ERROR_PIPE_CONNECTED establishes a client in PIPE_NOWAIT mode. Real kernel pipe
+tests cover empty, connected, request/reply and disconnected states. The
+restricted worker environment includes OS-derived SystemRoot, SystemDrive,
+ALLUSERSPROFILE and ProgramData. No caller environment override selects the state
+root. The admission marker is read through the retained locked handle because
+Windows mandatory locks reject a second handle; the journal and inode survive
+recovery unchanged.
 
-The ae2c3b6 1.0.5 setup diagnostic preserved its protected admission inode,
-installation record and verified worker image, then failed service configuration.
-Configuring an SC_ACTION_RESTART requires SERVICE_START on the service handle,
-in addition to SERVICE_CHANGE_CONFIG ([Windows API contract](https://learn.microsoft.com/windows/win32/api/winsvc/nf-winsvc-changeserviceconfig2a)).
-Setup now requests both rights. Its elevated Windows regression creates one
-uniquely named service pointing to a nonexistent executable, configures and reads
-back its restart policy, and deletes the service without ever starting it.
-Native setup retains its closed domain error code so a future refusal can be
-diagnosed without paths, credentials or journal edits. Corrected signed setup
-was exercised by signed candidate 1.0.6: the unmodified MSI completed, and both
-executor and updater services ran with automatic startup. The installed desktop
-status connection still refuses peer authentication, so local control health,
-reconnection and A-to-B updates remain unverified. The protected state is retained.
+### Runtime admission and pairing control
 
-For a refused Windows status request, the read-only developer probe is
+The pairing/control pipe `\\.\pipe\NessieExecutor` retains its existing
+Administrators and explicitly approved-account ACL. User-owned connections do
+not need a legacy service pairing or a repair grant to start. Their signed native
+launcher uses the separate fixed local pipe
+`\\.\pipe\NessieExecutorCustody`. This transport admits authenticated local
+accounts with client read/write rights only: no rival-instance creation and no
+remote clients. It accepts only managed-custody operations. Status, pairing,
+enrollment, folder grants and daemon-control requests cannot reach the legacy
+control handler through it.
+
+The same service custody handler still proves the live native producer's
+publisher, immutable release, account, session, child generation and named Job
+Object before registration. Machine-only runtime roles retain their service
+account and session-zero checks. Credential fences and update admission remain
+mandatory. Opening a pipe never grants custody.
+
+Both service roles publish only the process identity/liveness and token query
+metadata their clients require. The native launcher and suspended child grant
+those same read-only facts to the Windows-derived service account so the service
+can verify them. Existing ACL entries are merged, not replaced. No terminate,
+memory, handle duplication, token impersonation or ACL-write right is added.
+
+The runtime-only channel and reciprocal metadata fix have not yet passed a fresh
+signed installed CLI/app journey. Existing user pairings, service grants,
+accepted work and update/custody journals must remain intact while testing it.
+
+The read-only developer probe is:
 `cargo run --manifest-path windows-common/Cargo.toml --example update-status`.
-Compile it with the existing public `NESSIE_DESKTOP_WINDOWS_SIGNER_EKU` pin.
-It uses the same authenticated fixed pipe and prints its closed failure reason;
-it cannot change preferences, select packages or supply an alternate endpoint.
-This is a machine-only diagnostic, not a replacement for the installed app/CLI
-journey. Run it with the actual desktop token when diagnosing local controls.
-The optional `--peer-facts` flag reports read-only Windows API failures, session,
-SYSTEM identity and publisher/namespace results on a separate connection. It
-exits unsuccessfully even when those probes pass; the independent facts never
-substitute for authenticated status or grant authority.
-
-Windows broker startup publishes read-only process and token metadata to
-authenticated local users before opening its control pipe. Windows otherwise
-refuses an ordinary desktop token even `PROCESS_QUERY_LIMITED_INFORMATION` on
-the SYSTEM service (confirmed with signed 1.0.6). The broker merges only process
-query/synchronize and token-query rights into the existing kernel DACLs. It
-preserves existing permissions and grants no process control, memory access,
-token duplication, impersonation or ACL writes. Client authentication still
-requires the retained live process, SYSTEM/session 0, exact signed role and
-protected installed image. A real suspended process and private duplicate token
-regression assert the exact authenticated-user masks and retained SYSTEM access.
-Startup verification failures report a nonzero SCM exit code, so the configured
-recovery restart retries them instead of leaving a stopped service marked healthy.
-The read-only status probe also reports the failed transport stage, Windows error
-or closed broker error using the production exchange. Application calls keep
-their existing public error; no diagnostic flag bypasses authentication or changes
-timeouts. Signed 1.0.7 passed normal installation and desktop peer verification;
-its subsequent control exchange is still under investigation and is not accepted.
-Windows nonblocking pipe acceptance distinguishes listening from a connected
-client: a successful first ConnectNamedPipe call only makes the instance
-available; ERROR_PIPE_CONNECTED establishes the connection. The kernel pipe
-regression covers an empty listener, a real client and abandoned-client recovery.
-The `--installed-facts` probe prints read-only known-folder and installed-runtime
-verification stage timings. It has no install or policy operation and does not
-turn a successful provenance read into a broker-health assertion. Signed 1.0.8
-installed normally, but its desktop control still timed out and its background
-worker had not created a journal; it remains unpublished and unaccepted.
-Deadline diagnostics include sent/received byte counts, without request or reply
-contents, to distinguish a full-buffer write from a missing broker response.
-
-The 1.0.8 probe sent zero request bytes: the broker had closed the empty pipe
-while its client verified the peer. Rust classifies ERROR_NO_DATA as BrokenPipe
-and File::read converts it to EOF. Both ends now use the shared ReadFile wrapper
-that preserves the native no-data error until their existing deadline. A real
-empty-pipe/request/reply/disconnect regression covers the transport.
-A separate SYSTEM read-only probe reproduced ProgramData resolution failure with
-only SystemRoot in the worker environment. The broker now supplies only OS-resolved
-ALLUSERSPROFILE and ProgramData alongside SystemRoot before launch. A real child
-process verifies the same machine paths and state root under that exact whitelist.
-No caller paths, inherited environment, authorization overrides or journal resets
-are introduced. Fresh signed installation/control/worker acceptance is still required.
-The real child test also requires SystemDrive, derived from the OS Windows
-directory prefix; ProgramData variables alone do not satisfy the folder resolver.
-The worker whitelist includes that drive and still inherits no caller environment.
-
-Signed 1.0.9 at ac7f4f2 installed normally, and its ordinary desktop-token
-status, stable/default-auto policy, off/readback/restore and Check requests passed.
-Its worker then exposed a mandatory Windows-lock failure before its first catalog
-attempt: admission locked the marker and reopened it to read through another
-handle. Admission now validates bounded marker bytes through the same locked
-handle; the real kernel regression proves the second handle is refused while
-the lock owner can read. The lease, owner/DACL checks and marker remain intact.
-Worker check progress and a fresh signed candidate remain acceptance work.
-The optional `--service-peer-facts` probe applies the same read-only peer queries
-to the fixed executor custody service. It sends no companion proof or command.
-This diagnoses an installed managed-CLI refusal independently of updater health.
+It uses the authenticated fixed updater pipe and reports closed failure stages,
+OS errors and bounded byte counts. `--peer-facts` independently reports updater
+process/token, publisher and protected-image observations. `--installed-facts`
+checks known-folder and release provenance without changing state.
+`--service-peer-facts` inspects the fixed runtime service pipe without sending
+companion proof or a command. Diagnostic output never establishes health,
+authorizes installation or bypasses authentication.
