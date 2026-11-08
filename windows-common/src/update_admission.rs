@@ -4,7 +4,7 @@ use crate::{custody::REJECTED, process::Process, release::pin_protected};
 use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::{self, File, OpenOptions},
+    fs::{File, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
 };
@@ -59,6 +59,18 @@ pub struct Maintenance {
     pub target: Option<String>,
 }
 
+fn validate_locked_marker(file: &mut File) -> Result<(), String> {
+    let mut bytes = Vec::new();
+    file.take(128)
+        .read_to_end(&mut bytes)
+        .map_err(|_| REJECTED)?;
+    if bytes == b"nessie-update-admission-v1\n" {
+        Ok(())
+    } else {
+        Err(REJECTED.into())
+    }
+}
+
 pub struct Admission {
     file: File,
     root: PathBuf,
@@ -84,15 +96,12 @@ impl Admission {
         let root_pin = pin_protected(&root, true)?;
         let path = root.join("admission.lock");
         let pin = pin_protected(&path, false)?;
-        let file = OpenOptions::new()
+        let mut file = OpenOptions::new()
             .read(true)
             .open(&path)
             .map_err(|_| REJECTED)?;
         file.try_lock_exclusive().map_err(|_| REJECTED)?;
-        let bytes = fs::read(&path).map_err(|_| REJECTED)?;
-        if bytes != b"nessie-update-admission-v1\n" {
-            return Err(REJECTED.into());
-        }
+        validate_locked_marker(&mut file)?;
         let state_path = root.join("maintenance.json");
         let mut bytes = Vec::new();
         let _state_pin = pin_protected(&state_path, false)?;
@@ -215,5 +224,27 @@ impl Admission {
 impl Drop for Admission {
     fn drop(&mut self) {
         let _ = FileExt::unlock(&self.file);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_admission_marker_is_read_through_its_locked_handle() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("admission.lock");
+        std::fs::write(&path, b"nessie-update-admission-v1\n").unwrap();
+        let mut held = OpenOptions::new().read(true).open(&path).unwrap();
+        held.try_lock_exclusive().unwrap();
+        // Windows enforces byte-range locks even for another handle in this process.
+        assert_eq!(std::fs::read(&path).unwrap_err().raw_os_error(), Some(33));
+        validate_locked_marker(&mut held).unwrap();
+        drop(held);
+        assert_eq!(
+            std::fs::read(&path).unwrap(),
+            b"nessie-update-admission-v1\n"
+        );
     }
 }

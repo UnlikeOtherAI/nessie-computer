@@ -450,3 +450,12 @@ are introduced. Fresh signed installation/control/worker acceptance is still req
 The real child test also requires SystemDrive, derived from the OS Windows
 directory prefix; ProgramData variables alone do not satisfy the folder resolver.
 The worker whitelist includes that drive and still inherits no caller environment.
+
+Signed 1.0.9 at ac7f4f2 installed normally, and its ordinary desktop-token
+status, stable/default-auto policy, off/readback/restore and Check requests passed.
+Its worker then exposed a mandatory Windows-lock failure before its first catalog
+attempt: admission locked the marker and reopened it to read through another
+handle. Admission now validates bounded marker bytes through the same locked
+handle; the real kernel regression proves the second handle is refused while
+the lock owner can read. The lease, owner/DACL checks and marker remain intact.
+Worker check progress and a fresh signed candidate remain acceptance work.
