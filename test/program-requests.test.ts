@@ -191,7 +191,8 @@ test('always saves "<program> *" through the policy writer before the waiting la
     })
     delete saved.browserSandbox
     await saveExecutorState(stateDir, saved)
-    const gate = createProgramRequestGate({ store: openProgramRequestStore(stateDir), pollMs: 10, log: () => undefined })
+    const store = openProgramRequestStore(stateDir)
+    const gate = createProgramRequestGate({ store, pollMs: 10, log: () => undefined })
     const verdict = gate.ask({ program: 'pnpm', args: ['install'], expiresAt: '2099-01-01T00:00:00.000Z' })
     await ownerAnswers(stateDir, async (waiting) => {
       await answerProgramRequest(stateDir, await loadExecutorState(stateDir), { answer: 'always', id: waiting.id, json: false },
