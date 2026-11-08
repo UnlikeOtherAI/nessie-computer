@@ -96,7 +96,9 @@ export class CodexRetainedCatalog {
       Buffer.compare(Buffer.from(codexIdentityKey(left.identity)), Buffer.from(codexIdentityKey(right.identity)))))
   }
 
-  page(input: { readonly cursor?: CodexCatalogCursor; readonly limit?: number; readonly byteLimit?: number } = {}) {
+  page(input: {
+    readonly cursor?: CodexCatalogCursor; readonly limit?: number; readonly byteLimit?: number
+  } = {}) {
     requireCodex(this.sealed, 'codex_inventory_incomplete')
     const limit = input.limit ?? 64
     const byteLimit = input.byteLimit ?? 512 * 1024
