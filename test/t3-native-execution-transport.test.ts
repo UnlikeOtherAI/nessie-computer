@@ -91,7 +91,8 @@ test('frame transport binds the exact receipt bytes, reservation and original op
     releaseDigest: f.custody.releaseDigest, frameReceiptDigest: hash(receipt.payload) }
   let changed = false
   const api = createExecutorApi({ fetchImpl: async () => new Response(JSON.stringify({
-    data: f.signed({ ...response, frameReceiptDigest: changed ? hash(JSON.stringify(prepared)) : response.frameReceiptDigest }),
+    data: f.signed({ ...response,
+      frameReceiptDigest: changed ? hash(JSON.stringify(prepared)) : response.frameReceiptDigest }),
   })) })
   const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
   assert.equal((await port.frame({ reservationId: f.reservationId, frameReceipt: receipt }, f.signal)).payload,
@@ -100,11 +101,13 @@ test('frame transport binds the exact receipt bytes, reservation and original op
   await assert.rejects(port.frame({ reservationId: f.reservationId, frameReceipt: receipt }, f.signal), /FENCED/u)
 })
 
-test('late responses after epoch replacement or parent abort cannot escape the bound port', async () => {
-  for (const change of ['epoch', 'abort']) {
+test('late responses after paired identity replacement or parent abort cannot escape the bound port', async () => {
+  for (const change of ['epoch', 'key', 'origin', 'abort']) {
     const f = fixture()
     const api = createExecutorApi({ fetchImpl: async () => {
       if (change === 'epoch') f.state.connectionEpoch = '2'
+      else if (change === 'key') f.state.machinePublicKey = 'replacement-key'
+      else if (change === 'origin') f.state.apiBaseUrl = 'https://other.example.test'
       else f.controller.abort()
       return new Response(JSON.stringify({ data: f.signed(f.admission) }))
     } })
@@ -124,6 +127,9 @@ test('cross-operation replies, raw frame selectors and unsigned origins are refu
     input: { reservationId: f.reservationId, method: 'write', frameSha256: hash('untrusted') } }).success, false)
   assert.equal(T3NativeExecutionOperationSchema.safeParse({ operation: 'execution.phase',
     input: { phase: 'reserve', graphId: f.graphId }, actor: 'caller' }).success, false)
+  assert.equal(T3NativeExecutionOperationSchema.safeParse({ operation: 'execution.frame',
+    input: { reservationId: f.reservationId, frameReceipt: { ...f.delivery.executionGraph,
+      publicKey: 'caller-key' } } }).success, false)
   f.state.apiBaseUrl = 'http://api.example.test'
   assert.throws(() => createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api), /FENCED/u)
 })
@@ -158,4 +164,15 @@ test('receipt acknowledgement expiry and reservation substitution refuse without
   f.controller.abort()
   await assert.rejects(port.receipt(receipt, f.signal))
   assert.equal(calls, 2)
+})
+
+test('injected response keys and expired phase envelopes cannot become transport success', async () => {
+  for (const kind of ['key', 'expiry']) {
+    const f = fixture()
+    const response = kind === 'key' ? { ...f.signed(f.admission), publicKey: 'caller-key' }
+      : f.signed({ ...f.admission, issuedAtMs: Date.now() - 5000, expiresAtMs: Date.now() - 1 })
+    const api = createExecutorApi({ fetchImpl: async () => new Response(JSON.stringify({ data: response })) })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    await assert.rejects(port.phase({ phase: 'reserve', graphId: f.graphId }, f.signal))
+  }
 })

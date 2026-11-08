@@ -142,8 +142,12 @@ The backend restores the original protected relay and admission; the native
 service independently verifies the returned RSA envelope against its enrolled
 backend before acting. This facade does not mint a verified grant.
 
-The immutable original serializer-to-held-byte producer and protected child
-relay registration remain runtime-owned integration prerequisites. The new
+The runtime-owned `src/t3-session/runtime/protected-runtime.ts` caller will bind
+one port to each open operation. Child requests carry only
+`{operationId, callId, operation: T3NativeExecutionOperation}`; the parent resolves
+the operation ID to its captured port and returns the exact result by call ID.
+That caller, the immutable original serializer-to-held-byte producer and their
+registration remain runtime-owned integration prerequisites. The new
 fetch-boundary fixtures cover exact original selectors/signatures, frame receipt
 byte digests, injected selectors, source replacement, cancellation, expiry and
 bounded responses. They are authored, not run at the source checkpoint.
