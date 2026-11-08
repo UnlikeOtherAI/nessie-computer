@@ -206,5 +206,12 @@ F02 owns registration. Final co-build qualification still requires its corrected
 committed contract alias/mapping tuple, the committed corrected privacy/hash,
 current producer, one resolver/dependency root/Effect 4.1.2, ordinary strict
 exported consumer, actual import smoke and same-artifact SQLite history/replay.
+The T13 context-label correction uses the exact attachment/request association,
+even if a stored name and MIME already equal the privacy sentinel. It does not
+infer classification from a descriptor's text. Actual-engine historical fixtures
+cover explicit masks, unknown masks, file/image context labels, unrelated labels,
+original IDs and destination SQLite/WAL bytes. These new cases are authored,
+not executed; the earlier importer acceptance does not qualify this correction.
+
 No co-build, packaged Node 22, real provider/vault/UOA, browser, native/device
 or installed runtime claim is made by this source checkpoint.
