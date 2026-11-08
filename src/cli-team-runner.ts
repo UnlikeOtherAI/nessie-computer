@@ -103,7 +103,8 @@ export const retireMacLaunchAgents = async (context: Pick<CliContext, 'home' | '
 export const startNewTeam = async (context: Pick<CliContext, 'platform' | 'run' | 'home'>, executorId: string): Promise<string> => {
   const runner = await teamRunner(context)
   if (runner === 'linux-service') {
-    await enableExecutorService({ executorId, assumeYes: true }, { ...createExecutorServiceEnvironment(), write: () => undefined })
+    await enableExecutorService({ executorId, assumeYes: true },
+      { ...createExecutorServiceEnvironment(), write: () => undefined })
     return 'It starts at boot and keeps running after you log out.'
   }
   if (runner === 'mac-launch-agent') {

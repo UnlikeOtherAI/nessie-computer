@@ -207,7 +207,9 @@ export const labelFor = (names: TeamNames | null, server: string, others: readon
 }
 
 /** One of the contract's status words, decided as the window decides it (`teams.js`). */
-export const statusOf = (team: { paused: boolean; pendingProgramRequests: number; running: boolean; failure?: string }): TeamStatus => {
+type Reading = { paused: boolean; pendingProgramRequests: number; running: boolean; failure?: string }
+
+export const statusOf = (team: Reading): TeamStatus => {
   if (team.paused) return 'paused'
   if (team.pendingProgramRequests > 0) return 'needs_you'
   if (team.failure) return 'not_connected'
@@ -231,7 +233,9 @@ const readings = async (team: CliTeam) => {
 }
 
 /** The same organisation and team on the same server: the window's rule for a team's ChatGPT plan connection. */
-const sameTeam = (left: TeamNames | null, leftServer: string, right: TeamNames | null, rightServer: string): boolean => (
+const sameTeam = (
+  left: TeamNames | null, leftServer: string, right: TeamNames | null, rightServer: string,
+): boolean => (
   Boolean(left && right && leftServer && leftServer === rightServer
     && left.organizationName === right.organizationName && left.teamName === right.teamName))
 

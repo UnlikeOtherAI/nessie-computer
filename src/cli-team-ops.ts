@@ -55,7 +55,9 @@ export type TeamOpsHost = {
 const localOps = (team: LocalTeam, host: TeamOpsHost): TeamOps => ({
   describe: () => describeTeamAt(team.stateDir),
   save: async ({ existingCodingSessionsEnabled, ...change }) => {
-    if (existingCodingSessionsEnabled !== undefined) await setExistingSessionsEnabled(team.stateDir, existingCodingSessionsEnabled)
+    if (existingCodingSessionsEnabled !== undefined) {
+      await setExistingSessionsEnabled(team.stateDir, existingCodingSessionsEnabled)
+    }
     if (Object.keys(change).length) await saveAccess(team.stateDir, change)
     return describeTeamAt(team.stateDir)
   },
@@ -96,10 +98,12 @@ export const serviceConfigurationInput = (current: TeamDescription, change: Team
 
 const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
   const id = team.executorId
-  const ask = async (request: Parameters<ServiceCall>[0], status: string) => expectAnswer(await host.service(request), status)
+  const ask = async (request: Parameters<ServiceCall>[0], status: string) => (
+    expectAnswer(await host.service(request), status))
+  const list = (answer: Record<string, unknown>, key: string): unknown[] => (Array.isArray(answer[key]) ? answer[key] : [])
   const describe = async () => (await ask(serviceRequests.describe(id), 'describe')).description as TeamDescription
-  const requests = (answer: Record<string, unknown>) => (Array.isArray(answer.requests) ? answer.requests : []) as TeamRequest[]
-  const sessionsOf = (answer: Record<string, unknown>) => (Array.isArray(answer.sessions) ? answer.sessions : []) as SessionView[]
+  const requests = (answer: Record<string, unknown>) => list(answer, 'requests') as TeamRequest[]
+  const sessionsOf = (answer: Record<string, unknown>) => list(answer, 'sessions') as SessionView[]
   return {
     describe,
     save: async (change) => {
@@ -107,13 +111,15 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
       // The service reads a folder under its own account, so a new one is
       // granted to it first: the Windows app's one elevated step.
       for (const folder of change.workspaceFolders ?? []) {
-        if (!current.reach.folders.some((existing) => existing.path === folder.path)) await grantServiceFolder(host.run, folder.path)
+        const known = current.reach.folders.some((existing) => existing.path === folder.path)
+        if (!known) await grantServiceFolder(host.run, folder.path)
       }
       await ask(serviceRequests.configure(id, serviceConfigurationInput(current, change)), 'ok')
       return describe()
     },
     setPaused: async (paused) => {
-      const row = serviceTeamList(await host.service(serviceRequests.setPaused(id, paused))).find((entry) => entry.executorId === id)
+      const rows = serviceTeamList(await host.service(serviceRequests.setPaused(id, paused)))
+      const row = rows.find((entry) => entry.executorId === id)
       return { paused: row?.paused ?? paused }
     },
     programRequests: async () => requests(await ask(serviceRequests.programRequests(id), 'programRequests')),

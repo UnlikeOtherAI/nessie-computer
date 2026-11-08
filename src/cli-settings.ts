@@ -35,7 +35,8 @@ export const logLocations = (context: Pick<CliContext, 'platform' | 'home'>, tea
 
 const appRuns = (runner: TeamRunner): boolean => runner === 'mac-app' || runner === 'windows-app'
 
-type RestartReading = { autoRestart: boolean | null; teams: Array<{ executorId: string; label: string; autoRestart: boolean }> }
+type RestartRow = { executorId: string; label: string; autoRestart: boolean }
+type RestartReading = { autoRestart: boolean | null; teams: RestartRow[] }
 
 /**
  * The app's one computer-wide switch where the app runs the teams; otherwise
@@ -43,9 +44,10 @@ type RestartReading = { autoRestart: boolean | null; teams: Array<{ executorId: 
  */
 const readRestart = async (run: CliRun, teams: readonly LabelledTeam[]): Promise<RestartReading> => {
   if (appRuns(await run.runner())) return { autoRestart: await appAutoRestartEnabled(run.context), teams: [] }
-  return { autoRestart: null, teams: await Promise.all(teams.flatMap((team) => (team.route === 'local' && team.cliService
-    ? [serviceAutoRestartEnabled(team.stateDir).then((autoRestart) => ({ executorId: team.executorId, label: team.label, autoRestart }))]
-    : []))) }
+  const row = async (team: LabelledTeam & { stateDir: string }): Promise<RestartRow> => (
+    { executorId: team.executorId, label: team.label, autoRestart: await serviceAutoRestartEnabled(team.stateDir) })
+  return { autoRestart: null, teams: await Promise.all(teams.flatMap((team) => (
+    team.route === 'local' && team.cliService ? [row(team)] : []))) }
 }
 
 const restartText = (reading: RestartReading, teams: readonly LabelledTeam[]): string => {

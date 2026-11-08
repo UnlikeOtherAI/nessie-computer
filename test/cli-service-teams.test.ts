@@ -26,7 +26,9 @@ const OPS = '00000000-0000-4000-8000-0000000000c1'
 const SERVER = 'https://api.example.test'
 const REQUEST = '7f3a9c21-0000-4000-8000-000000000001'
 
-type Row = { executorId: string; daemonStatus: string; paused: boolean; pendingProgramRequests: number; failure?: { message: string } }
+type Row = {
+  executorId: string; daemonStatus: string; paused: boolean; pendingProgramRequests: number; failure?: { message: string }
+}
 
 /** A service with two teams: Sales' ChatGPT plan connection, and Ops, which it runs on its own. */
 const fakeService = () => {
@@ -115,7 +117,8 @@ test('a service team is a team; a service connection for a team here is that tea
       const run = runner(home, noPrograms)
       const teams = await run(['teams', '--json'], service.call)
       assert.equal(teams.exit, 0, teams.err)
-      assert.deepEqual((teams.json() as Array<Record<string, unknown>>).map(({ executorId, label, status, runBy, planConnectionId }) => (
+      const rows = teams.json() as Array<Record<string, unknown>>
+      assert.deepEqual(rows.map(({ executorId, label, status, runBy, planConnectionId }) => (
         { executorId, label, status, runBy, planConnectionId })), [
         { executorId: SALES, label: 'Sales · Acme', status: 'not_connected', runBy: 'account', planConnectionId: PLANS },
         { executorId: OPS, label: 'Ops · Acme', status: 'needs_you', runBy: 'service', planConnectionId: undefined },
