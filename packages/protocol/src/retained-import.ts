@@ -1,7 +1,8 @@
 import { z } from 'zod'
 
-const ref = z.string().min(1).max(512)
-const selectedId = ref.refine(id => new TextEncoder().encode(id).length <= 256)
+const ref = z.string().min(1).max(256).refine(id => new TextEncoder().encode(id).length <= 256
+  && !/[\u0000-\u001f\u007f]/u.test(id))
+const selectedId = ref
 export const RetainedImportSelectionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('whole_source') }).strict(),
   z.object({ kind: z.literal('threads'), projectIds: z.array(selectedId).max(64)
