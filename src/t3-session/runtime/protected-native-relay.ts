@@ -57,13 +57,15 @@ export function createProtectedNativeRelay(send: (result: ProtectedNativeResult)
             ? await entry.port.phase(operation.input, entry.signal)
             : operation.operation === 'execution.frame'
               ? await entry.port.frame(operation.input, entry.signal)
-              : await entry.port.receipt(operation.receipt, entry.signal)
+              : operation.operation === 'execution.secretRead'
+                ? await entry.port.secretRead(operation.input, entry.signal)
+                : await entry.port.receipt(operation.receipt, entry.signal)
           entry.signal.throwIfAborted()
           if (!live || entries.get(message.operationId) !== entry) throw protectedRuntimeRefused()
           await send({ type: 'native-result', operationId: message.operationId, callId: message.callId,
             value: T3NativeExecutionOperationResultSchema.parse(value) })
         } catch {
-          // An uncertain phase/frame is never retried. The operation's caller
+          // An uncertain phase/frame/secret read is never retried. The operation's caller
           // must unwind and join its held native processes before releasing SQL.
           entry.stop.abort()
           await send({ type: 'native-refused', operationId: message.operationId, callId: message.callId })
@@ -145,6 +147,8 @@ export function createProtectedNativeClient(send: (request: ProtectedNativeReque
           await tracked({ operation: 'execution.phase', input }, signal)),
         frame: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
           await tracked({ operation: 'execution.frame', input }, signal)),
+        secretRead: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
+          await tracked({ operation: 'execution.secretRead', input }, signal)),
         receipt: async (receipt, signal) => T3NativeExecutionReceiptAcceptedSchema.parse(
           await tracked({ operation: 'execution.receipt', receipt }, signal)),
       })
