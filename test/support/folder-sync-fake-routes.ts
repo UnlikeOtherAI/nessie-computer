@@ -197,6 +197,12 @@ const routes: Array<{ method: string; path: RegExp; operation: string; handle: H
     })
   } },
   { method: 'POST', path: /\/handshake$/u, operation: 'handshake', handle: (server, body) => {
+    if (server.handshakeRefusesOrganizationName && 'wantsOrganizationName' in body) {
+      // What Nessie's strict request parsing answers for a key it does not know.
+      server.organizationNameRefusals += 1
+      throw new Refusal(400, 'VALIDATION_ERROR',
+        [{ code: 'unrecognized_keys', keys: ['wantsOrganizationName'], path: [], message: 'Unrecognized key(s) in object' }])
+    }
     const request = parseSigned(server, FolderSyncHandshakeRequestSchema, body)
     const named = request.wantsOrganizationName && server.handshakeNamesOrganization
     return FolderSyncHandshakeResponseSchema.parse({
