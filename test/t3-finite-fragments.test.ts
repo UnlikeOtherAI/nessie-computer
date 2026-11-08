@@ -19,7 +19,10 @@ function fixture() {
     method: 'orchestration.getThreadTitles', input: { threadIds: ['original:thread'] } })
   const reply = decodeExecutorT3LaneReply({ ...routing, kind: 'result',
     method: 'orchestration.getThreadTitles', result: { 'original:thread': 'é原🙂'.repeat(1_050_000) } })
-  return { state, request, reply }
+  const announcement = { environmentId: routing.environmentId, runtimeGeneration: routing.runtimeGeneration,
+    sourceRevision: T3_SOURCE_COMMIT, physicalRootKey: 'fixture:root', captureGeneration: 'fixture:capture',
+    state: 'ready' as const }
+  return { state, request, reply, announcement }
 }
 
 test('large original finite result is pulled once, held under credit and retried byte-exactly', async t => {
@@ -27,7 +30,8 @@ test('large original finite result is pulled once, held under credit and retried
   const frames: T3LaneFrame[] = []
   let opens = 0, first = true, lost = false, hold = true
   const expiry = new Date(Date.now() + 50_000).toISOString()
-  const lane = createT3SessionLane({ describe: async () => [], async *open() { opens++; yield f.reply } }, {
+  const lane = createT3SessionLane({ describe: async () => [f.announcement],
+    async *open() { opens++; yield f.reply } }, {
     exchangeT3SessionOperations: async (_base, input): Promise<T3LaneExchangeResult> => {
       if (first) {
         first = false
