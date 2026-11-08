@@ -94,7 +94,8 @@ fn service_main(_arguments: Vec<OsString>) {
     let _ = handle.set_service_status(status(ServiceState::StartPending));
     // SCM points at a durable protected image. Repair does not depend on the
     // JavaScript/native payload being fully installed after an interruption.
-    let outcome = host::verify_worker();
+    let outcome = host::verify_worker()
+        .and_then(|()| crate::updates::windows_peer::allow_verification());
     if outcome.is_ok() {
         let _ = handle.set_service_status(status(ServiceState::Running));
         if serve(stopped).is_err() {
