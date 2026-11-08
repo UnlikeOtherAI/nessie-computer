@@ -197,6 +197,44 @@ command `executor_local_ai { executorId }`, answer:
 `executor_set_local_ai { executorId, engine, profileId?, available }` and
 `ai local on|off <engine> [--account <name>]` change the switch, which is saved
 in the team's state folder (`local-cli-engines.json`) and applied live.
-`executor_local_ai_add_account { engine, name }` / `ai local add <engine> <name>`
-start the provider's sign-in; `executor_local_ai_remove_account { profileId }`
-/ `ai local remove <name>` remove it.
+`executor_local_ai_add_account { executorId, engine, name }` creates the
+account and opens a terminal window running the program's own sign-in
+(`claude auth login` or `codex login` with the account's folder);
+`executor_local_ai_sign_in { executorId, profileId }` opens it again for a
+signed-out account; the console then checks every three seconds, for up to
+five minutes, until the account is signed in.
+`executor_local_ai_remove_account { executorId, profileId }` signs the account
+out with the program's own `logout` and deletes its folder. The CLI's
+`ai local add|sign-in|remove` do the same, with the sign-in in the terminal
+the command runs in. Every bridge command answers the rows above. On Windows,
+a team the background service runs answers `{ "unavailable": "service" }`
+instead: the service account has no sign-in of the owner's.
+
+## Where it lives
+
+| Piece | Files |
+|---|---|
+| Detection (installed, signed in, account) | `src/local-cli-engine-detect.ts` |
+| Accounts and their folders | `src/local-cli-engine-accounts.ts`, `src/local-cli-engine-sign-in.ts` |
+| Make available, offered status | `src/local-cli-engine-settings.ts` |
+| One headless turn (shared with DeepTest) | `src/local-cli-engine-process.ts` |
+| Prompt and tool block | `src/local-cli-engine-prompt.ts` |
+| Backend, host, manager | `src/local-cli-engine-backend.ts`, `-host.ts`, `-manager.ts`; started beside the local-weights host in `src/local-inference-supervisor.ts` |
+| Apps and CLI | `src/local-cli-engine-cli.ts` (`local-inference engines`), `src/cli-ai-local.ts` (`ai local`), console `ai-local.js`, macOS `LocalAIControl.swift`, Windows `local_ai.rs` |
+
+The daemon applies a changed switch or account list within two seconds,
+without restarting the team. A Windows team run by the background service never
+registers a host.
+
+## Verification
+
+The focused gate is `//#test:cli-engines` through the public Turbo graph. It
+runs a turn through a stand-in CLI (streaming, tool block, cancel, the owner's
+Stop, signed-out refusal), detection, per-team switches, accounts, signed
+registration and the manager. The local headless journey
+`node tray-windows/test/renderer-harness.mjs --only=ai` covers the AI tab's
+On this computer on both hosts in seven locales, light and dark.
+
+Not yet verified: a real Claude Code or Codex turn through a paired computer
+and Nessie (tranche D3 builds Nessie's side), and the terminal sign-in of an
+added account on a real installation.

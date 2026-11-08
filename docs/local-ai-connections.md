@@ -4,6 +4,13 @@ The shared Windows/macOS console owns AI connections in the **AI** tab, which
 follows the team dropdown (see [the team tabs](nessie-computer-team-tabs.md)).
 Saved connections belong to that computer and selected team.
 
+## Claude Code and Codex on this computer
+
+**On this computer** sits above ChatGPT plans. It lists Claude Code and Codex
+with the account each is signed in to, and a **Make available** switch per
+team. The wire contract, accounts, sessions and verification are in
+[Claude Code and Codex as engines](local-cli-engines.md).
+
 ## ChatGPT plans
 
 Use **Add a ChatGPT plan** for each plan, yours or your company's; the name is
@@ -55,7 +62,8 @@ copyable pairing codes remain selectable.
 
 ## Verification
 
-Run the public Turbo task `//#test:ai-connections` with
+Claude Code and Codex have their own gate, `//#test:cli-engines`, and journey
+(`ai-local-renderer.mjs`, run by `--only=ai`). Run the public Turbo task `//#test:ai-connections` with
 `--root-turbo-json=scripts/turbo.public.json --concurrency=2`. On Windows, first
 build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed

@@ -14,6 +14,24 @@ Nessie Computer never reads or copies that sign-in.
 - Not installed: the row is greyed out and says **Not installed on this computer**.
 - Installed but signed out: run `claude` (or `codex`) once in a terminal to sign in.
 - Whether only you or your whole team can use it is set in Nessie.
+- Agents' requests go from this computer to Anthropic (Claude Code) or OpenAI
+  (Codex) under your own plan. Nessie adds no fee for them.
+
+### Another Claude or Codex account
+
+Choose **Add another Claude account** (or **Add another Codex account**), keep
+or change the name, and choose **Sign in with Claude Code** (or Codex). A
+terminal window opens with the program's own sign-in; sign in there with the
+other account. The new account gets its own row and its own **Make available**
+switch. **Remove** signs that account out and deletes it from this computer.
+
+Nessie Computer doesn't sign in to Claude for you: Anthropic doesn't allow
+other apps to use Claude plan sign-ins, so the sign-in is always Claude Code's
+own.
+
+On Windows, a team the Nessie Computer background service runs can't use your
+Claude Code or Codex sign-in. Add this computer to that team under your own
+account to use them.
 
 ## ChatGPT plans
 
@@ -84,6 +102,8 @@ Only this computer needs Nessie Computer; the model server doesn't.
 ```sh
 nessie-computer ai local                       # Claude Code and Codex on this computer
 nessie-computer ai local on codex --team "Sales · Acme"
+nessie-computer ai local add claude-code "Work"            # Claude Code's own sign-in, in this terminal
+nessie-computer ai local on claude-code --account "Work" --team "Sales · Acme"
 ```
 
 ```sh
