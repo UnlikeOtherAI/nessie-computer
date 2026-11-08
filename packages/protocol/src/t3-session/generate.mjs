@@ -1,22 +1,29 @@
 // Generates only thin method/codec relations. Original schemas are dependencies.
 import { readFileSync, writeFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { createHash } from 'node:crypto'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { WsRpcGroup, EnvironmentHttpApi, OrchestrationV2Command, AssetResource, ProjectMutation } from '@nessie/t3-session-source/contracts'
 import { isStreamSchema } from 'effect/rpc/RpcSchema'
 import rawHttp from '@nessie/t3-session-source/routes' with { type: 'json' }
+import commandInventory from '@nessie/t3-session-source/command-inventory' with { type: 'json' }
+import sourceProvenance from '@nessie/t3-session-source/provenance' with { type: 'json' }
 import { ServerSettingsPatch } from '@nessie/t3-session-source/contracts/settings'
 
 const directory = dirname(fileURLToPath(import.meta.url))
 const ledger = JSON.parse(readFileSync(resolve(directory, 'ledger.json'), 'utf8'))
-const require = createRequire(import.meta.url)
-const originalRoot = dirname(require.resolve('@nessie/t3-session-source/contracts'))
-const source = readFileSync(resolve(originalRoot, 'source/orchestrationV2.ts'), 'utf8')
-const internal = source.split('const OrchestrationV2InternalCommand =')[1].split('export type OrchestrationV2InternalCommand')[0]
+const inventoryBytes = readFileSync(new URL(import.meta.resolve('@nessie/t3-session-source/command-inventory')))
+if (commandInventory.format !== 1 || commandInventory.source !== 'packages/contracts/src/orchestrationV2.ts'
+  || commandInventory.sourceSha256 !== sourceProvenance.files.find(file => file.path === commandInventory.source)?.sha256
+  || createHash('sha256').update(inventoryBytes).digest('hex') !== sourceProvenance.commandInventorySha256
+  || !Array.isArray(commandInventory.internalCommands)
+  || commandInventory.internalCommands.some(command => typeof command !== 'string')
+  || new Set(commandInventory.internalCommands).size !== commandInventory.internalCommands.length) {
+  throw Error('T3_COMMAND_INVENTORY_IDENTITY_MISMATCH')
+}
 const commands = [...OrchestrationV2Command.members.map(x => x.fields.type.literal),
   ...ProjectMutation.members.map(x => x.fields.type.literal),
-  ...[...internal.matchAll(/type: Schema.Literal\("([^"]+)"\)/g)].map(x => x[1])]
+  ...commandInventory.internalCommands]
 const inventories = {
   rpc: [...WsRpcGroup.requests.keys()],
   http: Object.entries(EnvironmentHttpApi.groups).flatMap(([group, value]) => Object.keys(value.endpoints).map(key => `${group}.${key}`)),

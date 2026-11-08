@@ -34,6 +34,14 @@ extraction. It was already part of that public service's type. This type-only
 export lets `revertCodexThread` name its existing client input during declaration
 emit; it adds no runtime entry point or capability.
 
+Protocol generation consumes `/command-inventory` instead of reading removed
+`dist/source` implementation files. The producer parses the original internal
+command union without evaluating it and records only its literal discriminants,
+original module SHA-256 and format. Protocol generation verifies the metadata's
+digest and source identity against package provenance before comparing the
+complete command inventory with its existing ledger. This build-only metadata
+does not change which commands the transport accepts.
+
 `typecheck.contractNaming` records original source and annotation hashes.
 `typecheck.declarations.files` and `sharedContractTypes` bind the shared `.d.ts`
 tree. Contract provenance records compiler declaration production instead of

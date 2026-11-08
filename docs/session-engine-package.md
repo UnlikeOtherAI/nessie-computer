@@ -413,3 +413,9 @@ the release's npm `gitHead`, `d5d0660b150810a535bbb07eac6cc96a4510aa24`.
 Notice generation verifies its SHA-256 and the pinned package integrity, then
 records that source alongside the full notice in `engine.licenses.json`.
 Other missing dependency notices still refuse packaging.
+
+The `/command-inventory` build metadata export replaces protocol generation's
+former read of `dist/source/orchestrationV2.ts`. Its original source digest and
+metadata digest are part of package provenance; the protocol generator verifies
+both before its unchanged ledger classification. Source implementations remain
+absent from the consumer declaration tree.

@@ -10,6 +10,7 @@ import { createSessionEngineSourceResolver } from '../../packaging/session-engin
 import { buildSessionPackage, prepareLibrarySnapshot } from '../../packaging/session-engine/library.mjs'
 import { sessionContractsAliasPlugin } from './input.mjs'
 import { extractT3RawHttp } from './routes.mjs'
+import { extractT3CommandInventory } from './inventory.mjs'
 import { ensurePinnedSourceObject } from './cache.mjs'
 import { writeContractDeclarationEntries } from '../../packaging/session-engine/declarations.mjs'
 
@@ -31,6 +32,7 @@ const { snapshot } = prepared
 const resolver = createSessionEngineSourceResolver(snapshot)
 // The protocol ledger binds the original application's declarations, not extracted server line shifts.
 const rawHttpRoutes = extractT3RawHttp(original)
+const commandInventory = `${JSON.stringify(extractT3CommandInventory(original), null, 2)}\n`
 
 // TypeScript's parser follows imports, exports and import types; comments and
 // strings that merely resemble imports cannot widen the source selection.
@@ -84,6 +86,7 @@ const declarations = await writeContractDeclarationEntries(output)
 await writeFile(resolve(output, 'LICENSE'), snapshot.read('LICENSE'))
 await writeFile(resolve(output, 'FIRST_PARTY_LICENSE'), await readFile(resolve(root, '../../LICENSE')))
 await writeFile(resolve(output, 'routes.json'), `${JSON.stringify(rawHttpRoutes, null, 2)}\n`)
+await writeFile(resolve(output, 'command-inventory.json'), commandInventory)
 const { result, provenance: engine } = await buildSessionPackage({ original, prepared,
   outputDirectory: output, contractsAliasPlugin: sessionContractsAliasPlugin })
 for (const [path, sha256] of Object.entries(engine.sharedContractTypes)) declarations.push({ path, sha256 })
@@ -125,6 +128,8 @@ const provenance = {
   rawHttpRoutesSha256: digest(JSON.stringify(rawHttpRoutes)),
   rawHttpSource: 'original-committed-capsule',
   routeAdapterSha256: digest(await readFile(resolve(root, 'routes.mjs'))),
+  commandInventorySha256: digest(commandInventory),
+  inventoryAdapterSha256: digest(await readFile(resolve(root, 'inventory.mjs'))),
 }
 await writeFile(resolve(output, 'provenance.json'), `${JSON.stringify(provenance, null, 2)}\n`)
 process.stdout.write(`Original T3 contracts: ${files.size} files; Effect external; ${provenance.moduleSha256}\n`)
