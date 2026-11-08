@@ -50,7 +50,7 @@ impl Control {
             Self::Supervising(supervisor) => supervisor,
         };
         let Ok(mut supervisor) = supervisor.lock() else {
-            return Response::error("The Nessie Executor service is not available.");
+            return Response::error("The Nessie Computer service is not available.");
         };
         match command {
             // The pipe owns this command and independently observes its process.
@@ -109,6 +109,28 @@ impl Control {
                 Ok(_) => Response::Ok {
                     executors: supervisor.statuses(),
                 },
+                Err(reason) => Response::error(reason),
+            },
+            Command::SetPaused { executor_id, paused } => match supervisor.set_paused(&executor_id, paused) {
+                Ok(()) => Response::Ok {
+                    executors: supervisor.statuses(),
+                },
+                Err(reason) => Response::error(reason),
+            },
+            Command::ProgramRequests { executor_id } => {
+                match supervisor.program_requests(&executor_id, client_sid) {
+                    Ok(requests) => Response::ProgramRequests { requests },
+                    Err(reason) => Response::error(reason),
+                }
+            }
+            Command::AnswerProgramRequest { executor_id, id, answer } => {
+                match supervisor.answer_program_request(&executor_id, &id, answer, client_sid) {
+                    Ok(requests) => Response::ProgramRequests { requests },
+                    Err(reason) => Response::error(reason),
+                }
+            }
+            Command::Audience { executor_id } => match supervisor.audience(&executor_id) {
+                Ok(audience) => Response::Audience { audience },
                 Err(reason) => Response::error(reason),
             },
             Command::Remove { executor_id } => match supervisor.remove(&executor_id, client_sid) {
@@ -204,7 +226,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
     }
 
@@ -220,7 +242,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
         assert!(!directory.path().join("executors").exists());
     }

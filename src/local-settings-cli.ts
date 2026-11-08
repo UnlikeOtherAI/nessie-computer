@@ -61,6 +61,7 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
   if (deny !== undefined && args.includes('--clear-deny')) throw new Error('Choose --deny or --clear-deny.')
   if (allow !== undefined || deny !== undefined || args.includes('--allow-all') || args.includes('--clear-deny')) {
     const policy = {
+      ...current,
       mode: args.includes('--allow-all') ? 'all' as const : allow !== undefined ? 'allowlist' as const : current.mode,
       allowlist: allow === undefined ? current.allowlist : allow.split(',').map((rule) => rule.trim()).filter(Boolean),
       denylist: args.includes('--clear-deny') ? [] : deny === undefined ? current.denylist : deny.split(',').map((rule) => rule.trim()).filter(Boolean),

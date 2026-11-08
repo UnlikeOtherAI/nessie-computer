@@ -102,37 +102,6 @@ pub fn approve(
     Err("The server address must start with https://.".to_owned())
 }
 
-/// Resolves the value the pairing form sends. A preset id, a known origin, or
-/// the literal "custom" with a separate URL are all accepted. This keeps the
-/// UI's closed vocabulary and its free-text field from drifting into two
-/// sources of truth.
-pub fn resolve(
-    choice: &str,
-    custom_url: Option<&str>,
-    allow_local_development: bool,
-) -> Result<ApprovedOrigin, String> {
-    if choice == "custom" {
-        return approve(custom_url.unwrap_or(""), allow_local_development);
-    }
-    approve(choice, allow_local_development)
-}
-
-/// How a surface names the origin to the person confirming it. A preset is
-/// named for the service; anything else is shown as the bare host, because
-/// "Custom" alone would hide the one fact that matters.
-pub fn label(origin: &str) -> String {
-    if origin == NESSIE_PRESET_ORIGIN {
-        return NESSIE_PRESET_LABEL.to_owned();
-    }
-    if origin == DEEPTEST_PRESET_ORIGIN {
-        return DEEPTEST_PRESET_LABEL.to_owned();
-    }
-    origin
-        .parse::<url::Url>()
-        .map(|parsed| parsed.host_str().unwrap_or(origin).to_owned())
-        .unwrap_or_else(|_| origin.to_owned())
-}
-
 /// The pairing choices the status window offers in its closed dropdown. The
 /// local origin is included only in development builds, matching the schema's
 /// `allowLocalDevelopment` gate.
@@ -154,8 +123,8 @@ pub fn backend_choices(is_development_build: bool) -> Vec<(&'static str, &'stati
 #[cfg(test)]
 mod tests {
     use super::{
-        approve, backend_choices, default_origin, label, resolve, ApprovedOrigin,
-        DEEPTEST_PRESET_ID, DEEPTEST_PRESET_LABEL, DEEPTEST_PRESET_ORIGIN,
+        approve, backend_choices, default_origin, ApprovedOrigin,
+        DEEPTEST_PRESET_ID, DEEPTEST_PRESET_ORIGIN,
         LOCAL_DEVELOPMENT_ORIGIN, NESSIE_PRESET_ID, NESSIE_PRESET_ORIGIN,
     };
 
@@ -175,7 +144,6 @@ mod tests {
                 preset_id: Some(DEEPTEST_PRESET_ID),
             }),
         );
-        assert_eq!(label(DEEPTEST_PRESET_ORIGIN), DEEPTEST_PRESET_LABEL);
     }
 
     #[test]
@@ -195,7 +163,6 @@ mod tests {
                 preset_id: None,
             }),
         );
-        assert_eq!(label("https://nessie.example.com"), "nessie.example.com");
     }
 
     #[test]
@@ -222,19 +189,6 @@ mod tests {
         );
         // The hatch is that one origin, not "any http on loopback".
         assert!(approve("http://127.0.0.1:9999", true).is_err());
-    }
-
-    #[test]
-    fn the_custom_field_uses_the_same_rules() {
-        assert_eq!(
-            resolve("custom", Some("https://nessie.example.com"), false),
-            Ok(ApprovedOrigin {
-                origin: "https://nessie.example.com".to_owned(),
-                preset_id: None,
-            }),
-        );
-        assert!(resolve("custom", Some("http://nessie.example.com"), false).is_err());
-        assert!(resolve("custom", None, false).is_err());
     }
 
     #[test]
