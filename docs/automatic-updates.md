@@ -22,12 +22,25 @@ Finder installed the signed 1.0.12 app on Dictator. The protected factory still
 reports 0.9.0 at `879a601`; app copying alone does not replace that factory.
 The new preview superseded its retained 0.9.1 transaction with 1.0.12, preserving
 the transaction history and custody records. Runtime clearance and a coordinated
-restart remain pending. The 1.0.13 signed B candidates cover all four formats
-at the same source and are staged in an unpublished draft.
+restart remain pending. Immutable preview 1.0.13 now covers all four formats at the same source, with
+preview catalogue sequence 3 and verified anonymous package hashes.
 
-No catalogue-driven A-to-B upgrade is claimed. Notification, reminder, explicit
-Update, interrupted-transaction/reboot recovery, retained pairing/reconnect and
-post-upgrade local-provider requests remain installed release prerequisites.
+Windows completed a catalogue-driven automatic 1.0.12-to-1.0.13 upgrade on
+Maxis, including fresh native runtime confirmation and the new CLI. Signed APT
+repository install/upgrade/removal passed for the same versions in a bounded
+rootless Bookworm container, preserving user state and the custody inode; that
+container does not claim a live updater. Fedora showed the real opt-out offer
+and saved a reminder from 8 November 08:06:26.966 UTC until exactly 9 November
+08:06:26.966 UTC. Closing/reopening Settings retained the reminder. A short
+ordinary TTY command completed without waiting for its launch check.
+
+The Fedora interruption test requested a normal guest reboot while 736,640 of
+67,686,560 RPM bytes were present. Its accepted transaction and custody inode
+survived, but installation remains waiting. Investigation found that private
+account scanning refused unrelated group-writable system runtime homes. The
+source correction below still needs a signed installed retry. Notification,
+explicit Update, reboot recovery, retained pairing/reconnect and post-upgrade
+provider requests remain release prerequisites on their unverified platforms.
 
 The Mac distribution reuses its existing Developer ID
 Application identity and notarized DMG, with an approved app-bundled native
@@ -554,3 +567,21 @@ checks known-folder and release provenance without changing state.
 `--service-peer-facts` inspects the fixed runtime service pipe without sending
 companion proof or a command. Diagnostic output never establishes health,
 authorizes installation or bypasses authentication.
+
+## Account state during native clearance
+
+Unix custody inspection first establishes whether an account owns a `.nessie`
+entry. A positively absent entry makes an unrelated service runtime directory
+irrelevant, even when that directory is group-writable. Existing, unreadable
+or symlinked Nessie state retains the owner, ancestor and permission checks.
+Both elevated runtime admission and updater clearance use that same boundary;
+managed records and independent kernel process inventories remain required.
+
+Fedora 44 exposed the defect with `sssd` at `/run/sssd` and `gluster` at
+`/run/gluster`: both runtime homes were 0775 and contained no Nessie state.
+The worker exited before publishing drain/restart state, leaving the retained
+1.0.13 transaction waiting after reboot. Do not chmod those service directories,
+delete custody evidence or clear the transaction to make installation proceed.
+The source regression covers absent state in 0775 homes, existing unsafe state,
+owner mismatch and dangling state/home symlinks. Signed installed recovery
+remains pending.

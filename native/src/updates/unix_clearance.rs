@@ -32,15 +32,7 @@ pub(super) fn roots() -> UpdateResult<Vec<(u32, PathBuf)>> {
             if uid == 0 { continue; }
             let home = PathBuf::from(unsafe { CStr::from_ptr((*entry).pw_dir) }.to_str().map_err(|_| ERROR)?);
             if !home.is_absolute() { return Err(ERROR); }
-            let metadata = match fs::symlink_metadata(&home) {
-                Ok(metadata) => metadata,
-                Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(_) => return Err(ERROR),
-            };
-            if metadata.uid() != uid { continue; }
-            if !metadata.is_dir() || metadata.file_type().is_symlink() || metadata.mode() & 0o022 != 0 {
-                return Err(ERROR);
-            }
+            if !crate::unix_account_state::needs_custody_inspection(&home, uid).map_err(|_| ERROR)? { continue; }
             let root = home.join(".nessie/personal-inference");
             if !roots.contains(&(uid, root.clone())) { roots.push((uid, root)); }
         }
