@@ -203,6 +203,8 @@ test('a program waiting for its owner holds only itself: a read in the same sess
     assert.equal(listed.success, true, 'the read finished while the program waits')
     await eventually('Nessie hears the command waits for the owner', () => nessie.polls.some((poll) =>
       (poll.waiting as Array<{ for: string }> | undefined)?.some((wait) => wait.for === 'owner') === true))
+    // The list is rewritten just after the read's receipt.
+    await eventually('the finished read leaves the list', async () => (await readSessions(stateDir))[0]?.commands.length === 1)
     const [session] = await readSessions(stateDir)
     assert.equal(session?.sessionId, SESSION)
     assert.equal(session?.agentName, 'Builder')
