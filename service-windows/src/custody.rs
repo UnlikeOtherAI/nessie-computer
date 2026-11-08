@@ -21,14 +21,24 @@ const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
+    let now=nessie_windows_common::execution::now_ms()?;
     for record in state.execution_creations.values_mut(){
-        if let (Some(child),Some(job))=(&record.child,&record.job_name){
-            if absent(child)?&&job_members(job)?.is_empty(){record.cleared=true;}
+        if let Some(job)=&record.job_name{
+            let gone=match &record.child {Some(child)=>absent(child)?,None=>record.expires_at_ms<=now};
+            if gone&&job_members(job)?.is_empty(){
+                record.cleared=true;record.cleared_at_ms.get_or_insert(now);
+            }
         }
     }
+    // Keep observable clearance for late readers; nonce claims live separately
+    // and are never pruned, so removal cannot permit replay.
+    state.execution_creations.retain(|_,v|v.cleared_at_ms.is_none_or(|t|now.saturating_sub(t)<60_000));
     let mut gone = Vec::new();
     for (key, record) in &state.runtimes {
         if record.supervisor.boot_id != boot
+            || (record.kind==RuntimeKind::T3SessionGraph && absent(&record.child)?
+                && job_members(&record.job_name)?.is_empty()
+                && !state.execution_creations.values().any(|v|v.graph.as_ref()==Some(&record.child)&&!v.cleared))
             || (job_members(&record.job_name)?.is_empty()
                 && absent(&record.child)?
                 && absent(&record.supervisor)?)
@@ -148,6 +158,8 @@ pub fn handle(
         }
         Operation::ExecutionResource { request } => {
             machine.admit_daemon(&release.digest)?;
+            crate::execution_context::require_companion_role(&caller, &release, &state,
+                nessie_windows_common::execution_creator::CompanionRole::Resource)?;
             crate::execution_resource::handle(root,&caller,&release,&state,*request)?
         }
         Operation::Execution { request } => {

@@ -15,6 +15,23 @@ pub(crate) struct DescriptorContext {
     pub paired_origin: String,
     pub custody: Custody,
 }
+/// Role is observed from the SYSTEM creation journal, never supplied by the request.
+pub(crate) fn require_companion_role(
+    caller: &Process,
+    release: &Release,
+    state: &State,
+    role: nessie_windows_common::execution_creator::CompanionRole,
+) -> Result<(), String> {
+    if !state.execution_creations.values().any(|record| {
+        record.child.as_ref() == Some(&caller.generation)
+            && !record.cleared
+            && record.release_digest == release.digest
+            && record.role.as_ref() == Some(&role)
+    }) {
+        return Err(REJECTED.into());
+    }
+    Ok(())
+}
 /// Service-only kernel peer gate. Resource receivers must call this before opening
 /// or disclosing held execution settings. This does not grant a native effect.
 pub(crate) fn authenticate_graph(
@@ -32,17 +49,31 @@ pub(crate) fn authenticate_graph(
         .find(|p| p.pid == caller.generation.pid)
         .ok_or(REJECTED)?
         .parent;
-    let actual=Process::open(parent)?;
+    let actual = Process::open(parent)?;
     nessie_windows_common::execution_isolation::verify(caller)?;
-    if !state.execution_creations.values().any(|record|record.child.as_ref()==Some(&caller.generation)
-        &&record.graph.as_ref()==Some(&actual.generation)&&record.role.is_some()&&!record.cleared
-        &&record.executor_id==executor&&record.release_digest==release.digest){return Err(REJECTED.into());}
-    authenticate_runtime(root,&actual,release,state,executor)
+    if !state.execution_creations.values().any(|record| {
+        record.child.as_ref() == Some(&caller.generation)
+            && record.graph.as_ref() == Some(&actual.generation)
+            && record.role.is_some()
+            && !record.cleared
+            && record.executor_id == executor
+            && record.release_digest == release.digest
+    }) {
+        return Err(REJECTED.into());
+    }
+    authenticate_runtime(root, &actual, release, state, executor)
 }
-pub(crate) fn authenticate_runtime(root:&Path,actual:&Process,release:&Release,state:&State,executor:&str)
-    ->Result<DescriptorContext,String>{
-    if !state.fences.is_empty(){return Err(REJECTED.into());}
-    let parent=actual.generation.pid;
+pub(crate) fn authenticate_runtime(
+    root: &Path,
+    actual: &Process,
+    release: &Release,
+    state: &State,
+    executor: &str,
+) -> Result<DescriptorContext, String> {
+    if !state.fences.is_empty() {
+        return Err(REJECTED.into());
+    }
+    let parent = actual.generation.pid;
     let runtime = state
         .runtimes
         .values()
@@ -75,7 +106,8 @@ pub(crate) fn authenticate_runtime(root:&Path,actual:&Process,release:&Release,s
     if own.image != release.runtime.root.join("nessie-executor-service.exe") {
         return Err(REJECTED.into());
     }
-    let mut installed = nessie_windows_common::release::load_at(&release.runtime.native_helper, PIN)?;
+    let mut installed =
+        nessie_windows_common::release::load_at(&release.runtime.native_helper, PIN)?;
     installed.verify_launch_consumers(PIN)?;
     let mut image = nessie_windows_common::release::pin_protected(&own.image, false)?;
     let mut hasher = Sha256::new();

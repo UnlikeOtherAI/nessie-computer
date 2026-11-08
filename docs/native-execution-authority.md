@@ -116,13 +116,13 @@ recorded SYSTEM creation plus process/thread/token/default-DACL and mitigation
 checks from `execution_isolation.rs`, before registration and on every call.
 Current same-user startup cannot pass. This refusal is intentional.
 
-The missing production creator must establish protected process/thread/token
-security at creation for the graph AND each native companion, before their first
-instruction, and preserve original runtime transport. Tightening ACLs after
-spawn, a boolean marker or merely a signed helper does not establish that fact.
-The existing retained SYSTEM launch has OS primitives to refactor, but its
-signer, key and domain must not become the execution issuer. Installed Node and
-all required native modules must also pass the mitigation compatibility journey.
+The new SYSTEM creator source installs process/thread/token security, mitigation
+policy and Job membership at suspended creation. Its listener runs in the
+existing LocalSystem updater; the normal executor service retains its virtual
+account and independently journals/verifies creation. Same-user launch remains
+denied. Installed verification must establish the target-session stdio handle
+inheritance and parent/Job behavior, token privileges and Node/native-module
+mitigation compatibility. No installed result has established these yet.
 
 Physical resource modules and original allocator/serializer integration need
 parent integration. New service Cargo dependencies need root-owned lock
@@ -144,9 +144,37 @@ directly to graph stdin; its per-graph channel key never reaches the daemon.
 Companion transport acknowledges stdin only after the child pipe write and
 requires independent service clearance of the Job before reporting closed.
 
-This checkpoint is not wired or qualified as an installed capability. Listener
-registration, public stream consumption and lifecycle review remain in progress.
-No compiler, native launch, signing or installation was run for this checkpoint.
+The updater listener, fixed native bootstrap, service role gate and public
+stream consumer are wired in source. `startProtectedT3Graph(executorId, signal?)`
+uses only `t3-execution-start`; SYSTEM selects immutable `t3-session-runtime`.
+The graph calls `readProtectedT3GraphStartup()` before reading its runtime lane.
+That function owns the first stdin frame, retains the creator key privately and
+returns only the startup descriptor. It never loads machine state or keys.
+
+`spawnProtectedT3Companion(role, signal?)` returns standard stdin/stdout/stderr
+streams, pid, exitCode, exit/close/error events, `terminate()` and `closed`.
+`closed` resolves only after independent service clearance. A process exit or
+kill result does not settle it. Unknown write delivery is not retried. A finite
+companion has an exact journal role; every resource variant requires `resource`
+before entering the resource handler. Execution roles cannot call resource or
+other execution transitions. Generic provider stdin and old launch/observation
+routes remain denied pending the distinct finite SYSTEM provider transition.
+
+The graph-to-companion endpoint is separate from update, pairing, retained
+consent and bootstrap pipes. Node's Windows pipe open requires generic file
+write rights, including the instance bit. Therefore this endpoint authenticates
+the actual kernel graph peer and returns an HMAC over the exact graph/role/nonce/
+child record before the client sends private input. The per-graph key travels
+only through SYSTEM-created stdin. A spoofed pipe instance cannot produce the
+proof; it can cause connection refusal, which is never retried as an effect.
+Restricted native endpoints retain their existing access mask.
+
+Service journals retain clearance for late readers, preserve permanent nonce
+claims, reject replay/expired registration and cap active records. New fixtures
+cover exact write ACK, split UTF8/header bytes, exit without clearance, revocation,
+late ACK, missing ACK, false clearance and forbidden creator selectors. These
+fixtures are authored, unrun. Node syntax at 128 MiB, Rust formatting/parsing and
+diff checks ran. No compiler, suite, native launch, signing or installation ran.
 
 # Nonexecuting inspection delivery
 

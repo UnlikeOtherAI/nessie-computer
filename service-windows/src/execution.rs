@@ -110,6 +110,19 @@ pub fn handle(
     request: Request,
 ) -> Result<Value, String> {
     request.validate()?;
+    use nessie_windows_common::execution_creator::CompanionRole as Role;
+    let role = match &request {
+        Request::Offer { .. } => Role::ExecutionOffer,
+        Request::Review { .. } | Request::Approve { .. } => Role::ExecutionEnroll,
+        Request::Graph { .. } => Role::ExecutionGraph,
+        Request::Reserve { .. } => Role::ExecutionReserve,
+        Request::Prepare { .. } => Role::ExecutionPrepare,
+        Request::Associate { .. } => Role::ExecutionAssociate,
+        // Provider creation is a distinct SYSTEM transition. No fixed companion
+        // role authorizes the old same-user launcher or observation route.
+        Request::Launch { .. } | Request::Observe { .. } => return Err(REJECTED.into()),
+    };
+    execution_context::require_companion_role(caller, release, state, role)?;
     match request {
         Request::Offer { executor_id } => {
             let (descriptor, _) =

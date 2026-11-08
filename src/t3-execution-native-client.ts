@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import { spawnProtectedT3Companion } from './t3-protected-process.js'
 import { createHash, createPublicKey, verify } from 'node:crypto'
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { executionReceiptBytes, T3ExecutionReceiptSchema, T3ExecutionIssuerDescriptorSchema,
@@ -7,7 +7,6 @@ import { executionReceiptBytes, T3ExecutionReceiptSchema, T3ExecutionIssuerDescr
   T3_EXECUTION_PREPARATION_DOMAIN, T3_EXECUTION_ASSOCIATION_DOMAIN,
   type T3ExecutionReceipt, type T3ExecutionIssuerDescriptor, type T3ExecutionIssuerChallenge,
   type T3ExecutionSignedAdmission, type T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
-import { packagedNativeHelperPath } from './state-security.js'
 
 const refused = () => new Error('T3_NATIVE_EXECUTION_REFUSED')
 type FiniteMode = 'offer' | 'enroll' | 'graph' | 'reserve' | 'prepare' | 'associate'
@@ -20,32 +19,27 @@ async function exchange(mode: FiniteMode, input: unknown, signal?: AbortSignal):
   if (process.platform !== 'win32' || process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') throw refused()
   const bytes = Buffer.from(JSON.stringify(input) + '\n')
   if (bytes.length > 65_536) throw refused()
-  return new Promise((resolve, reject) => {
-    const child = spawn(packagedNativeHelperPath(), ['t3-execution', mode], {
-      windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'],
-    })
-    const chunks: Buffer[] = []
-    let length = 0, failed = false
-    const stop = () => { failed = true; child.kill() }
-    const timer = setTimeout(stop, mode === 'enroll' ? 300_000 : 10_000)
-    signal?.addEventListener('abort', stop, { once: true })
-    child.once('error', stop)
-    child.stdin.once('error', stop)
-    child.stdout.on('data', (chunk: Buffer) => {
-      length += chunk.length
-      if (length > 65_536) stop()
-      else chunks.push(chunk)
-    })
-    child.once('close', code => {
-      clearTimeout(timer)
-      signal?.removeEventListener('abort', stop)
-      if (failed || signal?.aborted || code !== 0) { reject(refused()); return }
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown) }
-      catch { reject(refused()) }
-    })
-    child.stdin.end(bytes)
-    if (signal?.aborted) stop()
+  const child = await spawnProtectedT3Companion(`execution-${mode}`, signal)
+  const chunks: Buffer[] = []
+  let length = 0, failed = false
+  const stop = () => { failed = true; void child.terminate().catch(() => undefined) }
+  const timer = setTimeout(stop, mode === 'enroll' ? 300_000 : 10_000)
+  child.on('error', stop)
+  child.stderr.resume()
+  child.stdout.on('data', (chunk: Buffer) => {
+    length += chunk.length
+    if (length > 65_536) stop()
+    else chunks.push(chunk)
   })
+  child.stdin.end(bytes)
+  try {
+    await child.closed
+    if (failed || signal?.aborted || child.exitCode !== 0) throw refused()
+    return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+  } finally {
+    clearTimeout(timer)
+    await child.terminate()
+  }
 }
 
 /** Signature consistency only. This never enrolls a descriptor or grants an
