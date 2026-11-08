@@ -27,7 +27,8 @@ const SERVER = 'https://api.example.test'
 const REQUEST = '7f3a9c21-0000-4000-8000-000000000001'
 
 type Row = {
-  executorId: string; daemonStatus: string; paused: boolean; pendingProgramRequests: number; failure?: { message: string }
+  executorId: string; daemonStatus: string; paused: boolean; pendingProgramRequests: number
+  failure?: { message: string }
 }
 
 /** A service with two teams: Sales' ChatGPT plan connection, and Ops, which it runs on its own. */

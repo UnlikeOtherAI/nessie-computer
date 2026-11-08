@@ -100,7 +100,8 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
   const id = team.executorId
   const ask = async (request: Parameters<ServiceCall>[0], status: string) => (
     expectAnswer(await host.service(request), status))
-  const list = (answer: Record<string, unknown>, key: string): unknown[] => (Array.isArray(answer[key]) ? answer[key] : [])
+  const list = (answer: Record<string, unknown>, key: string): unknown[] => (
+    Array.isArray(answer[key]) ? answer[key] : [])
   const describe = async () => (await ask(serviceRequests.describe(id), 'describe')).description as TeamDescription
   const requests = (answer: Record<string, unknown>) => list(answer, 'requests') as TeamRequest[]
   const sessionsOf = (answer: Record<string, unknown>) => list(answer, 'sessions') as SessionView[]
