@@ -3,7 +3,7 @@ import { EnvironmentIdentity, HistoryPaging, WireProjection,
   SourceContracts as S } from '@nessie/t3-session-source/engine'
 import { ExecutorT3HttpEndpoints, type ExecutorT3ImplementationSlots } from '@nessie/executor-protocol/t3-session'
 import type { RetainedCapturePorts } from '../import/capture.js'
-import { readRetainedEffect, type RetainedCatalogSource } from './scope.js'
+import { readRetainedEffect, type RetainedCatalogSource, type RetainedCatalogReader } from './scope.js'
 import type { RetainedCatalogInput } from './operations.js'
 import { archivedSnapshot, boundedSnapshot, familyRows, olderSettled, shellSnapshot } from './queries.js'
 
@@ -19,6 +19,11 @@ export type RetainedHttpInput<K extends keyof typeof ExecutorT3HttpEndpoints> = 
  */
 export function createRetainedCatalogService(ports: RetainedCapturePorts, boundSource: RetainedCatalogSource) {
   const source = { ...boundSource, authorization: 'catalog' as const }
+  return composeRetainedCatalogService(source, (targets, query) => readRetainedEffect(ports, source, targets, query))
+}
+
+/** One operation composition shared by per-call and already-held read graphs. */
+export function composeRetainedCatalogService(source: RetainedCatalogSource, read: RetainedCatalogReader) {
   const shellError = () => new S.OrchestrationV2GetShellSnapshotError({ message: 'Retained shell read failed' })
   const projectionError = (threadId: S.ThreadId) =>
     new S.OrchestrationV2GetThreadProjectionError({ threadId, message: 'Retained thread read failed' })
@@ -26,60 +31,60 @@ export function createRetainedCatalogService(ports: RetainedCapturePorts, boundS
     'orchestration.getArchivedShellSnapshot': (
       _input: RetainedCatalogInput<'orchestration.getArchivedShellSnapshot'>,
     ) =>
-      readRetainedEffect(ports, source, 'catalog', (reads, selection) => archivedSnapshot(reads, selection)
+      read('catalog', (reads, selection) => archivedSnapshot(reads, selection)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getThreadFamily': (input: RetainedCatalogInput<'orchestration.getThreadFamily'>) =>
-      readRetainedEffect(ports, source, 'catalog', (reads, selection) =>
+      read('catalog', (reads, selection) =>
         familyRows(reads, { familyOf: input.threadId }, selection)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getOlderSettledThreads': (input: RetainedCatalogInput<'orchestration.getOlderSettledThreads'>) =>
-      readRetainedEffect(ports, source, 'catalog', (reads, selection) => olderSettled(reads, input, selection)
+      read('catalog', (reads, selection) => olderSettled(reads, input, selection)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getThreadTitles': (input: RetainedCatalogInput<'orchestration.getThreadTitles'>) =>
-      readRetainedEffect(ports, source, input.threadIds, reads => reads.getThreadTitles(input.threadIds)
+      read(input.threadIds, reads => reads.getThreadTitles(input.threadIds)
         .pipe(Effect.mapError(shellError))),
     'orchestration.getWorktreeThreadIds': (input: RetainedCatalogInput<'orchestration.getWorktreeThreadIds'>) =>
-      readRetainedEffect(ports, source, 'catalog', (reads, selection) =>
+      read('catalog', (reads, selection) =>
         familyRows(reads, { worktreePath: input.worktreePath }, selection)
         .pipe(Effect.map(result => ({ threadIds: result.threads.map(thread => thread.id) })),
           Effect.mapError(shellError))),
     'orchestration.getThreadProjection': (input: RetainedCatalogInput<'orchestration.getThreadProjection'>) =>
-      readRetainedEffect(ports, source, [input.threadId], reads => reads.getThreadSnapshotWindow(input.threadId,
+      read([input.threadId], reads => reads.getThreadSnapshotWindow(input.threadId,
         { rowLimit: HistoryPaging.THREAD_HISTORY_SNAPSHOT_ROW_LIMIT }).pipe(
         Effect.map(snapshot => HistoryPaging.buildBoundedThreadProjection({
           projection: WireProjection.projectThreadProjectionForWire(snapshot.projection),
           snapshotSequence: snapshot.snapshotSequence }).projection),
         Effect.mapError(() => projectionError(input.threadId)))),
     'orchestration.getTurnItem': (input: RetainedCatalogInput<'orchestration.getTurnItem'>) =>
-      readRetainedEffect(ports, source, [input.threadId], reads => reads.getTurnItem(input)
+      read([input.threadId], reads => reads.getTurnItem(input)
         .pipe(Effect.mapError(() => projectionError(input.threadId)))),
     'orchestration.searchThread': (input: RetainedCatalogInput<'orchestration.searchThread'>) =>
-      readRetainedEffect(ports, source, [input.threadId], reads => reads.searchThread(input)
+      read([input.threadId], reads => reads.searchThread(input)
         .pipe(Effect.mapError(() => new S.OrchestrationV2SearchThreadError({ cause: 'retained_search_failed' })))),
   }
   const http = {
     shellSnapshot: (input: RetainedHttpInput<'shellSnapshot'>) =>
-      readRetainedEffect(ports, source, 'catalog', (reads, selection) => shellSnapshot(reads, {
+      read('catalog', (reads, selection) => shellSnapshot(reads, {
         omitIdleSubagents: input.query.omitIdleSubagents === '1',
         omitOlderSettled: input.query.omitOlderSettled === '1',
       }, selection)),
     threadSnapshot: (input: RetainedHttpInput<'threadSnapshot'>) =>
-      readRetainedEffect(ports, source, [input.params.threadId], reads => reads.getThreadSnapshot(input.params.threadId)
+      read([input.params.threadId], reads => reads.getThreadSnapshot(input.params.threadId)
         .pipe(Effect.map(snapshot => ({ snapshotSequence: snapshot.snapshotSequence,
           projection: WireProjection.projectThreadProjectionForWire(snapshot.projection) })))),
     threadTranscript: (input: RetainedHttpInput<'threadTranscript'>) =>
-      readRetainedEffect(ports, source, [input.params.threadId], reads =>
+      read([input.params.threadId], reads =>
         reads.getThreadTranscript(input.params.threadId)
         .pipe(Effect.provideService(EnvironmentIdentity.ServerEnvironmentIdentity,
           { getEnvironmentId: Effect.succeed(source.environmentId) }))),
     threadBoundedSnapshot: (input: RetainedHttpInput<'threadBoundedSnapshot'>) =>
-      readRetainedEffect(ports, source, [input.params.threadId], reads =>
+      read([input.params.threadId], reads =>
         boundedSnapshot(reads, input.params.threadId, {
         deferWork: input.query.deferWork === '1', compactTurnItems: input.query.compactTurnItems === '1',
         dedupeBodies: input.query.dedupeBodies === '1', compactIds: input.query.compactIds === '1',
       })),
     threadHistoryPage: (input: RetainedHttpInput<'threadHistoryPage'>) =>
-      readRetainedEffect(ports, source, [input.params.threadId], reads =>
+      read([input.params.threadId], reads =>
         reads.getThreadHistoryPage(input.params.threadId,
         input.query.cursor, input.query.throughEntryId, input.query.view === 'conversation',
         input.query.view === 'work' ? 'work' : input.query.deferWork === '1' ? 'deferred' : undefined).pipe(

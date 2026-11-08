@@ -53,6 +53,7 @@ Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration and `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
 The finite browser detail host, original transport factories and account/cache retirement follow [client connection](docs/t3-session-client-connection.md#finite-browser-detail-host).
 Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
+The callback-scoped captured read graph and signed ordered publication producer follow [retained publication](docs/retained-t3-publication.md); passive graph readiness does not authorize execution.
 Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).
 Runtime composition, opaque ProviderHost references, scoped operation slots and the combined qualification gate follow [session runtime](docs/session-runtime.md); native/provider producers remain required.
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
