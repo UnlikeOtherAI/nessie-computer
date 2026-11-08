@@ -5,33 +5,33 @@ import { join } from 'node:path'
 import { existingSessionId, nativeIdIsValid, objectOf, textOf, type ExistingSession } from './types.js'
 
 export type SavedClaudeSession = { session: ExistingSession; path: string }
-const MAX_SESSIONS = 5_000
 const PREFIX_BYTES = 32 * 1024
-const RECENT_MS = 30 * 24 * 60 * 60 * 1000
 
-/** T3-compatible recent native history discovery, without reading credential files or subagent transcripts. */
-export const listSavedClaudeSessions = async (profile: string, now = Date.now()): Promise<SavedClaudeSession[]> => {
-  const root = await realpath(join(profile, 'projects')).catch(() => undefined)
+/** Existing summary surface. Full nested inventory and paging use NativeClaudeHistory.
+ * Directory/read failure must propagate: an incomplete scan is never an empty catalog. */
+export const listSavedClaudeSessions = async (profile: string): Promise<SavedClaudeSession[]> => {
+  const root = await realpath(join(profile, 'projects')).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') return undefined
+    throw new Error('Claude saved history is unavailable.')
+  })
   if (!root) return []
-  const projects = await readdir(root, { withFileTypes: true }).catch(() => [])
+  const projects = await readdir(root, { withFileTypes: true })
   const saved: SavedClaudeSession[] = []
-  let inspected = 0
-  for (const project of projects.filter((entry) => entry.isDirectory()).slice(0, 1_000)) {
+  for (const project of projects.filter((entry) => entry.isDirectory())) {
     const directory = join(root, project.name)
-    if (await realpath(directory).catch(() => undefined) !== directory) continue
-    const files = await readdir(directory, { withFileTypes: true }).catch(() => [])
+    if (await realpath(directory) !== directory) throw new Error('Claude saved history was redirected.')
+    const files = await readdir(directory, { withFileTypes: true })
     for (const entry of files) {
-      if (++inspected > MAX_SESSIONS * 4) return saved
       const nativeId = entry.name.endsWith('.jsonl') ? entry.name.slice(0, -6) : ''
       if (!entry.isFile() || !nativeIdIsValid(nativeId)) continue
       const path = join(directory, entry.name)
-      if (await realpath(path).catch(() => undefined) !== path) continue
-      const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0)).catch(() => undefined)
-      if (!file) continue
+      if (await realpath(path) !== path) throw new Error('Claude saved history was redirected.')
+      const file = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0))
       try {
         const info = await file.stat()
-        if (!info.isFile() || info.mtimeMs < now - RECENT_MS
-          || (process.getuid && info.uid !== process.getuid())) continue
+        if (!info.isFile() || (process.getuid && info.uid !== process.getuid())) {
+          throw new Error('Claude saved history is unavailable.')
+        }
         const buffer = Buffer.alloc(Math.min(info.size, PREFIX_BYTES))
         const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
         const lines = buffer.subarray(0, bytesRead).toString('utf8').split('\n')
@@ -54,7 +54,7 @@ export const listSavedClaudeSessions = async (profile: string, now = Date.now())
                 .map((part) => textOf(part.text)).join(' ')) : ''
           }
         }
-        if (sidechain || !cwd) continue
+        if (sidechain) continue
         saved.push({ path, session: {
           sessionId: existingSessionId('claude', profile, nativeId), nativeId, provider: 'claude',
           cwd, title: title || firstPrompt || 'Claude session', status: 'unknown',
@@ -63,8 +63,7 @@ export const listSavedClaudeSessions = async (profile: string, now = Date.now())
             reason: 'Saved native session. No active original-client connection is available.' },
         } })
       } finally { await file.close() }
-      if (saved.length >= MAX_SESSIONS) return saved
     }
   }
-  return saved.sort((a, b) => b.session.updatedAt.localeCompare(a.session.updatedAt))
+  return saved.sort((a, b) => b.session.updatedAt.localeCompare(a.session.updatedAt) || a.path.localeCompare(b.path))
 }
