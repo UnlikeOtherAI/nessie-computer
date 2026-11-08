@@ -47,7 +47,7 @@ import {
   executorServiceStatus,
 } from './service-linux.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
-import { parseCommand, PlumbingUsageError, type ParsedCommand } from './cli-arguments.js'
+import { parseCommand, type ParsedCommand } from './cli-arguments.js'
 import { requestedMcpServers } from './mcp-server-changes.js'
 import { runSyncCli } from './folder-sync/sync-cli.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
@@ -190,15 +190,7 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
   if (await runLocalSettingsCli(args)) return
-  let command: ParsedCommand
-  try {
-    command = parseCommand(args)
-  } catch (error) {
-    if (!(error instanceof PlumbingUsageError)) throw error
-    process.stderr.write(`${error.message}\n`)
-    process.exitCode = 2
-    return
-  }
+  const command = parseCommand(args)
   if (command.kind === 'pair') {
     const input = command.pairingInputFromStandardInput
       ? await readPairingInput()

@@ -102,7 +102,7 @@ test('an unknown command is typed wrong: exit 2 and a pointer to help', async ()
   assert.equal(JSON.parse(json.out()).error.code, 'USAGE')
 })
 
-test('the real entry routes help, --version and a malformed plumbing line', () => {
+test('the real entry routes help and --version, and leaves plumbing as it was', () => {
   const entry = fileURLToPath(new URL('../src/index.ts', import.meta.url))
   const env = { ...process.env }
   delete env.NESSIE_EXECUTOR_PACKAGED_CLI
@@ -113,7 +113,8 @@ test('the real entry routes help, --version and a malformed plumbing line', () =
   assert.match(help.stdout, /^Nessie Computer lets agents/u)
   const version = cli(['--version'])
   assert.match(version.stdout, /^nessie-computer \S+\n$/u)
+  // A malformed plumbing line answers exactly as it always has.
   const plumbing = cli(['describe'])
-  assert.equal(plumbing.status, 2)
-  assert.match(plumbing.stderr, /^Usage: nessie-computer/u)
+  assert.equal(plumbing.status, 1)
+  assert.match(plumbing.stderr, /^Usage: nessie-executor login/u)
 })
