@@ -17,15 +17,12 @@ window.aiTab = (() => {
     <div id="ai-endpoint-list"></div>
     <p id="ai-error" class="field-error" role="alert" hidden></p>
     <button type="button" id="ai-refresh"></button>`
-  const style = document.createElement('style')
-  style.textContent = '#tab-ai h3 { font-size: 15px; margin: 0; } .ai-name-row { display: flex; align-items: center; gap: 8px; } .ai-name-row input { flex: 1; min-width: 0; }'
-  document.head.append(style)
-
+>>>
   const row = (name, detail, id, manage) => {
     const node = document.createElement('div')
-    node.className = 'connection-row'
+    node.className = 'list-row'
     const label = document.createElement('div')
-    label.className = 'connection-name'
+    label.className = 'list-name'
     label.textContent = name
     const status = document.createElement('small')
     status.textContent = detail

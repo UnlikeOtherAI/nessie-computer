@@ -42,7 +42,7 @@ try {
           () => window.executorLinuxReply(message.id, null, true))
       } } } }
     })
-    const files = ['index.html', 'native.js', 'style.css', 'updates.js', 'updates-words.js']
+    const files = ['index.html', 'native.js', 'style.css', 'i18n.js', 'updates.js', 'updates-words.js']
     await page.route('http://localhost:5878/**', async route => {
       const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
       assert.ok(files.includes(file))

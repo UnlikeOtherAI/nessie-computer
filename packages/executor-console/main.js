@@ -86,11 +86,7 @@
     forget: (prefix) => { for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group); renderFooter() },
   }
 
-  /** A system notification; with notifications off, the footer says it instead. */
-  const notify = async (title, body) => {
-    try { await invoke('executor_notify', { title, body }) } catch { footer.note(`${title}: ${body}`) }
-  }
-
+>>>
   /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
   const keepFocus = (container, rebuild, fallback) => {
     const key = container.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
@@ -160,9 +156,8 @@
     }
   }
   byId('team-select').onchange = () => attempt(() => nc.team.select(byId('team-select').value))
-  byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {
-    apiBaseUrl: nc.team.apiBaseUrl(nc.team.current()) ?? 'nessie',
-  }))
+  // The host opens the paired server's Computers page: the selected team's, or its own when no team is selected.
+  byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', nc.team.current() ? { executorId: nc.team.current() } : {}))
 
   // Static words. Everything else is written by the script that owns it.
   document.title = t('shell.title')
@@ -175,7 +170,7 @@
   byId('no-team-connect').textContent = t('shell.connectTeam')
 
   Object.assign(nc, {
-    byId, invoke, listen, attempt, reportError, clearError, footer, notify, keepFocus, dialogs,
+    byId, invoke, listen, attempt, reportError, clearError, footer, keepFocus, dialogs,
     view: {
       current: () => currentTab,
       show: showTab,

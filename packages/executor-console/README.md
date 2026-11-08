@@ -18,7 +18,10 @@ Contract: `docs/plans/2026-11-08-nessie-computer.md` §3.2–3.3 (window), §5
 
 `index.html` leaves the three team panels empty. Each E2 script subscribes to
 `nc.view.onChange` and `nc.team.onChange` and renders when its tab and team
-are current.
+are current. `index.html` loads `autosave.js` and `team-drafts.js` first, then
+each tab's words before its module ([the team tabs](../../docs/nessie-computer-team-tabs.md)).
+Every style lives in `style.css` on the one token set; no script injects a
+`<style>` block.
 
 ## `window.nc`
 
@@ -51,10 +54,9 @@ every script that loads after `main.js`.
   { message, retry } | null)` — an unresolved save problem that outranks later
   notes until the same `group` clears it; `nc.footer.forget(prefix)` drops a
   team's groups (`"<executorId>:"`).
-- `nc.notify(title, body)` — `executor_notify`; with notifications off, the
-  footer says it instead. Saves never call it (§3.3.4).
 - `nc.keepFocus(container, rebuild, fallback)` — rebuilds a list keeping focus
-  on the row control with the same `data-key`.
+  on the row control with the same `data-key`. The window never posts an OS
+  notification itself (`executor_notify` is gone, §5.1).
 - `nc.dialogs.open(id)` / `nc.dialogs.close(id)` — `showModal` with errors
   cleared and focus on `[autofocus]` or the `h2`. Any `.dialog-close` button
   closes its dialog, including buttons in dialogs E2 injects.
@@ -81,9 +83,10 @@ every script that loads after `main.js`.
 - `nc.team.status(row)` — `working` | `paused` | `needs_you` | `not_connected`;
   `nc.team.statusWord(row)` the §2 word for it.
 - `nc.team.describe(id = current, { fresh })` — the team's `executor_describe`,
-  loaded once per team and cached; `fresh` re-asks. `nc.team.remember(id,
-  describe)` stores the describe a `executor_configure` answered with, so the
-  Overview summary follows a save without another call.
+  loaded once per selection (§5.3) and kept until `remember` or `fresh`
+  replaces it; a read that fails is not kept. `nc.team.remember(id, describe)`
+  stores the describe an `executor_configure` answered with (the team tabs'
+  drafts call it), so the Overview summary follows a save without another call.
 - `nc.team.setPaused(id | null, paused)` — `executor_set_paused`;
   `nc.team.applyRemedy(id, remedy)` — `executor_apply_remedy`;
   `nc.team.disconnect(id)` opens the Disconnect dialog.
@@ -95,9 +98,10 @@ every script that loads after `main.js`.
   message literals the CLI prints. Unknown failures are quoted under Details.
 - `nc.failure.render(container, failure, { executorId, onRemedy })` fills the
   explanation, the one remedy button and the Details disclosure.
-- Remedy ids sent to `executor_apply_remedy`: `re-propose-policy` (send the
-  current settings again as a newer revision), `restart` (reconnect the team).
-  `open-nessie` is handled in the window and never sent.
+- Remedy ids sent to `executor_apply_remedy` (§5.1): `reProposePolicy` (send
+  the current settings again as a newer revision) and `restartExecutor`
+  (reconnect the team). `openNessie` is handled in the window, which calls
+  `executor_open_nessie { executorId }` itself.
 
 ### Overview and Connect a team
 
@@ -112,10 +116,10 @@ every script that loads after `main.js`.
 
 Contract §5.1, plus these shapes the window relies on:
 
-- `executor_open_nessie { apiBaseUrl, path? }` — `path` is an absolute path on
-  the paired server's console, used by Connect a team for
-  `/admin/computers?create=1&code=<code>`. Without `path` the host opens
-  `/admin/computers`.
+- `executor_open_nessie { executorId? }` — the host builds the URL from the
+  named team's paired server (or its own when no team is named) and adds
+  `?create=1&code=<code>` itself while a pairing code is showing. The page
+  never passes a path or URL (§5.1).
 - `executor_pairing_status { executorId }` — names a paired team
   (`organizationName`, `teamName`, `apiBaseUrl`); the label comes from it.
 - `executor_sync_status { executorId }` — `FolderSyncConsoleState`; the
@@ -127,8 +131,11 @@ Contract §5.1, plus these shapes the window relies on:
 ## Verification
 
 Local headless journeys (never CI): `node tray-windows/test/renderer-harness.mjs`
-runs the shell journeys for both hosts; `--shell-only` serves the E2 files
-empty, for use before the team tabs land; `--updates-only` and the other
-update flags are documented in `docs/automatic-updates.md`;
-`--before=<rev>` captures the console at an older revision for comparison.
-Screenshots land in the clone's ignored `.artifacts/executor-console/`.
+runs every journey — shell, Access, Documents, AI and Software updates —
+against the real `index.html`, for both hosts, seven locales, light and dark,
+at 640×680 and the 440×500 minimum window. `--only=shell,access,…` narrows it;
+`--updates-only` and the other update flags are documented in
+`docs/automatic-updates.md`; `--before=<rev>` captures the console at an older
+revision for comparison; `--output=<dir>` moves the pictures. They land in the
+clone's ignored `.artifacts/executor-console/{before,after}`. `pnpm lint` in
+this package lints these scripts with the repository's ESLint config.

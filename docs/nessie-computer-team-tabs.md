@@ -20,12 +20,14 @@ cs, de, es, fr and it.
 | `team-drafts.js` | One draft per team, one save at a time, failures beside the control |
 | `autosave.js` | The save queue |
 
-The shell includes them in this order: `access.js`, `access-words.js`,
-`access-sections.js`, `access-programs.js`, `documents-reasons-words.js`,
-`documents-words.js`, `documents.js`, `ai.js`, `ai-words.js`, `chatgpt.js`,
-`chatgpt-words.js`, `inference-endpoints.js`, with `autosave.js` and
-`team-drafts.js` before them. `access-sections.js`, `access-programs.js` and
-`documents-reasons-words.js` are additions to the list in contract §5.3.
+The shell includes them in this order: `autosave.js`, `team-drafts.js`,
+`access-words.js`, `access.js`, `access-sections.js`, `access-programs.js`,
+`documents-reasons-words.js`, `documents-words.js`, `documents.js`,
+`ai-words.js`, `ai.js`, `chatgpt-words.js`, `chatgpt.js`,
+`inference-endpoints.js` — a tab's words before its module, because a module
+reads its words helper as it loads. `access-sections.js`,
+`access-programs.js` and `documents-reasons-words.js` are additions to the
+list in contract §5.3.
 
 ## How a save behaves
 
@@ -80,11 +82,11 @@ Model servers: name, address, where it runs, optional key.
 
 ## Verification
 
-`node tray-windows/test/team-tabs-harness.mjs [--access-only|--documents-only|--ai-only]`
-runs the headless journeys against the shell stand-in in
-`tray-windows/test/team-tabs-shell.mjs` (a `window.nc` exactly as §5.3 names it)
-and the host fake in `team-tabs-host.mjs`. Pictures land in
-`.artifacts/team-tabs/after`; the base revision's pictures from the old
-harness were kept under `.artifacts/team-tabs/before`. Local only; never in CI.
-Once the shell lands, point the harness at the real `index.html` and delete the
-stand-in.
+`node tray-windows/test/renderer-harness.mjs` runs every console journey —
+the shell and these three tabs — against the real `index.html` with the one
+host fake in `tray-windows/test/renderer-host.mjs`, for both hosts, seven
+locales, light and dark, at 640×680 and the 440×500 minimum window.
+`--only=access,documents,ai` runs these tabs alone. Pictures land in
+`.artifacts/executor-console/after` (`--output=<dir>` moves them);
+`--before=<rev>` captures an older revision beside them. Local only; never in CI.
+Styles live in `style.css` on the shell's tokens; the tabs inject no `<style>`.

@@ -1,26 +1,16 @@
 // Shell journeys for the shared Nessie Computer console: welcome, Connect a
 // team, the connected card, Overview with two teams, Needs you, a failure
-// with its remedy, Settings, Czech and dark. Both hosts render the same document.
+// with its remedy, Settings, Czech, dark and the smallest window. Both hosts
+// render the same document.
 import assert from 'node:assert/strict'
-import { join } from 'node:path'
-import { installRendererHost } from './renderer-host.mjs'
+import { syncCases } from './sync-fixtures.mjs'
+import { callCount, lastCall, openConsole, screenshot, showTab } from './renderer-page.mjs'
 
-const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
-const calls = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).length, command)
-
-export const verifyConsoleShell = async (browser, serve, output) => {
+export const verifyConsoleShell = async (browser, ui, output) => {
   let journeys = 0
-  const open = async ({ host, locale = 'en-GB', colorScheme = 'light', paired = false, width = 640 }) => {
-    const context = await browser.newContext({ viewport: { width, height: 720 }, locale, colorScheme })
-    await installRendererHost(context, host, { paired })
-    const page = await context.newPage()
-    const errors = []
-    page.on('pageerror', (error) => errors.push(error.message))
-    page.on('console', (message) => { if (message.type() === 'warning' && /Missing translation/.test(message.text())) errors.push(message.text()) })
-    page.setDefaultTimeout(12000)
-    await serve(page)
-    await page.goto('http://localhost:5875/')
-    return { context, page, errors, shot: (name) => page.screenshot({ path: join(output, `${host}-${name}.png`), fullPage: true }) }
+  const open = async (options) => {
+    const opened = await openConsole(browser, ui, { sync: null, ...options })
+    return { ...opened, shot: (name) => screenshot(opened.page, output, `${options.host}-${name}`) }
   }
 
   for (const host of ['windows', 'macos']) {
@@ -46,6 +36,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.getByRole('tab', { name: 'Access' }).click()
     await page.locator('#no-team').waitFor()
     assert.equal(await page.locator('#team-row').isHidden(), true)
+    await shot('no-team')
     // Arrow keys move between tabs.
     await page.getByRole('tab', { name: 'Access' }).focus()
     await page.keyboard.press('ArrowLeft')
@@ -61,8 +52,9 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     assert.equal(await page.getByRole('dialog').locator('input[type=checkbox]').count(), 0)
     await page.getByRole('button', { name: 'Copy pairing code' }).click()
     assert.deepEqual((await lastCall(page, 'executor_copy_code')).args, { code: '01234567' })
+    // The host builds the URL and adds the code itself (§5.1): the page passes no path.
     await page.getByRole('button', { name: 'Open Nessie to finish' }).click()
-    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { apiBaseUrl: 'https://api.nessie.works', path: '/admin/computers?create=1&code=01234567' })
+    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, {})
     await shot('connect')
     // An expired code stays visible, greyed, with Get a new code; checks continue meanwhile.
     await page.evaluate(() => { window.expiresAt = new Date(Date.now() - 1000).toISOString() })
@@ -70,7 +62,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     assert.equal(await page.locator('#pairing-instruction').textContent(), 'This code has expired.')
     assert.equal(await page.locator('#pairing-code').textContent(), '01234567')
     assert.equal(await page.locator('#pairing-code').evaluate((node) => node.classList.contains('expired')), true)
-    const checks = await calls(page, 'executor_pairing_status')
+    const checks = await callCount(page, 'executor_pairing_status')
     await page.waitForFunction((before) => window.calls.filter((call) => call.command === 'executor_pairing_status').length > before, checks)
     await shot('connect-expired')
     await page.evaluate(() => { window.expiresAt = undefined; window.pairStatus = 'waiting' })
@@ -88,6 +80,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.getByRole('button', { name: 'Get a code for this server' }).click()
     await page.locator('#pairing-server-error').getByText('The server address must start with https://.').waitFor()
     assert.equal(await page.locator('#pairing-server').getAttribute('aria-invalid'), 'true')
+    await shot('connect-own-server')
     await page.locator('#pairing-server').fill('https://nessie.example.com')
     await page.getByRole('button', { name: 'Get a code for this server' }).click()
     await page.waitForFunction(() => window.pairServer === 'https://nessie.example.com')
@@ -98,7 +91,6 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     assert.equal(await page.locator('#connect-dialog').evaluate((dialog) => dialog.open), false)
     assert.equal(await page.locator('#connected-title').textContent(), 'Connected to Platform · UnlikeOtherAI')
     await page.locator('#connected-body').getByText('Agents in this team can now use: 2 folders · UnlikeOtherAI apps, Claude Code, Codex, T3 Code · all local apps · no websites.').waitFor()
-    assert.equal(await calls(page, 'executor_notify'), 0)
     assert.equal(await status(), 'Working for 1 team')
     await shot('connected')
     await page.getByRole('button', { name: 'Done', exact: true }).click()
@@ -112,6 +104,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     const card = (team) => page.locator('.team-card', { hasText: team })
     await card('Research · UnlikeOtherAI').locator('.team-audience-text').getByText('Agents: Jev · People: Ondrej').waitFor()
+    await card('Research · UnlikeOtherAI').locator('.team-summary').getByText('1 folder · any program · no local apps · 1 website').waitFor()
     await card('Research · UnlikeOtherAI').getByRole('button', { name: 'Pause', exact: true }).click()
     await card('Research · UnlikeOtherAI').locator('.status-word').getByText('Paused').waitFor()
     assert.deepEqual((await lastCall(page, 'executor_set_paused')).args, { executorId: 'team-1', paused: true })
@@ -123,27 +116,29 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.getByRole('button', { name: 'Resume all', exact: true }).waitFor()
     assert.deepEqual((await lastCall(page, 'executor_set_paused')).args, { executorId: null, paused: true })
     assert.equal(await status(), 'Paused')
+    await shot('overview-paused')
     await page.getByRole('button', { name: 'Resume all', exact: true }).click()
     await page.getByRole('button', { name: 'Pause all', exact: true }).waitFor()
     assert.equal(await status(), 'Working for 2 teams')
-    // Change access lands on Access with that team selected.
+    // Change access lands on Access with that team selected, and the tab names it.
     await card('Research · UnlikeOtherAI').getByRole('button', { name: 'Change access' }).click()
     assert.equal(await page.getByRole('tab', { name: 'Access' }).getAttribute('aria-selected'), 'true')
     assert.equal(await page.locator('#team-row').isVisible(), true)
     assert.equal(await page.locator('#team-select').inputValue(), 'team-1')
     assert.equal(await page.locator('#team-select option', { hasText: 'Research · UnlikeOtherAI' }).count(), 1)
+    await page.getByRole('heading', { name: 'Access for Research · UnlikeOtherAI' }).waitFor()
     await page.getByRole('tab', { name: 'Settings' }).click()
     assert.equal(await page.locator('#team-row').isHidden(), true)
     await page.getByRole('tab', { name: 'Overview' }).click()
 
     // Needs you: a program request, and Documents waiting for a decision.
-    await page.evaluate(() => {
+    const attention = { ...syncCases(host).find((entry) => entry.name === 'needs-attention').state, executorId: 'team-1' }
+    await page.evaluate((state) => {
       window.requests = [{ executorId: 'team-0', id: 'req-1', program: 'git', args: ['push', 'origin', 'main'], agentName: 'Jev',
         requestedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 90000).toISOString() }]
       window.paired[0].pendingProgramRequests = 1
-      window.syncStates['team-1'] = { executorId: 'team-1', enabled: true, paused: false, state: 'needs_attention',
-        counts: { openConflicts: 1, errors: 0, heldDeletes: 0 }, conflicts: [{ clientConflictId: 'c1' }], heldDeletes: null }
-    })
+      window.syncStates['team-1'] = state
+    }, attention)
     const needs = page.locator('#needs-you-list')
     await needs.getByText('Jev wants to run git').waitFor()
     await needs.getByText('Documents for Research · UnlikeOtherAI need you: files to check').waitFor()
@@ -153,12 +148,14 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     assert.equal(await page.getByRole('button', { name: 'Don’t allow' }).count(), 1)
     await shot('needs-you')
     await page.getByRole('button', { name: 'Always allow git' }).click()
-    await page.waitForFunction(() => window.policies['team-0'].allowlist.includes('git *'))
+    await page.waitForFunction(() => window.teams['team-0'].policy.allowlist.includes('git *'))
     assert.deepEqual(await page.evaluate(() => window.answers), [{ id: 'req-1', answer: 'always' }])
     await page.waitForFunction(() => !document.body.textContent.includes('Jev wants to run git'))
     await page.getByRole('button', { name: 'Open Documents' }).click()
     assert.equal(await page.getByRole('tab', { name: 'Documents' }).getAttribute('aria-selected'), 'true')
     assert.equal(await page.locator('#team-select').inputValue(), 'team-1')
+    await page.getByRole('heading', { name: 'Documents for Research · UnlikeOtherAI' }).waitFor()
+    await page.waitForFunction(() => document.getElementById('documents-state-text').textContent === 'Needs your attention')
     await page.evaluate(() => { delete window.syncStates['team-1'] })
     await page.getByRole('tab', { name: 'Overview' }).click()
 
@@ -174,8 +171,12 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await shot('failure')
     await page.getByRole('button', { name: 'Connect again' }).click()
     await page.waitForFunction(() => window.remedies.length === 1)
-    assert.deepEqual(await page.evaluate(() => window.remedies), [{ executorId: 'team-0', remedy: 'restart' }])
+    assert.deepEqual(await page.evaluate(() => window.remedies), [{ executorId: 'team-0', remedy: 'restartExecutor' }])
     await page.waitForFunction(() => !document.body.textContent.includes('is not connected'))
+    // A pairing that Nessie never confirmed sends the person to Nessie, for the named team.
+    await page.evaluate(() => { window.paired[0].failure = { code: 'ENROLLMENT_EXPIRED', message: 'No active executor enrollment is ready' } })
+    await needs.getByRole('button', { name: 'Open Nessie' }).click()
+    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { executorId: 'team-0' })
     // An unknown failure is quoted honestly.
     await page.evaluate(() => { window.paired[0].failure = { message: 'Something new went wrong.' } })
     await needs.getByText('Nessie refused that. What it said is under Details.').waitFor()
@@ -194,7 +195,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.waitForFunction(() => window.enabled)
     await shot('settings')
     await page.getByRole('button', { name: 'Open logs folder' }).click()
-    assert.equal(await calls(page, 'executor_open_logs'), 1)
+    assert.equal(await callCount(page, 'executor_open_logs'), 1)
     // A save that fails says so beside its switch and puts the switch back.
     await page.evaluate(() => { window.failAutostart = 'The login item could not be written.' })
     // A plain click: the switch snaps back on failure, which `uncheck()` would report as a stuck control.
@@ -202,12 +203,15 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.locator('[data-error-for=autostart]').getByText('This setting wasn’t saved: The login item could not be written.').waitFor()
     assert.equal(await page.getByLabel('Open Nessie Computer when I log in').isChecked(), true)
     await page.evaluate(() => { window.failAutostart = null })
-    assert.equal(await calls(page, 'executor_notify'), 0)
+    // The footer's Open Nessie names the selected team.
+    await page.locator('#open-nessie').click()
+    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { executorId: 'team-1' })
 
     // Deep links open their exact place; Disconnect asks first.
     await page.evaluate(() => window.emitTray('tray://section/ai', { executorId: 'team-0' }))
     assert.equal(await page.getByRole('tab', { name: 'AI' }).getAttribute('aria-selected'), 'true')
     assert.equal(await page.locator('#team-select').inputValue(), 'team-0')
+    await page.getByRole('heading', { name: 'AI for Platform · UnlikeOtherAI' }).waitFor()
     await page.evaluate(() => window.emitTray('tray://connect'))
     await page.locator('#connect-dialog[open]').waitFor()
     await page.keyboard.press('Escape')
@@ -221,6 +225,7 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 1)
     assert.deepEqual((await lastCall(page, 'executor_remove')).args, { executorId: 'team-0' })
     assert.equal(await footer(), 'Platform · UnlikeOtherAI is disconnected from this computer.')
+    assert.equal(await page.evaluate(() => window.restarts), 0, 'no removed bridge command was called')
     assert.deepEqual(errors, [])
     journeys++
     await context.close()
@@ -250,11 +255,11 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     journeys++
     await context.close()
   }
-  // Every other locale renders its welcome without a missing word.
+  // Every other locale renders its Overview and Settings without a missing word.
   for (const locale of ['en-US', 'de', 'es', 'fr', 'it']) {
-    const { context, page, errors } = await open({ host: 'windows', locale, paired: true })
-    await page.locator('#team-cards .team-card .team-summary').waitFor()
-    await page.getByRole('tab', { name: /./ }).last().click()
+    const { context, page, errors } = await open({ host: 'windows', locale, paired: 2 })
+    await page.locator('#team-cards .team-card .team-summary').nth(1).waitFor()
+    await showTab(page, 'settings')
     await page.locator('#update-version').getByText('1.0.0', { exact: true }).waitFor()
     assert.deepEqual(errors, [])
     journeys++
@@ -263,8 +268,8 @@ export const verifyConsoleShell = async (browser, serve, output) => {
 
   // Dark follows the OS; the same tokens, no white page.
   {
-    const { context, page, errors, shot } = await open({ host: 'windows', colorScheme: 'dark', paired: true })
-    await page.locator('#team-cards .team-card .team-audience-text').getByText('Agents: Jev').waitFor()
+    const { context, page, errors, shot } = await open({ host: 'windows', dark: true, paired: 2 })
+    await page.locator('#team-cards .team-card .team-audience-text').first().getByText('Agents: Jev').waitFor()
     assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)')
     await shot('overview-dark')
     await page.getByRole('button', { name: 'Connect a team', exact: true }).click()
@@ -279,5 +284,33 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     journeys++
     await context.close()
   }
-  process.stdout.write(`${journeys} console shell journeys passed; screenshots ${output}\n`)
+  // The smallest window the apps allow: everything still fits and reads.
+  for (const [locale, dark] of [['en-GB', false], ['cs-CZ', true]]) {
+    const { context, page, errors, shot } = await open({ host: 'macos', locale, dark, size: 'minimum' })
+    const suffix = `${locale === 'cs-CZ' ? '-cs' : ''}${dark ? '-dark' : ''}-min`
+    await page.locator('#overview-welcome-connect').waitFor()
+    await shot(`welcome${suffix}`)
+    await page.locator('#overview-welcome-connect').click()
+    await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    await shot(`connect${suffix}`)
+    await page.evaluate(() => window.claimInNessie())
+    await page.locator('#overview-connected:not([hidden])').waitFor()
+    await page.locator('#connected-body').getByText(/·/).waitFor()
+    await shot(`connected${suffix}`)
+    await page.getByRole('button', { name: /Done|Hotovo/, exact: true }).click()
+    await page.getByRole('button', { name: /Connect a team|Připojit tým/, exact: true }).click()
+    await page.waitForFunction(() => document.getElementById('pairing-code').textContent === '01234567')
+    await page.evaluate(() => window.claimInNessie())
+    await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 2)
+    await page.getByRole('button', { name: /Done|Hotovo/, exact: true }).click()
+    await page.locator('#team-cards .team-card .team-audience-text').nth(1).getByText(/Jev/).waitFor()
+    await shot(`overview-two-teams${suffix}`)
+    await showTab(page, 'settings')
+    await page.locator('#update-version').getByText('1.0.0', { exact: true }).waitFor()
+    await shot(`settings${suffix}`)
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
+  process.stdout.write(`${journeys} console shell journeys passed; pictures ${output}\n`)
 }

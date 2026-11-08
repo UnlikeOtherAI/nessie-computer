@@ -69,6 +69,7 @@
     executors = view.executors
     if (!executors.some((team) => team.executorId === current)) {
       current = executors[0]?.executorId ?? null
+      if (current) describes.delete(current)
       notifySelection()
     }
     const signature = JSON.stringify([executors, executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
@@ -83,16 +84,25 @@
     apply(view)
   }
 
+  /** Selecting a team reads it afresh: a program request answered or a live-applied revision may have changed it. */
   const select = (executorId) => {
     if (executorId === current) return
     current = executorId
+    describes.delete(executorId)
     notifySelection()
   }
-  /** The team's `describe`, loaded once per team until something changes it (`remember`) or `fresh` asks again. */
+  /**
+   * The team's `describe`, loaded once per selection and kept until a save
+   * `remember`s a newer one or `fresh` asks again. A read that fails is not
+   * kept, so the next call asks again.
+   */
   const describe = (executorId = current, { fresh = false } = {}) => {
     if (!executorId) return Promise.reject(new Error(t('shell.noTeam')))
     if (fresh || !describes.has(executorId)) {
-      const loading = invoke('executor_describe', { executorId }).catch((error) => { describes.delete(executorId); throw error })
+      const loading = invoke('executor_describe', { executorId }).catch((error) => {
+        if (describes.get(executorId) === loading) describes.delete(executorId)
+        throw error
+      })
       describes.set(executorId, loading)
     }
     return describes.get(executorId)

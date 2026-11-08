@@ -149,9 +149,8 @@
     byId('copy-code').textContent = t('pairing.copied')
     announce(t('pairing.announceCopied'))
   })
-  byId('pairing-open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {
-    apiBaseUrl: server(), path: `/admin/computers?create=1&code=${encodeURIComponent(view?.code ?? '')}`,
-  }))
+  // The host knows the attempt's server and adds `?create=1&code=<code>` itself while the code shows (§5.1).
+  byId('pairing-open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {}))
   byId('pairing-stop').onclick = () => cancel(byId('pairing-stop'))
   byId('pairing-renew').onclick = () => {
     const address = server()

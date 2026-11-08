@@ -5,6 +5,7 @@
 // queue as every other save, so a change never overtakes one still running.
 (() => {
   const nc = window.nc
+  const autosave = window.autosave
   const words = window.documentsWords
   const native = window.executorNative
   const t = (key, vars) => words.text(key, vars)
@@ -44,37 +45,8 @@
     return asksForDecision(state) && pending(state) === 0 ? 'needs_attention' : 'syncing'
   }
 
-  const style = document.createElement('style')
-  style.textContent = `
-    .documents-heading #documents-switch { font-size: 15px; justify-content: space-between; align-items: flex-start; }
-    #documents-switch-label { flex: 1 1 auto; min-width: 0; }
-    #documents-switch .track { flex-shrink: 0; margin-top: 1px; }
-    .documents-status { margin: 4px 0 12px; }
-    .documents-state { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; }
-    .documents-status .hint { margin: 2px 0 0 18px; }
-    .documents-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--control); }
-    .documents-dot[data-tone=ok] { background: var(--on); } .documents-dot[data-tone=busy] { background: var(--accent); }
-    .documents-dot[data-tone=wait] { background: var(--wait); } .documents-dot[data-tone=warn] { background: var(--error); }
-    #documents-folder-label { margin-top: 16px; }
-    .documents-folder-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-    .documents-folder-row .path { flex: 1 1 220px; margin: 0; font-size: 13px; color: var(--text); }
-    .documents-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-    .documents-actions button, #documents-choose { min-height: 36px; }
-    .documents-block { background: var(--soft); border-radius: 8px; padding: 12px 14px; margin-top: 18px; }
-    #documents-held h3, #documents-conflicts h3 { font-size: 14px; margin: 0 0 6px; }
-    #documents-conflicts { margin-top: 18px; } #documents-held .documents-actions { margin-bottom: 0; }
-    .documents-paths { margin: 6px 0; padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
-    .documents-conflict { padding: 10px 0; border-bottom: 1px solid var(--line); }
-    .documents-conflict p { margin: 0 0 4px; } .documents-conflict .documents-actions { margin: 8px 0 0; }
-    .documents-path { overflow-wrap: anywhere; min-width: 0; font-weight: 600; } .documents-path small { font-weight: 400; }
-    #documents-deleted-dialog { max-height: calc(100vh - 32px); overflow-y: auto; }
-    #documents-load-error button { padding: 2px 8px; font-size: 12px; }
-    .documents-saved { color: var(--on); font-size: 12px; margin-left: 10px; font-weight: 400; }
-    @media (max-width: 470px) { .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; } }
-  `
-  document.head.append(style)
   tab.innerHTML = `
-    <div class="section-heading"><h2 id="documents-heading"></h2><span id="documents-saved" class="documents-saved" role="status"></span></div>
+    <div class="section-heading"><h2 id="documents-heading"></h2><span id="documents-saved" class="saved-note" role="status"></span></div>
     <div class="documents-heading">
       <label class="switch" id="documents-switch"><span id="documents-switch-label"></span>
         <input type="checkbox" id="documents-enabled" role="switch" aria-labelledby="documents-switch-label" aria-describedby="documents-intro">
@@ -125,14 +97,7 @@
     node.onclick = onclick
     return node
   }
-  /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
-  const keepFocus = (container, rebuild, fallback) => {
-    const key = container.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
-    rebuild()
-    if (key === undefined) return
-    const again = [...container.querySelectorAll('[data-key]')].find((node) => node.dataset.key === key && !node.disabled)
-    ;(again ?? fallback()).focus()
-  }
+  const keepFocus = nc.keepFocus
 
   /** What a person can do with one conflict row, decided by its kind (see the reason table in the schema). */
   const conflictActions = (executorId, conflict) => {
@@ -403,9 +368,9 @@
     }
     for (const entry of entries) {
       const row = document.createElement('div')
-      row.className = 'folder-row'
+      row.className = 'list-row'
       const name = document.createElement('div')
-      name.className = 'folder-name documents-path'
+      name.className = 'list-name documents-path'
       name.textContent = entry.relPath
       const when = document.createElement('small')
       when.textContent = t('deleted.on', { date: words.date(entry.deletedAt) })
