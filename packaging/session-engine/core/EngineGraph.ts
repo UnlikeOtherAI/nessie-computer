@@ -1,5 +1,6 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
+import type * as Context from 'effect/Context'
 import { createSessionEngineLayers } from './EngineLayers.ts'
 import { createSessionRuntimeLayers } from './RuntimeLayers.ts'
 
@@ -19,7 +20,8 @@ export const makeSessionEngineGraph = Effect.gen(function* () {
   const runtime = createSessionRuntimeLayers(layers.state, layers)
   let open = true
   yield* Effect.addFinalizer(() => Effect.sync(() => { open = false }))
-  const build = <A, E, R>(layer: Layer.Layer<A, E, R>) => Effect.suspend(() =>
+  const build = <A, E, R>(layer: Layer.Layer<A, E, R>) =>
+    Effect.suspend<Context.Context<A>, E | SessionEngineGraphClosed, R>(() =>
     open ? Layer.buildWithMemoMap(layer, memo, scope) : Effect.fail(new SessionEngineGraphClosed()))
   return {
     inspection: build(layers.inspection),

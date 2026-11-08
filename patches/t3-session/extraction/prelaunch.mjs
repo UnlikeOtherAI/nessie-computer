@@ -13,7 +13,11 @@ export const extractPrelaunch = author => {
 export type ThreadLaunchSelectionInput = Pick<ThreadLaunchInput,
   "commandId" | "threadId" | "reuseExistingThread" | "projectId" | "modelSelection">;
 
-export const selectThreadLaunchTargetInput = (input: ThreadLaunchSelectionInput): ThreadLaunchSelectionInput => ({
+export const selectThreadLaunchTargetInput = (input: Pick<ThreadLaunchInput,
+  "commandId" | "projectId" | "modelSelection"> & {
+  readonly threadId?: ThreadLaunchInput["threadId"];
+  readonly reuseExistingThread?: ThreadLaunchInput["reuseExistingThread"];
+}): ThreadLaunchSelectionInput => ({
   commandId: input.commandId, projectId: input.projectId, modelSelection: input.modelSelection,
   ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
   ...(input.reuseExistingThread === undefined ? {} : { reuseExistingThread: input.reuseExistingThread }),
