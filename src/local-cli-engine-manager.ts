@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
 
+import { runsUnderWindowsService } from './coding-session/self-check.js'
 import type { LocalInferenceHostSession } from './local-inference-host-session.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { readLocalCliAccounts, localCliAccountsRoot, type LocalCliAccount } from './local-cli-engine-accounts.js'
@@ -46,6 +47,7 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
   connect?: typeof connectLocalCliHost
   log?: (message: string) => void
   watch?: boolean
+  underService?: () => Promise<boolean>
 } = {}): LocalCliEngineManager => {
   const accountsRoot = options.accountsRoot ?? localCliAccountsRoot()
   const register = options.register ?? registerLocalCliHost
@@ -71,6 +73,8 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
   }
 
   const open = async (key: LocalCliEngineKey, account: LocalCliAccount | undefined): Promise<'yes' | 'not_yet'> => {
+    // A team the Windows service runs is under the service's account, which has no sign-in of the owner's.
+    if (await (options.underService ?? (() => runsUnderWindowsService({ received: process.env })))()) return 'not_yet'
     const registration: LocalCliRegistration = await register(state, key.engine, key.profileId, true)
     if (registration.kind !== 'host') {
       if (registration.kind === 'unsupported') unsupportedAt = Date.now()
@@ -81,8 +85,8 @@ export const createLocalCliEngineManager = (stateDir: string, initial: ExecutorL
     }, { sessions: { refused: (sessionId) => gate?.refused(sessionId) ?? false } })
     const session = await connect({ stateDir, state, engine: key.engine, profileId: key.profileId,
       host: registration, backend, isPaused: () => draining })
-    entries.set(name, { key, session, stopRuns: backend.stopRuns })
     const name = localCliEngineKey(key)
+    entries.set(name, { key, session, stopRuns: backend.stopRuns })
     void session.refused.then(() => { if (entries.get(name)?.session === session) void close(name) })
     return 'yes'
   }

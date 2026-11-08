@@ -68,7 +68,9 @@ export const createCliReplySplitter = () => {
       buffer += text
       if (opened >= 0) return ''
       opened = buffer.indexOf(CLI_TOOL_BLOCK_OPEN)
-      const safe = opened >= 0 ? opened : Math.max(shown, buffer.length - hold)
+      let held = Math.min(hold, buffer.length - shown)
+      while (held > 0 && !buffer.endsWith(CLI_TOOL_BLOCK_OPEN.slice(0, held))) held -= 1
+      const safe = opened >= 0 ? opened : buffer.length - held
       const chunk = buffer.slice(shown, safe)
       shown = safe
       return chunk
