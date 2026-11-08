@@ -2,13 +2,14 @@ import type { LocalCliEngine } from '@nessie/executor-protocol'
 
 import { buildAgentEnvironment, runCommand, type CommandRunner } from './coding-session/agent-env.js'
 import { findProviderProgram, type ProviderProgram } from './existing-session/programs.js'
+import { codexSignedIn } from './provider-process/codex-account.js'
 import { CodexRpc } from './provider-process/codex-rpc.js'
 import { localCliAccountDirectory, localCliAccountEnvironment, type LocalCliAccount } from './local-cli-engine-accounts.js'
 
 /**
  * Whether Claude Code or Codex is installed and signed in, and to which
  * account — through the CLIs' own read-only status probes (`claude auth
- * status --json`, Codex's `account/read`). Nothing here reads, copies or
+ * status --json`, `codex login status`). Nothing here reads, copies or
  * refreshes a credential, and nothing starts a model turn.
  */
 export type LocalCliDetection = {
@@ -51,8 +52,7 @@ export const claudeAuthStatus = async (
 export const codexAccountStatus = async (
   program: string, env: NodeJS.ProcessEnv, run: CommandRunner = runCommand,
 ): Promise<{ signedIn: boolean; account?: string }> => {
-  const status = await run(program, ['login', 'status'], { env, timeoutMs: 10_000, maxBytes: 16 * 1024 })
-  if (status.code !== 0) return { signedIn: false }
+  if (!await codexSignedIn(program, env, run)) return { signedIn: false }
   const rpc = new CodexRpc(program, env)
   try {
     const value = await rpc.call('account/read', {})
