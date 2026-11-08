@@ -1782,6 +1782,33 @@
       "afterSha256": "07bc6624e3d0de3876a94e79e22cebf1237c1cdf537941608ae494639830b04b"
     },
     {
+      "id": "original-effect-command-context",
+      "file": "apps/server/src/orchestration-v2/OriginalEffectCommandContext.ts",
+      "create": [
+        {
+          "text": "import type { CommandId, ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type { OrchestrationEffectV2 } from \"./EffectOutbox.ts\";\n\nexport interface OriginalEffectCommand {\n  readonly effectId: string;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly effectType: OrchestrationEffectV2[\"request\"][\"type\"];\n}\n\n/** Original outbox invocation metadata only. Absent outside an executor call;\n * presence does not authorize a claim, provider, recovery or serialized frame. */\nexport class OriginalEffectCommandContext extends Context.Reference<OriginalEffectCommand | undefined>(\n  \"nessie/session-engine/OriginalEffectCommandContext\", { defaultValue: () => undefined },\n) {}\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "0914a1436bfa6768fe092b93b778d7b2c152b82a1bdf806a05c23ea3fcf5a024"
+    },
+    {
+      "id": "original-effect-command-import",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import { CommandId } from \"@t3tools/contracts\";",
+      "to": "import { OriginalEffectCommandContext } from \"./OriginalEffectCommandContext.ts\";\nimport { CommandId } from \"@t3tools/contracts\";",
+      "beforeSha256": "725ab817da46219c6ffcd5b71158dce257796bd14250094a377958153291d141",
+      "afterSha256": "17d8ea15a22c4eacc24dc1805200d0edc64783f0e0f3a932dc4eb604b0e097b7"
+    },
+    {
+      "id": "original-effect-command-per-invocation",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "        }\n      }),\n    });\n  }),\n);\n\n// A running effect blocks later work",
+      "to": "        }\n      }, (execution, effect) => execution.pipe(Effect.provideService(OriginalEffectCommandContext,\n        Object.freeze({ effectId: effect.id, commandId: effect.commandId,\n          threadId: effect.threadId, effectType: effect.request.type })))),\n    });\n  }),\n);\n\n// A running effect blocks later work",
+      "beforeSha256": "17d8ea15a22c4eacc24dc1805200d0edc64783f0e0f3a932dc4eb604b0e097b7",
+      "afterSha256": "68e94934a6ff25f4640eaf4719fd7a2860be7a843323246a642237bc70e799c9"
+    },
+    {
       "id": "provider-original-secret-plan",
       "file": "apps/server/src/provider/ProviderInstanceSecretPlan.ts",
       "create": [
@@ -2831,6 +2858,142 @@
       "afterSha256": "def93a53c1eaccdd3da865f54978b9e4f0955b6cd3f82d67abe54196b94462a9"
     },
     {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RunFinalizationService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as RunFinalizationService from \"./RunFinalizationService.ts\";",
+      "to": "import * as RunFinalizationService from \"./RunFinalizationService.session-port.ts\";",
+      "beforeSha256": "68e94934a6ff25f4640eaf4719fd7a2860be7a843323246a642237bc70e799c9",
+      "afterSha256": "54ab2a140a76b92b18965dd7f600962e85858a5dad8820570967ef4ff8f9f8b9"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ResourceCleanupService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ResourceCleanupService from \"./ResourceCleanupService.ts\";",
+      "to": "import * as ResourceCleanupService from \"./ResourceCleanupService.session-port.ts\";",
+      "beforeSha256": "54ab2a140a76b92b18965dd7f600962e85858a5dad8820570967ef4ff8f9f8b9",
+      "afterSha256": "81357dbd3653c317fb27963f78f8f60a082e94dc8f8e83aac8f37ab3a36c3d50"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.ts\";",
+      "to": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.session-port.ts\";",
+      "beforeSha256": "81357dbd3653c317fb27963f78f8f60a082e94dc8f8e83aac8f37ab3a36c3d50",
+      "afterSha256": "78245a7aa7b27d16591d71ee1dc62470ba02a86645e5f60ba3189ff8b80ac0a2"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ProviderSessionManager from \"./ProviderSessionManager.ts\";",
+      "to": "import * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";",
+      "beforeSha256": "78245a7aa7b27d16591d71ee1dc62470ba02a86645e5f60ba3189ff8b80ac0a2",
+      "afterSha256": "2f94169e574d35194e435940233011fb7b236eba04b77370d4b940d9d30a789e"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.ts\";",
+      "to": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.session-port.ts\";",
+      "beforeSha256": "2f94169e574d35194e435940233011fb7b236eba04b77370d4b940d9d30a789e",
+      "afterSha256": "5e682cae367ef8802c2a5aad2f1ace760a4db1b17790d2f39eb8ea3ade01f845"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnStartService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.ts\";",
+      "to": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.session-port.ts\";",
+      "beforeSha256": "5e682cae367ef8802c2a5aad2f1ace760a4db1b17790d2f39eb8ea3ade01f845",
+      "afterSha256": "22f259c0a0dacc415e818a19ab5d4cdd873499526fb9da78fdc5caabc7248ab2"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RuntimeRequestService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as RuntimeRequestService from \"./RuntimeRequestService.ts\";",
+      "to": "import * as RuntimeRequestService from \"./RuntimeRequestService.session-port.ts\";",
+      "beforeSha256": "22f259c0a0dacc415e818a19ab5d4cdd873499526fb9da78fdc5caabc7248ab2",
+      "afterSha256": "26242da9da5c374e09d7a488ec87a9187014636f7f08509f28c5569979acfd56"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.ts\";",
+      "to": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.session-port.ts\";",
+      "beforeSha256": "26242da9da5c374e09d7a488ec87a9187014636f7f08509f28c5569979acfd56",
+      "afterSha256": "92118539de5dcdb6242f13186cc4b04a1c9638eb7dc3fedb6019d975fed02278"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
+      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
+      "beforeSha256": "92118539de5dcdb6242f13186cc4b04a1c9638eb7dc3fedb6019d975fed02278",
+      "afterSha256": "dc61f86287b326b853b946446889793997c5b3b43c17504b54c7a3b920965bd0"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "dc61f86287b326b853b946446889793997c5b3b43c17504b54c7a3b920965bd0",
+      "afterSha256": "0d639f0eb36c29fd6ffd0d4d626c3d4f0da63a9753e619a9e055da0d46779889"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "e5646b4fbd9d5926c219ca156123498b8461af333bac46cfcdb5f2b65d312f9a",
+      "afterSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
+      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
+      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
+      "beforeSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52",
+      "afterSha256": "7d5873322a40f50c89bf9493267f595cf4c0e15a7e26e838047fb3b454958a6c"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts",
+      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
+      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
+      "beforeSha256": "2b69c060d6ce6f7bce74805d14559598d6945c2ff3cf6818a55fc614bd5f3a36",
+      "afterSha256": "948d10f10af2eab2cfc2bb6ef90c4f1bc530568029c85d5e26745b43bdb6ed99"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/CheckpointService.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import { CheckpointServiceV2 } from \"./CheckpointService.ts\";",
+      "to": "import { CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";",
+      "beforeSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99",
+      "afterSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/RunExecutionService.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import * as RunExecutionService from \"./RunExecutionService.ts\";",
+      "to": "import * as RunExecutionService from \"./RunExecutionService.session-pure.ts\";",
+      "beforeSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f",
+      "afterSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.ts\";",
+      "to": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";",
+      "beforeSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa",
+      "afterSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a",
+      "afterSha256": "5b298e54b7e751b47b24bc60319f019cb225c3c1be96dfbd4045e683244dd119"
+    },
+    {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectCloneTracker.ts",
       "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
       "from": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.ts\";",
@@ -2911,38 +3074,6 @@
       "afterSha256": "56f6f42f23ab81a8d20c3d3d37419df7f8c7d5ed74dacf86837b06f8269717dc"
     },
     {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/CheckpointService.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import { CheckpointServiceV2 } from \"./CheckpointService.ts\";",
-      "to": "import { CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";",
-      "beforeSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99",
-      "afterSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/RunExecutionService.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import * as RunExecutionService from \"./RunExecutionService.ts\";",
-      "to": "import * as RunExecutionService from \"./RunExecutionService.session-pure.ts\";",
-      "beforeSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f",
-      "afterSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.ts\";",
-      "to": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa",
-      "afterSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a",
-      "afterSha256": "5b298e54b7e751b47b24bc60319f019cb225c3c1be96dfbd4045e683244dd119"
-    },
-    {
       "id": "port-import:apps/server/src/background/BackgroundPolicy.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/background/BackgroundPolicy.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
@@ -2981,14 +3112,6 @@
       "to": "import * as ServerConfig from \"../config.session-port.ts\";",
       "beforeSha256": "59601910a6434f6082ded99bfec48c1ed3329efed36d9bbb1cde1d258c99bd34",
       "afterSha256": "d7372698584d277916284498611ee98d9b65796dc486584cb670474ab8e79cb6"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts",
-      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
-      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "2b69c060d6ce6f7bce74805d14559598d6945c2ff3cf6818a55fc614bd5f3a36",
-      "afterSha256": "948d10f10af2eab2cfc2bb6ef90c4f1bc530568029c85d5e26745b43bdb6ed99"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadMessageIntake.ts:apps/server/src/config.ts",
@@ -3039,102 +3162,6 @@
       "afterSha256": "a8e6e828d3f44d583eb5442d8d9f1818a71002cf24a7f0307618f0c6db37e99c"
     },
     {
-      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "e5646b4fbd9d5926c219ca156123498b8461af333bac46cfcdb5f2b65d312f9a",
-      "afterSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
-      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
-      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
-      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52",
-      "afterSha256": "7d5873322a40f50c89bf9493267f595cf4c0e15a7e26e838047fb3b454958a6c"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RunFinalizationService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as RunFinalizationService from \"./RunFinalizationService.ts\";",
-      "to": "import * as RunFinalizationService from \"./RunFinalizationService.session-port.ts\";",
-      "beforeSha256": "725ab817da46219c6ffcd5b71158dce257796bd14250094a377958153291d141",
-      "afterSha256": "562702058dd3f2798ca22441d4af3dd07d675c02bfee872c509cc70cd187f5d3"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ResourceCleanupService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ResourceCleanupService from \"./ResourceCleanupService.ts\";",
-      "to": "import * as ResourceCleanupService from \"./ResourceCleanupService.session-port.ts\";",
-      "beforeSha256": "562702058dd3f2798ca22441d4af3dd07d675c02bfee872c509cc70cd187f5d3",
-      "afterSha256": "ee56262488d06edde09d2b25ddd994fea04139c9ff895aaf150eb88b84a099bd"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.ts\";",
-      "to": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.session-port.ts\";",
-      "beforeSha256": "ee56262488d06edde09d2b25ddd994fea04139c9ff895aaf150eb88b84a099bd",
-      "afterSha256": "610a540093c9cb409368f5dbbe4c3c25cf1e329d940fddbe1bb16bf053cc3bc6"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ProviderSessionManager from \"./ProviderSessionManager.ts\";",
-      "to": "import * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "610a540093c9cb409368f5dbbe4c3c25cf1e329d940fddbe1bb16bf053cc3bc6",
-      "afterSha256": "9a03dd9b71ff9b3498f09b4227c685dfdbb5f8116eab3edda5d1d427aea3cda6"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.ts\";",
-      "to": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.session-port.ts\";",
-      "beforeSha256": "9a03dd9b71ff9b3498f09b4227c685dfdbb5f8116eab3edda5d1d427aea3cda6",
-      "afterSha256": "c853253275f5c473934f5e9b17f7e17f80c2a5468c65dc3016684a24be942d85"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnStartService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.ts\";",
-      "to": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.session-port.ts\";",
-      "beforeSha256": "c853253275f5c473934f5e9b17f7e17f80c2a5468c65dc3016684a24be942d85",
-      "afterSha256": "def71481938dc23831f8193557aa9dc35a09f7038eea4f9dbc6d3a95f4687694"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RuntimeRequestService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as RuntimeRequestService from \"./RuntimeRequestService.ts\";",
-      "to": "import * as RuntimeRequestService from \"./RuntimeRequestService.session-port.ts\";",
-      "beforeSha256": "def71481938dc23831f8193557aa9dc35a09f7038eea4f9dbc6d3a95f4687694",
-      "afterSha256": "bd0b631f5e9f71c23d320b49acdd4af023a96b9f4ec6b06ad81872e4dcfcbfe0"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.ts\";",
-      "to": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.session-port.ts\";",
-      "beforeSha256": "bd0b631f5e9f71c23d320b49acdd4af023a96b9f4ec6b06ad81872e4dcfcbfe0",
-      "afterSha256": "54191a3f807118928ff494a6aa157f248383b82102a9c50dddebb4519b1868fe"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
-      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "54191a3f807118928ff494a6aa157f248383b82102a9c50dddebb4519b1868fe",
-      "afterSha256": "83b034422adfd8856f5f19cdbd5cc1cbda9e202b992680dbe69edf4a88c78350"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "83b034422adfd8856f5f19cdbd5cc1cbda9e202b992680dbe69edf4a88c78350",
-      "afterSha256": "5c11a608e879e421d2ad77c1f38091e0ba57b3379fb1f2e7e154f353c0aba7c9"
-    },
-    {
       "id": "required-owner:ResourceCleanupService",
       "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-port.ts",
       "from": "export class ResourceCleanupService extends Context.Reference<{",
@@ -3171,8 +3198,8 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "  | RunFinalizationService.RunFinalizationService\n",
       "to": "  | RunFinalizationService.RunFinalizationService\n  | ResourceCleanupService.ResourceCleanupService\n",
-      "beforeSha256": "5c11a608e879e421d2ad77c1f38091e0ba57b3379fb1f2e7e154f353c0aba7c9",
-      "afterSha256": "ddff51d827f2e8d08b6724ff9eb427bc6ee794f33b05eba12c8b3c9d613d9562"
+      "beforeSha256": "0d639f0eb36c29fd6ffd0d4d626c3d4f0da63a9753e619a9e055da0d46779889",
+      "afterSha256": "e1e16a5fcc698c60cdb0414ecf076ceab9fe3201533f7de06f9d953ad5f45272"
     }
   ]
 }

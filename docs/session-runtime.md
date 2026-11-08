@@ -257,7 +257,7 @@ TurnStart and post-association writer still require their actual composition.
 Production `open` continues to refuse. No recovery or imported-outbox claim is
 enabled by this change.
 
-The ten-family manifest now has 277 extraction and 36 privacy operations,
+The launch-capture checkpoint's ten-family manifest has 277 extraction and 36 privacy operations,
 SHA-256 `17a8f6147799aeba1284105572abc7d685eeb7cb26b11e9ef6646e39e04b2b9b`.
 The earlier 272-operation qualification above remains historical evidence for
 its stated revision. Current source checks passed on Maxis/Node 24.19.0:
@@ -272,6 +272,44 @@ mutation during recheck and Effect interruption. The normal composite consumer
 still reached 77 contract declarations and zero dependency implementations.
 No native build or installed/provider run was performed for this TypeScript
 tranche; actual activation and the manual launch journey remain unfinished.
+
+## Persisted effect command context
+
+`EffectCommand.OriginalEffectCommandContext` retains the durable outbox row's
+`effectId`, `commandId`, `threadId` and original effect-type discriminant. The
+original `OrchestrationEffectExecutorV2.execute` supplies one frozen value around
+its entire returned Effect. Suspended work and cleanup keep that value; nested
+calls restore their caller's value and concurrent fibers do not share a mutable
+current operation. Outside an actual executor invocation the metadata is absent.
+Provider method inputs and RunExecution's separate internal event command remain
+unchanged. The original pre-Queue encoder can consume this same fiber context
+when its post-association writer is implemented.
+
+This metadata is not sealed authority. Supplying the Context reference cannot
+authorize a claim, recovery, native launch or frame. The worker's claim query and
+settlement behavior are unchanged; production activation still refuses. A real
+admission must select eligible work before `claimNext` changes durable state.
+Failing an imported effect after claim would already increment its attempt and
+acquire its lease, so an executor-side refusal alone is insufficient.
+
+The initial message is also not always the durable start-effect producer. Normal
+deferred launch preparation dispatches `prepared-run.release`; the original
+Orchestrator creates `provider-turn.start` under that release command. Its actual
+predecessor must be captured at original creation and checked against the accepted
+run. Neither the initial-message suffix nor the generated run-event command can
+stand in for that relationship. The current metadata preserves the actual outbox
+command without inventing this missing admission binding.
+
+The current ten-family manifest has 280 extraction and 36 privacy operations,
+SHA-256 `5fe4759931981dfcce7b7475647ff639b730f2032b2d457f6f0cfcbb059fdabc`.
+Maxis/Node 24.19.0 passed the six-task strict producer/protocol/CLI build,
+15 producer checks, 14 privacy checks, 37 source fixtures, 13 engine cases and
+87 runtime cases, zero skips. Five new cases invoke the actual original executor
+over explicitly synthetic transport services, checking suspension, concurrent
+and nested contexts, failure and interrupted cleanup. They start no worker and
+claim no outbox rows. The composite consumer still reached 77 contract
+declarations and zero dependency implementations. Native and installed flows
+remain unqualified.
 
 ## Composition and ownership
 

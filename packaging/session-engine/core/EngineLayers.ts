@@ -71,6 +71,7 @@ export { layerWithLegacyImporter as threadManagementLayer }
   from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 export * as ThreadMessageIntake from 't3-source:apps/server/src/orchestration-v2/ThreadMessageIntake.ts'
 export * as CommandLineage from 't3-source:apps/server/src/orchestration-v2/SessionCommandLineage.ts'
+export * as EffectCommand from 't3-source:apps/server/src/orchestration-v2/OriginalEffectCommandContext.ts'
 export * as AttachmentClaims from 't3-source:apps/server/src/orchestration-v2/AttachmentClaims.ts'
 export * as ProviderSessions from 't3-source:apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts'
 export * as ProviderDirectory from 't3-source:apps/server/src/provider/ProviderInstanceRegistry.session-port.ts'
