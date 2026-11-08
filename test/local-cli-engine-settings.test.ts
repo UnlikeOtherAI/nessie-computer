@@ -33,14 +33,16 @@ const folders = async () => {
   const root = await mkdtemp(join(tmpdir(), 'nessie-cli-engines-'))
   const [teamA, teamB, accounts] = await Promise.all(['team-a', 'team-b', 'accounts'].map((name) =>
     ensureOwnerOnlyStateDirectory(join(root, name))))
-  return { root, teamA: teamA!, teamB: teamB!, accounts: accounts!, done: () => rm(root, { recursive: true, force: true }) }
+  const done = () => rm(root, { recursive: true, force: true })
+  return { root, teamA: teamA!, teamB: teamB!, accounts: accounts!, done }
 }
 
 test('detection reports installed, signed in and the account, for each account', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
   const dirs = await folders()
   try {
     const work = await addLocalCliAccount('codex', 'Work', dirs.accounts)
-    const found = await detectLocalCliEngines({ accounts: [work], accountsRoot: dirs.accounts, env: {}, probes: probes() })
+    const found = await detectLocalCliEngines({ accounts: [work], accountsRoot: dirs.accounts, env: {},
+      probes: probes() })
     const row = (engine: string, profileId: string | null) =>
       found.find((entry) => entry.engine === engine && entry.profileId === profileId)!
     assert.deepEqual([row('claude-code', null).installed, row('claude-code', null).signedIn], [false, false])
