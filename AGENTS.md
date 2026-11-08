@@ -51,3 +51,4 @@ Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 [session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
 The generated `/engine` package export, exact authored-input registration and its `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
 Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
+Prospective source issuer enrollment, protected local review, online receipt consumption and the unqualified Windows tray/service gates follow [source consent](docs/t3-source-consent.md).

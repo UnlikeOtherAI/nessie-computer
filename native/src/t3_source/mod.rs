@@ -5,14 +5,39 @@
 #[cfg(windows)] mod sqlite_handles;
 #[cfg(windows)] mod pipe;
 #[cfg(windows)] mod lease;
+#[cfg(windows)] mod consent;
+#[cfg(windows)] mod consent_auth;
+#[cfg(windows)] mod consent_contract;
+#[cfg(windows)] mod consent_peer;
+#[cfg(windows)] mod consent_pipe;
+#[cfg(windows)] mod consent_state;
+#[cfg(windows)] mod consent_words;
+#[cfg(windows)] mod issuer_contract;
+#[cfg(windows)] mod issuer_store;
+#[cfg(windows)] mod issuer_wire;
+#[cfg(windows)] mod issuer_launch;
+#[cfg(windows)] mod issuer_client;
+#[cfg(windows)] mod issuer_signing;
+#[cfg(windows)] pub(crate) mod issuer_service;
 #[cfg(all(windows, test))] mod test_fixture;
 #[cfg(all(windows, test))] mod tests;
 #[cfg(all(windows, test))] mod pipe_tests;
+#[cfg(all(windows, test))] mod consent_tests;
 
 use crate::protocol::NativeError;
 
 #[cfg(windows)]
+pub fn approve_retained_import(nonce:&str) -> Result<(),NativeError> { consent::approve(nonce) }
+#[cfg(windows)]
+pub fn verify_retained_import() -> Result<(),NativeError> { consent::verify() }
+#[cfg(not(windows))]
+pub fn approve_retained_import(_nonce:&str) -> Result<(),NativeError> { Err(NativeError::new("retained_import_platform_unsupported")) }
+#[cfg(not(windows))]
+pub fn verify_retained_import() -> Result<(),NativeError> { Err(NativeError::new("retained_import_platform_unsupported")) }
+
+#[cfg(windows)]
 pub fn run() -> Result<(), NativeError> {
+    if !cfg!(target_arch="x86_64") {return Err(NativeError::new("t3_source_native_platform_unsupported"));}
     use std::io::Read;
     nessie_windows_provenance::require_release_signature(option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"))
         .map_err(|_| NativeError::new("t3_source_native_publisher_unverified"))?;

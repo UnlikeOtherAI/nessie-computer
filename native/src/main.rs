@@ -160,6 +160,8 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
         Command::T3SourceRead => t3_source::run(),
+        Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
+        Command::T3RetainedVerify => t3_source::verify_retained_import(),
         Command::BuildInfo => {
             println!("{}", serde_json::json!({
                 "version": env!("NESSIE_EXECUTOR_VERSION"),
@@ -364,7 +366,7 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             run_id: String::new(),
             status: PreflightStatus::Rejected,
         }),
-        Some(Command::T3SourceRead)
+        Some(Command::T3SourceRead | Command::T3RetainedApprove(_) | Command::T3RetainedVerify)
         | Some(Command::PersonalChatgptBrowser)
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)
