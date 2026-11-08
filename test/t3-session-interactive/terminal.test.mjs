@@ -60,3 +60,24 @@ test('mismatched native event is rejected before entering the original output qu
     .pipe(Stream.take(1), Stream.runCollect)), /resource_mismatch/u)
   assert.equal(released, 1)
 })
+
+test('post-acquisition target mismatch interrupts an idle consumer and releases native demand', async () => {
+  let publish
+  let acquired
+  let released = 0
+  const ready = new Promise(resolve => { acquired = resolve })
+  const subscribe = (listen, register) => Effect.sync(() => {
+    publish = listen
+    const stop = () => { released++ }
+    register(stop)
+    acquired()
+    return stop
+  })
+  const consuming = Effect.runPromise(scopedTerminalOutput(scope, 'term:one', subscribe, subscribe)
+    .pipe(Stream.take(1), Stream.runCollect))
+  const rejected = assert.rejects(consuming, /resource_mismatch/u)
+  await ready
+  await Effect.runPromise(publish({ type: 'output', threadId: 'foreign', terminalId: 'term:one', data: 'not queued' }))
+  await rejected
+  assert.equal(released, 1)
+})

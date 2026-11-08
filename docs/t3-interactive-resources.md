@@ -63,8 +63,9 @@ hub resource path before serving that state.
 `TerminalOutputProtocol`. It validates exact event and nested snapshot targets
 before enqueue, requires the original snapshot-resync callback and retains
 original sequences and shared terminal grid fields. It does not implement
-terminal lifecycle, launch or history. Resource mismatches terminate acquisition
-as content-free defects; gateway error mapping must not serialize a native cause.
+terminal lifecycle, launch or history. Resource mismatches fail the consuming
+stream with a content-free error, including callbacks after acquisition; no
+foreign event is enqueued. Gateway error mapping must not serialize a native cause.
 
 No original file is patched. The only shared producer change is the namespace
 export in the already registered `packaging/session-engine/core/Engine.ts`.
