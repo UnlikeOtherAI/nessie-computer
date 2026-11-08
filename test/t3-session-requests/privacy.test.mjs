@@ -80,7 +80,7 @@ test('mixed nested SDK/MCP batches correlate outputs, errors and replay without 
 
 test('explicit secret question fields preserve IDs and ordinals; unsupported ordinary-answer lane refuses them', () => {
   const questions = [{ id: '__proto__', isSecret: true, fieldOrdinal: 3, answerOrdinal: 2,
-    answer: canary, initialValue: canary, preview: canary, header: 'Token' }]
+    answer: canary, initialValue: canary, initialAnswer: canary, preview: canary, header: 'Token' }]
   const project = privacy.createRequestPrivacyProjector()
   const safe = project({ questions })
   noCanary(safe)
