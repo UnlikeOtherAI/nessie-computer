@@ -28,6 +28,26 @@ test('normal package/original importer retains complete old catalog, original op
     assert.equal(f.ports.journal.catalog(f.source.physicalRootKey).find(row => row.thread_id === f.ids[1]).source_state, 'archived')
     assert.equal(f.ports.journal.catalog(f.source.physicalRootKey).find(row => row.thread_id === f.ids[2]).source_state, 'deleted')
     assert.equal((await projection(f, first.generation)).messages.length, 360)
+    const sourceCatalog = f.writer.prepare(`SELECT thread_id,
+      CASE WHEN deleted_at IS NOT NULL THEN 'deleted' WHEN archived_at IS NOT NULL THEN 'archived'
+      ELSE 'active' END AS source_state FROM orchestration_v2_projection_threads ORDER BY thread_id`).all()
+    assert.deepEqual(f.ports.journal.catalog(f.source.physicalRootKey)
+      .map(({ thread_id, source_state }) => ({ thread_id, source_state })),
+    sourceCatalog.map(row => ({ ...row })))
+    const destination = new DatabaseSync(f.destination(first.generation), { readOnly: true })
+    try {
+      // Independent original stored records, including exact metadata and order,
+      // rather than generated expected counts or a second capture projection.
+      for (const [table, order] of [
+        ['orchestration_v2_projection_threads', 'thread_id'],
+        ['orchestration_v2_projection_messages', 'thread_id, created_at, message_id'],
+        ['orchestration_v2_projection_turn_items', 'thread_id, ordinal, turn_item_id'],
+      ]) {
+        const sql = `SELECT payload_json FROM ${table} ORDER BY ${order}`
+        assert.deepEqual(destination.prepare(sql).all().map(row => JSON.parse(row.payload_json)),
+          f.writer.prepare(sql).all().map(row => JSON.parse(row.payload_json)))
+      }
+    } finally { destination.close() }
     assert.deepEqual({ main: digest(f.path), wal: digest(`${f.path}-wal`) }, before)
     // Source hydration is complete, then source legacy history advances. The
     // next generation resets durable markers AND original process caches.
