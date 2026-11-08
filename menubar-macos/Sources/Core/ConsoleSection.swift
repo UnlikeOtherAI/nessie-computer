@@ -39,6 +39,6 @@ public struct ConsoleTarget: Equatable, Sendable {
         return "window.dispatchEvent(new CustomEvent('\(eventName)', { detail: \(detail) }))"
     }
 
-    /// Opens Connect a team.
+    /// Opens Add this computer, which asks for a pairing code at once.
     public static let connectScript = "window.dispatchEvent(new CustomEvent('tray://connect', { detail: null }))"
 }

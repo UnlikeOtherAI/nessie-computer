@@ -55,6 +55,11 @@ export const runDocuments = async (run: CliRun): Promise<void> => {
   const [action = 'status', ...rest] = operands(run.options, 1, 3, 'documents')
   acceptOnly(run.options, 'documents', action === 'on' ? ['--folder', '--add-existing-files'] : [])
   const team = await run.team()
+  if (team.route !== 'local') {
+    // The service's state is its own; the Windows app keeps documents only for its own teams too.
+    throw new CliRefusal('DOCUMENTS_UNAVAILABLE', 'Documents are kept only for teams connected under your Windows '
+      + `account. The Nessie Computer service runs ${team.label}, so its documents stay in Nessie.`)
+  }
   const context: SyncCommandContext = { stateDir: team.stateDir, executorId: team.executorId,
     workspaceFolders: team.state.workspaceFolders }
   const current = () => readConsoleState(team.stateDir, team.executorId, run.context.home)

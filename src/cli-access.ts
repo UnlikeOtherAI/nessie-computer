@@ -1,20 +1,14 @@
 import { resolve } from 'node:path'
 
-import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
-import { allowedOriginsOf, configuredAllowedOrigins } from './configuration-input.js'
-import { describeTeamAt, saveAccess, type TeamDescription } from './cli-describe.js'
+import { configuredAllowedOrigins } from './configuration-input.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
 import { programRuleSummary } from './cli-access-programs.js'
 import { localAppsSummary } from './cli-access-local-apps.js'
-import type { LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
-import { loadExecutorState } from './state-store.js'
 import { deriveExecutorWorkspaceFolderName } from './workspace-folders.js'
 
 /** The Access tab: `access show`, `folders`, `websites` and `coding-assistants`. */
-
-const describe = (team: LabelledTeam): Promise<TeamDescription> => describeTeamAt(team.stateDir)
 
 const CODING_ON = 'can read and message Claude Code and Codex conversations'
 const CODING_OFF = 'can\'t read your Claude Code and Codex conversations'
@@ -23,7 +17,7 @@ const show = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access show')
   operands(run.options, 2, 0, 'access show')
   const team = await run.team()
-  const description = await describe(team)
+  const description = await run.ops(team).describe()
   if (run.options.json) {
     printJson(run.context, description)
     return
@@ -41,7 +35,8 @@ const folders = async (run: CliRun): Promise<void> => {
   const [action = 'list', target] = operands(run.options, 2, 2, 'access folders')
   acceptOnly(run.options, 'access folders', action === 'add' ? ['--name'] : [])
   const team = await run.team()
-  const current = team.state.workspaceFolders
+  const ops = run.ops(team)
+  const current = (await ops.access()).folders
   if (action === 'list') {
     if (target !== undefined) throw new CliUsageError('access folders list takes no folder.', 'access folders')
     if (run.options.json) printJson(run.context, current.map(({ name, path }) => ({ name, path })))
@@ -65,12 +60,12 @@ const folders = async (run: CliRun): Promise<void> => {
       throw new CliRefusal('LAST_FOLDER', 'Keep at least one folder. To end this team\'s access, disconnect it.')
     }
   } else throw new CliUsageError(`access folders has no "${action}". Use list, add or remove.`, 'access folders')
-  const saved = await saveAccess(team.stateDir, { workspaceFolders: next })
-  if (run.options.json) printJson(run.context, saved.workspaceFolders.map(({ name, path }) => ({ name, path })))
+  const saved = (await ops.save({ workspaceFolders: next })).folders
+  if (run.options.json) printJson(run.context, saved.map(({ name, path }) => ({ name, path })))
   else {
     run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${target}. Folders shared with ${team.label}: ${
-      listed(saved.workspaceFolders.map((folder) => folder.name))}.\n`)
-    if (saved.workspaceFolders.length > 1 && current.length === 1) {
+      listed(saved.map((folder) => folder.name))}.\n`)
+    if (saved.length > 1 && current.length === 1) {
       run.context.out('Agents\' browser, sandboxed commands and coding sessions here need exactly one folder.\n')
     }
   }
@@ -91,7 +86,8 @@ const websites = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access websites')
   const [action = 'list', target] = operands(run.options, 2, 2, 'access websites')
   const team = await run.team()
-  const current = allowedOriginsOf(await loadExecutorState(team.stateDir))
+  const ops = run.ops(team)
+  const current = (await ops.access()).allowedOrigins
   if (action === 'list') {
     if (run.options.json) printJson(run.context, current)
     else run.context.out(current.length ? `Agents in ${team.label} may open these websites in the agent browser:\n${
@@ -107,12 +103,12 @@ const websites = async (run: CliRun): Promise<void> => {
   if (action === 'add' && current.includes(site)) throw new CliRefusal('WEBSITE_LISTED', `${site} is already listed.`)
   if (action === 'remove' && !current.includes(site)) throw new CliRefusal('WEBSITE_NOT_FOUND', `${team.label} has no website ${site}.`)
   const next = action === 'add' ? [...current, site] : current.filter((entry) => entry !== site)
-  const saved = await saveAccess(team.stateDir, { settings: { allowedOrigins: next } })
-  const after = allowedOriginsOf(saved)
+  const saved = await ops.save({ settings: { allowedOrigins: next } })
+  const after = saved.allowedOrigins
   if (run.options.json) printJson(run.context, after)
   else {
     run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${site}. Websites allowed: ${listed(after)}.\n`)
-    if (!saved.browserSandbox) {
+    if (!saved.browserConfigured) {
       run.context.out('The agent browser isn\'t set up on this computer yet. These websites apply once it is.\n')
     }
   }
@@ -124,9 +120,10 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access coding-assistants')
   const [action = 'show', value] = operands(run.options, 2, 2, 'access coding-assistants')
   const team = await run.team()
+  const ops = run.ops(team)
   if (action === 'conversations') {
     const enabled = onOff(value, 'access coding-assistants conversations')
-    await setExistingSessionsEnabled(team.stateDir, enabled)
+    await ops.save({ existingCodingSessionsEnabled: enabled })
     if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: enabled })
     else run.context.out(`Agents in ${team.label} ${enabled ? CODING_ON : CODING_OFF}.${
       enabled ? '' : ' Your conversations keep running.'}\n`)
@@ -134,7 +131,7 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
   }
   if (value !== undefined) throw new CliUsageError(`access coding-assistants ${action} takes nothing after it.`, 'access coding-assistants')
   if (action === 'show') {
-    const enabled = await existingSessionsEnabled(team.stateDir)
+    const enabled = (await ops.access()).existingCodingSessionsEnabled
     if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: enabled })
     else run.context.out(`Agents in ${team.label} ${enabled ? CODING_ON : CODING_OFF}.\n`)
     return
@@ -143,7 +140,7 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
     throw new CliUsageError(`access coding-assistants has no "${action}". Use show, conversations or claude-setup.`,
       'access coding-assistants')
   }
-  const configuration = (await describe(team)).existingClaudeChannelConfiguration
+  const configuration = (await ops.describe()).existingClaudeChannelConfiguration
   if (!configuration) throw new CliRefusal('CODING_SESSIONS_UNAVAILABLE', `Resume ${team.label} to set up Claude Code.`)
   if (run.options.json) {
     printJson(run.context, { configuration, command: RECIPE_COMMAND })

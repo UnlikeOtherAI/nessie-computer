@@ -38,6 +38,18 @@ fn absent(path: &Path) -> Result<(), String> {
         _ => Err(REJECTED.into()), // Includes dangling links and unreadable entries.
     }
 }
+/// The command's name and its older name: a stray launcher may answer to either.
+const COMMANDS: [&str; 2] = ["nessie-computer", "nessie-executor"];
+
+/// Every file a PATH lookup of one of [`COMMANDS`] could run, and the old Desktop app.
+fn launcher_names() -> Vec<String> {
+    COMMANDS
+        .iter()
+        .flat_map(|command| ["", ".exe", ".cmd", ".bat", ".ps1"].map(|extension| format!("{command}{extension}")))
+        .chain(std::iter::once("nessie-desktop.exe".to_owned()))
+        .collect()
+}
+
 fn check_path(value: &str) -> Result<(), String> {
     if value.len() > 65_536 {
         return Err(REJECTED.into());
@@ -51,14 +63,7 @@ fn check_path(value: &str) -> Result<(), String> {
         if !path.is_absolute() {
             return Err(REJECTED.into());
         }
-        for name in [
-            "nessie-executor",
-            "nessie-executor.exe",
-            "nessie-executor.cmd",
-            "nessie-executor.bat",
-            "nessie-executor.ps1",
-            "nessie-desktop.exe",
-        ] {
+        for name in launcher_names() {
             absent(&path.join(name))?;
         }
     }
@@ -105,13 +110,13 @@ pub(super) fn verify(home: &Path) -> Result<(), String> {
         }
         // Desktop's old per-user install and npm's CLI wrapper remain blockers
         // even when removed from PATH or unregistered as a URL handler.
-        for file in [
-            "Nessie/nessie-desktop.exe",
-            "Programs/Nessie/nessie-desktop.exe",
-            "npm/nessie-executor.cmd",
-            "npm/nessie-executor.ps1",
-            "npm/nessie-executor",
-        ] {
+        let npm = COMMANDS
+            .iter()
+            .flat_map(|command| [".cmd", ".ps1", ""].map(|extension| format!("npm/{command}{extension}")));
+        for file in ["Nessie/nessie-desktop.exe".to_owned(), "Programs/Nessie/nessie-desktop.exe".to_owned()]
+            .into_iter()
+            .chain(npm)
+        {
             absent(&directory.join(file))?;
         }
         variables.push((name, directory.to_str().ok_or(REJECTED)?.to_owned()));
@@ -147,6 +152,28 @@ mod tests {
             assert!(expand(value, &variables).is_err());
         }
     }
+    #[test]
+    fn both_command_names_are_launchers_in_every_form_windows_runs() {
+        let names = launcher_names();
+        for command in ["nessie-computer", "nessie-executor"] {
+            for extension in ["", ".exe", ".cmd", ".bat", ".ps1"] {
+                assert!(names.contains(&format!("{command}{extension}")), "{command}{extension}");
+            }
+        }
+        assert!(names.contains(&"nessie-desktop.exe".to_owned()));
+    }
+
+    #[test]
+    fn a_stray_nessie_computer_launcher_on_path_blocks_activation() {
+        for name in ["nessie-computer.cmd", "nessie-computer.ps1", "nessie-computer.exe", "nessie-computer"] {
+            let directory = tempfile::tempdir().unwrap();
+            let path = directory.path().to_str().unwrap();
+            assert!(check_path(path).is_ok());
+            fs::write(directory.path().join(name), b"fixture wrapper").unwrap();
+            assert!(check_path(path).is_err(), "{name}");
+        }
+    }
+
     #[test]
     fn an_inactive_wrapper_or_ambiguous_search_directory_blocks_activation() {
         let directory = tempfile::tempdir().unwrap();

@@ -158,3 +158,25 @@ protocol gets the old behaviour: the command holds the team's single slot.
 - When the allowlist already holds its maximum of 64 rules, nobody is asked.
 - `audience` needs a connected team: it signs with the connection epoch the
   team's daemon last claimed.
+
+## One owner per team
+
+A team's daemon is run by exactly one thing (`src/cli-team-runner.ts`):
+
+| Computer | Runs the teams |
+|---|---|
+| macOS with the menu bar app installed | The app, including teams `nessie-computer add` pairs into the command line's folder; the app adopts them within 5 seconds. |
+| macOS without the app | The command line's launch agent per team (`service-macos.ts`). |
+| Linux | The command line's systemd unit per team (`service-linux.ts`). |
+| Windows | The Windows app for teams under the person's account; the background service for its own teams. |
+
+On Windows the command line reaches the service's teams through the service's
+control pipe, as the app does. Node cannot check who serves a named pipe, so it
+runs the installed `nessie-executor-service.exe --control`: under the person's
+own account it reads one request line, verifies that the signed service serves
+`\\.\pipe\NessieExecutor` (`windows-common` `control_channel`), sends the line and prints
+the one answer, or `{"status":"unreachable","reason":"notRunning|notAdmitted|notTrusted|busy|failed"}`.
+The pipe's DACL and the service's account rules still decide every request.
+A new folder for a service team is granted to the service account first with the
+app's own elevated `--grant-workspace` mode, as the app does.
+

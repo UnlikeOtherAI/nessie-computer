@@ -28,7 +28,7 @@ entries on. Anything else waits for the owner.
 | Codex (`codex`) | `codex` | The name, found through PATH |
 | T3 Code (`t3Code`) | `t3` | The name, found through PATH |
 
-The three named programs are the tools people connect a team for. Each is
+The three named programs are the tools most people add a computer for. Each is
 matched exactly like an owner's `claude *` rule: a bare name with any
 arguments, compared case-insensitively and without `.exe` on macOS and
 Windows. The terminal session finds it through the absolute entries of the

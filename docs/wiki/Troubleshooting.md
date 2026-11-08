@@ -56,7 +56,7 @@ restored. [Disconnect](Disconnect-or-uninstall) the team and
 
 ### ChatGPT says terminals and coding tools are stopped
 That is expected while a ChatGPT plan is signed in. See
-[AI](AI-ChatGPT-plans-and-model-servers#before-you-sign-in).
+[AI](AI#before-you-sign-in).
 
 ### Documents shows something to check
 See [Documents → When something needs you](Documents#when-something-needs-you).

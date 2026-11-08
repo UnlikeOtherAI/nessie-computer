@@ -11,6 +11,7 @@ final class WordsTests: XCTestCase {
         .needsYou(team: "T", reason: .allowDocumentsAgain), .needsYou(team: "T", reason: .documentsFolderMissing),
         .needsYou(team: "T", reason: .diskFull), .needsYou(team: "T", reason: .notConnected),
         .needsYouReinstall, .needsYouUnreadableTeam, .needsYouMany(3), .pause, .resume, .allTeams, .openComputer,
+        .addThisComputer,
         .openNessie, .quit, .quitWhileWorking, .iconIdle, .iconWorking, .iconNeedsYou, .teamNameUnavailable,
         .programRequestTitle(agent: "Ada", program: "git"), .programRequestTitle(agent: nil, program: "git"),
         .programRequestBody(team: "T", command: "git status"), .allowOnce, .alwaysAllow(program: "git"), .dontAllow,
@@ -69,6 +70,19 @@ final class WordsTests: XCTestCase {
         XCTAssertEqual(say(.needsYou(team: "T", reason: .programs(7))), "Potřebuje vás: T — 7 programů žádá o spuštění")
         XCTAssertEqual(say(.needsYouMany(2)), "Potřebuje vás: 2 věci — otevřete Nessie Computer")
         XCTAssertEqual(say(.needsYouMany(6)), "Potřebuje vás: 6 věcí — otevřete Nessie Computer")
+    }
+
+    /// The menu item uses the window's words for pairing (contract §2), with the menu's ellipsis.
+    func testAddThisComputerMatchesTheWindowInEveryLanguage() {
+        let expected: [NativeLanguage: String] = [
+            .britishEnglish: "Add this computer…", .americanEnglish: "Add this computer…",
+            .czech: "Přidat tento počítač…", .german: "Diesen Computer hinzufügen …",
+            .spanish: "Añadir este ordenador…", .french: "Ajouter cet ordinateur…",
+            .italian: "Aggiungi questo computer…"
+        ]
+        for language in NativeLanguage.allCases {
+            XCTAssertEqual(Word.addThisComputer.text(in: language), expected[language], "\(language)")
+        }
     }
 
     func testARefusalCanBeBuiltFromAWord() {

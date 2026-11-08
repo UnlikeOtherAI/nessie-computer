@@ -41,7 +41,8 @@ const capture = (): { context: CliContext; out: () => string; err: () => string 
     out: () => out, err: () => err,
     context: { out: (text) => { out += text }, err: (text) => { err += text },
       stdin: Readable.from([]), interactive: false,
-      ask: async () => '', platform: process.platform, home: tmpdir(), now: () => new Date(), sleep: async () => undefined },
+      ask: async () => '', platform: process.platform, home: tmpdir(), now: () => new Date(), sleep: async () => undefined,
+      run: async () => ({ code: null, stdout: '', stderr: '' }) },
   }
 }
 
@@ -66,6 +67,18 @@ test('each command answers help <command> and <command> --help with its usage an
       for (const line of [...entry.usage, ...entry.examples]) assert.ok(run.out().includes(line), `${args.join(' ')} lacks ${line}`)
     }
   }
+})
+
+test('connect is add under its older name: the same help, from either spelling', async () => {
+  const add = HELP_ENTRIES.find((entry) => entry.command === 'add')!
+  for (const args of [['connect', '--help'], ['help', 'connect']]) {
+    const run = capture()
+    assert.equal(await runUserCli(args, { context: run.context }), 0, run.err())
+    assert.ok(run.out().startsWith(add.summary), args.join(' '))
+    assert.ok(run.out().includes('nessie-computer add [--server <https://address>] [--no-wait] [--json]'))
+  }
+  assert.equal(isUserCommand(['add']), true)
+  assert.equal(isUserCommand(['connect', '--state-dir', '/s']), false, 'the apps\' connect stays plumbing')
 })
 
 test('every example in the help and the Command line guide is a command with help', () => {

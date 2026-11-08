@@ -1,7 +1,19 @@
-# AI: ChatGPT plans and model servers
+# AI: Claude Code, Codex, ChatGPT plans and model servers
 
 The **AI** tab connects AI that runs from this computer, so your agents can use
 it instead of paying for Nessie's AI. Pick the team from the **Team** list first.
+
+## Claude Code and Codex already on this computer
+
+If Claude Code or Codex is installed and signed in here, the **On this
+computer** section lists it with the account it's signed in to. Turn on
+**Make available** and agents for this team can use it for their AI. They run
+it the way T3 Code does: through the installed program and its own sign-in.
+Nessie Computer never reads or copies that sign-in.
+
+- Not installed: the row is greyed out and says **Not installed on this computer**.
+- Installed but signed out: run `claude` (or `codex`) once in a terminal to sign in.
+- Whether only you or your whole team can use it is set in Nessie.
 
 ## ChatGPT plans
 
@@ -19,6 +31,11 @@ for them.
 4. Back in Nessie Computer the plan shows **Ready**.
 
 Add as many plans as you have. Each one has its own name and sign-in.
+
+On Windows the Nessie Computer background service keeps a plan's sign-in. The
+first plan for a team therefore adds a **ChatGPT plan connection** for that
+team: Windows asks you to allow it, then this computer shows one more code to
+enter in Nessie under **Computers → Add a computer**.
 
 ### Before you sign in
 
@@ -63,6 +80,11 @@ Only this computer needs Nessie Computer; the model server doesn't.
 **Check connections** tests every server again.
 
 ## On the command line
+
+```sh
+nessie-computer ai local                       # Claude Code and Codex on this computer
+nessie-computer ai local on codex --team "Sales · Acme"
+```
 
 ```sh
 nessie-computer ai plans list --team "Sales · Acme"

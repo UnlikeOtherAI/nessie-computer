@@ -40,8 +40,9 @@ selected. From the top:
   place (Overview with the team, or Documents for a documents problem);
 - **Pause** / **Resume**: one line for one team; with several, a submenu with
   "All teams" and then each team's label, checked while paused;
-- **Open Nessie Computer…** (the window, on Overview) and **Open Nessie** (the
-  paired server's Computers page);
+- **Open Nessie Computer…** (the window, on Overview), **Add this computer…**
+  (the window, straight onto a new pairing code, as Overview's **Add this
+  computer** does) and **Open Nessie** (the paired server's Computers page);
 - **Quit Nessie Computer**, which adds "— agents stop until you open it again"
   while any team is working.
 
@@ -73,6 +74,19 @@ or a refusal this app does not recognise, such as a network not up yet at
 login), from 5 seconds doubling to 5 minutes. A fenced connection, a rejected
 key or a stale revision is never retried: it waits for the owner's remedy.
 
+While it is installed the app owns every team on this Mac, one owner per team.
+Every 5 seconds it looks in its state folders again (`ExecutorConnections.adoptNewTeams`)
+and starts any finished team it does not run yet, such as one `nessie-computer
+add` paired into `~/.local/state/nessie-executor`. The command line therefore
+never sets up a launch agent when this app is in `/Applications` or
+`~/Applications`: it opens the app instead, and removes the launch agents it had
+set up for earlier teams so the app can run them.
+
+`Nessie Executor --login-item status|on|off` is the command line's `settings
+login`: run as the app's own executable, it changes `SMAppService.mainApp`
+(`LoginItemCommand`), prints `{"enabled":…}` or `{"error":"needsApproval"|"failed"}`
+and exits before any status item, window or daemon exists.
+
 Each daemon's output goes to `~/Library/Logs/Nessie Computer/<team-directory>.log`
 (owner-only). A log over 5 MB becomes `.previous.log` at the next start.
 Settings → Help → open logs folder opens that folder.
@@ -102,7 +116,7 @@ The console calls these through `window.webkit.messageHandlers.executor`
 `executor_set_running`, `executor_hide_status`, `executor_reconnect` and
 `executor_notify` (saves never post notifications). Section events are
 `tray://section/<overview|access|documents|ai|settings>` with an optional
-`{ executorId }`, and `tray://connect` opens Connect a team.
+`{ executorId }`, and `tray://connect` opens Add this computer.
 
 ## Program requests
 

@@ -2,15 +2,14 @@ import { randomUUID } from 'node:crypto'
 
 import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, printJson, type CliContext } from './cli-output.js'
+import type { InferenceStatus as Status } from './cli-team-ops.js'
 import type { CliRun } from './cli-user.js'
-import { applyInferenceEndpointOperation, inferenceEndpointStatus } from './inference-endpoint-cli.js'
 
 /**
  * `ai servers`: Model servers on the AI tab, through the same status and
- * operation functions `local-inference connections` runs for the apps.
+ * operation functions `local-inference connections` runs for the apps (the
+ * service's `inferenceConnections` for a team the Windows service runs).
  */
-
-type Status = Awaited<ReturnType<typeof inferenceEndpointStatus>>
 
 const KEY_LIMIT = 4_096
 
@@ -43,7 +42,8 @@ export const runAiServers = async (run: CliRun): Promise<void> => {
   const [action = 'list', ...rest] = operands(run.options, 2, 2, 'ai servers')
   acceptOnly(run.options, 'ai servers', action === 'add' ? ['--where', '--key-stdin'] : [])
   const team = await run.team()
-  const status = () => inferenceEndpointStatus(team.stateDir)
+  const ops = run.ops(team)
+  const status = () => ops.inference({ operation: 'status' })
   if (action === 'list' || action === 'check') {
     if (rest.length) throw new CliUsageError(`ai servers ${action} takes nothing after it.`, 'ai servers')
     print(run, team.label, await status())
@@ -59,16 +59,17 @@ export const runAiServers = async (run: CliRun): Promise<void> => {
     const existing = (await status()).endpoints.find((endpoint) => endpoint.name === name)
     if (existing) throw new CliRefusal('MODEL_SERVER_LISTED', `${team.label} already has a model server called ${name}.`)
     const apiKey = run.options.flags.has('--key-stdin') ? await readKey(run.context) : undefined
-    await applyInferenceEndpointOperation(team.stateDir, { operation: 'save', id: randomUUID(), name, baseUrl: address,
-      scope: where === 'network' ? 'network' : 'local', ...(apiKey ? { apiKey } : {}) })
-  } else if (action === 'remove') {
+    print(run, team.label, await ops.inference({ operation: 'save', id: randomUUID(), name, baseUrl: address,
+      scope: where === 'network' ? 'network' : 'local', ...(apiKey ? { apiKey } : {}) }))
+    return
+  }
+  if (action === 'remove') {
     const [name, extra] = rest
     if (!name || extra !== undefined) throw new CliUsageError('Use ai servers remove <name>.', 'ai servers')
     const existing = (await status()).endpoints.find((endpoint) => endpoint.name === name)
     if (!existing) throw new CliRefusal('MODEL_SERVER_NOT_FOUND', `${team.label} has no model server called ${name}.`)
-    await applyInferenceEndpointOperation(team.stateDir, { operation: 'remove', id: existing.id })
-  } else {
-    throw new CliUsageError(`ai servers has no "${action}". Use list, add, check or remove.`, 'ai servers')
+    print(run, team.label, await ops.inference({ operation: 'remove', id: existing.id }))
+    return
   }
-  print(run, team.label, await status())
+  throw new CliUsageError(`ai servers has no "${action}". Use list, add, check or remove.`, 'ai servers')
 }

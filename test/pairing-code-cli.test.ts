@@ -8,13 +8,13 @@ import { pairingUsesWindowsTray, runPairingCodeCli } from '../src/pairing-code-c
 import { executorApi } from '../src/api-client.js'
 import { loadPairingCode } from '../src/pairing-code-store.js'
 
-test('pairing on Windows guides an ordinary terminal to the service tray before touching local state', async (context) => {
+test('pairing on Windows points an ordinary terminal at add or the app before touching local state', async (context) => {
   let output = ''
   context.mock.method(process.stdout, 'write', (chunk: string) => { output += chunk; return true })
   assert.equal(await runPairingCodeCli([], 'win32'), true)
   assert.equal(await runPairingCodeCli(['pair'], 'win32'), true)
   assert.equal(await runPairingCodeCli(['pairing-start'], 'win32'), true)
-  assert.equal(output, 'Open Nessie Executor in the Windows tray and choose Add team.\n'.repeat(3))
+  assert.equal(output, 'Run nessie-computer add, or open Nessie Computer and choose Add this computer.\n'.repeat(3))
 })
 
 test('pairing keeps explicit operator state and JSON native commands on their configured path', () => {
@@ -30,7 +30,7 @@ test('pairing keeps explicit operator state and JSON native commands on their co
 })
 
 test('replacement never implicitly selects an existing account', async () => {
-  await assert.rejects(runPairingCodeCli(['pair', '--replace'], 'linux'), /Choose the connection to replace/)
+  await assert.rejects(runPairingCodeCli(['pair', '--replace'], 'linux'), /Choose the team to replace/)
 })
 
 test('pairing refuses a missing operator directory before falling back to a default pairing', async () => {

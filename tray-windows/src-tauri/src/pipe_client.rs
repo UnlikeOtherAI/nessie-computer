@@ -22,7 +22,7 @@ pub const SERVICE_NOT_RUNNING: &str =
     "the service is not running — start Nessie Computer in Services";
 
 pub const NOT_ADMITTED: &str =
-    "this Windows account can’t use the Nessie Computer service yet — connect a team to be admitted";
+    "this Windows account can’t use the Nessie Computer service yet — add this computer to a team to be admitted";
 
 /// The useful answers the service can give, plus an error it already worded.
 /// The tray never sees a path, a key, or a challenge unless it asked for a
@@ -176,7 +176,7 @@ fn local_route(command: &str, owned: Option<bool>) -> bool {
         "pairingStart" | "pairingStatus" | "pairingCancel"))
 }
 
-/// Connect a team runs under this account; a ChatGPT plan connection
+/// Add this computer runs under this account; a ChatGPT plan connection
 /// addresses service_control explicitly, without fallback.
 pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
     let command = request["command"].as_str().unwrap_or("");

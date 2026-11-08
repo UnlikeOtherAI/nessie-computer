@@ -13,7 +13,7 @@ Contract: `docs/plans/2026-11-08-nessie-computer.md` §3.2–3.3 (window), §5
 | Owner | Files | What they do |
 |---|---|---|
 | shell (E1) | `index.html`, `style.css`, `native.js`, `i18n.js`, `main.js` | the window, tokens, host transport, translations, `window.nc` |
-| shell (E1) | `errors*.js`, `teams*.js`, `overview.js`, `overview-summary.js`, `overview-words.js`, `pairing*.js`, `settings*.js`, `updates*.js` | failure translator, team state, Overview, Connect a team, Settings, Software updates |
+| shell (E1) | `errors*.js`, `teams*.js`, `overview.js`, `overview-summary.js`, `overview-words.js`, `pairing*.js`, `settings*.js`, `updates*.js` | failure translator, team state, Overview, Add this computer, Settings, Software updates |
 | Now working (E3) | `overview-working.js`, `overview-working-words.js` | the sessions running on this computer, their commands, Stop (contract §11.5) |
 | team tabs (E2) | `access*.js`, `documents*.js`, `ai*.js`, `chatgpt*.js`, `inference-endpoints.js`, `team-drafts.js`, `autosave.js` | render into `#tab-access`, `#tab-documents`, `#tab-ai`; inject their own dialogs; `ai-connection.js` is the Windows plan-connection dialog |
 
@@ -111,11 +111,17 @@ every script that loads after `main.js`.
   (reconnect the team). `openNessie` is handled in the window, which calls
   `executor_open_nessie { executorId }` itself.
 
-### Overview and Connect a team
+### Overview and Add this computer
 
 - `nc.overview.connected(executorId)` — shows the connected card for a team
-  that just paired (Connect a team calls it).
-- `nc.pairing.open()` — opens Connect a team and asks for a code straight away;
+  that just paired (Add this computer calls it).
+- `nc.pairing.open()` — opens Add this computer and asks
+  `https://api.nessie.works` for a code straight away (`tray://connect` and
+  the menus' "Add this computer…" land here). The countdown runs to the
+  server's `expiresAt`; an expired code stays visible with **Get a new code**,
+  and a refused request says why with **Try again**. The server address field
+  sits closed behind "Use your organisation's own Nessie server" and is filled
+  only when a waiting code belongs to such a server.
   `nc.pairing.restore()` reopens an attempt left waiting.
 - `nc.updates.onStatus(fn)` / `nc.updates.status()` — the update broker's
   latest status (Help shows the version from it).

@@ -2,6 +2,8 @@ import { approveExecutorPairingOrigin } from '@nessie/executor-protocol'
 
 import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, CliTimeout, CliUsageError, printJson, type CliContext } from './cli-output.js'
+import { codeLines, ENTER_THE_CODE, spacedCode } from './cli-pairing-words.js'
+import { retireMacLaunchAgent, startNewTeam } from './cli-team-runner.js'
 import { findPendingConnections, labelFor, selectTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { defaultExecutorWorkspaceFolders } from './default-workspace-folders.js'
@@ -11,13 +13,14 @@ import { localDevelopmentApiOrigin } from './pairing-origin.js'
 import { acquireExecutorProcessLease } from './process-lease.js'
 import { createExecutorServiceEnvironment, executorServiceStateRoot } from './service-environment.js'
 import { ensureOwnerOnlyStateDirectory } from './state-security.js'
-import { disableExecutorServiceIfPresent, enableExecutorService } from './service-linux.js'
-import { createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService } from './service-macos.js'
+import { disableExecutorServiceIfPresent } from './service-linux.js'
 
 /**
- * Connect a team and Disconnect, on the operations `login` and `unpair` use:
- * the pairing code client, the default pairing folder, and the Linux and
- * macOS services that run a command-line team in the background.
+ * Add this computer (`add`, and `connect` under its older name) and
+ * Disconnect, on the operations `login` and `unpair` use: the pairing code
+ * client and the default pairing folder. The new team is
+ * handed to whoever runs this computer's teams (`cli-team-runner.ts`): the
+ * app where it is installed, otherwise the command line's own service.
  */
 
 const POLL_MS = 3_000
@@ -29,31 +32,15 @@ const POLL_MS = 3_000
 const pairingLease = async (home: string) => acquireExecutorProcessLease(
   await ensureOwnerOnlyStateDirectory(executorServiceStateRoot(home)), 'pairing-operation.pid')
 
-const codeText = (code: string | undefined): string => (code ? `${code.slice(0, 4)} ${code.slice(4)}` : '')
-
 const label = (view: PairingCodeView): string => labelFor(
   { teamName: view.teamName ?? null, organizationName: view.organizationName ?? null },
   view.apiBaseUrl ? new URL(view.apiBaseUrl).host : '', [],
 )
 
-/** What runs a newly connected team: the user's systemd or launchd service, as `login` sets up. */
-const startService = async (context: CliContext, executorId: string): Promise<string> => {
-  if (context.platform === 'linux') {
-    await enableExecutorService({ executorId, assumeYes: true },
-      { ...createExecutorServiceEnvironment(), write: () => undefined })
-    return 'It starts at boot and keeps running after you log out.'
-  }
-  if (context.platform === 'darwin') {
-    await enableMacExecutorService({ executorId }, { ...createMacServiceEnvironment(), write: () => undefined })
-    return 'It runs in the background and starts when you log in.'
-  }
-  return ''
-}
-
 /** A pairing Nessie confirmed: moved to its own folder and started. */
 const finish = async (context: CliContext, directory: string, view: PairingCodeView): Promise<string> => {
   await promoteDefaultPairing(directory, view.executorId!)
-  return startService(context, view.executorId!)
+  return startNewTeam(context, view.executorId!)
 }
 
 export type PendingConnection = { code: string | null; expiresAt: string | null }
@@ -76,7 +63,7 @@ export const advancePendingConnections = async (context: CliContext): Promise<Pe
       if (view?.status === 'paired' && view.executorId) {
         const started = await finish(context, directory, view)
         context.err(`Connected to ${label(view)}. ${started}\n`)
-      } else if (view?.status === 'waiting') waiting.push({ code: codeText(view.code), expiresAt: view.expiresAt ?? null })
+      } else if (view?.status === 'waiting') waiting.push({ code: spacedCode(view.code), expiresAt: view.expiresAt ?? null })
     }
     return waiting
   } finally { await lease.release() }
@@ -84,16 +71,13 @@ export const advancePendingConnections = async (context: CliContext): Promise<Pe
 
 const connect = async (run: CliRun): Promise<void> => {
   const { context, options } = run
-  acceptOnly(options, 'connect', ['--server', '--no-wait'])
-  operands(options, 1, 0, 'connect')
-  if (context.platform === 'win32') {
-    throw new CliRefusal('CONNECT_IN_APP', 'On Windows, connect a team in the Nessie Computer app: open it and choose Connect a team.')
-  }
+  acceptOnly(options, 'add', ['--server', '--no-wait'])
+  operands(options, 1, 0, 'add')
   const approved = approveExecutorPairingOrigin(options.values.get('--server') ?? 'nessie', {
     allowLocalDevelopment: process.env.NESSIE_EXECUTOR_ALLOW_LOCAL_API === '1',
     localDevelopmentOrigin: localDevelopmentApiOrigin(),
   })
-  if (!approved.ok) throw new CliUsageError(approved.reason, 'connect')
+  if (!approved.ok) throw new CliUsageError(approved.reason, 'add')
   const lease = await pairingLease(context.home)
   try {
     const directory = await defaultPairingDirectory()
@@ -101,8 +85,7 @@ const connect = async (run: CliRun): Promise<void> => {
       replace: false, stateDir: directory, workspaceFolders: await defaultExecutorWorkspaceFolders() })
     if (view.status !== 'waiting') throw new CliRefusal('PAIRING_NOT_STARTED', 'Nessie didn\'t give a pairing code. Try again.')
     if (!options.json) {
-      context.out(`Pairing code: ${codeText(view.code)}   (valid for 10 minutes)\n`
-        + 'In Nessie, open Computers and choose Add a computer, then enter the code.\n')
+      context.out(codeLines(view.code, view.expiresAt, context.now()))
     }
     if (options.flags.has('--no-wait')) {
       if (options.json) printJson(context, { status: 'waiting', code: view.code, expiresAt: view.expiresAt })
@@ -115,9 +98,9 @@ const connect = async (run: CliRun): Promise<void> => {
       view = await pairingCodeStatus(directory)
     }
     if (view.status === 'expired') {
-      throw new CliTimeout('The pairing code expired before it was entered. Run nessie-computer connect for a new one.')
+      throw new CliTimeout('The code expired before it was entered. Run nessie-computer add for a new one.')
     }
-    if (view.status !== 'paired' || !view.executorId) throw new CliRefusal('PAIRING_CANCELLED', 'Nessie turned down this pairing.')
+    if (view.status !== 'paired' || !view.executorId) throw new CliRefusal('PAIRING_CANCELLED', 'Nessie didn\'t accept this computer.')
     const started = await finish(context, directory, view)
     if (options.json) {
       printJson(context, { status: 'paired', executorId: view.executorId, label: label(view),
@@ -140,16 +123,15 @@ const disconnect = async (run: CliRun): Promise<void> => {
       + 'here are deleted. Your own files stay. Type yes to continue: ')
     if (answer.trim().toLowerCase() !== 'yes') throw new CliRefusal('NOT_CONFIRMED', 'Nothing was changed.')
   }
-  const lease = team.cliService ? await pairingLease(context.home) : null
+  const cliService = team.route === 'local' && team.cliService
+  const lease = cliService ? await pairingLease(context.home) : null
   try {
-    if (team.cliService && context.platform === 'darwin') {
-      await disableMacExecutorService({ executorId: team.executorId }, createMacServiceEnvironment())
-    }
-    if (team.cliService && context.platform === 'linux') {
+    if (cliService && context.platform === 'darwin') await retireMacLaunchAgent(context, team.executorId)
+    if (cliService && context.platform === 'linux') {
       await disableExecutorServiceIfPresent({ executorId: team.executorId },
         { ...createExecutorServiceEnvironment(), write: () => undefined })
     }
-    const result = await run.unpair(team.stateDir).catch((error: unknown) => {
+    const result = await run.ops(team).remove().catch((error: unknown) => {
       if (error instanceof Error && error.message.startsWith('This connection is running.')) {
         throw new CliRefusal('TEAM_RUNNING', `Nessie Computer is running ${team.label}. `
           + 'Disconnect it in the app, or quit the app and try again.')
@@ -164,4 +146,8 @@ const disconnect = async (run: CliRun): Promise<void> => {
   } finally { await lease?.release() }
 }
 
-export const CONNECTING: Record<string, (run: CliRun) => Promise<void>> = { connect, disconnect }
+export const CONNECTING: Record<string, (run: CliRun) => Promise<void>> = { add: connect, disconnect }
+
+/** The status line for a code still waiting in Nessie. */
+export const waitingLine = (entry: PendingConnection): string => (entry.code
+  ? `Adding this computer: code ${entry.code}. ${ENTER_THE_CODE}` : 'Adding this computer: the code isn\'t ready yet.')

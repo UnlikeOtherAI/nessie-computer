@@ -4,9 +4,11 @@
 //! `NessieExecutor` service. The installer uses fixed setup modes:
 //! `--join-hyperv-administrators` puts the virtual service
 //! account into the Hyper-V Administrators alias, as a deferred custom action
-//! after the service is created. Both modes and nothing else — a control surface
-//! belongs on the pipe, where the DACL decides who reaches it. The state and
-//! updater setup modes establish their separate service-owned and SYSTEM roots.
+//! after the service is created. The state and updater setup modes establish
+//! their separate service-owned and SYSTEM roots. `--control` is the command
+//! line's client of the control pipe (`client.rs`): it runs as the person who
+//! typed the command, so the pipe's DACL still decides who reaches the service.
+//! A control surface belongs on the pipe, never on this executable's arguments.
 //!
 //! Everything except the Win32 modules also compiles and runs its tests on a
 //! non-Windows host, deliberately: the protocol's validation, the manifest
@@ -22,6 +24,7 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 #![cfg_attr(not(windows), allow(dead_code))]
 
+mod client;
 mod control;
 mod inference_connections;
 mod helper;
@@ -51,10 +54,11 @@ mod supervisor_run;
 
 const USAGE: &str = "nessie-executor-service runs as the Nessie Computer Windows service. \
                      Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal and --join-hyperv-administrators, \
-                     which the installer uses while registering the service.";
+                     which the installer uses while registering the service, and --control, which nessie-computer uses.";
 
 #[derive(Debug, PartialEq, Eq)]
 enum Mode {
+    Control,
     JoinHypervAdministrators,
     RunService,
     SecureStateRoot,
@@ -65,6 +69,7 @@ enum Mode {
 fn parse_mode(arguments: &[String]) -> Result<Mode, String> {
     match arguments {
         [] => Ok(Mode::RunService),
+        [only] if only == "--control" => Ok(Mode::Control),
         [only] if only == "--join-hyperv-administrators" => Ok(Mode::JoinHypervAdministrators),
         [only] if only == "--secure-state-root" => Ok(Mode::SecureStateRoot),
         [only] if only == "--secure-updater-root" => Ok(Mode::SecureUpdaterRoot),
@@ -128,6 +133,7 @@ fn main() {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match parse_mode(&arguments) {
         Ok(Mode::RunService) => service::run(),
+        Ok(Mode::Control) => client::run(),
         Ok(Mode::JoinHypervAdministrators) => hyperv::join_hyperv_administrators(),
         Ok(Mode::SecureStateRoot) => secure_state_root(),
         Ok(Mode::SecureUpdaterRoot) => configure_updater("update-install"),
@@ -162,7 +168,10 @@ mod tests {
             parse_mode(&["--secure-state-root".to_owned()]),
             Ok(Mode::SecureStateRoot)
         );
+        assert_eq!(parse_mode(&["--control".to_owned()]), Ok(Mode::Control));
         for arguments in [
+            vec!["--control".to_owned(), "status".to_owned()],
+            vec!["--control=status".to_owned()],
             vec!["--pair".to_owned()],
             vec!["status".to_owned()],
             vec![

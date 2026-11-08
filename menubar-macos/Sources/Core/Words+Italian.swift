@@ -40,6 +40,7 @@ enum ItalianWords {
         case .resume: return "Riprendi"
         case .allTeams: return "Tutti i team"
         case .openComputer: return "Apri Nessie Computer…"
+        case .addThisComputer: return "Aggiungi questo computer…"
         case .openNessie: return "Apri Nessie"
         case .quit: return "Esci da Nessie Computer"
         case .quitWhileWorking: return "Esci da Nessie Computer — gli agenti si fermano finché non lo riapri"
@@ -87,14 +88,16 @@ enum ItalianWords {
             return "Nessie non è riuscito a completare questo passaggio. Controlla la connessione e "
                 + "riprova."
         case .pairingCleanupRequired:
-            return "Rimuovi tutte le bozze locali e ferma tutte le sandbox, poi connetti di nuovo questo team."
+            return "Rimuovi tutte le bozze locali e ferma tutte le sandbox, poi aggiungi di nuovo questo computer "
+                + "al team."
         case .pairingCodeMissing: return "Nessie non è riuscito a fornire un codice di abbinamento. Riprova."
         case .existingTeamsUnreadable:
             return "Nessie Computer non è riuscito a controllare i team già presenti su questo Mac."
         case .existingTeamNeedsAttention: return "Un team su questo Mac richiede attenzione."
         case let .settingsStillOlder(attempts):
             return "Nessie considera ancora più vecchie le impostazioni di questo Mac dopo "
-                + "\(count(attempts, "tentativo", "tentativi")). Disconnetti questo team e connettilo di nuovo."
+                + "\(count(attempts, "tentativo", "tentativi")). Disconnetti questo team, "
+                + "poi aggiungi di nuovo questo computer."
         case .settingsNotProposed: return "Nessie Computer non è riuscito a inviare di nuovo queste impostazioni."
         case .planNameRequired: return "Dai un nome a questo piano ChatGPT."
         case .planCheckFailed: return "Impossibile controllare il piano ChatGPT. Riprova."

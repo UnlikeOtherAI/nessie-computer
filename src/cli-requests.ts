@@ -2,14 +2,13 @@ import { acceptOnly, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, printJson, type CliContext } from './cli-output.js'
 import { selectTeams, type LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
-import { answerProgramRequest } from './program-request-cli.js'
-import { listProgramRequests, type ProgramRequest, type ProgramRequestAnswer } from './program-requests.js'
-import { loadExecutorState } from './state-store.js'
+import type { ProgramRequest, ProgramRequestAnswer } from './program-requests.js'
 
 /**
  * `requests`: the program requests the Overview's "Needs you" list shows,
- * across every team, answered through `answerProgramRequest` — the function
- * `program-request answer` runs for the apps.
+ * across every team, answered as the apps answer them — `program-request
+ * answer` for a team in a state folder, the service's own answer for a team
+ * the Windows service runs (only the account that connected it may answer).
  */
 
 type TeamRequest = ProgramRequest & { agentName?: string; team: LabelledTeam }
@@ -18,8 +17,8 @@ const ANSWERS: Record<string, ProgramRequestAnswer> = { 'allow-once': 'once', al
 const WATCH_MS = 1_000
 const SHORT_ID = 8
 
-const requestsOf = async (teams: readonly LabelledTeam[]): Promise<TeamRequest[]> => (await Promise.all(
-  teams.map(async (team) => (await listProgramRequests(team.stateDir)).map((request) => ({ ...request, team })))))
+const requestsOf = async (run: CliRun, teams: readonly LabelledTeam[]): Promise<TeamRequest[]> => (await Promise.all(
+  teams.map(async (team) => (await run.ops(team).programRequests()).map((request) => ({ ...request, team })))))
   .flat().sort((left, right) => left.requestedAt.localeCompare(right.requestedAt))
 
 const waits = (request: ProgramRequest, now: Date): string => {
@@ -53,7 +52,7 @@ const watch = async (run: CliRun, teams: readonly LabelledTeam[], context: CliCo
   const seen = new Set<string>()
   if (!run.options.json) context.out('Watching for program requests. Press Ctrl+C to stop.\n')
   for (;;) {
-    for (const request of await requestsOf(teams)) {
+    for (const request of await requestsOf(run, teams)) {
       if (seen.has(request.id)) continue
       seen.add(request.id)
       if (run.options.json) context.out(`${JSON.stringify(asJson(request))}\n`)
@@ -67,12 +66,14 @@ const watch = async (run: CliRun, teams: readonly LabelledTeam[], context: CliCo
 export const runRequests = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'requests')
   const [action = 'list', id] = operands(run.options, 1, 2, 'requests')
-  const all = await run.teams()
+  // Every connection without --team, so a request on a team's ChatGPT plan connection is listed too.
+  const chosen = async () => (run.options.team === undefined ? run.connections()
+    : selectTeams(await run.teams(), run.options.team, 'requests', false))
   if (action === 'list' || action === 'watch') {
     if (id !== undefined) throw new CliUsageError(`requests ${action} takes no id.`, 'requests')
-    const teams = selectTeams(all, run.options.team, 'requests', true)
+    const teams = await chosen()
     if (action === 'watch') await watch(run, teams, run.context)
-    const requests = await requestsOf(teams)
+    const requests = await requestsOf(run, teams)
     if (run.options.json) printJson(run.context, requests.map(asJson))
     else run.context.out(requests.length ? `${table(requests, run.context.now())}\n` : 'No program requests are waiting.\n')
     return
@@ -80,11 +81,10 @@ export const runRequests = async (run: CliRun): Promise<void> => {
   const answer = ANSWERS[action]
   if (!answer) throw new CliUsageError(`requests has no "${action}". Use list, allow-once, always, deny or watch.`, 'requests')
   if (id === undefined) throw new CliUsageError(`Give the request id: nessie-computer requests ${action} <id>.`, 'requests')
-  const request = findRequest(await requestsOf(selectTeams(all, run.options.team, 'requests', true)), id)
-  const state = await loadExecutorState(request.team.stateDir)
-  let printed = ''
-  await answerProgramRequest(request.team.stateDir, state, { answer, id: request.id, json: false },
-    (text) => { printed += text })
+  const request = findRequest(await requestsOf(run, await chosen()), id)
+  await run.ops(request.team).answer(request, answer)
   if (run.options.json) printJson(run.context, { ...asJson(request), answer })
-  else run.context.out(printed)
+  else run.context.out(answer === 'once' ? `Allowed ${request.program} this once.\n`
+    : answer === 'always' ? `${request.program} is now always allowed for ${request.team.label}.\n`
+      : `${request.program} was not allowed.\n`)
 }

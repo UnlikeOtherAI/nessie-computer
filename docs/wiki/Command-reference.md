@@ -3,8 +3,8 @@
 Every command is `nessie-computer <command> [options]`. `nessie-executor` is
 the same command under its older name.
 
-On Windows, teams the app's background service runs can't be changed from the
-command line yet; use the Nessie Computer app for them.
+The commands reach every team on the computer: the ones the app runs, the ones
+the command line runs, and on Windows the ones the background service runs.
 
 Options every command accepts:
 
@@ -15,7 +15,7 @@ Options every command accepts:
 | `--help` | Help for this command, with examples. Same as `nessie-computer help <command>`. |
 
 Exit codes: `0` worked · `1` refused or failed (the message says why) · `2` the
-command was typed wrong · `3` waiting timed out (for example `connect`).
+command was typed wrong · `3` waiting timed out (for example `add`).
 
 ---
 
@@ -46,20 +46,25 @@ nessie-computer who [--team <team>] [--json]
 
 ---
 
-## Connecting
+## Adding this computer
 
-### `connect`
-Get a pairing code for a new team and wait until it's entered in Nessie.
+### `add`
+Add this computer to a team: get a code from Nessie and wait until it's entered
+under **Computers → Add a computer**, within 5 minutes. `connect` is the same
+command under its older name.
 
 ```sh
 nessie-computer add [--server <https://address>] [--no-wait] [--json]
 ```
-- `--server` — your organisation's own Nessie (default `https://api.nessie.works`).
+- `--server` — only for an organisation with its own Nessie (default `https://api.nessie.works`).
 - `--no-wait` — print the code and return; `status` shows when it's done.
 
-On Linux, a connected team starts at boot and keeps running after you log out.
-On a Mac it runs in the background and starts when you log in. On Windows,
-add this computer in the Nessie Computer app.
+Who runs the new team (see [Who runs your teams](Command-line#who-runs-your-teams)):
+
+- **Windows, or a Mac with the Nessie Computer app:** the app. `add` opens
+  it if it isn't open.
+- **A Mac without the app:** a background service that starts when you log in.
+- **Linux:** a service that starts at boot and keeps running after you log out.
 
 ### `disconnect`
 End a team's connection to this computer and delete its settings here. Your
@@ -68,7 +73,8 @@ own files stay as they are.
 ```sh
 nessie-computer disconnect --team <team> [--yes]
 ```
-Without `--yes` it asks first.
+Without `--yes` it asks first. A team the app is running is disconnected in the
+app, or after you quit it.
 
 ---
 
@@ -199,7 +205,9 @@ nessie-computer documents restore <id> [--team <team>]
 nessie-computer documents held       [--team <team>]       # large deletions waiting for you
 nessie-computer documents held restore|delete [--team <team>]
 ```
-`on` prints the Nessie page to open if Nessie asks you to allow it.
+`on` prints the Nessie page to open if Nessie asks you to allow it. On Windows,
+documents are kept only for teams connected under your own account, not for
+teams the background service runs.
 
 ---
 
@@ -216,8 +224,12 @@ nessie-computer ai plans disconnect <plan> [--team <team>]
 ```
 While a ChatGPT plan is signed in, agents can't open terminals or coding tools
 under your account. `add` and `sign-in` ask you to accept that first; `--yes`
-accepts it without asking. On Windows, manage ChatGPT plans in the Nessie
-Computer app.
+accepts it without asking.
+
+On Windows the Nessie Computer service keeps ChatGPT plans, as in the app. The
+first `add` for a team connects its ChatGPT plan connection: Windows asks you to
+allow it, then this computer shows one more code to enter in Nessie under
+**Computers → Add a computer**.
 
 ### `ai servers` — model servers
 ```sh
@@ -235,6 +247,7 @@ shell history.
 
 ```sh
 nessie-computer settings                       # everything below
+nessie-computer settings login [on|off]        # open Nessie Computer when I log in
 nessie-computer settings auto-restart [on|off] # restart a team if it stops
 nessie-computer settings updates               # version and update status
 nessie-computer settings updates check
@@ -242,10 +255,11 @@ nessie-computer settings updates install
 nessie-computer settings updates automatic on|off
 nessie-computer settings logs                  # prints where the logs are
 ```
-`auto-restart` covers the teams the command line runs as services (Linux, and
-Macs without the app). Teams the app runs follow **Restart a team if it stops**
-in its Settings; on Windows, change it there. **Open Nessie Computer when I log
-in** is set in the app.
+`login` and `auto-restart` are the app's **Open Nessie Computer when I log in**
+and **Restart a team if it stops**: change either here or in the app's
+Settings. Where no app runs the teams (Linux, and Macs without the app),
+`auto-restart` sets each command-line service, and `login` isn't available. The
+Windows background service always starts its own teams again.
 
 ---
 

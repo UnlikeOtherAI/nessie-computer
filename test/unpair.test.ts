@@ -67,7 +67,7 @@ test('a running connection, the home folder or a filesystem root is never remove
 })
 
 test('the CLI names the connection to remove', async () => {
-  await assert.rejects(runPairingCodeCli(['unpair'], 'linux'), /Choose the connection to remove/)
+  await assert.rejects(runPairingCodeCli(['unpair'], 'linux'), /Choose the team to remove/)
 })
 
 test('personal cleanup refusal preserves the pairing and releases its daemon lease', async () => {

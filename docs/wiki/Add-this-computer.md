@@ -36,8 +36,11 @@ Waiting for Nessie…
 Connected to Sales · Acme.
 ```
 
-`nessie-computer connect` does the same. On Linux the team then starts at boot
-and keeps running after you log out. See [Command line](Command-line#add-a-linux-server).
+`nessie-computer connect` does the same. Where the Nessie Computer app is
+installed (Windows, and Macs with the app), the app then runs the team. On a
+Mac without the app it runs in the background and starts when you log in; on
+Linux it starts at boot and keeps running after you log out. See
+[Who runs your teams](Command-line#who-runs-your-teams).
 
 ## Add it to another team
 

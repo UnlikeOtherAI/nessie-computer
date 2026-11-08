@@ -71,6 +71,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         let window = item(Word.openComputer.text(in: model.language), #selector(openWindow))
         menu.addItem(window)
+        menu.addItem(item(Word.addThisComputer.text(in: model.language), #selector(addThisComputer)))
         menu.addItem(item(Word.openNessie.text(in: model.language), #selector(openNessie)))
         menu.addItem(.separator())
         menu.addItem(item(model.quitTitle, #selector(quit), key: "q"))
@@ -132,6 +133,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func openWindow() {
         console.show(ConsoleTarget(section: .overview))
+    }
+
+    /// Opens the window straight onto a new pairing code, as Overview's
+    /// **Add this computer** does.
+    @objc private func addThisComputer() {
+        console.showConnect()
     }
 
     @objc private func openNessie() {

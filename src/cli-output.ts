@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { createInterface } from 'node:readline/promises'
 
@@ -35,6 +36,18 @@ export class CliTimeout extends Error {
 
 export const EXIT = { ok: 0, failed: 1, usage: 2, timedOut: 3 } as const
 
+/** What a program this command started said, and how it ended (`null`: it never ran). */
+export type HostResult = { code: number | null; stdout: string; stderr: string }
+
+/**
+ * Runs one of the computer's own programs — `reg`, `open`, `defaults`, the
+ * apps' own executables — and waits for it. Arguments are an array, never a
+ * shell line; `input` is written to its standard input.
+ */
+export type HostRun = (
+  file: string, args: readonly string[], options?: { input?: string; env?: Record<string, string> },
+) => Promise<HostResult>
+
 /** Everything a command reads from or writes to the outside world, so a test can stand in for it. */
 export type CliContext = {
   out: (text: string) => void
@@ -47,7 +60,23 @@ export type CliContext = {
   home: string
   now: () => Date
   sleep: (milliseconds: number) => Promise<void>
+  run: HostRun
 }
+
+const HOST_OUTPUT_LIMIT = 1_048_576
+
+export const runHostProgram: HostRun = (file, args, options = {}) => new Promise((settle) => {
+  const child = spawn(file, [...args], { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
+    ...(options.env ? { env: { ...process.env, ...options.env } } : {}) })
+  let stdout = ''
+  let stderr = ''
+  child.stdout.setEncoding('utf8').on('data', (chunk: string) => { stdout = `${stdout}${chunk}`.slice(0, HOST_OUTPUT_LIMIT) })
+  child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr = `${stderr}${chunk}`.slice(-HOST_OUTPUT_LIMIT) })
+  child.once('error', () => settle({ code: null, stdout, stderr }))
+  child.once('close', (code) => settle({ code, stdout, stderr }))
+  child.stdin.once('error', () => undefined)
+  child.stdin.end(options.input ?? '')
+})
 
 export const processContext = (): CliContext => ({
   out: (text) => { process.stdout.write(text) },
@@ -62,6 +91,7 @@ export const processContext = (): CliContext => ({
   home: homedir(),
   now: () => new Date(),
   sleep: (milliseconds) => new Promise((finish) => setTimeout(finish, milliseconds)),
+  run: runHostProgram,
 })
 
 /** One JSON document on standard output. */

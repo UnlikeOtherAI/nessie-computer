@@ -119,12 +119,12 @@
     <details id="connect-advanced">
       <summary id="connect-advanced-summary"></summary>
       <label for="pairing-server" id="pairing-server-label"></label>
-      <input id="pairing-server" type="url" value="https://api.nessie.works" required aria-describedby="pairing-server-hint" aria-errormessage="pairing-server-error">
+      <input id="pairing-server" type="url" required aria-describedby="pairing-server-hint" aria-errormessage="pairing-server-error">
       <p id="pairing-server-hint" class="hint"></p>
       <p id="pairing-server-error" class="field-error" role="alert" hidden></p>
       <div class="actions start"><button id="pairing-server-use"></button></div>
     </details>
-    <p class="dialog-error" role="alert" hidden></p>
+    <p id="pairing-error" class="dialog-error" role="alert" hidden></p>
     <div class="actions">
       <button id="pairing-stop"></button>
       <button id="pairing-renew" class="primary" hidden></button>

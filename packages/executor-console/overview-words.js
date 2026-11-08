@@ -1,8 +1,8 @@
 // Overview words: welcome, Needs you, team cards, the access summary and the connected card.
 window.nc.words.register('overview', {
   'en-GB': {
-    welcome: 'Nessie Computer lets agents in your Nessie team use this computer. Nothing is shared until you connect a team.',
-    needsYou: 'Needs you', teams: 'Teams', connect: 'Connect a team', changeAccess: 'Change access',
+    welcome: 'Nessie Computer lets agents in your Nessie team use this computer. Nothing is shared until you add this computer to a team.',
+    needsYou: 'Needs you', teams: 'Teams', addComputer: 'Add this computer', changeAccess: 'Change access',
     request: '{agent} wants to run {program}', requestNoAgent: 'An agent wants to run {program}', inTeam: 'in {team}',
     allowOnce: 'Allow once', allowAlways: 'Always allow {program}', deny: 'Don’t allow',
     documentsNeedYou: 'Documents for {team} need you: {reason}', openDocuments: 'Open Documents',
@@ -21,8 +21,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Connected to {team}', connectedBody: 'Agents in this team can now use: {summary}.', unexpected: 'Didn’t expect this?',
   },
   'en-US': {
-    welcome: 'Nessie Computer lets agents in your Nessie team use this computer. Nothing is shared until you connect a team.',
-    needsYou: 'Needs you', teams: 'Teams', connect: 'Connect a team', changeAccess: 'Change access',
+    welcome: 'Nessie Computer lets agents in your Nessie team use this computer. Nothing is shared until you add this computer to a team.',
+    needsYou: 'Needs you', teams: 'Teams', addComputer: 'Add this computer', changeAccess: 'Change access',
     request: '{agent} wants to run {program}', requestNoAgent: 'An agent wants to run {program}', inTeam: 'in {team}',
     allowOnce: 'Allow once', allowAlways: 'Always allow {program}', deny: 'Don’t allow',
     documentsNeedYou: 'Documents for {team} need you: {reason}', openDocuments: 'Open Documents',
@@ -41,8 +41,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Connected to {team}', connectedBody: 'Agents in this team can now use: {summary}.', unexpected: 'Didn’t expect this?',
   },
   cs: {
-    welcome: 'Nessie Computer umožní agentům vašeho týmu v Nessie používat tento počítač. Dokud nepřipojíte tým, nesdílí se nic.',
-    needsYou: 'Potřebuje vás', teams: 'Týmy', connect: 'Připojit tým', changeAccess: 'Změnit přístup',
+    welcome: 'Nessie Computer umožní agentům vašeho týmu v Nessie používat tento počítač. Dokud tento počítač nepřidáte do týmu, nesdílí se nic.',
+    needsYou: 'Potřebuje vás', teams: 'Týmy', addComputer: 'Přidat tento počítač', changeAccess: 'Změnit přístup',
     request: '{agent} chce spustit {program}', requestNoAgent: 'Agent chce spustit {program}', inTeam: 'v týmu {team}',
     allowOnce: 'Povolit jednou', allowAlways: 'Vždy povolit {program}', deny: 'Nepovolit',
     documentsNeedYou: 'Dokumenty týmu {team} vás potřebují: {reason}', openDocuments: 'Otevřít Dokumenty',
@@ -61,8 +61,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Připojeno k týmu {team}', connectedBody: 'Agenti tohoto týmu teď mohou používat: {summary}.', unexpected: 'Nečekali jste to?',
   },
   de: {
-    welcome: 'Mit Nessie Computer können Agenten Ihres Nessie-Teams diesen Computer nutzen. Bis Sie ein Team verbinden, wird nichts geteilt.',
-    needsYou: 'Braucht Sie', teams: 'Teams', connect: 'Team verbinden', changeAccess: 'Zugriff ändern',
+    welcome: 'Mit Nessie Computer können Agenten Ihres Nessie-Teams diesen Computer nutzen. Bis Sie diesen Computer einem Team hinzufügen, wird nichts geteilt.',
+    needsYou: 'Braucht Sie', teams: 'Teams', addComputer: 'Diesen Computer hinzufügen', changeAccess: 'Zugriff ändern',
     request: '{agent} möchte {program} ausführen', requestNoAgent: 'Ein Agent möchte {program} ausführen', inTeam: 'in {team}',
     allowOnce: 'Einmal erlauben', allowAlways: '{program} immer erlauben', deny: 'Nicht erlauben',
     documentsNeedYou: 'Die Dokumente von {team} brauchen Sie: {reason}', openDocuments: 'Dokumente öffnen',
@@ -81,8 +81,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Mit {team} verbunden', connectedBody: 'Agenten dieses Teams können jetzt nutzen: {summary}.', unexpected: 'Nicht erwartet?',
   },
   es: {
-    welcome: 'Nessie Computer permite a los agentes de tu equipo de Nessie usar este ordenador. No se comparte nada hasta que conectes un equipo.',
-    needsYou: 'Te necesita', teams: 'Equipos', connect: 'Conectar un equipo', changeAccess: 'Cambiar acceso',
+    welcome: 'Nessie Computer permite a los agentes de tu equipo de Nessie usar este ordenador. No se comparte nada hasta que añadas este ordenador a un equipo.',
+    needsYou: 'Te necesita', teams: 'Equipos', addComputer: 'Añadir este ordenador', changeAccess: 'Cambiar acceso',
     request: '{agent} quiere ejecutar {program}', requestNoAgent: 'Un agente quiere ejecutar {program}', inTeam: 'en {team}',
     allowOnce: 'Permitir una vez', allowAlways: 'Permitir siempre {program}', deny: 'No permitir',
     documentsNeedYou: 'Los documentos de {team} te necesitan: {reason}', openDocuments: 'Abrir Documentos',
@@ -101,8 +101,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Conectado a {team}', connectedBody: 'Los agentes de este equipo ya pueden usar: {summary}.', unexpected: '¿No lo esperabas?',
   },
   fr: {
-    welcome: 'Nessie Computer permet aux agents de votre équipe Nessie d’utiliser cet ordinateur. Rien n’est partagé tant que vous ne connectez pas d’équipe.',
-    needsYou: 'Besoin de vous', teams: 'Équipes', connect: 'Connecter une équipe', changeAccess: 'Modifier l’accès',
+    welcome: 'Nessie Computer permet aux agents de votre équipe Nessie d’utiliser cet ordinateur. Rien n’est partagé tant que vous n’ajoutez pas cet ordinateur à une équipe.',
+    needsYou: 'Besoin de vous', teams: 'Équipes', addComputer: 'Ajouter cet ordinateur', changeAccess: 'Modifier l’accès',
     request: '{agent} veut lancer {program}', requestNoAgent: 'Un agent veut lancer {program}', inTeam: 'dans {team}',
     allowOnce: 'Autoriser une fois', allowAlways: 'Toujours autoriser {program}', deny: 'Refuser',
     documentsNeedYou: 'Les documents de {team} ont besoin de vous : {reason}', openDocuments: 'Ouvrir Documents',
@@ -121,8 +121,8 @@ window.nc.words.register('overview', {
     connectedTitle: 'Connecté à {team}', connectedBody: 'Les agents de cette équipe peuvent maintenant utiliser : {summary}.', unexpected: 'Vous ne vous y attendiez pas ?',
   },
   it: {
-    welcome: 'Nessie Computer permette agli agenti del tuo team Nessie di usare questo computer. Nulla viene condiviso finché non connetti un team.',
-    needsYou: 'Ha bisogno di te', teams: 'Team', connect: 'Connetti un team', changeAccess: 'Cambia accesso',
+    welcome: 'Nessie Computer permette agli agenti del tuo team Nessie di usare questo computer. Nulla viene condiviso finché non aggiungi questo computer a un team.',
+    needsYou: 'Ha bisogno di te', teams: 'Team', addComputer: 'Aggiungi questo computer', changeAccess: 'Cambia accesso',
     request: '{agent} vuole eseguire {program}', requestNoAgent: 'Un agente vuole eseguire {program}', inTeam: 'in {team}',
     allowOnce: 'Consenti una volta', allowAlways: 'Consenti sempre {program}', deny: 'Non consentire',
     documentsNeedYou: 'I documenti di {team} hanno bisogno di te: {reason}', openDocuments: 'Apri Documenti',

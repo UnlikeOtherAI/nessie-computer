@@ -24,6 +24,23 @@ public enum ExecutorStateDiscovery {
         }
     }
 
+    /// Teams found in `directories` that this app does not run yet: a team the
+    /// command line connected while the app was open. Only a finished pairing
+    /// counts; an attempt still showing its code belongs to whoever started it,
+    /// which moves it to its own folder once Nessie accepts it.
+    public static func unclaimedTeams(
+        in directories: [String],
+        known: [String],
+        fileManager: FileManager = .default
+    ) -> [String] {
+        let claimed = Set(known.map { ($0 as NSString).standardizingPath })
+        return directories.filter { directory in
+            !claimed.contains((directory as NSString).standardizingPath)
+                && fileManager.fileExists(atPath: (directory as NSString).appendingPathComponent("executor-state.json"))
+                && !pendingAttemptBlocksStart(in: directory, fileManager: fileManager)
+        }
+    }
+
     public static func resolve(
         preferredDirectory: String,
         legacyRoots: [String],

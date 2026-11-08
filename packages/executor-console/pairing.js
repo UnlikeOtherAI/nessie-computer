@@ -1,6 +1,7 @@
-// Connect a team. Opening the dialog asks Nessie for a code straight away;
+// Add this computer. Opening the dialog asks Nessie for a code straight away;
 // the person types it in Nessie under Computers › Add a computer, and the
-// claim there finishes the pairing. The computer asks nothing else.
+// claim there finishes the pairing. The computer asks nothing else, and the
+// server address stays behind "Use your organisation's own Nessie server".
 (() => {
   const nc = window.nc
   const { byId, invoke, t, attempt } = nc
@@ -18,11 +19,14 @@
   const expired = (status) => status?.status === 'expired'
     || (status?.status === 'waiting' && Boolean(status.expiresAt) && Date.parse(status.expiresAt) <= Date.now())
   const announce = (text) => { byId('pairing-announce').textContent = text }
-  const server = () => view?.apiBaseUrl ?? byId('pairing-server').value ?? DEFAULT_SERVER
+  /** The server the current attempt asked: a new code goes to the same one. */
+  const server = () => view?.apiBaseUrl || DEFAULT_SERVER
+  const ownServer = (address) => Boolean(address) && address !== DEFAULT_SERVER
 
   const render = (next) => {
     const gone = expired(next)
     const nextStep = gone ? 'expired' : next.status
+    const failed = next.status === 'failed'
     const changed = nextStep !== step
     step = nextStep
     view = next
@@ -34,7 +38,9 @@
     byId('copy-code').hidden = gone
     byId('copy-code').textContent = t('pairing.copy')
     byId('pairing-instruction').textContent = gone ? t('pairing.expired') : showing ? t('pairing.instruction') : ''
-    byId('pairing-renew').hidden = !gone
+    // A code that ran out, or a request that failed, offers one button that asks again.
+    byId('pairing-renew').hidden = !gone && !failed
+    byId('pairing-renew').textContent = t(failed ? 'shell.tryAgain' : 'pairing.newCode')
     byId('pairing-open-nessie').hidden = !showing || gone
     tick()
     if (showing && changed && byId('connect-dialog').open) {
@@ -86,16 +92,19 @@
     }
   }, { target })
 
-  const start = (apiBaseUrl, button, target) => run(button, t('pairing.getting'), async () => {
+  /**
+   * Asks for a code. A refusal is said in the dialog with Try again; it never
+   * opens the server address, which only an organisation's own Nessie needs.
+   */
+  const start = (apiBaseUrl, button) => run(button, t('pairing.getting'), async () => {
     render({ status: 'getting' })
     try {
       return await invoke('executor_pairing_start', { apiBaseUrl })
     } catch (error) {
-      render({ status: 'idle' })
-      byId('connect-advanced').open = true
+      render({ status: 'failed', apiBaseUrl })
       throw error
     }
-  }, target)
+  }, 'pairing-error')
 
   const cancel = (button) => run(button, t('shell.cancel'), async () => {
     attemptId += 1
@@ -106,11 +115,13 @@
 
   /** Opens the dialog and asks for a code at once, unless a code is already waiting. */
   const openDialog = async () => {
-    byId('pairing-server').value = view?.apiBaseUrl ?? DEFAULT_SERVER
-    byId('connect-advanced').open = false
+    // The address shows only for a code already waiting on an organisation's own server.
+    const custom = open(view) && ownServer(view.apiBaseUrl)
+    byId('pairing-server').value = custom ? view.apiBaseUrl : ''
+    byId('connect-advanced').open = custom
     nc.dialogs.open('connect-dialog')
     if (open(view)) { render(view); return }
-    await start(DEFAULT_SERVER, null, 'pairing-server')
+    await start(DEFAULT_SERVER, null)
   }
   /** An attempt left open when the app last closed reopens its dialog. */
   const restore = async () => {
@@ -131,6 +142,7 @@
   byId('pairing-server-label').textContent = t('pairing.serverLabel')
   byId('pairing-server-hint').textContent = t('pairing.serverHint')
   byId('pairing-server-use').textContent = t('pairing.useServer')
+  byId('pairing-server').placeholder = 'https://nessie.example.com'
 
   byId('pairing-server-use').onclick = () => {
     const address = byId('pairing-server').value.trim()
@@ -154,6 +166,7 @@
   byId('pairing-stop').onclick = () => cancel(byId('pairing-stop'))
   byId('pairing-renew').onclick = () => {
     const address = server()
+    if (step === 'failed') { start(address, byId('pairing-renew')); return }
     run(byId('pairing-renew'), t('pairing.getting'), async () => {
       // A pairing Nessie already accepted is finished, not replaced.
       const current = await invoke('executor_pairing_status')
