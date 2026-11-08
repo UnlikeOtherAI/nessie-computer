@@ -52,7 +52,9 @@ export type ParsedCommand =
     vmHelperPath: string
   }
   | { kind: 'connect'; stateDir: string }
-  | { json: boolean; kind: 'pause' | 'resume' | 'program-requests'; stateDir: string }
+  | { json: boolean; kind: 'pause'; stateDir: string }
+  | { json: boolean; kind: 'resume'; stateDir: string }
+  | { json: boolean; kind: 'program-requests'; stateDir: string }
   | { answer: ProgramRequestAnswer; id: string; json: boolean; kind: 'program-request-answer'; stateDir: string }
   | { kind: 'serve-direct-local-inference' }
   | { kind: 'describe'; stateDir: string }
