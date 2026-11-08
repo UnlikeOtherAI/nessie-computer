@@ -14,7 +14,7 @@ Commands follow the window:
 
 | Window | Command |
 |---|---|
-| Overview | `nessie-computer status`, `teams`, `who` |
+| Overview | `nessie-computer status`, `teams` |
 | Settings → Help | `nessie-computer help`, `--version` |
 | Add this computer / Disconnect | `nessie-computer add`, `disconnect` |
 | Pause / Resume | `nessie-computer pause`, `resume` |

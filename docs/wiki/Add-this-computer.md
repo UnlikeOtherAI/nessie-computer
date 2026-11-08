@@ -79,5 +79,4 @@ choose **Disconnect…** on that team's card. Nothing else on the computer chang
 ## Next
 
 - [What agents can use](What-agents-can-use)
-- [Who can send work here](Who-can-send-work-here)
 - [Several teams on one computer](Several-teams-on-one-computer)

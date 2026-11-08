@@ -112,8 +112,7 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .team-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
 .team-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .team-card h3 { overflow-wrap: anywhere; min-width: 0; }
-.team-summary, .team-plan, .team-audience { margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
-.team-audience .label-inline { color: var(--text); }
+.team-summary, .team-plan { margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 .status-word { font-weight: 600; white-space: nowrap; }
 .status-word::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--control); vertical-align: 0; }
 .status-word[data-tone=working]::before { background: var(--on); }
@@ -201,4 +200,4 @@ details.access-developers summary { cursor: pointer; font-weight: 600; padding: 
 
 /* Content text is selectable; controls are not. */
 button, [role=tab], select, summary, .switch, .toggle, .tabs, label, footer { -webkit-user-select: none; user-select: none; }
-input, textarea, output, pre, code, p, h1, h2, h3, li, .team-summary, .team-audience, .command { -webkit-user-select: text; user-select: text; }
+input, textarea, output, pre, code, p, h1, h2, h3, li, .team-summary, .command { -webkit-user-select: text; user-select: text; }

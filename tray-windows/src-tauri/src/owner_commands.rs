@@ -175,14 +175,6 @@ pub async fn executor_apply_remedy(app: AppHandle, executor_id: String, remedy: 
 }
 
 #[tauri::command]
-pub async fn executor_audience(executor_id: String) -> Result<serde_json::Value, String> {
-    blocking(move || match call(&serde_json::json!({ "command": "audience", "executorId": executor_id }))? {
-        ServiceResponse::Audience(audience) => Ok(audience),
-        _ => Err(UNREADABLE.to_owned()),
-    }).await
-}
-
-#[tauri::command]
 pub async fn executor_program_requests(executor_id: Option<String>) -> Result<Vec<TeamRequest>, String> {
     blocking(move || match executor_id {
         Some(executor_id) => program_requests_for(&executor_id),

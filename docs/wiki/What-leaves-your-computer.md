@@ -35,4 +35,4 @@ on the internet can connect in. This page lists what it sends, and what stays.
 ## Who can see what you send
 
 Only people your team's settings in Nessie allow. A computer is yours alone
-until you share it. See [Who can send work here](Who-can-send-work-here).
+until you share it on its page in Nessie.

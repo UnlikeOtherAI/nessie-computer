@@ -118,8 +118,6 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
             )
             return try JSONSerialization.jsonObject(with: data)
         case "executor_remove": return try await remove(controller)
-        case "executor_audience":
-            return try await json(ExecutorCLI.audience(stateDirectory: directory), controller: controller)
         case "executor_apply_remedy":
             guard let remedy = (args["remedy"] as? String).flatMap(NativeRemedy.init(rawValue:)) else {
                 throw ExecutorRefusal(.invalidRequest)

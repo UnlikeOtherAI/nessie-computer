@@ -47,7 +47,9 @@ const displayName = (value: unknown): string | null => {
 }
 
 /** Names Nessie gave, held to what a label may show; null when there is no organisation name. */
-export const teamDisplayNames = (value: { organizationName?: unknown; teamName?: unknown }): TeamDisplayNames | null => {
+export const teamDisplayNames = (
+  value: { organizationName?: unknown; teamName?: unknown },
+): TeamDisplayNames | null => {
   const organizationName = displayName(value.organizationName)
   return organizationName ? { organizationName, teamName: displayName(value.teamName) } : null
 }

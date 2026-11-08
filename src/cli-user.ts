@@ -43,7 +43,7 @@ export type CliRun = {
 
 type Handler = (run: CliRun) => Promise<void>
 
-const USER_COMMANDS = new Set(['help', 'status', 'teams', 'who', 'add', 'connect', 'disconnect', 'pause', 'resume',
+const USER_COMMANDS = new Set(['help', 'status', 'teams', 'add', 'connect', 'disconnect', 'pause', 'resume',
   'access', 'requests', 'sessions', 'documents', 'ai', 'settings'])
 
 /** A team's state folder on the command line marks a plumbing verb, which the apps call. */
@@ -74,7 +74,7 @@ const commandOf = (words: readonly string[]): string => {
 
 const handlers = async (command: string): Promise<Handler | undefined> => {
   const group = command.split(' ')[0]
-  if (['status', 'teams', 'who', 'pause', 'resume'].includes(command)) return (await import('./cli-overview.js')).OVERVIEW[command]
+  if (['status', 'teams', 'pause', 'resume'].includes(command)) return (await import('./cli-overview.js')).OVERVIEW[command]
   if (command === 'add' || command === 'disconnect') return (await import('./cli-connect.js')).CONNECTING[command]
   if (command === 'access programs') return (await import('./cli-access-programs.js')).runAccessPrograms
   if (command === 'access local-apps') return (await import('./cli-access-local-apps.js')).runAccessLocalApps

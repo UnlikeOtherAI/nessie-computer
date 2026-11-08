@@ -65,7 +65,9 @@ const askBatch = async (
 }
 
 /** A team's names from an older Nessie, through the connection read it already answers. */
-const askConnection = async (api: TeamNamesApi, source: TeamNameSource, now: Date): Promise<TeamDisplayNames | null> => {
+const askConnection = async (
+  api: TeamNamesApi, source: TeamNameSource, now: Date,
+): Promise<TeamDisplayNames | null> => {
   const payload = { executorId: source.state.executorId, timestamp: now.toISOString() }
   const claim = ExecutorPairingClaimSchema.parse(await api.pairing(source.state.apiBaseUrl, 'connection', {
     ...payload, signature: pairingSignature(source.state.machinePrivateKey, 'connection', payload),

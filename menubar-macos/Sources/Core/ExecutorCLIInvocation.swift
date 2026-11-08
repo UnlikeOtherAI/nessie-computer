@@ -104,11 +104,6 @@ public enum ExecutorCLI {
         ExecutorCLIInvocation(arguments: ["resume", "--state-dir", stateDirectory])
     }
 
-    /// Who can send work here: the agents, people and projects Nessie reports.
-    public static func audience(stateDirectory: String) -> ExecutorCLIInvocation {
-        ExecutorCLIInvocation(arguments: ["audience", "--state-dir", stateDirectory, "--json"])
-    }
-
     /// The open program requests: `[{ id, program, args, agentName?, requestedAt, expiresAt }]`.
     public static func programRequests(stateDirectory: String) -> ExecutorCLIInvocation {
         ExecutorCLIInvocation(arguments: ["program-requests", "--state-dir", stateDirectory, "--json"])

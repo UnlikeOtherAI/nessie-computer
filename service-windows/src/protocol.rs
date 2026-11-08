@@ -3,8 +3,8 @@
 //! The tray is a stateless client of the CLI, so the protocol exposes the
 //! commands it needs: `status`, `pair`, `start`, `stop`, `describe`,
 //! `configureInput`, `remove`, and the owner's own controls — `setPaused`,
-//! `programRequests`, `answerProgramRequest`, `sessions`, `stopSession` and
-//! `audience`. `describe`
+//! `programRequests`, `answerProgramRequest`, `sessions` and `stopSession`.
+//! `describe`
 //! returns the same credential-free JSON the CLI prints; `configureInput` carries the whole stdin payload for
 //! `configure --configuration-input-stdin`; `remove` runs the CLI's `unpair`
 //! and answers only whether Nessie heard the sign-off. This keeps the tray from
@@ -85,9 +85,6 @@ pub enum Command {
     StopSession {
         executor_id: String,
         session_id: String,
-    },
-    Audience {
-        executor_id: String,
     },
     Start {
         executor_id: String,
@@ -185,9 +182,6 @@ enum Request {
         executor_id: String,
         session_id: String,
     },
-    Audience {
-        executor_id: String,
-    },
     Start {
         executor_id: String,
     },
@@ -259,9 +253,6 @@ pub enum Response {
     /// `sessions --json` as the CLI printed it, checked by `owner_sessions::parse_sessions`.
     Sessions {
         sessions: Vec<serde_json::Value>,
-    },
-    Audience {
-        audience: serde_json::Value,
     },
 }
 
@@ -412,9 +403,6 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             }
             Ok(Command::StopSession { executor_id: identifier(executor_id, "team id")?, session_id })
         }
-        Request::Audience { executor_id } => Ok(Command::Audience {
-            executor_id: identifier(executor_id, "team id")?,
-        }),
         Request::Start { executor_id } => Ok(Command::Start {
             executor_id: identifier(executor_id, "team id")?,
         }),

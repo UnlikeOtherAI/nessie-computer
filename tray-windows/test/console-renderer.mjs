@@ -139,8 +139,8 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 2)
     await page.getByRole('button', { name: 'Done', exact: true }).click()
     const card = (team) => page.locator('.team-card', { hasText: team })
-    await card('Research · UnlikeOtherAI').locator('.team-audience-text').getByText('Agents: Jev · People: Ondrej').waitFor()
     await card('Research · UnlikeOtherAI').locator('.team-summary').getByText('1 folder · any program · no local apps · 1 website').waitFor()
+    assert.equal(await page.locator('.team-audience').count(), 0, 'cards no longer say who can send work here')
     await card('Research · UnlikeOtherAI').getByRole('button', { name: 'Pause', exact: true }).click()
     await card('Research · UnlikeOtherAI').locator('.status-word').getByText('Paused').waitFor()
     assert.deepEqual((await lastCall(page, 'executor_set_paused')).args, { executorId: 'team-1', paused: true })
@@ -348,7 +348,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
   // Dark follows the OS; the same tokens, no white page.
   {
     const { context, page, errors, shot } = await open({ host: 'windows', dark: true, paired: 2 })
-    await page.locator('#team-cards .team-card .team-audience-text').first().getByText('Agents: Jev').waitFor()
+    await page.locator('#team-cards .team-card .team-summary').first().getByText(/folder/).waitFor()
     assert.notEqual(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), 'rgb(255, 255, 255)')
     await shot('overview-dark')
     await page.getByRole('button', { name: 'Add this computer', exact: true }).click()
@@ -396,7 +396,7 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     await page.evaluate(() => window.claimInNessie())
     await page.waitForFunction(() => document.querySelectorAll('#team-cards .team-card').length === 2)
     await page.getByRole('button', { name: /Done|Hotovo/, exact: true }).click()
-    await page.locator('#team-cards .team-card .team-audience-text').nth(1).getByText(/Jev/).waitFor()
+    await page.locator('#team-cards .team-card .team-summary').nth(1).getByText(/folder|složk/).waitFor()
     await shot(`overview-two-teams${suffix}`)
     await showTab(page, 'settings')
     await page.locator('#update-version').getByText('1.0.0', { exact: true }).waitFor()

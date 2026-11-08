@@ -339,7 +339,6 @@ fn main() {
             commands::executor_view,
             owner_commands::executor_set_paused,
             owner_commands::executor_apply_remedy,
-            owner_commands::executor_audience,
             owner_commands::executor_program_requests,
             owner_commands::executor_answer_program_request,
             owner_commands::executor_sessions,

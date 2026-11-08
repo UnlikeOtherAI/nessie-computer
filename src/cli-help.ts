@@ -62,7 +62,6 @@ export const PLUMBING_HELP = [
   '  nessie-computer pause|resume --state-dir <dir> [--json]',
   '  nessie-computer program-requests --state-dir <dir> [--json]',
   '  nessie-computer program-request answer --state-dir <dir> --id <request-id> --answer once|always|deny [--json]',
-  '  nessie-computer audience --state-dir <dir> [--json]',
   '  nessie-computer sessions --state-dir <dir> [--json]',
   '  nessie-computer session stop --state-dir <dir> --id <session-id> [--json]',
   '  nessie-computer sync (--executor <id>|--state-dir <dir>) [on|off|pause|resume|status|verify|trash|resolve|',

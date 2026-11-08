@@ -19,7 +19,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
   window.requests = []
   window.remedies = []
   window.syncStates = {}
-  window.audiences = {}
   window.sessions = [] // §11.5: [{ executorId, sessionId, agentName?, startedAt, commands: [{ id, kind, status, … }] }]
   window.stopped = []
   window.enabled = false
@@ -55,8 +54,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       mcpServers: [{ name: 'my-tool', command: ['node', 'my-tool.js'] }],
       ...(legacy ? {} : { mcpPolicy: { mode: 'installed', disabled: [] }, discovered: discovered.map((app) => ({ ...app })) }),
     }
-    window.audiences[executorId] = { agents: [{ id: 'a1', name: 'Jev' }], everyoneInTeam: false,
-      people: [{ name: 'Ondrej', isOwner: true }], peopleCount: 1, projects: [], observedAt: new Date().toISOString() }
     return executorId
   }
   // On Windows the team's ChatGPT plans live on a second, service-owned connection to the same team.
@@ -228,10 +225,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       delete row.failure
       row.daemonStatus = 'running'
       return view()
-    }
-    if (command === 'executor_audience') {
-      if (window.audienceOffline) throw new Error('offline')
-      return window.audiences[id]
     }
     if (command === 'executor_program_requests') return window.requests.filter((request) => !id || request.executorId === id)
     if (command === 'executor_sessions') {

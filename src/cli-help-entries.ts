@@ -14,7 +14,7 @@ export type HelpEntry = {
 }
 
 export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
-  { title: 'Overview', commands: ['status', 'teams', 'who'] },
+  { title: 'Overview', commands: ['status', 'teams'] },
   { title: 'Adding this computer', commands: ['add', 'disconnect'] },
   { title: 'Pausing', commands: ['pause', 'resume'] },
   { title: 'Access', commands: ['access show', 'access folders', 'access programs', 'access websites',
@@ -46,12 +46,6 @@ export const HELP_ENTRIES: HelpEntry[] = [
     usage: ['nessie-computer teams [--json]'],
     notes: ['Names are kept on this computer and read again from Nessie once they are an hour old.'],
     examples: ['nessie-computer teams', 'nessie-computer teams --json'],
-  },
-  {
-    command: 'who', summary: 'Who can send work to this computer for a team: agents, people and projects.',
-    usage: ['nessie-computer who [--team <team>] [--json]'],
-    notes: ['Read from Nessie each time; nothing is stored.'],
-    examples: ['nessie-computer who --team "Sales · Acme"'],
   },
   {
     command: 'add', summary: 'Add this computer to a team: show a code and wait until it\'s entered in Nessie.',

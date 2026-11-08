@@ -73,7 +73,6 @@ service's ChatGPT plan connection to the same team pause together.
 | `executor_view` | — | `{ kind: 'reachable', executors: [Row] }` or `{ kind: 'unreachable', reason }` |
 | `executor_set_paused` | `{ executorId: string \| null, paused }` | the new view; a team id pauses every connection of that team |
 | `executor_apply_remedy` | `{ executorId, remedy: 'reProposePolicy' \| 'restartExecutor' \| 'openNessie' }` | the new view |
-| `executor_audience` | `{ executorId }` | the CLI's `audience --json` answer |
 | `executor_program_requests` | `{ executorId? }` | `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: 'once' \| 'always' \| 'deny' }` | every team's remaining requests |
 | `executor_sessions` | `{ executorId? }` | every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |

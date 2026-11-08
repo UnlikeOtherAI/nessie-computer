@@ -22,7 +22,6 @@ The same words are used in the app, in Nessie and on the command line.
 | **Documents** | A copy of a team's Nessie documents in a folder here, kept in sync both ways. |
 | **ChatGPT plan** | A ChatGPT subscription (personal or company) your agents can use from this computer. |
 | **Model server** | An AI model running on this computer or your network that agents can use. |
-| **Who can send work here** | The agents, people and projects Nessie lets use this computer. |
 | **Session** | One agent run's work on this computer. Sessions run side by side, and so do the commands inside one. |
 | **Now working** | The list on Overview of every session and what it is running, with **Stop** on each. |
 | **Needs you** | Something waiting for your answer: a program request, a Documents question, or a problem with a fix. |

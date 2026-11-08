@@ -7,7 +7,6 @@
   let requests = []
   const syncStates = new Map()
   const summaries = new Map()
-  const audiences = new Map()
   let connectedId = null
   let needsAt = 0
 
@@ -142,17 +141,9 @@
       fill(executorId, 'team-summary', summaries.get(executorId))
     }).catch(() => { summaries.set(executorId, t('overview.summaryFailed')); fill(executorId, 'team-summary', summaries.get(executorId)) })
   }
-  const loadAudience = (executorId) => {
-    audiences.set(executorId, null)
-    invoke('executor_audience', { executorId }).then((answer) => {
-      audiences.set(executorId, nc.summary.audience(answer))
-      fill(executorId, 'team-audience-text', audiences.get(executorId))
-    }).catch(() => { audiences.set(executorId, t('overview.audienceFailed')); fill(executorId, 'team-audience-text', audiences.get(executorId)) })
-  }
   const reload = (fresh) => {
     for (const team of nc.team.teams()) {
       if (fresh || !summaries.has(team.executorId)) loadSummary(team.executorId, fresh)
-      if (fresh || !audiences.has(team.executorId)) loadAudience(team.executorId)
     }
   }
   const changeAccess = (executorId) => attempt(async () => { await nc.team.select(executorId); nc.view.show('access') })
@@ -180,16 +171,7 @@
       const plan = nc.team.get(team.chatgptConnectionId)
       planLine.textContent = t('overview.planConnection', { status: plan ? nc.team.statusWord(plan) : t('teams.notConnected') })
     }
-    const audience = document.createElement('p')
-    audience.className = 'team-audience'
-    const audienceLabel = document.createElement('span')
-    audienceLabel.className = 'label-inline'
-    audienceLabel.textContent = `${t('overview.whoCanSend')}: `
-    const audienceText = document.createElement('span')
-    audienceText.className = 'team-audience-text'
-    audienceText.textContent = audiences.get(team.executorId) ?? t('overview.audienceLoading')
-    audience.append(audienceLabel, audienceText)
-    card.append(head, summary, planLine, audience)
+    card.append(head, summary, planLine)
     if (nc.team.ownerConfirmationRequired(team.executorId)) {
       const restore = document.createElement('p')
       restore.className = 'hint'

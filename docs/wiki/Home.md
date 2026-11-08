@@ -21,7 +21,6 @@ installed there. Everything they can use is decided on the computer, by you.
 | Answer an agent that asks to run something | [Programs → Requests](Programs#when-an-agent-asks-to-run-a-program) |
 | Keep my team's documents in a folder | [Documents](Documents) |
 | Use my ChatGPT plan or a local model | [AI: ChatGPT plans and model servers](AI) |
-| See which agents and people can send work here | [Who can send work here](Who-can-send-work-here) |
 | Change start-up, restart and update settings | [Settings and updates](Settings-and-updates) |
 | Stop using it | [Disconnect or uninstall](Disconnect-or-uninstall) |
 | Fix something | [Troubleshooting](Troubleshooting) |

@@ -338,7 +338,7 @@ impl Connections {
                 Ok(ServiceResponse::Describe(user_runtime::run(
                     &["describe".into(), "--state-dir".into(), path], None)?))
             }
-            "setPaused" | "programRequests" | "answerProgramRequest" | "sessions" | "stopSession" | "audience" => {
+            "setPaused" | "programRequests" | "answerProgramRequest" | "sessions" | "stopSession" => {
                 let id = id.ok_or("Select a paired team.")?;
                 if !owns(id) { return Err("This team is not paired under this account.".into()); }
                 let state_dir = directory(id)?;
@@ -347,7 +347,6 @@ impl Connections {
                         user_owner::set_paused(&state_dir, request["paused"].as_bool().ok_or("Choose Pause or Resume.")?)?;
                         Ok(ServiceResponse::Status(self.statuses()?))
                     }
-                    "audience" => Ok(ServiceResponse::Audience(user_owner::audience(&state_dir)?)),
                     "sessions" => Ok(ServiceResponse::Sessions(self.sessions.entry(id.to_owned()).or_default()
                         .refresh(&state_dir, Instant::now(), || user_owner::sessions(&state_dir))?)),
                     "stopSession" => {

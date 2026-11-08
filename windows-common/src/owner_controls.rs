@@ -1,5 +1,5 @@
 //! The owner's own controls over one team on this computer: Pause and Resume,
-//! program requests, and "Who can send work here".
+//! and program requests.
 //!
 //! Both Windows supervisors carry them out the same way, through the packaged
 //! CLI: the tray for the teams it runs under the person's account, the service
@@ -109,15 +109,6 @@ pub fn answer_arguments(state_dir: &Path, id: &str, answer: Answer) -> Result<Ve
         "--answer".to_owned(),
         answer.as_str().to_owned(),
     ])
-}
-
-pub fn audience_arguments(state_dir: &Path) -> Vec<String> {
-    vec![
-        "audience".to_owned(),
-        "--state-dir".to_owned(),
-        state_dir.display().to_string(),
-        "--json".to_owned(),
-    ]
 }
 
 /// One pending request, as `program-requests --json` lists it.

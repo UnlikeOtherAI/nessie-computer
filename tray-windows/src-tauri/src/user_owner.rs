@@ -2,14 +2,14 @@
 //!
 //! The same packaged CLI verbs the service runs for its own teams, against this
 //! account's state directory: `pause` / `resume`, `program-requests`,
-//! `program-request answer`, `sessions`, `session stop` and `audience`. The
+//! `program-request answer`, `sessions` and `session stop`. The
 //! person running this app owns the directory, so they are the owner the
 //! requests ask and the one who may stop a session.
 
 use std::path::Path;
 
 use nessie_windows_common::owner_controls::{
-    answer_arguments, audience_arguments, parse_program_requests, pause_arguments,
+    answer_arguments, parse_program_requests, pause_arguments,
     program_requests_arguments, Answer, ProgramRequest,
 };
 
@@ -37,8 +37,4 @@ pub fn sessions(state_dir: &Path) -> Result<Vec<serde_json::Value>, String> {
 pub fn stop_session(state_dir: &Path, session_id: &str) -> Result<Vec<serde_json::Value>, String> {
     user_runtime::run(&stop_session_arguments(state_dir, session_id)?, None)?;
     sessions(state_dir)
-}
-
-pub fn audience(state_dir: &Path) -> Result<serde_json::Value, String> {
-    user_runtime::run(&audience_arguments(state_dir), None)
 }

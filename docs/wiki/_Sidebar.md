@@ -11,7 +11,6 @@
 - [Several teams](Several-teams-on-one-computer)
 - [Documents](Documents)
 - [AI](AI)
-- [Who can send work here](Who-can-send-work-here)
 - [Settings and updates](Settings-and-updates)
 - [Disconnect or uninstall](Disconnect-or-uninstall)
 

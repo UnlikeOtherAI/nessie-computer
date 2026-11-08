@@ -101,7 +101,6 @@ The console calls these through `window.webkit.messageHandlers.executor`
 | `executor_view` | `{ kind: 'reachable', executors: [{ executorId, daemonStatus, paused, pendingProgramRequests, failure?: { code?, message } }] }` |
 | `executor_set_paused` | `{ executorId \| null, paused }`; `null` is every team; answers the view |
 | `executor_apply_remedy` | `{ executorId, remedy }` with `reProposePolicy`, `openNessie` or `restartExecutor`; answers the view |
-| `executor_audience` | the CLI's `audience --json` for the team |
 | `executor_program_requests` | `{ executorId? }`; `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: once \| always \| deny }`; answers every team's open requests |
 | `executor_sessions` | `{ executorId? }`; every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |

@@ -3,7 +3,6 @@ import { createPrivateKey, sign } from 'node:crypto'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 export type ExecutorDaemonSignatureDomain =
-  | 'audience'
   | 'session_view'
   | 'attachment'
   | 'browser_cookie_import.poll'

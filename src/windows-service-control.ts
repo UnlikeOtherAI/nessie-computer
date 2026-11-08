@@ -111,7 +111,8 @@ const rowNames = (value: unknown): { names?: ServiceTeamNames } => {
   const names = value as Partial<ServiceTeamNames> | null | undefined
   if (!names || typeof names.organizationName !== 'string' || !names.organizationName.trim()
     || typeof names.apiBaseUrl !== 'string' || (names.teamName !== null && typeof names.teamName !== 'string')) return {}
-  return { names: { organizationName: names.organizationName, teamName: names.teamName ?? null, apiBaseUrl: names.apiBaseUrl } }
+  return { names: { organizationName: names.organizationName, teamName: names.teamName ?? null,
+    apiBaseUrl: names.apiBaseUrl } }
 }
 
 const statusRow = (value: unknown): ServiceTeamStatus => {
@@ -142,7 +143,6 @@ export const serviceRequests = {
   programRequests: (executorId: string): ServiceRequest => ({ command: 'programRequests', executorId }),
   answer: (executorId: string, id: string, answer: string): ServiceRequest => (
     { command: 'answerProgramRequest', executorId, id, answer }),
-  audience: (executorId: string): ServiceRequest => ({ command: 'audience', executorId }),
   sessions: (executorId: string): ServiceRequest => ({ command: 'sessions', executorId }),
   stopSession: (executorId: string, sessionId: string): ServiceRequest => ({ command: 'stopSession', executorId, sessionId }),
   inference: (executorId: string, operation: unknown): ServiceRequest => (

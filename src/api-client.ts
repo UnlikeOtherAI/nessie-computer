@@ -1,6 +1,5 @@
 import type {
   ExecutorCommandAttachment,
-  ExecutorDaemonAudienceRequest,
   ExecutorDaemonCommandPollRequest,
   ExecutorDaemonCommandPollResponse,
   ExecutorCommandReceipt,
@@ -44,8 +43,6 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
-  /** "Who can send work here": the signed read of this computer's audience (`audience.ts`). */
-  audience: (baseUrl: string, input: ExecutorDaemonAudienceRequest) => Promise<unknown>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -217,7 +214,6 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
-    audience: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/audience', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,

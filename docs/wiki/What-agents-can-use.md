@@ -89,5 +89,6 @@ Under **For developers**:
 | Folders, programs, websites, local apps, coding assistants | Which agents, people and projects may send work here |
 | Pause and resume | Turning the computer off in Nessie, sharing it |
 
-Nessie can't widen what you allow here. See
-[Who can send work here](Who-can-send-work-here).
+Nessie can't widen what you allow here: an agent can use something only when
+Nessie lets it send work here *and* this computer allows it. Who may send work
+is set on the computer's page in Nessie.

@@ -38,14 +38,6 @@ nessie-computer teams [--json]
 Names are kept on this computer and read again from Nessie once they are an
 hour old, so a team keeps its name while Nessie can't be reached.
 
-### `who`
-Who can send work to this computer for a team: agents, people and projects.
-Read from Nessie each time; nothing is stored.
-
-```sh
-nessie-computer who [--team <team>] [--json]
-```
-
 ---
 
 ## Adding this computer
@@ -307,7 +299,6 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 | `serve`, `connect`, `heartbeat --state-dir <dir>` | Running a team (services and the apps) |
 | `pause`, `resume --state-dir <dir>` | The app's Pause |
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
-| `audience --state-dir <dir>` | The app's "Who can send work here" |
 | `sessions`, `session stop --state-dir <dir>` | The app's Now working and its Stop |
 | `sync --state-dir <dir> …` | The app's Documents tab |
 | `local-inference connections …` | The app's model servers |

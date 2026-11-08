@@ -30,7 +30,7 @@ control from the command line.
    choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-this-computer)
 
 3. **Check what the team can use.** Nessie Computer opens on **Overview**,
-   which lists each team, what it can use and who can send it work. Choose
+   which lists each team and what it can use. Choose
    **Change access** to adjust it.
 
 ## What a new team can use

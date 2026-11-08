@@ -1,9 +1,8 @@
 // One-line answers the Overview shows for a team: what it may use (from
-// `describe`) and who can send work to it (from `executor_audience`).
+// `describe`) and whether its documents need the owner.
 (() => {
   const nc = window.nc
   const { t } = nc
-  const listFormat = new Intl.ListFormat(nc.locale, { type: 'conjunction' })
   const PROGRAM_DEFAULTS = [['unlikeotherai', 'uoaApps'], ['claudeCode', 'claudeCode'], ['codex', 'codex'], ['t3Code', 't3Code']]
 
   const programs = (policy) => {
@@ -30,23 +29,6 @@
     counted(description.reach?.allowedOrigins?.length ?? 0, 'websites', 'noWebsites'),
   ].join(' · ')
 
-  const named = (items, total, key) => {
-    const names = items.map((item) => item.name)
-    const shown = names.slice(0, 3)
-    const extra = Math.max(total, names.length) - shown.length
-    return t(`overview.${key}`, { names: listFormat.format(extra > 0 ? [...shown, t('overview.more', { count: extra })] : shown) })
-  }
-  /** "Everyone in the team", or "Agents: … · People: … · Projects: …", or "Nobody yet". */
-  const audience = (answer) => {
-    if (answer.everyoneInTeam) return t('overview.everyone')
-    const segments = [
-      answer.agents?.length ? named(answer.agents, answer.agents.length, 'agents') : null,
-      answer.people?.length ? named(answer.people, answer.peopleCount ?? answer.people.length, 'people') : null,
-      answer.projects?.length ? named(answer.projects, answer.projects.length, 'projects') : null,
-    ].filter(Boolean)
-    return segments.length ? segments.join(' · ') : t('overview.nobody')
-  }
-
   /** Documents that need the owner: the reason key, or null when nothing waits. */
   const syncAttention = (state) => {
     if (!state?.enabled) return null
@@ -56,5 +38,5 @@
     return null
   }
 
-  nc.summary = { access, audience, syncAttention }
+  nc.summary = { access, syncAttention }
 })()
