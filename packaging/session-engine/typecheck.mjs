@@ -69,7 +69,9 @@ export const typecheckSessionState = async (snapshot, entryPoint,
     return ts.resolveModuleName(name, containingFile, options, host).resolvedModule
   })
   const declarations = declarationDirectory
-    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver, sharedContracts }) : undefined
+    ? declarationWriter({ virtualRoot, executorRoot: resolve(tools, '../..'), resolver, sharedContracts,
+      resolveModule: (specifier, source) => ts.resolveModuleName(specifier, source, options, host)
+        .resolvedModule?.resolvedFileName }) : undefined
   if (declarations) host.writeFile = declarations.writeFile
   const program = ts.createProgram([resolve(entryPoint)], options, host)
   const authoredInputs = Object.fromEntries(program.getSourceFiles()

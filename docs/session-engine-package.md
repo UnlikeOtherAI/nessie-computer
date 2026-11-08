@@ -78,7 +78,9 @@ The runtime is `dist/engine.js`; its declaration entry is
 `.d.ts` files, never copied implementation `.ts` files. This keeps consumer
 ES2022, Node typings and unused-symbol checks from recompiling the engine's
 internals. The engine entry declares the same `es2023.array` library requirement
-as the contract barrels; no executor compiler option changes. The contract barrels retain
+as the contract barrels; no executor compiler option changes. Compiler-synthesized
+relative imports resolve through the same checked TypeScript host before path
+relocation, including directory imports of the contract index. The contract barrels retain
 `dist/types/{index,settings,relay}.d.ts` and share their checked, patched
 `dist/source/*.ts` with the engine's type-source closure. The generated build
 helper at `dist/build/input.mjs` retains the existing `/build` API in a packed

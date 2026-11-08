@@ -7,7 +7,7 @@ const slash = text => text.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 
 /** Convert compiler-only virtual paths into a portable, ordinary declaration tree. */
-export const declarationWriter = ({ virtualRoot, executorRoot, resolver, sharedContracts = false }) => {
+export const declarationWriter = ({ virtualRoot, executorRoot, resolver, resolveModule, sharedContracts = false }) => {
   const files = new Map()
   const contractRoot = 'packages/contracts/src/'
   const sourceLocation = path => sharedContracts && path.startsWith(contractRoot)
@@ -31,7 +31,11 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, sharedC
     } else if (slash(specifier).toLowerCase().startsWith(virtualRoot.toLowerCase())) {
       target = location(specifier).replace(/\.d\.ts$/u, '.js')
     } else if (specifier.startsWith('.')) {
-      const resolved = resolve(dirname(source), specifier)
+      // Declaration emit may synthesize a directory import for a named type.
+      // Resolve it through the same checked compiler host, including index.ts,
+      // before relocating it into the shared contract or engine declaration tree.
+      const resolved = resolveModule(specifier, source)
+      if (!resolved) throw new Error('Declaration relative import did not resolve to checked source.')
       target = location(resolved).replace(/\.d\.ts$/u, '.js')
     } else {
       if (isBuiltin(specifier)) return specifier
