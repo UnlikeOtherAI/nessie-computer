@@ -121,7 +121,9 @@ every script that loads after `main.js`.
   server's `expiresAt`; an expired code stays visible with **Get a new code**,
   and a refused request says why with **Try again**. The server address field
   sits closed behind "Use your organisation's own Nessie server" and is filled
-  only when a waiting code belongs to such a server.
+  only when a waiting code belongs to such a server. **Get code** asks the
+  host first: a refused address leaves a waiting code as it was, and that code
+  is cancelled only once the host accepts an address for another server.
   `nc.pairing.restore()` reopens an attempt left waiting.
 - `nc.updates.onStatus(fn)` / `nc.updates.status()` — the update broker's
   latest status (Help shows the version from it).
