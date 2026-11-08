@@ -7,13 +7,21 @@ use windows_sys::Win32::{Foundation::{HANDLE, INVALID_HANDLE_VALUE}, Storage::Fi
     FindFirstChangeNotificationW, FindCloseChangeNotification, GetFileInformationByHandleEx,
     FileIdInfo, FILE_ID_INFO, GetDriveTypeW, GetFinalPathNameByHandleW,
     FILE_NOTIFY_CHANGE_FILE_NAME, FILE_NOTIFY_CHANGE_DIR_NAME, FILE_NOTIFY_CHANGE_SECURITY,
-    FILE_NOTIFY_CHANGE_LAST_WRITE,
+    FILE_NOTIFY_CHANGE_LAST_WRITE, FILE_NOTIFY_CHANGE_ATTRIBUTES,
 }, System::Threading::WaitForSingleObject};
 
 pub fn fail() -> NativeError { NativeError::new("t3_source_resource_changed_or_unavailable") }
 pub fn wide(path: &Path) -> Vec<u16> { path.as_os_str().encode_wide().chain(Some(0)).collect() }
 
-pub struct Held { pub file: File, pub identity: String }
+pub fn file_identity(handle: HANDLE) -> Result<String, NativeError> {
+    let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
+    if unsafe { GetFileInformationByHandleEx(handle, FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
+        std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0 { return Err(fail()); }
+    Ok(format!("{:016x}:{}", id.VolumeSerialNumber,
+        id.FileId.Identifier.iter().map(|byte| format!("{byte:02x}")).collect::<String>()))
+}
+
+pub struct Held { pub file: File, pub identity: String, directory: bool }
 impl Held {
     /// VOLUME_NAME_GUID avoids a drive-letter/SUBST remap between the kernel
     /// proof and SQLite's open. All subsequent opens use this held namespace.
@@ -41,13 +49,17 @@ impl Held {
             return Err(fail());
         }
         if private { crate::state_security::verify_owner_only_handle(handle)?; }
-        let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
-        if unsafe { GetFileInformationByHandleEx(handle, FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
-            std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0 { return Err(fail()); }
-        Ok(Self { file, identity: format!("{:016x}:{}", id.VolumeSerialNumber,
-            id.FileId.Identifier.iter().map(|byte| format!("{byte:02x}")).collect::<String>()) })
+        Ok(Self { identity: file_identity(handle)?, file, directory })
+    }
+    pub fn recheck_object(&self) -> Result<(), NativeError> {
+        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        if unsafe { GetFileInformationByHandle(self.file.as_raw_handle(), &mut info) } == 0
+            || info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
+            || (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0) != self.directory { return Err(fail()); }
+        Ok(())
     }
     pub fn recheck(&self) -> Result<(), NativeError> {
+        self.recheck_object()?;
         crate::state_security::verify_owner_only_handle(self.file.as_raw_handle())
     }
 }
@@ -69,7 +81,10 @@ pub fn chain(path: &Path) -> Result<Vec<Held>, NativeError> {
         if matches!(component, Component::CurDir | Component::ParentDir) { return Err(fail()); }
         current.push(component);
         if matches!(component, Component::Prefix(_)) { continue; }
-        held.push(Held::open(&current, true, true, false)?);
+        // A write-capable directory handle could set a reparse point without
+        // renaming it. Exclude write sharing as well as delete sharing for the
+        // complete chain, including handles acquired before this admission.
+        held.push(Held::open(&current, true, false, false)?);
         current = held.last().ok_or_else(fail)?.path()?;
     }
     held.last().ok_or_else(fail)?.recheck()?;
@@ -79,9 +94,14 @@ pub fn chain(path: &Path) -> Result<Vec<Held>, NativeError> {
 pub struct Watch(HANDLE);
 impl Watch {
     pub fn new(path: &Path, writes: bool) -> Result<Self, NativeError> {
+        Self::flags(path, FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_SECURITY
+                | FILE_NOTIFY_CHANGE_ATTRIBUTES
+                | if writes { FILE_NOTIFY_CHANGE_LAST_WRITE } else { 0 })
+    }
+    pub fn security(path: &Path) -> Result<Self, NativeError> { Self::flags(path, FILE_NOTIFY_CHANGE_SECURITY) }
+    fn flags(path: &Path, flags: u32) -> Result<Self, NativeError> {
         let handle = unsafe { FindFirstChangeNotificationW(wide(path).as_ptr(), 0,
-            FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_SECURITY
-                | if writes { FILE_NOTIFY_CHANGE_LAST_WRITE } else { 0 }) };
+            flags) };
         if handle == INVALID_HANDLE_VALUE { return Err(fail()); }
         Ok(Self(handle))
     }

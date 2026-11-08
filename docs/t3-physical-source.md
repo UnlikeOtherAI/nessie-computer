@@ -36,6 +36,12 @@ conflict transaction remain the publication gate. Distinct roots with the same
 environment are candidates, never merged or automatically elected. T07 must
 retain that rule in its server transaction.
 
+This is the T3 source, independently of the provider running its turns. It does
+not substitute native Codex/Claude inventory for T3 membership or merge an exact
+native association into its T3 primary identity. All/T3/Codex/Claude sectioning
+and comparison against the complete original per-machine catalog remain the
+next catalog consumer's work, as clarified in private scope `0a2c45b357`.
+
 ## Windows reader and supported limits
 
 The packaged native `t3-source-read` command verifies its compiled publisher EKU.
@@ -44,16 +50,30 @@ volume-GUID final paths are required. UNC/network roots, symlinks, junctions,
 other reparse components and unsupported filesystems refuse. Ordinary aliases
 are equivalent only when their held directory file IDs agree.
 
-Every directory component is held without delete sharing. Subsequent file and
+Every directory component is held without write or delete sharing; a pre-existing
+write-capable directory handle also prevents admission. This excludes in-place
+reparse mutation, not just rename. Type/reparse state is checked again on all
+held directory objects. Subsequent file and
 SQLite opens use the held volume-GUID namespace, so drive-letter/SUBST remapping
 cannot redirect them. Main/WAL/SHM identities remain held without delete sharing;
 the environment file also excludes write sharing. ACL checks inspect those
 handles, not a second pathname lookup. Directory change notifications stay
-signalled: replacement followed by restoration also refuses. Source name/security
+signalled: replacement followed by restoration also refuses. Source name/attribute/security
 changes and executor-state directory writes conservatively invalidate a lease,
 including unrelated changes in those directories.
 
-The helper owns a real `winsqlite3` read-only connection throughout the callback.
+The helper loads `winsqlite3.dll` by its absolute System32 name with the restricted
+system-library search flag, checks the loaded module pathname, and retains its
+typed function table for the process lifetime. An application-directory/PATH
+substitute or preloaded same-name DLL elsewhere is refused. It owns a real
+SQLite read-only connection throughout the callback.
+The documented `SQLITE_FCNTL_WIN32_GET_HANDLE` and `SQLITE_FCNTL_JOURNAL_POINTER`
+controls bind SQLite's actual main and WAL handles to the held file IDs before
+issuance and on every recheck. A system SQLite without those controls refuses.
+There is no cast into SQLite's private WinFile/pager layout. SQLite exposes no
+equivalent public SHM handle: its SHM namespace is pinned by the held directory
+chain/file handle, with sticky attribute/name/security notifications and checks
+around every operation. Any observed mutation refuses the entire lease.
 TypeScript never checks one file and later opens SQLite elsewhere. Its synchronous
 adapter sends closed named reads, not SQL. Both sides share one fixed table/column
 catalogue. A SQLite authorizer independently denies credential/auth tables,
@@ -67,9 +87,13 @@ without `immutable=1` or sidecar creation. Rollback mode requires OS write shari
 exclusion and no journal/WAL/SHM, so an existing writer can make it unavailable.
 Corrupt or unsupported SQLite/layouts refuse. Rechecks run before and after each
 native operation, throughout the callback and immediately before producer return.
-The native watchdog bounds blocked clients/SQLite at 60 seconds; TypeScript
-refuses after 55 seconds. Expiry leaves capture incomplete. Larger captures need
-a future bounded renewal design; automatic renewal is not claimed.
+The native watchdog bounds its own idle/blocked pipe or SQLite operation at 60
+seconds; TypeScript refuses after 55 monotonic seconds without an authenticated
+response. Callback cleanup waits for the native child to close its handles.
+Each successful operation renews only after fresh native configuration, handle
+and ACL checks. Expiry is irreversible. This permits long captures without
+truncating rows, while an idle callback expires. It renews no human grant;
+canonical historical-human freshness/revocation remains independently required.
 
 The named pipe uses an owner/SYSTEM DACL, first-instance creation, local clients
 only and exact client PID verification. An ephemeral MAC key crosses only the
@@ -97,6 +121,11 @@ Read-only source inspection used T3
 - `apps/server/src/persistence/Sqlite.ts`: original setup enables WAL and runs
   migrations. That write-enabled setup is not used here. Read layouts remain the
   exact migration manifests through 80 or sole-legacy 54.
+
+SQLite's public file-control ABI was source-read at
+`sqlite/sqlite@26c9fb8015589dd0b70b27f877feb0649a243ee5` (`src/sqlite.h.in`,
+`src/os_win.c`, `src/pager.c`). That is API evidence, not a claim about the OS
+DLL's version or a successful test; the system DLL must actually support it.
 
 The initializer records **no durable original-copy attestation**. Current file
 ownership, schema, neighboring legacy equality and a first-seen digest cannot
@@ -133,18 +162,48 @@ Do not import auth stores or derive a human from the local OS account.
 T07 publication, staging custody and native history-home proof remain separate.
 No private schema, identity/profile store or UOA hierarchy was added.
 
+The returned `LivePhysicalT3Binding` contains the exact issued `source` object,
+`executorId`, `databaseIdentity`, `environmentIdentity`, ordered
+`sidecarIdentities`, and the explicit unattested-copy status. It is an ephemeral
+observation under the recognized function's lease, not serializable authority.
+The canonical consumer must separately bind its capture generation, original
+thread and original-human ownership generation to current UOA-backed admission.
+It must not substitute these OS identities for that evidence. Captured data still
+uses the required `RetainedOriginalOwnerPort.withReadScope` call in
+`withT3SourceSnapshot`; there is no human-authority factory in this reader.
+
+The next consumer's concrete seam is
+`src/t3-session/ownership/continuity.ts:RetainedOriginalOwnerPort.withReadScope`:
+its input already carries `source`, `physicalSourceRecheck`, `captureGeneration`
+and `purpose: retained-history-read`. Resolve the registered owner by the
+canonical executor binding, call `recognize(input.physicalSourceRecheck)`, and
+require reference equality `live.source === input.source` plus that executor ID.
+Then resolve the existing canonical historical thread/human generation and
+current UOA-backed admission, with independent source/thread rechecks. No such
+historical record is supplied by this physical implementation. For V2, retain
+the explicit unattested status until the canonical migration authority records
+its decision or an actually authenticated original initialization receipt exists;
+do not treat this status as a successful first-baseline attestation.
+
 ## Authored qualification; none run
 
-This source/tiny lane ran only source reads/edits and whitespace checks. No
+This source/tiny lane ran source reads/edits, whitespace and parser-only checks. No
 dependency install, compiler, runtime test, SQLite fixture, native build,
 provider, personal session or installed-state operation ran.
+The final source-only pass parsed 16 TypeScript files and three JSON files,
+checked syntax for the three changed JavaScript test/helper files, and passed
+`git diff --check`. It executed no implementation modules. Thirteen native cases,
+three adapter cases and seven installed cases are authored, all unrun. The adapter
+gate also runs the native-input selector regression covering the shared catalogue.
 
 After a separate Maxis lane assignment, prepare this worktree's own dependencies
 and run normal executor build/typecheck plus focused adapter/import gates through
 the public Turbo graph. Build/test only the changed Windows native helper:
 `cargo test --manifest-path native/Cargo.toml t3_source -- --test-threads=1`.
-Native tests author real WAL reads, original chronology, aliases/distinct roots,
-replacement attempts at protocol boundaries, revocation, role changes, expiry,
+Native tests author real WAL and rollback reads, original chronology, aliases/distinct roots,
+replacement attempts and ACL revocation at protocol boundaries, pre-existing and
+new directory-write exclusion, configuration revocation, role changes, expiry,
+actual main/WAL handle mismatches and sticky sidecar attribute changes,
 missing/corrupt/reparse/traversal/ACL refusal and authenticated pipe delivery,
 tamper, replay and wrong-client rejection. Symlink tests require Windows symlink
 permission, with no silent skip.
@@ -152,8 +211,43 @@ permission, with no silent skip.
 `test:t3-physical-source-installed` requires the exact candidate's packaged Node
 and signed helper after source/hash/publisher verification; no helper override is
 accepted. It exercises the registered producer, callback identity, chronology,
-simultaneous aliases, unavailable roots, schema failures, revocation and final
-return refusal. Native unit tests do not qualify that public signed command or
+simultaneous aliases, unavailable roots, schema failures, daemon teardown,
+revocation and final return refusal. A V2 fixture checks that the full frozen
+legacy copy reaches fingerprinting even when those rows are excluded from the
+eligible import projection; the required importer gate separately checks sticky
+`frozen_legacy_diverged` refusal. Native unit tests do not qualify that public signed command or
 installed protected launch. T03C's unintegrated branch and prior tests supply no
 positive proof for these changed bytes. Other platforms and all-machine/session
 parity remain unclaimed.
+
+### Exact next-window commands
+
+Run only after a coordinated Maxis reservation and the normal host-memory check.
+Use this worktree's independently prepared Node 22.23.1 and pnpm 10.22.0 on PATH;
+export the lane's `DATABASE_URL` as required by the repository testing standard
+(these focused gates use disposable SQLite, not PostgreSQL).
+
+```powershell
+Set-Location 'C:\Users\ondre\.t3\worktrees\Nessie\t3-5d316193\executor'
+$env:NODE_OPTIONS = '--max-old-space-size=5120'
+$env:T3_SESSION_IMPORT_REFERENCE = 'C:/Users/ondre/Projects/t3code'
+pnpm exec turbo run build typecheck --filter=@nessie/executor --root-turbo-json=scripts/turbo.public.json --concurrency=1
+pnpm exec turbo run test:t3-physical-source test:t3-session-import-source test:t3-session-import --filter=@nessie/executor --root-turbo-json=scripts/turbo.public.json --concurrency=1
+cargo test --manifest-path native/Cargo.toml t3_source -- --test-threads=1
+```
+
+After separately producing/verifying the exact signed candidate and its protected
+launch, use its packaged Node on PATH, with its native helper beside it:
+
+```powershell
+$env:NESSIE_EXECUTOR_PACKAGED_CLI = '1'
+pnpm exec turbo run test:t3-physical-source-installed --filter=@nessie/executor --root-turbo-json=scripts/turbo.public.json --concurrency=1
+```
+
+That candidate does not exist in this source worktree yet. Setting the environment
+marker alone cannot make an unsigned helper pass the compiled publisher check.
+The installed gate includes a real 55.1-second idle-expiry case. Run the registered
+import gates again against the merged historical projector; its earlier 15/32
+qualification is dependency evidence, not a pass for this changed physical path.
+Parser-only evidence used system Node 24.19.0 with a 384 MiB heap and imported no
+implementation modules. It does not establish types, linkage, SQLite or IPC.

@@ -1,6 +1,8 @@
 import { requireCapture } from '../state/sqlite.js'
 import type { CaptureDatabase, SqlRow, SqlStatement, SqlValue } from '../state/sqlite.js'
-import { tablesForLayout, selectCaptureRows, legacyThreads, legacyMessages, legacyPullRequests } from '../import/layout.js'
+import {
+  tablesForLayout, selectCaptureRows, legacyThreads, legacyMessages, legacyPullRequests,
+} from '../import/layout.js'
 
 export type SourceExchange = (request: Record<string, unknown>) => Record<string, unknown>
 

@@ -44,7 +44,7 @@ async function fixture(layout = 'legacy-54') {
   }
   const release = registerMachineT3Sources(state, configuration.executorId)
   const owner = machineT3Sources(configuration.executorId)
-  return { temporary, root, state, writer, owner, configuration, configPath, path,
+  return { temporary, root, state, writer, owner, configuration, configPath, path, release,
     close: async () => { release(); writer.close(); await rm(temporary, { recursive: true, force: true }) } }
 }
 
@@ -74,6 +74,42 @@ test('registered producer opens real WAL reader, recognizes only its issued live
     await f.owner.withReadonlySource(manifest, 'one', async (_source, db) => {
       assert.deepEqual(db.prepare(selectCaptureRows(legacyMessages)).all().map(row => row.message_id), ['early', 'late', 'new'])
     })
+  } finally { await f.close() }
+})
+
+test('authoritative V2 supplies the full frozen legacy copy independently of eligible import rows', async () => {
+  const f = await fixture('v2-80')
+  try {
+    f.writer.exec(`INSERT INTO projection_threads(thread_id,created_at) VALUES ('existing','2001-01-01');
+      INSERT INTO orchestration_v2_projection_threads(thread_id) VALUES ('existing');
+      INSERT INTO projection_thread_messages(message_id,thread_id,created_at,text)
+        VALUES ('original','existing','2001-01-01','original value')`)
+    const manifest = await f.owner.manifest()
+    const read = () => f.owner.withReadonlySource(manifest, 'one', async (source, db, recheck) => {
+      assert.equal(source.databaseRole, 'authoritative-v2')
+      assert.equal((await f.owner.recognize(recheck)).legacyCopyProvenance, 'not_attested_by_original_source')
+      const filtered = tablesForLayout('v2-80').find(table => table.name === legacyMessages.name)
+      assert.deepEqual(db.prepare(selectCaptureRows(filtered)).all(), [])
+      return db.prepare(selectCaptureRows(legacyMessages)).all().map(row => [row.message_id, row.text])
+    })
+    assert.deepEqual(await read(), [['original', 'original value']])
+    f.writer.exec("UPDATE projection_thread_messages SET text = 'changed'")
+    // The journal must see this change even though the row is not import-eligible.
+    // Its frozen_legacy_diverged refusal is covered by the required importer gate.
+    assert.deepEqual(await read(), [['original', 'changed']])
+  } finally { await f.close() }
+})
+
+test('machine-owner teardown withdraws every issued binding and refuses final return', async () => {
+  const f = await fixture()
+  try {
+    await assert.rejects(f.owner.withReadonlySource(await f.owner.manifest(), 'one', async (_source, _db, recheck) => {
+      await f.owner.recognize(recheck)
+      f.release()
+      await assert.rejects(f.owner.recognize(recheck), /not_issued_here/u)
+      return 'revoked'
+    }), /closed/u)
+    assert.throws(() => machineT3Sources(f.configuration.executorId), /not_running/u)
   } finally { await f.close() }
 })
 
@@ -122,4 +158,14 @@ test('unsupported migrations, missing tables and corrupt authoritative v2 refuse
       await assert.rejects(f.owner.withReadonlySource(await f.owner.manifest(), 'one', async () => assert.fail('bad source admitted')))
     } finally { await f.close() }
   }
+})
+
+test('an actually idle lease expires and cannot be revived by its old recheck', async () => {
+  const f = await fixture()
+  try {
+    await assert.rejects(f.owner.withReadonlySource(await f.owner.manifest(), 'one', async (_source, _db, recheck) => {
+      await new Promise(resolve => setTimeout(resolve, 55_100))
+      await recheck()
+    }), /changed_or_unavailable/u)
+  } finally { await f.close() }
 })

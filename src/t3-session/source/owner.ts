@@ -5,6 +5,7 @@ import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from '../
 import { checkT3SourceLayout } from '../import/snapshot.js'
 import { tablesForLayout } from '../import/layout.js'
 import { requireCapture } from '../state/sqlite.js'
+import type { CaptureDatabase } from '../state/sqlite.js'
 import { parseT3Homes } from './configuration.js'
 import { heldSourceDatabase } from './database.js'
 import { openNativeT3Source } from './native.js'
@@ -14,6 +15,7 @@ export interface LivePhysicalT3Binding {
   readonly executorId: string
   readonly databaseIdentity: string
   readonly environmentIdentity: string
+  readonly sidecarIdentities: readonly string[]
   readonly legacyCopyProvenance: 'not_attested_by_original_source'
 }
 export interface MachineT3SourceOwner extends AdmittedT3SourcePort {
@@ -30,7 +32,7 @@ const owners = new Map<string, MachineT3SourceOwner>()
 export function registerMachineT3Sources(stateDirectory: string, executorId: string): () => void {
   requireCapture(!owners.has(executorId), 't3_source_owner_already_registered')
   const leases = new Map<() => Promise<void>, {
-    binding: LivePhysicalT3Binding; close: () => void; recheckNow: () => void
+    binding: LivePhysicalT3Binding; close: () => Promise<void>; recheckNow: () => void
   }>()
   let active = true
   const manifest = async (): Promise<T3SourceManifest> => {
@@ -50,10 +52,16 @@ export function registerMachineT3Sources(stateDirectory: string, executorId: str
       lease.recheckNow()
       return lease.binding
     },
-    async withReadonlySource(requested, admittedRootKey, use) {
-      requireCapture(JSON.stringify(requested) === JSON.stringify(await manifest()), 't3_source_manifest_stale_or_incomplete')
+    async withReadonlySource<A>(requested: T3SourceManifest, admittedRootKey: string,
+      use: (source: ProvenT3Source, database: CaptureDatabase, recheck: () => Promise<void>) => Promise<A>,
+    ): Promise<A> {
+      const current = await manifest()
+      requireCapture(requested.revision === current.revision && Array.isArray(requested.homes)
+        && requested.homes.length === current.homes.length
+        && requested.homes.every((home, index) => home.admittedRootKey === current.homes[index]?.admittedRootKey
+          && home.kind === current.homes[index]?.kind), 't3_source_manifest_stale_or_incomplete')
       requireCapture(requested.homes.some(home => home.admittedRootKey === admittedRootKey), 'source_not_in_manifest')
-      const native = await openNativeT3Source({ stateDirectory, executorId, manifest: requested, admittedRootKey })
+      const native = await openNativeT3Source({ stateDirectory, executorId, manifest: current, admittedRootKey })
       let live = true
       const recheck = async () => {
         requireCapture(active && live && leases.has(recheck), 't3_source_lease_closed')
@@ -69,11 +77,15 @@ export function registerMachineT3Sources(stateDirectory: string, executorId: str
           && raw.databaseRole === (raw.layout === 'v2-80' ? 'authoritative-v2' : 'sole-legacy')
           && description.executorId === executorId && typeof description.databaseIdentity === 'string'
           && typeof description.environmentIdentity === 'string'
-          && description.legacyCopyProvenance === 'not_attested_by_original_source', 't3_source_native_protocol_invalid')
+          && Array.isArray(description.sidecarIdentities)
+          && description.sidecarIdentities.every(value => typeof value === 'string')
+          && description.legacyCopyProvenance === 'not_attested_by_original_source',
+        't3_source_native_protocol_invalid')
         const source = Object.freeze({ ...raw,
           environmentId: Schema.decodeUnknownSync(SourceContracts.EnvironmentId)(raw.environmentId) })
         const binding: LivePhysicalT3Binding = Object.freeze({ source, executorId,
           databaseIdentity: description.databaseIdentity, environmentIdentity: description.environmentIdentity,
+          sidecarIdentities: Object.freeze([...description.sidecarIdentities as string[]]),
           legacyCopyProvenance: 'not_attested_by_original_source' })
         leases.set(recheck, { binding, close: native.close,
           recheckNow: () => { native.exchange({ op: 'recheck' }) } })
@@ -94,14 +106,14 @@ export function registerMachineT3Sources(stateDirectory: string, executorId: str
       } finally {
         live = false
         leases.delete(recheck)
-        native.close()
+        await native.close()
       }
     },
   })
   owners.set(executorId, owner)
   return () => {
     active = false
-    for (const lease of leases.values()) lease.close()
+    for (const lease of leases.values()) void lease.close()
     leases.clear()
     if (owners.get(executorId) === owner) owners.delete(executorId)
   }

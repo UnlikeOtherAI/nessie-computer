@@ -5,27 +5,7 @@ use crate::protocol::NativeError;
 use serde_json::{json, Value};
 use std::{collections::HashMap, ffi::{c_char, c_int, c_void, CStr, CString}, path::Path};
 
-#[link(name = "winsqlite3")]
-extern "C" {
-    fn sqlite3_open_v2(name: *const c_char, db: *mut *mut c_void, flags: c_int, vfs: *const c_char) -> c_int;
-    fn sqlite3_close_v2(db: *mut c_void) -> c_int;
-    fn sqlite3_prepare_v2(db: *mut c_void, sql: *const c_char, size: c_int,
-        stmt: *mut *mut c_void, tail: *mut *const c_char) -> c_int;
-    fn sqlite3_step(stmt: *mut c_void) -> c_int;
-    fn sqlite3_finalize(stmt: *mut c_void) -> c_int;
-    fn sqlite3_column_count(stmt: *mut c_void) -> c_int;
-    fn sqlite3_column_name(stmt: *mut c_void, index: c_int) -> *const c_char;
-    fn sqlite3_column_type(stmt: *mut c_void, index: c_int) -> c_int;
-    fn sqlite3_column_int64(stmt: *mut c_void, index: c_int) -> i64;
-    fn sqlite3_column_double(stmt: *mut c_void, index: c_int) -> f64;
-    fn sqlite3_column_text(stmt: *mut c_void, index: c_int) -> *const u8;
-    fn sqlite3_column_bytes(stmt: *mut c_void, index: c_int) -> c_int;
-    fn sqlite3_busy_timeout(db: *mut c_void, milliseconds: c_int) -> c_int;
-    fn sqlite3_db_readonly(db: *mut c_void, schema: *const c_char) -> c_int;
-    fn sqlite3_limit(db: *mut c_void, category: c_int, value: c_int) -> c_int;
-    fn sqlite3_set_authorizer(db: *mut c_void, callback: Option<unsafe extern "C" fn(*mut c_void,
-        c_int, *const c_char, *const c_char, *const c_char, *const c_char) -> c_int>, data: *mut c_void) -> c_int;
-}
+use super::sqlite_api::{api, Api};
 
 unsafe extern "C" fn authorize(_: *mut c_void, action: c_int, first: *const c_char,
     second: *const c_char, _: *const c_char, _: *const c_char) -> c_int {
@@ -55,29 +35,35 @@ unsafe extern "C" fn authorize(_: *mut c_void, action: c_int, first: *const c_ch
     if allowed { 0 } else { 1 }
 }
 
-pub struct Database { raw: *mut c_void, statements: HashMap<u64, *mut c_void>, next: u64, v2: bool }
+pub struct Database { api: &'static Api, raw: *mut c_void, statements: HashMap<u64, *mut c_void>, next: u64, v2: bool }
 impl Database {
+    pub fn verify_files(&self, main: &str, wal: Option<&str>) -> Result<(), NativeError> {
+        super::sqlite_handles::verify_main(self.api, self.raw, main)?;
+        if let Some(wal) = wal { super::sqlite_handles::verify_wal(self.api, self.raw, wal)?; }
+        Ok(())
+    }
     pub fn open(path: &Path, v2: bool) -> Result<Self, NativeError> {
+        let api = api()?;
         let path = CString::new(path.to_str().ok_or_else(fail)?).map_err(|_| fail())?;
         let mut raw = std::ptr::null_mut();
         // READONLY | FULLMUTEX; no URI interpretation, CREATE or immutable mode.
-        let code = unsafe { sqlite3_open_v2(path.as_ptr(), &mut raw, 1 | 0x10000, std::ptr::null()) };
+        let code = unsafe { (api.sqlite3_open_v2)(path.as_ptr(), &mut raw, 1 | 0x10000, std::ptr::null()) };
         if code != 0 {
-            if !raw.is_null() { unsafe { sqlite3_close_v2(raw); } }
+            if !raw.is_null() { unsafe { (api.sqlite3_close_v2)(raw); } }
             return Err(fail());
         }
-        let db = Self { raw, statements: HashMap::new(), next: 0, v2 };
-        if unsafe { sqlite3_db_readonly(raw, c"main".as_ptr()) } != 1 { return Err(fail()); }
-        unsafe { sqlite3_busy_timeout(raw, 250); sqlite3_limit(raw, 0, 8 * 1024 * 1024); }
-        if unsafe { sqlite3_set_authorizer(raw, Some(authorize), std::ptr::null_mut()) } != 0 { return Err(fail()); }
+        let db = Self { api, raw, statements: HashMap::new(), next: 0, v2 };
+        if unsafe { (api.sqlite3_db_readonly)(raw, c"main".as_ptr()) } != 1 { return Err(fail()); }
+        unsafe { (api.sqlite3_busy_timeout)(raw, 250); (api.sqlite3_limit)(raw, 0, 8 * 1024 * 1024); }
+        if unsafe { (api.sqlite3_set_authorizer)(raw, Some(authorize), std::ptr::null_mut()) } != 0 { return Err(fail()); }
         Ok(db)
     }
     fn prepare(&mut self, sql: &str) -> Result<u64, NativeError> {
         if self.statements.len() >= 8 { return Err(fail()); }
         let sql = CString::new(sql).map_err(|_| fail())?;
         let mut stmt = std::ptr::null_mut();
-        if unsafe { sqlite3_prepare_v2(self.raw, sql.as_ptr(), -1, &mut stmt, std::ptr::null_mut()) } != 0 {
-            if !stmt.is_null() { unsafe { sqlite3_finalize(stmt); } }
+        if unsafe { (self.api.sqlite3_prepare_v2)(self.raw, sql.as_ptr(), -1, &mut stmt, std::ptr::null_mut()) } != 0 {
+            if !stmt.is_null() { unsafe { (self.api.sqlite3_finalize)(stmt); } }
             return Err(fail());
         }
         self.next = self.next.checked_add(1).ok_or_else(fail)?;
@@ -86,30 +72,32 @@ impl Database {
     }
     pub fn finish(&mut self, id: u64) -> Result<(), NativeError> {
         let stmt = self.statements.remove(&id).ok_or_else(fail)?;
-        if unsafe { sqlite3_finalize(stmt) } != 0 { return Err(fail()); }
+        if unsafe { (self.api.sqlite3_finalize)(stmt) } != 0 { return Err(fail()); }
         Ok(())
     }
     pub fn next(&mut self, id: u64) -> Result<Value, NativeError> {
         let stmt = *self.statements.get(&id).ok_or_else(fail)?;
-        match unsafe { sqlite3_step(stmt) } {
+        match unsafe { (self.api.sqlite3_step)(stmt) } {
             101 => return Ok(json!({"done":true})), 100 => {}, _ => return Err(fail()),
         }
         let mut row = serde_json::Map::new();
         let mut size = 0;
-        for index in 0..unsafe { sqlite3_column_count(stmt) } {
-            let name = unsafe { CStr::from_ptr(sqlite3_column_name(stmt, index)) }.to_str().map_err(|_| fail())?;
-            let value = match unsafe { sqlite3_column_type(stmt, index) } {
-                1 => { let value = unsafe { sqlite3_column_int64(stmt, index) };
+        for index in 0..unsafe { (self.api.sqlite3_column_count)(stmt) } {
+            let name = unsafe { (self.api.sqlite3_column_name)(stmt, index) };
+            if name.is_null() { return Err(fail()); }
+            let name = unsafe { CStr::from_ptr(name) }.to_str().map_err(|_| fail())?;
+            let value = match unsafe { (self.api.sqlite3_column_type)(stmt, index) } {
+                1 => { let value = unsafe { (self.api.sqlite3_column_int64)(stmt, index) };
                     if !(-9_007_199_254_740_991..=9_007_199_254_740_991).contains(&value) { return Err(fail()); }
                     json!(value) },
-                2 => { let value = unsafe { sqlite3_column_double(stmt, index) };
+                2 => { let value = unsafe { (self.api.sqlite3_column_double)(stmt, index) };
                     if !value.is_finite() { return Err(fail()); } json!(value) },
                 3 => {
-                    let count = unsafe { sqlite3_column_bytes(stmt, index) };
+                    let count = unsafe { (self.api.sqlite3_column_bytes)(stmt, index) };
                     if count < 0 { return Err(fail()); }
                     size += count as usize;
                     if size > 8 * 1024 * 1024 { return Err(fail()); }
-                    let pointer = unsafe { sqlite3_column_text(stmt, index) };
+                    let pointer = unsafe { (self.api.sqlite3_column_text)(stmt, index) };
                     if pointer.is_null() { return Err(fail()); }
                     let bytes = unsafe { std::slice::from_raw_parts(pointer, count as usize) };
                     json!(std::str::from_utf8(bytes).map_err(|_| fail())?)
@@ -144,7 +132,7 @@ impl Database {
                     return Err(fail());
                 }
                 match query {
-                    "columns" => format!("PRAGMA table_info('{name}')"),
+                    "columns" => format!("SELECT name FROM pragma_table_info('{name}')"),
                     "tableSchema" => format!("SELECT type, sql FROM sqlite_schema WHERE name = '{name}'"),
                     _ => {
                         // Refuse virtual tables/views before any row evaluation.
@@ -152,7 +140,7 @@ impl Database {
                         let row = self.next(schema)?;
                         self.finish(schema)?;
                         if row["row"]["type"] != "table" || !row["row"]["sql"].as_str()
-                            .is_some_and(|sql| sql.to_uppercase().starts_with("CREATE TABLE ")) { return Err(fail()); }
+                            .is_some_and(ordinary_table) { return Err(fail()); }
                         let mut columns = entry["columns"].as_array().ok_or_else(fail)?.iter()
                             .map(|column| column.as_str().ok_or_else(fail)).collect::<Result<Vec<_>, _>>()?;
                         if self.v2 && name == "projection_projects" { columns.extend(["pinned_at", "archived_at"]); }
@@ -168,9 +156,13 @@ impl Database {
         Ok(json!({"statement":self.prepare(&sql)?}))
     }
 }
+fn ordinary_table(sql: &str) -> bool {
+    sql.get(..12).is_some_and(|prefix| prefix.eq_ignore_ascii_case("CREATE TABLE"))
+        && sql.get(12..).and_then(|rest| rest.chars().next()).is_some_and(char::is_whitespace)
+}
 impl Drop for Database {
     fn drop(&mut self) {
-        for (_, stmt) in self.statements.drain() { unsafe { sqlite3_finalize(stmt); } }
-        unsafe { sqlite3_close_v2(self.raw); }
+        for (_, stmt) in self.statements.drain() { unsafe { (self.api.sqlite3_finalize)(stmt); } }
+        unsafe { (self.api.sqlite3_close_v2)(self.raw); }
     }
 }

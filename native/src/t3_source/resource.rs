@@ -1,8 +1,16 @@
-use super::{handles::{chain, fail, Held, Watch}, sqlite::Database};
+use super::{handles::{chain, fail, Held, Watch}, sqlite::Database, lease::LeaseClock};
 use crate::protocol::NativeError;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::{io::{Read, Seek, SeekFrom}, path::Path, time::{Duration, Instant}};
+use std::{io::{Read, Seek, SeekFrom}, path::{Path, PathBuf}, sync::Arc};
+
+struct ConfigurationObservation { path: PathBuf, identity: String, digest: Vec<u8> }
+fn configuration_bytes(file: &mut Held) -> Result<Vec<u8>, NativeError> {
+    let mut bytes = Vec::new();
+    (&mut file.file).take(256 * 1024 + 1).read_to_end(&mut bytes).map_err(|_| fail())?;
+    if bytes.len() > 256 * 1024 { return Err(fail()); }
+    Ok(bytes)
+}
 
 pub struct Resource {
     // Drop SQLite before releasing any path component or sidecar handle.
@@ -12,7 +20,8 @@ pub struct Resource {
     roots: [usize; 2],
     private: Vec<Held>,
     watches: Vec<Watch>,
-    opened: Instant,
+    clock: Arc<LeaseClock>,
+    configuration: ConfigurationObservation,
 }
 
 fn present(path: &Path) -> Result<bool, NativeError> {
@@ -25,17 +34,23 @@ fn present(path: &Path) -> Result<bool, NativeError> {
 
 impl Resource {
     #[cfg(test)]
-    pub(super) fn expire_for_test(&mut self, opened: Instant) { self.opened = opened; }
+    pub(super) fn expire_for_test(&self) { self.clock.expire(); }
+    #[cfg(test)]
     pub fn open(request: &Value) -> Result<Self, NativeError> {
+        Self::open_with_clock(request, Arc::new(LeaseClock::new()))
+    }
+    pub fn open_with_clock(request: &Value, clock: Arc<LeaseClock>) -> Result<Self, NativeError> {
+        clock.check()?;
         let state = Path::new(request["stateDirectory"].as_str().ok_or_else(fail)?);
         let mut chains = chain(state)?;
         let state_root = chains.len() - 1;
         let state = chains[state_root].path()?;
         let configuration_watch = Watch::new(&state, true)?;
+        let configuration_parent = Watch::security(state.parent().ok_or_else(fail)?)?;
         let mut config = Held::open(&state.join("executor-state.json"), false, false, true)?;
-        let mut bytes = Vec::new();
-        (&mut config.file).take(256 * 1024 + 1).read_to_end(&mut bytes).map_err(|_| fail())?;
-        if bytes.len() > 256 * 1024 { return Err(fail()); }
+        let bytes = configuration_bytes(&mut config)?;
+        let configuration_observation = ConfigurationObservation { path: state.join("executor-state.json"),
+            identity: config.identity.clone(), digest:Sha256::digest(&bytes).to_vec() };
         let configuration: Value = serde_json::from_slice(&bytes).map_err(|_| fail())?;
         // The configuration file also holds executor credentials. Drop its
         // contents here; neither the source protocol nor diagnostics return it.
@@ -66,6 +81,7 @@ impl Resource {
         chains.extend(root_chain);
         let source_root = chains.len() - 1;
         let root_watch = Watch::new(&root, false)?;
+        let source_parent = Watch::security(root.parent().ok_or_else(fail)?)?;
         let v2 = present(&root.join("statev2.sqlite"))?;
         let database_path = root.join(if v2 { "statev2.sqlite" } else { "state.sqlite" });
         let mut environment = Held::open(&root.join("environment-id"), false, false, true)?;
@@ -102,30 +118,55 @@ impl Resource {
         }
         main.file.seek(SeekFrom::Start(0)).map_err(|_| fail())?;
         let database_identity = main.identity.clone();
+        let sidecar_identities: Vec<_> = private.iter().skip(1).map(|held| held.identity.clone()).collect();
         private.push(main);
         configuration_watch.recheck()?;
         root_watch.recheck()?;
-        let database = Database::open(&database_path, v2)?;
+        let mut database = Database::open(&database_path, v2)?;
+        // Verify the handle SQLite actually opened before any row query. Its
+        // first schema read materializes the WAL connection; bind that actual
+        // handle too before issuing a resource or allowing a callback.
+        database.verify_files(&database_identity, None)?;
+        database.transaction("BEGIN")?;
+        let statement = database.query("schemaVersion", None)?["statement"].as_u64().ok_or_else(fail)?;
+        database.next(statement)?;
+        database.finish(statement)?;
+        database.transaction("COMMIT")?;
         let source = json!({"admittedRootKey":request["admittedRootKey"],
             "physicalRootKey":format!("windows-file-id:{}", hex(&Sha256::digest(root_identity.as_bytes()))),
             "environmentId":environment_id,"layout":if v2 {"v2-80"} else {"legacy-54"},
             "databaseRole":if v2 {"authoritative-v2"} else {"sole-legacy"}});
         let result = Self { database, description: json!({"source":source,"executorId":executor_id,
             "databaseIdentity":database_identity,"environmentIdentity":private[0].identity,
+            "sidecarIdentities":sidecar_identities,
             "legacyCopyProvenance":"not_attested_by_original_source"}),
             _chains:chains, roots:[state_root, source_root], private,
-            watches:vec![configuration_watch, root_watch], opened:Instant::now() };
+            watches:vec![configuration_watch, root_watch, configuration_parent, source_parent], clock,
+            configuration:configuration_observation };
         result.recheck()?;
         Ok(result)
     }
     pub fn recheck(&self) -> Result<(), NativeError> {
-        if self.opened.elapsed() >= Duration::from_secs(60) { return Err(fail()); }
+        self.clock.check()?;
         for watch in &self.watches { watch.recheck()?; }
         for held in &self.private { held.recheck()?; }
-        // Roots are the last members of each chain; check all held directories'
-        // identity through retained handles; owner checks apply to private roots.
+        self.database.verify_files(&self.private.last().ok_or_else(fail)?.identity,
+            if self.private.len() == 4 { Some(&self.private[1].identity) } else { None })?;
+        // All names remain pinned; also recheck reparse/type state on the held
+        // objects. Owner-only ACL checks apply to the two private roots.
+        for held in &self._chains { held.recheck_object()?; }
         for index in self.roots { self._chains[index].recheck()?; }
+        let mut configuration = Held::open(&self.configuration.path, false, false, true)?;
+        if configuration.identity != self.configuration.identity
+            || Sha256::digest(configuration_bytes(&mut configuration)?).as_slice() != self.configuration.digest.as_slice() {
+            return Err(fail());
+        }
+        for watch in &self.watches { watch.recheck()?; }
         Ok(())
+    }
+    pub fn renew(&self) -> Result<(), NativeError> {
+        self.recheck()?;
+        self.clock.renew_after_check()
     }
 }
 pub fn hex(bytes: &[u8]) -> String { bytes.iter().map(|byte| format!("{byte:02x}")).collect() }

@@ -1,7 +1,10 @@
 #[cfg(windows)] mod handles;
 #[cfg(windows)] mod resource;
 #[cfg(windows)] mod sqlite;
+#[cfg(windows)] mod sqlite_api;
+#[cfg(windows)] mod sqlite_handles;
 #[cfg(windows)] mod pipe;
+#[cfg(windows)] mod lease;
 #[cfg(all(windows, test))] mod test_fixture;
 #[cfg(all(windows, test))] mod tests;
 #[cfg(all(windows, test))] mod pipe_tests;
@@ -15,12 +18,17 @@ pub fn run() -> Result<(), NativeError> {
         .map_err(|_| NativeError::new("t3_source_native_publisher_unverified"))?;
     // The timer bounds blocked pipe clients and SQLite as well as callbacks.
     // Exit closes every kernel/SQLite handle; no source writes need recovery.
-    std::thread::spawn(|| { std::thread::sleep(std::time::Duration::from_secs(60)); std::process::exit(1); });
+    let clock = std::sync::Arc::new(lease::LeaseClock::new());
+    let watchdog = clock.clone();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(250));
+        if watchdog.check().is_err() { std::process::exit(1); }
+    });
     let mut bytes = Vec::new();
     std::io::stdin().take(65537).read_to_end(&mut bytes).map_err(|_| handles::fail())?;
     if bytes.len() > 65536 { return Err(handles::fail()); }
     let request: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| handles::fail())?;
-    let resource = resource::Resource::open(&request)?;
+    let resource = resource::Resource::open_with_clock(&request, clock)?;
     pipe::serve(&request, resource)
 }
 

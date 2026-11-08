@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process'
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import { openSync, closeSync, readSync, writeSync } from 'node:fs'
+import { performance } from 'node:perf_hooks'
 import { packagedNativeHelperPath } from '../../state-security.js'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import type { SourceExchange } from './database.js'
@@ -11,7 +12,7 @@ const MAX_FRAME = 16 * 1024 * 1024
  * sequenced frames only. This module offers no injected executable or transport.
  */
 export async function openNativeT3Source(request: Record<string, unknown>): Promise<{
-  exchange: SourceExchange; close: () => void
+  exchange: SourceExchange; close: () => Promise<void>
 }> {
   requireCapture(process.platform === 'win32', 't3_source_native_platform_unsupported')
   requireCapture(process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1', 't3_source_packaged_runtime_required')
@@ -21,16 +22,18 @@ export async function openNativeT3Source(request: Record<string, unknown>): Prom
   const child = spawn(packagedNativeHelperPath(), ['t3-source-read'], {
     stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true,
   })
-  const deadline = Date.now() + 55_000
+  const childClosed = new Promise<void>(resolve => { child.once('close', () => resolve()) })
+  let deadline = performance.now() + 55_000
   let closed = false
   let exited = false
   let descriptor: number | undefined
   const close = () => {
-    if (closed) return
+    if (closed) return childClosed
     closed = true
     if (descriptor !== undefined) { try { closeSync(descriptor) } catch { /* Already disconnected. */ } }
     child.kill()
     key.fill(0)
+    return childClosed
   }
   try {
     await new Promise<void>((resolve, reject) => {
@@ -65,7 +68,8 @@ export async function openNativeT3Source(request: Record<string, unknown>): Prom
     descriptor = openSync(expectedPipe, 'r+')
     let sequence = 0
     const transfer = (bytes: Buffer, write: boolean) => {
-      requireCapture(!closed && !exited && descriptor !== undefined && Date.now() < deadline, 't3_source_lease_expired')
+      requireCapture(!closed && !exited && descriptor !== undefined && performance.now() < deadline,
+        't3_source_lease_expired')
       for (let offset = 0; offset < bytes.length;) {
         const count = write ? writeSync(descriptor, bytes, offset, bytes.length - offset)
           : readSync(descriptor, bytes, offset, bytes.length - offset, null)
@@ -78,6 +82,7 @@ export async function openNativeT3Source(request: Record<string, unknown>): Prom
     const exchange: SourceExchange = message => {
       try {
         sequence += 1
+        requireCapture(Number.isSafeInteger(sequence), 't3_source_sequence_exhausted')
         const body = JSON.stringify(message)
         const bytes = Buffer.from(JSON.stringify({ sequence, body, mac: mac('request', body) }))
         requireCapture(bytes.length <= MAX_FRAME, 't3_source_frame_too_large')
@@ -97,16 +102,19 @@ export async function openNativeT3Source(request: Record<string, unknown>): Prom
         const response = JSON.parse(frame.body) as { ok: boolean; value: Record<string, unknown> }
         requireCapture(response.ok === true && response.value && typeof response.value === 'object',
           't3_source_resource_changed_or_unavailable')
-        requireCapture(!closed && Date.now() < deadline, 't3_source_lease_expired')
+        requireCapture(!closed && performance.now() < deadline, 't3_source_lease_expired')
+        // The receiver renewed only after fresh config/handle/ACL checks. This
+        // renews no human grant and permits long captures without skipping rows.
+        deadline = performance.now() + 55_000
         return response.value
       } catch {
-        close()
+        void close()
         throw new CaptureFailure('t3_source_resource_changed_or_unavailable')
       }
     }
     return { exchange, close }
   } catch {
-    close()
+    await close()
     throw new CaptureFailure('t3_source_native_unavailable')
   }
 }

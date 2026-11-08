@@ -62,7 +62,8 @@ pub fn serve(request: &Value, mut resource: Resource) -> Result<(), NativeError>
         && unsafe { GetLastError() } != ERROR_PIPE_CONNECTED { return Err(fail()); }
     let mut client = 0;
     if unsafe { GetNamedPipeClientProcessId(handle, &mut client) } == 0 || client != parent { return Err(fail()); }
-    for sequence in 1..=1_000_000_u64 {
+    let mut sequence = 1_u64;
+    loop {
         let frame = read_frame(&mut file)?;
         let body = frame["body"].as_str().ok_or_else(fail)?;
         let expected = mac(&key, "request", sequence, body);
@@ -72,15 +73,15 @@ pub fn serve(request: &Value, mut resource: Resource) -> Result<(), NativeError>
             return Err(fail());
         }
         let message: Value = serde_json::from_str(body).map_err(|_| fail())?;
-        let result = dispatch(&message, &mut resource).and_then(|value| { resource.recheck()?; Ok(value) });
+        let result = dispatch(&message, &mut resource).and_then(|value| { resource.renew()?; Ok(value) });
         let rejected = result.is_err();
         let response = match result { Ok(value) => json!({"ok":true,"value":value}),
             Err(_) => json!({"ok":false,"code":"t3_source_resource_changed_or_unavailable"}) };
         let response = serde_json::to_string(&response).map_err(|_| fail())?;
         write_frame(&mut file, &json!({"sequence":sequence,"mac":mac(&key,"response",sequence,&response),"body":response}))?;
         if rejected || message["op"] == "close" { return Ok(()); }
+        sequence = sequence.checked_add(1).filter(|value| *value <= 9_007_199_254_740_991).ok_or_else(fail)?;
     }
-    Err(fail())
 }
 pub(super) fn dispatch(request: &Value, resource: &mut Resource) -> Result<Value, NativeError> {
     resource.recheck()?;
