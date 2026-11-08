@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
 import { test } from 'node:test'
 import * as DateTime from 'effect/DateTime'
-import { SourceContracts as S, ThreadStream } from '@nessie/t3-session-source/engine'
+import { SourceContracts as S, ThreadStream, HistoryPaging } from '@nessie/t3-session-source/engine'
 import { captureRetainedT3, resumeRetainedT3 } from '../../dist/t3-session/import/capture.js'
 import { readRetainedProjection, readRetainedHistoryPage, readRetainedSnapshotWindow } from '../../dist/t3-session/import/reads.js'
 import { engineFixture } from './engine-fixture.mjs'
@@ -40,7 +40,9 @@ for (const kind of ['projection', 'history', 'window']) {
     const f = await engineFixture({ messages: 360 })
     try {
       const g1 = (await capture(f)).generation
-      const snapshot = await readRetainedSnapshotWindow(...args(f, g1), { rowLimit: 5 })
+      const snapshot = await readRetainedSnapshotWindow(...args(f, g1), {
+        rowLimit: HistoryPaging.THREAD_HISTORY_TURN_SNAPSHOT_ROW_LIMIT,
+      })
       const cursor = ThreadStream.buildBoundedThreadStreamSnapshot({ ...snapshot,
         compactTurnItems: true, dedupeBodies: true, compactIds: true }).historyCursor
       assert.ok(cursor)
