@@ -28,3 +28,22 @@ These contracts and dependent composition are source-only. No compiler, test,
 server or native qualification is claimed. Parent integration must exercise the
 actual protected enrollment ceremony, current UOA step-up, local online proof,
 revocation and selected-team denial before any positive import claim.
+
+The production callback is `withRetainedImportLocally(stateDirectory,
+{challenge,receipt}, use)` in `src/t3-session/ownership/import-scope.ts`. It obtains
+the registered physical owner itself, holds the exact source callback, consumes
+the native approval with a server verification nonce, commits the enrolled
+signature plus live proof, and revokes at callback exit. `RetainedImportLocalContext`
+exposes the real `source`, `physicalSourceRecheck`, issued `captureGeneration`,
+active grant status, and `authority(serverLeaseDescriptor)`. That authority has
+the distinct prospective `withReadScope`, `withPublicationScope` and catalog
+`withCatalogReadScope`. A scope verifies native liveness and the backend lease
+before/after use and every thread/source/selection recheck. Escaped callbacks fail.
+`recheckLocalConsent` checks only local liveness; it is not server admission.
+
+Capture uses `RetainedCapturePorts.importRead`, never `originalOwner`. The caller
+must provide the existing capture journal/workspace and perform the original
+capture/read/catalog operation inside this callback. It cannot return a live
+graph after callback exit, derive native execution authority, or manufacture a
+ready association from the tuple. The tray-to-runtime callback registration and
+the parent-integrated native producer still require actual journey qualification.

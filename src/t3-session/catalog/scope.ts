@@ -5,9 +5,11 @@ import type * as SqlClient from 'effect/sql/SqlClient'
 import { createSessionStateLayers, createSessionReadLayers, ThreadReadService,
   type SessionStateServices, SourceContracts as S } from '@nessie/t3-session-source/engine'
 import type { RetainedCapturePorts } from '../import/capture.js'
+import { retainedCaptureAuthority } from '../import/capture.js'
 import type { T3SourceManifest } from '../import/manifest.js'
 import { requireCapture } from '../state/sqlite.js'
 import type { RetainedReadScope } from '../ownership/continuity.js'
+import { withRetainedReadScope } from '../ownership/continuity.js'
 import { pinCatalogSelection, type RetainedCatalogSelection, type RetainedCatalogReadScope } from './selection.js'
 
 /** Selected by the admitted dispatcher, never accepted as caller-supplied authority. */
@@ -51,7 +53,7 @@ export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: Re
   return Effect.promise(async signal => {
     signal.throwIfAborted()
     const sourcePort = ports.source
-    const owner = ports.originalOwner
+    const owner = retainedCaptureAuthority(ports)
     const catalogAuthority = ports.catalogAuthority
     requireCapture(sourcePort && (source.authorization === 'catalog' ? catalogAuthority : owner),
       'required_retained_read_producers')
@@ -126,8 +128,8 @@ export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: Re
           captureGeneration: source.generation, purpose: 'retained-catalog-read' }, lease => use(lease, lease))
       }
       requireCapture(owner, 'required_retained_read_producers')
-      return owner.withReadScope({ source: proven, physicalSourceRecheck: recheck,
-        captureGeneration: source.generation, purpose: 'retained-history-read' }, lease => use(lease))
+      return withRetainedReadScope(owner, { source: proven, physicalSourceRecheck: recheck,
+        captureGeneration: source.generation }, lease => use(lease))
     })
     signal.throwIfAborted()
     ports.journal.requirePublished(completed.proven.physicalRootKey, source.generation)
