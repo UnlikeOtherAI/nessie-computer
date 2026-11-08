@@ -84,7 +84,7 @@ const localOps = (team: LocalTeam, host: TeamOpsHost): TeamOps => ({
  * Windows app makes, so no change narrows a setting it was not about.
  */
 export const serviceConfigurationInput = (current: TeamDescription, change: TeamChange) => ({
-  operationKeys: [...current.reach.operations],
+  operationKeys: [...current.policy.operations],
   workspaceFolders: (change.workspaceFolders ?? current.reach.folders).map(({ name, path }) => ({ name, path })),
   ...(change.commandPolicy ? { commandPolicy: change.commandPolicy } : {}),
   ...(change.settings?.mcpPolicy ? { mcpPolicy: change.settings.mcpPolicy } : {}),

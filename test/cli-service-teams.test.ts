@@ -45,7 +45,7 @@ const fakeService = () => {
     expiresAt: '2026-11-08T10:02:00.000Z' }]
   const description = () => ({ commandPolicy: policy, mcpPolicy: { mode: 'installed', disabled: [] }, localApps: [],
     existingCodingSessionsEnabled: false, sandbox: { browserConfigured: false },
-    reach: { operations: ['file.list', 'file.read'], folders, allowedOrigins: [] } })
+    policy: { operations: ['file.list', 'file.read'] }, reach: { folders, allowedOrigins: [] } })
   const call = async (request: ServiceRequest): Promise<ServiceAnswer> => {
     asked.push(request)
     const id = request.executorId as string

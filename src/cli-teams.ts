@@ -162,6 +162,8 @@ export const daemonRunning = async (stateDir: string): Promise<boolean> => {
 }
 
 export type NameView = Pick<PairingCodeView, 'teamName' | 'organizationName' | 'apiBaseUrl'>
+/** A team's names as the labels use them, and the server Nessie named. */
+export type ReadNames = TeamNames & { apiBaseUrl?: string }
 /** What Nessie calls a team; the pairing status of its connection, as the apps read it. */
 export type NameLookup = (team: CliTeam) => Promise<NameView>
 
@@ -170,7 +172,7 @@ const NAME_TIMEOUT_MS = 4_000
 export const localNameLookup = (team: LocalTeam): Promise<NameView> => pairingCodeStatus(team.stateDir)
 
 /** The team and organisation names, read from Nessie as the apps read them; null when Nessie can't say. */
-export const readTeamNames = async (team: CliTeam, lookup: NameLookup): Promise<NameView | null> => {
+export const readTeamNames = async (team: CliTeam, lookup: NameLookup): Promise<ReadNames | null> => {
   let timer: NodeJS.Timeout | undefined
   try {
     const view = await Promise.race([lookup(team), new Promise<never>((_, reject) => {
@@ -229,7 +231,7 @@ const readings = async (team: CliTeam) => {
 }
 
 /** The same organisation and team on the same server: the window's rule for a team's ChatGPT plan connection. */
-const sameTeam = (left: NameView | null, leftServer: string, right: NameView | null, rightServer: string): boolean => (
+const sameTeam = (left: TeamNames | null, leftServer: string, right: TeamNames | null, rightServer: string): boolean => (
   Boolean(left && right && leftServer && leftServer === rightServer
     && left.organizationName === right.organizationName && left.teamName === right.teamName))
 

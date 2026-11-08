@@ -1,8 +1,6 @@
 import { resolve } from 'node:path'
 
-import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
-import { allowedOriginsOf, configuredAllowedOrigins } from './configuration-input.js'
-import { describeTeamAt, saveAccess, type TeamDescription } from './cli-describe.js'
+import { configuredAllowedOrigins } from './configuration-input.js'
 import { acceptOnly, onOff, operands } from './cli-options.js'
 import { CliRefusal, CliUsageError, columns, listed, printJson } from './cli-output.js'
 import { programRuleSummary } from './cli-access-programs.js'
