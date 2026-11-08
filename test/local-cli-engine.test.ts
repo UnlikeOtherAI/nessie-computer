@@ -120,7 +120,7 @@ test('a turn streams the reply as the CLI writes it and returns its tool calls',
     terminal: async () => undefined,
   })
   assert.equal(result.content, reply)
-  assert.equal(result.finishReason, 'stop')
+  assert.equal(result.finishReason, 'tool-call')
   assert.deepEqual(result.toolCalls, [{ toolCallId: `${attempt.attemptId}:cli-1`, toolName: 'read', arguments: { path: 'a' } }])
   assert.deepEqual(result.usage, { inputTokens: 11, outputTokens: 7 })
   assert.equal(result.capability.provider, 'executor/claude-code')
