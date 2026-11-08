@@ -30,6 +30,15 @@ receiver must compare `issuerOrigin` with its protected enrolled backend and
 the entire immutable native target before accepting the grant. Constructor
 access and a copied JSON object cannot forge the brand.
 
+`VerifiedT3EffectGrant.signedProof: T3EffectAuthorityChecked` returns a frozen
+copy of the exact verified `{grant,keyId,signature}` envelope for the protected
+native receiver's independent signature check. The private issuance token and
+WeakSet remain the only producer; the accessor refuses expired grants and a
+serialized envelope cannot be promoted. `consume()` performs a fresh checked
+exchange and its returned grant carries that new nonce and signature. This
+accessor does not authorize pre-native-ID bootstrap or bind provider stdin bytes;
+those require the separate execution frame admission and actual serializer.
+
 Required integration: the backend finite issuer and T08 admission, current
 native association producer, runtime graph adapter and T03C effect receiver.
 No installed runtime, human consent, source recognition or provider outcome is
