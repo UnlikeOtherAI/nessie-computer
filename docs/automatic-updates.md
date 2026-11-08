@@ -391,3 +391,11 @@ back its restart policy, and deletes the service without ever starting it.
 Native setup retains its closed domain error code so a future refusal can be
 diagnosed without paths, credentials or journal edits. Corrected signed setup
 still needs installed acceptance; the preserved state is reused on retry.
+
+For a refused Windows status request, the read-only developer probe is
+`cargo run --manifest-path windows-common/Cargo.toml --example update-status`.
+Compile it with the existing public `NESSIE_DESKTOP_WINDOWS_SIGNER_EKU` pin.
+It uses the same authenticated fixed pipe and prints its closed failure reason;
+it cannot change preferences, select packages or supply an alternate endpoint.
+This is a machine-only diagnostic, not a replacement for the installed app/CLI
+journey. Run it with the actual desktop token when diagnosing local controls.
