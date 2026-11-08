@@ -150,6 +150,12 @@ No compiler, native launch, signing or installation was run for this checkpoint.
 
 # Nonexecuting inspection delivery
 
+The signed inspection requires original management provenance with exact
+`createdBy: user|agent` and `creationSource: web|mcp`. The backend copies it only
+from its sealed operation admission. Native parsing rejects missing, additional
+or unknown provenance fields. There is no unsigned companion field or inferred
+origin. The existing exact-payload signature covers this required value.
+
 The canonical daemon session lane carries bounded `inspections` and exact
 `inspectionReceipts`, with explicit acknowledgements. Only an executing runtime
 implements `T3SessionLaneRuntime.inspect`; retained runtimes omit it. Inspection

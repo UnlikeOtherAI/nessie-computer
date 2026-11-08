@@ -105,6 +105,7 @@ export type T3ExecutionGraph = z.infer<typeof T3ExecutionGraphPayloadSchema>
 export const T3ExecutionInspectionSchema = z.object({ version: z.literal(1), inspectionId: hex,
   issuerKeyId: hex, nonce: hex, executorId: id, environmentId: id, connectionEpoch: id,
   runtimeGeneration: id, correlationId: id, commandId: id, requestSha256: sha,
+  provenance: z.object({ createdBy: z.enum(['user', 'agent']), creationSource: z.enum(['web', 'mcp']) }).strict(),
   relayHmac: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/u), actorReference: sha, initiationReference: sha,
   sourceRootKey: id, sourceGeneration: id,
   sourceRevision: T3ExecutionGraphPayloadSchema.shape.sourceRevision,
