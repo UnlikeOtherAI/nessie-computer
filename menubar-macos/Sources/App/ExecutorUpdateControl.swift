@@ -9,7 +9,7 @@ final class ComputerUpdateHealth {
     private(set) var failures = 0
     var onChange: (@MainActor (Bool) -> Void)?
 
-    var stuck: Bool { ComputerUpdateRecovery.stuck(enabled: ComputerUpdateService.enabled, failures: failures) }
+    var stuck: Bool { ComputerUpdateRecovery.stuck(enabled: ComputerUpdateService.installed, failures: failures) }
 
     func record(answered: Bool) {
         let before = stuck
@@ -50,12 +50,13 @@ enum ExecutorUpdateControl {
                     }
                 }
             }
-            ComputerUpdateHealth.shared.record(answered: true)
+            if operation == "status" { ComputerUpdateHealth.shared.record(answered: true) }
             return response
         } catch {
-            // A timeout and a refusal are the same to a person: no team can start.
-            ComputerUpdateHealth.shared.record(answered: false)
+            // Only status counts: a refused Remind or Install is an answer.
             guard operation == "status" else { throw error }
+            // A timeout and a refused status are the same to a person: no team can start.
+            ComputerUpdateHealth.shared.record(answered: false)
             if let setup = ComputerUpdateService.unavailableStatus() { return setup }
             if ComputerUpdateHealth.shared.stuck { return ComputerUpdateService.stuckStatus() }
             throw error
@@ -144,7 +145,7 @@ final class ExecutorUpdateMonitor {
             (status?["phase"] as? String).map { (installedVersion: version, phase: $0) }
         }
         guard let version = ComputerUpdateService.applicationVersion, ComputerUpdateRecovery.shouldRestart(
-            enabled: ComputerUpdateService.enabled, failures: ComputerUpdateHealth.shared.failures,
+            enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
             answer: answer, applicationVersion: version, restartedFor: ComputerUpdateService.restartedVersion
         ) else { return }
         await ComputerUpdateService.restartOnce(for: version)

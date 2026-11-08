@@ -23,6 +23,10 @@ enum ComputerUpdateService {
 
     static var enabled: Bool { supported && SMAppService.daemon(plistName: plist).status == .enabled }
 
+    /// Approved and past first setup. Before the factory exists, the helper is
+    /// still setting up, which has its own message; that is never "stuck".
+    static var installed: Bool { enabled && factoryReady }
+
     /// The runtime version this app carries, to compare with the installed one.
     static var applicationVersion: String? {
         (try? PackagedRuntime.locate(in: Bundle.main.resourceURL).get())?.executorVersion()
