@@ -21,6 +21,11 @@ const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
+    for record in state.execution_creations.values_mut(){
+        if let (Some(child),Some(job))=(&record.child,&record.job_name){
+            if absent(child)?&&job_members(job)?.is_empty(){record.cleared=true;}
+        }
+    }
     let mut gone = Vec::new();
     for (key, record) in &state.runtimes {
         if record.supervisor.boot_id != boot
@@ -112,20 +117,35 @@ pub fn handle(
         return Err(REJECTED.into());
     }
     let caller = Process::open(pid)?;
+    let creator=matches!(&operation,Operation::ExecutionCreator{..});
     if !caller.alive()
         || Some(caller.sid.as_str()) != sid
         || caller.image.file_name().and_then(|value| value.to_str())
-            != Some("nessie-executor-native.exe")
+            != Some(if creator{"nessie-computer-updater.exe"}else{"nessie-executor-native.exe"})
     {
         return Err(REJECTED.into());
     }
     caller.signed(PIN)?;
-    let release = nessie_windows_common::release::load_at(&caller.image, PIN)?;
+    let release = if creator {
+        if caller.sid!="S-1-5-18"||caller.session!=0{return Err(REJECTED.into());}
+        let _pins=nessie_windows_common::update_runtime::pin_image(&caller.image,PIN)?;
+        let program=nessie_windows_common::update_admission::known_folder(
+            &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)?;
+        let mut release=nessie_windows_common::release::load_at(
+            &program.join("Nessie Executor/nessie-executor-native.exe"),PIN)?;
+        release.verify_launch_consumers(PIN)?;release
+    }else{nessie_windows_common::release::load_at(&caller.image, PIN)?};
     let store = Store::new(root);
     let mut state = store.read()?;
     reconcile(&mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
+        Operation::ExecutionCreator {request}=>{
+            if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}){
+                machine.admit_daemon(&release.digest)?;
+            }
+            crate::execution_creator::handle(root,&caller,&release,&mut state,request)?
+        }
         Operation::ExecutionResource { request } => {
             machine.admit_daemon(&release.digest)?;
             crate::execution_resource::handle(root,&caller,&release,&state,*request)?

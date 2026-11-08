@@ -241,8 +241,9 @@ pub fn handle(
             // Scoped environment remains in held service memory, never the replay journal.
             payload["launchDigest"] = held["launchDigest"].clone();
             payload["providerSessionId"] = json!(provider_session_id);
-            payload["issuedAtMs"] = json!(now_ms()?);
-            payload["expiresAtMs"] = json!(now_ms()?.checked_add(5000).ok_or(REJECTED)?);
+            let issued=now_ms()?;
+            payload["issuedAtMs"] = json!(issued);
+            payload["expiresAtMs"] = json!(issued.checked_add(5000).ok_or(REJECTED)?);
             key.claim(
                 "prepare",
                 &reservation_id,

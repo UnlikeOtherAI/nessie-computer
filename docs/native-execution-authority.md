@@ -134,3 +134,17 @@ approval/handle commands. Root's serial window must compile these sources and
 exercise enrollment, denied ordinary-process injection, expiry/revoke/late
 delivery, exact provider association, backpressure, crash and positive clearance
 through the signed disposable installed journey. No production-working claim.
+# Protected creator source checkpoint
+
+The fixed SYSTEM creator is under implementation. Its service journal records
+the actual creator, graph and companion process generations before resume.
+Creation installs process, thread and token ACLs, mitigation policy and Job
+membership before the child's first instruction. The startup descriptor goes
+directly to graph stdin; its per-graph channel key never reaches the daemon.
+Companion transport acknowledges stdin only after the child pipe write and
+requires independent service clearance of the Job before reporting closed.
+
+This checkpoint is not wired or qualified as an installed capability. Listener
+registration, public stream consumption and lifecycle review remain in progress.
+No compiler, native launch, signing or installation was run for this checkpoint.
+

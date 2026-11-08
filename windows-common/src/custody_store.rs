@@ -33,6 +33,8 @@ pub struct State {
     pub hosts: BTreeMap<String, Host>,
     #[serde(default)]
     pub holds: BTreeMap<String, Generation>,
+    #[serde(default)]
+    pub execution_creations: BTreeMap<String, crate::execution_creator::Creation>,
 }
 pub struct Store {
     path: PathBuf,
@@ -102,6 +104,7 @@ impl Store {
             || state.fences.len() > 256
             || state.hosts.len() > 4096
             || state.holds.len() > 256
+            || state.execution_creations.len() > 4096
         {
             return Err(REJECTED.into());
         }
