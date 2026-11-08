@@ -21,7 +21,10 @@ const fixture = () => {
   const request = decodeExecutorT3LaneOperation(wire)
   const reply = decodeExecutorT3LaneReply({ ...routing, kind: 'stream', method: 'orchestration.subscribeThread',
     result: { kind: 'synchronized' } })
-  return { keys, state, wire: encodeExecutorT3LaneOperation(request), request, reply }
+  const announcement = { environmentId: routing.environmentId, runtimeGeneration: routing.runtimeGeneration,
+    sourceRevision: T3_SOURCE_COMMIT, physicalRootKey: 'fixture:root', captureGeneration: 'fixture:capture',
+    state: 'ready' as const }
+  return { keys, state, wire: encodeExecutorT3LaneOperation(request), request, reply, announcement }
 }
 
 test('lost exchange response retries identical signed frame; credits alone advance original stream demand', async () => {
@@ -33,7 +36,7 @@ test('lost exchange response retries identical signed frame; credits alone advan
       expiresAt: new Date(Date.now() + 50_000).toISOString() }], acknowledged: [], controls: [],
   })
   const sent: T3LaneExchange[] = []
-  const lane = createT3SessionLane({ describe: async () => [], async *open(_request, signal) {
+  const lane = createT3SessionLane({ describe: async () => [f.announcement], async *open(_request, signal) {
     try { while (!signal.aborted) { pulls++; yield f.reply } } finally { closed = true }
   } }, { exchangeT3SessionOperations: async (_base, input) => {
     const { signature, ...payload } = input
@@ -69,7 +72,7 @@ test('epoch change discards old demand without dispatching it twice', async () =
   const f = fixture()
   let calls = 0
   let aborted = false
-  const lane = createT3SessionLane({ describe: async () => [], async *open(_request, signal) {
+  const lane = createT3SessionLane({ describe: async () => [f.announcement], async *open(_request, signal) {
     calls++
     signal.addEventListener('abort', () => { aborted = true }, { once: true })
     yield f.reply
@@ -94,7 +97,7 @@ test('authenticated offer carries original provenance separately and refuses cha
   let calls = 0
   let offer: T3LaneExchangeResult['offers'][number] = { request: f.wire, provenance, requestDigest,
     expiresAt: new Date(Date.now() + 50_000).toISOString() }
-  const lane = createT3SessionLane({ describe: async () => [], async *open(request, _signal, delivery) {
+  const lane = createT3SessionLane({ describe: async () => [f.announcement], async *open(request, _signal, delivery) {
     calls++
     assert.deepEqual(request, f.request)
     assert.deepEqual(delivery, { requestDigest, provenance })
@@ -176,7 +179,7 @@ test('same active offer retains catalog descriptor; replacement token cannot res
   const delivery = catalogDelivery(f)
   let offer = { ...delivery, request: f.wire, expiresAt: new Date(Date.now() + 30_000).toISOString() }
   let calls = 0
-  const lane = createT3SessionLane({ describe: async () => [], async *open(_request, _signal, actual) {
+  const lane = createT3SessionLane({ describe: async () => [f.announcement], async *open(_request, _signal, actual) {
     calls++
     assert.deepEqual(actual, delivery)
     yield f.reply
