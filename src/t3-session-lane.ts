@@ -1,8 +1,10 @@
 import {
   decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream, T3_LANE_LIMITS,
+  decodeT3LaneProvenance, type ExecutorT3LaneDelivery,
   type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame, type T3RuntimeAnnouncement,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
+import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
 
@@ -13,12 +15,13 @@ import type { ExecutorLocalState } from './state-store.js'
 export interface T3SessionLaneRuntime {
   describe(): Promise<readonly T3RuntimeAnnouncement[]>;
   open(request: ExecutorT3LaneOperation, signal: AbortSignal,
-    delivery: { readonly requestDigest: string }): AsyncIterable<ExecutorT3LaneReply>;
+    delivery: ExecutorT3LaneDelivery): AsyncIterable<ExecutorT3LaneReply>;
 }
 type State = Pick<ExecutorLocalState, 'apiBaseUrl' | 'executorId' | 'machinePrivateKey' | 'connectionEpoch'>
 type Attempt = {
   request: ExecutorT3LaneOperation; iterator: AsyncIterator<ExecutorT3LaneReply>; abort: AbortController;
   ordinal: number; expiresAt: number; pending?: T3LaneFrame; bytes: number; pulling: boolean;
+  delivery: ExecutorT3LaneDelivery;
 }
 const key = (value: { environmentId: string; correlationId: string }) =>
   JSON.stringify([value.environmentId, value.correlationId])
@@ -141,12 +144,17 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       }
       const request = decodeExecutorT3LaneOperation(offer.request)
       if (!/^hmac-sha256:[a-f0-9]{64}$/u.test(offer.requestDigest)) throw new Error('T3_LANE_CORRELATION')
+      const delivery: ExecutorT3LaneDelivery = Object.freeze({ requestDigest: offer.requestDigest,
+        ...(offer.provenance === undefined ? {} : { provenance: Object.freeze(decodeT3LaneProvenance(offer.provenance)) }) })
       if (request.executorId !== state.executorId || request.connectionEpoch !== state.connectionEpoch) {
         throw new Error('T3_LANE_CORRELATION')
       }
       const old = attempts.get(key(request))
       if (old) {
-        if (old.request.runtimeGeneration !== request.runtimeGeneration) throw new Error('T3_LANE_CORRELATION')
+        if (old.request.runtimeGeneration !== request.runtimeGeneration
+          || canonicalExecutorJson(old.delivery) !== canonicalExecutorJson(delivery)) {
+          throw new Error('T3_LANE_CORRELATION')
+        }
         continue // Never invoke the engine twice for an already active offer.
       }
       if (attempts.size >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
@@ -157,9 +165,9 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       // Lazy adapter invocation: a synchronous runtime failure follows the same
       // terminal uncertainty path as a rejected Effect/stream pull.
       const iterator = (async function* () {
-        yield* runtime.open(request, abort.signal, { requestDigest: offer.requestDigest })
+        yield* runtime.open(request, abort.signal, delivery)
       })()[Symbol.asyncIterator]()
-      const attempt: Attempt = { request, iterator, abort, ordinal: 0, expiresAt, bytes: 0, pulling: false }
+      const attempt: Attempt = { request, iterator, abort, delivery, ordinal: 0, expiresAt, bytes: 0, pulling: false }
       attempts.set(key(request), attempt)
       pull(attempt)
     }
