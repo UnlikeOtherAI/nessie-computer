@@ -61,9 +61,20 @@ export function verifyT3ExecutionReceiptSignature(
   return receipt
 }
 
-export type T3NativeLaunchDescriptor = {
+type T3NativeLaunchProcess = {
   command: string; args: string[]; cwd: string; environment: Record<string, string>
 }
+/** Purpose is part of the exact service-held Launch, never an inferred default
+ * or a separate phase selector. Native still validates the complete descriptor. */
+export type T3NativeLaunchDescriptor = T3NativeLaunchProcess & (
+  | { processPurpose: 'provider'; history?: never }
+  | { processPurpose: 'claude-history-read'; history: {
+    method: 'getSessionMessages'; sessionId: string; rawOptions: string
+  } }
+  | { processPurpose: 'claude-history-fork'; history: {
+    method: 'forkSession'; sessionId: string; rawOptions: string
+  } }
+)
 
 /** Machine-only transport for the original graph. The native gate remains the
  * authority. No caller-selected helper, signing callback, provider stdin or
