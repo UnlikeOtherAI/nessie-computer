@@ -81,6 +81,7 @@ pub fn default_server() -> String {
 pub fn team_server(executor_id: &str) -> Result<String, String> {
     match team_names::snapshot().get(executor_id) {
         Some(Entry::Known(identity)) => Ok(identity.api_base_url.clone()),
+        Some(Entry::OwnerConfirmation(Some(server))) => Ok(server.clone()),
         _ => Err("Nessie hasn’t answered for this team yet. Try again in a moment.".to_owned()),
     }
 }
@@ -169,9 +170,19 @@ pub async fn executor_view() -> Result<ServiceView, String> {
 /// paired with. With no team, the attempt whose pairing code is on screen
 /// (with that code, on **Add a computer**), or else the first team's server.
 /// The page names only a team; the address is always this app's own.
+/// Opens one computer's own page in Nessie, where its owner confirms it
+/// again. Always the browser: Nessie Desktop opens on its own start page.
+pub fn open_computer<R: Runtime>(app: &AppHandle<R>, executor_id: &str) -> Result<(), String> {
+    let origin = pairing_origin::approve(&team_server(executor_id)?, cfg!(debug_assertions))?.origin;
+    let url = crate::service_identity::computer_url(&origin, cfg!(debug_assertions), executor_id)?;
+    app.opener().open_url(url, None::<&str>).map_err(|_| "Nessie Computer could not open Nessie.".to_owned())
+}
+
+/// `computer` opens that team's computer page rather than the Computers list.
 #[tauri::command]
-pub async fn executor_open_nessie(app: AppHandle, executor_id: Option<String>) -> Result<(), String> {
+pub async fn executor_open_nessie(app: AppHandle, executor_id: Option<String>, computer: Option<bool>) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || match executor_id {
+        Some(executor_id) if computer == Some(true) => open_computer(&app, &executor_id),
         Some(executor_id) => open_nessie(&app, &team_server(&executor_id)?, None),
         None => match crate::pairing_code::showing_code() {
             Some(showing) => open_nessie(&app, &showing.api_origin, Some(&showing.code)),

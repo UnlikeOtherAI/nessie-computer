@@ -162,10 +162,13 @@ macOS bridge (`menubar-macos/README.md`), plus these shapes the window relies on
   pairs it, and the next `executor_view` links the team row to it.
 - `executor_pairing_start { apiBaseUrl }` — no other option.
 
-- `executor_open_nessie { executorId? }` — the host builds the URL from the
-  named team's paired server (or its own when no team is named) and adds
-  `?create=1&code=<code>` itself while a pairing code is showing. The page
-  never passes a path or URL (§5.1).
+- `executor_open_nessie { executorId?, computer? }` — the host builds the URL
+  from the named team's paired server (or its own when no team is named) and
+  adds `?create=1&code=<code>` itself while a pairing code is showing. With
+  `computer: true` it opens that team's own computer page
+  (`/admin/computers/<executorId>`), where its owner confirms this computer
+  again when Nessie needs that before it names the team (Overview's Needs you
+  line). The page never passes a path or URL (§5.1).
 - `executor_pairing_status { executorId }` — names a paired team
   (`organizationName`, `teamName`, `apiBaseUrl`); the label comes from it.
 - `executor_sync_status { executorId }` — `FolderSyncConsoleState`; the

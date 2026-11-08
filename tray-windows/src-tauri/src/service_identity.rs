@@ -19,6 +19,19 @@ const LOCAL_CONSOLE: &str = "http://localhost:5455";
 /// itself, as the macOS app does. While a pairing code is shown, the page
 /// opens on **Add a computer** with that code: a one-shot intent Nessie strips
 /// once it has read it.
+/// One computer's own page in the console: `/admin/computers/<executorId>`.
+pub fn computer_url(api_origin: &str, development: bool, executor_id: &str) -> Result<String, String> {
+    if executor_id.is_empty() || executor_id.len() > 128
+        || !executor_id.bytes().all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err("Invalid team identity.".to_owned());
+    }
+    let mut url = url::Url::parse(&console_url(api_origin, development, None)?)
+        .map_err(|_| "Nessie gave an address this app does not open.".to_owned())?;
+    url.set_path(&format!("/admin/computers/{executor_id}"));
+    Ok(url.into())
+}
+
 pub fn console_url(api_origin: &str, development: bool, code: Option<&str>) -> Result<String, String> {
     let mut url = if development && api_origin == crate::pairing_origin::LOCAL_DEVELOPMENT_ORIGIN {
         url::Url::parse(LOCAL_CONSOLE).map_err(|_| "This app could not prepare the Nessie address.".to_owned())?
@@ -74,6 +87,11 @@ mod tests {
 
     #[test]
     fn while_pairing_the_page_opens_on_add_a_computer_with_the_code() {
+        assert_eq!(super::computer_url("https://api.nessie.works", false, "0b6a3f14-98d2-4c57").unwrap(),
+            "https://app.nessie.works/admin/computers/0b6a3f14-98d2-4c57");
+        for id in ["", "../x", "a/b", "a?b"] {
+            assert!(super::computer_url("https://api.nessie.works", false, id).is_err(), "{id}");
+        }
         assert_eq!(console_url("https://api.nessie.works", false, Some("12345678")).unwrap(),
             "https://app.nessie.works/admin/computers?create=1&code=12345678");
         for code in ["1234567", "123456789", "1234567a", "12345678&x=1"] {

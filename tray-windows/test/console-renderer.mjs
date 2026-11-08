@@ -363,6 +363,20 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     journeys++
     await context.close()
   }
+  // Nessie names a team again only after its owner confirms this computer there:
+  // the line says so, and opens that computer's page on the team's own server.
+  for (const host of ['windows', 'macos']) {
+    const { context, page, errors } = await open({ host, paired: 1, ownerConfirmationRequired: true })
+    await page.locator('#needs-you-list').getByText('Confirm this computer in Nessie', { exact: true }).waitFor()
+    assert.equal(await page.locator('#status-sentence').textContent(), 'Needs you: confirm this computer in Nessie')
+    await page.locator('#needs-you-list').getByRole('button', { name: 'Open Nessie', exact: true }).click()
+    await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_open_nessie'))
+    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { executorId: 'team-0', computer: true })
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
+
   // The smallest window the apps allow: everything still fits and reads.
   for (const [locale, dark] of [['en-GB', false], ['cs-CZ', true]]) {
     const { context, page, errors, shot } = await open({ host: 'macos', locale, dark, size: 'minimum' })

@@ -108,7 +108,7 @@ fn label_of(executor_id: &str) -> String {
     let names = team_names::snapshot();
     let all: Vec<&team_names::TeamIdentity> = names.values().filter_map(|entry| match entry {
         team_names::Entry::Known(identity) => Some(identity),
-        team_names::Entry::OwnerConfirmation => None,
+        team_names::Entry::OwnerConfirmation(_) => None,
     }).collect();
     let mine = match names.get(executor_id) {
         Some(team_names::Entry::Known(identity)) => Some(identity),
@@ -194,6 +194,14 @@ fn handle_menu(app: &AppHandle, id: &str) {
                     Err(reason) => {
                         commands::notify(&app, if paused { words.pause_failed } else { words.resume_failed }, reason)
                     }
+                }
+            });
+        }
+        MenuAction::ConfirmInNessie(executor_id) => {
+            let app = app.clone();
+            std::thread::spawn(move || {
+                if let Err(reason) = commands::open_computer(&app, &executor_id) {
+                    commands::notify(&app, words::words().open_nessie_failed, reason);
                 }
             });
         }
