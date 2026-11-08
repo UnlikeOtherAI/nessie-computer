@@ -91,7 +91,7 @@
     row.querySelector('.commands').replaceChildren(...commands.map(commandRow))
   }
 
-  /** Rows keep their place: a session already shown is updated where it is, new ones are appended, gone ones removed. */
+  /** Rows keep their place: a shown session is updated where it is, new ones are appended, gone ones removed. */
   const render = () => {
     const section = byId('overview-working')
     const teams = nc.team.teams()
