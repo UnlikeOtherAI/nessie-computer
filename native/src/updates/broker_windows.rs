@@ -12,7 +12,7 @@ use nessie_executor_updater::{
 use std::{
     ffi::OsString,
     fs::File,
-    io::{Read, Write},
+    io::Write,
     os::windows::{ffi::OsStrExt, io::FromRawHandle, process::CommandExt},
     process::{Child, Command, Stdio},
     sync::{
@@ -225,7 +225,7 @@ fn connection(mut file: File) -> Result<(), String> {
         if bytes.len() > 16_384 || Instant::now() >= deadline {
             return Err(ERROR.into());
         }
-        match file.read(&mut buffer) {
+        match nessie_windows_common::pipe_io::read(&file, &mut buffer) {
             Ok(0) => return Err(ERROR.into()),
             Ok(count) => {
                 bytes.extend_from_slice(&buffer[..count]);
@@ -281,7 +281,7 @@ fn connection(mut file: File) -> Result<(), String> {
     // Wait for the reader to consume the bounded answer before disconnecting;
     // closing a named pipe early discards unread output. A client ACK closes it.
     while Instant::now() < deadline {
-        match file.read(&mut buffer) {
+        match nessie_windows_common::pipe_io::read(&file, &mut buffer) {
             Ok(0) => break,
             Ok(_) => break,
             Err(error) if error.raw_os_error() == Some(232) => {
@@ -294,6 +294,17 @@ fn connection(mut file: File) -> Result<(), String> {
     Ok(())
 }
 
+// Resolve these in the verified SCM context before discarding inherited values.
+fn worker_environment(command: &mut Command) -> Result<(), String> {
+    use nessie_windows_common::update_admission::known_folder;
+    use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramData, FOLDERID_Windows};
+    let windows = known_folder(&FOLDERID_Windows)?;
+    let data = known_folder(&FOLDERID_ProgramData)?;
+    command.env_clear().env("SystemRoot", windows)
+        .env("ALLUSERSPROFILE", &data).env("ProgramData", data);
+    Ok(())
+}
+
 fn spawn_worker() -> Result<Child, String> {
     let store = Store::new(host::root().map_err(str::to_owned)?);
     if !store.installation_enabled().map_err(str::to_owned)? { return Err("update.installation_removed".into()); }
@@ -301,13 +312,9 @@ fn spawn_worker() -> Result<Child, String> {
     let lease = store.runner().map_err(str::to_owned)?;
     drop(lease);
     let executable = host::worker_image().map_err(str::to_owned)?;
-    let windows = nessie_windows_common::update_admission::known_folder(
-        &windows_sys::Win32::UI::Shell::FOLDERID_Windows,
-    )?;
-    Command::new(executable)
-        .arg("update-worker")
-        .env_clear()
-        .env("SystemRoot", &windows)
+    let mut command = Command::new(executable);
+    worker_environment(&mut command)?;
+    command.arg("update-worker")
         .current_dir(host::root().map_err(str::to_owned)?)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -375,5 +382,29 @@ mod pipe_tests {
         assert_eq!(accept_state(server.0).unwrap(), Accept::Connected);
         drop(client);
         assert_eq!(accept_state(server.0).unwrap(), Accept::Abandoned);
+    }
+
+    #[test]
+    fn worker_environment_resolves_the_same_machine_state_root() {
+        use nessie_windows_common::update_admission::{known_folder, root};
+        use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramData, FOLDERID_ProgramFiles, FOLDERID_Windows};
+        const CHILD: &str = "NESSIE_WINDOWS_WORKER_ENV_TEST";
+        if let Some(expected) = std::env::var_os(CHILD) {
+            let data = known_folder(&FOLDERID_ProgramData).unwrap();
+            assert_eq!(data, std::path::PathBuf::from(expected));
+            assert_eq!(root().unwrap(), data.join("Nessie Executor Updates"));
+            assert!(known_folder(&FOLDERID_ProgramFiles).unwrap().is_absolute());
+            assert!(known_folder(&FOLDERID_Windows).unwrap().is_absolute());
+            println!("worker-known-folders-verified");
+            return;
+        }
+        let data = known_folder(&FOLDERID_ProgramData).unwrap();
+        let mut child = Command::new(std::env::current_exe().unwrap());
+        worker_environment(&mut child).unwrap();
+        let module = module_path!().split_once("::").unwrap().1;
+        let output = child.args(["--exact", &format!("{module}::worker_environment_resolves_the_same_machine_state_root"), "--nocapture"])
+            .env(CHILD, data).output().unwrap();
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("worker-known-folders-verified"));
     }
 }

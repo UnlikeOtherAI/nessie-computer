@@ -535,3 +535,15 @@ installed normally, but its desktop control still timed out and its background
 worker had not created a journal; it remains unpublished and unaccepted.
 Deadline diagnostics include sent/received byte counts, without request or reply
 contents, to distinguish a full-buffer write from a missing broker response.
+
+The 1.0.8 probe sent zero request bytes: the broker had closed the empty pipe
+while its client verified the peer. Rust classifies ERROR_NO_DATA as BrokenPipe
+and File::read converts it to EOF. Both ends now use the shared ReadFile wrapper
+that preserves the native no-data error until their existing deadline. A real
+empty-pipe/request/reply/disconnect regression covers the transport.
+A separate SYSTEM read-only probe reproduced ProgramData resolution failure with
+only SystemRoot in the worker environment. The broker now supplies only OS-resolved
+ALLUSERSPROFILE and ProgramData alongside SystemRoot before launch. A real child
+process verifies the same machine paths and state root under that exact whitelist.
+No caller paths, inherited environment, authorization overrides or journal resets
+are introduced. Fresh signed installation/control/worker acceptance is still required.

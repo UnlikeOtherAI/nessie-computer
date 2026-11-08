@@ -140,3 +140,6 @@ mod tests {
         assert_eq!(CONTROL_PIPE_CLIENT_ACCESS & 0x0000_0004, 0);
     }
 }
+
+#[cfg(windows)]
+pub mod pipe_io;
