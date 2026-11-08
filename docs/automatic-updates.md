@@ -376,3 +376,23 @@ Focused native protocol checks run on Fedora with
 journey is `node packaging/linux/test/renderer.mjs`; keep it out of CI.
 Installed GNOME entry, reminder and reboot checks remain release acceptance
 work until the signed candidate is exercised on FedoraMaxis.
+
+## Windows source verification context
+
+The Windows source runner places Node beside the built native ACL helper. Public
+ACL operations use that fixed sibling without marking Node as an installed
+executor. Previously the runner set `NESSIE_EXECUTOR_PACKAGED_CLI=1` solely to
+reach the helper; that also activated installed-only custody and stranded source
+MCP teardown on proof the uncontained test process could not provide.
+
+The ACL transport and runtime admission are now separate. A missing or symlinked
+helper still refuses; there is no PATH search or helper environment override.
+Installed-only updater and credential commands retain their own package, publisher
+and native factory requirements. The real Windows regression verifies owner-only
+state while update installation is unsupported and native credential context is
+rejected for the source runtime. Existing journals and unknown-stop fences are
+never cleared to make source tests pass.
+
+Run the focused source/ACL/bridge regression through Turbo with
+`pnpm exec turbo run test:windows-source --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
+Then run `pnpm verify`; installed acceptance remains a separate gate.

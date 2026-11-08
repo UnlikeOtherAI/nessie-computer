@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Windows state checks need the real native ACL helper beside the test runtime.
-// Run the whole suite in that context; an unmarked first pass can neither prove
-// those permissions nor exercise subprocesses that enforce the same boundary.
+// Keep source Node unmarked: ACL verification does not establish an installed
+// runtime or activate the installed-only custody and update paths.
 import { spawnSync } from 'node:child_process'
 import { copyFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -23,7 +23,7 @@ if (process.platform === 'win32') {
   node = join(release, 'node.exe')
   const version = existsSync(node) ? spawnSync(node, ['--version'], { encoding: 'utf8' }).stdout?.trim() : undefined
   if (version !== process.version) copyFileSync(process.execPath, node)
-  env.NESSIE_EXECUTOR_PACKAGED_CLI = '1'
+  delete env.NESSIE_EXECUTOR_PACKAGED_CLI
 }
 
 const result = spawnSync(node, [
