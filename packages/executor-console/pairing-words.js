@@ -1,23 +1,52 @@
-// A public connection choice, never an authority or a machine-key migration.
-const personalPlanPairingEnglish = {
-  label: 'Use my personal ChatGPT plan',
-  hint: 'Use this connection for private agents on your ChatGPT plan. Keep a separate standard connection for coding tools installed under your Windows account. Windows will ask you to approve access to your Nessie folder.',
-}
-const personalPlanPairingWords = {
-  'en-US': personalPlanPairingEnglish,
-  'en-GB': personalPlanPairingEnglish,
-  'cs-CZ': { label: 'Používat můj osobní tarif ChatGPT',
-    hint: 'Toto připojení slouží soukromým agentům s vaším tarifem ChatGPT. Pro programovací nástroje nainstalované pod vaším účtem Windows ponechte samostatné běžné připojení. Windows vás požádá o schválení přístupu ke složce Nessie.' },
-  'de-DE': { label: 'Meinen persönlichen ChatGPT-Tarif nutzen',
-    hint: 'Diese Verbindung nutzt Ihren ChatGPT-Tarif für private Agenten. Behalten Sie eine separate Standardverbindung für Programmiertools Ihres Windows-Kontos. Windows bittet Sie, den Zugriff auf Ihren Nessie-Ordner zu genehmigen.' },
-  'es-ES': { label: 'Usar mi plan personal de ChatGPT',
-    hint: 'Esta conexión usa tu plan de ChatGPT para agentes privados. Mantén otra conexión estándar para las herramientas de programación instaladas en tu cuenta de Windows. Windows te pedirá que autorices el acceso a tu carpeta Nessie.' },
-  'fr-FR': { label: 'Utiliser mon forfait ChatGPT personnel',
-    hint: 'Cette connexion utilise votre forfait ChatGPT pour vos agents privés. Conservez une connexion standard distincte pour les outils de programmation de votre compte Windows. Windows vous demandera d’autoriser l’accès à votre dossier Nessie.' },
-  'it-IT': { label: 'Usare il mio piano personale ChatGPT',
-    hint: 'Questa connessione usa il tuo piano ChatGPT per gli agenti privati. Mantieni una connessione standard separata per gli strumenti di programmazione del tuo account Windows. Windows ti chiederà di autorizzare l’accesso alla cartella Nessie.' },
-}
-const pairingLocale = navigator.language.toLowerCase()
-const pairingLocaleKey = Object.keys(personalPlanPairingWords).find((locale) => locale.toLowerCase() === pairingLocale)
-  ?? Object.keys(personalPlanPairingWords).find((locale) => locale.toLowerCase().split('-')[0] === pairingLocale.split('-')[0])
-window.executorPairingWords = personalPlanPairingWords[pairingLocaleKey] ?? personalPlanPairingEnglish
+// Connect a team: the dialog that shows the pairing code.
+window.nc.words.register('pairing', {
+  'en-GB': {
+    title: 'Connect a team', getting: 'Getting a code…', codeLabel: 'Pairing code', copy: 'Copy', copied: 'Copied', copyLabel: 'Copy pairing code',
+    announceCopied: 'Pairing code copied.', expiresIn: 'Expires in {time}', expired: 'This code has expired.',
+    instruction: 'In Nessie, open Computers and choose Add a computer.', openNessie: 'Open Nessie to finish', newCode: 'Get a new code',
+    advanced: 'Use your organisation’s own Nessie server', serverLabel: 'Nessie server address',
+    serverHint: 'Use the address your administrator gave you.', useServer: 'Get a code for this server',
+  },
+  'en-US': {
+    title: 'Connect a team', getting: 'Getting a code…', codeLabel: 'Pairing code', copy: 'Copy', copied: 'Copied', copyLabel: 'Copy pairing code',
+    announceCopied: 'Pairing code copied.', expiresIn: 'Expires in {time}', expired: 'This code has expired.',
+    instruction: 'In Nessie, open Computers and choose Add a computer.', openNessie: 'Open Nessie to finish', newCode: 'Get a new code',
+    advanced: 'Use your organization’s own Nessie server', serverLabel: 'Nessie server address',
+    serverHint: 'Use the address your administrator gave you.', useServer: 'Get a code for this server',
+  },
+  cs: {
+    title: 'Připojit tým', getting: 'Získává se kód…', codeLabel: 'Párovací kód', copy: 'Kopírovat', copied: 'Zkopírováno', copyLabel: 'Kopírovat párovací kód',
+    announceCopied: 'Párovací kód zkopírován.', expiresIn: 'Vyprší za {time}', expired: 'Tento kód vypršel.',
+    instruction: 'V Nessie otevřete Počítače a zvolte Přidat počítač.', openNessie: 'Dokončit v Nessie', newCode: 'Získat nový kód',
+    advanced: 'Použít vlastní server Nessie vaší organizace', serverLabel: 'Adresa serveru Nessie',
+    serverHint: 'Použijte adresu, kterou vám dal správce.', useServer: 'Získat kód pro tento server',
+  },
+  de: {
+    title: 'Team verbinden', getting: 'Code wird geholt…', codeLabel: 'Kopplungscode', copy: 'Kopieren', copied: 'Kopiert', copyLabel: 'Kopplungscode kopieren',
+    announceCopied: 'Kopplungscode kopiert.', expiresIn: 'Läuft ab in {time}', expired: 'Dieser Code ist abgelaufen.',
+    instruction: 'Öffnen Sie in Nessie „Computer“ und wählen Sie „Computer hinzufügen“.', openNessie: 'In Nessie abschließen', newCode: 'Neuen Code holen',
+    advanced: 'Eigenen Nessie-Server Ihrer Organisation verwenden', serverLabel: 'Adresse des Nessie-Servers',
+    serverHint: 'Verwenden Sie die Adresse, die Ihnen Ihr Administrator gegeben hat.', useServer: 'Code für diesen Server holen',
+  },
+  es: {
+    title: 'Conectar un equipo', getting: 'Obteniendo un código…', codeLabel: 'Código de emparejamiento', copy: 'Copiar', copied: 'Copiado', copyLabel: 'Copiar el código de emparejamiento',
+    announceCopied: 'Código de emparejamiento copiado.', expiresIn: 'Caduca en {time}', expired: 'Este código ha caducado.',
+    instruction: 'En Nessie, abre Ordenadores y elige Añadir un ordenador.', openNessie: 'Abrir Nessie para terminar', newCode: 'Obtener un código nuevo',
+    advanced: 'Usar el servidor Nessie propio de tu organización', serverLabel: 'Dirección del servidor Nessie',
+    serverHint: 'Usa la dirección que te dio tu administrador.', useServer: 'Obtener un código para este servidor',
+  },
+  fr: {
+    title: 'Connecter une équipe', getting: 'Obtention d’un code…', codeLabel: 'Code d’appairage', copy: 'Copier', copied: 'Copié', copyLabel: 'Copier le code d’appairage',
+    announceCopied: 'Code d’appairage copié.', expiresIn: 'Expire dans {time}', expired: 'Ce code a expiré.',
+    instruction: 'Dans Nessie, ouvrez Ordinateurs et choisissez Ajouter un ordinateur.', openNessie: 'Ouvrir Nessie pour terminer', newCode: 'Obtenir un nouveau code',
+    advanced: 'Utiliser le serveur Nessie de votre organisation', serverLabel: 'Adresse du serveur Nessie',
+    serverHint: 'Utilisez l’adresse donnée par votre administrateur.', useServer: 'Obtenir un code pour ce serveur',
+  },
+  it: {
+    title: 'Connetti un team', getting: 'Richiesta del codice…', codeLabel: 'Codice di abbinamento', copy: 'Copia', copied: 'Copiato', copyLabel: 'Copia il codice di abbinamento',
+    announceCopied: 'Codice di abbinamento copiato.', expiresIn: 'Scade tra {time}', expired: 'Questo codice è scaduto.',
+    instruction: 'In Nessie, apri Computer e scegli Aggiungi un computer.', openNessie: 'Apri Nessie per finire', newCode: 'Ottieni un nuovo codice',
+    advanced: 'Usa il server Nessie della tua organizzazione', serverLabel: 'Indirizzo del server Nessie',
+    serverHint: 'Usa l’indirizzo che ti ha dato l’amministratore.', useServer: 'Ottieni un codice per questo server',
+  },
+})

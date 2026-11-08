@@ -1,7 +1,6 @@
-// Both native apps use these words. en-GB and en-US share the English copy.
-window.executorUpdateWords = (() => {
-  const words = {
-    en: {
+// Software updates, on every platform. en-GB and en-US share the English copy.
+(() => {
+  const en = {
       title: 'Software updates', installed: 'Installed version', unknown: 'Version unavailable',
       automatic: 'Install updates automatically',
       automaticHint: 'Updates wait for work to finish. Your teams, permissions and sign-ins stay on this computer.',
@@ -12,11 +11,14 @@ window.executorUpdateWords = (() => {
       failed: 'The update could not finish. Try again; your current work stays safe.',
       unsupported: 'Automatic updates are unavailable for this installation. Update through the tool you used to install it.',
       unavailable: "Couldn’t reach the update service. Select “Check for updates” to try again.",
-      bootstrap: 'Finish current work and stop older Nessie executors. Update setup will then finish automatically.',
+      bootstrap: 'Finish current work and stop older copies of Nessie Computer. Update setup will then finish automatically.',
       setup: 'Set up updates', setupHint: 'Allow Nessie’s background helper in System Settings to start this computer and install updates.',
       promptTitle: 'Update Nessie on this computer', promptBody: "Version {version} is available. Update now, or ask again in 24 hours.",
       offHint: 'Automatic updates are off. Nessie will ask you when a new version is available.',
-    },
+  }
+  window.nc.words.register('updates', {
+    'en-GB': en,
+    'en-US': en,
     cs: {
       title: 'Aktualizace', installed: 'Nainstalovaná verze', unknown: 'Verze není dostupná',
       automatic: 'Instalovat aktualizace automaticky',
@@ -28,7 +30,7 @@ window.executorUpdateWords = (() => {
       failed: 'Aktualizaci se nepodařilo dokončit. Zkuste to znovu; vaše práce zůstává v bezpečí.',
       unsupported: 'Pro tuto instalaci nejsou automatické aktualizace dostupné. Použijte nástroj, kterým jste ji nainstalovali.',
       unavailable: "Služba aktualizací není dostupná. Zkuste to znovu tlačítkem „Vyhledat aktualizace“.",
-      bootstrap: 'Dokončete rozdělanou práci a zastavte starší executory Nessie. Nastavení aktualizací se pak dokončí automaticky.',
+      bootstrap: 'Dokončete rozdělanou práci a zastavte starší kopie Nessie Computer. Nastavení aktualizací se pak dokončí automaticky.',
       setup: 'Nastavit aktualizace', setupHint: 'Povolte pomocnou službu Nessie v Nastavení systému. Pak půjde tento počítač spustit a instalovat aktualizace.',
       promptTitle: 'Aktualizujte Nessie v tomto počítači', promptBody: "Je dostupná verze {version}. Aktualizujte nyní, nebo si ji nechte připomenout za 24 hodin.",
       offHint: 'Automatické aktualizace jsou vypnuté. Nessie vás upozorní na novou verzi.',
@@ -44,7 +46,7 @@ window.executorUpdateWords = (() => {
       failed: 'Das Update konnte nicht abgeschlossen werden. Erneut versuchen; Ihre Arbeit bleibt sicher.',
       unsupported: 'Für diese Installation sind keine automatischen Updates verfügbar. Verwenden Sie das ursprüngliche Installationswerkzeug.',
       unavailable: "Der Updatedienst ist nicht erreichbar. Wählen Sie „Nach Updates suchen“, um es erneut zu versuchen.",
-      bootstrap: 'Beenden Sie die laufende Arbeit und stoppen Sie ältere Nessie-Executors. Die Einrichtung der Updates wird dann automatisch abgeschlossen.',
+      bootstrap: 'Beenden Sie die laufende Arbeit und stoppen Sie ältere Kopien von Nessie Computer. Die Einrichtung der Updates wird dann automatisch abgeschlossen.',
       setup: 'Updates einrichten', setupHint: 'Erlauben Sie den Hintergrunddienst von Nessie in den Systemeinstellungen, um diesen Computer zu starten und Updates zu installieren.',
       promptTitle: 'Nessie auf diesem Computer aktualisieren', promptBody: "Version {version} ist verfügbar. Jetzt aktualisieren oder in 24 Stunden erinnern lassen.",
       offHint: 'Automatische Updates sind aus. Nessie meldet sich, wenn eine neue Version verfügbar ist.',
@@ -60,7 +62,7 @@ window.executorUpdateWords = (() => {
       failed: 'La mise à jour n’a pas pu se terminer. Réessayez ; votre travail reste en sécurité.',
       unsupported: 'Les mises à jour automatiques ne sont pas disponibles pour cette installation. Utilisez l’outil ayant servi à l’installer.',
       unavailable: "Le service de mise à jour est inaccessible. Sélectionnez « Rechercher des mises à jour » pour réessayer.",
-      bootstrap: 'Terminez le travail en cours, puis arrêtez les anciens exécuteurs Nessie. La configuration des mises à jour se terminera automatiquement.',
+      bootstrap: 'Terminez le travail en cours, puis arrêtez les anciennes copies de Nessie Computer. La configuration des mises à jour se terminera automatiquement.',
       setup: 'Configurer les mises à jour', setupHint: 'Autorisez le service d’arrière-plan de Nessie dans Réglages Système pour démarrer cet ordinateur et installer les mises à jour.',
       promptTitle: 'Mettre à jour Nessie sur cet ordinateur', promptBody: "La version {version} est disponible. Mettez à jour maintenant ou demandez un rappel dans 24 heures.",
       offHint: 'Les mises à jour automatiques sont désactivées. Nessie vous avertira lorsqu’une nouvelle version sera disponible.',
@@ -76,7 +78,7 @@ window.executorUpdateWords = (() => {
       failed: 'Impossibile completare l’aggiornamento. Riprova; il tuo lavoro è al sicuro.',
       unsupported: 'Gli aggiornamenti automatici non sono disponibili per questa installazione. Usa lo strumento con cui l’hai installata.',
       unavailable: "Impossibile raggiungere il servizio di aggiornamento. Seleziona “Cerca aggiornamenti” per riprovare.",
-      bootstrap: 'Termina il lavoro in corso e arresta i vecchi esecutori Nessie. La configurazione degli aggiornamenti terminerà automaticamente.',
+      bootstrap: 'Termina il lavoro in corso e arresta le vecchie copie di Nessie Computer. La configurazione degli aggiornamenti terminerà automaticamente.',
       setup: 'Configura aggiornamenti', setupHint: 'Consenti il servizio in background di Nessie in Impostazioni di Sistema per avviare questo computer e installare gli aggiornamenti.',
       promptTitle: 'Aggiorna Nessie su questo computer', promptBody: "È disponibile la versione {version}. Aggiorna ora o chiedi un promemoria tra 24 ore.",
       offHint: 'Gli aggiornamenti automatici sono disattivati. Nessie ti avviserà quando sarà disponibile una nuova versione.',
@@ -92,12 +94,10 @@ window.executorUpdateWords = (() => {
       failed: 'No se pudo completar la actualización. Inténtalo de nuevo; tu trabajo sigue a salvo.',
       unsupported: 'Las actualizaciones automáticas no están disponibles para esta instalación. Usa la herramienta con la que la instalaste.',
       unavailable: "No se pudo acceder al servicio de actualizaciones. Selecciona «Buscar actualizaciones» para intentarlo de nuevo.",
-      bootstrap: 'Termina el trabajo en curso y detén los ejecutores antiguos de Nessie. La configuración de las actualizaciones finalizará automáticamente.',
+      bootstrap: 'Termina el trabajo en curso y detén las copias antiguas de Nessie Computer. La configuración de las actualizaciones finalizará automáticamente.',
       setup: 'Configurar actualizaciones', setupHint: 'Permite el servicio en segundo plano de Nessie en Ajustes del Sistema para iniciar este ordenador e instalar actualizaciones.',
       promptTitle: 'Actualizar Nessie en este ordenador', promptBody: "La versión {version} está disponible. Actualiza ahora o pide un recordatorio dentro de 24 horas.",
       offHint: 'Las actualizaciones automáticas están desactivadas. Nessie te avisará cuando haya una nueva versión.',
     },
-  }
-  const locale = (navigator.language || 'en').split('-')[0]
-  return Object.freeze(words[locale] ?? words.en)
+  })
 })()

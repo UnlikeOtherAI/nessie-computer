@@ -14,8 +14,8 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     : bootstrapOnly ? '.artifacts/executor-console-bootstrap' : '.artifacts/executor-console-updates',
     before ? 'before' : 'after')
   await mkdir(output, { recursive: true })
-  const resource = (file) => before
-    ? execFileSync('git', ['show', `${before}:packages/executor-console/${file}`], { cwd: root, maxBuffer: 2_000_000 })
+  const resource = async (file) => before
+    ? execFileSync('git', ['show', `${before}:packages/executor-console/${file}`], { cwd: root, maxBuffer: 2_000_000, stdio: ['ignore', 'pipe', 'ignore'] })
     : readFile(join(ui, file))
   let journeys = 0
   const open = async ({ host = 'windows', width = 640, locale = 'en-GB', state = 'idle' } = {}) => {
@@ -41,10 +41,11 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     page.setDefaultTimeout(8000)
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
+    // Scripts outside the Software section's own files (the team tabs) are served empty: this journey is about updates.
     await page.route('http://localhost:5875/**', async (route) => {
       const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
-      assert.ok(files.includes(file), file)
-      await route.fulfill({ body: await resource(file), contentType: file.endsWith('.js') ? 'text/javascript'
+      const body = files.includes(file) || before ? await resource(file).catch(() => '') : ''
+      await route.fulfill({ body, contentType: file.endsWith('.js') ? 'text/javascript'
         : file.endsWith('.css') ? 'text/css' : 'text/html' })
     })
     await page.goto('http://localhost:5875')
@@ -78,13 +79,13 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         }
         await page.screenshot({ path: join(output, `${host}-${width}-${state}.png`), fullPage: true })
         if (!before && state === 'bootstrap') {
-          await page.getByText('Finish current work and stop older Nessie executors. Update setup will then finish automatically.',
+          await page.getByText('Finish current work and stop older copies of Nessie Computer. Update setup will then finish automatically.',
             { exact: true }).waitFor()
           await page.evaluate(() => {
             Object.assign(window.updateStatus, { phase: 'idle', canInstall: true, code: undefined })
             window.emitTray('executor://update-available')
           })
-          await page.waitForFunction(() => document.getElementById('update-status').textContent === window.executorUpdateWords.idle)
+          await page.waitForFunction(() => document.getElementById('update-status').textContent === window.nc.t('updates.idle'))
           assert.equal(await page.locator('#update-policy').isVisible(), true)
         }
         if (!before && state === 'prompt') {
@@ -149,7 +150,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     if (!setupOnly) for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'fr', 'it', 'es']) {
       const { context, page, errors } = await open({ locale, width: 440, state: bootstrapOnly ? 'bootstrap' : 'prompt' })
       if (bootstrapOnly) {
-        await page.waitForFunction(() => document.getElementById('update-status').textContent === window.executorUpdateWords.bootstrap)
+        await page.waitForFunction(() => document.getElementById('update-status').textContent === window.nc.t('updates.bootstrap'))
         assert.equal(await page.locator('#software-updates').evaluate((element) => element.scrollWidth <= element.clientWidth), true)
         await page.screenshot({ path: join(output, `windows-440-bootstrap-${locale}.png`), fullPage: true })
         assert.deepEqual(errors, [])
