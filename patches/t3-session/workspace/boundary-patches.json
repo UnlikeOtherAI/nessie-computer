@@ -1,0 +1,437 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "id": "workspace-port:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/vcs/VcsDriverRegistry.session-port.ts",
+      "create": [
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport type { VcsDriverKind, VcsError, VcsRepositoryIdentity } from \"@t3tools/contracts\";\nimport * as VcsDriver from \"./VcsDriver.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/vcs/VcsDriverRegistry.ts",
+          "start": 852,
+          "end": 1574,
+          "sha256": "96fdce6875cba628eb1608eea44fd3592e0ed66d441a801156b941931706987b",
+          "sourceStage": "current",
+          "sourceSha256": "01cc525e9ea5b835f0d4c4f558ff5f526995be3f81264fea94365ab378c07ef7"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "4c78c1a78b3c9e3d8308b9c9c4ac019c6018f4eeba0038e331b1a629af5d6bee"
+    },
+    {
+      "id": "workspace-share-port:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/vcs/VcsDriverRegistry.ts",
+      "from": "export interface VcsDriverResolveInput {\n  readonly cwd: string;\n  readonly requestedKind?: VcsDriverKind | \"auto\";\n}\n\nexport interface VcsDriverHandle {\n  readonly kind: VcsDriverKind;\n  readonly repository: VcsRepositoryIdentity;\n  readonly driver: VcsDriver.VcsDriver[\"Service\"];\n}\n\nexport class VcsDriverRegistry extends Context.Service<\n  VcsDriverRegistry,\n  {\n    readonly get: (kind: VcsDriverKind) => Effect.Effect<VcsDriver.VcsDriver[\"Service\"], VcsError>;\n    readonly detect: (\n      input: VcsDriverResolveInput,\n    ) => Effect.Effect<VcsDriverHandle | null, VcsError>;\n    readonly resolve: (input: VcsDriverResolveInput) => Effect.Effect<VcsDriverHandle, VcsError>;\n  }\n>()(\"t3/vcs/VcsDriverRegistry\") {}\n\n",
+      "to": "import { type VcsDriverResolveInput, type VcsDriverHandle, VcsDriverRegistry } from \"./VcsDriverRegistry.session-port.ts\";\nexport { type VcsDriverResolveInput, type VcsDriverHandle, VcsDriverRegistry };\n\n",
+      "beforeSha256": "01cc525e9ea5b835f0d4c4f558ff5f526995be3f81264fea94365ab378c07ef7",
+      "afterSha256": "e8cd0aa32e87eec0196c94e1be79a47c6f270db7d4073dfb1de16b17b325b8c3"
+    },
+    {
+      "id": "workspace-port:vcs/VcsStatusBroadcaster.ts",
+      "file": "apps/server/src/vcs/VcsStatusBroadcaster.session-port.ts",
+      "create": [
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Stream from \"effect/Stream\";\nimport type { GitManagerServiceError, VcsStatusInput, VcsStatusLocalResult, VcsStatusRemoteResult, VcsStatusResult, VcsStatusStreamEvent, VcsStatusSubscriptionInput } from \"@t3tools/contracts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+          "start": 6403,
+          "end": 7344,
+          "sha256": "e0cc92d9f9e2c3b17a1d301ceadca23290ad5068ca5c92f4d262a7cf45f9f2c2",
+          "sourceStage": "current",
+          "sourceSha256": "37fc10f9d6ea802671bc25f771c6cf9238eda0a52f144cf76643ee29f5b80c3c"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "3e937750fdfa464e5f2d9681e827193964d22361b0fcba3069db34b934fb1b9f"
+    },
+    {
+      "id": "workspace-share-port:vcs/VcsStatusBroadcaster.ts",
+      "file": "apps/server/src/vcs/VcsStatusBroadcaster.ts",
+      "from": "export class VcsStatusBroadcaster extends Context.Service<\n  VcsStatusBroadcaster,\n  {\n    readonly streamBranchChanges: Stream.Stream<{\n      readonly cwd: string;\n      readonly refName: string | null;\n    }>;\n    readonly getStatus: (\n      input: VcsStatusInput,\n    ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;\n    readonly refreshLocalStatus: (\n      cwd: string,\n    ) => Effect.Effect<VcsStatusLocalResult, GitManagerServiceError>;\n    readonly refreshStatus: (\n      cwd: string,\n      options?: { readonly localOnly?: boolean },\n    ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;\n    readonly refreshPullRequestStatus: (\n      cwd: string,\n    ) => Effect.Effect<VcsStatusRemoteResult | null, GitManagerServiceError>;\n    readonly streamStatus: (\n      input: VcsStatusSubscriptionInput,\n    ) => Stream.Stream<VcsStatusStreamEvent, GitManagerServiceError>;\n  }\n>()(\"t3/vcs/VcsStatusBroadcaster\") {}\n\n",
+      "to": "import { VcsStatusBroadcaster } from \"./VcsStatusBroadcaster.session-port.ts\";\nexport { VcsStatusBroadcaster };\n\n",
+      "beforeSha256": "37fc10f9d6ea802671bc25f771c6cf9238eda0a52f144cf76643ee29f5b80c3c",
+      "afterSha256": "ec9a1515fc6ab2aaad435bb222d72411517ef51cbb3c650dbde319e6c6c758c7"
+    },
+    {
+      "id": "workspace-port:workspace/KnownWorkspaces.ts",
+      "file": "apps/server/src/workspace/KnownWorkspaces.session-port.ts",
+      "create": [
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Path from \"effect/Path\";\nimport * as Schema from \"effect/Schema\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/workspace/KnownWorkspaces.ts",
+          "start": 852,
+          "end": 1939,
+          "sha256": "ec8586480883aaa6dff3f7901bf2a04f8e51135d982fd75771efd8365b393df0",
+          "sourceStage": "current",
+          "sourceSha256": "ace55c133c4f446e177159a9a829c76f3cb76f72b1a6abf01461fc8016793c1d"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "9c7b784c9abbb4c1f3c85459a39e5a020ccab22c18ce158983a2d9201a23e471"
+    },
+    {
+      "id": "workspace-share-port:workspace/KnownWorkspaces.ts",
+      "file": "apps/server/src/workspace/KnownWorkspaces.ts",
+      "from": "export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceError>()(\n  \"UnknownWorkspaceError\",\n  {\n    cwd: Schema.String,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `'${this.cwd}' is not a registered project, a managed worktree, or a thread's worktree.`;\n  }\n}\n\n/** Resolve candidate and root consistently before checking containment. */\nexport const isWithinRoot = (path: Path.Path, candidate: string, root: string) => {\n  const relative = path.relative(root, candidate);\n  return (\n    relative === \"\" ||\n    (relative !== \"..\" && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))\n  );\n};\n\nexport class KnownWorkspaces extends Context.Service<\n  KnownWorkspaces,\n  {\n    /** Takes a symlink-resolved path. */\n    readonly contains: (realPath: string) => Effect.Effect<boolean>;\n    /** Fails unless `cwd` exists and resolves inside a known workspace. */\n    readonly assertContains: (cwd: string) => Effect.Effect<void, UnknownWorkspaceError>;\n  }\n>()(\"t3/workspace/KnownWorkspaces\") {}\n\n",
+      "to": "import { UnknownWorkspaceError, isWithinRoot, KnownWorkspaces } from \"./KnownWorkspaces.session-port.ts\";\nexport { UnknownWorkspaceError, isWithinRoot, KnownWorkspaces };\n\n",
+      "beforeSha256": "ace55c133c4f446e177159a9a829c76f3cb76f72b1a6abf01461fc8016793c1d",
+      "afterSha256": "8e8d8910b20aa1f7f88bd1e6b91aef960a407d3343b2844bd8a54c03fbfb1ad1"
+    },
+    {
+      "id": "workspace-pull-request-port",
+      "file": "apps/server/src/pullRequest/PullRequestService.session-port.ts",
+      "create": [
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport type * as Scope from \"effect/Scope\";\nimport * as Stream from \"effect/Stream\";\nimport { PullRequestOperationError, PullRequestUnavailableError, type ProjectId, type PullRequestActionInput, type PullRequestActivity, type PullRequestCommentInput, type PullRequestCommentUpdateInput, type PullRequestDetail, type PullRequestPreview, type PullRequestChecks, type PullRequestDiffFileContentsInput, type PullRequestDiffFileContentsResult, type PullRequestDiffInput, type PullRequestChangeBreakdown, type PullRequestFilesViewedResult, type PullRequestDiffResult, type PullRequestInvalidateInput, type PullRequestReportStateInput, type PullRequestListInput, type PullRequestListResult, type PullRequestListStatsInput, type PullRequestFilterOptions, type PullRequestFilterOptionsInput, type PullRequestListStatsResult, type PullRequestReactionInput, type PullRequestRef, type PullRequestRoutingResult, type PullRequestRoutingIdentityInput, type PullRequestRoutingIdentityResult, type PullRequestReviewerCandidateList, type PullRequestReviewerCandidatesInput, type PullRequestReviewerRequestInput, type PullRequestLabelCandidateList, type PullRequestLabelChangeInput, type PullRequestSetFilesViewedInput, type PullRequestSubmitReviewInput, PullRequestStack, PullRequestSummary, type PullRequestThreadReplyInput, type PullRequestThreadResolutionInput, type PullRequestThreadCommentsInput, type PullRequestThreadCommentsResult, type PullRequestUpdateInput, type ThreadPullRequestKey } from \"@t3tools/contracts\";\nimport { type ProviderChangeRequestWatchFingerprint } from \"@t3tools/source-control-core/server/PullRequestProvider\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
+          "start": 4182,
+          "end": 4278,
+          "sha256": "ececd4427fb997ecbf5f92f2940862c2f5bf61a70ac07f39be5db94c6a02ffc4",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
+        },
+        {
+          "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
+          "start": 6813,
+          "end": 6901,
+          "sha256": "6cb3d4b61578aada98d225ea60b8a0c1cefd1bcdefbda14f5409aa949a2d7c49",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
+        },
+        {
+          "sourceFile": "apps/server/src/pullRequest/PullRequestService.ts",
+          "start": 7255,
+          "end": 12357,
+          "sha256": "2f4ec4db24d588125a981fc2ef2a4cc996ab7c75e3c465ed9907b6e7c80dcf45",
+          "sourceStage": "current",
+          "sourceSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "7a0274529860ed7abd803d7a1a476d2a0436d6a62e75e61dae9d394086a19128"
+    },
+    {
+      "id": "workspace-pr-provider-type-only",
+      "file": "apps/server/src/pullRequest/PullRequestService.session-port.ts",
+      "from": "import { type ProviderChangeRequestWatchFingerprint } from \"@t3tools/source-control-core/server/PullRequestProvider\";",
+      "to": "import type { ProviderChangeRequestWatchFingerprint } from \"@t3tools/source-control-core/server/PullRequestProvider\";",
+      "beforeSha256": "7a0274529860ed7abd803d7a1a476d2a0436d6a62e75e61dae9d394086a19128",
+      "afterSha256": "394dbd9f40980a713dcd203a0cf7e14e7e6c3b2f095e52a18a238c7fec587d25"
+    },
+    {
+      "id": "workspace-share-pull-request:PullRequestMergeEvent",
+      "file": "apps/server/src/pullRequest/PullRequestService.ts",
+      "from": "export interface PullRequestMergeEvent extends PullRequestRef {\n  readonly mergedAt: string;\n}\n\n",
+      "to": "import { type PullRequestMergeEvent } from \"./PullRequestService.session-port.ts\";\nexport { type PullRequestMergeEvent };\n",
+      "beforeSha256": "343270a5bee0ca5b75ab03116a87065f6b3dbe55cbd6f1e745b5d0c8f81fff34",
+      "afterSha256": "bee04ba93299e5e1dbaa5ab65e6db270bb83c963232127d6ccbc4a2692b1c093"
+    },
+    {
+      "id": "workspace-share-pull-request:PullRequestError",
+      "file": "apps/server/src/pullRequest/PullRequestService.ts",
+      "from": "export type PullRequestError = PullRequestUnavailableError | PullRequestOperationError;\n",
+      "to": "import { type PullRequestError } from \"./PullRequestService.session-port.ts\";\nexport { type PullRequestError };\n",
+      "beforeSha256": "bee04ba93299e5e1dbaa5ab65e6db270bb83c963232127d6ccbc4a2692b1c093",
+      "afterSha256": "968ae27f665732a2d072f7d37ab9df98916b6de7e4167c79002571a9a9483eb0"
+    },
+    {
+      "id": "workspace-share-pull-request:PullRequestService",
+      "file": "apps/server/src/pullRequest/PullRequestService.ts",
+      "from": "export class PullRequestService extends Context.Service<\n  PullRequestService,\n  {\n    readonly list: (\n      input: PullRequestListInput,\n    ) => Effect.Effect<PullRequestListResult, PullRequestError>;\n    readonly listStats: (\n      input: PullRequestListStatsInput,\n    ) => Effect.Effect<PullRequestListStatsResult, PullRequestError>;\n    readonly filterOptions: (\n      input: PullRequestFilterOptionsInput,\n    ) => Effect.Effect<PullRequestFilterOptions, PullRequestError>;\n    readonly routing: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestRoutingResult, PullRequestError>;\n    readonly routingIdentity: (\n      input: PullRequestRoutingIdentityInput,\n    ) => Effect.Effect<PullRequestRoutingIdentityResult, PullRequestError>;\n    readonly withRoutingCredential: <A, E, R>(\n      input: PullRequestRef,\n      operation: Effect.Effect<A, E, R>,\n    ) => Effect.Effect<A, E | PullRequestError, R>;\n    readonly summary: (\n      input: PullRequestRef,\n      options?: { readonly recoverTransientFailure?: boolean },\n    ) => Effect.Effect<PullRequestSummary, PullRequestError>;\n    readonly stack: (\n      input: PullRequestRef,\n      options?: { readonly includeDetails?: boolean },\n    ) => Effect.Effect<PullRequestStack | null, PullRequestError>;\n    readonly subscribeMerges: Effect.Effect<\n      Stream.Stream<PullRequestMergeEvent>,\n      never,\n      Scope.Scope\n    >;\n    readonly subscribeStateChanges: Effect.Effect<\n      Stream.Stream<ThreadPullRequestKey>,\n      never,\n      Scope.Scope\n    >;\n    readonly reportState: (\n      input: PullRequestReportStateInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly subscribeRefreshes: Stream.Stream<number>;\n    readonly refreshAfterTurn: (projectId: ProjectId) => Effect.Effect<void>;\n    /** Project and remote lookups inside `effect` read once per filter, e.g. across one sync sweep. */\n    readonly withSharedProjectReads: <A, E, R>(\n      effect: Effect.Effect<A, E, R>,\n    ) => Effect.Effect<A, E, R>;\n    readonly detail: (input: PullRequestRef) => Effect.Effect<PullRequestDetail, PullRequestError>;\n    readonly preview: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestPreview, PullRequestError>;\n    readonly checks: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestChecks | null, PullRequestError>;\n    readonly watchFingerprint: (\n      input: PullRequestRef,\n    ) => Effect.Effect<ProviderChangeRequestWatchFingerprint | null, PullRequestError>;\n    readonly activity: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestActivity, PullRequestError>;\n    readonly threadComments: (\n      input: PullRequestThreadCommentsInput,\n    ) => Effect.Effect<PullRequestThreadCommentsResult, PullRequestError>;\n    readonly diff: (\n      input: PullRequestDiffInput,\n    ) => Effect.Effect<PullRequestDiffResult, PullRequestError>;\n    readonly diffFileContents: (\n      input: PullRequestDiffFileContentsInput,\n    ) => Effect.Effect<PullRequestDiffFileContentsResult, PullRequestError>;\n    readonly filesViewed: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestFilesViewedResult, PullRequestError>;\n    readonly setFilesViewed: (\n      input: PullRequestSetFilesViewedInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly changeBreakdown: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestChangeBreakdown, PullRequestError>;\n    readonly runAction: (\n      input: PullRequestActionInput,\n    ) => Effect.Effect<PullRequestSummary | undefined, PullRequestError>;\n    readonly update: (input: PullRequestUpdateInput) => Effect.Effect<void, PullRequestError>;\n    readonly comment: (input: PullRequestCommentInput) => Effect.Effect<void, PullRequestError>;\n    readonly updateComment: (\n      input: PullRequestCommentUpdateInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly submitReview: (\n      input: PullRequestSubmitReviewInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly replyToThread: (\n      input: PullRequestThreadReplyInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly setThreadResolution: (\n      input: PullRequestThreadResolutionInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly setReaction: (\n      input: PullRequestReactionInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly reviewerCandidates: (\n      input: PullRequestReviewerCandidatesInput,\n    ) => Effect.Effect<PullRequestReviewerCandidateList, PullRequestError>;\n    readonly requestReviewers: (\n      input: PullRequestReviewerRequestInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly labelCandidates: (\n      input: PullRequestRef,\n    ) => Effect.Effect<PullRequestLabelCandidateList, PullRequestError>;\n    readonly setLabels: (\n      input: PullRequestLabelChangeInput,\n    ) => Effect.Effect<void, PullRequestError>;\n    readonly invalidate: (\n      input: PullRequestInvalidateInput,\n      options?: { readonly notifyReaders?: boolean },\n    ) => Effect.Effect<void>;\n  }\n>()(\"t3/pullRequest/PullRequestService\") {}\n\n",
+      "to": "import { PullRequestService } from \"./PullRequestService.session-port.ts\";\nexport { PullRequestService };\n",
+      "beforeSha256": "968ae27f665732a2d072f7d37ab9df98916b6de7e4167c79002571a9a9483eb0",
+      "afterSha256": "f9d649655d989e5f754dfc50e0de09d7023a049a740b476e2a943de40ffe4a97"
+    },
+    {
+      "id": "workspace-checkpoint-ref",
+      "file": "apps/server/src/orchestration-v2/CheckpointService.session-ref.ts",
+      "create": [
+        {
+          "text": "import { CheckpointRef, CheckpointScopeId } from \"@t3tools/contracts\";\nimport * as Digest from \"effect/crypto/Digest\";\nimport * as Effect from \"effect/Effect\";\nimport * as Base64Url from \"effect/encoding/Base64Url\";\nimport * as Hex from \"effect/encoding/Hex\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/CheckpointService.ts",
+          "start": 855,
+          "end": 926,
+          "sha256": "b45a14bcd4611d3ec54a03d6565c7daf2ac04b057e6bb9886ad70c32d9e8f33b",
+          "sourceStage": "current",
+          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/CheckpointService.ts",
+          "start": 1482,
+          "end": 2042,
+          "sha256": "56381f5306747f0a3614cfc105204b6830094dfdd3c5da66280892ab93da0f5b",
+          "sourceStage": "current",
+          "sourceSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "5b0134aa11e8fa8b44b76dfaacca0fea364e728dade24a1d83432102a95f5866"
+    },
+    {
+      "id": "workspace-share-checkpoint-ref",
+      "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
+      "from": "export const checkpointRefForScopeOrdinal = Effect.fn(\"checkpointRefForScopeOrdinal\")(\n  function* (input: { readonly scopeId: CheckpointScopeId; readonly ordinalWithinScope: number }) {\n    const crypto = yield* Digest.Digest;\n    const digest = yield* crypto\n      .digest(Digest.sha256, new TextEncoder().encode(input.scopeId))\n      .pipe(Effect.orDie);\n    const scopeKey = Hex.encode(digest).slice(0, 32);\n    return CheckpointRef.make(\n      `${CHECKPOINT_REFS_PREFIX}/${Base64Url.encode(scopeKey)}/ordinal/${input.ordinalWithinScope}`,\n    );\n  },\n);\n\n",
+      "to": "import { checkpointRefForScopeOrdinal } from \"./CheckpointService.session-ref.ts\";\nexport { checkpointRefForScopeOrdinal };\n\n",
+      "beforeSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427",
+      "afterSha256": "a1d690421aeeb34c71158b256cea698550cd7f6d7e430fb84d6537bc814eea38"
+    },
+    {
+      "id": "workspace-git-lock-message",
+      "file": "apps/server/src/vcs/VcsProcess.session-constants.ts",
+      "create": [
+        {
+          "sourceFile": "apps/server/src/vcs/VcsProcess.ts",
+          "start": 2606,
+          "end": 2731,
+          "sha256": "35f0c65295d1cd77f584a0020c460914c0e878ba66b07a6d7bcc79e911553a01",
+          "sourceStage": "current",
+          "sourceSha256": "506988d97fbf6afe68d05b4acc8cbbf6310bd64d842b02d703ed3ac4d7a70fae"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "35f0c65295d1cd77f584a0020c460914c0e878ba66b07a6d7bcc79e911553a01"
+    },
+    {
+      "id": "workspace-share-git-lock-message",
+      "file": "apps/server/src/vcs/VcsProcess.ts",
+      "from": "export const GIT_INDEX_LOCKED_DETAIL =\n  \"Git's index is locked. Wait for other Git operations to finish, then try again.\";\n\n",
+      "to": "import { GIT_INDEX_LOCKED_DETAIL } from \"./VcsProcess.session-constants.ts\";\nexport { GIT_INDEX_LOCKED_DETAIL };\n\n",
+      "beforeSha256": "506988d97fbf6afe68d05b4acc8cbbf6310bd64d842b02d703ed3ac4d7a70fae",
+      "afterSha256": "366715dd25ff6ec5ddb5ce5cd4c140fe9d0f1348a23239226c0b678b08270aa2"
+    },
+    {
+      "id": "workspace-import:git/GitWorkflowService.ts:git/GitManager.ts",
+      "file": "apps/server/src/git/GitWorkflowService.ts",
+      "from": "from \"./GitManager.ts\"",
+      "to": "from \"./GitManager.session-port.ts\"",
+      "beforeSha256": "e3e9ca4ba3f703baf8d20b6e6cc4dce8ab72d371c2e432a9624b2568325d4f76",
+      "afterSha256": "ea7967bba04eccb4013090ad97f262752fe50b390b6342fa7719c39a17f8f38b"
+    },
+    {
+      "id": "workspace-import:git/GitWorkflowService.ts:vcs/GitVcsDriver.ts",
+      "file": "apps/server/src/git/GitWorkflowService.ts",
+      "from": "from \"../vcs/GitVcsDriver.ts\"",
+      "to": "from \"../vcs/GitVcsDriver.session-port.ts\"",
+      "beforeSha256": "ea7967bba04eccb4013090ad97f262752fe50b390b6342fa7719c39a17f8f38b",
+      "afterSha256": "89e526090fab81b4bff0142dd0c6c308fd2002fabda2e1f7bfd0e225366441d0"
+    },
+    {
+      "id": "workspace-import:git/GitWorkflowService.ts:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/git/GitWorkflowService.ts",
+      "from": "from \"../vcs/VcsDriverRegistry.ts\"",
+      "to": "from \"../vcs/VcsDriverRegistry.session-port.ts\"",
+      "beforeSha256": "89e526090fab81b4bff0142dd0c6c308fd2002fabda2e1f7bfd0e225366441d0",
+      "afterSha256": "4299f8e2e92b6ba1330da326da7ebf54bb269825c7ded7a1d9ca0fa11c49babf"
+    },
+    {
+      "id": "workspace-import:review/ReviewService.ts:config.ts",
+      "file": "apps/server/src/review/ReviewService.ts",
+      "from": "from \"../config.ts\"",
+      "to": "from \"../config.session-port.ts\"",
+      "beforeSha256": "334d508fdf575c72fdbc4055ed3f48b771d8491eebeed77e0c967de302e26617",
+      "afterSha256": "c6905f16d79212ff3a517ecd8b4f272a9357eb2e9173ec5cc47f4de67b4aea14"
+    },
+    {
+      "id": "workspace-import:review/ReviewService.ts:vcs/GitVcsDriver.ts",
+      "file": "apps/server/src/review/ReviewService.ts",
+      "from": "from \"../vcs/GitVcsDriver.ts\"",
+      "to": "from \"../vcs/GitVcsDriver.session-port.ts\"",
+      "beforeSha256": "c6905f16d79212ff3a517ecd8b4f272a9357eb2e9173ec5cc47f4de67b4aea14",
+      "afterSha256": "769eaaa82cbd2554bfc8907e7aae851276db47b000139b5c3193a324b9891f0e"
+    },
+    {
+      "id": "workspace-import:review/ReviewService.ts:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/review/ReviewService.ts",
+      "from": "from \"../vcs/VcsDriverRegistry.ts\"",
+      "to": "from \"../vcs/VcsDriverRegistry.session-port.ts\"",
+      "beforeSha256": "769eaaa82cbd2554bfc8907e7aae851276db47b000139b5c3193a324b9891f0e",
+      "afterSha256": "52d9ae5bcf366eca60052596cbd0372dfc1185d3a2e8ed25276b55da1863e740"
+    },
+    {
+      "id": "workspace-import:review/ReviewService.ts:workspace/KnownWorkspaces.ts",
+      "file": "apps/server/src/review/ReviewService.ts",
+      "from": "from \"../workspace/KnownWorkspaces.ts\"",
+      "to": "from \"../workspace/KnownWorkspaces.session-port.ts\"",
+      "beforeSha256": "52d9ae5bcf366eca60052596cbd0372dfc1185d3a2e8ed25276b55da1863e740",
+      "afterSha256": "b98bf608650b90ab915c96beb56e5d68b9271c1cafebe2083b8d11c832c73e2e"
+    },
+    {
+      "id": "workspace-import:checkpointing/CheckpointStore.ts:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/checkpointing/CheckpointStore.ts",
+      "from": "from \"../vcs/VcsDriverRegistry.ts\"",
+      "to": "from \"../vcs/VcsDriverRegistry.session-port.ts\"",
+      "beforeSha256": "a1b1a7f354011b329472d01b3b0d03c877a010e5eb7a27acb4e0f0eff406cf4a",
+      "afterSha256": "61c9a88c8420ab500c708646e01c46a2e01dbf98ecc9b841d867153f611f9579"
+    },
+    {
+      "id": "workspace-import:checkpointing/CheckpointDiffQuery.ts:orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/checkpointing/CheckpointDiffQuery.ts",
+      "from": "from \"../orchestration-v2/ThreadManagementService.ts\"",
+      "to": "from \"../orchestration-v2/ThreadReadsTag.ts\"",
+      "beforeSha256": "50a3cb8bdf0d4732c87feb3661b6eaaa6ad5859559035d68df5e386b61e1d9b4",
+      "afterSha256": "dc111f1785de2a0a7adf561100f01c9fa6b9579d3db2809208121fbc8b3a1fa4"
+    },
+    {
+      "id": "workspace-import:checkpointing/CheckpointDiffQuery.ts:orchestration-v2/CheckpointService.ts",
+      "file": "apps/server/src/checkpointing/CheckpointDiffQuery.ts",
+      "from": "from \"../orchestration-v2/CheckpointService.ts\"",
+      "to": "from \"../orchestration-v2/CheckpointService.session-ref.ts\"",
+      "beforeSha256": "dc111f1785de2a0a7adf561100f01c9fa6b9579d3db2809208121fbc8b3a1fa4",
+      "afterSha256": "93c59bd5b2a46100d27e950b9b185b635e66e37842cdcb6b54709c2e31f9900e"
+    },
+    {
+      "id": "workspace-import:vcs/VcsProvisioningService.ts:vcs/VcsDriverRegistry.ts",
+      "file": "apps/server/src/vcs/VcsProvisioningService.ts",
+      "from": "from \"./VcsDriverRegistry.ts\"",
+      "to": "from \"./VcsDriverRegistry.session-port.ts\"",
+      "beforeSha256": "d72639f4e6b9795fc397562a8a7ce5bd016df0bafd2f47509af4035abe58994f",
+      "afterSha256": "8f752dcd314a1f0405e635b33402dd128b8e1a57e6e553aeffbbd13d6f5ef6f0"
+    },
+    {
+      "id": "workspace-import:git/linkCreatedPullRequest.ts:orchestration-v2/Orchestrator.ts",
+      "file": "apps/server/src/git/linkCreatedPullRequest.ts",
+      "from": "from \"../orchestration-v2/Orchestrator.ts\"",
+      "to": "from \"../orchestration-v2/Orchestrator.session-api.ts\"",
+      "beforeSha256": "af70b672fdc6cbbfefcf2ebf48904c59b0f637bd49483d290fe34236e9f2ca4d",
+      "afterSha256": "82a765a3dbece4cdffc0e5a793aeda7f6cff72543cb258514922a22c75acc45a"
+    },
+    {
+      "id": "workspace-import:git/linkCreatedPullRequest.ts:project/ProjectService.ts",
+      "file": "apps/server/src/git/linkCreatedPullRequest.ts",
+      "from": "from \"../project/ProjectService.ts\"",
+      "to": "from \"../project/ProjectService.session-port.ts\"",
+      "beforeSha256": "82a765a3dbece4cdffc0e5a793aeda7f6cff72543cb258514922a22c75acc45a",
+      "afterSha256": "ba0fc8eb3db66dd10617c61be31f8007d2e844f195725d4816ee84cf4ed82f94"
+    },
+    {
+      "id": "workspace-import:git/refreshPushedPullRequests.ts:orchestration-v2/Orchestrator.ts",
+      "file": "apps/server/src/git/refreshPushedPullRequests.ts",
+      "from": "from \"../orchestration-v2/Orchestrator.ts\"",
+      "to": "from \"../orchestration-v2/Orchestrator.session-api.ts\"",
+      "beforeSha256": "8aba4579c9477aabd134db01b257a6f22500613d645a05e4727d3752ac4ec2e8",
+      "afterSha256": "bb13e0401ef1d3dd0b5ddbbdeaf8d7c2100ecfa04ae31ad42101e924ae546553"
+    },
+    {
+      "id": "workspace-import:git/refreshPushedPullRequests.ts:pullRequest/PullRequestService.ts",
+      "file": "apps/server/src/git/refreshPushedPullRequests.ts",
+      "from": "from \"../pullRequest/PullRequestService.ts\"",
+      "to": "from \"../pullRequest/PullRequestService.session-port.ts\"",
+      "beforeSha256": "bb13e0401ef1d3dd0b5ddbbdeaf8d7c2100ecfa04ae31ad42101e924ae546553",
+      "afterSha256": "51dc31f389eb67c3b1006f383c010c4edf2dde181b34fea4461c8420553d4233"
+    },
+    {
+      "id": "workspace-import:worktreesDirectory.ts:config.ts",
+      "file": "apps/server/src/worktreesDirectory.ts",
+      "from": "from \"./config.ts\"",
+      "to": "from \"./config.session-port.ts\"",
+      "beforeSha256": "70f239ad61034bece5302b3d3015dd2222c26bc4c7d40b70154d8d5204b18c42",
+      "afterSha256": "8cefb0d01390e47121c8a253bc515e15ca24bfbe0cfc7f1b69afe32b71a4983f"
+    },
+    {
+      "id": "workspace-import:worktreesDirectory.ts:serverSettings.ts",
+      "file": "apps/server/src/worktreesDirectory.ts",
+      "from": "from \"./serverSettings.ts\"",
+      "to": "from \"./serverSettings.session-port.ts\"",
+      "beforeSha256": "8cefb0d01390e47121c8a253bc515e15ca24bfbe0cfc7f1b69afe32b71a4983f",
+      "afterSha256": "810036e332960bc4af2dcd70460ae2d18f6a539c018cdf25479a1149aa4d7c25"
+    },
+    {
+      "id": "workspace-import:orchestration-v2/CheckpointRollbackService.ts:config.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"../config.ts\"",
+      "to": "from \"../config.session-port.ts\"",
+      "beforeSha256": "cb6ab9e6a66a4347f2c2890b7b48c5613c1dd0523bd6277abba34b991d8ac559",
+      "afterSha256": "f520735d19d2644162fac929f41cbabe8b199c3b4b88f39788424323ea45fd3b"
+    },
+    {
+      "id": "workspace-import:orchestration-v2/CheckpointRollbackService.ts:serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"../serverSettings.ts\"",
+      "to": "from \"../serverSettings.session-port.ts\"",
+      "beforeSha256": "f520735d19d2644162fac929f41cbabe8b199c3b4b88f39788424323ea45fd3b",
+      "afterSha256": "a011cd02e3473ac975cd465ade367b8fa26e5dc8fec2fa6a417039c5dceafaae"
+    },
+    {
+      "id": "workspace-import:orchestration-v2/CheckpointRollbackService.ts:git/GitWorkflowService.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"../git/GitWorkflowService.ts\"",
+      "to": "from \"../git/GitWorkflowService.session-port.ts\"",
+      "beforeSha256": "a011cd02e3473ac975cd465ade367b8fa26e5dc8fec2fa6a417039c5dceafaae",
+      "afterSha256": "33620c36ead1d307741f3659dbc41742f939877532642c1956475627a718dcbe"
+    },
+    {
+      "id": "workspace-import:orchestration-v2/CheckpointRollbackService.ts:orchestration-v2/ProviderSessionManager.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"./ProviderSessionManager.ts\"",
+      "to": "from \"./ProviderSessionManager.session-port.ts\"",
+      "beforeSha256": "33620c36ead1d307741f3659dbc41742f939877532642c1956475627a718dcbe",
+      "afterSha256": "5decd2973944d242486bf6e5f4b95ba41fcd85c964d88006077ec3c43637b810"
+    },
+    {
+      "id": "workspace-import:orchestration-v2/CheckpointRollbackService.ts:orchestration-v2/CheckpointService.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"./CheckpointService.ts\"",
+      "to": "from \"./CheckpointService.session-port.ts\"",
+      "beforeSha256": "5decd2973944d242486bf6e5f4b95ba41fcd85c964d88006077ec3c43637b810",
+      "afterSha256": "b37091f1d09851c0568f8cd039bcadb4d639a64180fca7a3ce23e1ec0d9714a0"
+    },
+    {
+      "id": "workspace-rollback-pure-lock-message:orchestration-v2/CheckpointRollbackService.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "from \"../vcs/VcsProcess.ts\"",
+      "to": "from \"../vcs/VcsProcess.session-constants.ts\"",
+      "beforeSha256": "b37091f1d09851c0568f8cd039bcadb4d639a64180fca7a3ce23e1ec0d9714a0",
+      "afterSha256": "264e135b6c4c1fca5fcf1a7fc5cc8d07177b54e97585e81bc68b2450ee0a6ae1"
+    },
+    {
+      "id": "workspace-rollback-pure-lock-message:orchestration-v2/CheckpointRollbackService.session-port.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts",
+      "from": "from \"../vcs/VcsProcess.ts\"",
+      "to": "from \"../vcs/VcsProcess.session-constants.ts\"",
+      "beforeSha256": "90e1a641decf3f94369ac39df943850c77f79d44cf29e18fa80fdfc8efb5676c",
+      "afterSha256": "3039c460b20896c435fbf6ccde084a9c1554bff6754974a533c527df106b0879"
+    },
+    {
+      "id": "workspace-pure-pr-definitions",
+      "file": "apps/server/src/git/linkCreatedPullRequest.ts",
+      "from": "import { sourceControlDefinitions } from \"../sourceControl/sourceControlDefinitions.ts\";",
+      "to": "import { builtInSourceControlDefinitions as sourceControlDefinitions } from \"@t3tools/source-control-definitions/registry\";",
+      "beforeSha256": "ba0fc8eb3db66dd10617c61be31f8007d2e844f195725d4816ee84cf4ed82f94",
+      "afterSha256": "a1517d4bad376593649f2ad88363ad11027c25c9bc7710537209d1489d0c242f"
+    },
+    {
+      "id": "workspace-vcs-process-type-only",
+      "file": "apps/server/src/vcs/VcsDriver.ts",
+      "from": "import * as VcsProcess from \"./VcsProcess.ts\";",
+      "to": "import type * as VcsProcess from \"./VcsProcess.ts\";",
+      "beforeSha256": "55f2d3a8497faad709ff54070db45b498b83d959db5cde95dc3340423be482a1",
+      "afterSha256": "55cf0b3406119a9bfc005b585f2e8f7af9874676b047506ac27b706fab6ec623"
+    },
+    {
+      "id": "workspace-conversation-rewind-no-create",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "      worktreePath != null &&\n",
+      "to": "      input.restoreFiles !== false &&\n      worktreePath != null &&\n",
+      "beforeSha256": "264e135b6c4c1fca5fcf1a7fc5cc8d07177b54e97585e81bc68b2450ee0a6ae1",
+      "afterSha256": "10ef3d27873450faa345d4da8d146d9f6a1a0644256131c461671f5591861643"
+    },
+    {
+      "id": "workspace-conversation-rewind-no-ref-delete",
+      "file": "apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
+      "from": "      if (staleCheckpoints.length > 0) {",
+      "to": "      if (input.restoreFiles !== false && staleCheckpoints.length > 0) {",
+      "beforeSha256": "10ef3d27873450faa345d4da8d146d9f6a1a0644256131c461671f5591861643",
+      "afterSha256": "56519d40cd1cb17cad1efd5585c1760728fb10701abac8cf8124bc75790c2389"
+    }
+  ]
+}

@@ -1125,6 +1125,248 @@
       "afterSha256": "a6bc719943603b8545c2cee6f8e80eabc851eb7939c167e55f82d7840fa5c857"
     },
     {
+      "id": "runtime-error-guard:ProviderTurnControlService",
+      "file": "apps/server/src/orchestration-v2/ProviderTurnControlService.session-port.ts",
+      "from": "\nconst isProviderTurnControlError",
+      "to": "\nexport const isProviderTurnControlError",
+      "beforeSha256": "66bfeb0a95eeb27362adfcb0f9f5f350ddc621f11f35e73821d3712cfef0ec16",
+      "afterSha256": "ea6ed06580d612f02e1166c3ab2aac9fff6d8e61cbd4300a86e07acbdb9558c3"
+    },
+    {
+      "id": "runtime-live:ProviderTurnControlService",
+      "file": "apps/server/src/orchestration-v2/ProviderTurnControlService.session-live.ts",
+      "create": [
+        {
+          "text": "import { projectComposerContextForProvider } from \"@t3tools/shared/composerContextReferences\";\nimport { MessageId, ProviderSessionId, ProviderThreadId, ProviderTurnId, ThreadId } from \"@t3tools/contracts\";\nimport * as Clock from \"effect/Clock\";\nimport * as Effect from \"effect/Effect\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";\nimport { ProviderTurnControlError, ProviderTurnControlServiceV2 } from \"./ProviderTurnControlService.session-port.ts\";\n"
+        },
+        {
+          "text": "import { isProviderTurnControlError } from \"./ProviderTurnControlService.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
+          "start": 759,
+          "end": 956,
+          "sha256": "2b21fc3a612dd893b5952a85fcc9e305e0eab9475974941c0ae90163acd8bcfc",
+          "sourceStage": "current",
+          "sourceSha256": "73df126d715cf7c3e249fabe1e391a005474f2fe83eced81f966ae308d13f10b"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
+          "start": 1223,
+          "end": 15361,
+          "sha256": "ca972a2efe3279cd8790bfa0cde112796f1ad7e5c94a9565b2c2962a6df7c429",
+          "sourceStage": "current",
+          "sourceSha256": "73df126d715cf7c3e249fabe1e391a005474f2fe83eced81f966ae308d13f10b"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "388ad89dbf57010d9506f68ebf6a325dc8a38719d91b6dce3eec7d4023384389"
+    },
+    {
+      "id": "runtime-error-guard:RuntimeRequestService",
+      "file": "apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts",
+      "from": "\nconst isRuntimeRequestResponseExecutionError",
+      "to": "\nexport const isRuntimeRequestResponseExecutionError",
+      "beforeSha256": "18e15a31b57c722150e7c7254e7f8831c17a43c32efe51e15fe88d802fdcf810",
+      "afterSha256": "e04c6844a0e8dd858143fc433423bd0335442655ca6fc3e3f6f743d5d14ced2b"
+    },
+    {
+      "id": "runtime-live:RuntimeRequestService",
+      "file": "apps/server/src/orchestration-v2/RuntimeRequestService.session-live.ts",
+      "create": [
+        {
+          "text": "import * as Effect from \"effect/Effect\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";\nimport { RuntimeRequestResponseExecutionError, RuntimeRequestServiceV2 } from \"./RuntimeRequestService.session-port.ts\";\n"
+        },
+        {
+          "text": "import { isRuntimeRequestResponseExecutionError } from \"./RuntimeRequestService.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/RuntimeRequestService.ts",
+          "start": 748,
+          "end": 3863,
+          "sha256": "4a7eabfa9a8a4bea88e530bf0ad70384b7e57c257386da636966ec77ca908768",
+          "sourceStage": "current",
+          "sourceSha256": "526063d6d2466dfe872569d7ac3b6a5cb80807496a116d0410dc8f8b8afde405"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "cfecd7ca0d7b7aa6e409c554e90ada3360aa084e23874d0b2d28ab624e63697b"
+    },
+    {
+      "id": "runtime-document-sidecar-resolution",
+      "file": "apps/server/src/provider/DocumentText.session-path.ts",
+      "create": [
+        {
+          "text": "import * as Effect from \"effect/Effect\";\nimport * as FileSystem from \"effect/FileSystem\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/DocumentText.ts",
+          "start": 562,
+          "end": 662,
+          "sha256": "47920d44230f16ad7f9fc058bf34a7d93b603955ad8a7b8e6d9d8ec41113ac64"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/DocumentText.ts",
+          "start": 996,
+          "end": 1459,
+          "sha256": "3f59dde3a5978115565c4429453ec292e8ef5af215241bb395feb58c25789470"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "1ea503cdca70a50a4fbbac2d8fe9f7ae8dd46086959975f5bdb717f6b0c949f4"
+    },
+    {
+      "id": "runtime-background-policy-port",
+      "file": "apps/server/src/orchestration-v2/SessionBackgroundPolicy.ts",
+      "create": [
+        {
+          "text": "import { type AuthSessionId, type BackgroundPolicySnapshot, type BackgroundScope, type ClientActivityReportInput, type RpcClientId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/background/BackgroundPolicy.ts",
+          "start": 732,
+          "end": 1368,
+          "sha256": "fea1aeea5dd2eafbb3bd3b3d13b75c400ae736d905c4d906c935c59ba05d5ab2"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "bd7d011b84f8bfafb7285878b4682c23cc42232b2156f21c6d19c1aaf226b9d7"
+    },
+    {
+      "id": "runtime-share-background-policy",
+      "file": "apps/server/src/background/BackgroundPolicy.ts",
+      "from": "export class BackgroundPolicy extends Context.Service<\n  BackgroundPolicy,\n  {\n    readonly reportClientActivity: (\n      sessionId: AuthSessionId,\n      rpcClientId: RpcClientId,\n      input: ClientActivityReportInput,\n    ) => Effect.Effect<void>;\n    readonly removeRpcClient: (\n      sessionId: AuthSessionId,\n      rpcClientId: RpcClientId,\n    ) => Effect.Effect<void>;\n    readonly snapshot: Effect.Effect<BackgroundPolicySnapshot>;\n    readonly shouldRunScopeWork: (scope: BackgroundScope) => Effect.Effect<boolean>;\n    readonly shouldRunOpportunisticWork: Effect.Effect<boolean>;\n  }\n>()(\"t3/background/BackgroundPolicy\") {}\n\n",
+      "to": "import { BackgroundPolicy } from \"../orchestration-v2/SessionBackgroundPolicy.ts\";\nexport { BackgroundPolicy };\n\n",
+      "beforeSha256": "d91c799cc77b7b48475ad64f7b6d99faccdc7b00993dd6f37549c4fa67df1c43",
+      "afterSha256": "f83fd9dd3d1ff464fff721c68fb548977ac1794615191997da3540fcb25e60b6"
+    },
+    {
+      "id": "runtime-resource-targets",
+      "file": "apps/server/src/orchestration-v2/SessionResourceTargets.ts",
+      "create": [
+        {
+          "text": "import type { ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type * as Effect from \"effect/Effect\";\n/** Actual resource owners; completion must include native lifetime clearance where applicable. */\nexport class SessionResourceTargets extends Context.Service<SessionResourceTargets, {\n  readonly terminals: { readonly close: (input: { readonly threadId: string; readonly deleteHistory: true }) =>\n    Effect.Effect<void, unknown> };\n  readonly previews: { readonly close: (input: { readonly threadId: ThreadId }) => Effect.Effect<void, unknown> };\n  readonly scheduledTasks: { readonly deleteForThread: (threadId: ThreadId) => Effect.Effect<void, unknown> };\n}>()(\"nessie/session-engine/SessionResourceTargets\") {}\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "57dd15226c537b2793889e1261d88443a1628e3ff0d7e5f9fd42f269deb1a988"
+    },
+    {
+      "id": "runtime-resource-cleanup",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "create": [
+        {
+          "text": "import { ThreadId } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Layer from \"effect/Layer\";\nimport { resolveAttachmentRelativePath } from \"../attachmentPaths.ts\";\nimport { parseAttachmentFileExtension, resolveAttachmentPathById } from \"../attachmentStore.ts\";\nimport * as ServerConfig from \"../config.session-port.ts\";\nimport * as PreviewManager from \"../preview/Manager.ts\";\nimport * as ScheduledTaskService from \"../scheduledTasks/ScheduledTaskService.ts\";\nimport * as TerminalManager from \"../terminal/Manager.session-port.ts\";\nimport { ResourceCleanupError, ResourceCleanupService } from \"./ResourceCleanupService.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ResourceCleanupService.ts",
+          "start": 838,
+          "end": 3643,
+          "sha256": "ac32c759d6908914a523bfdb0d749d17f96892b539c5a0267f1eac9c37f09c0b",
+          "sourceStage": "current",
+          "sourceSha256": "b73608e218184b3523df903a7ec4cb8135ba4fa5b74a9afe9d537accc9e7e2f7"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "629ef7f2d98dd3371472c77c6f09f9c42661aa3a214e8a66f4725a0296b5d5f0"
+    },
+    {
+      "id": "runtime-resource-owner-import:TerminalManager",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "import * as TerminalManager from \"../terminal/Manager.session-port.ts\";\n",
+      "to": "",
+      "beforeSha256": "629ef7f2d98dd3371472c77c6f09f9c42661aa3a214e8a66f4725a0296b5d5f0",
+      "afterSha256": "4bba0e1414cfeccd92097a18b826f8cb08553a225be4f1d693a83985b56667a3"
+    },
+    {
+      "id": "runtime-resource-owner:TerminalManager",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "const terminals = yield* TerminalManager.TerminalManager;",
+      "to": "const terminals = (yield* SessionResourceTargets).terminals;",
+      "beforeSha256": "4bba0e1414cfeccd92097a18b826f8cb08553a225be4f1d693a83985b56667a3",
+      "afterSha256": "fc2bd57985c5804f640578d4ce1db3824525241c99d43a328c1d55e498086a6f"
+    },
+    {
+      "id": "runtime-resource-owner-import:PreviewManager",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "import * as PreviewManager from \"../preview/Manager.ts\";\n",
+      "to": "",
+      "beforeSha256": "fc2bd57985c5804f640578d4ce1db3824525241c99d43a328c1d55e498086a6f",
+      "afterSha256": "78d94220e27190e9f4722c6179299a121b7f99e40af5ecd1e9b0fadae7454049"
+    },
+    {
+      "id": "runtime-resource-owner:PreviewManager",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "const previews = yield* PreviewManager.PreviewManager;",
+      "to": "const previews = (yield* SessionResourceTargets).previews;",
+      "beforeSha256": "78d94220e27190e9f4722c6179299a121b7f99e40af5ecd1e9b0fadae7454049",
+      "afterSha256": "cc4aa085362e69579bd5407023c66b17fc7fd2b5cf90c04d80e123a38ff611d1"
+    },
+    {
+      "id": "runtime-resource-owner-import:ScheduledTaskService",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "import * as ScheduledTaskService from \"../scheduledTasks/ScheduledTaskService.ts\";\n",
+      "to": "",
+      "beforeSha256": "cc4aa085362e69579bd5407023c66b17fc7fd2b5cf90c04d80e123a38ff611d1",
+      "afterSha256": "9c3c244a03143bc3074b98876d549c1ed97a98aa50728502558c836feb585d38"
+    },
+    {
+      "id": "runtime-resource-owner:ScheduledTaskService",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "const scheduledTasks = yield* ScheduledTaskService.ScheduledTaskService;",
+      "to": "const scheduledTasks = (yield* SessionResourceTargets).scheduledTasks;",
+      "beforeSha256": "9c3c244a03143bc3074b98876d549c1ed97a98aa50728502558c836feb585d38",
+      "afterSha256": "1faa13b54e977ce1773ad053a8fad79eaae2cf32b537dab3a25813a5218919b6"
+    },
+    {
+      "id": "runtime-resource-owner-tag",
+      "file": "apps/server/src/orchestration-v2/ResourceCleanupService.session-live.ts",
+      "from": "import { ThreadId } from \"@t3tools/contracts\";",
+      "to": "import { SessionResourceTargets } from \"./SessionResourceTargets.ts\";\nimport { ThreadId } from \"@t3tools/contracts\";",
+      "beforeSha256": "1faa13b54e977ce1773ad053a8fad79eaae2cf32b537dab3a25813a5218919b6",
+      "afterSha256": "f13f966490fc63d9933e0d75c43f336edea75936035e8448b2fff0a9e2a27edf"
+    },
+    {
+      "id": "host-no-credential-bytes-option",
+      "file": "packages/provider-core/src/server/ProviderHost.ts",
+      "from": "import type * as Option from \"effect/Option\";\n",
+      "to": "",
+      "beforeSha256": "325c1ede41187140e1ead13a663bca4fe66e229ab1cb469169d0251a85803811",
+      "afterSha256": "00bcc22e779ce4a93042baa9175db6e965412c6c59fb3fc53df3b7a742e6ace8"
+    },
+    {
+      "id": "host-reference-error-import",
+      "file": "packages/provider-core/src/server/ProviderHost.ts",
+      "from": "import type { ProviderCredentialError } from \"./errors.ts\";",
+      "to": "import * as Schema from \"effect/Schema\";",
+      "beforeSha256": "00bcc22e779ce4a93042baa9175db6e965412c6c59fb3fc53df3b7a742e6ace8",
+      "afterSha256": "8e999886a55ee0fa310c60b15049a21aa0593e20276d7510d47619dde4327d4a"
+    },
+    {
+      "id": "host-opaque-credential-reference",
+      "file": "packages/provider-core/src/server/ProviderHost.ts",
+      "from": "export interface ProviderCredentials {\n  /** Instances whose bindings are equal share these credentials. */\n  readonly binding: { readonly owner: \"t3\"; readonly key: string };\n  readonly get: Effect.Effect<Option.Option<Uint8Array>, ProviderCredentialError>;\n  readonly set: (credentials: Uint8Array) => Effect.Effect<void, ProviderCredentialError>;\n  readonly remove: Effect.Effect<void, ProviderCredentialError>;\n}\n\n",
+      "to": "/** An opaque native association reference. It grants no execution or credential access. */\nexport interface ProviderCredentialReference {\n  readonly binding: { readonly owner: \"provider\"; readonly key: string };\n}\n\nexport class ProviderCredentialReferenceError extends Schema.TaggedError<ProviderCredentialReferenceError>()(\n  \"ProviderCredentialReferenceError\", { reason: Schema.Literal(\"unavailable\") },\n) {}\n\n/** Supplied by native custody. Resolution cannot return tokens, homes or credential bytes. */\nexport class ProviderCredentialReferences extends Context.Service<ProviderCredentialReferences, {\n  readonly resolve: (namespace: string, bindingId: string) =>\n    Effect.Effect<ProviderCredentialReference, ProviderCredentialReferenceError>;\n}>()(\"nessie/session-engine/ProviderCredentialReferences\") {}\n\n",
+      "beforeSha256": "8e999886a55ee0fa310c60b15049a21aa0593e20276d7510d47619dde4327d4a",
+      "afterSha256": "ed6e4229bdd7c6953931e641fad4a7cdfad703c6ec22614cb46b179c6228cb73"
+    },
+    {
+      "id": "host-reference-operation",
+      "file": "packages/provider-core/src/server/ProviderHost.ts",
+      "from": "    readonly credentials: (\n",
+      "to": "    readonly credentialReference: (\n",
+      "beforeSha256": "ed6e4229bdd7c6953931e641fad4a7cdfad703c6ec22614cb46b179c6228cb73",
+      "afterSha256": "a5c71c3554bef67f36400a49f23397883ca0abab7776ba9d45cec2971fab4227"
+    },
+    {
+      "id": "host-reference-result",
+      "file": "packages/provider-core/src/server/ProviderHost.ts",
+      "from": ") => Effect.Effect<ProviderCredentials>;",
+      "to": ") => Effect.Effect<ProviderCredentialReference, ProviderCredentialReferenceError>;",
+      "beforeSha256": "a5c71c3554bef67f36400a49f23397883ca0abab7776ba9d45cec2971fab4227",
+      "afterSha256": "df3aaf4579a5d6032d96598fec92bdad55cf5a102ae6672a431961a24ddbd367"
+    },
+    {
       "id": "share-error-guard:isOrchestratorProjectionError",
       "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
       "from": "\nconst isOrchestratorProjectionError",
@@ -1264,6 +1506,46 @@
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
       "beforeSha256": "02358acb3f573b595b5b2fe9063b92027965e7e44f564ae1fc0e0c9da5525270",
       "afterSha256": "f920b3b8d3687cce96173383fea0a77e9daa8dcd627a10772f3b81b7ac76620e"
+    },
+    {
+      "id": "port-import:apps/server/src/background/BackgroundPolicy.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/background/BackgroundPolicy.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "f83fd9dd3d1ff464fff721c68fb548977ac1794615191997da3540fcb25e60b6",
+      "afterSha256": "1500d0d6b12c20acaafffbda1f9300036fc3509d1cc1a6bb151309fab405a930"
+    },
+    {
+      "id": "port-import:apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "e2ad303f93ad4f0a3d86752250884436d5a4413b4c2fcb9e232c14c32fa65153",
+      "afterSha256": "bf3718c6933a3daf29907813ed83933b0ab29480028eba396e118221e7d75ef5"
+    },
+    {
+      "id": "port-import:apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/resourceTelemetry/DesktopTelemetryReceiver.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "bf3718c6933a3daf29907813ed83933b0ab29480028eba396e118221e7d75ef5",
+      "afterSha256": "530843f056c6c045466a61d9d062e8edb70cab75779e828a5c98cbb0603b975b"
+    },
+    {
+      "id": "port-import:apps/server/src/resourceTelemetry/NativeTelemetryClient.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/resourceTelemetry/NativeTelemetryClient.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "095c8866cee965283b2fea2ea286c7239e4ba18855d20d6bded03258294f55bd",
+      "afterSha256": "e460d13414f3ff57d4ab015232420eb11b0d198ebe7863ab96be440c60d1b734"
+    },
+    {
+      "id": "port-import:apps/server/src/resourceTelemetry/ResourceMonitorBinary.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/resourceTelemetry/ResourceMonitorBinary.ts",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";",
+      "beforeSha256": "59601910a6434f6082ded99bfec48c1ed3329efed36d9bbb1cde1d258c99bd34",
+      "afterSha256": "d7372698584d277916284498611ee98d9b65796dc486584cb670474ab8e79cb6"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/CheckpointService.ts",

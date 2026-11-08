@@ -30,8 +30,12 @@ try {
   const state = engine.createSessionStateLayers()
   const reads = engine.createSessionReadLayers(state)
   const higher = engine.createSessionEngineLayers(state)
+  const runtime = engine.createSessionRuntimeLayers(state)
   assert.equal(reads.state, state)
   assert.equal(higher.state, state)
+  assert.equal(runtime.state, state)
+  assert.equal(runtime.engine.state, state)
+  assert.equal(Layer.isLayer(runtime.layer), true)
   assert.equal(state.outbox, engine.Outbox.layer)
   assert.equal(Layer.isLayer(reads.layer), true)
   assert.equal(Layer.isLayer(higher.shared), true)
@@ -40,6 +44,9 @@ try {
     assert.equal(name in engine, false)
   }
   assert.equal('layer' in engine.Threads, false)
+  assert.equal('layer' in engine.ScheduledTasks, false)
+  assert.equal(typeof engine.SessionControl.dispatchCommand, 'function')
+  assert.equal(typeof engine.SessionControl.launchThread, 'function')
 } finally {
   constructors.forEach(([owner, key], index) => { owner[key] = originals[index] })
   syncBuiltinESMExports()

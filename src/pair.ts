@@ -6,6 +6,7 @@ import {
   type KeyObject,
   sign,
 } from 'node:crypto'
+import { parseT3Homes } from './t3-session/source/configuration.js'
 
 import {
   canonicalExecutorJson,
@@ -284,6 +285,7 @@ export const configureExecutorLocalPolicy = async (
   // generates its entry from this, and its power facts join the descriptor.
   codingSessions: CodingSessionsRequest = {},
   commandPolicy?: LocalCommandPolicy,
+  t3SourceHomes?: ExecutorLocalState['t3SourceHomes'],
 ): Promise<ExecutorLocalState> => {
   const permittedPrograms = configuredCommandAllowlist(commandAllowlist ?? state.descriptor.commandAllowlist ?? [])
   const localRules = commandPolicy !== undefined ? parseLocalCommandPolicy(commandPolicy)
@@ -321,6 +323,7 @@ export const configureExecutorLocalPolicy = async (
   await bridge.persist(operationKeys)
   const next: ExecutorLocalState = {
     ...state,
+    ...(t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(t3SourceHomes) }),
     commandPolicy: localRules,
     // Local edits migrate legacy command rules out of the public descriptor.
     // The server receives capability facts, never the machine's launch rules.

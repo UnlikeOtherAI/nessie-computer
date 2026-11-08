@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream'
+import { parseT3Homes, type ConfiguredT3Home } from './t3-session/source/configuration.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from './command-policy.js'
 
 import type { ExecutorLocalMcpServer } from './mcp-servers.js'
@@ -16,6 +17,7 @@ import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './works
  * says; `[]` (or `null` for `codingSessions`) removes it.
  */
 export type ExecutorConfigurationInput = {
+  t3SourceHomes?: readonly ConfiguredT3Home[]
   existingCodingSessionsEnabled?: boolean
   commandPolicy?: LocalCommandPolicy
   codingSessions?: unknown
@@ -75,6 +77,7 @@ export const parseConfigurationInput = (text: string): ExecutorConfigurationInpu
     return malformed()
   }
   return {
+    ...(input.t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(input.t3SourceHomes) }),
     ...(input.commandPolicy === undefined ? {} : { commandPolicy: parseLocalCommandPolicy(input.commandPolicy) }),
     ...(input.existingCodingSessionsEnabled === undefined ? {}
       : { existingCodingSessionsEnabled: input.existingCodingSessionsEnabled as boolean }),

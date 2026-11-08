@@ -1,6 +1,8 @@
 import type { Readable } from 'node:stream'
+import { registerMachineT3Sources } from './t3-session/source/owner.js'
 import { enableLocalSessionBridge } from './local-session-bridge.js'
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
+import { createSessionAuthorityClient } from './session-authority-client.js'
 
 import { executorApi } from './api-client.js'
 import { createExecutorBrowserSessionManager } from './browser-session-manager.js'
@@ -31,6 +33,7 @@ import { startExecutorLocalInferenceSupervisor } from './local-inference-supervi
 import { createExecutorMcpSessionManager } from './mcp-session-manager.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { createSessionViewRelay } from './session-view-relay.js'
+import { createT3SessionLane, type T3SessionLaneRuntime } from './t3-session-lane.js'
 import { createDaemonCadence } from './daemon-cadence.js'
 import { ExecutorDaemonDoorbell } from './daemon-doorbell.js'
 import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.js'
@@ -53,10 +56,11 @@ const withinShutdownBudget = (work: Promise<void>): Promise<void> => Promise.rac
 export const serveExecutor = async (
   stateDir: string,
   state: ExecutorLocalState,
-  options: { parentLiveness?: Readable; runtime?: ExecutorRuntime } = {},
+  options: { parentLiveness?: Readable; runtime?: ExecutorRuntime; t3Sessions?: T3SessionLaneRuntime } = {},
 ): Promise<void> => {
   const daemonLease = await acquireExecutorDaemonLease(stateDir)
   let protectionRuntime: Awaited<ReturnType<PersonalInferenceGuard['registerRuntime']>> | null = null
+  let releaseT3Sources: (() => void) | undefined
   try {
     if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
       protectionRuntime = await PersonalInferenceGuard.open().registerRuntime(`executor:${state.executorId}`)
@@ -64,6 +68,7 @@ export const serveExecutor = async (
     let live = await claimExecutor(stateDir, await enableLocalSessionBridge(stateDir, state, options.runtime))
     const localInference = await startExecutorLocalInferenceSupervisor(stateDir, live)
     live = localInference.state
+    releaseT3Sources = registerMachineT3Sources(stateDir, live.executorId)
     const browserSessions = createExecutorBrowserSessionManager(stateDir, live)
     const commandSessions = createExecutorCommandSessionManager(stateDir, live)
     const codingSessions = createExecutorCodingSessionManager(stateDir, live)
@@ -74,6 +79,9 @@ export const serveExecutor = async (
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const codingBridge = createCodingSessionsDaemon({
+      pairingSource: () => live.sessionPairingSource,
+      validateSessionAuthority: createSessionAuthorityClient(() => live),
+      connectionEpoch: () => live.connectionEpoch,
       executorId: live.executorId,
       commandRules: localCommandPolicyOf(live),
       facts: live.descriptor.codingSessions,
@@ -86,7 +94,10 @@ export const serveExecutor = async (
     const relayScreens = createSessionViewRelay(
       codingBridge, ownerRequestsGate.understood, ownerRequestsGate.holdReports,
     )
-    const screenPoll = createNonOverlappingExecutorTask(() => relayScreens(live).catch(() => undefined))
+    const t3Lane = options.t3Sessions ? createT3SessionLane(options.t3Sessions) : null
+    const screenPoll = createNonOverlappingExecutorTask(async () => {
+      await Promise.allSettled([relayScreens(live), ...(t3Lane ? [t3Lane.exchangeT3SessionOperations(live)] : [])])
+    })
     void localMcp.refresh().catch(() => undefined)
     let shuttingDown = false
     let drainingForUpdate = false
@@ -196,7 +207,7 @@ export const serveExecutor = async (
     // pace while it is open, and at once when it rings or a session changes here.
     const cadence = createDaemonCadence({
       commands: commandPoll, sessions: screenPoll, heartbeat,
-      sessionsHot: relayScreens.hot, monitorHot: monitor.watching,
+      sessionsHot: () => relayScreens.hot() || Boolean(t3Lane?.hot()), monitorHot: monitor.watching,
     })
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live,
@@ -228,6 +239,7 @@ export const serveExecutor = async (
       shuttingDown = true
       localMcp.stop()
       doorbell.stop()
+      t3Lane?.close()
       changes.stop()
       clearInterval(commandInterval)
       clearInterval(existingInterval)
@@ -250,6 +262,7 @@ export const serveExecutor = async (
       ])
     }
   } finally {
+    releaseT3Sources?.()
     try { await protectionRuntime?.release() } finally { await daemonLease.release() }
   }
 }

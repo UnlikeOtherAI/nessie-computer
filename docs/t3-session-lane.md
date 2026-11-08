@@ -1,0 +1,56 @@
+# Original T3 daemon lane
+
+Status: authored source, not runtime-qualified. The owning daemon registers
+`createT3SessionLane` through `serveExecutor(..., { t3Sessions })`. The admitted
+runtime supplies that port from its single held graph; absence leaves T3
+dispatch unbound. Native session views keep their own DTOs.
+
+`exchangeT3SessionOperations` uses the existing API client, machine signature,
+connection epoch and session wake cadence. It carries original RPC and HTTP
+envelopes. There are at most 64 active demands, eight frames per exchange,
+one response credit per demand, 8 MiB per frame and 32 MiB buffered replies.
+Offers and credit/hold controls carry a finite 60-second lease. Lost HTTP
+answers retain exact pending frames. Cancellation/expiry closes demand and
+does not assert that a provider turn stopped. Durable command outcome remains
+the original engine's receipt.
+
+`T3SessionLaneRuntime.open` must reconsume canonical operation authority and
+native custody before effects. It must use the original operation slots and
+Effect scope, not construct another engine. No source import grant permits
+control or `vcs.listRefs` with `refresh: true`.
+
+`createT3EffectAuthorityClient(() => enrolledState)` issues and refreshes a
+five-second `VerifiedT3EffectGrant`. A grant binds exact original command,
+request HMAC, executor/environment/thread/provider session, epoch/runtime
+generation and native association. The client verifies an RS256 signature
+against the existing JWKS on the enrolled HTTPS origin, along with its fresh
+nonce and proof digest. It accepts no signing key from the grant. Serialization
+loses the in-process brand; restoration needs a fresh round trip. A native
+receiver must compare `issuerOrigin` with its protected enrolled backend and
+the entire immutable native target before accepting the grant. Constructor
+access and a copied JSON object cannot forge the brand.
+
+Required integration: the backend finite issuer and T08 admission, current
+native association producer, runtime graph adapter and T03C effect receiver.
+No installed runtime, human consent, source recognition or provider outcome is
+qualified by this source checkpoint. Focused tests and real native/user/tool
+journeys remain pending the coordinator's integrated qualification window.
+
+`open(request, signal, { requestDigest })` receives the broker's HMAC separately
+from the original envelope. `describe()` reports only actual held runtime/source
+incarnations; the lane signs those reports. A raw request, captured database UUID
+or process-local random value cannot invent a ready runtime descriptor.
+
+`createT3CatalogPublicationTransport` sends bounded metadata pages and completion
+through the same paired API client and `t3_catalog` signature domain. It checks
+receipts and epoch changes. It does not enumerate a local source: the concrete
+ordered held-capture producer must still bind `T3CatalogPublicationPort`. No
+filesystem reference is dereferenced by the backend and no UUID sort is supplied
+as an alternative to original source order.
+
+Authored, unrun unit fixtures cover exact signed-frame retries, credit gating,
+epoch cancellation, actual grant signature verification, changed targets and
+JSON/constructor forgery. After integration, run `pnpm exec turbo run
+test:t3-session-broker --root-turbo-json=scripts/turbo.public.json --concurrency=1`.
+This normal build-dependent gate needs the coordinator's serial qualification
+window; builtin syntax checks do not qualify it.

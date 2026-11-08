@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
+import type { RetainedImportAuthorityPort } from '../ownership/import-scope.js'
 import type { T3CaptureJournal } from '../state/journal.js'
+import type { CaptureAttempt } from '../state/capture-attempts.js'
+import type { RetainedCatalogAuthorityPort } from '../catalog/selection.js'
 import type { NativeHistoryHomePort, RetainedOriginalOwnerPort, RetainedReadScope } from '../ownership/continuity.js'
 import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from './manifest.js'
 import { withT3SourceSnapshot } from './snapshot.js'
@@ -10,9 +13,16 @@ import type { OwnedCaptureWorkspacePort } from './materialize.js'
 export interface RetainedCapturePorts {
   readonly source?: AdmittedT3SourcePort
   readonly originalOwner?: RetainedOriginalOwnerPort
+  readonly catalogAuthority?: RetainedCatalogAuthorityPort
+  readonly importRead?: RetainedImportAuthorityPort
   readonly workspace: OwnedCaptureWorkspacePort
   readonly journal: T3CaptureJournal
   readonly nativeHomes?: NativeHistoryHomePort
+}
+
+export function retainedCaptureAuthority(ports: RetainedCapturePorts) {
+  requireCapture(!(ports.originalOwner && ports.importRead), 'retained_read_authority_ambiguous')
+  return ports.importRead ?? ports.originalOwner
 }
 
 /** Machine-only passive capture. Local readiness is NOT a server claim, a human
@@ -20,17 +30,16 @@ export interface RetainedCapturePorts {
  */
 export async function captureRetainedT3(ports: RetainedCapturePorts,
   manifest: T3SourceManifest, admittedRootKey: string) {
-  const generation = randomUUID()
-  let proven: ProvenT3Source | undefined
+  const generation = ports.importRead?.captureGeneration ?? randomUUID()
+  const attempt = ports.journal.attempts.observe(admittedRootKey)
   let result: Awaited<ReturnType<typeof finishStage>> | undefined
   try {
-    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, ports.originalOwner, generation,
+    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, retainedCaptureAuthority(ports), generation,
       async (snapshot, reads) => {
-      proven = snapshot.source
       const stage = await ports.workspace.createGeneration(generation)
       const priorGeneration = ports.journal.root(snapshot.source.physicalRootKey)?.last_ready_generation
       const prior = ports.journal.baseline(snapshot.source.physicalRootKey)
-      ports.journal.begin(snapshot.source, generation, stage.reference)
+      ports.journal.begin(snapshot.source, generation, stage.reference, attempt)
       const fingerprint = snapshot.fingerprint(ports.journal.snapshotKey())
       requireCapture(!priorGeneration || prior, 'capture_requires_versioned_baseline')
       requireCapture(!prior || prior.layout === snapshot.source.layout, 'capture_source_layout_changed')
@@ -43,15 +52,15 @@ export async function captureRetainedT3(ports: RetainedCapturePorts,
       // The source transaction has committed; the physical and original-human
       // callback leases still cover hydration and final readiness rechecks.
       ports.journal.markCaptured(captured.source, generation, captured.highWater)
-      result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck)
+      result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck, attempt)
     })
     requireCapture(result, 'capture_completion_missing')
     ports.journal.requirePublished(result.source.physicalRootKey, generation)
+    ports.journal.attempts.succeed(attempt)
     return result
   } catch (error) {
     const code = error instanceof CaptureFailure ? error.code : 'retained_capture_incomplete'
-    if (proven) ports.journal.fail(proven, generation, code)
-    else ports.journal.unavailable(admittedRootKey)
+    ports.journal.attempts.fail(attempt, code)
     throw new CaptureFailure(code)
   }
 }
@@ -59,12 +68,11 @@ export async function captureRetainedT3(ports: RetainedCapturePorts,
 export async function resumeRetainedT3(ports: RetainedCapturePorts,
   manifest: T3SourceManifest, admittedRootKey: string, generation: string) {
   let result: Awaited<ReturnType<typeof finishStage>> | undefined
-  let proven: ProvenT3Source | undefined
+  const attempt = ports.journal.attempts.observe(admittedRootKey, generation)
   try {
-    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, ports.originalOwner, generation,
+    await withT3SourceSnapshot(ports.source, manifest, admittedRootKey, retainedCaptureAuthority(ports), generation,
       async snapshot => {
       const source = snapshot.source
-      proven = source
       const job = ports.journal.generation(generation)
       requireCapture(job && job.physical_root === source.physicalRootKey &&
         ports.journal.root(source.physicalRootKey)?.environment_id === source.environmentId,
@@ -77,25 +85,25 @@ export async function resumeRetainedT3(ports: RetainedCapturePorts,
       requireCapture(prior && prior.layout === source.layout &&
         prior.digest === fingerprint.digest && prior.legacy_digest === fingerprint.legacyDigest,
       'capture_snapshot_changed_requires_refresh')
-      ports.journal.recover(source, generation)
+      ports.journal.recover(source, generation, attempt)
       ports.journal.requireCurrent(source.physicalRootKey, generation)
       return { source, reference: job.stage_ref }
     }, async (captured, reads, recheck) => {
-      result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck)
+      result = await finishStage(ports, captured.source, generation, captured.reference, reads, recheck, attempt)
     })
     requireCapture(result, 'capture_completion_missing')
     ports.journal.requirePublished(result.source.physicalRootKey, generation)
+    ports.journal.attempts.succeed(attempt)
     return result
   } catch (error) {
     const code = error instanceof CaptureFailure ? error.code : 'retained_capture_incomplete'
-    if (proven) ports.journal.fail(proven, generation, code)
-    else ports.journal.unavailable(admittedRootKey)
+    ports.journal.attempts.fail(attempt, code)
     throw new CaptureFailure(code)
   }
 }
 
 async function finishStage(ports: RetainedCapturePorts, source: ProvenT3Source, generation: string,
-  reference: string, reads: RetainedReadScope, recheckPhysicalSource: () => Promise<void>) {
+  reference: string, reads: RetainedReadScope, recheckPhysicalSource: () => Promise<void>, attempt: CaptureAttempt) {
   const stage = await ports.workspace.reopenGeneration(reference)
   requireCapture(stage.reference === reference, 'capture_stage_mismatch')
   const result = await hydrateCapture(stage, source, reads, ports.nativeHomes)
@@ -103,7 +111,7 @@ async function finishStage(ports: RetainedCapturePorts, source: ProvenT3Source, 
   await reads.recheckSource()
   // Serializes with capture advancement and retains known rows on rejection.
   // This is local data completion only; it grants no current human access.
-  ports.journal.complete(source, generation, result.identities, result.aliases)
+  ports.journal.complete(source, generation, result.identities, result.aliases, attempt)
   const captured = ports.journal.generation(generation)
   const snapshot = ports.journal.snapshot(generation)
   requireCapture(captured && typeof captured.source_high_water === 'number', 'capture_watermark_missing')

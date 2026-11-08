@@ -1,11 +1,38 @@
 # Retained T3 capture
 
-This is a machine-only, unbound passive importer. It adds no daemon capability,
-bridge adoption, provider, lifecycle, transport, native payload or UI. It does not
+The source-only [catalog read composition](retained-t3-catalog.md) extends these
+guarded wrappers with original shell/archive/family/history operations. Physical,
+human, publication and actual transport bindings remain required; it grants no
+new authority and changes no historical privacy classification.
+
+Read-return and capture-failure races from review `8a11f81` now have authored
+regressions in `producer-boundaries.test.mjs`, included in the importer gate.
+The read guard arbitrates publication after both enclosing producer promises
+finish. Capture/resume record a durable attempt observation before opening the
+source and use a transactional CAS on alias, physical root, environment,
+generation and incarnation before withdrawing availability after failure.
+Begin/recover/complete refresh that observation inside their existing transaction.
+Late failures retain their attempt evidence but cannot withdraw a newer capture,
+a recovered same-generation publication or a recreated alias. Current failures
+still withdraw the observed publication. These changes remain source-only until
+the coordinator's combined normal-engine qualification; no separate install is
+required or authorized by this note.
+
+The [physical-source reader](t3-physical-source.md) now has a Windows native/source
+implementation and daemon registration, pending compilation and installed
+qualification. Historical-human admission and server publication remain unbound;
+the implementation does not establish retrospective legacy-copy provenance.
+
+This is a machine-only passive importer with unbound human/server consumers.
+Capture adds no bridge adoption, provider lifecycle, entitled transport or UI. It does not
 make retained sessions reachable in Nessie. Local data completion does not mean
 server catalog completion, current read entitlement or execution custody.
 
 ## Required producers
+
+The [original-owner evidence boundary](retained-original-owner.md) records why
+the pinned source cannot mint historical human ownership and provides an
+explicit refusal port. Positive original-owner admission remains unbound.
 
 `AdmittedT3SourcePort.withReadonlySource` consumes an explicit manifest of
 admission references for desktop userdata, desktop development, server and
@@ -29,7 +56,8 @@ arbitrary caller functions can construct that binding. Rechecks must enforce
 current revocation and read freshness at most 60 seconds; the lease expires at
 callback exit. T04 creates no global owner cache or receipt authority.
 
-Both producers are REQUIRED and unbound. Missing producers deny before capture
+Both producers are REQUIRED. The Windows physical producer is implemented but
+unqualified; the historical-human producer remains unbound. Missing producers deny before capture
 or history reads. T03C's immutable accepted managed-start ownership is not
 original-owner continuity for native, external or legacy retained sessions.
 Today's login, computer administration, assignment, ownerKey, namespace,
@@ -325,4 +353,11 @@ This qualifies synthetic passive capture and the generated package, not live
 parity. Original-human and physical-source producers, installation coverage,
 native history-home custody, canonical vault delivery, T07 publication races and
 the entitled gateway/client journey remain required and unverified.
+
+The [physical source](t3-physical-source.md) and [prospective native consent](t3-source-consent.md)
+producers now have source implementations. Their native/installed execution remains
+unqualified; the original-human producer remains separate and unbound. Explicit
+prospective issuer delegation accepts a labeled unattested baseline and does not
+manufacture historical ownership. Parent composition must run the actual retained
+capture/read inside T05's `withRetainedImportLocally` callback before import is reachable.
 

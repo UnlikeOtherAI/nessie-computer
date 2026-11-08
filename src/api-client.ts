@@ -10,6 +10,9 @@ import type {
   ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
+import type { T3LaneExchange, T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
+import type { T3EffectAuthorityCheck, T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
+import type { T3CatalogPublicationExchange, T3CatalogPublicationReceipt } from '@nessie/executor-protocol/t3-session'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
 
@@ -41,6 +44,13 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
+  publishT3Catalog: (baseUrl: string, input: T3CatalogPublicationExchange,
+    options?: ExecutorSyncRequestOptions) => Promise<T3CatalogPublicationReceipt>
+  t3EffectIssuerKeys: (baseUrl: string, options?: ExecutorSyncRequestOptions) => Promise<unknown>
+  checkT3EffectAuthority: (baseUrl: string, input: T3EffectAuthorityCheck,
+    options?: ExecutorSyncRequestOptions) => Promise<T3EffectAuthorityChecked>
+  exchangeT3SessionOperations: (baseUrl: string, input: T3LaneExchange) => Promise<T3LaneExchangeResult>
+  retainedImport: (baseUrl: string, input: unknown) => Promise<unknown>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -50,8 +60,11 @@ export type ExecutorApiClient = {
     baseUrl: string, action: 'challenge' | 'delegate' | 'disconnect', input: unknown,
   ) => Promise<unknown>
   cancelPending: () => void
+  checkSessionAuthority: (baseUrl: string, input: import('@nessie/executor-protocol').ExecutorSessionAuthorityCheck)
+    => Promise<import('@nessie/executor-protocol').ExecutorSessionAuthorityChecked>
   claim: (baseUrl: string, input: { challenge: string; executorId: string; signature: string }) =>
-    Promise<{ connectionEpoch: string; status: string }>
+    Promise<{ connectionEpoch: string; status: string;
+      sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource }>
   heartbeat: (
     baseUrl: string,
     input: { connectionEpoch: string; executorId: string; observedAt: string; signature: string;
@@ -210,6 +223,29 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
+    publishT3Catalog: (baseUrl, input, options) =>
+      post(baseUrl, '/api/executor-daemon/t3/catalog', input, options?.timeoutMs, options?.signal),
+    t3EffectIssuerKeys: (baseUrl, options) => request(normalizeUrl(baseUrl, '/.well-known/jwks.json'),
+      { method: 'GET', redirect: 'error' }, options?.timeoutMs ?? requestTimeoutMs, async response => {
+        if (!response.ok || !response.body) throw new ExecutorApiError('T3 issuer keys unavailable.')
+        const reader = response.body.getReader()
+        const chunks: Uint8Array[] = []
+        let length = 0
+        try {
+          for (;;) {
+            const chunk = await reader.read()
+            if (chunk.done) break
+            length += chunk.value.byteLength
+            if (length > 65_536) throw new ExecutorApiError('T3 issuer keys exceed their bound.')
+            chunks.push(chunk.value)
+          }
+          return JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown
+        } finally { await reader.cancel().catch(() => undefined) }
+      }, options?.signal),
+    checkT3EffectAuthority: (baseUrl, input, options) =>
+      post(baseUrl, '/api/executor-daemon/t3/effect-authority', input, options?.timeoutMs, options?.signal),
+    exchangeT3SessionOperations: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/t3/operations', input),
+    retainedImport: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/retained-import', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,
@@ -220,6 +256,7 @@ export const createExecutorApi = (options: {
       for (const controller of pending) controller.abort('cancelled')
     },
     claim: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/claim', input),
+    checkSessionAuthority: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-authority', input),
     heartbeat: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/heartbeat', input),
     pollCommand: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/commands/poll', input),
     recordCommandReceipt: (baseUrl, input) =>

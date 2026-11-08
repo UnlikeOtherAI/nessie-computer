@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { parseT3Homes, type ConfiguredT3Home } from './t3-session/source/configuration.js'
 import { open, readFile, readdir, unlink } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
@@ -61,9 +62,13 @@ export type ExecutorCodexSandboxConfig = {
 }
 
 export type ExecutorLocalState = {
+  /** Explicit physical-source policy; never grants retained human ownership. */
+  t3SourceHomes?: readonly ConfiguredT3Home[]
   commandPolicy?: LocalCommandPolicy
   apiBaseUrl: string
   connectionEpoch?: string
+  /** Accepted authenticated claim references. Missing legacy state grants no session compatibility mode. */
+  sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource
   descriptor: {
     /**
      * The programs `command.run` may start. Absent means the policy has never
@@ -602,6 +607,7 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
   await assertOwnerOnly(dirname(path), 'directory')
   await assertOwnerOnly(path, 'file')
   const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<ExecutorLocalState>
+  if (parsed.t3SourceHomes !== undefined) parsed.t3SourceHomes = parseT3Homes(parsed.t3SourceHomes)
   if (parsed.commandPolicy !== undefined) parsed.commandPolicy = parseLocalCommandPolicy(parsed.commandPolicy)
   const workspaceFolders = migratedWorkspaceFolders(parsed as LegacySingleRootShape)
   const mcpServers = parsed.mcpServers === undefined ? undefined : parseLocalMcpServers(parsed.mcpServers)

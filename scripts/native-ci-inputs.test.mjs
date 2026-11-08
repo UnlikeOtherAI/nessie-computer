@@ -27,6 +27,15 @@ test('the shared installed runtime and its native helper select their actual app
   assert.deepEqual(nativeCiInputs(['native/src/main.rs'], () => null, () => null),
     { ...empty, helper: true, windows: true, macos_app: true, macos_tests: true })
 })
+
+test('the embedded T3 table catalogue is also a native helper input', () => {
+  assert.deepEqual(nativeCiInputs(['src/t3-session/source/tables.json'], () => null, () => null),
+    { ...empty, helper: true, windows: true, macos_app: true, macos_tests: true })
+})
+test('source-owner review translations are compiled native inputs', () => {
+  assert.deepEqual(nativeCiInputs(['packages/executor-console/retained-import-words.json'], () => null, () => null),
+    { ...empty, helper: true, windows: true, macos_app: true, macos_tests: true })
+})
 test('test commands and audited artwork/lint tools do not select native applications', () => {
   const original = JSON.stringify({ name: '@nessie/executor', scripts: { build: 'tsc', test: 'old' },
     devDependencies: { eslint: '1', sharp: '1' } })
