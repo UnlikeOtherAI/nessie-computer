@@ -9,6 +9,7 @@ import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from './t3-session-delivery.js'
+import { createT3InspectionPump } from './t3-session-inspections.js'
 
 /** Supplied by the admitted runtime graph. This port conveys demand, never grants
  * source, provider or custody authority. The graph checks those before effects.
@@ -42,6 +43,7 @@ const target = (request: ExecutorT3LaneOperation) => ({ environmentId: request.e
 export function createT3SessionLane(runtime: T3SessionLaneRuntime,
   api: Pick<ExecutorApiClient, 'exchangeT3SessionOperations'> = executorApi) {
   const attempts = new Map<string, Attempt>()
+  const inspections = createT3InspectionPump(runtime)
   let connection: string | undefined
   let closed = false
   let exchanging: Promise<void> | null = null
@@ -106,6 +108,7 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
     const identity = JSON.stringify([state.apiBaseUrl, state.executorId, state.connectionEpoch])
     if (identity !== connection) {
       for (const attempt of attempts.values()) forget(attempt)
+      await inspections.close()
       connection = identity
     }
     for (const attempt of attempts.values()) if (attempt.expiresAt <= Date.now()) forget(attempt)
@@ -118,14 +121,21 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       bytes += attempt.bytes
     }
     const runtimes = await runtime.describe()
+    const inspectionReceipts = inspections.frames()
     if (runtimes.length > T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
     const payload = { operation: 't3.operations.exchange' as const, executorId: state.executorId,
       connectionEpoch: state.connectionEpoch, observedAt: new Date().toISOString(), frames,
       runtimes,
+      ...(runtime.inspect ? { inspectionRuntimes: runtimes.filter(row => row.state === 'ready')
+        .map(row => ({ environmentId: row.environmentId, runtimeGeneration: row.runtimeGeneration })),
+      inspectionReceipts } : {}),
       active: [...attempts.values()].map(attempt => target(attempt.request)) }
     const response = await api.exchangeT3SessionOperations(state.apiBaseUrl, { ...payload,
       signature: signExecutorDaemonPayload(state.machinePrivateKey, 't3_operations', payload) })
     if (closed || connection !== identity) return
+    inspections.accept(state.executorId, state.connectionEpoch, runtimes,
+      response.inspections ?? [], response.inspectionAcknowledged ?? [], inspectionReceipts,
+      T3_LANE_LIMITS.active - attempts.size)
     if (!Array.isArray(response.acknowledged) || response.acknowledged.length > T3_LANE_LIMITS.exchangeFrames
       || !Array.isArray(response.offers) || response.offers.length > T3_LANE_LIMITS.exchangeFrames
       || !Array.isArray(response.controls) || response.controls.length > T3_LANE_LIMITS.active * 2) {
@@ -162,7 +172,8 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       const request = decodeExecutorT3LaneOperation(offer.request)
       const delivery = snapshotT3LaneDelivery({ requestDigest: offer.requestDigest,
         ...(offer.provenance === undefined ? {} : { provenance: offer.provenance }),
-        ...(offer.catalogLeases === undefined ? {} : { catalogLeases: offer.catalogLeases }) }, request)
+        ...(offer.catalogLeases === undefined ? {} : { catalogLeases: offer.catalogLeases }),
+        ...(offer.executionGraph === undefined ? {} : { executionGraph: offer.executionGraph }) }, request)
       if (request.executorId !== state.executorId || request.connectionEpoch !== state.connectionEpoch) {
         throw new Error('T3_LANE_CORRELATION')
       }
@@ -175,7 +186,7 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         }
         continue // Never invoke the engine twice for an already active offer.
       }
-      if (attempts.size >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
+      if (attempts.size + inspections.size() >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
       const expiresAt = t3LaneDeliveryExpiry(delivery, Date.parse(offer.expiresAt))
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()
         || expiresAt > Date.now() + T3_LANE_LIMITS.leaseMs) continue
@@ -197,7 +208,11 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       exchanging = exchange(state).finally(() => { exchanging = null })
       return exchanging
     },
-    hot: () => attempts.size > 0,
-    close() { closed = true; for (const attempt of attempts.values()) forget(attempt) },
+    hot: () => attempts.size > 0 || inspections.size() > 0,
+    async close() {
+      closed = true
+      for (const attempt of attempts.values()) forget(attempt)
+      await inspections.close()
+    },
   }
 }

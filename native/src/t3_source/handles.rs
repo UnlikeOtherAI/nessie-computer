@@ -98,6 +98,7 @@ pub fn namespace_chain(path: &Path) -> Result<Vec<Held>, NativeError> {
 
 pub struct Watch(HANDLE);
 impl Watch {
+    pub(super) fn raw(&self) -> u64 { self.0 as usize as u64 }
     pub fn new(path: &Path, writes: bool) -> Result<Self, NativeError> {
         Self::flags(path, FILE_NOTIFY_CHANGE_FILE_NAME | FILE_NOTIFY_CHANGE_DIR_NAME | FILE_NOTIFY_CHANGE_SECURITY
                 | FILE_NOTIFY_CHANGE_ATTRIBUTES

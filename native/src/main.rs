@@ -175,6 +175,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
             { let _ = mode; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
         }
         Command::T3SourceRead => t3_source::run(),
+        Command::T3ExecutionResource => t3_source::run_execution(),
         Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
         Command::T3RetainedVerify => t3_source::verify_retained_import(),
         Command::BuildInfo => {
@@ -400,7 +401,7 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             run_id: String::new(),
             status: PreflightStatus::Rejected,
         }),
-        Some(Command::T3SourceRead | Command::T3RetainedApprove(_) | Command::T3RetainedVerify)
+        Some(Command::T3SourceRead | Command::T3ExecutionResource | Command::T3RetainedApprove(_) | Command::T3RetainedVerify)
         | Some(Command::PersonalChatgptBrowser)
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)

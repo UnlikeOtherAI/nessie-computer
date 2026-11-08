@@ -33,6 +33,37 @@ fn present(path: &Path) -> Result<bool, NativeError> {
 }
 
 impl Resource {
+    pub(super) fn execution_root(&self) -> Result<&Held, NativeError> {
+        self.recheck()?;
+        self._chains.get(self.roots[1]).ok_or_else(fail)
+    }
+    pub(super) fn execution_configuration(&self) -> Result<Held, NativeError> {
+        self.recheck()?;
+        let mut file = Held::open(&self.configuration.path, false, false, true)?;
+        if file.identity != self.configuration.identity
+            || Sha256::digest(configuration_bytes(&mut file)?).as_slice() != self.configuration.digest.as_slice() {
+            return Err(fail());
+        }
+        Ok(file)
+    }
+    pub(super) fn execution_objects(&self, configuration: &Held)
+        -> Vec<nessie_windows_common::execution_resource::Object> {
+        use std::os::windows::io::AsRawHandle;
+        use nessie_windows_common::execution_resource::Object;
+        let object = |h: &Held, kind: &str, private| Object { handle: h.file.as_raw_handle() as usize as u64,
+            identity: h.identity.clone(), kind: kind.to_owned(), private };
+        let mut objects = vec![object(configuration, "configuration", true)];
+        for (i, held) in self._chains.iter().enumerate() {
+            objects.push(object(held, if i == self.roots[1] { "source-root" } else { "directory" }, self.roots.contains(&i)));
+        }
+        for (i, held) in self.private.iter().enumerate() {
+            objects.push(object(held, if i == 0 { "environment" } else if i == self.private.len() - 1 {
+                "database"
+            } else { "sidecar" }, true));
+        }
+        objects
+    }
+    pub(super) fn execution_watches(&self) -> Vec<u64> { self.watches.iter().map(Watch::raw).collect() }
     /// Local management resolves this directory from the authenticated OS token,
     /// not from a server path. The normal open independently rechecks the file.
     pub fn configured_request(state: &Path, executor: &str, root_key: &str) -> Result<Value, NativeError> {

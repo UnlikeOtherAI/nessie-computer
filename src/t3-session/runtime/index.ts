@@ -14,3 +14,5 @@ export { sessionDispatchScope } from './dispatch-scope.js'
 export { withRetainedRuntimeSource, type HeldRetainedRuntimeSource } from './retained-source.js'
 export { withRetainedCaptureWorkspace, type RetainedCaptureWorkspace } from './capture-workspace.js'
 export { withCapturedRetainedRuntime, type CapturedRetainedRuntime } from './retained-capture.js'
+export { prepareSessionLaunchTarget, recheckSessionLaunchTarget, PreparedSessionLaunchTarget,
+  SessionLaunchTargetRefused } from './launch-target.js'

@@ -36,7 +36,16 @@ fn write_frame(file: &mut File, value: &Value) -> Result<(), NativeError> {
     file.write_all(&bytes).map_err(|_| fail())?;
     file.flush().map_err(|_| fail())
 }
-pub fn serve(request: &Value, mut resource: Resource) -> Result<(), NativeError> {
+pub(super) trait Session {
+    fn dispatch(&mut self, request: &Value) -> Result<Value, NativeError>;
+    fn renew(&self) -> Result<(), NativeError>;
+}
+impl Session for Resource {
+    fn dispatch(&mut self, request: &Value) -> Result<Value, NativeError> { dispatch(request, self) }
+    fn renew(&self) -> Result<(), NativeError> { Resource::renew(self) }
+}
+pub fn serve(request: &Value, resource: Resource) -> Result<(), NativeError> { serve_session(request, resource) }
+pub(super) fn serve_session(request: &Value, mut resource: impl Session) -> Result<(), NativeError> {
     let nonce = request["nonce"].as_str().ok_or_else(fail)?;
     let secret = request["secret"].as_str().ok_or_else(fail)?;
     if nonce.len() != 64 || secret.len() != 64 || !nonce.bytes().chain(secret.bytes()).all(|c| c.is_ascii_hexdigit()) {
@@ -73,7 +82,7 @@ pub fn serve(request: &Value, mut resource: Resource) -> Result<(), NativeError>
             return Err(fail());
         }
         let message: Value = serde_json::from_str(body).map_err(|_| fail())?;
-        let result = dispatch(&message, &mut resource).and_then(|value| { resource.renew()?; Ok(value) });
+        let result = resource.dispatch(&message).and_then(|value| { resource.renew()?; Ok(value) });
         let rejected = result.is_err();
         let response = match result { Ok(value) => json!({"ok":true,"value":value}),
             Err(_) => json!({"ok":false,"code":"t3_source_resource_changed_or_unavailable"}) };

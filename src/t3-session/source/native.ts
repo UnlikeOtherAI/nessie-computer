@@ -14,12 +14,27 @@ const MAX_FRAME = 16 * 1024 * 1024
 export async function openNativeT3Source(request: Record<string, unknown>): Promise<{
   exchange: SourceExchange; close: () => Promise<void>
 }> {
+  return openNativeSourceChannel(request, 't3-source-read')
+}
+
+/** Only the service-authenticated fixed graph process can pass this command's
+ * native gate. The retained reader cannot request its settings opcode. */
+export async function openNativeT3ExecutionResources(request: Record<string, unknown>): Promise<{
+  exchange: SourceExchange; close: () => Promise<void>
+}> {
+  return openNativeSourceChannel(request, 't3-execution-resource')
+}
+
+async function openNativeSourceChannel(request: Record<string, unknown>,
+  command: 't3-source-read' | 't3-execution-resource'): Promise<{
+    exchange: SourceExchange; close: () => Promise<void>
+  }> {
   requireCapture(process.platform === 'win32', 't3_source_native_platform_unsupported')
   requireCapture(process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1', 't3_source_packaged_runtime_required')
   const nonce = randomBytes(32).toString('hex')
   const key = randomBytes(32)
   const expectedPipe = `\\\\.\\pipe\\nessie-t3-source-${nonce}`
-  const child = spawn(packagedNativeHelperPath(), ['t3-source-read'], {
+  const child = spawn(packagedNativeHelperPath(), [command], {
     stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true,
   })
   const childClosed = new Promise<void>(resolve => { child.once('close', () => resolve()) })

@@ -48,18 +48,24 @@ export const extractHostPorts = author => {
     const prefix = selectedImports(original, body, file, target, redirects)
     const names = exportedNames(body)
     const values = new Set([...body.matchAll(/^export (?:class|const|function) (\w+)/gm)].map(match => match[1]))
-    if (relative === 'orchestration-v2/CheckpointService.ts') {
-      names.push('isCheckpointRestoreError')
-      values.add('isCheckpointRestoreError')
+    const internals = relative === 'orchestration-v2/CheckpointService.ts'
+      ? [['isCheckpointRestoreError', 'const']]
+      : relative === 'orchestration-v2/ProviderSessionManager.ts'
+        ? [['busyTurnPrefix', 'const'], ['busyTurnKey', 'const'],
+          ['UNLOAD_THREAD_TIMEOUT_MS', 'const'], ['WORKING_RUN_STATUSES', 'const'],
+          ['LiveSessionEntry', 'interface'], ['IdleThreadUnload', 'interface'], ['ProviderSessionEventSignal', 'type']]
+        : []
+    for (const [name, kind] of internals) {
+      names.push(name)
+      if (kind === 'const') values.add(name)
     }
     const imports = names.map(name => `${values.has(name) ? '' : 'type '}${name}`).join(', ')
     const forwards = `import { ${imports} } from "./${target.split('/').at(-1)}";\nexport { ${imports} };\n\n`
     author.derive(target, [prefix, author.sourcePart(file, staticStart
       ? originalBody.slice(0, originalBody.indexOf(staticStart)) : originalBody), ...(staticStart ? ['}\n\n'] : [])],
     `extract-port:${relative}`)
-    if (relative === 'orchestration-v2/CheckpointService.ts') {
-      author.replace(target, 'const isCheckpointRestoreError =', 'export const isCheckpointRestoreError =',
-        'share-checkpoint-error-guard')
+    for (const [name, kind] of internals) {
+      author.replace(target, `${kind} ${name}`, `export ${kind} ${name}`, `share-internal:${relative}:${name}`)
     }
     author.replace(file, originalBody, forwards, `share-port:${relative}`)
     exports.set(file, new Set(names))
