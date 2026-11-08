@@ -129,3 +129,12 @@ the actual protected producer before any receipt may be issued.
 Post-association grants remain unchanged. Root owns compiler,
 signing, immutable tool installation and actual secret-read/clearance qualification;
 no secret values should appear in that evidence.
+
+Root inspected only --version, --help and read --help for the existing Maxis
+2.41.1 candidate. It is vendor-signed but user-profile installed, and those help
+surfaces show no explicit no-input/noninteractive flag. No actual read occurred.
+The current source must not enable execution or release on the assumption that
+OP_BIOMETRIC_UNLOCK_ENABLED=false plus closed stdin/TTY suppresses every prompt.
+A reviewed version-specific noninteractive behavior contract remains required.
+The trusted installation record and the five-second kill deadline do not supply
+that proof. No live client import or secret value-delivery API is available yet.

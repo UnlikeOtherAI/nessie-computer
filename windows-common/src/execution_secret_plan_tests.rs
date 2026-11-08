@@ -21,8 +21,10 @@ fn original_wire_defaults_and_duplicate_reference_positions_are_preserved() {
     assert!(observed.selection.config.is_empty());
     let expected = json!({"driver":"codex","displayName":"Display","environment":[
         {"name":"LITERAL","value":"","sensitive":false},
-        {"name":"API_KEY","value":"","sensitive":true,"secret":{"provider":"vault","reference":"op://vault/item/field"}},
-        {"name":"SECOND","value":"","sensitive":true,"secret":{"provider":"vault","reference":"op://vault/item/field"}}],
+        {"name":"API_KEY","value":"","sensitive":true,
+            "secret":{"provider":"vault","reference":"op://vault/item/field"}},
+        {"name":"SECOND","value":"","sensitive":true,
+            "secret":{"provider":"vault","reference":"op://vault/item/field"}}],
         "config":{"enabled":true,"homePath":"C:\\held"}});
     assert_eq!(
         observed.provider_config_digest,
