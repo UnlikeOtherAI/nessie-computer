@@ -1,8 +1,9 @@
 # Proposed selected-instance secret read
 
-Contract discussion, 8 November 2026. This document does not add a permission,
-receipt domain, process role or working resolver. Backend schemas must not freeze
-until the producer and lifetime decisions below are agreed. The first scope is
+Source contract, 8 November 2026. Shared wire schemas, native plan reconstruction
+and an immutable tool-record consumer are authored; the fixed child and dedicated
+delivery path are not yet wired. No working resolver or positive read is claimed.
+The first scope is
 one original selected-instance OnePassword reference and its destination slot.
 Workspace, git, attachments, scripts and Codex overlay mutations remain denied.
 
@@ -75,7 +76,7 @@ global cache and invalidate in this finite path. Every slot requires its own rea
 duplicate references do not implicitly share values or permissions. No driver
 construction or other mutation follows merely because a read succeeded.
 
-## Required agreements before implementation
+## Agreed wire and lifetime
 
 The preparation receipt would bind action selected-provider-secret-read, full
 original Binding (including graph sourceEvidenceDigest), custody, resourceId and
@@ -90,21 +91,41 @@ A new fixed op-read role, creator journal, service-held output and dedicated
 recipient delivery channel are required; none exists today. The image must come
 from an explicitly trusted immutable tool installation/release record. Ambient
 PATH/resolveSpawnCommand or merely hashing a caller-selected op.exe is insufficient.
-The installation record must bind its actual image/namespace and supported
-OnePassword version. Account/profile selection and environment must be fixed from
+The accepted installation record is optional manifest.executionTools.onePassword
+with version, sha256 and publisherSubject. Its fixed image is
+tools/onepassword/op.exe under the same protected release. Construction verifies
+the original Agilebits Authenticode chain, publisher, timestamp and version;
+the native consumer checks the already verified release manifest digest, pins
+the protected directory/image namespace and rechecks image hash. It cannot enroll
+a user-profile WinGet candidate. Account/profile selection and environment must be fixed from
 held configuration and reviewed original driver semantics; arbitrary inherited
 OP_* variables or an alternate process loader cannot select credentials.
 
-Lifetime is unresolved: fresh admission acceptance remains at most five seconds.
-Original op reads allow 45 seconds and may perform network/account interaction.
-Either the first supported path must stop and discard before the five-second
-deadline, or the signed contract must separately bound child execution and release
-by the original operation/source/issuer deadline. A 45-second timeout cannot be
-inherited silently. Local read permission is not permission for automatic signin
+Root and backend accepted a hard TOTAL five seconds from the native observation,
+further bounded by all original operation/source/graph/relay/issuer deadlines.
+Acceptance, child execution, EOF/zero exit/empty Job and sink delivery must all
+finish before that absolute deadline. A 45-second timeout cannot be
+inherited. Local read permission is not permission for automatic signin
 or another account prompt flow. Startup, timeout and uncertain-release retries
 require explicit original operation reconciliation, never synthetic renewal.
 
-Only after these agreements should distinct preparation/admission domains and
-schemas be exported. Post-association grants remain unchanged. Root owns compiler,
+Permanent uniqueness is the accepted graph plus original full-array environment
+index, not planId/readId/slotId. Exact retries can return unchanged evidence or
+refuse; substitutions and timeout cannot mint a fresh read window. Duplicate
+reference strings at different indices remain distinct slots.
+
+`execution-secret-read.ts` exports T3ExecutionSecretPlanCandidateSchema,
+T3ExecutionSecretReadPreparationPayloadSchema and T3ExecutionSecretReadAdmissionSchema.
+Domains are nessie.t3.execution.secret-read-preparation.v1 and
+nessie.t3.execution.secret-read.v1, respectively. Signing uses the existing exact
+domain + U+000A + payload UTF8 helper; preparationReceiptDigest is SHA256 of the
+exact signed preparation payload. planDigest is SHA256 of canonical sorted JSON
+of the complete {evidence,selection} candidate that native independently verified.
+settingsDigest remains bare64 exact-file SHA, unlike the prefixed configuration
+digests. The signed tool observation includes actual ownerProfileIdentity,
+environmentDigest and processDescriptorDigest; those observations still require
+the actual protected producer before any receipt may be issued.
+
+Post-association grants remain unchanged. Root owns compiler,
 signing, immutable tool installation and actual secret-read/clearance qualification;
 no secret values should appear in that evidence.
