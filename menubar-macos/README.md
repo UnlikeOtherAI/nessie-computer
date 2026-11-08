@@ -100,7 +100,7 @@ The console calls these through `window.webkit.messageHandlers.executor`
 
 | Command | Does |
 |---|---|
-| `executor_view` | `{ kind: 'reachable', executors: [{ executorId, daemonStatus, paused, pendingProgramRequests, failure?: { code?, message } }] }` |
+| `executor_view` | `{ kind: 'reachable', executors: [{ executorId, daemonStatus, paused, pendingProgramRequests, failure?: { code?, message }, names?: { organizationName, teamName, apiBaseUrl } }] }`; `names` is the team's saved label |
 | `executor_set_paused` | `{ executorId \| null, paused }`; `null` is every team; answers the view |
 | `executor_apply_remedy` | `{ executorId, remedy }` with `reProposePolicy`, `openNessie` or `restartExecutor`; answers the view |
 | `executor_program_requests` | `{ executorId? }`; `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |

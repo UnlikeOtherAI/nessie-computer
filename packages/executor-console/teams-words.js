@@ -9,7 +9,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} is disconnected from this computer.',
     disconnectedUntold: '{team} was disconnected here, but Nessie couldn’t be told. It shows this computer as offline until someone removes it there.',
     pausedNote: 'Paused. Agents wait until you resume.', pausedAllNote: 'All teams are paused. Agents wait until you resume.',
-    resumedNote: 'Working again.', restoreNames: 'Confirm this computer in Nessie to show the team name.',
+    resumedNote: 'Working again.',
     planConnection: '{team} — ChatGPT plan connection',
   },
   'en-US': {
@@ -21,7 +21,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} is disconnected from this computer.',
     disconnectedUntold: '{team} was disconnected here, but Nessie couldn’t be told. It shows this computer as offline until someone removes it there.',
     pausedNote: 'Paused. Agents wait until you resume.', pausedAllNote: 'All teams are paused. Agents wait until you resume.',
-    resumedNote: 'Working again.', restoreNames: 'Confirm this computer in Nessie to show the team name.',
+    resumedNote: 'Working again.',
     planConnection: '{team} — ChatGPT plan connection',
   },
   cs: {
@@ -33,7 +33,7 @@ window.nc.words.register('teams', {
     disconnected: 'Tým {team} je od tohoto počítače odpojen.',
     disconnectedUntold: 'Tým {team} byl zde odpojen, ale Nessie se to nedozvěděla. Ukazuje tento počítač jako offline, dokud ho tam někdo neodebere.',
     pausedNote: 'Pozastaveno. Agenti čekají, dokud to neobnovíte.', pausedAllNote: 'Všechny týmy jsou pozastavené. Agenti čekají, dokud to neobnovíte.',
-    resumedNote: 'Zase pracuje.', restoreNames: 'Potvrďte tento počítač v Nessie, aby se zobrazil název týmu.',
+    resumedNote: 'Zase pracuje.',
     planConnection: '{team} — připojení pro plány ChatGPT',
   },
   de: {
@@ -45,7 +45,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} ist von diesem Computer getrennt.',
     disconnectedUntold: '{team} wurde hier getrennt, aber Nessie konnte nicht informiert werden. Dort gilt dieser Computer als offline, bis ihn jemand entfernt.',
     pausedNote: 'Pausiert. Agenten warten, bis Sie fortsetzen.', pausedAllNote: 'Alle Teams sind pausiert. Agenten warten, bis Sie fortsetzen.',
-    resumedNote: 'Arbeitet wieder.', restoreNames: 'Bestätigen Sie diesen Computer in Nessie, um den Teamnamen anzuzeigen.',
+    resumedNote: 'Arbeitet wieder.',
     planConnection: '{team} — Verbindung für ChatGPT-Pläne',
   },
   es: {
@@ -57,7 +57,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} está desconectado de este ordenador.',
     disconnectedUntold: '{team} se desconectó aquí, pero no se pudo avisar a Nessie. Mostrará este ordenador sin conexión hasta que alguien lo elimine allí.',
     pausedNote: 'En pausa. Los agentes esperan hasta que reanudes.', pausedAllNote: 'Todos los equipos están en pausa. Los agentes esperan hasta que reanudes.',
-    resumedNote: 'Trabajando de nuevo.', restoreNames: 'Confirma este ordenador en Nessie para ver el nombre del equipo.',
+    resumedNote: 'Trabajando de nuevo.',
     planConnection: '{team} — conexión para planes de ChatGPT',
   },
   fr: {
@@ -69,7 +69,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} est déconnectée de cet ordinateur.',
     disconnectedUntold: '{team} a été déconnectée ici, mais Nessie n’a pas pu être prévenu. Il affichera cet ordinateur hors ligne jusqu’à ce que quelqu’un le retire là-bas.',
     pausedNote: 'En pause. Les agents attendent que vous repreniez.', pausedAllNote: 'Toutes les équipes sont en pause. Les agents attendent que vous repreniez.',
-    resumedNote: 'De nouveau au travail.', restoreNames: 'Confirmez cet ordinateur dans Nessie pour afficher le nom de l’équipe.',
+    resumedNote: 'De nouveau au travail.',
     planConnection: '{team} — connexion pour les forfaits ChatGPT',
   },
   it: {
@@ -81,7 +81,7 @@ window.nc.words.register('teams', {
     disconnected: '{team} è disconnesso da questo computer.',
     disconnectedUntold: '{team} è stato disconnesso qui, ma non è stato possibile avvisare Nessie. Mostrerà questo computer offline finché qualcuno non lo rimuove lì.',
     pausedNote: 'In pausa. Gli agenti aspettano finché non riprendi.', pausedAllNote: 'Tutti i team sono in pausa. Gli agenti aspettano finché non riprendi.',
-    resumedNote: 'Di nuovo al lavoro.', restoreNames: 'Conferma questo computer in Nessie per vedere il nome del team.',
+    resumedNote: 'Di nuovo al lavoro.',
     planConnection: '{team} — connessione per i piani ChatGPT',
   },
 })

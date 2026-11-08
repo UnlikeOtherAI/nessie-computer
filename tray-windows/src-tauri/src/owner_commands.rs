@@ -22,7 +22,6 @@ use crate::{
     overview::group,
     pipe_client::{call, ServiceResponse},
     state::{ExecutorStatus, ServiceView},
-    team_names,
 };
 
 const UNREADABLE: &str = "Nessie Computer couldn’t understand its service’s reply. Try again.";
@@ -38,8 +37,7 @@ fn listed() -> Result<Vec<ExecutorStatus>, String> {
 /// the named connection belongs to.
 pub fn pause_targets(executors: &[ExecutorStatus], executor_id: Option<&str>) -> Result<Vec<String>, String> {
     let ids = |team: &[&ExecutorStatus]| team.iter().map(|executor| executor.executor_id.clone()).collect::<Vec<_>>();
-    let names = team_names::snapshot();
-    let teams = group(executors, &names);
+    let teams = group(executors);
     match executor_id {
         None => Ok(teams.iter().flat_map(|team| ids(team)).collect()),
         Some(executor_id) => teams.iter()

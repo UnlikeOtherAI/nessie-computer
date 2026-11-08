@@ -6,7 +6,8 @@ use std::{
 };
 use nessie_windows_common::{
     failure::{classify, retriable, Failure, StderrTail, ALREADY_RUNNING}, lease::unowned_daemon_is_stopping,
-    owner_controls::{read_paused, Answer, RequestCache}, owner_sessions::SessionsCache, unpair,
+    owner_controls::{read_paused, Answer, RequestCache}, owner_sessions::SessionsCache,
+    team_label::read_team_label, unpair,
 };
 use crate::{pipe_client::ServiceResponse, state::{Connection, ExecutorStatus}, user_owner, user_runtime};
 
@@ -164,6 +165,7 @@ impl Connections {
                 pending_program_requests,
                 connection: Connection::User,
                 chatgpt_connection_id: None,
+                names: read_team_label(&state_dir),
                 executor_id: id,
                 daemon_status: state.into(),
                 workspace_configured: true,
@@ -396,6 +398,11 @@ impl Connections {
 pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
     CONNECTIONS.get_or_init(|| Mutex::new(Connections::default())).lock()
         .map_err(|_| "Could not reach this app’s connections.")?.request(request)
+}
+
+/// The state folders of the teams this account holds, for the one call that names them all.
+pub fn state_dirs() -> Vec<PathBuf> {
+    ids().unwrap_or_default().iter().filter_map(|id| directory(id).ok()).collect()
 }
 
 pub fn start_paired() {

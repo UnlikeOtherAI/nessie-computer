@@ -22,6 +22,7 @@ pub mod custody_observation;
 pub mod lease;
 pub mod owner_controls;
 pub mod owner_sessions;
+pub mod team_label;
 pub mod inference_control;
 #[cfg(windows)]
 pub mod process;

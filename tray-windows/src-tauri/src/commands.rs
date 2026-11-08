@@ -17,27 +17,22 @@ use crate::{
     pipe_client::{call, ServiceResponse},
     service_identity::{console_url, service_root},
     state::{Connection, ServiceView},
-    team_names::{self, same_team, Entry},
+    team_names::{self, same_team},
 };
 
 const UNREADABLE: &str = "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.";
 
 /// On a team this app runs, names the service connection to the same team
-/// that holds its ChatGPT plans, from the names already read.
+/// that holds its ChatGPT plans, from the names the rows carry.
 fn link_chatgpt_connections(view: &mut ServiceView) {
     let ServiceView::Reachable { executors } = view else { return };
-    let names = team_names::snapshot();
-    let known = |id: &str| match names.get(id) {
-        Some(Entry::Known(identity)) => Some(identity.clone()),
-        _ => None,
-    };
     let services: Vec<(String, team_names::TeamIdentity)> = executors.iter()
         .filter(|executor| executor.connection == Connection::Service)
-        .filter_map(|executor| known(&executor.executor_id).map(|identity| (executor.executor_id.clone(), identity)))
+        .filter_map(|executor| executor.names.clone().map(|identity| (executor.executor_id.clone(), identity)))
         .collect();
     for executor in executors.iter_mut().filter(|executor| executor.connection == Connection::User) {
-        executor.chatgpt_connection_id = known(&executor.executor_id).and_then(|mine| {
-            services.iter().find(|(_, theirs)| same_team(&mine, theirs)).map(|(id, _)| id.clone())
+        executor.chatgpt_connection_id = executor.names.as_ref().and_then(|mine| {
+            services.iter().find(|(_, theirs)| same_team(mine, theirs)).map(|(id, _)| id.clone())
         });
     }
 }
@@ -50,6 +45,9 @@ pub fn view() -> ServiceView {
         Ok(_) => ServiceView::Unreachable { reason: UNREADABLE.to_owned() },
         Err(reason) => ServiceView::Unreachable { reason },
     };
+    if let ServiceView::Reachable { executors } = &mut view {
+        team_names::remember(executors);
+    }
     link_chatgpt_connections(&mut view);
     view
 }
@@ -66,23 +64,25 @@ pub fn notify<R: Runtime>(app: &AppHandle<R>, title: &'static str, message: Stri
 /// The server Open Nessie goes to when no team is named: the first listed
 /// team's, or this build's default when nothing is connected yet.
 pub fn default_server() -> String {
-    let names = team_names::snapshot();
     if let ServiceView::Reachable { executors } = view() {
-        for executor in executors {
-            if let Some(Entry::Known(identity)) = names.get(&executor.executor_id) {
-                return identity.api_base_url.clone();
-            }
+        if let Some(identity) = executors.into_iter().find_map(|executor| executor.names) {
+            return identity.api_base_url;
         }
     }
     pairing_origin::default_origin(cfg!(debug_assertions)).to_owned()
 }
 
-/// The server a team is paired with, as Nessie named it.
+/// The server a team is paired with: from its saved name, or, for a team that
+/// has never had one, from its own settings.
 pub fn team_server(executor_id: &str) -> Result<String, String> {
-    match team_names::snapshot().get(executor_id) {
-        Some(Entry::Known(identity)) => Ok(identity.api_base_url.clone()),
-        Some(Entry::OwnerConfirmation(Some(server))) => Ok(server.clone()),
-        _ => Err("Nessie hasn’t answered for this team yet. Try again in a moment.".to_owned()),
+    if let Some(identity) = team_names::snapshot().get(executor_id) {
+        return Ok(identity.api_base_url.clone());
+    }
+    match call(&serde_json::json!({ "command": "describe", "executorId": executor_id })) {
+        Ok(ServiceResponse::Describe(description)) => description["apiBaseUrl"].as_str().map(str::to_owned)
+            .ok_or_else(|| UNREADABLE.to_owned()),
+        Ok(_) => Err(UNREADABLE.to_owned()),
+        Err(reason) => Err(reason),
     }
 }
 
@@ -170,8 +170,8 @@ pub async fn executor_view() -> Result<ServiceView, String> {
 /// paired with. With no team, the attempt whose pairing code is on screen
 /// (with that code, on **Add a computer**), or else the first team's server.
 /// The page names only a team; the address is always this app's own.
-/// Opens one computer's own page in Nessie, where its owner confirms it
-/// again. Always the browser: Nessie Desktop opens on its own start page.
+/// Opens one computer's own page in Nessie. Always the browser: Nessie
+/// Desktop opens on its own start page.
 pub fn open_computer<R: Runtime>(app: &AppHandle<R>, executor_id: &str) -> Result<(), String> {
     let origin = pairing_origin::approve(&team_server(executor_id)?, cfg!(debug_assertions))?.origin;
     let url = crate::service_identity::computer_url(&origin, cfg!(debug_assertions), executor_id)?;

@@ -363,15 +363,20 @@ export const verifyConsoleShell = async (browser, ui, output) => {
     journeys++
     await context.close()
   }
-  // Nessie names a team again only after its owner confirms this computer there:
-  // the line says so, and opens that computer's page on the team's own server.
+  // Names come from the rows (docs/team-names.md): a team that has never had one
+  // says so and needs nobody; the next view's name replaces it, and the console
+  // never asks the host to look a team up.
   for (const host of ['windows', 'macos']) {
-    const { context, page, errors } = await open({ host, paired: 1, ownerConfirmationRequired: true })
-    await page.locator('#needs-you-list').getByText('Confirm this computer in Nessie', { exact: true }).waitFor()
-    assert.equal(await page.locator('#status-sentence').textContent(), 'Needs you: confirm this computer in Nessie')
-    await page.locator('#needs-you-list').getByRole('button', { name: 'Open Nessie', exact: true }).click()
-    await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_open_nessie'))
-    assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, { executorId: 'team-0', computer: true })
+    const { context, page, errors } = await open({ host, paired: 1, unnamed: true })
+    await page.locator('#team-cards .team-card').getByText('Team name not available yet').first().waitFor()
+    assert.equal(await page.locator('#needs-you-list .need').count(), 0, 'an unnamed team needs nobody')
+    await page.evaluate(() => {
+      window.paired[0].names = { organizationName: 'UnlikeOtherAI', teamName: 'Revenue', apiBaseUrl: 'https://api.nessie.works' }
+    })
+    await page.evaluate(() => window.nc.team.refresh())
+    await page.locator('#team-cards .team-card').getByText('Revenue · UnlikeOtherAI').first().waitFor()
+    assert.equal(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_pairing_status'
+      && call.args?.executorId).length), 0, 'no per-team name lookups')
     assert.deepEqual(errors, [])
     journeys++
     await context.close()

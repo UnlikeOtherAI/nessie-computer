@@ -77,6 +77,14 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
                 if let code = failure.code { failed["code"] = code }
                 row["failure"] = failed
             }
+            // The team's saved label (docs/team-names.md), as the menu shows it.
+            if let pairing = controller.pairing.state, let organization = pairing.organizationName {
+                row["names"] = [
+                    "organizationName": organization,
+                    "teamName": pairing.teamName.map { $0 as Any } ?? NSNull(),
+                    "apiBaseUrl": pairing.apiBaseUrl ?? description.apiBaseUrl
+                ] as [String: Any]
+            }
             return row
         }]
     }

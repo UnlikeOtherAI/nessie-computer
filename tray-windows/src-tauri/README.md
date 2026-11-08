@@ -29,8 +29,11 @@ original identifiers so upgrades and installed scripts keep working.
 
   Teams read `{teamName} · {organizationName}`, with ` ({serverHost})` when
   two teams on different servers would read the same. Names come from each
-  connection's pairing status and are kept in memory only; an unknown name
-  reads "Team name not available yet". Pause and Resume ask nothing. The
+  team's saved label ([team names](../../docs/team-names.md)), which every row
+  carries; this app asks Nessie for its own teams' names in one `team-names`
+  call at start and every hour, and the service does the same for its teams.
+  A team keeps its name while Nessie can't be reached; only a team that has
+  never had one reads "Team name not available yet". Pause and Resume ask nothing. The
   sentences, the Needs you rules and their translations are the macOS menu
   bar's, so both platforms say the same thing.
 - **Icon:** grey when nothing is working (nothing connected, or all paused),
@@ -87,7 +90,8 @@ service's ChatGPT plan connection to the same team pause together.
 
 `Row` is `{ executorId, daemonStatus, paused, failure?: { code?, message },
 pendingProgramRequests, workspaceConfigured, connection: 'user' | 'service',
-chatgptConnectionId? }`. `failure` is present while the connection is not
+chatgptConnectionId?, names?: { organizationName, teamName, apiBaseUrl } }`;
+`names` is the team's saved label, absent for a team that has never had one. `failure` is present while the connection is not
 running and is the last line the daemon or `connect` wrote; `code` names the
 API's error code when the line is one of its fixed refusals
 (`windows-common/src/failure.rs`). Removed: `executor_start`, `executor_stop`,

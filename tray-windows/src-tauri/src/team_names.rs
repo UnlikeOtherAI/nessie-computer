@@ -1,120 +1,54 @@
-//! Team names for the menu, the toasts and pause grouping, held in memory only.
+//! Team names for the menu, the window, the toasts and pause grouping.
 //!
-//! A name is read the way the console reads it: the pairing status of one
-//! connection, which asks Nessie (backed by UOA) and can take seconds. One
-//! pass runs at a time, a name that could not be read waits a minute before
-//! it is asked again, and nothing is written anywhere: a restart reads names
-//! afresh. A cached name never grants anything; it only labels a line.
+//! Every team keeps a display-only label in its own folder
+//! (`docs/team-names.md`). Status rows carry it: the service reads its teams'
+//! labels and this app reads its own (`ExecutorStatus::names`), so naming a
+//! team costs no request of anyone. This module remembers the last name each
+//! listed connection had, so a row that comes back without one never blanks a
+//! known name, and it asks Nessie for this account's teams' names in one
+//! `team-names` call when the app starts and every hour; the service does the
+//! same for the teams it holds. A name never grants anything; it only labels
+//! a line.
 
-use std::{
-    collections::BTreeMap,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Mutex,
-    },
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeMap, sync::Mutex, time::Duration};
 
-use crate::{pipe_client::ServiceResponse, state::ExecutorStatus};
+use nessie_windows_common::team_label::{team_names_arguments, TeamLabel, TEAM_NAMES_REFRESH_SECONDS};
 
-const RETRY: Duration = Duration::from_secs(60);
+use crate::state::ExecutorStatus;
 
-/// What Nessie says about one connection.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TeamIdentity {
-    pub api_base_url: String,
-    pub organization_name: String,
-    /// `None` for a connection to a whole organisation rather than one team.
-    pub team_name: Option<String>,
-}
+/// What a connection's team is called and which server said so.
+pub type TeamIdentity = TeamLabel;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Entry {
-    Known(TeamIdentity),
-    /// The captured owner proof needs renewing in Nessie before names can be
-    /// read. Holds the team's server, read from its settings, so the line can
-    /// open that computer's page in Nessie.
-    OwnerConfirmation(Option<String>),
-}
+static NAMES: Mutex<BTreeMap<String, TeamIdentity>> = Mutex::new(BTreeMap::new());
 
-#[derive(Default)]
-struct Cache {
-    entries: BTreeMap<String, Entry>,
-    retry_at: BTreeMap<String, Instant>,
-}
-
-static CACHE: Mutex<Option<Cache>> = Mutex::new(None);
-static LOOKING: AtomicBool = AtomicBool::new(false);
-
-pub fn snapshot() -> BTreeMap<String, Entry> {
-    CACHE.lock().ok().and_then(|cache| cache.as_ref().map(|cache| cache.entries.clone())).unwrap_or_default()
-}
-
-pub fn identity_from(view: &serde_json::Value) -> Option<TeamIdentity> {
-    Some(TeamIdentity {
-        api_base_url: view.get("apiBaseUrl")?.as_str()?.to_owned(),
-        organization_name: view.get("organizationName")?.as_str()?.to_owned(),
-        team_name: view.get("teamName").and_then(serde_json::Value::as_str).map(str::to_owned),
-    })
-}
-
-fn read(executor_id: &str) -> Result<Entry, ()> {
-    match crate::pipe_client::call(&serde_json::json!({ "command": "pairingStatus", "executorId": executor_id })) {
-        Ok(ServiceResponse::Pairing(view)) => identity_from(&view).map(Entry::Known).ok_or(()),
-        Err(reason) if reason.contains("PAIRING_OWNER_CONFIRMATION_REQUIRED") => {
-            Ok(Entry::OwnerConfirmation(server_of(executor_id)))
-        }
-        _ => Err(()),
-    }
-}
-
-/// The server a team is paired with, from its own settings; no name is needed.
-fn server_of(executor_id: &str) -> Option<String> {
-    match crate::pipe_client::call(&serde_json::json!({ "command": "describe", "executorId": executor_id })) {
-        Ok(ServiceResponse::Describe(description)) => description["apiBaseUrl"].as_str().map(str::to_owned),
-        _ => None,
-    }
-}
-
-/// Reads the names this cache lacks, once per pass. Run off the main thread.
-pub fn look_up(executors: &[ExecutorStatus]) {
-    if LOOKING.swap(true, Ordering::AcqRel) {
-        return;
-    }
-    let listed: Vec<String> = executors.iter().map(|executor| executor.executor_id.clone()).collect();
-    let due: Vec<String> = match CACHE.lock() {
-        Ok(mut guard) => {
-            let cache = guard.get_or_insert_with(Cache::default);
-            cache.entries.retain(|id, _| listed.contains(id));
-            cache.retry_at.retain(|id, _| listed.contains(id));
-            let now = Instant::now();
-            listed.iter()
-                .filter(|id| !matches!(cache.entries.get(*id), Some(Entry::Known(_))))
-                .filter(|id| cache.retry_at.get(*id).is_none_or(|at| now >= *at))
-                .cloned().collect()
-        }
-        Err(_) => Vec::new(),
-    };
-    for id in due {
-        let entry = read(&id);
-        if let Ok(mut guard) = CACHE.lock() {
-            let cache = guard.get_or_insert_with(Cache::default);
-            match entry {
-                Ok(Entry::Known(identity)) => {
-                    cache.entries.insert(id.clone(), Entry::Known(identity));
-                    cache.retry_at.remove(&id);
-                }
-                Ok(other) => {
-                    cache.entries.insert(id.clone(), other);
-                    cache.retry_at.insert(id, Instant::now() + RETRY);
-                }
-                Err(()) => {
-                    cache.retry_at.insert(id, Instant::now() + RETRY);
-                }
-            }
+/// Takes the names the latest rows carry and gives every row the last name
+/// its connection had: a known name stays until the connection is gone.
+pub fn remember(executors: &mut [ExecutorStatus]) {
+    let Ok(mut names) = NAMES.lock() else { return };
+    names.retain(|id, _| executors.iter().any(|executor| &executor.executor_id == id));
+    for executor in executors.iter_mut() {
+        match &executor.names {
+            Some(label) => { names.insert(executor.executor_id.clone(), label.clone()); }
+            None => executor.names = names.get(&executor.executor_id).cloned(),
         }
     }
-    LOOKING.store(false, Ordering::Release);
+}
+
+/// The names last seen, by connection.
+pub fn snapshot() -> BTreeMap<String, TeamIdentity> {
+    NAMES.lock().map(|names| names.clone()).unwrap_or_default()
+}
+
+/// Asks Nessie for the names of the teams this app runs under the person's
+/// account, now and every hour, on a thread of its own: Nessie can take
+/// seconds, and a failure changes nothing on disk.
+pub fn refresh_hourly() {
+    std::thread::spawn(|| loop {
+        if let Some(arguments) = team_names_arguments(&crate::user_connections::state_dirs()) {
+            let _ = crate::user_runtime::run(&arguments, None);
+        }
+        std::thread::sleep(Duration::from_secs(TEAM_NAMES_REFRESH_SECONDS));
+    });
 }
 
 /// Several connections can serve one team on this computer — the one this app
@@ -139,8 +73,8 @@ fn base_label(identity: &TeamIdentity) -> String {
 }
 
 /// `{teamName} · {organizationName}`, with ` ({serverHost})` when two teams on
-/// different servers would otherwise read the same. A connection whose name is
-/// not known yet reads as `unknown`, never as its id.
+/// different servers would otherwise read the same. A connection whose team
+/// has never had a name reads as `unknown`, never as its id.
 pub fn label(identity: Option<&TeamIdentity>, all: &[&TeamIdentity], unknown: &str) -> String {
     let Some(identity) = identity else {
         return unknown.to_owned();
@@ -158,7 +92,8 @@ pub fn label(identity: Option<&TeamIdentity>, all: &[&TeamIdentity], unknown: &s
 
 #[cfg(test)]
 mod tests {
-    use super::{identity_from, label, same_team, TeamIdentity};
+    use super::{label, remember, same_team, snapshot, TeamIdentity};
+    use crate::state::tests::executor;
 
     fn identity(api: &str, organization: &str, team: Option<&str>) -> TeamIdentity {
         TeamIdentity {
@@ -190,15 +125,24 @@ mod tests {
     }
 
     #[test]
-    fn a_pairing_status_answer_carries_the_names_and_the_server() {
-        let view = serde_json::json!({
-            "status": "paired", "apiBaseUrl": "https://api.nessie.works", "executorId": "a-1",
-            "machineName": "DESK", "organizationName": "Acme", "teamName": "Sales",
-        });
-        assert_eq!(identity_from(&view), Some(identity("https://api.nessie.works", "Acme", Some("Sales"))));
-        let organisation = serde_json::json!({ "apiBaseUrl": "https://x.example", "organizationName": "Acme",
-            "teamName": null });
-        assert_eq!(identity_from(&organisation).unwrap().team_name, None);
-        assert_eq!(identity_from(&serde_json::json!({ "status": "waiting" })), None);
+    fn a_known_name_survives_a_row_without_one_and_leaves_with_its_connection() {
+        let sales = identity("https://api.nessie.works", "Acme", Some("Sales"));
+        let mut named = executor("remember-a", "running", false);
+        named.names = Some(sales.clone());
+        let mut rows = vec![named, executor("remember-b", "running", false)];
+        remember(&mut rows);
+        assert_eq!(rows[1].names, None, "a team that never had a name has none");
+        // The next poll's row lost its label (an unreadable file): the known name stays.
+        let mut later = vec![executor("remember-a", "running", false)];
+        remember(&mut later);
+        assert_eq!(later[0].names.as_ref(), Some(&sales));
+        // A renamed team takes its new name.
+        let renamed = identity("https://api.nessie.works", "Acme", Some("Revenue"));
+        let mut next = executor("remember-a", "running", false);
+        next.names = Some(renamed.clone());
+        remember(&mut [next]);
+        assert_eq!(snapshot().get("remember-a"), Some(&renamed));
+        remember(&mut []);
+        assert!(!snapshot().contains_key("remember-a"), "a disconnected team is forgotten");
     }
 }

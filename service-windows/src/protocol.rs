@@ -14,7 +14,7 @@
 //! Everything here is a pure function of the request text, so both halves of the
 //! contract are tested on any host.
 
-use nessie_windows_common::{failure::Failure, owner_controls::Answer};
+use nessie_windows_common::{failure::Failure, owner_controls::Answer, team_label::TeamLabel};
 use serde::{Deserialize, Serialize};
 
 pub use crate::protocol_values::MAX_REQUEST_BYTES;
@@ -193,7 +193,8 @@ enum Request {
 
 /// One paired executor, as the tray is allowed to see it: its daemon state,
 /// whether its owner paused it, why it last stopped when it is not running,
-/// and how many program requests wait for an answer. Never a path or a key.
+/// how many program requests wait for an answer, and the team's saved
+/// display-only name (`team_label`). Never a path or a key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutorStatus {
@@ -204,6 +205,8 @@ pub struct ExecutorStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<Failure>,
     pub pending_program_requests: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub names: Option<TeamLabel>,
 }
 
 /// The answer. Each variant carries only what the tray asked for: an executor
