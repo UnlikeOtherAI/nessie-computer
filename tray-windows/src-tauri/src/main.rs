@@ -156,7 +156,7 @@ fn open_section(app: &AppHandle, section: ConsoleSection, target: ConsoleTarget)
     let _ = app.emit_to("status", &section.event(), target);
 }
 
-/// A link only navigates: it opens the window on a section, or on Connect a team.
+/// A link only navigates: it opens the window on a section, or on Add this computer.
 fn follow(app: &AppHandle, link: Link) {
     match link {
         Link::Open(section, target) => open_section(app, section, target),
@@ -172,6 +172,7 @@ fn follow(app: &AppHandle, link: Link) {
 fn handle_menu(app: &AppHandle, id: &str) {
     match parse_menu_id(id) {
         MenuAction::Open(section, target) => open_section(app, section, target),
+        MenuAction::AddComputer => follow(app, Link::Connect),
         MenuAction::SetPaused { executor_id, paused } => {
             let app = app.clone();
             std::thread::spawn(move || {
