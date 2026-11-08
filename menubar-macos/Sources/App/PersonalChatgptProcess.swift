@@ -34,18 +34,18 @@ final class PersonalChatgptProcess: @unchecked Sendable {
                     var frame = Data()
                     while frame.count <= 1_048_576 {
                         guard let byte = try output.fileHandleForReading.read(upToCount: 1), !byte.isEmpty else {
-                            throw ExecutorRefusal("The local account response is unavailable.")
+                            throw ExecutorRefusal(.planCheckFailed)
                         }
                         frame.append(byte)
                         if byte == Data([10]) { break }
                     }
                     guard frame.count <= 1_048_576, frame.last == 10 else {
-                        throw ExecutorRefusal("The local account response is invalid.")
+                        throw ExecutorRefusal(.planCheckFailed)
                     }
                     complete(.success(frame))
                 } catch {
                     try? input.fileHandleForWriting.close()
-                    complete(.failure(ExecutorRefusal("Could not check the local account. Try again.")))
+                    complete(.failure(ExecutorRefusal(.planCheckFailed)))
                 }
                 guard spawned else {
                     try? output.fileHandleForWriting.close()
@@ -57,7 +57,7 @@ final class PersonalChatgptProcess: @unchecked Sendable {
                 if process.isRunning { process.waitUntilExit() }
             }
             DispatchQueue.global().asyncAfter(deadline: .now() + 30) { [self] in
-                complete(.failure(ExecutorRefusal("The local account check is still pending.")))
+                complete(.failure(ExecutorRefusal(.planCheckPending)))
             }
         }
     }

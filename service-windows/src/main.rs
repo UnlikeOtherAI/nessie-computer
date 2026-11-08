@@ -36,6 +36,7 @@ mod paths;
 #[cfg(windows)]
 mod pipe;
 mod protocol;
+mod protocol_values;
 mod provenance;
 #[cfg(windows)]
 mod security;
@@ -44,9 +45,11 @@ mod service_chatgpt;
 mod supervisor;
 mod supervisor_commands;
 mod supervisor_pairing;
+mod supervisor_owner;
 mod supervisor_public_json;
+mod supervisor_run;
 
-const USAGE: &str = "nessie-executor-service runs as the Nessie Executor Windows service. \
+const USAGE: &str = "nessie-executor-service runs as the Nessie Computer Windows service. \
                      Its other modes are --secure-state-root, --secure-updater-root, --disable-updater-for-removal and --join-hyperv-administrators, \
                      which the installer uses while registering the service.";
 
@@ -89,7 +92,7 @@ fn secure_state_root() -> Result<(), String> {
     let runtime_root = std::env::current_exe()
         .ok()
         .and_then(|executable| executable.parent().map(std::path::Path::to_path_buf))
-        .ok_or_else(|| "Nessie Executor could not locate its packaged runtime.".to_owned())?;
+        .ok_or_else(|| "Nessie Computer could not locate its packaged runtime.".to_owned())?;
     let helper = manifest::verify_packaged_runtime(&runtime_root)?.native_helper;
     for directory in [
         root.clone(),
@@ -103,7 +106,7 @@ fn secure_state_root() -> Result<(), String> {
 
 #[cfg(not(windows))]
 fn secure_state_root() -> Result<(), String> {
-    Err("Nessie Executor secures its state root on Windows only.".to_owned())
+    Err("Nessie Computer secures its state root on Windows only.".to_owned())
 }
 
 #[cfg(windows)]

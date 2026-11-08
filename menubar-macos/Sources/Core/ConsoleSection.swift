@@ -1,62 +1,18 @@
 import Foundation
 
-/// The surfaces this app exists for, as one list.
-///
-/// They live in a single window behind one selector rather than in three
-/// windows a person has to find separately: the first version opened a window
-/// per surface from the menu, and there was no way to get from one to another —
-/// a person could not tell they were three views of the same thing. The menu
-/// lines still exist as doorways, and each one selects a section in that window.
-public enum ConsoleSection: String, CaseIterable, Identifiable, Sendable {
+/// The window's tabs. Overview and Settings are about the whole computer;
+/// Access, Documents and AI follow the team chosen in the window's dropdown.
+public enum ConsoleSection: String, CaseIterable, Sendable {
+    case overview
+    case access
+    case documents
+    // swiftlint:disable:next identifier_name
+    case ai
     case settings
-    case reach
-    case tools
-    /// One team's folder sync. Its menu line carries a live status instead of
-    /// this title (`folderSyncMenuTitle`).
-    case sync
-
-    public var id: String { rawValue }
-
-    /// The selector's label. Short, because a segmented control has to fit
-    /// them side by side.
-    public var title: String {
-        switch self {
-        case .settings: return "Settings"
-        case .reach: return "Where it can reach"
-        case .tools: return "Tools it can run"
-        case .sync: return "Sync"
-        }
-    }
-
-    /// The line in the status menu, which says the same thing in the same words.
-    public var menuTitle: String { "\(title)…" }
-
-    public var symbolName: String {
-        switch self {
-        case .settings: return "gearshape"
-        case .reach: return "globe.badge.chevron.backward"
-        case .tools: return "terminal"
-        case .sync: return "arrow.triangle.2.circlepath"
-        }
-    }
-
-    public var subtitle: String {
-        switch self {
-        case .settings:
-            return "Pair this Mac, choose the folder it may read, and decide whether it starts at login."
-        case .reach:
-            return "Everything outside this list is outside the executor's reach."
-        case .tools:
-            return "The commands the guest may start. "
-                + "Anything that does not match this list is refused before a guest starts."
-        case .sync:
-            return "Keep a copy of a team's documents in a folder on this Mac."
-        }
-    }
 }
 
-/// What the menu asks the console window to show: a section and, when the
-/// menu line is about one team, that team first. The page listens for
+/// What the app asks the window to show: a section and, when the request is
+/// about one team, that team first. The page listens for
 /// `tray://section/<section>` and reads the team from the event's `detail`;
 /// a team it does not list is ignored. The Windows tray sends the same event
 /// and payload.
@@ -82,4 +38,7 @@ public struct ConsoleTarget: Equatable, Sendable {
         }
         return "window.dispatchEvent(new CustomEvent('\(eventName)', { detail: \(detail) }))"
     }
+
+    /// Opens Connect a team.
+    public static let connectScript = "window.dispatchEvent(new CustomEvent('tray://connect', { detail: null }))"
 }

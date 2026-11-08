@@ -92,7 +92,19 @@ export const HYPERV_ADMINISTRATORS_SID = 'S-1-5-32-578'
 
 export const SERVICE_NAME = 'NessieExecutor'
 
-export const SERVICE_DISPLAY_NAME = 'Nessie Executor'
+/** What Apps & features, the Start menu and Services call the product. */
+export const PRODUCT_NAME = 'Nessie Computer'
+
+export const SERVICE_DISPLAY_NAME = 'Nessie Computer'
+
+/** The identifier the app's toasts are shown under; the Start menu shortcut carries it. */
+export const APP_USER_MODEL_ID = 'com.unlikeotherai.nessie.executor.tray'
+
+/** The link scheme Nessie's web opens this app with. */
+export const URL_SCHEME = 'nessie-computer'
+
+/** Kept from before the product was renamed: upgrades find the installed product by it. */
+export const UPGRADE_CODE = '9a1c6d2e-4f3b-4a7d-9c1e-2b8f5d6a4e10'
 
 export const SERVICE_ACCOUNT = 'NT SERVICE\\NessieExecutor'
 

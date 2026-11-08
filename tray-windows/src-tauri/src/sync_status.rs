@@ -1,9 +1,9 @@
-//! The tray's one line about folder sync, read from the same
-//! `nessie-executor sync status --json` the console's Sync tab draws.
+//! Whether a team's documents need the owner, read from the same
+//! `nessie-executor sync status --json` the console's Documents tab draws.
 //!
 //! Sync is per team and runs only for connections this account owns, so the
-//! tray asks each of those and shows the team that most needs the person; the
-//! line opens the console on that team's Sync tab. Each read starts the CLI, so
+//! tray asks each of those and keeps the team that most needs the person; the
+//! menu's Needs you line opens the console on that team's Documents tab. Each read starts the CLI, so
 //! it happens on a slow cadence and when the pointer reaches the icon, never on
 //! every three-second poll. Nothing is cached beyond the last answer.
 
@@ -124,29 +124,6 @@ impl SyncLine {
             _ => 0,
         }
     }
-
-    pub fn label(self) -> String {
-        let plural = |count: u64, one: &str, other: &str| {
-            format!("{count} {}", if count == 1 { one } else { other })
-        };
-        let text = match self {
-            Self::Off => "off".to_owned(),
-            Self::NotPrivate => "not on a shared computer".to_owned(),
-            Self::Paused => "paused".to_owned(),
-            Self::UpToDate => "up to date".to_owned(),
-            Self::Starting => "starting".to_owned(),
-            Self::Offline => "offline".to_owned(),
-            Self::Syncing(0) => "syncing".to_owned(),
-            Self::Syncing(count) => format!("syncing {}", plural(count, "file", "files")),
-            Self::Conflicts(count) => plural(count, "conflict", "conflicts"),
-            Self::NeedsAttention => "needs your attention".to_owned(),
-            Self::AllowInNessie => "allow it in Nessie".to_owned(),
-            Self::AllowAgainInNessie => "allow it again in Nessie".to_owned(),
-            Self::FolderMissing => "folder missing".to_owned(),
-            Self::DiskFull => "disk full".to_owned(),
-        };
-        format!("Sync: {text}")
-    }
 }
 
 /// The team the line is about, and what it says.
@@ -162,19 +139,6 @@ pub fn most_demanding(lines: impl IntoIterator<Item = (String, SyncLine)>) -> Op
         Some(best) if best.line.rank() >= line.rank() => Some(best),
         _ => Some(SyncOverview { executor_id, line }),
     })
-}
-
-/// The menu line: the status when one is known, otherwise a plain doorway.
-pub fn menu_label(overview: Option<&SyncOverview>) -> String {
-    overview.map_or_else(|| "Sync…".to_owned(), |overview| overview.line.label())
-}
-
-/// The tooltip names sync only when it needs the person.
-pub fn tooltip(header: String, overview: Option<&SyncOverview>) -> String {
-    match overview {
-        Some(overview) if overview.line.needs_you() => format!("{header}\n{}", overview.line.label()),
-        _ => header,
-    }
 }
 
 struct Cache {
@@ -226,7 +190,7 @@ fn read(view: &ServiceView) -> Option<SyncOverview> {
 
 #[cfg(test)]
 mod tests {
-    use super::{line, menu_label, most_demanding, tooltip, SyncLine, SyncOverview, SyncSummary};
+    use super::{line, most_demanding, SyncLine, SyncOverview, SyncSummary};
     use serde_json::json;
 
     fn summary(enabled: bool, state: &str, counts: serde_json::Value) -> SyncSummary {
@@ -268,20 +232,6 @@ mod tests {
     }
 
     #[test]
-    fn the_menu_line_is_short_and_plain() {
-        let at = |line| Some(SyncOverview { executor_id: "team".to_owned(), line });
-        assert_eq!(menu_label(None), "Sync…");
-        assert_eq!(menu_label(at(SyncLine::UpToDate).as_ref()), "Sync: up to date");
-        assert_eq!(menu_label(at(SyncLine::Off).as_ref()), "Sync: off");
-        assert_eq!(menu_label(at(SyncLine::Conflicts(1)).as_ref()), "Sync: 1 conflict");
-        assert_eq!(menu_label(at(SyncLine::Conflicts(3)).as_ref()), "Sync: 3 conflicts");
-        assert_eq!(menu_label(at(SyncLine::Syncing(1)).as_ref()), "Sync: syncing 1 file");
-        assert_eq!(menu_label(at(SyncLine::Syncing(12)).as_ref()), "Sync: syncing 12 files");
-        assert_eq!(menu_label(at(SyncLine::Syncing(0)).as_ref()), "Sync: syncing");
-        assert_eq!(menu_label(at(SyncLine::AllowInNessie).as_ref()), "Sync: allow it in Nessie");
-    }
-
-    #[test]
     fn the_line_is_about_the_team_that_most_needs_the_person() {
         let teams = |lines: &[SyncLine]| most_demanding(lines.iter().enumerate()
             .map(|(index, line)| (format!("team-{index}"), *line)));
@@ -291,15 +241,5 @@ mod tests {
         assert_eq!(teams(&[SyncLine::Off, SyncLine::Paused, SyncLine::UpToDate]).unwrap().executor_id, "team-2");
         assert_eq!(teams(&[SyncLine::UpToDate, SyncLine::Syncing(3)]).unwrap().line, SyncLine::Syncing(3));
         assert_eq!(teams(&[SyncLine::Off, SyncLine::Off]).unwrap().executor_id, "team-0");
-    }
-
-    #[test]
-    fn the_tooltip_names_sync_only_when_it_needs_the_person() {
-        let header = || "Nessie Executor — 1 of 1 running".to_owned();
-        let at = |line| SyncOverview { executor_id: "team".to_owned(), line };
-        assert_eq!(tooltip(header(), None), header());
-        assert_eq!(tooltip(header(), Some(&at(SyncLine::Syncing(4)))), header());
-        assert_eq!(tooltip(header(), Some(&at(SyncLine::Conflicts(3)))),
-            "Nessie Executor — 1 of 1 running\nSync: 3 conflicts");
     }
 }

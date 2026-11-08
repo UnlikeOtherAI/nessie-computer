@@ -20,7 +20,7 @@
 /// the installer's authoring carries the same string — and the test below is
 /// what keeps the two spellings from drifting apart.
 #[cfg(test)]
-pub const SERVICE_DISPLAY_NAME: &str = "Nessie Executor";
+pub const SERVICE_DISPLAY_NAME: &str = "Nessie Computer";
 
 /// How long the service will keep reporting `STOP_PENDING` for a daemon that
 /// has not finished tearing down. Reached only if a daemon is wedged; the
@@ -67,7 +67,7 @@ mod imp {
     /// Hands this process to the SCM. It returns only when the service stops.
     pub fn run() -> Result<(), String> {
         service_dispatcher::start(SERVICE_NAME, ffi_service_main)
-            .map_err(|_| "This program runs as the Nessie Executor Windows service.".to_owned())
+            .map_err(|_| "This program runs as the Nessie Computer Windows service.".to_owned())
     }
 
     fn service_main(_arguments: Vec<OsString>) {
@@ -122,7 +122,7 @@ mod imp {
             ServiceControl::Interrogate => ServiceControlHandlerResult::NoError,
             _ => ServiceControlHandlerResult::NotImplemented,
         })
-        .map_err(|_| "The Nessie Executor service could not register its control handler.".to_owned())?;
+        .map_err(|_| "The Nessie Computer service could not register its control handler.".to_owned())?;
         report(
             &handle,
             ServiceState::StartPending,
@@ -179,7 +179,7 @@ mod imp {
         let runtime_root = std::env::current_exe()
             .ok()
             .and_then(|executable| executable.parent().map(std::path::Path::to_path_buf))
-            .ok_or_else(|| "Nessie Executor could not locate its packaged runtime.".to_owned())?;
+            .ok_or_else(|| "Nessie Computer could not locate its packaged runtime.".to_owned())?;
         let runtime = verify_packaged_runtime(&runtime_root)?;
         nessie_windows_common::peer_inspection::allow_verification().map_err(str::to_owned)?;
         for directory in [root.to_path_buf(), executors_root(root), pending_root(root)] {
@@ -236,7 +236,7 @@ pub use imp::run;
 
 #[cfg(not(windows))]
 pub fn run() -> Result<(), String> {
-    Err("The Nessie Executor service runs on Windows.".to_owned())
+    Err("The Nessie Computer service runs on Windows.".to_owned())
 }
 
 #[cfg(test)]
@@ -251,6 +251,6 @@ mod tests {
     #[test]
     fn the_service_names_are_the_ones_the_installer_registers() {
         assert_eq!(SERVICE_NAME, "NessieExecutor");
-        assert_eq!(SERVICE_DISPLAY_NAME, "Nessie Executor");
+        assert_eq!(SERVICE_DISPLAY_NAME, "Nessie Computer");
     }
 }

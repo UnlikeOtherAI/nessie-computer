@@ -364,11 +364,13 @@ export const dmgFileName = (version, architecture, mode) => {
 
 /**
  * The mounted volume's name. It is what a person reads in Finder while they are
- * dragging, which is the last moment an unsigned build can still say so.
+ * dragging, which is the last moment an unsigned build can still say so. It
+ * carries the product's name; the file name above keeps the identifier the
+ * update catalogue publishes it under.
  */
 export const dmgVolumeName = (version, mode) => {
-  if (mode === 'release') return `Nessie Executor ${dmgVersion(version)}`
-  if (mode === 'development') return `Nessie Executor ${dmgVersion(version)} — ${DEVELOPMENT_MARKER}`
+  if (mode === 'release') return `Nessie Computer ${dmgVersion(version)}`
+  if (mode === 'development') return `Nessie Computer ${dmgVersion(version)} — ${DEVELOPMENT_MARKER}`
   throw new Error(`${mode} is not a build mode; it is "release" or "development".`)
 }
 

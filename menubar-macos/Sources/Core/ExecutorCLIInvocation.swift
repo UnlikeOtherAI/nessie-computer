@@ -94,6 +94,39 @@ public enum ExecutorCLI {
         )
     }
 
+    /// Pause and Resume persist the owner's choice in the team's state
+    /// directory and tell its running daemon; neither stops the daemon.
+    public static func pause(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["pause", "--state-dir", stateDirectory])
+    }
+
+    public static func resume(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["resume", "--state-dir", stateDirectory])
+    }
+
+    /// Who can send work here: the agents, people and projects Nessie reports.
+    public static func audience(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["audience", "--state-dir", stateDirectory, "--json"])
+    }
+
+    /// The open program requests: `[{ id, program, args, agentName?, requestedAt, expiresAt }]`.
+    public static func programRequests(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["program-requests", "--state-dir", stateDirectory, "--json"])
+    }
+
+    /// The owner's answer to one request. The id is checked before it reaches
+    /// `argv`, because it names a file in the state directory.
+    public static func answerProgramRequest(
+        id: String,
+        answer: ProgramRequestAnswer,
+        stateDirectory: String
+    ) throws -> ExecutorCLIInvocation {
+        guard ProgramRequestID.isValid(id) else { throw ExecutorRefusal(.invalidRequest) }
+        return ExecutorCLIInvocation(arguments: [
+            "program-request", "answer", "--state-dir", stateDirectory, "--id", id, "--answer", answer.rawValue
+        ])
+    }
+
     private static func canonicalJSON(_ value: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }
@@ -103,7 +136,7 @@ public enum ExecutorCLI {
 /// every change reaches `sync --input-stdin` as JSON the CLI validates again,
 /// so a folder path never appears in `argv`.
 extension ExecutorCLI {
-    static let invalidSyncAction = "Invalid folder sync action."
+    static var invalidSyncAction: String { Word.invalidRequest.text }
 
     private static func sync(_ stateDirectory: String, _ tail: [String]) -> [String] {
         ["sync", "--state-dir", stateDirectory] + tail
@@ -195,7 +228,7 @@ extension ExecutorCLI {
     /// The handshake's address for this computer's Sync tab: HTTPS only, and
     /// a local address only in a development build.
     public static func syncManageURL(_ address: String, isDevelopmentBuild: Bool) throws -> URL {
-        let refusal = ExecutorRefusal("Nessie gave an address this app does not open.")
+        let refusal = ExecutorRefusal(.addressNotOpened)
         guard let components = URLComponents(string: address), let url = components.url,
               let host = components.host, !host.isEmpty, components.user == nil, components.password == nil else {
             throw refusal

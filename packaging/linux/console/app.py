@@ -81,7 +81,7 @@ class ExecutorSettings(Gtk.Application):
         self.window.present()
 
     def create_window(self):
-        self.window = Gtk.ApplicationWindow(application=self, title="Nessie Executor")
+        self.window = Gtk.ApplicationWindow(application=self, title="Nessie Computer")
         self.window.set_default_size(640, 520)
         self.window.set_icon_name("computer-symbolic")
         self.window.connect("delete-event", lambda window, _event: window.hide_on_delete())

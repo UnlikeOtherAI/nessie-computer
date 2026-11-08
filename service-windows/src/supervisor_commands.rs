@@ -69,72 +69,55 @@ pub(crate) fn describe_arguments(state_dir: &Path) -> Vec<String> {
 }
 
 impl Supervisor {
-    /// Applies the small operation-key policy. A pending connection is stopped
-    /// first so no two packaged commands write the same local state at once.
+    /// Applies the small operation-key policy. The CLI writes the new revision
+    /// and tells a running daemon, which keeps its connection: saving never
+    /// restarts a team.
     pub fn configure(
         &mut self,
         executor_id: &str,
         operation_keys: &[String],
-    ) -> Result<String, String> {
+    ) -> Result<(), String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
-        }
-        let was_started =
-            self.desired.contains(executor_id) || self.connections.contains_key(executor_id);
-        if was_started {
-            self.stop(executor_id)?;
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.run_to_completion(
             configure_arguments(&state_dir, operation_keys),
-            "The Nessie Executor service refused this change. Check the rules and try again.",
-        )?;
-        if was_started {
-            self.start(executor_id)
-        } else {
-            Ok("stopped".to_owned())
-        }
+            "The Nessie Computer service refused this change. Check the rules and try again.",
+        )
     }
 
     pub fn describe(&mut self, executor_id: &str) -> Result<serde_json::Value, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         let output = self.run_to_completion_with_output(
             describe_arguments(&state_dir),
-            "This executor's local state could not be read.",
+            "This team’s settings on this computer could not be read.",
         )?;
         serde_json::from_str(&output)
-            .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())
+            .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())
     }
 
-    /// Applies the full stdin-only policy representation with the same
-    /// connection serialization as the older operation-key command.
+    /// Applies the full stdin-only policy representation. Like the
+    /// operation-key command it is applied live: the CLI's compare-and-set
+    /// writer serialises it against the daemon, which re-signs and keeps its
+    /// connection.
     pub fn configure_input(
         &mut self,
         executor_id: &str,
         input: serde_json::Value,
-    ) -> Result<String, String> {
+    ) -> Result<(), String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
-        }
-        let was_started =
-            self.desired.contains(executor_id) || self.connections.contains_key(executor_id);
-        if was_started {
-            self.stop(executor_id)?;
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.run_to_completion_with_input(
             configure_input_arguments(&state_dir),
             input,
-            "The Nessie Executor service refused this change. Check the rules and try again.",
-        )?;
-        if was_started {
-            self.start(executor_id)
-        } else {
-            Ok("stopped".to_owned())
-        }
+            "The Nessie Computer service refused this change. Check the rules and try again.",
+        )
     }
 
     /// Removes one service connection from this computer: its daemon is
@@ -151,7 +134,7 @@ impl Supervisor {
     pub fn remove(&mut self, executor_id: &str, requested_by: Option<&str>) -> Result<bool, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
-            return Err("This executor has not been paired on this computer.".to_owned());
+            return Err("This team is not connected on this computer.".to_owned());
         }
         self.stop(executor_id)?;
         if unowned_daemon_is_stopping(&state_dir) {
@@ -162,7 +145,7 @@ impl Supervisor {
         }
         let output = self.run_to_completion_with_output(
             unpair_arguments(&state_dir),
-            "The Nessie Executor service couldn’t remove this team. Try again.",
+            "The Nessie Computer service couldn’t remove this team. Try again.",
         )?;
         let signed_off = parse_unpair_output(output.as_bytes())?;
         self.forget(executor_id, &state_dir)?;
@@ -181,13 +164,13 @@ impl Supervisor {
     /// here, and the directory with it once nothing else is left.
     fn forget(&mut self, executor_id: &str, state_dir: &Path) -> Result<(), String> {
         if has_executor_state(state_dir) {
-            return Err("The executor reported the connection removed but its state is still here.".to_owned());
+            return Err("The team was disconnected but its settings are still here.".to_owned());
         }
         self.children.remove(executor_id);
         match fs::remove_file(state_dir.join(PAIRED_BY_FILE)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return Err("Nessie Executor could not forget who paired this connection.".to_owned()),
+            Err(_) => return Err("Nessie Computer could not forget who paired this connection.".to_owned()),
         }
         match fs::remove_dir(state_dir) {
             Ok(()) => {}
@@ -217,7 +200,7 @@ impl Supervisor {
             let _ = fs::remove_dir_all(&staging);
         })?;
         let fingerprint = parse_fingerprint(&output).ok_or_else(|| {
-            "Nessie executor pairing succeeded but returned no fingerprint.".to_owned()
+            "Pairing succeeded but returned no fingerprint.".to_owned()
         })?;
         Ok((self.promote(&staging, paired_by)?, fingerprint))
     }
@@ -233,17 +216,17 @@ impl Supervisor {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
-            .map_err(|_| "Nessie Executor could not start its packaged command.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not start its packaged command.".to_owned())?;
         let mut stdin = child.stdin.take().ok_or_else(|| {
-            "Nessie Executor could not provide the pairing challenge securely.".to_owned()
+            "Nessie Computer could not provide the pairing challenge securely.".to_owned()
         })?;
         let input = serde_json::to_vec(&serde_json::json!({
             "challenge": command.challenge,
             "workspaceRoot": command.workspace_root,
         }))
-        .map_err(|_| "Nessie Executor could not prepare the local pairing input.".to_owned())?;
+        .map_err(|_| "Nessie Computer could not prepare the local pairing input.".to_owned())?;
         stdin.write_all(&input).map_err(|_| {
-            "Nessie Executor could not provide the pairing challenge securely.".to_owned()
+            "Nessie Computer could not provide the pairing challenge securely.".to_owned()
         })?;
         drop(stdin);
         let outcome = wait_bounded(&mut child, COMMAND_TIMEOUT)?;
@@ -253,7 +236,7 @@ impl Supervisor {
             let _ = child.kill();
             let _ = child.wait();
             return Err(
-                "Nessie executor pairing was rejected. No pairing output was retained.".to_owned(),
+                "Pairing was rejected. No pairing output was retained.".to_owned(),
             );
         }
         let mut output = String::new();
@@ -268,25 +251,25 @@ impl Supervisor {
     pub(crate) fn promote(&self, staging: &Path, paired_by: Option<&str>) -> Result<String, String> {
         let state: serde_json::Value = serde_json::from_slice(
             &fs::read(staging.join(crate::paths::EXECUTOR_STATE_FILE))
-                .map_err(|_| "Nessie executor pairing left no usable state.".to_owned())?,
+                .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?,
         )
-        .map_err(|_| "Nessie executor pairing left no usable state.".to_owned())?;
+        .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?;
         let executor_id = state
             .get("executorId")
             .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| "Nessie executor pairing left no usable state.".to_owned())?
+            .ok_or_else(|| "Pairing left no usable settings on this computer.".to_owned())?
             .to_owned();
         let destination = executor_state_dir(&self.root, &executor_id)?;
         if destination.exists() {
-            return Err("This executor is already paired on this computer.".to_owned());
+            return Err("This team is already connected on this computer.".to_owned());
         }
         fs::create_dir_all(executors_root(&self.root))
-            .map_err(|_| "Nessie Executor could not store the new executor's state.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         fs::rename(staging, &destination)
-            .map_err(|_| "Nessie Executor could not store the new executor's state.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         if let Some(sid) = paired_by {
             fs::write(destination.join(PAIRED_BY_FILE), format!("{sid}\n"))
-                .map_err(|_| "Nessie Executor could not record the pairing account.".to_owned())?;
+                .map_err(|_| "Nessie Computer could not record the pairing account.".to_owned())?;
         }
         Ok(executor_id)
     }

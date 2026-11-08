@@ -2,49 +2,36 @@ import AppKit
 import Combine
 import Foundation
 
+/// One team on this Mac: its state directory, its daemon and its latest reading.
+///
+/// Every paired team's daemon runs while the app does. There is no Stop: an
+/// owner keeps agents out with Pause, which the daemon enforces and which
+/// therefore survives every start this class makes — at launch, after a
+/// crash and after an update.
 @MainActor
 final class ExecutorController: ObservableObject {
-    @Published private(set) var model = MenuModel(pairing: .unpaired, daemon: .stopped)
-    /// The last failure a person has not yet dismissed, translated into what it
-    /// means and what they can do about it. Never swallowed, and never shown as
-    /// the API's own sentence alone — see `ExecutorFailure`.
-    @Published var failure: ExecutorFailure?
+    @Published private(set) var model = ConnectionModel(pairing: .unpaired, daemon: .stopped)
+    /// The failure that last stopped this team, as it arrived. The console
+    /// translates it; it clears when the team next connects.
+    @Published private(set) var failure: TeamFailure?
     @Published private(set) var busy = false
+    @Published private(set) var programRequests: [ProgramRequest] = []
     let pairing: ExecutorPairingController
 
     let isDevelopmentBuild: Bool
     let stateDirectory: String
-    private let runtime: Result<PackagedRuntime, ExecutorRefusal>
+    let runtime: Result<PackagedRuntime, ExecutorRefusal>
     private let work = DispatchQueue(label: "com.unlikeotherai.nessie.executor.menubar.cli")
     private var daemon: SupervisedDaemon?
     private var refreshTimer: Timer?
     private var startAfterRefresh = false
-    /// Whether the person last asked for this connection on. A stop clears it,
-    /// so a start already on its way ends as soon as its daemon exists.
-    var wantsDaemon = false
-    /// A daemon that stopped without being asked to is started again when
+    /// A daemon that stopped, or a start that failed, is tried again when
     /// `restarts` is due, if `AutoRestart` is on.
     private var restarts = RestartSchedule()
-    /// The start in flight is an automatic restart, so a failed one is retried.
-    private var restarting = false
+    /// Disconnected: nothing starts this team again.
+    private var retired = false
     private var checkingPersonalUpdate = false
-
-    /// The ordinary status command resumes only a profile that intentionally
-    /// drained for an update, retaining its original registration and consent.
-    func resumePersonalUpdate() {
-        guard !checkingPersonalUpdate, model.description != nil, let runner else { return }
-        checkingPersonalUpdate = true
-        Task {
-            defer { checkingPersonalUpdate = false }
-            let invocation = ExecutorCLIInvocation(
-                arguments: ["personal-chatgpt-local", "--operation-stdin", "--state-dir", stateDirectory],
-                standardInput: Data("{\"operation\":\"status\"}".utf8)
-            )
-            _ = try? await PersonalChatgptProcess().run(
-                process: runner.process(for: invocation), invocation: invocation
-            )
-        }
-    }
+    private var readingRequests = false
 
     init(isDevelopmentBuild: Bool, stateDirectory: String, refusal: ExecutorRefusal? = nil) {
         self.isDevelopmentBuild = isDevelopmentBuild
@@ -64,20 +51,31 @@ final class ExecutorController: ObservableObject {
         }
     }
 
-    private var runner: ExecutorProcessRunner? {
-        guard case let .success(runtime) = runtime else { return nil }
-        return ExecutorProcessRunner(runtime: runtime, isDevelopmentBuild: isDevelopmentBuild)
-    }
+    /// A failure is not yet the owner's while a restart is about to retry it.
+    var retrying: Bool { restarts.dueAt != nil }
 
-    /// Where the pairing panel's choice starts. A person changes it there; this
-    /// is never what authorizes an origin — `ApprovedAPIOrigin.approve` is.
-    var defaultAPIOrigin: String { ApprovedAPIOrigin.default(isDevelopmentBuild: isDevelopmentBuild) }
+    /// The ordinary status command resumes only a profile that intentionally
+    /// drained for an update, retaining its original registration and consent.
+    func resumePersonalUpdate() {
+        guard !checkingPersonalUpdate, model.description != nil, let runner else { return }
+        checkingPersonalUpdate = true
+        Task {
+            defer { checkingPersonalUpdate = false }
+            let invocation = ExecutorCLIInvocation(
+                arguments: ["personal-chatgpt-local", "--operation-stdin", "--state-dir", stateDirectory],
+                standardInput: Data("{\"operation\":\"status\"}".utf8)
+            )
+            _ = try? await PersonalChatgptProcess().run(
+                process: runner.process(for: invocation), invocation: invocation
+            )
+        }
+    }
 
     // MARK: - Reading
 
     func start() {
         pairing.restore()
-        refresh(startWhenPaired: ConnectionRunPreference.wanted(stateDirectory))
+        refresh(startWhenPaired: true)
         // The daemon's own lease and a child that exited on its own are both
         // facts this app has to notice without being clicked, so the icon can
         // never be showing something that stopped being true.
@@ -88,47 +86,43 @@ final class ExecutorController: ObservableObject {
 
     func refresh(startWhenPaired: Bool = false) {
         if startWhenPaired { startAfterRefresh = true }
+        Task { await reload() }
+    }
+
+    /// One `describe`, applied, and whatever follows from it. Awaited by the
+    /// bridge so the view it answers with is the state after a change.
+    func reload() async {
         guard let runner else {
             if case let .failure(refusal) = runtime {
-                model = MenuModel(pairing: .unavailable(refusal.message), daemon: .stopped)
+                model = ConnectionModel(pairing: .unavailable(refusal.message), daemon: .stopped)
             }
             return
         }
         let stateDirectory = self.stateDirectory
-        let invocation = ExecutorCLI.describe(stateDirectory: stateDirectory)
-        work.async { [weak self] in
-            let completion = try? runner.run(invocation)
-            let description = completion.flatMap { completion -> ExecutorDescription? in
-                guard completion.succeeded else { return nil }
-                return try? ExecutorDescription.decode(Data(completion.standardOutput.utf8))
-            }
-            let lease = DaemonLeaseReader.read(in: stateDirectory)
-            Task { @MainActor [weak self] in
-                self?.apply(description: description, completion: completion, lease: lease)
-                self?.startIfRequested()
+        let reading: Reading = await withCheckedContinuation { continuation in
+            work.async {
+                let completion = try? runner.run(ExecutorCLI.describe(stateDirectory: stateDirectory))
+                let description = completion.flatMap { completion -> ExecutorDescription? in
+                    guard completion.succeeded else { return nil }
+                    return try? ExecutorDescription.decode(Data(completion.standardOutput.utf8))
+                }
+                continuation.resume(returning: Reading(
+                    description: description, completion: completion,
+                    lease: DaemonLeaseReader.read(in: stateDirectory)
+                ))
             }
         }
+        guard !retired else { return }
+        apply(description: reading.description, completion: reading.completion, lease: reading.lease)
+        startIfRequested()
+        readProgramRequests()
     }
 
-    private func startIfRequested() {
-        guard model.description != nil, model.daemon == .stopped, !busy, !pairingBlocksStart else { return }
-        guard isDevelopmentBuild || ComputerUpdateService.factoryReady else { return }
-        if restarts.takeDue() {
-            guard wantsDaemon, AutoRestart.isEnabled else { return }
-            restarting = true
-            startDaemon()
-            return
-        }
-        guard startAfterRefresh else { return }
-        startAfterRefresh = false
-        startDaemon()
-    }
-
-    /// Schedules the next automatic start of a daemon the person still wants
-    /// running. With `AutoRestart` off it stays stopped until they start it.
-    private func scheduleRestart(ran: TimeInterval) {
-        guard wantsDaemon, AutoRestart.isEnabled else { return }
-        restarts.schedule(ran: ran)
+    /// One `describe` and the lease beside it, read together off the main thread.
+    private struct Reading {
+        let description: ExecutorDescription?
+        let completion: ExecutorProcessRunner.Completion?
+        let lease: DaemonLease
     }
 
     private func apply(
@@ -141,22 +135,17 @@ final class ExecutorController: ObservableObject {
             // not a failure. Only its *presence* is checked — never its contents:
             // the moment this app read that file it would become a second
             // interpretation of the policy the daemon enforces.
-            model = MenuModel(
+            model = ConnectionModel(
                 pairing: ExecutorPaths.hasPairingFile(stateDirectory)
-                    ? .unavailable(
-                        completion.map {
-                            ExecutorProcessRunner.refusal(
-                                from: $0,
-                                fallback: "this executor's local state could not be read"
-                            ).message
-                        } ?? "the packaged executor runtime could not be run"
-                    )
+                    ? .unavailable(completion.map {
+                        ExecutorProcessRunner.refusal(from: $0, fallback: Word.existingTeamNeedsAttention.text).message
+                    } ?? PackagedRuntime.missingRefusal)
                     : .unpaired,
                 daemon: .stopped
             )
             return
         }
-        model = MenuModel(pairing: .paired(description), daemon: currentDaemonState(lease: lease))
+        model = ConnectionModel(pairing: .paired(description), daemon: currentDaemonState(lease: lease))
     }
 
     private func currentDaemonState(lease: DaemonLease) -> DaemonState {
@@ -164,77 +153,95 @@ final class ExecutorController: ObservableObject {
         if let exited = daemon {
             // The child exited on its own; stop holding a handle to it.
             self.daemon = nil
-            if !exited.signalled { scheduleRestart(ran: Date().timeIntervalSince(exited.startedAt)) }
+            if !exited.signalled {
+                failure = TeamFailure(code: nil, message: Word.teamStoppedUnexpectedly.text)
+                scheduleRestart(ran: Date().timeIntervalSince(exited.startedAt))
+            }
         }
         if leaseBlocksStart(lease, daemonIsLive: { kill($0, 0) == 0 }) { return .stopping }
         return .stopped
     }
 
-    /// Every failure reaches a person through here, so there is one place that
-    /// decides what a refusal means and exactly one banner shape it can take.
-    func fail(_ message: String) {
-        failure = ExecutorFailureTranslator.translate(message)
-    }
+    // MARK: - Program requests
 
-    /// The remedy a banner offers, performed.
-    func apply(_ remedy: ExecutorFailure.Remedy) {
-        failure = nil
-        switch remedy {
-        case .none:
+    private func readProgramRequests() {
+        guard !readingRequests, runner != nil, let description = model.description else { return }
+        guard (description.pendingProgramRequests ?? 0) > 0 else {
+            if !programRequests.isEmpty { programRequests = [] }
             return
-        case .openNessie:
-            NSWorkspace.shared.open(nessieExecutorsURL)
-        case .restartExecutor:
-            if stopDaemon() { startDaemon() }
-        case .reProposePolicy:
-            reProposePolicy()
+        }
+        readingRequests = true
+        Task {
+            defer { readingRequests = false }
+            if let requests = try? await fetchProgramRequests() { programRequests = requests }
         }
     }
 
-    /// "Open Nessie" has to open the Nessie this Mac is paired with. A Mac
-    /// paired with DeepTest or with somebody's own server that was sent to
-    /// nessie.works would be a remedy pointing at a stranger's console.
-    var nessieExecutorsURL: URL {
-        ApprovedAPIOrigin.consoleURL(
-            forAPIOrigin: pairing.state?.apiBaseUrl ?? model.description?.apiBaseUrl ?? defaultAPIOrigin,
-            isDevelopmentBuild: isDevelopmentBuild
+    func fetchProgramRequests() async throws -> [ProgramRequest] {
+        let data = try await requireRunner().output(ExecutorCLI.programRequests(stateDirectory: stateDirectory))
+        return try ProgramRequest.decodeList(data)
+    }
+
+    /// The owner's answer, given only on this computer. `always` adds the
+    /// program to this team's rules through the CLI's own writer.
+    func answer(_ requestId: String, _ answer: ProgramRequestAnswer) async throws {
+        let invocation = try ExecutorCLI.answerProgramRequest(
+            id: requestId, answer: answer, stateDirectory: stateDirectory
         )
+        _ = try await requireRunner().output(invocation)
+        programRequests.removeAll { $0.id == requestId }
+        await reload()
+    }
+
+    // MARK: - Pause
+
+    /// Saves the owner's pause in this team's state directory and tells its
+    /// daemon, which stays connected and refuses new work. Nothing here stops
+    /// or starts the daemon.
+    func setPaused(_ paused: Bool) async throws {
+        let invocation = paused
+            ? ExecutorCLI.pause(stateDirectory: stateDirectory)
+            : ExecutorCLI.resume(stateDirectory: stateDirectory)
+        _ = try await requireRunner().output(invocation)
+        // The owner has now said what they want for this team.
+        LegacyStopPreference.forget(stateDirectory)
+        await reload()
+    }
+
+    // MARK: - Remedies
+
+    func apply(_ remedy: NativeRemedy) async {
+        switch remedy {
+        case .openNessie:
+            NSWorkspace.shared.open(nessieConsoleURL())
+        case .restartExecutor:
+            failure = nil
+            if await stopDaemonWithoutBlocking() { startDaemon() }
+        case .reProposePolicy:
+            await reProposePolicy()
+        }
     }
 
     /// Offers the settings this Mac already has as a *newer* revision, until
-    /// Nessie stops calling them a rollback.
-    ///
-    /// Nessie refuses a revision lower than the highest it has recorded, and its
-    /// refusal does not say which number that is — so the only way back is to
-    /// propose the next one and ask again. Nothing about what the executor may
-    /// do changes: each proposal restates the operations, workspace and
-    /// permitted commands `describe` just reported, and every one of them still
-    /// lands as a revision a person reviews in Nessie.
-    private func reProposePolicy() {
-        guard let runner, let description = model.description else {
-            fail("Pair this Mac with Nessie before changing its local policy.")
-            return
-        }
+    /// Nessie stops calling them a rollback. Nothing about what the team may
+    /// do changes: each proposal restates what `describe` just reported.
+    private func reProposePolicy() async {
+        guard let runner, let description = model.description else { return }
         let proposal = ExecutorPolicyReproposal(
             runner: runner, description: description, stateDirectory: stateDirectory
         )
-        let wasRunning = model.daemon == .running
-        if wasRunning { _ = stopDaemon() }
+        guard await stopDaemonWithoutBlocking() else { return }
+        failure = nil
         busy = true
-        work.async { [weak self] in
-            let result = proposal.run()
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.busy = false
-                switch result {
-                case .success:
-                    self.failure = nil
-                    if wasRunning { self.startDaemon() } else { self.refresh() }
-                case let .failure(refusal):
-                    self.fail(refusal.message)
-                    self.refresh()
-                }
-            }
+        let result = await withCheckedContinuation { continuation in
+            work.async { continuation.resume(returning: proposal.run()) }
+        }
+        busy = false
+        switch result {
+        case .success: startDaemon()
+        case let .failure(refusal):
+            failure = TeamFailure(classifying: refusal.message)
+            refresh()
         }
     }
 
@@ -245,56 +252,68 @@ final class ExecutorController: ObservableObject {
             || ExecutorStateDiscovery.pendingAttemptBlocksStart(in: stateDirectory)
     }
 
+    private func startIfRequested() {
+        guard !retired, model.description != nil, model.daemon == .stopped, !busy, !pairingBlocksStart else { return }
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady else { return }
+        if restarts.takeDue() {
+            guard AutoRestart.isEnabled else { return }
+            startDaemon()
+            return
+        }
+        guard startAfterRefresh else { return }
+        startAfterRefresh = false
+        startDaemon()
+    }
+
+    /// Schedules the next automatic start. With `AutoRestart` off the team
+    /// stays not connected, with its reason, until the owner restarts it.
+    private func scheduleRestart(ran: TimeInterval) {
+        guard !retired, AutoRestart.isEnabled else { return }
+        restarts.schedule(ran: ran)
+    }
+
     func startDaemon() {
-        // An automatic restart that fails is tried again after a longer wait;
-        // a start the person asked for reports its failure and stops there.
-        let automatic = restarting
-        restarting = false
-        guard !busy, !pairingBlocksStart else { return }
+        guard !retired, !busy, !pairingBlocksStart, model.description != nil, daemon?.isRunning != true else { return }
         guard let runner else {
-            fail(PackagedRuntime.missingRefusal)
+            failure = TeamFailure(code: nil, message: PackagedRuntime.missingRefusal)
             return
         }
-        guard model.description != nil else {
-            fail("Pair this Mac with Nessie before starting its executor.")
-            return
-        }
-        if daemon?.isRunning == true { return }
-        wantsDaemon = true
-        ConnectionRunPreference.set(true, for: stateDirectory)
-        if !isDevelopmentBuild && !ComputerUpdateService.factoryReady {
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady,
+              !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) else {
+            // The update factory is not ready yet, or a prior daemon is still
+            // tearing down (an update restart looks like this): try at the next reading.
             startAfterRefresh = true
             return
         }
-        if leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) {
-            fail("The prior local daemon is still tearing down. Wait for it to finish before starting again.")
-            if automatic { scheduleRestart(ran: 0) }
-            return
-        }
-        let launch = ExecutorDaemonLaunch(runner: runner, stateDirectory: stateDirectory)
+        let launch = ExecutorDaemonLaunch(
+            runner: runner, stateDirectory: stateDirectory,
+            pauseFirst: LegacyStopPreference.needsPause(stateDirectory)
+        )
         busy = true
         work.async { [weak self] in
             let outcome = launch.run()
-            Task { @MainActor [weak self] in self?.finishStart(outcome, automatic: automatic) }
+            Task { @MainActor [weak self] in self?.finishStart(outcome, pausedFirst: launch.pauseFirst) }
         }
     }
 
-    private func finishStart(_ outcome: ExecutorDaemonLaunch.Outcome, automatic: Bool) {
+    private func finishStart(_ outcome: ExecutorDaemonLaunch.Outcome, pausedFirst: Bool) {
         busy = false
         switch outcome {
         case let .notConnected(refusal):
-            fail(refusal.message)
-            if automatic { scheduleRestart(ran: 0) }
+            failure = TeamFailure(classifying: refusal.message)
+            if FailureClassifier.isRetryable(refusal.message) { scheduleRestart(ran: 0) }
             refresh()
         case .notSpawned:
-            fail("Nessie Executor could not start the executor daemon.")
-            if automatic { scheduleRestart(ran: 0) }
+            failure = TeamFailure(code: nil, message: Word.teamNotStarted.text)
+            scheduleRestart(ran: 0)
         case let .started(process, parentLiveness):
+            if pausedFirst { LegacyStopPreference.forget(stateDirectory) }
             let spawned = SupervisedDaemon(process: process, parentLiveness: parentLiveness)
             daemon = spawned
-            // Turned off while it was starting: it is tracked until it exits, so a
-            // stop that waited for this start also waits for the daemon to end.
-            if !wantsDaemon { spawned.signalStop() }
+            failure = nil
+            // Disconnected while it was starting: it is tracked until it
+            // exits, so a stop that waited for this start waits for it too.
+            if retired { spawned.signalStop() }
             refresh()
         }
     }
@@ -308,18 +327,16 @@ final class ExecutorController: ObservableObject {
         return finishStop(stopping)
     }
 
-    /// The same stop for the console, awaited without holding the main thread,
-    /// so the window stays usable while a saved setting restarts the connection.
+    /// The same stop, awaited without holding the main thread.
     func stopDaemonWithoutBlocking() async -> Bool {
+        while busy { try? await Task.sleep(nanoseconds: 50_000_000) }
         guard let stopping = beginStop() else { return true }
         await stopping.waitForExitWithoutBlocking()
         return finishStop(stopping)
     }
 
     private func beginStop() -> SupervisedDaemon? {
-        ConnectionRunPreference.set(false, for: stateDirectory)
         startAfterRefresh = false
-        wantsDaemon = false
         restarts.cancel()
         daemon?.signalStop()
         return daemon
@@ -328,28 +345,28 @@ final class ExecutorController: ObservableObject {
     private func finishStop(_ stopping: SupervisedDaemon) -> Bool {
         refresh()
         guard !stopping.isRunning else {
-            fail("The executor is still stopping. Nessie Executor will not force-kill a sandbox daemon.")
+            failure = TeamFailure(code: nil, message: Word.teamStillStopping.text)
             return false
         }
         daemon = nil
         return true
     }
 
-    /// A removed connection stops watching a directory that no longer exists.
+    /// Disconnecting: stop watching, and start nothing again.
     func retire() {
+        retired = true
         refreshTimer?.invalidate()
         refreshTimer = nil
+        restarts.cancel()
         pairing.shutdown()
     }
 
     /// Quitting stops the daemon. Closing the parent-liveness pipe would do it on
     /// its own, but the app waits for the teardown rather than exiting while
-    /// guests are still running.
+    /// guests are still running. A pause is left exactly as it was.
     func shutdown() {
         pairing.shutdown()
         guard daemon != nil else { return }
-        let wanted = ConnectionRunPreference.wanted(stateDirectory)
-        defer { ConnectionRunPreference.set(wanted, for: stateDirectory) }
         _ = stopDaemon()
         daemon?.parentLiveness.closeFile()
         daemon = nil
