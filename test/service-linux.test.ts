@@ -112,7 +112,7 @@ test('enable names the pairing failure instead of leaking a bare filesystem erro
     },
   })
   const message = await rejects(enableExecutorService({ assumeYes: true, executorId: 'gone' }, environment))
-  assert.match(message, /^Executor gone has no usable paired state in/)
+  assert.match(message, /^Team gone has no usable settings in/)
   assert.match(message, /Pair this computer first/)
   assert.deepEqual(commands, [])
 })
@@ -131,7 +131,7 @@ test('an unverifiable packaged runtime stops enable before any systemd call', as
 test('enable explains lingering and refuses without a TTY unless --yes is given', async () => {
   const { commands, environment, output } = harness({ interactive: false })
   const message = await rejects(enableExecutorService({ assumeYes: false, executorId: 'executor-one' }, environment))
-  assert.match(message, /Re-run with --yes/)
+  assert.match(message, /Run it again with --yes/)
   assert.deepEqual(commands, [])
   assert.ok(output.some((line) => line.includes('after you log out')))
 })
@@ -186,7 +186,7 @@ test('these commands are Linux-only and say so elsewhere', async () => {
   const { commands, environment } = harness({ platform: 'darwin' })
   assert.match(
     await rejects(enableExecutorService({ assumeYes: true, executorId: 'executor-one' }, environment)),
-    /available only on Linux \(this host is darwin\)/,
+    /works only on Linux \(this computer runs darwin\)/,
   )
   assert.match(await rejects(disableExecutorService({ executorId: 'executor-one' }, environment)), /only on Linux/)
   assert.match(await rejects(executorServiceStatus({}, environment)), /only on Linux/)
