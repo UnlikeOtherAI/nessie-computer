@@ -197,7 +197,8 @@ export const verifyConsoleShell = async (browser, serve, output) => {
     assert.equal(await calls(page, 'executor_open_logs'), 1)
     // A save that fails says so beside its switch and puts the switch back.
     await page.evaluate(() => { window.failAutostart = 'The login item could not be written.' })
-    await page.getByLabel('Open Nessie Computer when I log in').uncheck()
+    // A plain click: the switch snaps back on failure, which `uncheck()` would report as a stuck control.
+    await page.getByLabel('Open Nessie Computer when I log in').click()
     await page.locator('[data-error-for=autostart]').getByText('This setting wasn’t saved: The login item could not be written.').waitFor()
     assert.equal(await page.getByLabel('Open Nessie Computer when I log in').isChecked(), true)
     await page.evaluate(() => { window.failAutostart = null })
