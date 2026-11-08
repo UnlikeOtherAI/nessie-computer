@@ -5,7 +5,7 @@ use std::{
     sync::{Mutex, OnceLock}, time::{Duration, Instant},
 };
 use nessie_windows_common::{
-    failure::{classify, Failure, StderrTail}, lease::unowned_daemon_is_stopping,
+    failure::{classify, retriable, Failure, StderrTail}, lease::unowned_daemon_is_stopping,
     owner_controls::{read_paused, Answer, RequestCache}, unpair,
 };
 use crate::{pipe_client::ServiceResponse, state::{Connection, ExecutorStatus}, user_owner, user_runtime};
@@ -30,6 +30,9 @@ static CONNECTIONS: OnceLock<Mutex<Connections>> = OnceLock::new();
 /// The same waits the Windows service uses for its own connections.
 const RESTART_INITIAL: Duration = Duration::from_secs(5);
 const RESTART_MAX: Duration = Duration::from_secs(300);
+
+/// How long an exited daemon's last words may take to arrive through its pipe.
+const STDERR_SETTLE: Duration = Duration::from_millis(500);
 
 /// The wait before starting a connection that stopped on its own, and the wait
 /// after that: it doubles from five seconds to five minutes, and a connection
@@ -85,7 +88,7 @@ impl Connections {
                     None => "stopping",
                     Some(_) => {
                         if daemon.liveness.is_some() && !self.failures.contains_key(&id) {
-                            let reason = daemon.stderr.last()
+                            let reason = daemon.stderr.settled(STDERR_SETTLE)
                                 .unwrap_or_else(|| "This team's connection stopped.".to_owned());
                             self.failures.insert(id.clone(), classify(&reason));
                         }
@@ -136,16 +139,24 @@ impl Connections {
     }
 
     /// Starts again each connection this app started that stopped without
-    /// being asked to, once its wait is over. With the setting off they stay
-    /// stopped, as they did before, until the person starts them.
+    /// being asked to, once its wait is over, unless it stopped for a reason a
+    /// restart cannot fix. With the setting off they stay stopped until the
+    /// owner applies a remedy.
     fn restart_stopped(&mut self, enabled: bool, now: Instant) {
-        let stopped: Vec<(String, Instant)> = self.daemons.iter_mut()
+        let stopped: Vec<(String, Instant, Option<String>)> = self.daemons.iter_mut()
             .filter_map(|(id, daemon)| {
                 let exited = daemon.liveness.is_some() && matches!(daemon.child.try_wait(), Ok(Some(_)));
-                exited.then(|| (id.clone(), daemon.started_at))
+                exited.then(|| (id.clone(), daemon.started_at, daemon.stderr.settled(STDERR_SETTLE)))
             })
             .collect();
-        for (id, started_at) in stopped {
+        for (id, started_at, reason) in stopped {
+            // A recognised refusal is never retried: it waits for the owner's remedy.
+            let failure = classify(reason.as_deref().unwrap_or("This team's connection stopped."));
+            if !retriable(&failure) {
+                self.failures.insert(id.clone(), failure);
+                self.restart_at.remove(&id);
+                continue;
+            }
             if !enabled {
                 self.restart_at.remove(&id);
                 continue;

@@ -10,7 +10,8 @@
 
 use std::{
     io::{BufRead, BufReader, Read},
-    sync::{Arc, Mutex},
+    sync::{Arc, Condvar, Mutex},
+    time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,15 @@ pub fn classify(message: &str) -> Failure {
     Failure { code, message }
 }
 
+/// Whether restarting may heal it. A timeout or a refusal this build does not
+/// recognise may (a network not up yet at login, say); a recognised refusal —
+/// a fenced connection, a rejected key, a stale revision, an unconfirmed
+/// pairing — never does, so it waits for the owner's remedy instead of being
+/// retried, as on macOS.
+pub fn retriable(failure: &Failure) -> bool {
+    failure.code.as_deref().is_none_or(|code| code == "EXECUTOR_API_TIMEOUT")
+}
+
 /// The remedy a recognised failure has. Unrecognised failures have none: the
 /// supervisor keeps retrying them and the console quotes the message.
 pub fn remedy(failure: &Failure) -> Option<Remedy> {
@@ -81,15 +91,21 @@ pub fn remedy(failure: &Failure) -> Option<Remedy> {
     }
 }
 
+#[derive(Debug, Default)]
+struct Tail {
+    line: Option<String>,
+    finished: bool,
+}
+
 /// The last non-empty line a child wrote to standard error, read on its own
 /// thread so the child never blocks on a full pipe.
 #[derive(Debug, Clone, Default)]
-pub struct StderrTail(Arc<Mutex<Option<String>>>);
+pub struct StderrTail(Arc<(Mutex<Tail>, Condvar)>);
 
 impl StderrTail {
     pub fn watch(stderr: impl Read + Send + 'static) -> Self {
         let tail = Self::default();
-        let last = tail.0.clone();
+        let shared = tail.0.clone();
         std::thread::spawn(move || {
             let mut reader = BufReader::new(stderr);
             let mut line = Vec::new();
@@ -104,16 +120,30 @@ impl StderrTail {
                 if text.is_empty() || text.chars().any(char::is_control) {
                     continue;
                 }
-                if let Ok(mut held) = last.lock() {
-                    *held = Some(text.chars().take(MAX_MESSAGE_CHARACTERS).collect());
+                if let Ok(mut held) = shared.0.lock() {
+                    held.line = Some(text.chars().take(MAX_MESSAGE_CHARACTERS).collect());
                 }
             }
+            if let Ok(mut held) = shared.0.lock() {
+                held.finished = true;
+            }
+            shared.1.notify_all();
         });
         tail
     }
 
     pub fn last(&self) -> Option<String> {
-        self.0.lock().ok().and_then(|held| held.clone())
+        self.0 .0.lock().ok().and_then(|held| held.line.clone())
+    }
+
+    /// The last line once the child has exited: waits, at most `wait`, for
+    /// the reader to reach the end of the pipe, so a reason written just
+    /// before exiting is not missed.
+    pub fn settled(&self, wait: Duration) -> Option<String> {
+        let (lock, finished) = &*self.0;
+        let held = lock.lock().ok()?;
+        let (held, _) = finished.wait_timeout_while(held, wait, |held| !held.finished).ok()?;
+        held.line.clone()
     }
 }
 
@@ -133,6 +163,16 @@ mod tests {
             Some("EXECUTOR_DAEMON_PROOF_INVALID"));
         assert_eq!(remedy(&classify("No active executor enrollment is ready to confirm.")), Some(Remedy::OpenNessie));
         assert_eq!(remedy(&classify("Executor API request timed out.")), None);
+    }
+
+    #[test]
+    fn only_a_timeout_or_an_unrecognised_refusal_is_retried() {
+        assert!(super::retriable(&classify("Executor API request timed out.")));
+        assert!(super::retriable(&classify("getaddrinfo ENOTFOUND api.nessie.works")));
+        for refusal in ["Executor connection is fenced.", "Executor proof is invalid.",
+            "Executor descriptor revisions cannot move backwards.", "No active executor enrollment is ready"] {
+            assert!(!super::retriable(&classify(refusal)), "{refusal}");
+        }
     }
 
     #[test]
@@ -158,10 +198,8 @@ mod tests {
     #[test]
     fn the_tail_keeps_the_last_readable_line() {
         let tail = StderrTail::watch(&b"starting\n\nExecutor heartbeat is stale.\n   \n"[..]);
-        for _ in 0..200 {
-            if tail.last().is_some_and(|line| line.contains("stale")) { break; }
-            std::thread::sleep(std::time::Duration::from_millis(5));
-        }
+        assert_eq!(tail.settled(std::time::Duration::from_secs(5)).as_deref(), Some("Executor heartbeat is stale."));
         assert_eq!(tail.last().as_deref(), Some("Executor heartbeat is stale."));
+        assert_eq!(StderrTail::default().settled(std::time::Duration::from_millis(1)), None);
     }
 }

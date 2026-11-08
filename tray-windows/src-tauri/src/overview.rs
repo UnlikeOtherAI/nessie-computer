@@ -97,12 +97,9 @@ fn activity(team: &[&ExecutorStatus]) -> Activity {
     }
 }
 
-/// A failure the supervisors will not heal by retrying: a fenced connection,
-/// a rejected key, a stale revision, an unconfirmed pairing.
+/// A failure the supervisors will not retry: it waits for the owner's remedy.
 fn needs_owner(executor: &ExecutorStatus) -> bool {
-    executor.failure.as_ref()
-        .and_then(|failure| failure.code.as_deref())
-        .is_some_and(|code| code != "EXECUTOR_API_TIMEOUT")
+    executor.failure.as_ref().is_some_and(|failure| !nessie_windows_common::failure::retriable(failure))
 }
 
 fn documents_reason(line: SyncLine) -> Option<Reason> {

@@ -44,6 +44,16 @@ original identifiers so upgrades and installed scripts keep working.
   `System.AppUserModel.ID` is the app identifier, which is the identity toasts
   are shown under.
 
+## Restarts
+
+Both supervisors restart a team that stopped on its own, from 5 seconds
+doubling to 5 minutes ("Restart a team if it stops" governs this app's own).
+A recognised refusal — a fenced connection, a rejected key, a stale revision,
+an unconfirmed pairing — is never retried: the team stays stopped with its
+`failure` until the owner applies a remedy, as on macOS. A timeout or a
+refusal this build does not recognise is retried
+(`windows-common/src/failure.rs` → `retriable`).
+
 ## Pause
 
 A team is paused by whoever runs it, through the CLI's `pause` / `resume`, so

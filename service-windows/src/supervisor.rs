@@ -20,7 +20,7 @@ use std::{
 };
 
 use nessie_windows_common::{
-    failure::{classify, Failure, StderrTail},
+    failure::{classify, retriable, Failure, StderrTail},
     owner_controls::{read_paused, RequestCache},
 };
 
@@ -32,6 +32,9 @@ use crate::{
 };
 
 const STOP_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// How long an exited child's last words may take to arrive through its pipe.
+const STDERR_SETTLE: Duration = Duration::from_millis(500);
 
 /// How long the packaged CLI is given for a one-shot command (`pair`,
 /// `connect`, `configure`). Long enough for a slow network round trip, short
@@ -319,9 +322,18 @@ impl Supervisor {
             if connected {
                 self.failures.remove(&executor_id);
             } else {
-                let reason = connection.stderr.last()
+                let reason = connection.stderr.settled(STDERR_SETTLE)
                     .unwrap_or_else(|| "Nessie did not answer this computer in time.".to_owned());
-                self.failures.insert(executor_id.clone(), classify(&reason));
+                let failure = classify(&reason);
+                if !retriable(&failure) {
+                    // A recognised refusal waits for the owner's remedy.
+                    self.desired.remove(&executor_id);
+                    self.retry_after.remove(&executor_id);
+                    self.failures.insert(executor_id.clone(), failure);
+                    outcomes.push((executor_id, "refused; waiting for the owner".to_owned()));
+                    continue;
+                }
+                self.failures.insert(executor_id.clone(), failure);
             }
             if connected {
                 match self.start_daemon(&executor_id) {
@@ -344,9 +356,16 @@ impl Supervisor {
             let had_daemon = self.children.contains_key(executor_id);
             if had_daemon && self.child_status(executor_id) == "stopped" {
                 if let Some(daemon) = self.children.remove(executor_id) {
-                    let reason = daemon.stderr.last()
+                    let reason = daemon.stderr.settled(STDERR_SETTLE)
                         .unwrap_or_else(|| "This team's connection stopped.".to_owned());
-                    self.failures.insert(executor_id.clone(), classify(&reason));
+                    let failure = classify(&reason);
+                    let retry = retriable(&failure);
+                    self.failures.insert(executor_id.clone(), failure);
+                    if !retry {
+                        self.desired.remove(executor_id);
+                        self.retry_after.remove(executor_id);
+                        continue;
+                    }
                 }
                 self.schedule_retry(executor_id, now);
             }
@@ -354,7 +373,8 @@ impl Supervisor {
         let due: Vec<String> = desired
             .iter()
             .filter(|executor_id| {
-                self.child_status(executor_id) == "stopped"
+                self.desired.contains(*executor_id)
+                    && self.child_status(executor_id) == "stopped"
                     && !self.connections.contains_key(*executor_id)
                     && self
                         .retry_after

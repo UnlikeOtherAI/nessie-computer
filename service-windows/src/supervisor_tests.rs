@@ -38,7 +38,7 @@ fn scripted_supervisor(root: &Path) -> Supervisor {
     let script = root.join("nessie-executor.cjs");
     fs::write(
         &script,
-        "const fs=require('fs');const a=process.argv.slice(2);const d=a[a.indexOf('--state-dir')+1];if(a[0]==='unpair'){if(fs.existsSync(d+'/unpair-refuse.marker'))process.exit(1);fs.rmSync(d+'/executor-state.json');process.stdout.write('{\"status\":\"removed\",\"signedOff\":false}\\n')}else if(a[0]==='connect'){fs.writeFileSync(d+'/connect.marker','');const go=()=>{if(fs.existsSync(d+'/connect-block.marker'))return setTimeout(go,5);process.exit(fs.existsSync(d+'/offline.marker')?1:0)};go()}else{fs.writeFileSync(d+'/serve.marker','');setInterval(()=>{if(fs.existsSync(d+'/crash.marker'))process.exit(0)},5);process.stdin.on('end',()=>process.exit(0)).resume();}",
+        "const fs=require('fs');const a=process.argv.slice(2);const d=a[a.indexOf('--state-dir')+1];if(a[0]==='unpair'){if(fs.existsSync(d+'/unpair-refuse.marker'))process.exit(1);fs.rmSync(d+'/executor-state.json');process.stdout.write('{\"status\":\"removed\",\"signedOff\":false}\\n')}else if(a[0]==='connect'){fs.writeFileSync(d+'/connect.marker','');if(fs.existsSync(d+'/fenced.marker')){process.stderr.write('Executor connection is fenced.\\n');process.exit(1)}const go=()=>{if(fs.existsSync(d+'/connect-block.marker'))return setTimeout(go,5);process.exit(fs.existsSync(d+'/offline.marker')?1:0)};go()}else{fs.writeFileSync(d+'/serve.marker','');setInterval(()=>{if(fs.existsSync(d+'/crash.marker'))process.exit(0)},5);process.stdin.on('end',()=>process.exit(0)).resume();}",
     )
     .expect("script");
     supervisor.runtime.node_executable =
@@ -324,4 +324,34 @@ fn a_refused_unpair_keeps_the_pairing_and_leaves_it_stopped() {
     );
     assert!(has_executor_state(&state));
     assert_eq!(supervisor.status(EXECUTOR_ID), Ok("stopped".to_owned()));
+}
+
+#[cfg(windows)]
+#[test]
+fn a_recognised_refusal_waits_for_the_owner_instead_of_being_retried() {
+    let directory = tempfile::tempdir().expect("temporary state");
+    let state = directory.path().join("executors").join(EXECUTOR_ID);
+    let mut supervisor = scripted_supervisor(directory.path());
+    fs::write(state.join("fenced.marker"), b"").expect("fenced fixture");
+    supervisor.start(EXECUTOR_ID).expect("queue start");
+    until("the fenced connect is observed", || {
+        supervisor.recover_due();
+        !supervisor.desired.contains(EXECUTOR_ID)
+    });
+    let row = supervisor.statuses().remove(0);
+    assert_eq!(row.daemon_status, "stopped");
+    let failure = row.failure.expect("the refusal is reported");
+    assert_eq!(failure.code.as_deref(), Some("EXECUTOR_CONNECTION_FENCED"));
+    assert_eq!(failure.message, "Executor connection is fenced.");
+    assert!(!supervisor.retry_after.contains_key(EXECUTOR_ID), "a refusal is not retried");
+    assert!(supervisor.recover_due().is_empty());
+    // The owner's remedy starts it again, and a connected team has no failure.
+    fs::remove_file(state.join("fenced.marker")).expect("clear fixture");
+    supervisor.start(EXECUTOR_ID).expect("remedy start");
+    until("the restarted team serves", || {
+        supervisor.recover_due();
+        state.join("serve.marker").exists()
+    });
+    assert_eq!(supervisor.statuses()[0].failure, None);
+    supervisor.request_shutdown();
 }
