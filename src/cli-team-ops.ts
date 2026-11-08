@@ -3,8 +3,10 @@ import type { ExecutorDaemonAudienceResponse } from '@nessie/executor-protocol'
 import { readAudience } from './audience.js'
 import { describeTeamAt, saveAccess, type AccessChange, type TeamDescription } from './cli-describe.js'
 import type { HostRun } from './cli-output.js'
+import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
+import { allowedOriginsOf } from './configuration-input.js'
 import type { CliTeam, LocalTeam, ServiceTeam } from './cli-teams.js'
-import { setExistingSessionsEnabled } from './existing-session/settings.js'
+import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
 import { applyInferenceEndpointOperation, inferenceEndpointStatus } from './inference-endpoint-cli.js'
 import { setOwnerPaused } from './owner-pause.js'
 import { answerProgramRequest } from './program-request-cli.js'
@@ -30,10 +32,21 @@ export type InferenceOperation = { operation: 'status' }
   | { operation: 'remove'; id: string }
 export type InferenceStatus = Awaited<ReturnType<typeof inferenceEndpointStatus>>
 
+/** The Access settings a change reads and writes, without discovering local apps. */
+export type TeamAccess = {
+  commandPolicy: LocalCommandPolicy
+  folders: Array<{ name: string; path: string }>
+  allowedOrigins: string[]
+  browserConfigured: boolean
+  existingCodingSessionsEnabled: boolean
+}
+
 export type TeamOps = {
+  /** Everything the team can use, local apps included: `describe`'s answer. */
   describe: () => Promise<TeamDescription>
-  /** Saves a change and answers with the team's settings as they are now; a running team applies it at once. */
-  save: (change: TeamChange) => Promise<TeamDescription>
+  access: () => Promise<TeamAccess>
+  /** Saves a change and answers with the Access settings as they are now; a running team applies it at once. */
+  save: (change: TeamChange) => Promise<TeamAccess>
   setPaused: (paused: boolean) => Promise<{ paused: boolean; since?: string }>
   programRequests: () => Promise<TeamRequest[]>
   answer: (request: ProgramRequest, answer: ProgramRequestAnswer) => Promise<void>
@@ -52,14 +65,27 @@ export type TeamOpsHost = {
   unpair: (stateDir: string) => Promise<UnpairResult>
 }
 
+const localAccess = async (stateDir: string): Promise<TeamAccess> => {
+  const state = await loadExecutorState(stateDir)
+  return { commandPolicy: localCommandPolicyOf(state), allowedOrigins: allowedOriginsOf(state),
+    folders: state.workspaceFolders.map(({ name, path }) => ({ name, path })), browserConfigured: Boolean(state.browserSandbox),
+    existingCodingSessionsEnabled: await existingSessionsEnabled(stateDir) }
+}
+
+const accessOf = (description: TeamDescription): TeamAccess => ({
+  commandPolicy: description.commandPolicy, allowedOrigins: [...description.reach.allowedOrigins],
+  folders: description.reach.folders.map(({ name, path }) => ({ name, path })),
+  browserConfigured: description.sandbox.browserConfigured,
+  existingCodingSessionsEnabled: description.existingCodingSessionsEnabled,
+})
+
 const localOps = (team: LocalTeam, host: TeamOpsHost): TeamOps => ({
   describe: () => describeTeamAt(team.stateDir),
-  save: async ({ existingCodingSessionsEnabled, ...change }) => {
-    if (existingCodingSessionsEnabled !== undefined) {
-      await setExistingSessionsEnabled(team.stateDir, existingCodingSessionsEnabled)
-    }
+  access: () => localAccess(team.stateDir),
+  save: async ({ existingCodingSessionsEnabled: conversations, ...change }) => {
+    if (conversations !== undefined) await setExistingSessionsEnabled(team.stateDir, conversations)
     if (Object.keys(change).length) await saveAccess(team.stateDir, change)
-    return describeTeamAt(team.stateDir)
+    return localAccess(team.stateDir)
   },
   setPaused: async (paused) => {
     const pause = await setOwnerPaused(team.stateDir, paused)
@@ -107,6 +133,7 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
   const sessionsOf = (answer: Record<string, unknown>) => list(answer, 'sessions') as SessionView[]
   return {
     describe,
+    access: async () => accessOf(await describe()),
     save: async (change) => {
       const current = await describe()
       // The service reads a folder under its own account, so a new one is
@@ -116,7 +143,7 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
         if (!known) await grantServiceFolder(host.run, folder.path)
       }
       await ask(serviceRequests.configure(id, serviceConfigurationInput(current, change)), 'ok')
-      return describe()
+      return accessOf(await describe())
     },
     setPaused: async (paused) => {
       const rows = serviceTeamList(await host.service(serviceRequests.setPaused(id, paused)))

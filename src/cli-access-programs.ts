@@ -99,7 +99,7 @@ export const runAccessPrograms = async (run: CliRun): Promise<void> => {
   const [action = 'show', ...words] = operands(run.options, 2, 3, 'access programs')
   const team = await run.team()
   const ops = run.ops(team)
-  const before = (await ops.describe()).commandPolicy
+  const before = (await ops.access()).commandPolicy
   if (action === 'show') {
     if (words.length) throw new CliUsageError('access programs show takes nothing after it.', 'access programs')
     showPolicy(run, team.label, before)

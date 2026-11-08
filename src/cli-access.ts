@@ -36,7 +36,7 @@ const folders = async (run: CliRun): Promise<void> => {
   acceptOnly(run.options, 'access folders', action === 'add' ? ['--name'] : [])
   const team = await run.team()
   const ops = run.ops(team)
-  const current = (await ops.describe()).reach.folders.map(({ name, path }) => ({ name, path }))
+  const current = (await ops.access()).folders
   if (action === 'list') {
     if (target !== undefined) throw new CliUsageError('access folders list takes no folder.', 'access folders')
     if (run.options.json) printJson(run.context, current.map(({ name, path }) => ({ name, path })))
@@ -60,7 +60,7 @@ const folders = async (run: CliRun): Promise<void> => {
       throw new CliRefusal('LAST_FOLDER', 'Keep at least one folder. To end this team\'s access, disconnect it.')
     }
   } else throw new CliUsageError(`access folders has no "${action}". Use list, add or remove.`, 'access folders')
-  const saved = (await ops.save({ workspaceFolders: next })).reach.folders
+  const saved = (await ops.save({ workspaceFolders: next })).folders
   if (run.options.json) printJson(run.context, saved.map(({ name, path }) => ({ name, path })))
   else {
     run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${target}. Folders shared with ${team.label}: ${
@@ -87,7 +87,7 @@ const websites = async (run: CliRun): Promise<void> => {
   const [action = 'list', target] = operands(run.options, 2, 2, 'access websites')
   const team = await run.team()
   const ops = run.ops(team)
-  const current = [...(await ops.describe()).reach.allowedOrigins]
+  const current = (await ops.access()).allowedOrigins
   if (action === 'list') {
     if (run.options.json) printJson(run.context, current)
     else run.context.out(current.length ? `Agents in ${team.label} may open these websites in the agent browser:\n${
@@ -104,11 +104,11 @@ const websites = async (run: CliRun): Promise<void> => {
   if (action === 'remove' && !current.includes(site)) throw new CliRefusal('WEBSITE_NOT_FOUND', `${team.label} has no website ${site}.`)
   const next = action === 'add' ? [...current, site] : current.filter((entry) => entry !== site)
   const saved = await ops.save({ settings: { allowedOrigins: next } })
-  const after = [...saved.reach.allowedOrigins]
+  const after = saved.allowedOrigins
   if (run.options.json) printJson(run.context, after)
   else {
     run.context.out(`${action === 'add' ? 'Added' : 'Removed'} ${site}. Websites allowed: ${listed(after)}.\n`)
-    if (!saved.sandbox.browserConfigured) {
+    if (!saved.browserConfigured) {
       run.context.out('The agent browser isn\'t set up on this computer yet. These websites apply once it is.\n')
     }
   }
@@ -131,7 +131,7 @@ const codingAssistants = async (run: CliRun): Promise<void> => {
   }
   if (value !== undefined) throw new CliUsageError(`access coding-assistants ${action} takes nothing after it.`, 'access coding-assistants')
   if (action === 'show') {
-    const enabled = (await ops.describe()).existingCodingSessionsEnabled
+    const enabled = (await ops.access()).existingCodingSessionsEnabled
     if (run.options.json) printJson(run.context, { existingCodingSessionsEnabled: enabled })
     else run.context.out(`Agents in ${team.label} ${enabled ? CODING_ON : CODING_OFF}.\n`)
     return

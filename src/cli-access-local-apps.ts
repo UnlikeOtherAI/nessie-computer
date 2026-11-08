@@ -73,8 +73,9 @@ export const runAccessLocalApps = async (run: CliRun): Promise<void> => {
   if (action !== 'remove' && action !== 'on' && action !== 'off' && action !== 'all') {
     throw new CliUsageError(`access local-apps has no "${action}". Use list, on, off, all or remove.`, 'access local-apps')
   }
-  const after = await ops.save(action === 'remove' ? { mcpServerRemovals: [name!] }
+  await ops.save(action === 'remove' ? { mcpServerRemovals: [name!] }
     : { settings: { mcpPolicy: nextPolicy(description, action, name) } })
+  const after = await ops.describe()
   if (run.options.json) printJson(run.context, after.localApps)
   else run.context.out(`Local apps on for ${team.label}: ${localAppsSummary(after)}.\n`)
 }
