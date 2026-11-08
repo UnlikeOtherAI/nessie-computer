@@ -48,8 +48,10 @@ selected. From the top:
 - **Quit Nessie Computer**, which adds "— agents stop until you open it again"
   while any team is working.
 
-Team labels are `{team} · {organisation}`, from the CLI's pairing status and
-held in memory only; two equal labels get the server's host.
+Team labels are `{team} · {organisation}`, from the label saved in each team's
+folder ([team names](../docs/team-names.md)); two equal labels get the server's
+host. The app asks Nessie for every team's names in one `team-names` call at
+launch and every hour; a team keeps its name while Nessie can't be reached.
 
 The icon is idle (nothing connected, everything paused, connecting, stopping),
 working, or needs you. Needs you means a program request, documents that need
@@ -100,10 +102,9 @@ The console calls these through `window.webkit.messageHandlers.executor`
 
 | Command | Does |
 |---|---|
-| `executor_view` | `{ kind: 'reachable', executors: [{ executorId, daemonStatus, paused, pendingProgramRequests, failure?: { code?, message } }] }` |
+| `executor_view` | `{ kind: 'reachable', executors: [{ executorId, daemonStatus, paused, pendingProgramRequests, failure?: { code?, message }, names?: { organizationName, teamName, apiBaseUrl } }] }`; `names` is the team's saved label |
 | `executor_set_paused` | `{ executorId \| null, paused }`; `null` is every team; answers the view |
 | `executor_apply_remedy` | `{ executorId, remedy }` with `reProposePolicy`, `openNessie` or `restartExecutor`; answers the view |
-| `executor_audience` | the CLI's `audience --json` for the team |
 | `executor_program_requests` | `{ executorId? }`; `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: once \| always \| deny }`; answers every team's open requests |
 | `executor_sessions` | `{ executorId? }`; every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |

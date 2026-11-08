@@ -77,6 +77,14 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
                 if let code = failure.code { failed["code"] = code }
                 row["failure"] = failed
             }
+            // The team's saved label (docs/team-names.md), as the menu shows it.
+            if let pairing = controller.pairing.state, let organization = pairing.organizationName {
+                row["names"] = [
+                    "organizationName": organization,
+                    "teamName": pairing.teamName.map { $0 as Any } ?? NSNull(),
+                    "apiBaseUrl": pairing.apiBaseUrl ?? description.apiBaseUrl
+                ] as [String: Any]
+            }
             return row
         }]
     }
@@ -118,8 +126,6 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
             )
             return try JSONSerialization.jsonObject(with: data)
         case "executor_remove": return try await remove(controller)
-        case "executor_audience":
-            return try await json(ExecutorCLI.audience(stateDirectory: directory), controller: controller)
         case "executor_apply_remedy":
             guard let remedy = (args["remedy"] as? String).flatMap(NativeRemedy.init(rawValue:)) else {
                 throw ExecutorRefusal(.invalidRequest)

@@ -3,7 +3,6 @@ import { createPrivateKey, sign } from 'node:crypto'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 export type ExecutorDaemonSignatureDomain =
-  | 'audience'
   | 'session_view'
   | 'attachment'
   | 'browser_cookie_import.poll'
@@ -19,6 +18,7 @@ export type ExecutorDaemonSignatureDomain =
   | 'poll'
   | 'receipt'
   | 'sync'
+  | 'teams'
 
 /** Signs a bounded executor control-plane request with the paired machine key. */
 export const signExecutorDaemonPayload = (

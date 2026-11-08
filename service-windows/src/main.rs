@@ -50,6 +50,7 @@ mod service_chatgpt;
 mod setup_report;
 mod supervisor;
 mod supervisor_commands;
+mod supervisor_names;
 mod supervisor_pairing;
 mod supervisor_owner;
 mod supervisor_public_json;

@@ -9,9 +9,10 @@ export const OLD_POLICY = { mode: 'all', allowlist: [], denylist: ['rm *'] }
  * `paired` is how many teams start connected (true = 1). `legacy` describes
  * them as an older runtime would, without `localApps` or `mcpPolicy`.
  */
-export const installRendererHost = async (context, host, { paired = 0, legacy = false, ownerConfirmationRequired = false } = {}) => {
-await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, NEW_POLICY, OLD_POLICY }) => {
-  window.ownerConfirmationRequired = ownerConfirmationRequired
+export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false } = {}) => {
+await context.addInitScript(({ host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY }) => {
+  // A team that has never had a name: its row carries no `names` (docs/team-names.md).
+  window.unnamed = unnamed
   window.calls = []
   window.pairStatus = 'idle'
   window.paired = []
@@ -34,13 +35,16 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     { name: 'figma', source: 'codex', command: ['figma-mcp'], installed: false }]
   const row = (executorId, extra = {}) => ({ executorId, daemonStatus: 'running', paused: false, pendingProgramRequests: 0, workspaceConfigured: true,
     ...(host === 'windows' ? { connection: 'user' } : {}), ...extra })
+  // Every row carries its team's saved label, as both hosts send it.
+  const namesFor = (index) => ({ organizationName: 'UnlikeOtherAI', teamName: teamNames[index] ?? `Team ${index}`,
+    apiBaseUrl: window.pairServer ?? 'https://api.nessie.works' })
   // The person enters the code in Nessie: the claim alone pairs, and the host starts the daemon.
   // The first team is a new pairing (one folder, the defaults); the second is an older team with its own rules, for contrast.
   window.claimInNessie = () => {
     window.pairStatus = 'paired'
     const executorId = `team-${window.paired.length}`
     const second = window.paired.length === 1
-    window.paired.push(row(executorId))
+    window.paired.push(row(executorId, window.unnamed ? {} : { names: namesFor(window.paired.length) }))
     window.teams[executorId] = second ? {
       folders: [{ name: 'notes', path: `${home}${sep}Notes` }], policy: JSON.parse(JSON.stringify(OLD_POLICY)), existingSessions: false,
       allowedOrigins: ['https://docs.example.com'], browserConfigured: true,
@@ -58,7 +62,8 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
   window.claimPlanInNessie = (executorId) => {
     const planId = `${executorId}-plans`
     window.planPairStatus = 'paired'
-    window.paired.push(row(planId, { connection: 'service' }))
+    const team = window.paired.find((entry) => entry.executorId === executorId)
+    window.paired.push(row(planId, { connection: 'service', ...(team.names ? { names: { ...team.names } } : {}) }))
     window.teams[planId] = { ...window.teams[executorId], folders: [{ name: 'nessie', path: `${home}${sep}Nessie` }] }
     window.paired.find((entry) => entry.executorId === executorId).chatgptConnectionId = planId
     return planId
@@ -252,9 +257,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       }
     }
     if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
-    if (command === 'executor_pairing_status' && id && window.ownerConfirmationRequired) {
-      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
-    }
     if (command.startsWith('executor_pairing_')) {
       const executorId = id ?? `team-${window.paired.length - 1}`
       const index = Number(executorId.split('-')[1])
@@ -310,7 +312,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     window.emitTray = (event, payload) => window.dispatchEvent(new CustomEvent(event, { detail: payload }))
   }
   for (let count = Number(paired); count > 0; count -= 1) window.claimInNessie()
-}, { host, paired, legacy, ownerConfirmationRequired, NEW_POLICY, OLD_POLICY })
+}, { host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY })
 }
 
 /** Every file `index.html` loads, shell and team tabs alike, in load order. */

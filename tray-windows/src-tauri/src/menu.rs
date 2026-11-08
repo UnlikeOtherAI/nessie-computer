@@ -98,17 +98,12 @@ pub enum MenuAction {
     /// The window, on Add another team: it asks for a pairing code at once.
     AddTeam,
     OpenNessie,
-    /// The team's computer page in Nessie, where its owner confirms this computer again.
-    ConfirmInNessie(String),
     Quit,
     Unknown,
 }
 
 /// The Needs you line's id: the section it opens (or the window), and the team when it names one.
 pub fn needs_id(needs: &NeedsYou) -> String {
-    if let (true, Some(executor_id)) = (needs.confirm, &needs.executor_id) {
-        return format!("confirm:{executor_id}");
-    }
     let section = needs.section.map_or(WINDOW, ConsoleSection::name);
     match &needs.executor_id {
         Some(executor_id) => format!("needs:{section}:{executor_id}"),
@@ -121,9 +116,6 @@ pub fn pause_id(executor_id: Option<&str>, paused: bool) -> String {
 }
 
 pub fn parse_menu_id(id: &str) -> MenuAction {
-    if let Some(team) = id.strip_prefix("confirm:") {
-        return if team.is_empty() { MenuAction::Unknown } else { MenuAction::ConfirmInNessie(team.to_owned()) };
-    }
     if let Some(rest) = id.strip_prefix("needs:") {
         let (section, team) = rest.split_once(':').map_or((rest, None), |(section, team)| (section, Some(team)));
         let target = team.map(ConsoleTarget::team).unwrap_or_default();
@@ -247,15 +239,13 @@ mod tests {
     #[test]
     fn needs_you_opens_its_exact_place() {
         let needs = |section, executor_id: Option<&str>| NeedsYou {
-            text: "Needs you".to_owned(), section, executor_id: executor_id.map(str::to_owned), confirm: false,
+            text: "Needs you".to_owned(), section, executor_id: executor_id.map(str::to_owned),
         };
         assert_eq!(parse_menu_id(&needs_id(&needs(None, None))), MenuAction::Open(None, ConsoleTarget::default()));
         assert_eq!(parse_menu_id(&needs_id(&needs(Some(ConsoleSection::Documents), Some(TEAM)))),
             MenuAction::Open(Some(ConsoleSection::Documents), ConsoleTarget::team(TEAM)));
         assert_eq!(parse_menu_id(&needs_id(&needs(None, Some(TEAM)))), MenuAction::Open(None, ConsoleTarget::team(TEAM)));
-        let confirm = NeedsYou { confirm: true, ..needs(None, Some(TEAM)) };
-        assert_eq!(parse_menu_id(&needs_id(&confirm)), MenuAction::ConfirmInNessie(TEAM.to_owned()));
-        assert_eq!(parse_menu_id("confirm:"), MenuAction::Unknown);
+        assert_eq!(parse_menu_id("confirm:a"), MenuAction::Unknown, "names never ask for a confirmation");
     }
 
     #[test]

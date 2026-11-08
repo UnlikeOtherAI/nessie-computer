@@ -29,6 +29,12 @@ Codes work once and last 5 minutes. On the computer choose **Get a new code**.
 Check you're in the right team in Nessie, and on the right Nessie server if your
 organisation runs its own.
 
+### A team shows "Team name not available yet"
+Nessie hasn't named that team on this computer yet. Nessie Computer asks for
+every team's name when it opens and every hour after, and keeps a name once it
+has one, even while Nessie can't be reached. To ask now, quit and reopen Nessie
+Computer, or run `nessie-computer teams`.
+
 ### Nessie says the computer is offline
 - The computer may be asleep. Work waits until it wakes.
 - Nessie Computer may not be running. Open it.

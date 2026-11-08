@@ -38,7 +38,6 @@ pub enum ServiceResponse {
     ProgramRequests(Vec<nessie_windows_common::owner_controls::ProgramRequest>),
     /// The sessions agents are working in for one team, as `sessions --json` printed them.
     Sessions(Vec<serde_json::Value>),
-    Audience(serde_json::Value),
 }
 
 /// The sentence for a pipe that could not be used at all; the two a person
@@ -136,8 +135,6 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             .ok_or_else(|| "The list of what agents are doing could not be read.".to_owned())
             .and_then(nessie_windows_common::owner_sessions::parse_sessions)
             .map(ServiceResponse::Sessions),
-        Some("audience") => parsed.get("audience").cloned().map(ServiceResponse::Audience)
-            .ok_or_else(|| "Nessie didn’t say who can send work here.".to_owned()),
         Some("ok") => {
             let executors = serde_json::from_value(
                 parsed.get("executors").cloned().unwrap_or(serde_json::Value::Null),
@@ -205,7 +202,7 @@ mod tests {
     }
 
     #[test]
-    fn program_requests_and_audience_answers_decode_strictly() {
+    fn program_requests_and_sessions_answers_decode_strictly() {
         let requests = decode(r#"{"status":"programRequests","requests":[{"id":"r1","program":"python","args":[],"requestedAt":"2026-11-08T10:00:00.000Z","expiresAt":"2026-11-08T10:02:00.000Z"}]}"#)
             .expect("a request list must decode");
         let ServiceResponse::ProgramRequests(list) = requests else { panic!("expected requests") };
@@ -218,8 +215,7 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert!(decode(r#"{"status":"sessions","sessions":{}}"#).is_err());
         assert!(decode(r#"{"status":"sessions"}"#).is_err());
-        assert_eq!(decode(r#"{"status":"audience","audience":{"agents":[]}}"#),
-            Ok(ServiceResponse::Audience(serde_json::json!({"agents":[]}))));
+        assert!(decode(r#"{"status":"audience","audience":{"agents":[]}}"#).is_err());
     }
 
     #[test]

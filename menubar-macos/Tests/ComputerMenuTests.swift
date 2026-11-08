@@ -110,26 +110,6 @@ final class ComputerMenuTests: XCTestCase {
         XCTAssertEqual(menu([], unreadable: 1).needsYou?.title, "Needs you: a team on this Mac can’t be read")
     }
 
-    /// Nessie names a team again only after its owner confirms this computer
-    /// there: the line says so and opens that team's computer page. A team
-    /// folder this Mac cannot read keeps its own line.
-    func testAConfirmationOpensThatComputersPageAndAReadFailureKeepsItsOwnLine() {
-        let model = ComputerMenuModel(
-            teams: [team("a", "Team name not available yet")], confirmationTeams: ["a"], language: .britishEnglish
-        )
-        XCTAssertEqual(model.needsYou, NeedsYouItem(
-            title: "Needs you: confirm this computer in Nessie",
-            target: ConsoleTarget(executorId: "a"),
-            confirmExecutorId: "a"
-        ))
-        let both = ComputerMenuModel(
-            teams: [team("a", "A")], unreadableTeams: 1, confirmationTeams: ["a"], language: .britishEnglish
-        )
-        XCTAssertEqual(both.needsYouItems.map(\.title), [
-            "Needs you: a team on this Mac can’t be read", "Needs you: confirm this computer in Nessie"
-        ])
-    }
-
     // MARK: - Pause and Resume lines
 
     func testOneTeamGetsOnePauseOrResumeLine() {

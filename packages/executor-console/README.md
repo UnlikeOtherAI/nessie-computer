@@ -104,8 +104,10 @@ the tab and the team dropdown already name what is shown.
   (the team a connection belongs to) and `nc.team.planConnectionOf(teamId)`
   (the connection that holds the team's plans: a `service` row itself, the
   linked connection, or `null` while a Windows user row has none yet).
-  `nc.team.host(id)`, `nc.team.apiBaseUrl(id)`, `nc.team.nameUnknown(id)`,
-  `nc.team.ownerConfirmationRequired(id)`.
+  `nc.team.host(id)`, `nc.team.apiBaseUrl(id)`, `nc.team.nameUnknown(id)`.
+  Names come from each row's `names` (`{ organizationName, teamName,
+  apiBaseUrl }`, the team's saved label, [team names](../../docs/team-names.md));
+  the console never asks for one.
 - `nc.team.status(row)` — `working` | `paused` | `needs_you` | `not_connected`;
   `nc.team.statusWord(row)` the §2 word for it.
 - `nc.team.describe(id = current, { fresh })` — the team's `executor_describe`,
@@ -136,10 +138,9 @@ the tab and the team dropdown already name what is shown.
 - `needs.js` owns the strip under the team dropdown (`#needs-you-list`), on
   every tab and only while something waits: program requests with **Allow
   once** / **Always allow {program}** / **Don't allow** inline, a team that is
-  not connected with its one remedy (`nc.failure.render`), a computer Nessie
-  must confirm (**Open Nessie**, `executor_open_nessie { executorId, computer:
-  true }`), stuck updates (**Restart updates**) and Documents waiting for a
-  decision (**Open Documents**). Read every 5 s; `nc.needs.refresh()` asks
+  not connected with its one remedy (`nc.failure.render`), stuck updates
+  (**Restart updates**) and Documents waiting for a decision (**Open
+  Documents**). Read every 5 s; `nc.needs.refresh()` asks
   now; `nc.needs.syncAttention(state)` is the Documents rule.
 - `nc.pairing.open()` — opens Add another team and asks
   `https://api.nessie.works` for a code straight away (the dropdown's last
@@ -175,16 +176,13 @@ macOS bridge (`menubar-macos/README.md`), plus these shapes the window relies on
   from the named team's paired server (or its own when no team is named) and
   adds `?create=1&code=<code>` itself while a pairing code is showing. With
   `computer: true` it opens that team's own computer page
-  (`/admin/computers/<executorId>`), where its owner confirms this computer
-  again when Nessie needs that before it names the team (the Needs you strip's
-  line). The page never passes a path or URL (§5.1).
-- `executor_pairing_status { executorId }` — names a paired team
-  (`organizationName`, `teamName`, `apiBaseUrl`); the label comes from it.
+  (`/admin/computers/<executorId>`). The page never passes a path or URL (§5.1).
 - `executor_sync_status { executorId }` — `FolderSyncConsoleState`; Needs you
   reads it only to list Documents attention.
-- Not called any more (ruling, 8 Nov): `executor_audience`, `executor_sessions`
-  and `executor_stop_session` — "Who can send work here" and "Now working" left
-  the app; the fake host treats a call to them as a defect.
+- Not called any more (ruling, 8 Nov): `executor_audience`, `executor_sessions`,
+  `executor_stop_session` and `executor_pairing_status { executorId }` — "Who
+  can send work here" and "Now working" left the app, and team names arrive on
+  `executor_view` rows; the fake host treats a call to them as a defect.
 - `executor_describe` — Access draws the Programs built-ins from
   `programDefaults` (`{ id, verifiedBy, program?, available }`) and
   `commandPolicy.trusted`; a local app's `source`

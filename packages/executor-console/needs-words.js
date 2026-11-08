@@ -7,7 +7,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'files to check', root_missing: 'folder missing', disk_full: 'disk full',
       needs_reauthorization: 'allow it in Nessie', waiting_for_confirmation: 'allow it in Nessie', held: 'deleted files wait for you' },
     notConnected: '{team} is not connected',
-    confirmComputer: 'Confirm this computer in Nessie', openNessie: 'Open Nessie',
   },
   'en-US': {
     request: '{agent} wants to run {program}', requestNoAgent: 'An agent wants to run {program}', inTeam: 'in {team}',
@@ -16,7 +15,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'files to check', root_missing: 'folder missing', disk_full: 'disk full',
       needs_reauthorization: 'allow it in Nessie', waiting_for_confirmation: 'allow it in Nessie', held: 'deleted files wait for you' },
     notConnected: '{team} is not connected',
-    confirmComputer: 'Confirm this computer in Nessie', openNessie: 'Open Nessie',
   },
   cs: {
     request: '{agent} chce spustit {program}', requestNoAgent: 'Agent chce spustit {program}', inTeam: 'v týmu {team}',
@@ -25,7 +23,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'soubory ke kontrole', root_missing: 'složka chybí', disk_full: 'disk je plný',
       needs_reauthorization: 'povolte to v Nessie', waiting_for_confirmation: 'povolte to v Nessie', held: 'smazané soubory čekají na vás' },
     notConnected: 'Tým {team} není připojen',
-    confirmComputer: 'Potvrďte tento počítač v Nessie', openNessie: 'Otevřít Nessie',
   },
   de: {
     request: '{agent} möchte {program} ausführen', requestNoAgent: 'Ein Agent möchte {program} ausführen', inTeam: 'in {team}',
@@ -34,7 +31,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'Dateien zu prüfen', root_missing: 'Ordner fehlt', disk_full: 'Datenträger voll',
       needs_reauthorization: 'in Nessie erlauben', waiting_for_confirmation: 'in Nessie erlauben', held: 'gelöschte Dateien warten auf Sie' },
     notConnected: '{team} ist nicht verbunden',
-    confirmComputer: 'Bestätigen Sie diesen Computer in Nessie', openNessie: 'Nessie öffnen',
   },
   es: {
     request: '{agent} quiere ejecutar {program}', requestNoAgent: 'Un agente quiere ejecutar {program}', inTeam: 'en {team}',
@@ -43,7 +39,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'archivos por revisar', root_missing: 'falta la carpeta', disk_full: 'disco lleno',
       needs_reauthorization: 'permítelo en Nessie', waiting_for_confirmation: 'permítelo en Nessie', held: 'archivos eliminados esperan tu decisión' },
     notConnected: '{team} no está conectado',
-    confirmComputer: 'Confirma este ordenador en Nessie', openNessie: 'Abrir Nessie',
   },
   fr: {
     request: '{agent} veut lancer {program}', requestNoAgent: 'Un agent veut lancer {program}', inTeam: 'dans {team}',
@@ -52,7 +47,6 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'des fichiers à vérifier', root_missing: 'dossier introuvable', disk_full: 'disque plein',
       needs_reauthorization: 'autorisez-le dans Nessie', waiting_for_confirmation: 'autorisez-le dans Nessie', held: 'des fichiers supprimés attendent votre décision' },
     notConnected: '{team} n’est pas connectée',
-    confirmComputer: 'Confirmez cet ordinateur dans Nessie', openNessie: 'Ouvrir Nessie',
   },
   it: {
     request: '{agent} vuole eseguire {program}', requestNoAgent: 'Un agente vuole eseguire {program}', inTeam: 'in {team}',
@@ -61,6 +55,5 @@ window.nc.words.register('needs', {
     reasons: { needs_attention: 'file da controllare', root_missing: 'cartella mancante', disk_full: 'disco pieno',
       needs_reauthorization: 'consentilo in Nessie', waiting_for_confirmation: 'consentilo in Nessie', held: 'file eliminati attendono la tua decisione' },
     notConnected: '{team} non è connesso',
-    confirmComputer: 'Conferma questo computer in Nessie', openNessie: 'Apri Nessie',
   },
 })

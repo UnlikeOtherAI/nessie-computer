@@ -17,6 +17,9 @@ import { allProgramTrust } from '../src/program-trust.js'
 import { openProgramRequestStore } from '../src/program-requests.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import { loadExecutorState, saveExecutorState } from '../src/state-store.js'
+import { readTeamLabel } from '../src/team-label.js'
+import type { TeamNamesApi } from '../src/team-names.js'
+import { fakeTeamNames } from './support/fake-team-names.js'
 import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 
 /**
@@ -47,7 +50,7 @@ const team = async (home: string, executorId: string, names: { teamName: string;
     machinePublicKey: keys.publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64url'),
     workspaceFolders: [{ name: 'work', path: folder }],
   })
-  NAMES[stateDir] = names
+  NAMES[executorId] = names
   return stateDir
 }
 
@@ -57,15 +60,17 @@ const unpair = async (stateDir: string) => {
   return { status: 'removed' as const, signedOff: true }
 }
 
-const run = async (home: string, args: string[], platform: NodeJS.Platform = process.platform) => {
+const run = async (
+  home: string, args: string[], platform: NodeJS.Platform = process.platform,
+  namesApi: TeamNamesApi = fakeTeamNames({ names: NAMES }).api,
+) => {
   let out = ''
   let err = ''
   const context: CliContext = { out: (text) => { out += text }, err: (text) => { err += text },
     stdin: Readable.from([]),
     interactive: false, ask: async () => '', platform, home, now: () => new Date(), sleep: async () => undefined,
     run: async () => ({ code: null, stdout: '', stderr: '' }) }
-  const exit = await runUserCli(args, { context, unpair,
-    nameLookup: async (found) => (found.route === 'local' ? NAMES[found.stateDir] ?? {} : {}) })
+  const exit = await runUserCli(args, { context, unpair, namesApi })
   return { exit, out, err, json: () => JSON.parse(out) as unknown }
 }
 
@@ -168,6 +173,31 @@ test('requests list every team\'s waiting programs and answer one by a short id'
     assert.equal((await run(home, ['requests', 'deny', 'ffffffff'])).exit, 1)
   } finally { await rm(home, { force: true, recursive: true }) }
 })
+
+test('teams shows the saved label offline, asks Nessie only once it is stale, and never shows an id',
+  { skip, timeout: 120_000 }, async () => {
+    const home = await mkdtemp(join(tmpdir(), 'nessie-cli-names-'))
+    try {
+      const stateDir = await team(home, SALES, { teamName: 'Sales', organizationName: 'Acme' })
+      const unnamed = await team(home, RESEARCH, { teamName: 'Research', organizationName: 'Acme' })
+      delete NAMES[RESEARCH]
+      const first = fakeTeamNames({ names: NAMES })
+      assert.match((await run(home, ['teams'], process.platform, first.api)).out, /Sales · Acme/u)
+      assert.equal(first.calls.length, 1, 'both teams in one request')
+      assert.equal((await readTeamLabel(stateDir))?.teamName, 'Sales')
+      // Offline now: the saved label still names Sales; Research has never had a name.
+      const offline = fakeTeamNames({ names: {}, unreachable: true })
+      const listed = await run(home, ['teams', '--json'], process.platform, offline.api)
+      assert.deepEqual((listed.json() as Array<{ executorId: string; label: string }>)
+        .map(({ executorId, label }) => [executorId, label]),
+      [[SALES, 'Sales · Acme'], [RESEARCH, 'Team name not available yet']])
+      assert.equal(await readTeamLabel(unnamed), null)
+      // A fresh label is not asked for again; only the unnamed team is.
+      const fresh = fakeTeamNames({ names: NAMES })
+      await run(home, ['status'], process.platform, fresh.api)
+      assert.deepEqual(fresh.calls.map((call) => call.executorIds), [[RESEARCH]])
+    } finally { await rm(home, { force: true, recursive: true }) }
+  })
 
 test('--team takes an id, a label or a unique part of it; two teams need it', { skip, timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), 'nessie-cli-teams-'))

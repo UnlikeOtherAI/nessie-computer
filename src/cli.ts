@@ -16,7 +16,6 @@ import { runSessionsCommand } from './session-cli.js'
 import { ExecutorApiError } from './api-client.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
 import { serveExecutor } from './daemon-server.js'
-import { readAudience } from './audience.js'
 import { describeTeam } from './cli-describe.js'
 import { teamPaused } from './cli-teams.js'
 import { isUserCommand, runUserCli } from './cli-user.js'
@@ -25,6 +24,7 @@ import { runMacServiceCli } from './service-macos.js'
 import { runServiceRestartCli } from './service-restart-cli.js'
 import { runPairingCodeCli } from './pairing-code-cli.js'
 import { runLocalSettingsCli } from './local-settings-cli.js'
+import { runTeamNamesCli } from './team-names-cli.js'
 import { serveDeepTestSourceAdapter } from './deeptest-source-adapter.js'
 import { serveDeepTestExecutionAdapter } from './deeptest-execution-adapter.js'
 import { serveDeepTestInferenceAdapter } from './deeptest-inference-adapter.js'
@@ -82,7 +82,7 @@ const withSavedTrust = (state: ExecutorLocalState, proposed: LocalCommandPolicy 
 
 /** A failure of a verb the apps call, under the stable code they key their words on. */
 class OwnerVerbFailure extends Error {
-  constructor(readonly code: 'EXECUTOR_STATE_UNAVAILABLE' | 'EXECUTOR_NOT_CONNECTED', message: string) {
+  constructor(readonly code: 'EXECUTOR_STATE_UNAVAILABLE', message: string) {
     super(message)
     this.name = 'OwnerVerbFailure'
   }
@@ -96,10 +96,10 @@ const failureCode = (error: unknown): string => {
 }
 
 type OwnerVerb = Extract<ParsedCommand, {
-  kind: 'pause' | 'resume' | 'program-requests' | 'program-request-answer' | 'audience'
+  kind: 'pause' | 'resume' | 'program-requests' | 'program-request-answer'
 }>
 
-/** The verbs the apps call for one team: pause, resume, program requests and who can send work here. */
+/** The verbs the apps call for one team: pause, resume and program requests. */
 const runOwnerVerb = async (command: OwnerVerb, write: (text: string) => void): Promise<void> => {
   const state = await loadExecutorState(command.stateDir).catch((error: unknown) => {
     throw new OwnerVerbFailure('EXECUTOR_STATE_UNAVAILABLE', `This team's saved state could not be read: ${
@@ -112,19 +112,8 @@ const runOwnerVerb = async (command: OwnerVerb, write: (text: string) => void): 
         : 'Resumed. Agents in this team can use this computer again.\n')
   } else if (command.kind === 'program-requests') {
     await printProgramRequests(command.stateDir, command.json, write)
-  } else if (command.kind === 'program-request-answer') {
-    await answerProgramRequest(command.stateDir, state, command, write)
   } else {
-    if (!state.connectionEpoch) {
-      throw new OwnerVerbFailure('EXECUTOR_NOT_CONNECTED', 'This team has not connected yet. Start it, then try again.')
-    }
-    const audience = await readAudience(command.stateDir)
-    const names = (entries: Array<{ name: string }>): string => entries.map((entry) => entry.name).join(', ') || 'none'
-    const more = audience.peopleCount - audience.people.length
-    write(command.json ? `${JSON.stringify(audience)}\n` : `Agents: ${names(audience.agents)}\n`
-      + `People: ${audience.everyoneInTeam ? 'everyone in the team'
-        : `${names(audience.people)}${more > 0 ? ` and ${more} more` : ''}`}\n`
-      + `Projects: ${names(audience.projects)}\n`)
+    await answerProgramRequest(command.stateDir, state, command, write)
   }
 }
 
@@ -197,6 +186,7 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
   if (await runLocalSettingsCli(args)) return
+  if (await runTeamNamesCli(args)) return
   let command: ParsedCommand
   try {
     command = parseCommand(args)
@@ -309,7 +299,7 @@ export const run = async (args: string[]): Promise<void> => {
     return
   }
   if (command.kind === 'pause' || command.kind === 'resume' || command.kind === 'program-requests'
-    || command.kind === 'program-request-answer' || command.kind === 'audience') {
+    || command.kind === 'program-request-answer') {
     try {
       await runOwnerVerb(command, (text) => { process.stdout.write(text) })
     } catch (error) {

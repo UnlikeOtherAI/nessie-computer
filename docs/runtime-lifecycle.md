@@ -12,11 +12,10 @@ in tranche F map onto them.
 | `resume --state-dir <dir> [--json]` | Ends the pause. |
 | `program-requests --state-dir <dir> [--json]` | Lists the program requests waiting for an answer. |
 | `program-request answer --state-dir <dir> --id <id> --answer once\|always\|deny [--json]` | Answers one request. |
-| `audience --state-dir <dir> [--json]` | Asks Nessie who can send work here: agents, people and projects. Nothing is stored. |
 | `describe --state-dir <dir>` | Also reports `paused`, `pendingProgramRequests` and the discovered `localApps`. |
 
-With `--json`, a failure of `pause`, `resume`, `program-requests`,
-`program-request answer` or `audience` prints one line on standard output and
+With `--json`, a failure of `pause`, `resume`, `program-requests`
+or `program-request answer` prints one line on standard output and
 exits with 1:
 
 ```json
@@ -30,7 +29,6 @@ exits with 1:
 | `PROGRAM_REQUEST_NOT_WAITING` | The request was answered, expired, or its team stopped. |
 | `PROGRAM_REQUEST_ALREADY_ANSWERED` | Another answer reached it first. |
 | `PROGRAM_REQUEST_RULE_NOT_SAVED` | "Always" could not save the rule; the request still waits. |
-| `EXECUTOR_NOT_CONNECTED` | `audience` needs a team that has connected. |
 | Nessie's own code | Nessie refused the call, for example `EXECUTOR_API_TIMEOUT` or `EXECUTOR_CONNECTION_FENCED`. |
 | `EXECUTOR_COMMAND_FAILED` | Anything else; the message says what. |
 
@@ -156,8 +154,6 @@ protocol gets the old behaviour: the command holds the team's single slot.
 ## Limits
 
 - When the allowlist already holds its maximum of 64 rules, nobody is asked.
-- `audience` needs a connected team: it signs with the connection epoch the
-  team's daemon last claimed.
 
 ## One owner per team
 

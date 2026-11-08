@@ -1,5 +1,5 @@
 //! The owner's own controls over a team this service runs: Pause and Resume,
-//! program requests, and "Who can send work here".
+//! and program requests.
 //!
 //! Each is the packaged CLI's own verb against the team's state directory, so
 //! the daemon is told through the same path a person at a terminal uses. A
@@ -13,7 +13,7 @@
 use std::{fs, path::Path, time::Instant};
 
 use nessie_windows_common::owner_controls::{
-    answer_arguments, audience_arguments, parse_program_requests, pause_arguments,
+    answer_arguments, parse_program_requests, pause_arguments,
     program_requests_arguments, Answer, ProgramRequest,
 };
 
@@ -147,17 +147,6 @@ impl Supervisor {
         }
         self.sessions(executor_id, sid)
     }
-
-    /// Who may send work to this team here, as Nessie answers the signed
-    /// request. Nothing of it is kept.
-    pub fn audience(&mut self, executor_id: &str) -> Result<serde_json::Value, String> {
-        let state_dir = self.paired_state_dir(executor_id)?;
-        let (status, output) = self.public_json_command(audience_arguments(&state_dir), None)?;
-        if status != 0 {
-            return Err("Nessie didn’t say who can send work here. Check your connection and try again.".to_owned());
-        }
-        serde_json::from_str(&output).map_err(|_| "Nessie’s answer could not be read.".to_owned())
-    }
 }
 
 #[cfg(test)]
@@ -213,7 +202,6 @@ mod tests {
         let mut host = supervisor(root.path());
         let refusal = Err("This team is not connected on this computer.".to_owned());
         assert_eq!(host.set_paused(TEAM, true), refusal);
-        assert_eq!(host.audience(TEAM).map(|_| ()), refusal);
         assert_eq!(host.program_requests(TEAM, Some("S-1-5-21-1")).map(|_| ()), refusal);
     }
 

@@ -20,8 +20,8 @@ name, folder or bundle identifier alone never qualifies, unsigned scripts are
 not covered, and Linux has no such check. The denylist wins over every
 built-in entry and signature. A program admitted by its signature starts from
 the exact file that was verified. Discovered local app launch specs stay in
-the owner-only state file, and a "who can send work here" answer is never
-stored.
+the owner-only state file. A team's saved name (`team-label.json`) is display
+metadata only and never grants, narrows or proves access.
 
 Claude Code and Codex offered as engines run the installed program headless
 with its own sign-in, its tools, MCP servers and history switched off; Nessie

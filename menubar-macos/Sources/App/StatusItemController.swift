@@ -110,11 +110,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func openTarget(_ sender: NSMenuItem) {
         guard let needsYou = sender.representedObject as? NeedsYouItem else { return }
-        if let executorId = needsYou.confirmExecutorId,
-           let team = connections.teams.first(where: { $0.model.description?.executorId == executorId }) {
-            NSWorkspace.shared.open(team.nessieConsoleURL(computerId: executorId))
-            return
-        }
         console.show(needsYou.target)
     }
 

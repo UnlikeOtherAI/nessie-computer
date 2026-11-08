@@ -10,7 +10,7 @@ final class WordsTests: XCTestCase {
         .needsYou(team: "T", reason: .documentsNeedChecking), .needsYou(team: "T", reason: .allowDocumentsInNessie),
         .needsYou(team: "T", reason: .allowDocumentsAgain), .needsYou(team: "T", reason: .documentsFolderMissing),
         .needsYou(team: "T", reason: .diskFull), .needsYou(team: "T", reason: .notConnected),
-        .needsYouReinstall, .needsYouUnreadableTeam, .needsYouConfirmComputer, .needsYouMany(3), .pause, .resume,
+        .needsYouReinstall, .needsYouUnreadableTeam, .needsYouMany(3), .pause, .resume,
         .allTeams, .openComputer,
         .addAnotherTeam,
         .openNessie, .quit, .quitWhileWorking, .iconIdle, .iconWorking, .iconNeedsYou, .teamNameUnavailable,

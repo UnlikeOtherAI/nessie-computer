@@ -83,7 +83,7 @@ const SYNC_HOVER_INTERVAL: Duration = Duration::from_secs(5);
 static LAUNCH_LINK: Mutex<Option<Link>> = Mutex::new(None);
 
 fn overview(view: &ServiceView) -> overview::Overview {
-    overview::build(view, &team_names::snapshot(), sync_status::current().as_ref(), words::words(), words::locale())
+    overview::build(view, sync_status::current().as_ref(), words::words(), words::locale())
 }
 
 fn apply(app: &AppHandle, view: &ServiceView) {
@@ -107,20 +107,13 @@ fn apply(app: &AppHandle, view: &ServiceView) {
 
 fn label_of(executor_id: &str) -> String {
     let names = team_names::snapshot();
-    let all: Vec<&team_names::TeamIdentity> = names.values().filter_map(|entry| match entry {
-        team_names::Entry::Known(identity) => Some(identity),
-        team_names::Entry::OwnerConfirmation(_) => None,
-    }).collect();
-    let mine = match names.get(executor_id) {
-        Some(team_names::Entry::Known(identity)) => Some(identity),
-        _ => None,
-    };
-    team_names::label(mine, &all, words::words().team_unavailable)
+    let all: Vec<&team_names::TeamIdentity> = names.values().collect();
+    team_names::label(names.get(executor_id), &all, words::words().team_unavailable)
 }
 
 /// The poll runs off the main thread and the tray is updated on it: menus are a
-/// main-thread object on Windows. Names are read on a thread of their own,
-/// because asking Nessie can take seconds.
+/// main-thread object on Windows. Every row carries its team's saved name, so
+/// the poll asks nobody for one (`team_names`).
 fn start_polling(app: AppHandle) {
     std::thread::spawn(move || {
         // A prior tray/controller crash preserved the service fence. Native
@@ -136,10 +129,6 @@ fn start_polling(app: AppHandle) {
             }
             user_connections::supervise();
             let view = commands::view();
-            if let ServiceView::Reachable { executors } = &view {
-                let executors = executors.clone();
-                std::thread::spawn(move || team_names::look_up(&executors));
-            }
             sync_status::refresh_if_older(&view, SYNC_INTERVAL);
             program_toast::notify_new(&app, &view, label_of, words::words());
             let handle = app.clone();
@@ -195,14 +184,6 @@ fn handle_menu(app: &AppHandle, id: &str) {
                     Err(reason) => {
                         commands::notify(&app, if paused { words.pause_failed } else { words.resume_failed }, reason)
                     }
-                }
-            });
-        }
-        MenuAction::ConfirmInNessie(executor_id) => {
-            let app = app.clone();
-            std::thread::spawn(move || {
-                if let Err(reason) = commands::open_computer(&app, &executor_id) {
-                    commands::notify(&app, words::words().open_nessie_failed, reason);
                 }
             });
         }
@@ -339,7 +320,6 @@ fn main() {
             commands::executor_view,
             owner_commands::executor_set_paused,
             owner_commands::executor_apply_remedy,
-            owner_commands::executor_audience,
             owner_commands::executor_program_requests,
             owner_commands::executor_answer_program_request,
             owner_commands::executor_sessions,
@@ -364,6 +344,7 @@ fn main() {
             if LAUNCH_LINK.lock().is_ok_and(|pending| pending.is_some()) {
                 commands::show_status(&handle);
             }
+            team_names::refresh_hourly();
             start_polling(handle);
             Ok(())
         })

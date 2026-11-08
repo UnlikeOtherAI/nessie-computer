@@ -52,8 +52,8 @@ extension ExecutorConsoleBridge {
         let origin: String
         var code: String?
         if args["computer"] as? Bool == true, let executorId = args["executorId"] as? String {
-            // That team's own page, where its owner confirms this computer
-            // again; only the browser can open a page by its path.
+            // That team's own computer page in Nessie; only the browser can
+            // open a page by its path.
             NSWorkspace.shared.open(try team(args).nessieConsoleURL(computerId: executorId))
             return
         }

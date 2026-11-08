@@ -149,16 +149,6 @@ a guest VM mounts exactly one. Once the owner adds a second,
 `EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED`. Host terminal sessions, local apps and
 the workspace file operations are not affected.
 
-## Who can send work here
-
-`readAudience(stateDir)` (`src/audience.ts`) asks Nessie which agents, people
-and projects the team lets reach this computer, with
-`POST /api/executor-daemon/audience` signed by the machine key under
-`nessie.executor.daemon.audience.v1` over `{ connectionEpoch, executorId,
-observedAt }`. The answer is printed by the CLI and discarded: it is never
-stored and never grants or narrows access. The window does not show it
-(ruling, 8 Nov).
-
 ## What `describe` reports
 
 - `commandPolicy`, including `trusted` when the team has it.
@@ -174,8 +164,7 @@ stored and never grants or narrows access. The window does not show it
 ## Verification
 
 `test/program-trust.test.ts`, `test/local-app-discovery.test.ts`,
-`test/local-mcp-apps.test.ts`, `test/audience.test.ts`,
-`test/executor-audience-protocol.test.ts` and `test/command-policy.test.ts`
+`test/local-mcp-apps.test.ts` and `test/command-policy.test.ts`
 cover these rules, including a file named like an UnlikeOtherAI program that
 must not count. The signature checks are exercised with injected checkers;
 the macOS requirement was checked by hand against installed apps (it accepts

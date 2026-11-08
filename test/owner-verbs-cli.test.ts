@@ -68,12 +68,11 @@ test('with --json, each app verb fails with a stable code', { skip, timeout: 240
       '--answer', 'once', '--json'])).code, 'PROGRAM_REQUEST_ID_INVALID')
     assert.equal(failure(cli(['program-request', 'answer', '--state-dir', stateDir,
       '--id', '00000000-0000-4000-8000-000000000f02', '--answer', 'deny', '--json'])).code, 'PROGRAM_REQUEST_NOT_WAITING')
-    assert.equal(failure(cli(['audience', '--state-dir', stateDir, '--json'])).code, 'EXECUTOR_NOT_CONNECTED')
     // Without --json the same failure is a sentence on standard error, as every other verb's is.
-    const plain = cli(['audience', '--state-dir', stateDir])
+    const plain = cli(['pause', '--state-dir', missing])
     assert.equal(plain.status, 1)
     assert.equal(plain.stdout, '')
-    assert.match(plain.stderr, /not connected/u)
+    assert.match(plain.stderr, /could not be read/u)
   } finally {
     await rm(stateDir, { force: true, recursive: true })
   }

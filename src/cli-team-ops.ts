@@ -1,6 +1,4 @@
-import type { ExecutorDaemonAudienceResponse } from '@nessie/executor-protocol'
 
-import { readAudience } from './audience.js'
 import { describeTeamAt, saveAccess, type AccessChange, type TeamDescription } from './cli-describe.js'
 import type { HostRun } from './cli-output.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
@@ -50,7 +48,6 @@ export type TeamOps = {
   setPaused: (paused: boolean) => Promise<{ paused: boolean; since?: string }>
   programRequests: () => Promise<TeamRequest[]>
   answer: (request: ProgramRequest, answer: ProgramRequestAnswer) => Promise<void>
-  audience: () => Promise<ExecutorDaemonAudienceResponse>
   /** Now working: the team's sessions, and Stop for one, answering with the sessions left. */
   sessions: () => Promise<SessionView[]>
   stopSession: (sessionId: string) => Promise<SessionView[]>
@@ -97,7 +94,6 @@ const localOps = (team: LocalTeam, host: TeamOpsHost): TeamOps => ({
     await answerProgramRequest(team.stateDir, await loadExecutorState(team.stateDir),
       { answer, id: request.id, json: false }, () => undefined)
   },
-  audience: () => readAudience(team.stateDir),
   sessions: () => readSessions(team.stateDir),
   stopSession: (sessionId) => stopTeamSession(team.stateDir, sessionId),
   inference: async (operation) => {
@@ -153,7 +149,6 @@ const serviceOps = (team: ServiceTeam, host: TeamOpsHost): TeamOps => {
     },
     programRequests: async () => requests(await ask(serviceRequests.programRequests(id), 'programRequests')),
     answer: async (request, answer) => { await ask(serviceRequests.answer(id, request.id, answer), 'programRequests') },
-    audience: async () => (await ask(serviceRequests.audience(id), 'audience')).audience as ExecutorDaemonAudienceResponse,
     sessions: async () => sessionsOf(await ask(serviceRequests.sessions(id), 'sessions')),
     stopSession: async (sessionId) => sessionsOf(await ask(serviceRequests.stopSession(id, sessionId), 'sessions')),
     inference: async (operation) => (await ask(serviceRequests.inference(id, operation), 'inferenceConnections'))

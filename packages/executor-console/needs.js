@@ -1,7 +1,7 @@
 // Needs you: a strip under the team dropdown, on every tab, shown only while
 // something waits for the owner — a program request answered inline, a team
-// that is not connected with its one remedy, a computer Nessie must confirm,
-// stuck updates, Documents waiting for a decision. Read every 5 s.
+// that is not connected with its one remedy, stuck updates, Documents waiting
+// for a decision. Read every 5 s.
 (() => {
   const nc = window.nc
   const { byId, invoke, t, attempt } = nc
@@ -27,8 +27,6 @@
       text: request.agentName ? t('needs.request', { agent: request.agentName, program: request.program }) : t('needs.requestNoAgent', { program: request.program }) })
     for (const team of nc.team.list()) {
       if (team.failure) list.push({ kind: 'failure', team, text: t('needs.notConnected', { team: nc.team.label(team.executorId) }) })
-      // Nessie names the team again once its owner confirms this computer there.
-      if (nc.team.ownerConfirmationRequired(team.executorId)) list.push({ kind: 'confirm', team, text: t('needs.confirmComputer') })
       if (nc.team.isPlanConnection(team.executorId)) continue
       const reason = syncAttention(syncStates.get(team.executorId))
       if (reason) list.push({ kind: 'sync', team, text: t('needs.documents', { team: nc.team.label(team.executorId), reason: t(`needs.reasons.${reason}`) }) })
@@ -74,11 +72,6 @@
         onRemedy: (remedy) => nc.team.applyRemedy(item.team.executorId, remedy).then(render) })
       line.append(block)
       return line
-    }
-    if (item.kind === 'confirm') {
-      // The host opens this team's computer page on its own server (§5.1).
-      actions.append(button(t('needs.openNessie'), `confirm:${item.team.executorId}`,
-        () => attempt(() => invoke('executor_open_nessie', { executorId: item.team.executorId, computer: true }))))
     }
     if (item.kind === 'updates') {
       const restart = button(t('updates.restart'), 'updates:restart', () => attempt(async () => { await nc.updates.restart(); render() }, { target: restart }), 'primary')
