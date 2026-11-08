@@ -41,7 +41,6 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     page.setDefaultTimeout(8000)
     const errors = []
     page.on('pageerror', (error) => errors.push(error.message))
-    // Scripts outside the Software section's own files (the team tabs) are served empty: this journey is about updates.
     await page.route('http://localhost:5875/**', async (route) => {
       const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
       const body = files.includes(file) || before ? await resource(file).catch(() => '') : ''

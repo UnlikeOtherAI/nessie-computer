@@ -23,12 +23,30 @@
     const name = names.get(executorId)
     return [name?.teamName, name?.organizationName].filter(Boolean).join(' · ') || null
   }
+  // On Windows a team's ChatGPT plans live on a second, service-owned connection
+  // to the same team (`chatgptConnectionId` on the team's own row). It is the
+  // team's plan connection, never a second team: it stays out of the team
+  // dropdown and the team count, and its label says what it is.
+  const planOwner = (executorId) => executors.find((team) => team.chatgptConnectionId === executorId) ?? null
+  const isPlanConnection = (executorId) => planOwner(executorId) !== null
+  /** The team a connection belongs to: itself, or the team whose plan connection it is. */
+  const teamOf = (executorId) => planOwner(executorId)?.executorId ?? executorId
+  const teams = () => executors.filter((team) => !isPlanConnection(team.executorId))
   /** `{teamName} · {organizationName}`; two equal labels get the server host; an unknown name says so. Never an id. */
   const label = (executorId) => {
+    const owner = planOwner(executorId)
+    if (owner) return t('teams.planConnection', { team: label(owner.executorId) })
     const own = ownLabel(executorId)
     if (!own) return t('shell.teamNameUnknown')
-    const shared = executors.some((team) => team.executorId !== executorId && ownLabel(team.executorId) === own)
+    const shared = teams().some((team) => team.executorId !== executorId && ownLabel(team.executorId) === own)
     return shared && host(executorId) ? `${own} (${host(executorId)})` : own
+  }
+  /** The connection holding a team's ChatGPT plans: a service row itself, its plan connection, or null. */
+  const planConnectionOf = (executorId) => {
+    const team = executors.find((row) => row.executorId === executorId)
+    if (!team) return null
+    if (team.connection !== 'user') return executorId
+    return team.chatgptConnectionId ?? null
   }
   /** One of `working`, `paused`, `needs_you`, `not_connected`. */
   const status = (team) => {
@@ -67,11 +85,13 @@
   const apply = (view) => {
     if (view.kind !== 'reachable') throw new Error(view.reason)
     executors = view.executors
-    if (!executors.some((team) => team.executorId === current)) {
-      current = executors[0]?.executorId ?? null
+    if (!teams().some((team) => team.executorId === current)) {
+      current = teams()[0]?.executorId ?? null
+      if (current) describes.delete(current)
       notifySelection()
     }
-    const signature = JSON.stringify([executors, executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
+    const signature = JSON.stringify([executors,
+      executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
     if (signature === rendered) return
     rendered = signature
     for (const listener of listListeners) listener(executors)
@@ -83,16 +103,25 @@
     apply(view)
   }
 
+  /** Selecting a team reads it afresh: a program request answered or a live-applied revision may have changed it. */
   const select = (executorId) => {
     if (executorId === current) return
     current = executorId
+    describes.delete(executorId)
     notifySelection()
   }
-  /** The team's `describe`, loaded once per team until something changes it (`remember`) or `fresh` asks again. */
+  /**
+   * The team's `describe`, loaded once per selection and kept until a save
+   * `remember`s a newer one or `fresh` asks again. A read that fails is not
+   * kept, so the next call asks again.
+   */
   const describe = (executorId = current, { fresh = false } = {}) => {
     if (!executorId) return Promise.reject(new Error(t('shell.noTeam')))
     if (fresh || !describes.has(executorId)) {
-      const loading = invoke('executor_describe', { executorId }).catch((error) => { describes.delete(executorId); throw error })
+      const loading = invoke('executor_describe', { executorId }).catch((error) => {
+        if (describes.get(executorId) === loading) describes.delete(executorId)
+        throw error
+      })
       describes.set(executorId, loading)
     }
     return describes.get(executorId)
@@ -148,6 +177,10 @@
     host,
     apiBaseUrl,
     list: () => executors,
+    teams,
+    isPlanConnection,
+    teamOf,
+    planConnectionOf,
     get: (executorId) => executors.find((team) => team.executorId === executorId) ?? null,
     status,
     statusWord: (team) => t(`teams.${{ working: 'working', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),

@@ -12,6 +12,7 @@
  */
 window.teamDrafts = (() => {
   const nc = window.nc
+  const autosave = window.autosave
   const described = new Map() // executorId → the latest describe this page has seen
   const drafts = new Map() // executorId → { revision, savedRevision, sections, input }
   const edits = new Map() // executorId → how many edits, finished or not, the person has made
@@ -24,15 +25,19 @@ window.teamDrafts = (() => {
   const noteEdit = (executorId) => { edits.set(executorId, editsOf(executorId) + 1) }
   const announce = (listeners, ...args) => { for (const listener of listeners) listener(...args) }
 
-  /** The team's describe: the one loaded for this selection, or read again for another team. */
+  /** The team's describe: the shell's read for this selection, or a fresh one. */
   const describe = async (executorId, { fresh = false } = {}) => {
     if (described.has(executorId)) return described.get(executorId)
-    const value = executorId === nc.team.current() && !fresh ? await nc.team.describe()
-      : await nc.invoke('executor_describe', { executorId })
+    const value = await nc.team.describe(executorId, { fresh })
     described.set(executorId, value)
     return value
   }
-  const remember = (value) => { described.set(value.executorId, value); announce(changedListeners, value.executorId) }
+  /** The describe a save answered with: the shell's cache follows it, so the Overview summary needs no second read. */
+  const remember = (value) => {
+    described.set(value.executorId, value)
+    nc.team.remember(value.executorId, value)
+    announce(changedListeners, value.executorId)
+  }
   const forget = (executorId) => { described.delete(executorId) }
 
   /** The configuration a draft starts from: exactly what the team reports, field by field. */
@@ -44,7 +49,8 @@ window.teamDrafts = (() => {
     ...(saved.mcpPolicy ? { mcpPolicy: { mode: saved.mcpPolicy.mode, disabled: [...saved.mcpPolicy.disabled] } } : {}),
   })
   /** What the page shows: the draft while one waits, otherwise what is saved. */
-  const shown = (executorId) => drafts.get(executorId)?.input ?? (described.has(executorId) ? inputOf(described.get(executorId)) : null)
+  const shown = (executorId) => drafts.get(executorId)?.input
+    ?? (described.has(executorId) ? inputOf(described.get(executorId)) : null)
 
   // A problem sits beside the control that asked for the change, with Try again.
   const renderProblem = (key) => {
@@ -68,7 +74,9 @@ window.teamDrafts = (() => {
       node.append(' ', retry)
     }
     const target = typeof problem.target === 'string' ? nc.byId(problem.target) : problem.target
-    if (!existing || existing.previousElementSibling !== target) target.parentElement.insertBefore(node, target.nextSibling)
+    if (!existing || existing.previousElementSibling !== target) {
+      target.parentElement.insertBefore(node, target.nextSibling)
+    }
   }
   const setProblem = (executorId, group, problem) => {
     const key = `${executorId}:${group}`
@@ -147,7 +155,9 @@ window.teamDrafts = (() => {
    * and names the rule still in force. Only the outcome for the draft as it
    * still stands is reported; a newer edit has its own save.
    */
-  const reportFailure = async ({ executorId, draft, revision, generation, sent, sections, target, inForce, reason }) => {
+  const reportFailure = async ({
+    executorId, draft, revision, generation, sent, sections, target, inForce, reason,
+  }) => {
     const superseded = () => editsOf(executorId) !== generation
     const saved = await nc.invoke('executor_describe', { executorId }).catch(() => null)
     if (saved) remember(saved)
@@ -172,7 +182,8 @@ window.teamDrafts = (() => {
   const edit = (executorId, { section, target, inForce, mutate, immediately = true }) => {
     const saved = described.get(executorId)
     if (!saved) return false
-    const draft = drafts.get(executorId) ?? { revision: 0, savedRevision: 0, sections: new Set(), input: inputOf(saved) }
+    const draft = drafts.get(executorId)
+      ?? { revision: 0, savedRevision: 0, sections: new Set(), input: inputOf(saved) }
     if (mutate(draft.input) === false) return false
     noteEdit(executorId)
     // Even an edit back to what is saved is sent: a save in flight may be about to change it.

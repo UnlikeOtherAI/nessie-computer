@@ -123,7 +123,7 @@ window.chatgptDialog = (() => {
     byId('chatgpt-restriction').checked = false
     byId('chatgpt-title').textContent = newId ? t('newTitle') : t('title')
     byId('chatgpt-name').value = newId ? nc.t('ai.planName', { n: number }) : ''
-    byId('chatgpt-team').textContent = nc.team.label(executorId)
+    byId('chatgpt-team').textContent = nc.team.label(nc.team.teamOf(executorId))
     for (const [id, key] of [['disclosure', 'disclosure'], ['profile-label', 'profileLabel'], ['restriction-copy', 'restriction'],
       ['background-copy', 'background'], ['start', 'start'], ['cancel', 'cancel'], ['disconnect', 'disconnect'], ['refresh', 'refresh'],
       ['usage', 'usage'], ['close', 'close']]) byId(`chatgpt-${id}`).textContent = t(key)

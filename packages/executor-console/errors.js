@@ -3,19 +3,20 @@
 // `error.message` and nothing else), the fixed literals beside each code in
 // `executor-manage` identify it. Anything else is quoted honestly under
 // Details rather than mislabelled. Remedies name what `executor_apply_remedy`
-// should do; `open-nessie` is handled in this window.
+// should do (contract §5.1: `reProposePolicy`, `restartExecutor`, `openNessie`);
+// this window handles `openNessie` itself through `executor_open_nessie`.
 (() => {
   const nc = window.nc
   const { t } = nc
   const KNOWN = [
-    { code: 'EXECUTOR_DESCRIPTOR_ROLLBACK', messages: ['Executor descriptor revisions cannot move backwards.'], remedy: 're-propose-policy', label: 'sendAgain' },
-    { code: 'EXECUTOR_DESCRIPTOR_REVISION_CONFLICT', messages: ['A descriptor revision cannot describe two different policies.'], remedy: 're-propose-policy', label: 'sendAgain' },
-    { code: 'EXECUTOR_CONNECTION_FENCED', messages: ['Executor connection is fenced.'], remedy: 'restart', label: 'reconnect' },
+    { code: 'EXECUTOR_DESCRIPTOR_ROLLBACK', messages: ['Executor descriptor revisions cannot move backwards.'], remedy: 'reProposePolicy', label: 'sendAgain' },
+    { code: 'EXECUTOR_DESCRIPTOR_REVISION_CONFLICT', messages: ['A descriptor revision cannot describe two different policies.'], remedy: 'reProposePolicy', label: 'sendAgain' },
+    { code: 'EXECUTOR_CONNECTION_FENCED', messages: ['Executor connection is fenced.'], remedy: 'restartExecutor', label: 'reconnect' },
     { code: 'EXECUTOR_DAEMON_PROOF_INVALID', messages: ['Executor proof is invalid.', 'Executor descriptor proof is invalid.'], remedy: null },
-    { code: 'EXECUTOR_HEARTBEAT_STALE', messages: ['Executor heartbeat is stale.', 'Executor control call is stale.'], remedy: 'restart', label: 'reconnect' },
-    { code: 'FINGERPRINT_NOT_CONFIRMED', messages: ['No active executor enrollment is ready to confirm.', 'The confirmation fingerprint does not match the pending executor.'], remedy: 'open-nessie', label: 'openNessie' },
-    { code: 'ENROLLMENT_EXPIRED', messages: ['No active executor enrollment is ready'], remedy: 'open-nessie', label: 'openNessie' },
-    { code: 'EXECUTOR_API_TIMEOUT', messages: ['Executor API request timed out.'], remedy: 'restart', label: 'tryAgain' },
+    { code: 'EXECUTOR_HEARTBEAT_STALE', messages: ['Executor heartbeat is stale.', 'Executor control call is stale.'], remedy: 'restartExecutor', label: 'reconnect' },
+    { code: 'FINGERPRINT_NOT_CONFIRMED', messages: ['No active executor enrollment is ready to confirm.', 'The confirmation fingerprint does not match the pending executor.'], remedy: 'openNessie', label: 'openNessie' },
+    { code: 'ENROLLMENT_EXPIRED', messages: ['No active executor enrollment is ready'], remedy: 'openNessie', label: 'openNessie' },
+    { code: 'EXECUTOR_API_TIMEOUT', messages: ['Executor API request timed out.'], remedy: 'restartExecutor', label: 'tryAgain' },
   ]
 
   /**
@@ -42,7 +43,7 @@
   /**
    * Fills a failure block: the explanation, the one remedy button and the
    * Details disclosure holding the code and the raw sentence. `onRemedy(id)`
-   * runs the button; `open-nessie` opens the team's Nessie.
+   * runs the button; `openNessie` opens the team's Nessie from this window.
    */
   const render = (container, failure, { executorId, onRemedy }) => {
     const translated = translate(failure)
@@ -56,8 +57,8 @@
       button.textContent = translated.remedy.label
       button.dataset.remedy = translated.remedy.id
       button.onclick = () => nc.attempt(async () => {
-        if (translated.remedy.id === 'open-nessie') {
-          await nc.invoke('executor_open_nessie', { apiBaseUrl: nc.team.apiBaseUrl(executorId) ?? 'nessie' })
+        if (translated.remedy.id === 'openNessie') {
+          await nc.invoke('executor_open_nessie', { executorId })
           return
         }
         button.disabled = true

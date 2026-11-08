@@ -14,6 +14,7 @@ installed there. Everything they can use is decided on the computer, by you.
 
 | I want to… | Read |
 |---|---|
+| See what agents are doing right now, or stop one | [Pause and resume → Stop one agent's work](Pause-and-resume#stop-one-agents-work) |
 | Stop agents for a while | [Pause and resume](Pause-and-resume) |
 | Use one computer for several teams | [Several teams on one computer](Several-teams-on-one-computer) |
 | Choose which programs agents may start | [Programs](Programs) |

@@ -89,7 +89,7 @@
   const start = (apiBaseUrl, button, target) => run(button, t('pairing.getting'), async () => {
     render({ status: 'getting' })
     try {
-      return await invoke('executor_pairing_start', { replace: false, apiBaseUrl })
+      return await invoke('executor_pairing_start', { apiBaseUrl })
     } catch (error) {
       render({ status: 'idle' })
       byId('connect-advanced').open = true
@@ -137,7 +137,7 @@
     run(byId('pairing-server-use'), t('pairing.getting'), async () => {
       // A code already waiting for another server is cancelled before this one is asked.
       if (open(view) && view.apiBaseUrl !== address) { attemptId += 1; await invoke('executor_pairing_cancel') }
-      try { return await invoke('executor_pairing_start', { replace: false, apiBaseUrl: address }) } catch (error) {
+      try { return await invoke('executor_pairing_start', { apiBaseUrl: address }) } catch (error) {
         render({ status: 'idle' })
         throw error
       }
@@ -149,9 +149,8 @@
     byId('copy-code').textContent = t('pairing.copied')
     announce(t('pairing.announceCopied'))
   })
-  byId('pairing-open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {
-    apiBaseUrl: server(), path: `/admin/computers?create=1&code=${encodeURIComponent(view?.code ?? '')}`,
-  }))
+  // The host knows the attempt's server and adds `?create=1&code=<code>` itself while the code shows (§5.1).
+  byId('pairing-open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {}))
   byId('pairing-stop').onclick = () => cancel(byId('pairing-stop'))
   byId('pairing-renew').onclick = () => {
     const address = server()
@@ -160,7 +159,7 @@
       const current = await invoke('executor_pairing_status')
       if (current.status === 'paired') return current
       await invoke('executor_pairing_cancel')
-      return invoke('executor_pairing_start', { replace: false, apiBaseUrl: address })
+      return invoke('executor_pairing_start', { apiBaseUrl: address })
     })
   }
   // Escape during an attempt cancels it, rather than hiding a code that stays valid.

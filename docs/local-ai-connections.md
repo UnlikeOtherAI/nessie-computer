@@ -60,7 +60,7 @@ Run the public Turbo task `//#test:ai-connections` with
 build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed
 credential authority. The local headless journey is
-`node tray-windows/test/team-tabs-harness.mjs --ai-only`.
+`node tray-windows/test/renderer-harness.mjs --only=ai`, against the real console page.
 
 Revision c9f4016 passed build, lint, typecheck and all 42 focused tests on Maxis,
 with no skips. Shared AI/ChatGPT journeys passed in seven locales at 390/1280 px

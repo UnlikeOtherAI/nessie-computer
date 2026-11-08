@@ -83,12 +83,10 @@
     current: () => note,
     problem: (group, problem) => { problems.delete(group); if (problem) problems.set(group, problem); renderFooter() },
     problems: () => [...problems.keys()],
-    forget: (prefix) => { for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group); renderFooter() },
-  }
-
-  /** A system notification; with notifications off, the footer says it instead. */
-  const notify = async (title, body) => {
-    try { await invoke('executor_notify', { title, body }) } catch { footer.note(`${title}: ${body}`) }
+    forget: (prefix) => {
+      for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group)
+      renderFooter()
+    },
   }
 
   /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
@@ -119,7 +117,7 @@
   // ---- tabs and the team row
   const tabs = [...document.querySelectorAll('[role=tab]')]
   const renderTeamRow = () => {
-    const teams = nc.team.list()
+    const teams = nc.team.teams()
     const scoped = TEAM_TABS.includes(currentTab)
     byId('team-row').hidden = !scoped || !teams.length
     byId('no-team').hidden = !scoped || Boolean(teams.length)
@@ -160,9 +158,8 @@
     }
   }
   byId('team-select').onchange = () => attempt(() => nc.team.select(byId('team-select').value))
-  byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {
-    apiBaseUrl: nc.team.apiBaseUrl(nc.team.current()) ?? 'nessie',
-  }))
+  // The host opens the paired server's Computers page: the selected team's, or its own when no team is selected.
+  byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', nc.team.current() ? { executorId: nc.team.current() } : {}))
 
   // Static words. Everything else is written by the script that owns it.
   document.title = t('shell.title')
@@ -175,7 +172,7 @@
   byId('no-team-connect').textContent = t('shell.connectTeam')
 
   Object.assign(nc, {
-    byId, invoke, listen, attempt, reportError, clearError, footer, notify, keepFocus, dialogs,
+    byId, invoke, listen, attempt, reportError, clearError, footer, keepFocus, dialogs,
     view: {
       current: () => currentTab,
       show: showTab,
@@ -196,6 +193,17 @@
   }
   for (const tab of TABS) listen(`tray://section/${tab}`, (target) => attempt(() => openSection(tab, target)))
   listen('tray://connect', () => attempt(() => nc.pairing.open()))
+  /**
+   * A `nessie-computer://` link that started the app is handed over once the
+   * page asks for it (Windows). A host without the command answers with a
+   * refusal, which means no link.
+   */
+  const openLaunchLink = async () => {
+    let link = null
+    try { link = await invoke('executor_launch_link') } catch { return }
+    if (link?.connect) await nc.pairing.open()
+    else if (TABS.includes(link?.section)) await openSection(link.section, link)
+  }
 
   window.addEventListener('DOMContentLoaded', () => {
     nc.team.onListChange(renderTeamRow)
@@ -204,6 +212,7 @@
     attempt(async () => {
       try { await nc.team.refresh() } catch (error) { reportError(error) }
       try { await nc.pairing.restore() } catch (error) { reportError(error) }
+      await openLaunchLink()
     })
     setInterval(() => { nc.team.refresh().catch((error) => reportError(error)) }, 5000)
     showTab('overview')

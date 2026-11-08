@@ -47,7 +47,8 @@ const documentsReasonsEnglish = {
   },
 }
 
-const documentsReasonsByLocale = {
+// documents-words.js merges these into the Documents tab's words.
+window.documentsReasonsByLocale = {
   'en-GB': documentsReasonsEnglish,
   'en-US': documentsReasonsEnglish,
   cs: {

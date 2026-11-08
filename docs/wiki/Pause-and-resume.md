@@ -22,12 +22,17 @@ Other teams carry on.
 
 ## What happens to work in progress
 
-Work an agent already started finishes; nothing new starts. If you need it to
-stop now, stop it in Nessie from the agent's conversation, or quit Nessie
-Computer.
+Work an agent already started finishes; nothing new starts. To stop it now,
+choose **Stop** on its row under **Overview → Now working**.
 
 In Nessie, a paused computer shows **Paused on the computer**, and agents are
 told it's paused instead of trying to use it.
+
+## Stop one agent's work
+
+**Overview → Now working** lists each agent working on this computer and what
+it is running. Choose **Stop** on a row to cancel everything that agent is
+doing here. Other agents carry on, and the agent can start again unless you pause.
 
 ## Pause, Turn off and Quit
 

@@ -25,6 +25,7 @@
         const text = t('overview.notConnected', { team: nc.team.label(team.executorId) })
         items.push({ kind: 'failure', team, text, short: text })
       }
+      if (nc.team.isPlanConnection(team.executorId)) continue
       const reason = nc.summary.syncAttention(syncStates.get(team.executorId))
       if (reason) {
         const text = t('overview.documentsNeedYou', { team: nc.team.label(team.executorId), reason: t(`overview.reasons.${reason}`) })
@@ -36,7 +37,7 @@
 
   // ---- header
   const renderHeader = () => {
-    const teams = nc.team.list()
+    const teams = nc.team.teams()
     const needs = needItems()
     const paused = teams.filter((team) => team.paused).length
     const working = teams.filter((team) => nc.team.status(team) === 'working').length
@@ -126,7 +127,7 @@
     }).catch(() => { audiences.set(executorId, t('overview.audienceFailed')); fill(executorId, 'team-audience-text', audiences.get(executorId)) })
   }
   const reload = (fresh) => {
-    for (const team of nc.team.list()) {
+    for (const team of nc.team.teams()) {
       if (fresh || !summaries.has(team.executorId)) loadSummary(team.executorId, fresh)
       if (fresh || !audiences.has(team.executorId)) loadAudience(team.executorId)
     }
@@ -148,6 +149,14 @@
     const summary = document.createElement('p')
     summary.className = 'team-summary'
     summary.textContent = summaries.get(team.executorId) ?? t('overview.summaryLoading')
+    // On Windows the team's ChatGPT plans run on a second, service-owned connection; its state sits on the team's card.
+    const planLine = document.createElement('p')
+    planLine.className = 'team-plan'
+    planLine.hidden = !team.chatgptConnectionId
+    if (team.chatgptConnectionId) {
+      const plan = nc.team.get(team.chatgptConnectionId)
+      planLine.textContent = t('overview.planConnection', { status: plan ? nc.team.statusWord(plan) : t('teams.notConnected') })
+    }
     const audience = document.createElement('p')
     audience.className = 'team-audience'
     const audienceLabel = document.createElement('span')
@@ -157,7 +166,7 @@
     audienceText.className = 'team-audience-text'
     audienceText.textContent = audiences.get(team.executorId) ?? t('overview.audienceLoading')
     audience.append(audienceLabel, audienceText)
-    card.append(head, summary, audience)
+    card.append(head, summary, planLine, audience)
     if (nc.team.ownerConfirmationRequired(team.executorId)) {
       const restore = document.createElement('p')
       restore.className = 'hint'
@@ -188,7 +197,7 @@
     return card
   }
   const renderTeams = () => nc.keepFocus(byId('team-cards'), () => {
-    const teams = nc.team.list()
+    const teams = nc.team.teams()
     byId('overview-welcome').hidden = Boolean(teams.length)
     byId('overview-teams').hidden = !teams.length
     byId('team-cards').replaceChildren(...teams.map(teamCard))
@@ -212,7 +221,7 @@
 
   // Program requests and Documents attention are asked for while Overview is showing; failures ride the view.
   const loadNeeds = async () => {
-    const teams = nc.team.list()
+    const teams = nc.team.teams()
     const [nextRequests, states] = await Promise.all([
       teams.some((team) => team.pendingProgramRequests > 0) ? invoke('executor_program_requests', {}) : Promise.resolve([]),
       Promise.all(teams.map((team) => invoke('executor_sync_status', { executorId: team.executorId }).then((state) => [team.executorId, state]).catch(() => null))),

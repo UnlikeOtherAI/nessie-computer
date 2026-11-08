@@ -2,6 +2,8 @@
 const aiEnglish = {
   heading: 'AI for {team}', plans: 'ChatGPT plans', addPlan: 'Add a ChatGPT plan', planName: 'ChatGPT plan {n}',
   plansHint: 'A plan can be yours or your company’s. Each one funds your own agents in {team}; team agents use separate funding.',
+  connection: { needed: 'ChatGPT plans on Windows sign in through Nessie Computer’s background service. Adding the first plan connects it to {team}: one Windows prompt, then a pairing code.', title: 'Connect ChatGPT plans for {team}',
+    starting: 'Asking Windows and getting a code…', paired: 'Connected. Name the plan and sign in with ChatGPT.' },
   emptyPlans: 'No ChatGPT plans yet.', servers: 'Model servers', addServer: 'Add a model server',
   serversHint: 'An OpenAI-compatible server on this computer or your local network. Only this computer needs Nessie Computer.',
   emptyServers: 'No model servers yet.', manage: 'Manage', refresh: 'Check connections', loading: 'Checking connections…',
@@ -17,6 +19,8 @@ const aiByLocale = {
   cs: {
     heading: 'AI pro {team}', plans: 'Tarify ChatGPT', addPlan: 'Přidat tarif ChatGPT', planName: 'Tarif ChatGPT {n}',
     plansHint: 'Tarif může být váš nebo firemní. Každý financuje vaše vlastní agenty v týmu {team}; týmoví agenti mají samostatné financování.',
+    connection: { needed: 'Plány ChatGPT se ve Windows přihlašují přes službu Nessie Computer na pozadí. Přidání prvního plánu ji připojí k týmu {team}: jedna výzva Windows a párovací kód.', title: 'Připojit plány ChatGPT pro {team}',
+      starting: 'Čeká se na Windows a získává se kód…', paired: 'Připojeno. Pojmenujte plán a přihlaste se přes ChatGPT.' },
     emptyPlans: 'Zatím žádné tarify ChatGPT.', servers: 'Servery modelů', addServer: 'Přidat server modelů',
     serversHint: 'Server kompatibilní s OpenAI na tomto počítači nebo v místní síti. Nessie Computer stačí na tomto počítači.',
     emptyServers: 'Zatím žádné servery modelů.', manage: 'Spravovat', refresh: 'Ověřit připojení', loading: 'Ověřování připojení…',
@@ -29,6 +33,8 @@ const aiByLocale = {
   de: {
     heading: 'KI für {team}', plans: 'ChatGPT-Tarife', addPlan: 'ChatGPT-Tarif hinzufügen', planName: 'ChatGPT-Tarif {n}',
     plansHint: 'Ein Tarif kann Ihrer oder der Ihrer Firma sein. Jeder finanziert Ihre eigenen Agenten in {team}; Team-Agenten werden separat finanziert.',
+    connection: { needed: 'ChatGPT-Pläne melden sich unter Windows über den Hintergrunddienst von Nessie Computer an. Der erste Plan verbindet ihn mit {team}: eine Windows-Abfrage, dann ein Kopplungscode.', title: 'ChatGPT-Pläne für {team} verbinden',
+      starting: 'Windows wird gefragt und ein Code geholt…', paired: 'Verbunden. Benennen Sie den Plan und melden Sie sich mit ChatGPT an.' },
     emptyPlans: 'Noch keine ChatGPT-Tarife.', servers: 'Modellserver', addServer: 'Modellserver hinzufügen',
     serversHint: 'Ein OpenAI-kompatibler Server auf diesem Computer oder in Ihrem lokalen Netzwerk. Nur dieser Computer braucht Nessie Computer.',
     emptyServers: 'Noch keine Modellserver.', manage: 'Verwalten', refresh: 'Verbindungen prüfen', loading: 'Verbindungen werden geprüft…',
@@ -41,6 +47,8 @@ const aiByLocale = {
   es: {
     heading: 'IA para {team}', plans: 'Planes de ChatGPT', addPlan: 'Añadir un plan de ChatGPT', planName: 'Plan de ChatGPT {n}',
     plansHint: 'Un plan puede ser tuyo o de tu empresa. Cada uno financia tus propios agentes en {team}; los agentes del equipo tienen financiación aparte.',
+    connection: { needed: 'En Windows, los planes de ChatGPT inician sesión a través del servicio en segundo plano de Nessie Computer. Añadir el primer plan lo conecta a {team}: un aviso de Windows y un código de emparejamiento.', title: 'Conectar planes de ChatGPT para {team}',
+      starting: 'Pidiendo permiso a Windows y obteniendo un código…', paired: 'Conectado. Ponle nombre al plan e inicia sesión con ChatGPT.' },
     emptyPlans: 'Todavía no hay planes de ChatGPT.', servers: 'Servidores de modelos', addServer: 'Añadir un servidor de modelos',
     serversHint: 'Un servidor compatible con OpenAI en este ordenador o en tu red local. Solo este ordenador necesita Nessie Computer.',
     emptyServers: 'Todavía no hay servidores de modelos.', manage: 'Gestionar', refresh: 'Comprobar conexiones', loading: 'Comprobando conexiones…',
@@ -53,6 +61,8 @@ const aiByLocale = {
   fr: {
     heading: 'IA pour {team}', plans: 'Forfaits ChatGPT', addPlan: 'Ajouter un forfait ChatGPT', planName: 'Forfait ChatGPT {n}',
     plansHint: 'Un forfait peut être le vôtre ou celui de votre entreprise. Chacun finance vos propres agents dans {team} ; les agents d’équipe ont un financement distinct.',
+    connection: { needed: 'Sous Windows, les forfaits ChatGPT se connectent via le service d’arrière-plan de Nessie Computer. Ajouter le premier forfait le relie à {team} : une invite Windows, puis un code d’appairage.', title: 'Connecter des forfaits ChatGPT pour {team}',
+      starting: 'Demande à Windows et obtention d’un code…', paired: 'Connecté. Nommez le forfait et connectez-vous avec ChatGPT.' },
     emptyPlans: 'Aucun forfait ChatGPT pour le moment.', servers: 'Serveurs de modèles', addServer: 'Ajouter un serveur de modèles',
     serversHint: 'Un serveur compatible OpenAI sur cet ordinateur ou votre réseau local. Seul cet ordinateur a besoin de Nessie Computer.',
     emptyServers: 'Aucun serveur de modèles pour le moment.', manage: 'Gérer', refresh: 'Vérifier les connexions', loading: 'Vérification des connexions…',
@@ -65,6 +75,8 @@ const aiByLocale = {
   it: {
     heading: 'IA per {team}', plans: 'Piani ChatGPT', addPlan: 'Aggiungi un piano ChatGPT', planName: 'Piano ChatGPT {n}',
     plansHint: 'Un piano può essere tuo o della tua azienda. Ognuno finanzia i tuoi agenti in {team}; gli agenti del team hanno un finanziamento separato.',
+    connection: { needed: 'Su Windows i piani ChatGPT accedono tramite il servizio in background di Nessie Computer. Aggiungere il primo piano lo collega a {team}: una richiesta di Windows, poi un codice di abbinamento.', title: 'Collega i piani ChatGPT per {team}',
+      starting: 'Richiesta a Windows e recupero del codice…', paired: 'Collegato. Dai un nome al piano e accedi con ChatGPT.' },
     emptyPlans: 'Nessun piano ChatGPT ancora.', servers: 'Server di modelli', addServer: 'Aggiungi un server di modelli',
     serversHint: 'Un server compatibile con OpenAI su questo computer o nella tua rete locale. Solo questo computer richiede Nessie Computer.',
     emptyServers: 'Nessun server di modelli ancora.', manage: 'Gestisci', refresh: 'Verifica connessioni', loading: 'Verifica delle connessioni…',

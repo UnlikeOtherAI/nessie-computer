@@ -41,6 +41,16 @@ Read from Nessie each time; nothing is stored.
 nessie-computer who [--team <team>] [--json]
 ```
 
+### `sessions`
+What agents are doing on this computer right now: one session per agent run,
+with the commands running in it. Sessions run side by side, and so do the
+commands inside one.
+
+```sh
+nessie-computer sessions [list] [--team <team>] [--json]
+nessie-computer sessions stop <session-id>      # cancels everything in that session
+```
+
 ---
 
 ## Connecting

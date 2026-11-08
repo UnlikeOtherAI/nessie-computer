@@ -97,7 +97,7 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .team-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
 .team-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .team-card h3 { overflow-wrap: anywhere; min-width: 0; }
-.team-summary, .team-audience { margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
+.team-summary, .team-plan, .team-audience { margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 .team-audience .label-inline { color: var(--text); }
 .status-word { font-weight: 600; white-space: nowrap; }
 .status-word::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--control); vertical-align: 0; }
@@ -108,9 +108,9 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .failure-details summary { font-size: 12px; margin: 6px 0 2px; }
 .failure-details p { font-size: 12px; color: var(--muted); margin: 0; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
 /* Connect a team */
-#code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }
-#pairing-code { font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
-#pairing-code.expired { color: var(--muted); text-decoration: line-through; }
+#code-row, .code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }
+#pairing-code, #ai-connection-code { font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
+#pairing-code.expired, #ai-connection-code.expired { color: var(--muted); text-decoration: line-through; }
 #copy-code { padding: 5px 9px; font-size: 12px; }
 #pairing-getting { color: var(--muted); }
 /* Settings */
@@ -119,7 +119,70 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .update-actions button, #update-dialog button, #update-policy .toggle { min-height: 44px; }
 #update-dialog .actions { flex-wrap: wrap; }
-@media (max-width: 470px) { main, header { padding-left: 16px; padding-right: 16px; } .tabs, .team-row, #error { margin-left: 16px; margin-right: 16px; } .team-card .actions button { min-height: 40px; } }
+/* Team tabs share one list row: a name, a detail line under it, one control on the right. */
+.list-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.list-row:last-child { border-bottom: 0; }
+.list-row .list-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.list-row .list-name small { display: block; color: var(--muted); }
+.list-row[aria-disabled=true] .list-name { color: var(--muted); }
+.list-row .switch .track { pointer-events: none; }
+.saved-note { color: var(--on); font-size: 12px; margin-left: 10px; font-weight: 400; }
+/* Access */
+.access-section { padding: 14px 0 18px; border-bottom: 1px solid var(--line); }
+.access-section:last-of-type { border-bottom: 0; }
+.access-section .section-heading { margin-bottom: 4px; }
+.access-section .intro { margin: 4px 0 10px; }
+.access-section textarea { min-height: 64px; }
+.access-mode { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 6px 0 2px; }
+.access-mode .toggle { margin: 0; font-weight: 400; white-space: nowrap; align-items: center; }
+.access-mode .toggle input { margin: 0; }
+.access-mode .hint { flex-basis: 100%; margin: 0; }
+.access-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 10px 12px; background: var(--soft); border-radius: 8px; }
+.access-apply .access-lines { flex: 1 1 220px; min-width: 0; }
+.access-apply p { margin: 0; overflow-wrap: anywhere; }
+.access-current { font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
+.access-note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+details.access-developers { margin-top: 8px; }
+details.access-developers summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+#access-status { color: var(--muted); }
+#access-status button, #documents-load-error button { padding: 2px 8px; font-size: 12px; }
+/* Documents */
+.documents-heading #documents-switch { font-size: 15px; justify-content: space-between; align-items: flex-start; }
+#documents-switch-label { flex: 1 1 auto; min-width: 0; }
+#documents-switch .track { flex-shrink: 0; margin-top: 1px; }
+.documents-status { margin: 4px 0 12px; }
+.documents-state { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; }
+.documents-status .hint { margin: 2px 0 0 18px; }
+.documents-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--control); }
+.documents-dot[data-tone=ok] { background: var(--on); }
+.documents-dot[data-tone=busy] { background: var(--accent); }
+.documents-dot[data-tone=wait] { background: var(--wait); }
+.documents-dot[data-tone=warn] { background: var(--error); }
+#documents-folder-label { margin-top: 16px; }
+.documents-folder-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.documents-folder-row .path { flex: 1 1 220px; margin: 0; font-size: 13px; color: var(--text); }
+.documents-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.documents-actions button, #documents-choose { min-height: 36px; }
+.documents-block { background: var(--soft); border-radius: 8px; padding: 12px 14px; margin-top: 18px; }
+#documents-held h3, #documents-conflicts h3 { font-size: 14px; margin: 0 0 6px; }
+#documents-conflicts { margin-top: 18px; }
+#documents-held .documents-actions { margin-bottom: 0; }
+.documents-paths { margin: 6px 0; padding-left: 18px; font-size: 12px; overflow-wrap: anywhere; }
+.documents-conflict { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.documents-conflict p { margin: 0 0 4px; }
+.documents-conflict .documents-actions { margin: 8px 0 0; }
+.documents-path { overflow-wrap: anywhere; min-width: 0; font-weight: 600; }
+.documents-path small { font-weight: 400; }
+/* AI */
+.ai-name-row { display: flex; align-items: center; gap: 8px; }
+.ai-name-row input { flex: 1; min-width: 0; }
+/* The 440 px minimum window: tighter gutters, rows that wrap, controls a finger can hit. */
+@media (max-width: 470px) {
+  main, header { padding-left: 16px; padding-right: 16px; }
+  .tabs, .team-row, #error { margin-left: 16px; margin-right: 16px; }
+  .team-card .actions button, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
+  .list-row { flex-wrap: wrap; }
+}
 
 /* Content text is selectable; controls are not. */
 button, [role=tab], select, summary, .switch, .toggle, .tabs, label, footer { -webkit-user-select: none; user-select: none; }
