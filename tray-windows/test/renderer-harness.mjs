@@ -20,6 +20,7 @@ import { verifyAccessTab } from './access-renderer.mjs'
 import { verifyDocumentsTab } from './documents-renderer.mjs'
 import { captureDocumentsTeamsBefore, verifyDocumentsTeams } from './documents-teams-renderer.mjs'
 import { verifyAiTab } from './ai-tab-renderer.mjs'
+import { verifyAiLocal } from './ai-local-renderer.mjs'
 import { verifyNowWorking } from './working-renderer.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -54,6 +55,7 @@ try {
   if (only.includes('documents')) await verifyDocumentsTab(browser, ui, after)
   if (only.includes('documents-teams')) await verifyDocumentsTeams(browser, ui, after)
   if (only.includes('ai')) await verifyAiTab(browser, ui, after)
+  if (only.includes('ai')) await verifyAiLocal(browser, ui)
   if (only.includes('updates')) {
     await verifySoftwareUpdates(browser, ui, files, root)
     await verifyUpdatesStuck(browser, ui, files)

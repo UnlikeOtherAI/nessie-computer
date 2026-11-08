@@ -12,6 +12,7 @@ export type ExecutorDaemonSignatureDomain =
   | 'cancel'
   | 'heartbeat'
   | 'local_inference.host'
+  | 'local_inference.cli_host'
   | 'chatgpt.challenge'
   | 'chatgpt.delegate'
   | 'chatgpt.disconnect'

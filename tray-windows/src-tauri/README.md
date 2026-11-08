@@ -159,3 +159,13 @@ grouping, toast text, link parsing and the pipe answers. `installer-smoke.ps1`
 service display name, the Start menu shortcut and the link registration, and
 that uninstall removes them. Never launch a candidate tray on a computer with
 an installed Nessie Computer: it starts that person's paired teams.
+
+## Claude Code and Codex (`local_ai.rs`)
+
+`executor_local_ai`, `executor_set_local_ai`, `executor_local_ai_add_account`,
+`executor_local_ai_sign_in` and `executor_local_ai_remove_account` run the
+CLI's `local-inference engines --operation-stdin --state-dir <dir>` for a team
+connected under this Windows account. A team the background service runs
+answers `{ "unavailable": "service" }`: the service account has no Claude Code
+or Codex sign-in of the owner's. See
+[Claude Code and Codex as engines](../../docs/local-cli-engines.md).

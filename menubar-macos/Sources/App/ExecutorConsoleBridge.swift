@@ -126,6 +126,8 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
             }
             await controller.apply(remedy)
             return view()
+        case let local where LocalAIControl.commands.contains(local):
+            return try await invokeLocalAI(local, args: args, controller: controller)
         case let sync where sync.hasPrefix("executor_sync_") || sync == "executor_open_path":
             return try await invokeSync(sync, args: args, controller: controller)
         default: throw ExecutorRefusal(.invalidRequest)

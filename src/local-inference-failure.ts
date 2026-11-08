@@ -3,6 +3,7 @@ import { LocalInferenceReceiptError } from './local-inference-receipts.js'
 import { OllamaChatError } from './ollama-chat.js'
 import { LocalOpenAiError } from './openai-local-config.js'
 import { ChatgptError } from './chatgpt-errors.js'
+import { LocalCliEngineError } from './local-cli-engine-error.js'
 
 const API_CODES = new Set([
   'LOCAL_INFERENCE_API_CANCELLED', 'LOCAL_INFERENCE_API_TIMEOUT', 'LOCAL_INFERENCE_API_UNREACHABLE',
@@ -10,7 +11,7 @@ const API_CODES = new Set([
 ])
 
 export type LocalInferenceFailure = {
-  category: 'endpoint' | 'ollama' | 'relay' | 'receipt' | 'host' | 'chatgpt'
+  category: 'endpoint' | 'ollama' | 'relay' | 'receipt' | 'host' | 'chatgpt' | 'cli'
   code: string
   apiCode?: string
   status?: number
@@ -22,6 +23,7 @@ export const localInferenceFailure = (error: unknown): LocalInferenceFailure => 
   if (error instanceof ChatgptError) return { category: 'chatgpt', code: error.code,
     ...(error.status ? { status: error.status } : {}) }
   if (error instanceof LocalOpenAiError) return { category: 'endpoint', code: error.code }
+  if (error instanceof LocalCliEngineError) return { category: 'cli', code: error.code }
   if (error instanceof OllamaChatError) return { category: 'ollama', code: error.code }
   if (error instanceof LocalInferenceApiError) {
     const transportCode = localInferenceTransportCode({ code: error.transportCode })

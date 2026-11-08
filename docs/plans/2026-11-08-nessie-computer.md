@@ -453,6 +453,9 @@ computer is offered with one switch, **Make available**, per connection (the
 team in the dropdown). Whether the team or only the owner may use it is
 Nessie's setting, not the computer's.
 
+- **On by default (ruling, 8 Nov):** an installed, signed-in Claude Code or Codex
+  is available to every connection unless the owner switches it off; an
+  explicit off is stored and kept.
 - **On this computer:** Claude Code and Codex, detected (installed, signed in,
   which account — the existing account probes). Each row: name, account,
   **Make available** switch. Not installed → row greyed out, "Not installed on
