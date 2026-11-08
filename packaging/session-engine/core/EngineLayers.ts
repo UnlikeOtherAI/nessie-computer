@@ -24,8 +24,8 @@ import { createSessionStateLayers } from './StateLayers.ts'
  * Consumers, recovery and provider admission require the separately ordered runtime owner.
  */
 export const createSessionEngineLayers = (state = createSessionStateLayers()) => {
-  const shared = Layer.mergeAll(state.layer, IdAllocator.layer, ContinuationRequests.layer,
-    ThreadCommandExecutor.layer, CommandPolicy.layer, Forks.layer, Output.layer)
+  const shared = Layer.mergeAll(IdAllocator.layer, ContinuationRequests.layer,
+    ThreadCommandExecutor.layer, CommandPolicy.layer, Forks.layer, Output.layer).pipe(Layer.provideMerge(state.layer))
   const adapters = Adapters.layerFromProviderInstanceRegistry.pipe(Layer.provide(shared))
   const switches = Switches.layer.pipe(Layer.provide(adapters))
   const decisions = Layer.mergeAll(Handoffs.layer, Policy.layerFromProjectStore,

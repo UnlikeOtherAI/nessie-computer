@@ -24,7 +24,7 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
     emitDeclarationOnly: Boolean(declarationDirectory), outDir: resolve(tools, '.virtual-declarations'),
     allowImportingTsExtensions: true, resolveJsonModule: true, verbatimModuleSyntax: true,
     strict: true, noUncheckedIndexedAccess: true, exactOptionalPropertyTypes: true, noImplicitOverride: true,
-    skipLibCheck: true, allowSyntheticDefaultImports: true, esModuleInterop: true,
+    skipLibCheck: false, allowSyntheticDefaultImports: true, esModuleInterop: true,
     types: ['node'], typeRoots: [resolve(tools, 'node_modules/@types')],
   }
   const host = ts.createCompilerHost(options)
@@ -92,6 +92,6 @@ export const typecheckSessionState = async (snapshot, entryPoint, { declarationD
       }
     }
   }
-  return { compiler: ts.version, sourceFiles: program.getSourceFiles().length,
+  return { compiler: ts.version, sourceFiles: program.getSourceFiles().length, libraryChecks: true,
     ...(declarations ? { declarations: await declarations.save(declarationDirectory, resolve(entryPoint)) } : {}) }
 }

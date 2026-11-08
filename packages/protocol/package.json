@@ -23,7 +23,7 @@
     "build": "node src/t3-session/generate.mjs && node ../../scripts/compile.mjs -p tsconfig.build.json",
     "typecheck": "node ../../scripts/compile.mjs --noEmit -p tsconfig.json",
     "lint": "eslint src --max-warnings 0",
-    "test:t3-session-contracts": "node --test --import tsx ../../test/t3-session-contracts/*.test.ts"
+    "test:t3-session-contracts": "node --test --test-concurrency=1 --import tsx ../../test/t3-session-contracts/*.test.ts"
   },
   "dependencies": {
     "zod": "^3.25.76",
