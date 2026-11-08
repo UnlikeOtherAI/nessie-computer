@@ -34,6 +34,9 @@ Corrected qualification uses contracts `4dbabb20` and privacy `fdfdfed2`, with
 The [qualification record](session-engine-qualification.md) distinguishes fresh
 gates from the historical `db4bd597` artifacts, which remain rejected as final
 privacy evidence. Installed runtime, provider and lifecycle acceptance remain open.
+The [independent V05 record](session-engine-v05.md) adds a fresh matching producer
+build and actual official Node 22.23.1 import/privacy and SQLite history passes;
+the second-output comparison and remaining registered gates are still queued.
 
 This is a machine-only build boundary. It has no member-facing surface. A later
 runtime must be reachable through Nessie's selected-team computer/session flow;

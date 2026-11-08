@@ -1,5 +1,10 @@
 # Corrected combined session-engine qualification
 
+The [V05 independent qualification](session-engine-v05.md) records a fresh owned
+producer build, complete input/type/license integrity checks and actual official
+Node 22.23.1 import/privacy and SQLite history execution. It distinguishes these
+passes from the remaining resource-queued gates described below.
+
 V04 uses private base `44c27761ab63e34f12ca7eea019d781b78760278` and public
 base `0dc9f269bb11830436f1196fe2195bddaf6ca0e1`. The isolated worktree is
 `C:\Users\ondre\.t3\worktrees\Nessie\t3-9a397781`; public fixes belong to
