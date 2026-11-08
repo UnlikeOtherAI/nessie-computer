@@ -32,6 +32,8 @@ mod macos_cli;
 mod macos_snapshot;
 #[cfg(target_os = "macos")]
 mod macos_service;
+#[cfg(target_os = "macos")]
+mod macos_recovery;
 
 use crate::protocol::NativeError;
 use nessie_executor_updater::protocol::Request;

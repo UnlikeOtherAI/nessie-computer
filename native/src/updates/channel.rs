@@ -57,8 +57,11 @@ pub(super) fn call_value(request: &serde_json::Value) -> Result<serde_json::Valu
         return Err(REJECTED.into());
     }
     let stream = UnixStream::connect(SOCKET).map_err(|_| REJECTED)?;
+    // Status verifies the installed release on every request, which takes
+    // seconds on a busy Mac. Answer inside the apps' ten-second deadline rather
+    // than reporting a slow but healthy helper as unreachable.
     stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
+        .set_read_timeout(Some(Duration::from_secs(9)))
         .map_err(|_| REJECTED)?;
     stream
         .set_write_timeout(Some(Duration::from_secs(5)))

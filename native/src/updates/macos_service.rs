@@ -13,13 +13,15 @@ fn present(path: &Path) -> UpdateResult<bool> {
     }
 }
 
+fn report(code: &str) {
+    if let Ok(message) = std::ffi::CString::new(format!("Nessie update helper: {code}")) {
+        unsafe { libc::syslog(libc::LOG_ERR, c"%s".as_ptr(), message.as_ptr()); }
+    }
+}
+
 pub(super) fn run() -> UpdateResult<()> {
     let result = run_registered();
-    if let Err(code) = result {
-        if let Ok(message) = std::ffi::CString::new(format!("Nessie update helper: {code}")) {
-            unsafe { libc::syslog(libc::LOG_ERR, c"%s".as_ptr(), message.as_ptr()); }
-        }
-    }
+    if let Err(code) = result { report(code); }
     result
 }
 
@@ -29,6 +31,11 @@ fn run_registered() -> UpdateResult<()> {
     unix_runtime::directory(&root()?)?;
     let store = Store::new(root()?);
     if !store.installation_enabled()? { return Err("update.installation_removed"); }
+    // An app update reaches an older installed factory only here. If the app's
+    // runtime cannot be installed yet, the installed runtime serves as before.
+    if unix_runtime::installed().is_ok() {
+        if let Err(code) = super::macos_recovery::application_runtime(&store) { report(code); }
+    }
     let has_pointer = present(Path::new(CURRENT))?;
     let has_worker = present(&root()?.join("worker.json"))?;
     // A partial accepted replacement belongs to the protected worker and its

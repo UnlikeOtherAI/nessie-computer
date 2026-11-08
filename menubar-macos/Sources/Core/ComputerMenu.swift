@@ -38,17 +38,21 @@ public struct ComputerMenuModel: Equatable, Sendable {
     /// Directories that hold a pairing this Mac cannot read.
     public let unreadableTeams: Int
     public let runtimeMissing: Bool
+    /// The update helper can't be reached or refuses, so no team can start.
+    public let updatesStuck: Bool
     public let language: NativeLanguage
 
     public init(
         teams: [TeamSnapshot],
         unreadableTeams: Int = 0,
         runtimeMissing: Bool = false,
+        updatesStuck: Bool = false,
         language: NativeLanguage = .current
     ) {
         self.teams = teams
         self.unreadableTeams = unreadableTeams
         self.runtimeMissing = runtimeMissing
+        self.updatesStuck = updatesStuck
         self.language = language
     }
 
@@ -59,6 +63,8 @@ public struct ComputerMenuModel: Equatable, Sendable {
         let activities = teams.map(\.activity)
         let working = activities.filter { $0 == .working }.count
         let paused = activities.filter { $0 == .paused }.count
+        // Said before "No team connected": the teams are there but can't start.
+        if updatesStuck { return say(.statusUpdatesStuck) }
         if teams.isEmpty { return say(.statusNoTeam) }
         if paused == teams.count { return say(.statusPaused) }
         if working > 0 {
@@ -71,6 +77,9 @@ public struct ComputerMenuModel: Equatable, Sendable {
     /// Everything that needs the owner, most urgent first.
     public var needsYouItems: [NeedsYouItem] {
         var items: [NeedsYouItem] = []
+        if updatesStuck {
+            items.append(NeedsYouItem(title: say(.needsYouUpdatesStuck), target: ConsoleTarget(section: .overview)))
+        }
         if runtimeMissing {
             items.append(NeedsYouItem(title: say(.needsYouReinstall), target: ConsoleTarget(section: .overview)))
         }

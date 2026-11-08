@@ -185,6 +185,14 @@ an update. Restart only connections whose local running switch is still on.
 Confirm the new runtime's own version, revision and health before reporting
 success.
 
+A drain is a bounded attempt. A waiting transaction holds new admissions for at
+most one hour, then reopens them for six hours before the next attempt; nothing
+running is stopped. Replacement is offered only inside an attempt window, and
+`installing` and `restarting` keep the fence. A downloading or waiting
+transaction whose version the installed runtime already meets (for example, a
+newer Mac app installed its own runtime) is archived under `updates/retired/`
+and its drain ends. See [recovering a stuck helper](macos-update-helper.md#recovering-a-stuck-helper).
+
 Journal the exact accepted release and installation phase before replacement.
 On interruption or reboot, inspect the actual package and resume that
 transaction. Do not discard an incomplete journal to hide an installation

@@ -135,3 +135,64 @@ refused (EPERM) for Root daemons such as launchd, so the earlier snapshot failed
 on every Mac with `EXECUTOR_MACOS_PROCESS_UNVERIFIED` and no managed runtime
 could start. A user process whose image was replaced on disk stays in the tree
 with no executable path unless its name is a product name, which still refuses.
+
+## Recovering a stuck helper
+
+On 8 November the Mac's helper had run since 6 November with maintenance state
+`{"draining":true,"restartReady":false,"target":null}`. Its accepted preview
+1.0.13 transaction (superseding 1.0.12 at 13:46) sat in `waiting`. The installed
+0.9.0 runtime (`879a601`) refused every launch with
+`EXECUTOR_MANAGED_RELEASE_REJECTED`: its `load()` resolved the `current` launch
+symlink as the release directory, which the immutability check rejects (fixed
+later by binding the kernel image). Installing 1.0.13 needed whole-machine
+clearance with the menu app gone. The app quits only through the handoff it
+starts when status says `waiting` and draining, but the 0.9.0 broker took 11.8
+seconds to answer status, past the 5-second native and 10-second app deadlines.
+The handoff never started, the drain never ended and no team could start.
+launchd's 178 runs and last exit 1 date from the 6 November snapshot failures;
+the running service had not restarted since. Replacing the app with 1.0.12 and
+1.0.15 did not restart it: launchd keeps the registered job until it exits, and
+the job hands over to the protected worker image of the installed runtime.
+
+Recovery now works from both ends without weakening a fence:
+
+- **Bounded drain.** A `waiting` transaction holds new starts back for at most
+  one hour (`updater/src/drain.rs`). Admissions then reopen for six hours and
+  the same accepted transaction tries again. Replacement is offered only inside
+  a window. `installing` and `restarting` keep the fence. The first drain time
+  is kept in `updates/drain.json`, beside the journal, so older workers ignore it.
+- **The app's own runtime.** Each time launchd starts the helper, its
+  app-bundled entry compares the installed runtime with the compiled app version
+  (`native/src/updates/macos_recovery.rs`). When the app is newer and no
+  replacement has started, it installs the app's runtime exactly as first setup
+  does: verified sealed snapshot, machine barrier, independent clearance with
+  the menu app allowed to stay, legacy retirement, then `current`. A
+  `downloading` or `waiting` transaction the new runtime meets is archived in
+  `updates/retired/<digest>.json` with its failure code and request, its staged
+  bytes stay, and the drain ends. An older worker still running then refuses the
+  downgrade, finds no transaction and exits; the new service starts a worker
+  from the new runtime. While admissions are already held for nothing newer
+  than the app, the entry keeps trying every three seconds. Otherwise it tries
+  for about a minute and hands over to the installed worker as before.
+- **The app restarts its helper.** A newer app unregisters and registers its
+  daemon once per app version when status shows an older installed runtime or
+  fails two probes in a row. The person's **Restart updates** does the same on
+  request and opens Login Items if macOS asks for approval again.
+- **Plain words.** While the helper can't be reached or refuses, the app reports
+  the local status `update.helper_unavailable`. Overview and the menu say
+  "Updates are stuck — teams can't start" instead of "No team connected", with
+  Restart updates as the one action. The journey
+  `node tray-windows/test/renderer-harness.mjs --updates-stuck-only` asserts
+  both places in seven locales.
+- **Monotonic for the app too.** Catalogue replacement refuses to put an older
+  app over a newer hand-installed one (`update.downgrade_refused`), and the
+  status client now waits nine seconds.
+
+Source checks cover these with the live state as fixtures: 22 updater tests on
+macOS (two model the 8 November state and fail without the change), 51 native
+Mac tests, 149 app unit tests, strict SwiftLint and an App/Core typecheck.
+Still unverified on the real Mac: whether SMAppService keeps the existing
+approval across unregister and register; that the 0.9.0 worker verifies the new
+release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
+newer app to a working team. Any extra product process, such as a team daemon
+started by hand from the app bundle, holds clearance until it exits.

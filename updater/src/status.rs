@@ -40,7 +40,7 @@ impl Coordinator<'_> {
         });
         let version = available.map(|value| value.manifest.version);
         let active = crate::policy::active_transaction(&preferences, &journal);
-        let draining = crate::policy::draining(&preferences, &journal);
+        let draining = self.store.draining(&preferences, &journal, now)?;
         let code = journal
             .code
             .clone()
