@@ -213,8 +213,10 @@ walked the static runtime imports. The selected closure contains no secret
 resolver or forbidden application host. Its original generated-image Markdown
 path adds pinned `remark-math` 6.0.0, matching the upstream manifest. Its frozen
 locks and portable contract declarations still require qualification. Root
-regenerated all ten families: 271 extraction and 36 privacy operations, combined
-SHA-256 `9a5632d54a59e498bcaa0893f41cfe733adca57033d3d8e3d377524c053ba77f`.
+regenerated all ten families: 272 extraction and 36 privacy operations, combined
+SHA-256 `a374fe2b145222844305c7798f49f2688644f474335eef1e3ba937b8a3b975fa`.
+The additional extraction operation exports the already-public original
+Codex client raw interface by name for declaration emission.
 On Maxis/Node 24.19.0, the Turbo source gates passed 15 producer checks, 14 privacy
 checks and 34 actual-source fixtures, all with zero skips. These cover selected
 policy denial before any driver effect and canary protection in both adapters.

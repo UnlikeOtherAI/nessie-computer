@@ -398,8 +398,9 @@ The combined request verifier preserves producer `15611588af2ffe71b426b3989a7cee
 as historical evidence and separately binds the current producer and extraction
 bytes. It includes client registry and finite host patch families before extraction.
 The request-only fixture omits the later workspace family by design. The current
-ten-family replay is `9a5632d54a59e498bcaa0893f41cfe733adca57033d3d8e3d377524c053ba77f`;
-271 extraction and 36 privacy operations cover both Codex adapters. The reviewed
+ten-family replay is `a374fe2b145222844305c7798f49f2688644f474335eef1e3ba937b8a3b975fa`;
+272 extraction and 36 privacy operations cover both Codex adapters, including
+the type-only export of the existing original Codex raw-client interface. The reviewed
 pure provider projection is the sole added provider-core derivation path; other
 package paths, traversal, replacement and replay refuse. Fifteen source-producer,
 14 privacy and 34 actual-source fixture cases passed on Maxis/Node 24.19.0.
