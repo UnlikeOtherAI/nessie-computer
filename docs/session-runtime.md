@@ -687,7 +687,9 @@ and registration linkage remain native-owned before any source read.
 existing source registry and single signed lane. Configured roots select which
 children to start; only a returned actual held descriptor announces inspection.
 Each request fences executor, epoch, source and writer. Heartbeat replacement,
-source removal, shutdown and update draining withdraw announcements and join
+including a replacement during registry lookup or protected startup, refuses
+before sending a source selector to the child. Source removal,
+shutdown and update draining withdraw announcements and join
 service-positive child clearance before daemon custody releases. A cleared child
 may be recreated after a bounded delay; unknown startup/clearance is retained as
 unavailable rather than retried as if no process existed.
