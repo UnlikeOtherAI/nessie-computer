@@ -35,7 +35,20 @@ pub struct Frame {
 }
 
 fn session(scope: &Value) -> Option<(&Value, &Value, &Value, &Value, &Value, &Value)> {
-    if scope["purpose"] != "control" {
+    if scope["purpose"] != "control"
+        || [
+            "executorId",
+            "originalOwnerGeneration",
+            "ownerKey",
+            "connectionEpoch",
+            "commandId",
+        ]
+        .iter()
+        .any(|key| scope[*key].as_str().is_none_or(|value| value.is_empty()))
+        || scope["authorizationRevision"]
+            .as_u64()
+            .is_none_or(|revision| revision == 0)
+    {
         return None;
     }
     Some((

@@ -48,7 +48,7 @@ export type CodingProcessControl = {
   stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<'stopped' | 'unknown'>
   /** Set when this host cannot contain an agent; starting one fails with this reason. */
   refusal?: string
-  spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: unknown }) => ChildProcess
+  spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: SessionEffectAuthority }) => ChildProcess
   identify: (pid: number) => Promise<CodingProcessIdentity | undefined>
   /**
    * The identity to record for what `spawnAgent` started, when that process

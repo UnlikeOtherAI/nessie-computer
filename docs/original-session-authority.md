@@ -108,3 +108,8 @@ phases, revoked native input and a provider-active deferred Codex regression.
 These are synthetic development fixtures. Qualification results and exact
 revision/helper hashes are recorded separately; none establishes signed installed
 personal custody by itself.
+
+The broker and host share the same in-memory original carrier: a successful
+signed consumption updates that carrier, rather than leaving a stale private
+copy in the caller. Native relay threads own duplicated Job handles so a late
+channel failure cannot act on a closed/reused handle.

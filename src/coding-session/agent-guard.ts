@@ -97,7 +97,7 @@ export const guardedProcessControl = (
       cwd: launch.cwd, env: { ...launch.env, ...(options.sessionEffect ? { NESSIE_SESSION_EFFECT_REQUIRED: '1' } : {}) }, stdio: options.sessionEffect ? ['pipe', 'pipe', 'pipe', 'ipc', 'pipe'] : ['pipe', 'pipe', 'pipe', 'ipc'], windowsHide: true, shell: false, detached: true,
     })
     // A guard that dies before reading this exits on its own, and that exit is the failure the host sees.
-    guard.send({ kind: 'start', sessionEffect: options.sessionEffect, command, args, cwd: options.cwd, env: options.env }, () => undefined)
+    guard.send({ kind: 'start', sessionEffect: options.sessionEffect?.reference, command, args, cwd: options.cwd, env: options.env }, () => undefined)
     if (options.sessionEffect) attachEffectTransport(guard, 4, options.sessionEffect, { command, args, cwd: options.cwd })
     return guard
   },

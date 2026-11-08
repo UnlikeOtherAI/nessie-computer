@@ -111,7 +111,7 @@ export const startAgentProcess = async (
     await effect?.consume()
     effect?.assertLive()
     child = context.control.spawnAgent(argv[0]!, argv.slice(1), { cwd: context.folder, env: context.env,
-      ...(effect ? { sessionEffect: effect.reference } : {}) })
+      ...(effect ? { sessionEffect: effect } : {}) })
   }
   catch (error) { await protectionLease?.release(); throw error }
   const spawned = await new Promise<boolean>((settle) => {

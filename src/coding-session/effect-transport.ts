@@ -10,7 +10,7 @@ const transports = new WeakMap<ChildProcess, Transport>()
 export const attachEffectTransport = (
   child: ChildProcess, fd: number, reference: unknown, launch: { command: string; args: string[]; cwd: string },
 ): void => {
-  const effect = SessionEffectAuthority.fromReference(reference)
+  const effect = reference instanceof SessionEffectAuthority ? reference : SessionEffectAuthority.fromReference(reference)
   const stream = child.stdio[fd] as Duplex | undefined
   if (!effect || !stream) throw new SessionEffectRefused()
   const pipe = new EffectPipe(stream), broker = new EffectBroker(pipe, effect.scope)

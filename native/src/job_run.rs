@@ -68,7 +68,7 @@ mod imp {
 #[cfg(windows)]
 pub(crate) mod imp {
     use super::{NativeError, CONTAINMENT_FAILED, PARENT_GONE, SPAWN_FAILED};
-    use std::os::windows::io::AsRawHandle;
+    use std::os::windows::io::{AsRawHandle, BorrowedHandle};
     use std::os::windows::process::CommandExt;
     use std::process::{Child, Command};
     use windows_sys::Win32::Foundation::{
@@ -266,10 +266,14 @@ pub(crate) mod imp {
                 return Err(abandon(child, crate::session_effect::REFUSED));
             }
             let input = child.stdin.take().ok_or(NativeError::new(SPAWN_FAILED))?;
-            let job_handle = job.0 as usize;
+            let job_for_relay = unsafe { BorrowedHandle::borrow_raw(job.0 as _) }
+                .try_clone_to_owned()
+                .map_err(|_| NativeError::new(CONTAINMENT_FAILED))?;
             std::thread::spawn(move || {
                 if receiver.relay(input, false).is_err() {
-                    unsafe { TerminateJobObject(job_handle as HANDLE, ENDED_BY_HELPER) };
+                    unsafe {
+                        TerminateJobObject(job_for_relay.as_raw_handle() as HANDLE, ENDED_BY_HELPER)
+                    };
                 }
             });
         }
