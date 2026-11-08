@@ -89,6 +89,19 @@ for (const legacy of [false, true]) {
   })
 }
 
+for (const mutation of ["UPDATE projection_thread_messages SET text = 'changed legacy text' WHERE message_id = 'message:0'",
+  "DELETE FROM projection_thread_messages WHERE message_id = 'message:0'"]) {
+  test(`V2 frozen-copy refresh refuses ${mutation.startsWith('UPDATE') ? 'editing' : 'deleting'} a prior message`, async () => {
+    const f = await engineFixture({ messages: 4 })
+    try {
+      const first = await capture(f)
+      f.writer.exec(mutation)
+      await assert.rejects(resume(f, first.generation), /snapshot_changed_requires_refresh/u)
+      await assert.rejects(capture(f), /frozen_legacy_diverged/u)
+    } finally { f.close() }
+  })
+}
+
 for (const legacy of [false, true]) {
   for (const [id, at] of [['backdated', '2019-01-01T00:00:00.000Z'],
     ['aaa:equal-time', '2020-01-01T00:00:00.000Z'], ['append', '2021-01-01T00:00:00.000Z']]) {
