@@ -32,7 +32,7 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
         organizationName: identity?.organizationName ?? null, teamName: identity?.teamName ?? null }
     }))
     if (args.includes('--json')) process.stdout.write(`${JSON.stringify(rows)}\n`)
-    else if (!rows.length) process.stdout.write('No teams paired. Run nessie-executor login to get a code.\n')
+    else if (!rows.length) process.stdout.write('No teams are connected. Run nessie-computer connect to connect one.\n')
     else for (const row of rows) process.stdout.write(
       `${row.organizationName ?? 'Server unavailable'} / ${row.teamName ?? 'Team unavailable'}\n  ${row.executorId} · ${row.apiBaseUrl}\n`,
     )
@@ -40,7 +40,7 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
   }
   const executorId = value(args, '--executor')
   const explicit = value(args, '--state-dir')
-  if (!explicit && !executorId) throw new Error('Select a connection with --executor <id> from teams, or --state-dir <path>.')
+  if (!explicit && !executorId) throw new Error('Choose a team with --executor <id> from nessie-computer teams, or --state-dir <path>.')
   const directory = explicit ?? await defaultPairingDirectory(executorId)
   const state = await loadExecutorState(directory)
   if (args[0] === 'daemon') {
@@ -52,7 +52,7 @@ export const runLocalSettingsCli = async (args: string[]): Promise<boolean> => {
   if (existing !== undefined && existing !== 'on' && existing !== 'off') throw new Error('Use --existing-sessions on|off.')
   if (existing !== undefined) {
     await setExistingSessionsEnabled(directory, existing === 'on')
-    process.stdout.write(`Existing coding sessions ${existing === 'on' ? 'enabled' : 'disabled'} on this connection.\n`)
+    process.stdout.write(`Agents ${existing === 'on' ? 'can' : 'can\'t'} read and message your Claude Code and Codex conversations.\n`)
   }
   const current = localCommandPolicyOf(state)
   const allow = value(args, '--allow')

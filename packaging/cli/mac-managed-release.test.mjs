@@ -33,6 +33,7 @@ test('Mac candidate binds signed byte hashes, readonly release and one retained 
     assert.ok(candidate.root.endsWith(candidate.releaseDigest))
     assert.ok((await readFile(join(root, 'scripts/postinstall'), 'utf8')).includes('managed-custody-install'))
     const launcher = await readFile(join(root, 'payload/usr/local/bin/nessie-executor'), 'utf8')
+    assert.equal(await readFile(join(root, 'payload/usr/local/bin/nessie-computer'), 'utf8'), launcher)
     assert.ok(launcher.includes(`'${MAC_MANAGED_ROOT}/releases/${candidate.releaseDigest}/nessie-executor-native'`))
     assert.ok(launcher.includes('managed-runtime -- "$@"'))
     assert.equal((await stat(join(candidate.root, 'nessie-executor.cjs'))).mode & 0o222, 0)

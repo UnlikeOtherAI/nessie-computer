@@ -81,8 +81,19 @@ export type ParsedCommand =
   | { executorId?: string; kind: 'status'; stateRoot?: string }
   | SyncCliCommand
 
-const usage = (): never => {
-  throw new Error(
+/**
+ * A command line whose first word is no command at all, as opposed to a known
+ * command given the wrong options. It carries the same usage text; `cli.ts`
+ * hands it to the commands people type, which say so and exit 2.
+ */
+export class UnknownCommandError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnknownCommandError'
+  }
+}
+
+const usageText = (): string => (
     'Usage: nessie-executor login --api <nessie|deeptest|https://your-nessie.example> [--workspace <folder>] '
     + '[--operations file.list,file.read]\n'
     + '       nessie-executor teams [--json] [--state-root <path>]\n'
@@ -147,8 +158,11 @@ const usage = (): never => {
     + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) [--root <absolute-folder>] '
     + '[on|off|pause|resume|status|verify|trash|resolve|confirm-held|restore-held] [--json] [--accept-existing-files] '
     + '[--conflict <id> --resolution keep_mine|keep_nessie|dismiss] [--batch <id>]\n'
-    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) --input-stdin',
-  )
+    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) --input-stdin'
+)
+
+const usage = (): never => {
+  throw new Error(usageText())
 }
 
 const positional = (args: string[]): string => {
@@ -353,5 +367,5 @@ export const parseCommand = (args: string[]): ParsedCommand => {
       stateDir: option(args, '--state-dir'),
     }
   }
-  return usage()
+  throw new UnknownCommandError(usageText())
 }
