@@ -55,9 +55,17 @@ export const RetainedImportCommitSchema = RetainedImportDaemonEnvelopeSchema.ext
   operation: z.literal('consent.commit'), challenge: RetainedImportChallengeSchema, receipt: RetainedImportLocalReceiptSchema,
   liveProof: RetainedImportLiveProofSchema,
 }).strict()
+/** Both digests are required: the canonical operation and its keyed broker spool. */
+export const RetainedImportOperationBindingSchema = z.object({
+  requestDigest: z.string().regex(/^[a-f0-9]{64}$/u),
+  relayRequestDigest: z.string().regex(/^hmac-sha256:[a-f0-9]{64}$/u), correlationId: ref,
+  scope: z.discriminatedUnion('kind', [z.object({ kind: z.literal('environment') }).strict(),
+    z.object({ kind: z.literal('thread'), threadId: ref }).strict()]),
+}).strict()
 export const RetainedImportVerificationRequestSchema = RetainedImportDaemonEnvelopeSchema.extend({
   operation: z.literal('verification.issue'), grantId: z.string().uuid(),
   purpose: z.enum(['consume', 'recheck', 'revoke']), leaseId: z.string().uuid().optional(),
+  operationBinding: RetainedImportOperationBindingSchema.optional(),
 }).strict()
 export const RetainedImportWithdrawalSchema = RetainedImportDaemonEnvelopeSchema.extend({
   operation: z.literal('consent.withdraw'), grantId: z.string().uuid(), liveProof: RetainedImportLiveProofSchema,
@@ -87,6 +95,10 @@ export const RetainedImportLeaseSchema = RetainedImportSourceSchema.extend({
   expiresAt: z.string().datetime(), basis: z.literal('prospective_import'),
   legacyCopyProvenance: z.literal('not_attested_by_original_source'),
   selectionKey: z.string().regex(/^[a-f0-9]{64}$/u),
+  operationBinding: RetainedImportOperationBindingSchema.optional(),
+}).strict()
+export const RetainedImportActivationSchema = RetainedImportGrantStatusSchema.extend({
+  bootstrapLeases: z.array(RetainedImportLeaseSchema).max(2),
 }).strict()
 export const RetainedImportLeaseCheckSchema = RetainedImportDaemonEnvelopeSchema.extend({
   operation: z.literal('lease.check'), leaseId: z.string().uuid(), token: z.string().min(1).max(64),
@@ -94,6 +106,7 @@ export const RetainedImportLeaseCheckSchema = RetainedImportDaemonEnvelopeSchema
   source: RetainedImportSourceSchema, purpose: z.enum(['capture', 'read', 'catalog', 'publish']),
   selectionKey: z.string().regex(/^[a-f0-9]{64}$/u),
   threadId: ref.optional(),
+  operationBinding: RetainedImportOperationBindingSchema.optional(),
   liveProof: RetainedImportLiveProofSchema,
 }).strict()
 export type RetainedImportChallenge = z.infer<typeof RetainedImportChallengeSchema>
@@ -106,6 +119,7 @@ export type RetainedImportLeaseCheck = z.infer<typeof RetainedImportLeaseCheckSc
 export type RetainedImportSelection = z.infer<typeof RetainedImportSelectionSchema>
 export type RetainedImportLiveProof = z.infer<typeof RetainedImportLiveProofSchema>
 export type RetainedImportVerificationRequest = z.infer<typeof RetainedImportVerificationRequestSchema>
+export type RetainedImportOperationBinding = z.infer<typeof RetainedImportOperationBindingSchema>
 
 /** Exact native digest preimage. Order is protocol, not a source catalog sort. */
 export function retainedImportChallengeDigestInput(c: RetainedImportChallenge): readonly unknown[] {
