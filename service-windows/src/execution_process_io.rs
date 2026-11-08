@@ -153,15 +153,7 @@ pub fn attach(
         while let Ok(message) = receiver.recv() {
             match message {
                 Input::Bytes(mut bytes, deadline, reply) => {
-                    let result = (|| -> Result<(), String> {
-                        for part in bytes.chunks(16384) {
-                            if now_ms()? >= deadline {
-                                return Err(REJECTED.into());
-                            }
-                            input.write_all(part).map_err(|_| REJECTED)?;
-                        }
-                        input.flush().map_err(|_| REJECTED.into())
-                    })();
+                    let result = crate::execution_input::write(&mut input, &bytes, deadline);
                     bytes.fill(0);
                     let failed = result.is_err();
                     let _ = reply.send(result);
@@ -277,6 +269,9 @@ pub fn attach(
     Ok(())
 }
 pub(crate) fn write(nonce: &str, bytes: Vec<u8>, deadline: u64) -> Result<(), String> {
+    if now_ms()? >= deadline {
+        return Err(REJECTED.into());
+    }
     let held = get(nonce)?;
     let (sender, record) = {
         let held = held.lock().map_err(|_| REJECTED)?;
@@ -289,8 +284,11 @@ pub(crate) fn write(nonce: &str, bytes: Vec<u8>, deadline: u64) -> Result<(), St
     sender
         .try_send(Input::Bytes(bytes, deadline, send))
         .map_err(|_| REJECTED)?;
-    match receive.recv_timeout(Duration::from_secs(4)) {
-        Ok(Ok(())) => Ok(()),
+    // The kernel write may block. Stop waiting at the signed deadline and
+    // terminate the Job on uncertainty; a late writer reply cannot revive it.
+    let wait = crate::execution_input::acknowledgement_wait(deadline, now_ms().unwrap_or(deadline));
+    match receive.recv_timeout(wait) {
+        Ok(Ok(())) if now_ms().is_ok_and(|now| now < deadline) => Ok(()),
         _ => {
             if let Ok(mut held) = held.lock() {
                 held.failed = true;

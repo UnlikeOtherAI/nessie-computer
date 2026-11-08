@@ -57,8 +57,12 @@ chunk and is never extended by retries.
 full binding, child, issuer, exact launch and receipt digests, phase and deadline.
 The service claims both nonce and frame before removing the held bytes and
 writing them. It does not accept replacement bytes. The pipe writer rechecks the
-deadline before each bounded write and ACK follows the actual write/flush.
-Uncertain write/ACK terminates the child Job and cannot be retried as a new write.
+deadline before every bounded or partial write, after the final write and after
+flush. The acknowledgement wait is capped by the remaining signed lifetime;
+even a successful kernel write cannot receive a success ACK after expiry.
+Uncertain or late write/ACK terminates the child Job and cannot be retried as a
+new write. Authored service fixtures cover partial writes crossing expiry, late
+flush, exact current bytes and the remaining-lifetime wait; root must run them.
 
 After native association, `stageEffectFrame` holds one complete frame and returns
 its service ID. `commitEffectFrame(frameId, freshSignedProof)` independently checks
