@@ -35,7 +35,7 @@ fn accepts_only_safe_executor_identifiers() {
     }
     assert_eq!(
         parse_request(r#"{"command":"start","executorId":"../state"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
 }
 
@@ -164,6 +164,9 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
             daemon_status: "running".to_owned(),
             executor_id: EXECUTOR.to_owned(),
             workspace_configured: true,
+            paused: true,
+            failure: None,
+            pending_program_requests: 2,
         }],
     }
     .encode();
@@ -171,13 +174,27 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
     assert_eq!(
         encoded.trim_end(),
         format!(
-            r#"{{"status":"ok","executors":[{{"daemonStatus":"running","executorId":"{EXECUTOR}","workspaceConfigured":true}}]}}"#,
+            r#"{{"status":"ok","executors":[{{"daemonStatus":"running","executorId":"{EXECUTOR}","workspaceConfigured":true,"paused":true,"pendingProgramRequests":2}}]}}"#,
         ),
     );
-    let refusal = Response::error("This executor has not been paired on this computer.").encode();
+    let stopped = Response::Ok {
+        executors: vec![ExecutorStatus {
+            daemon_status: "stopped".to_owned(),
+            executor_id: EXECUTOR.to_owned(),
+            workspace_configured: true,
+            paused: false,
+            failure: Some(nessie_windows_common::failure::classify("Executor connection is fenced.")),
+            pending_program_requests: 0,
+        }],
+    }
+    .encode();
+    assert!(stopped.contains(
+        r#""failure":{"code":"EXECUTOR_CONNECTION_FENCED","message":"Executor connection is fenced."}"#
+    ));
+    let refusal = Response::error("This team is not connected on this computer.").encode();
     assert_eq!(
         refusal.trim_end(),
-        r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#,
+        r#"{"status":"error","reason":"This team is not connected on this computer."}"#,
     );
 }
 
@@ -214,7 +231,7 @@ fn remove_names_one_validated_executor_and_nothing_else() {
     );
     assert_eq!(
         parse_request(r#"{"command":"remove","executorId":"../executors"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
     // The state directory is derived from the id; a caller may not name one.
     for line in [
@@ -239,4 +256,39 @@ fn a_removed_response_says_only_whether_the_sign_off_reached_nessie() {
         Response::Removed { signed_off: false }.encode().trim_end(),
         r#"{"status":"removed","signedOff":false}"#,
     );
+}
+
+#[test]
+fn the_owner_controls_name_one_validated_team_and_one_known_answer() {
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}","paused":true}}"#)).unwrap(),
+        Command::SetPaused { executor_id: EXECUTOR.to_owned(), paused: true },
+    );
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"programRequests","executorId":"{EXECUTOR}"}}"#)).unwrap(),
+        Command::ProgramRequests { executor_id: EXECUTOR.to_owned() },
+    );
+    assert_eq!(
+        parse_request(&format!(
+            r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"r-1","answer":"always"}}"#
+        )).unwrap(),
+        Command::AnswerProgramRequest {
+            executor_id: EXECUTOR.to_owned(), id: "r-1".to_owned(),
+            answer: nessie_windows_common::owner_controls::Answer::Always,
+        },
+    );
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"audience","executorId":"{EXECUTOR}"}}"#)).unwrap(),
+        Command::Audience { executor_id: EXECUTOR.to_owned() },
+    );
+    for line in [
+        format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}"}}"#),
+        format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}","paused":"yes"}}"#),
+        format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"../x","answer":"once"}}"#),
+        format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"r-1","answer":"approve"}}"#),
+        format!(r#"{{"command":"programRequests","executorId":"{EXECUTOR}","stateDir":"C:\\x"}}"#),
+        r#"{"command":"audience","executorId":"../x"}"#.to_owned(),
+    ] {
+        assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
+    }
 }

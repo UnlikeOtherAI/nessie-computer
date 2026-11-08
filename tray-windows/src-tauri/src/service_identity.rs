@@ -3,34 +3,46 @@
 //! The service name, its virtual account, and the layout under `%ProgramData%`
 //! belong to the service as much as to the tray, so they live in
 //! `nessie-windows-common` and are imported where they are needed. What is left
-//! here is this application's own: how it reaches that root, and where its menu
-//! items go.
+//! here is this application's own: how it reaches that root, and where **Open
+//! Nessie** goes for the server a team is paired with.
 
 use std::path::PathBuf;
 
 use nessie_windows_common::SERVICE_DIRECTORY_NAME;
 
-/// Where **Open Nessie** goes: the page that mints an executor invitation and
-/// confirms its fingerprint.
-pub const NESSIE_EXECUTORS_URL: &str = "https://app.nessie.works/admin/computers";
+/// The local admin that matches the local development API.
+const LOCAL_CONSOLE: &str = "http://localhost:5455";
 
-/// Where **Open Nessie** goes for a DeepTest executor.
-pub const DEEPTEST_EXECUTORS_URL: &str = "https://app.deeptest.live/admin/computers";
-
-/// The local admin origin that matches the local API origin. A development
-/// build opens the local admin; a release opens one of the hosted origins.
-pub const LOCAL_EXECUTORS_URL: &str = "http://localhost:5455/admin/computers";
-
-/// The pairing picker offers this closed set. Mapping API to its matching
-/// admin page here prevents a local invitation flow from sending someone back
-/// to cloud and creating an invitation for the wrong trust domain.
-pub fn executors_url_for_api(api_base_url: &str) -> Result<&'static str, String> {
-    match api_base_url {
-        "https://api.nessie.works" => Ok(NESSIE_EXECUTORS_URL),
-        "https://api.deeptest.live" => Ok(DEEPTEST_EXECUTORS_URL),
-        "http://127.0.0.1:5454" | "http://localhost:5454" => Ok(LOCAL_EXECUTORS_URL),
-        _ => Err("Choose a supported Nessie backend first.".to_owned()),
+/// The Computers page of the Nessie a team is paired with — never a fixed host.
+/// A hosted Nessie serves its admin beside its API, so the one rule is
+/// `api.` → `app.`; any other origin is a self-hosted Nessie and is opened as
+/// itself, as the macOS app does. While a pairing code is shown, the page
+/// opens on **Add a computer** with that code: a one-shot intent Nessie strips
+/// once it has read it.
+pub fn console_url(api_origin: &str, development: bool, code: Option<&str>) -> Result<String, String> {
+    let mut url = if development && api_origin == crate::pairing_origin::LOCAL_DEVELOPMENT_ORIGIN {
+        url::Url::parse(LOCAL_CONSOLE).map_err(|_| "This app could not prepare the Nessie address.".to_owned())?
+    } else {
+        let mut url = url::Url::parse(api_origin).map_err(|_| "Nessie gave an address this app does not open.")?;
+        if url.scheme() != "https" || !url.username().is_empty() || url.password().is_some() {
+            return Err("Nessie gave an address this app does not open.".to_owned());
+        }
+        let host = url.host_str().ok_or("Nessie gave an address this app does not open.")?.to_owned();
+        if let Some(rest) = host.strip_prefix("api.") {
+            url.set_host(Some(&format!("app.{rest}"))).map_err(|_| "Nessie gave an address this app does not open.")?;
+        }
+        url
+    };
+    url.set_path("/admin/computers");
+    url.set_query(None);
+    url.set_fragment(None);
+    if let Some(code) = code {
+        if code.len() != 8 || !code.bytes().all(|digit| digit.is_ascii_digit()) {
+            return Err("Invalid pairing code.".to_owned());
+        }
+        url.query_pairs_mut().append_pair("create", "1").append_pair("code", code);
     }
+    Ok(url.into())
 }
 
 /// The service's root under `%ProgramData%`. A host that does not report that
@@ -44,24 +56,28 @@ pub fn service_root() -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        executors_url_for_api, DEEPTEST_EXECUTORS_URL, LOCAL_EXECUTORS_URL, NESSIE_EXECUTORS_URL,
-    };
+    use super::console_url;
 
-    /// Opened in the person's browser, so it is the admin origin rather than
-    /// the API one, and it is fixed rather than assembled from anything a
-    /// caller supplies.
     #[test]
-    fn open_nessie_goes_to_the_executors_page_on_the_admin_origin() {
-        assert_eq!(NESSIE_EXECUTORS_URL, "https://app.nessie.works/admin/computers");
-        assert_eq!(
-            executors_url_for_api("https://api.deeptest.live").unwrap(),
-            DEEPTEST_EXECUTORS_URL,
-        );
-        assert_eq!(
-            executors_url_for_api("http://127.0.0.1:5454").unwrap(),
-            LOCAL_EXECUTORS_URL,
-        );
-        assert!(executors_url_for_api("https://nessie.example.com").is_err());
+    fn open_nessie_goes_to_the_paired_servers_computers_page() {
+        assert_eq!(console_url("https://api.nessie.works", false, None).unwrap(),
+            "https://app.nessie.works/admin/computers");
+        assert_eq!(console_url("https://api.deeptest.live", false, None).unwrap(),
+            "https://app.deeptest.live/admin/computers");
+        // A self-hosted Nessie is opened as itself.
+        assert_eq!(console_url("https://nessie.acme.example", false, None).unwrap(),
+            "https://nessie.acme.example/admin/computers");
+        assert_eq!(console_url("http://127.0.0.1:5454", true, None).unwrap(), "http://localhost:5455/admin/computers");
+        assert!(console_url("http://127.0.0.1:5454", false, None).is_err());
+        assert!(console_url("http://nessie.acme.example", false, None).is_err());
+    }
+
+    #[test]
+    fn while_pairing_the_page_opens_on_add_a_computer_with_the_code() {
+        assert_eq!(console_url("https://api.nessie.works", false, Some("12345678")).unwrap(),
+            "https://app.nessie.works/admin/computers?create=1&code=12345678");
+        for code in ["1234567", "123456789", "1234567a", "12345678&x=1"] {
+            assert!(console_url("https://api.nessie.works", false, Some(code)).is_err(), "{code}");
+        }
     }
 }

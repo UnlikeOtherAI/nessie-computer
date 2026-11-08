@@ -19,10 +19,10 @@ use std::io::{BufRead, BufReader, Read};
 const MAX_ANSWER_BYTES: u64 = 1_048_576;
 
 pub const SERVICE_NOT_RUNNING: &str =
-    "the service is not running — start Nessie Executor in Services";
+    "the service is not running — start Nessie Computer in Services";
 
 pub const NOT_ADMITTED: &str =
-    "this account may not control the executor — pair one from this tray to be admitted";
+    "this Windows account can’t use the Nessie Computer service yet — connect a team to be admitted";
 
 /// The useful answers the service can give, plus an error it already worded.
 /// The tray never sees a path, a key, or a challenge unless it asked for a
@@ -37,6 +37,8 @@ pub enum ServiceResponse {
     Describe(serde_json::Value),
     Pairing(serde_json::Value),
     Removed { signed_off: bool },
+    ProgramRequests(Vec<nessie_windows_common::owner_controls::ProgramRequest>),
+    Audience(serde_json::Value),
 }
 
 /// Reads one complete line from a pipe response. A named-pipe server may close
@@ -172,8 +174,8 @@ fn local_route(command: &str, owned: Option<bool>) -> bool {
         "pairingStart" | "pairingStatus" | "pairingCancel"))
 }
 
-/// Ordinary Add team remains interactive for the owner's installed tools.
-/// Personal-plan pairing addresses service_control explicitly, without fallback.
+/// Connect a team runs under this account; a ChatGPT plan connection
+/// addresses service_control explicitly, without fallback.
 pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
     let command = request["command"].as_str().unwrap_or("");
     if command == "status" {
@@ -198,7 +200,7 @@ pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
 /// not recognise is a failure, never an empty executor list.
 fn decode(answer: &str) -> Result<ServiceResponse, String> {
     let parsed: serde_json::Value = serde_json::from_str(answer.trim())
-        .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+        .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
     match parsed.get("status").and_then(serde_json::Value::as_str) {
         Some("inferenceConnections") => parsed.get("connections").cloned().map(ServiceResponse::InferenceConnections)
             .ok_or_else(|| "No inference connections were returned.".to_owned()),
@@ -206,23 +208,29 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             .ok_or_else(|| "The service returned no personal authority.".to_owned()),
         Some("pairing") => parsed.get("pairing").cloned().map(ServiceResponse::Pairing)
             .ok_or_else(|| "Pairing returned no answer.".to_owned()),
+        Some("programRequests") => parsed.get("requests").cloned()
+            .ok_or_else(|| "The program requests could not be read.".to_owned())
+            .and_then(nessie_windows_common::owner_controls::parse_program_requests)
+            .map(ServiceResponse::ProgramRequests),
+        Some("audience") => parsed.get("audience").cloned().map(ServiceResponse::Audience)
+            .ok_or_else(|| "Nessie didn’t say who can send work here.".to_owned()),
         Some("ok") => {
             let executors = serde_json::from_value(
                 parsed.get("executors").cloned().unwrap_or(serde_json::Value::Null),
             )
-            .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+            .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
             Ok(ServiceResponse::Status(executors))
         }
         Some("pairOk") => {
             let executor_id = parsed
                 .get("executorId")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
                 .to_owned();
             let fingerprint = parsed
                 .get("fingerprint")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
                 .to_owned();
             Ok(ServiceResponse::Pair { executor_id, fingerprint })
         }
@@ -230,20 +238,20 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             let description = parsed
                 .get("description")
                 .cloned()
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
             Ok(ServiceResponse::Describe(description))
         }
         Some("removed") => parsed
             .get("signedOff")
             .and_then(serde_json::Value::as_bool)
             .map(|signed_off| ServiceResponse::Removed { signed_off })
-            .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
+            .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
         Some("error") => Err(parsed
             .get("reason")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("the service refused the request")
             .to_owned()),
-        _ => Err("Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
+        _ => Err("Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
     }
 }
 
@@ -254,13 +262,28 @@ mod tests {
     #[test]
     fn an_ok_answer_carries_the_executor_list_verbatim() {
         let response = decode(
-            r#"{"status":"ok","executors":[{"daemonStatus":"running","executorId":"a-1","workspaceConfigured":true}]}"#,
+            r#"{"status":"ok","executors":[{"daemonStatus":"running","executorId":"a-1","workspaceConfigured":true,"paused":true,"pendingProgramRequests":1}]}"#,
         )
         .expect("an ok answer must decode");
         let ServiceResponse::Status(executors) = response else { panic!("expected status response") };
         assert_eq!(executors.len(), 1);
         assert_eq!(executors[0].daemon_status, "running");
         assert_eq!(executors[0].executor_id, "a-1");
+        assert!(executors[0].paused);
+        assert_eq!(executors[0].pending_program_requests, 1);
+        assert_eq!(executors[0].connection, crate::state::Connection::Service);
+    }
+
+    #[test]
+    fn program_requests_and_audience_answers_decode_strictly() {
+        let requests = decode(r#"{"status":"programRequests","requests":[{"id":"r1","program":"python","args":[],"requestedAt":"2026-11-08T10:00:00.000Z","expiresAt":"2026-11-08T10:02:00.000Z"}]}"#)
+            .expect("a request list must decode");
+        let ServiceResponse::ProgramRequests(list) = requests else { panic!("expected requests") };
+        assert_eq!(list[0].program, "python");
+        assert!(decode(r#"{"status":"programRequests"}"#).is_err());
+        assert!(decode(r#"{"status":"programRequests","requests":{}}"#).is_err());
+        assert_eq!(decode(r#"{"status":"audience","audience":{"agents":[]}}"#),
+            Ok(ServiceResponse::Audience(serde_json::json!({"agents":[]}))));
     }
 
     #[test]
@@ -304,8 +327,8 @@ mod tests {
     #[test]
     fn a_refusal_reaches_the_person_in_the_services_own_words() {
         assert_eq!(
-            decode(r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#),
-            Err("This executor has not been paired on this computer.".to_owned()),
+            decode(r#"{"status":"error","reason":"This team is not connected on this computer."}"#),
+            Err("This team is not connected on this computer.".to_owned()),
         );
     }
 

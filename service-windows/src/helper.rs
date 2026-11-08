@@ -47,13 +47,13 @@ fn run(helper: &Path, command: &str, path: &Path) -> Result<(), String> {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .map_err(|_| "Nessie Executor could not run its packaged state-security helper.".to_owned())?;
+        .map_err(|_| "Nessie Computer could not run its packaged state-security helper.".to_owned())?;
     match parse_helper_answer(&String::from_utf8_lossy(&output.stdout)) {
         HelperVerdict::Accepted => Ok(()),
         // The code is a stable identifier from a binary we ship, not a path or a
         // secret, so naming it is what makes a refusal diagnosable.
         HelperVerdict::Rejected(code) => {
-            Err(format!("Nessie Executor state is not owner-only ({code})."))
+            Err(format!("Nessie Computer state is not owner-only ({code})."))
         }
     }
 }
@@ -66,7 +66,7 @@ fn run(helper: &Path, command: &str, path: &Path) -> Result<(), String> {
 /// never asked for.
 pub fn secure_directory(helper: &Path, path: &Path) -> Result<(), String> {
     std::fs::create_dir_all(path)
-        .map_err(|_| "Nessie Executor could not create its state directory.".to_owned())?;
+        .map_err(|_| "Nessie Computer could not create its state directory.".to_owned())?;
     run(helper, "secure-directory", path)
 }
 
@@ -81,7 +81,7 @@ pub fn secure_directory(helper: &Path, path: &Path) -> Result<(), String> {
 /// with a flag.
 pub fn secure_service_directory(helper: &Path, path: &Path) -> Result<(), String> {
     std::fs::create_dir_all(path)
-        .map_err(|_| "Nessie Executor could not create its state directory.".to_owned())?;
+        .map_err(|_| "Nessie Computer could not create its state directory.".to_owned())?;
     run(helper, "secure-service-directory", path)
 }
 
