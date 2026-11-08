@@ -26,7 +26,7 @@ export const readSessionExecutionResources = (source: T3ExecutionResourceScope,
   // Keep them inside this protected resource callback; settings may hold secrets.
   const held = yield* Schema.decodeUnknownEffect(ServerSettings)(raw).pipe(
     Effect.mapError(() => new SessionExecutionResourceRefused()))
-  const current = yield* (yield* Settings.ServerSettingsService).getSettings
+  const current = yield* (yield* Settings.ServerSettingsReadService).getSettings
   if (canonicalExecutorJson(Schema.encodeSync(ServerSettings)(held))
     !== canonicalExecutorJson(Schema.encodeSync(ServerSettings)(current))) {
     return yield* Effect.fail(new SessionExecutionResourceRefused())

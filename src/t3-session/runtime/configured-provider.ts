@@ -16,7 +16,7 @@ export class ConfiguredSessionProviderRefused extends Error {
  */
 export const readConfiguredSessionProvider = (projectId: ProjectId, instanceId: ProviderInstanceId) =>
   Effect.gen(function* () {
-    const settings = yield* (yield* Settings.ServerSettingsService).getSettings
+    const settings = yield* (yield* Settings.ServerSettingsReadService).getSettings
     const entry = Object.hasOwn(settings.providerInstances, instanceId)
       ? settings.providerInstances[instanceId] : undefined
     if (!entry || !resolveProviderInstanceEnabled(entry)

@@ -586,3 +586,19 @@ Two additional fixtures cover source transaction ownership, full legacy baseline
 escaped views and forged-resource refusal; both are authored and unrun. Fixed
 entry, full inspect/open registration, admitted SDK serialization, immutable
 history child and installed recovery journeys remain unfinished.
+
+Cold inspection now consumes `Settings.ServerSettingsReadService` (the original
+`getSettings` type only) and `ProjectClones.ProjectCloneReadService` (the original
+`get` type only). The extracted `ProjectCloneState` owns the original Ref map;
+its live clone tracker and cold reader use that same layer, rather than a fake
+empty tracker. The original clone guard accepts exactly its consumed read shape.
+`sessionExecutionSettingsLayer` decodes only recognized held source bytes and
+rechecks before and after each original-codec read. It provides no start/update/
+subscription methods and never hydrates a provider or credential resolver.
+
+Authorized launch still requires the full original settings service and clone
+tracker; these read interfaces do not substitute for either. Existing compiler
+fixes from approved parent `ea74232e550657a57efc9169d0d198ef40e094e5` are preserved.
+Two added fixtures check the shared clone map and forged-settings refusal. They
+are unrun. All 149 patched modules parsed without evaluation; combined manifest
+SHA-256 is `345b17a5cbf8913815ac1b482393e72d7612994e0b905bea9d2c1fe14323b9be`.
