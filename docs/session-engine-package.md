@@ -359,3 +359,10 @@ not a claimed private gate pass.
 This is a machine-only build/library capability. No UI changes or screenshots
 apply. Canonical vault save/use/delivery, admitted provider/resource/lifecycle
 owners, installed custody, gateway and original-client/mobile parity remain open.
+
+The combined request verifier pins integrated producer `15611588af2ffe71b426b3989a7cee0fd66a04d8`
+and includes the original client registry and finite host patch families before
+extraction. The request-only fixture omits the later workspace family by design;
+the full ten-family source probe retains digest
+`ee31451828ab5dc42b49ed53fc78f0bc38223908bb8e9069f3096115e8dc2303`.
+Neither check qualifies the generated runtime or declarations.

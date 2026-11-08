@@ -14,7 +14,7 @@ Turbo using `scripts/turbo.public.json`; package tests must retain their build
 prerequisites. Windows state tests require the real native ACL helper beside
 their test Node. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
-Session tool schemas, shared input-dependent receipt policy and the unbound admission boundary follow [MCP adapters](docs/session-mcp-adapters.md).
+Session tool schemas, retained metadata projections/navigation, shared input-dependent receipt policy and admission boundaries follow [MCP adapters](docs/session-mcp-adapters.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
@@ -53,6 +53,7 @@ Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
 The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration and `prepare:engine` Turbo prerequisite follow [the package contract](docs/session-engine-package.md).
 The finite browser detail host, original transport factories and account/cache retirement follow [client connection](docs/t3-session-client-connection.md#finite-browser-detail-host).
 Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
+The callback-scoped captured read graph and signed ordered publication producer follow [retained publication](docs/retained-t3-publication.md); passive graph readiness does not authorize execution.
 Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).
 Runtime composition, opaque ProviderHost references, scoped operation slots and the combined qualification gate follow [session runtime](docs/session-runtime.md); native/provider producers remain required.
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).

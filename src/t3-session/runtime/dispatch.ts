@@ -1,6 +1,4 @@
 import * as Effect from 'effect/Effect'
-import * as Cause from 'effect/Cause'
-import * as Exit from 'effect/Exit'
 import * as Schema from 'effect/Schema'
 import * as Stream from 'effect/Stream'
 import { isStreamSchema } from 'effect/rpc/RpcSchema'
@@ -9,6 +7,7 @@ import { ExecutorT3Descriptors, ExecutorT3HttpEndpoints, ExecutorT3LaneOperation
   type ExecutorT3ImplementationSlots, ExecutorT3Request, ExecutorT3HttpRequest,
 } from '@nessie/executor-protocol/t3-session'
 import type { RetainedCatalogService } from '../catalog/service.js'
+import { runSessionEffect } from './operation-scope.js'
 
 type Outcome = { readonly kind: 'value'; readonly value: unknown } | { readonly kind: 'error'; readonly error: unknown }
 const succeeded = (value: unknown): Outcome => ({ kind: 'value', value })
@@ -18,15 +17,6 @@ const checkedReply = (value: unknown): ExecutorT3LaneReply => {
   // DateTime, compact-ID and error-class codecs may have distinct wire shapes.
   if (!Schema.is(ExecutorT3LaneReply)(value)) throw new Error('T3_RUNTIME_REPLY_INVALID')
   return value
-}
-
-const runWithSignal = async <A, E>(operation: Effect.Effect<A, E>, signal: AbortSignal): Promise<A> => {
-  const exit = await Effect.runPromiseExit(operation, { signal })
-  if (Exit.isSuccess(exit)) return exit.value
-  // Only pure interruption is cancellation. A failing finalizer must survive
-  // even when cancellation happened concurrently, so shutdown cannot claim it.
-  if (signal.aborted && Cause.hasInterruptsOnly(exit.cause)) throw signal.reason
-  return Effect.runPromise(Effect.failCause(exit.cause))
 }
 
 /** Copy only routing fields. Never spread a request payload into a response. */
@@ -75,7 +65,7 @@ export async function* dispatchSessionRpc(request: ExecutorT3Request,
   const streaming = isStreamSchema(ExecutorT3Descriptors[request.method].successSchema)
   if (!streaming) {
     if (!Effect.isEffect(operation)) throw new Error('T3_RUNTIME_OPERATION_KIND_MISMATCH')
-    const outcome = await runWithSignal(operation.pipe(Effect.match({
+    const outcome = await runSessionEffect(operation.pipe(Effect.match({
       onSuccess: succeeded, onFailure: failed,
     })), signal)
     signal.throwIfAborted()
@@ -119,7 +109,7 @@ export async function* dispatchRetainedHttp(request: ExecutorT3HttpRequest,
     ...('params' in request ? { params: request.params } : {}),
     ...('query' in request ? { query: request.query } : {}),
   } as never)
-  const outcome = await runWithSignal(operation.pipe(Effect.match({
+  const outcome = await runSessionEffect(operation.pipe(Effect.match({
     onSuccess: result => ({ kind: 'value' as const, value: result.value, sourceSequence: result.sourceSequence }),
     onFailure: failed,
   })), signal)

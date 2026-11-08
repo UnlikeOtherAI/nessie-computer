@@ -5,6 +5,12 @@ engine's catalog and history reads. It does not establish a running transport,
 physical-source admission, original-human continuity, selected-team publication,
 live writer, mobile parity or a completed user capability.
 
+The follow-up [held graph and ordered publication producer](retained-t3-publication.md)
+reuses these handlers without reopening the source or captured SQL for each
+runtime request. Use `withHeldRetainedCatalogGraph` inside the actual runtime
+source callback, passing its abort signal; `createRetainedCatalogService` remains
+the standalone per-call composition. Both use the same authority/generation guard.
+
 The owning user surface remains Dev and the selected computer's Sessions entry.
 Archive, older settled work, family and exact-ID links must use the same session
 surface. UI, WebMCP and internal/external MCP owners consume the operation inventory
@@ -97,10 +103,12 @@ does not replace the protocol decoder or `requireBoundExecutorT3Operation`.
 The dispatcher must preserve the service's capture metadata in its admitted
 request context when returning the original inner result.
 
-There is no T3 daemon transport dispatcher at this base revision. Registering
-these slots in the eventual dispatcher, mapping HTTP failures/status with its
-request trace, and binding the canonical server publication are integration
-dependencies. No second session-view wire or generic command tunnel is added.
+The parent-integrated runtime dispatcher accepts these finite slots; its runtime
+owner composes the held read graph. Original HTTP failures/status retain their request trace. T07's
+signed publication transport now has an actual local-reference/ordered-page
+producer. Installed source-owner/UOA binding, runtime registration and complete
+user journeys still require integrated qualification. No second session-view
+wire or generic command tunnel is added.
 
 `subscribeShell`, `subscribeThread`, `subscribeCommandOutput` and
 `searchThreadStream` remain explicitly unbound. A frozen capture is not a live

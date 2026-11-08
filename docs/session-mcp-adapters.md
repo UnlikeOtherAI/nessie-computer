@@ -37,3 +37,35 @@ at this checkpoint. Qualification must build the actual source/protocol packages
 and run that Turbo gate in an allocated serial lane. No installed native,
 provider, MCP wire, stream/resource or ownership qualification follows from
 schema tests.
+
+## Retained issuer and import metadata
+
+The root protocol exports `RETAINED_IMPORT_TOOL_OPERATIONS`,
+`RetainedImportToolOperation`, `RetainedImportToolMethod` and
+`projectRetainedImportToolResult(method, raw)`; private `@nessie/schemas`
+re-exports them for MCP and WebMCP. The eight method discriminants are `discover`,
+`requestIssuer`, `readIssuer`, `revokeIssuer`, `requestImport`, `listGrants`,
+`readGrant` and `revokeGrant`. Each entry names its canonical service, tool name,
+strict Zod input schema, read/execute scope, effect, finite kind and retry rule.
+Consumers use their existing JSON schema converter. No generic method input,
+verification, human approval, native proof, local confirmation or lease tool is
+in the table.
+
+Projection validates canonical output before selecting metadata. It preserves
+source IDs, original selection order, import request ID, current review status,
+and explicit unproven historical ownership. It removes challenges, nonces,
+public keys, recipients and lease material. A request response claims no active
+grant. List projections enforce the canonical 100-item bound and retain order;
+they invent no pagination or complete-catalog guarantee. Private transports cap
+finite output and preserve original retry identity on uncertain mutations.
+
+`retainedIssuerReviewPath(executorId, enrollmentId?)` and
+`retainedImportGrantPath(executorId, grantId)` are the existing pure computer
+Sessions tab navigation helpers, moved unchanged. IDs in links grant no access:
+the recipient's canonical read must re-admit them. Human approval remains in
+the existing review UI and protected native Settings, outside tool automation.
+
+`test/t3-session-contracts/retained-tools.test.ts` adds synthetic input and safe
+projection fixtures to the existing gate. It is authored, unrun, and establishes
+no native possession, UOA authority, successful enrollment or retrospective
+provenance. No compiler/test/install or native job ran for this source checkpoint.

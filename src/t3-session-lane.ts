@@ -1,10 +1,13 @@
 import {
   decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream, T3_LANE_LIMITS,
+  type ExecutorT3LaneDelivery,
   type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame, type T3RuntimeAnnouncement,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
+import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
+import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from './t3-session-delivery.js'
 
 /** Supplied by the admitted runtime graph. This port conveys demand, never grants
  * source, provider or custody authority. The graph checks those before effects.
@@ -13,12 +16,14 @@ import type { ExecutorLocalState } from './state-store.js'
 export interface T3SessionLaneRuntime {
   describe(): Promise<readonly T3RuntimeAnnouncement[]>;
   open(request: ExecutorT3LaneOperation, signal: AbortSignal,
-    delivery: { readonly requestDigest: string }): AsyncIterable<ExecutorT3LaneReply>;
+    delivery: ExecutorT3LaneDelivery): AsyncIterable<ExecutorT3LaneReply>;
 }
 type State = Pick<ExecutorLocalState, 'apiBaseUrl' | 'executorId' | 'machinePrivateKey' | 'connectionEpoch'>
 type Attempt = {
   request: ExecutorT3LaneOperation; iterator: AsyncIterator<ExecutorT3LaneReply>; abort: AbortController;
   ordinal: number; expiresAt: number; pending?: T3LaneFrame; bytes: number; pulling: boolean;
+  delivery: ExecutorT3LaneDelivery;
+  expiryTimer?: ReturnType<typeof setTimeout>;
 }
 const key = (value: { environmentId: string; correlationId: string }) =>
   JSON.stringify([value.environmentId, value.correlationId])
@@ -36,6 +41,8 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
   let exchanging: Promise<void> | null = null
   let buffered = 0
   const forget = (attempt: Attempt) => {
+    if (attempts.get(key(attempt.request)) !== attempt) return
+    clearTimeout(attempt.expiryTimer)
     attempts.delete(key(attempt.request))
     buffered -= attempt.bytes
     attempt.bytes = 0
@@ -44,6 +51,11 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
     // An original pending stream pull may take time to observe cancellation.
     // Do not block the entire daemon's close/epoch transition on its return.
     void Promise.resolve(attempt.iterator.return?.()).catch(() => undefined)
+  }
+  const armExpiry = (attempt: Attempt) => {
+    clearTimeout(attempt.expiryTimer)
+    attempt.expiryTimer = setTimeout(() => { forget(attempt) }, Math.max(0, attempt.expiresAt - Date.now()))
+    attempt.expiryTimer.unref()
   }
   const failure = (attempt: Attempt): ExecutorT3LaneReply => {
     const { request } = attempt
@@ -131,7 +143,9 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
       if (!Number.isFinite(expiry) || expiry <= Date.now() || expiry > Date.now() + T3_LANE_LIMITS.leaseMs) {
         forget(attempt); continue
       }
-      attempt.expiresAt = expiry
+      attempt.expiresAt = t3LaneDeliveryExpiry(attempt.delivery, expiry)
+      if (attempt.expiresAt <= Date.now()) { forget(attempt); continue }
+      armExpiry(attempt)
       if (control.state === 'credit' && control.nextOrdinal === attempt.ordinal) pull(attempt)
       else if (control.state !== 'hold') throw new Error('T3_INVALID_FRAME_CREDIT')
     }
@@ -140,27 +154,34 @@ export function createT3SessionLane(runtime: T3SessionLaneRuntime,
         throw new Error('T3_LANE_CAPACITY')
       }
       const request = decodeExecutorT3LaneOperation(offer.request)
-      if (!/^hmac-sha256:[a-f0-9]{64}$/u.test(offer.requestDigest)) throw new Error('T3_LANE_CORRELATION')
+      const delivery = snapshotT3LaneDelivery({ requestDigest: offer.requestDigest,
+        ...(offer.provenance === undefined ? {} : { provenance: offer.provenance }),
+        ...(offer.catalogLeases === undefined ? {} : { catalogLeases: offer.catalogLeases }) }, request)
       if (request.executorId !== state.executorId || request.connectionEpoch !== state.connectionEpoch) {
         throw new Error('T3_LANE_CORRELATION')
       }
       const old = attempts.get(key(request))
       if (old) {
-        if (old.request.runtimeGeneration !== request.runtimeGeneration) throw new Error('T3_LANE_CORRELATION')
+        if (old.request.runtimeGeneration !== request.runtimeGeneration
+          || canonicalExecutorJson(old.delivery) !== canonicalExecutorJson(delivery)) {
+          forget(old)
+          throw new Error('T3_LANE_CORRELATION')
+        }
         continue // Never invoke the engine twice for an already active offer.
       }
       if (attempts.size >= T3_LANE_LIMITS.active) throw new Error('T3_LANE_CAPACITY')
-      const expiresAt = Date.parse(offer.expiresAt)
+      const expiresAt = t3LaneDeliveryExpiry(delivery, Date.parse(offer.expiresAt))
       if (!Number.isFinite(expiresAt) || expiresAt <= Date.now()
         || expiresAt > Date.now() + T3_LANE_LIMITS.leaseMs) continue
       const abort = new AbortController()
       // Lazy adapter invocation: a synchronous runtime failure follows the same
       // terminal uncertainty path as a rejected Effect/stream pull.
       const iterator = (async function* () {
-        yield* runtime.open(request, abort.signal, { requestDigest: offer.requestDigest })
+        yield* runtime.open(request, abort.signal, delivery)
       })()[Symbol.asyncIterator]()
-      const attempt: Attempt = { request, iterator, abort, ordinal: 0, expiresAt, bytes: 0, pulling: false }
+      const attempt: Attempt = { request, iterator, abort, delivery, ordinal: 0, expiresAt, bytes: 0, pulling: false }
       attempts.set(key(request), attempt)
+      armExpiry(attempt)
       pull(attempt)
     }
   }

@@ -36,10 +36,26 @@ No installed runtime, human consent, source recognition or provider outcome is
 qualified by this source checkpoint. Focused tests and real native/user/tool
 journeys remain pending the coordinator's integrated qualification window.
 
-`open(request, signal, { requestDigest })` receives the broker's HMAC separately
+`open(request, signal, { requestDigest, provenance? })` receives the broker's HMAC separately
 from the original envelope. `describe()` reports only actual held runtime/source
 incarnations; the lane signs those reports. A raw request, captured database UUID
 or process-local random value cannot invent a ready runtime descriptor.
+
+`ExecutorT3LaneDelivery.provenance` is the original
+`Threads.ThreadManagementProvenance`, decoded with the original actor/source
+schemas. Authenticated ingress supplies prospective user/agent and web/MCP
+origin; it cannot come from original command payload fields. Active-offer replay
+must preserve both digest and provenance. The request digest remains the original
+request HMAC; the private first-command fingerprint additionally binds captured
+initiation. Runtime control slots require admitted provenance. Neither this
+metadata nor a read/import grant authorizes native launch; the verified native
+association producer remains a separate prerequisite.
+
+The shared `requestTargets` accepts the original correlated method/input union
+before routing is attached. Tool ingress can therefore admit every decoded
+target before resolving the signed lane, without inventing an epoch or runtime
+generation. An optional original source-thread hint still has to match a target;
+it never replaces the full target set.
 
 `createT3CatalogPublicationTransport` sends bounded metadata pages and completion
 through the same paired API client and `t3_catalog` signature domain. It checks

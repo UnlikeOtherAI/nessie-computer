@@ -10,7 +10,7 @@ import { applySessionEngineBoundaryPatches } from '../../packaging/session-engin
 import { applyRequestPrivacyPatches, requestPrivacyManifestBytes } from '../../patches/t3-session/requests/index.mjs'
 
 // Execute this checkout's current producer, with its bytes checked against the integrated commit.
-const producerCommit = '8b4086dd3bf5e9710237370341503ddccab17d30'
+const producerCommit = '15611588af2ffe71b426b3989a7cee0fd66a04d8'
 const rejectedCommit = 'db4bd5972777bcfae2df4f00f0292581bc17fb97'
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const committed = (commit, path) => execFileSync('git', ['--no-replace-objects', 'show', `${commit}:${path}`], {
@@ -37,7 +37,8 @@ const { original, snapshot, manifestBytes } = await readRequestSource()
 assert.deepEqual(buildRequestPrivacyManifest(original), requestPrivacyManifestBytes)
 const manifest = JSON.parse(manifestBytes)
 assert.deepEqual(manifest.families.map(family => family.id),
-  ['state', 'client-connection', 'extraction', 'catalog', 'files', 'session-control', 'request-privacy'])
+  ['state', 'client-connection', 'client-registry', 'client-host', 'extraction', 'catalog', 'files',
+    'session-control', 'request-privacy'])
 assert.equal(snapshot.identity.orderedPatchesSha256, hash(manifestBytes))
 assert.equal(snapshot.identity.archiveSha256, original.identity.archiveSha256)
 const independent = applyRequestPrivacyPatches(original)

@@ -11,10 +11,13 @@ import { requireCapture } from '../state/sqlite.js'
 import type { RetainedReadScope } from '../ownership/continuity.js'
 import { withRetainedReadScope } from '../ownership/continuity.js'
 import { pinCatalogSelection, type RetainedCatalogSelection, type RetainedCatalogReadScope } from './selection.js'
+import type { ProvenT3Source } from '../import/manifest.js'
+import type { CaptureDatabase } from '../state/sqlite.js'
 
 /** Selected by the admitted dispatcher, never accepted as caller-supplied authority. */
 export interface RetainedReadSelection {
-  readonly manifest: T3SourceManifest
+  /** Required for a fresh source open; an actual held graph already owns admission. */
+  readonly manifest?: T3SourceManifest
   readonly admittedRootKey: string
   readonly generation: string
   readonly physicalRootKey?: string
@@ -38,7 +41,25 @@ export interface RetainedCatalogResult<A> {
   readonly selection?: RetainedCatalogSelection
 }
 
-type ReadServices = SessionStateServices | SqlClient.SqlClient
+export type RetainedReadServices = SessionStateServices | SqlClient.SqlClient | ThreadReadService
+export type RetainedCatalogReader = <A, E>(targets: 'catalog' | readonly S.ThreadId[],
+  read: (service: ThreadReadService['Service'], selection?: RetainedCatalogSelection) =>
+    Effect.Effect<A, E, RetainedReadServices>) => Effect.Effect<RetainedCatalogResult<A>, E>
+
+/** Internal held-graph adapter. Source identity is still checked by the actual
+ * canonical authority, using the original live physical callback. No new source
+ * port or authorization producer is constructed for graph reuse.
+ */
+export interface HeldRetainedReadGraph {
+  readonly signal: AbortSignal
+  readonly source: ProvenT3Source
+  readonly database: CaptureDatabase
+  readonly physicalSourceRecheck: () => Promise<void>
+  readonly stageReference: string
+  recheck(): Promise<void>
+  track<A>(operation: Promise<A>): Promise<A>
+  evaluate<A, E>(effect: Effect.Effect<A, E, RetainedReadServices>, signal: AbortSignal): Promise<Exit.Exit<A, E>>
+}
 
 /** One callback-scoped, cancellable read over the published owned generation.
  * Existing producers retain authority; this helper creates none. Catalog callers
@@ -48,19 +69,31 @@ type ReadServices = SessionStateServices | SqlClient.SqlClient
 export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: RetainedReadSelection,
   targets: 'catalog' | readonly S.ThreadId[],
   read: (service: ThreadReadService['Service'], selection?: RetainedCatalogSelection) =>
-    Effect.Effect<A, E, ReadServices>,
+    Effect.Effect<A, E, RetainedReadServices>,
+  held?: HeldRetainedReadGraph,
 ): Effect.Effect<RetainedCatalogResult<A>, E> {
-  return Effect.promise(async signal => {
+  const execute = async (signal: AbortSignal) => {
     signal.throwIfAborted()
     const sourcePort = ports.source
     const owner = retainedCaptureAuthority(ports)
     const catalogAuthority = ports.catalogAuthority
-    requireCapture(sourcePort && (source.authorization === 'catalog' ? catalogAuthority : owner),
+    requireCapture((held || sourcePort) && (source.authorization === 'catalog' ? catalogAuthority : owner),
       'required_retained_read_producers')
-    requireCapture(source.manifest.homes.some(home => home.admittedRootKey === source.admittedRootKey),
+    if (!held) requireCapture(source.manifest?.homes.some(home => home.admittedRootKey === source.admittedRootKey),
       'source_not_in_manifest')
-    const completed = await sourcePort.withReadonlySource(source.manifest, source.admittedRootKey,
-      async (proven, _database, recheck) => {
+    const withSource = async <B>(use: (proven: ProvenT3Source, database: CaptureDatabase,
+      recheck: () => Promise<void>) => Promise<B>): Promise<B> => {
+      if (held) {
+        await held.recheck()
+        const value = await use(held.source, held.database, held.physicalSourceRecheck)
+        await held.recheck()
+        return value
+      }
+      requireCapture(sourcePort, 'required_retained_read_producers')
+      requireCapture(source.manifest, 'source_not_in_manifest')
+      return sourcePort.withReadonlySource(source.manifest, source.admittedRootKey, use)
+    }
+    const completed = await withSource(async (proven, _database, recheck) => {
       requireCapture(proven.admittedRootKey === source.admittedRootKey, 'source_admission_mismatch')
       requireCapture((source.physicalRootKey === undefined || proven.physicalRootKey === source.physicalRootKey) &&
         (source.environmentId === undefined || proven.environmentId === source.environmentId),
@@ -98,23 +131,34 @@ export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: Re
           for (const id of ids) {
             signal.throwIfAborted()
             requireCapture(retained.has(id), 'capture_history_tombstoned_or_unknown')
-            await lease.recheckThread(id)
+            // Catalog selection rechecks cover every issued share and the
+            // whole-source grant. Exact-thread reads retain individual checks.
+            if (targets !== 'catalog' || !catalogLease) await lease.recheckThread(id)
           }
         }
         await checkThreads()
         const job = ports.journal.generation(source.generation)
         requireCapture(job?.physical_root === proven.physicalRootKey && typeof job.stage_ref === 'string' &&
           typeof job.source_high_water === 'number', 'capture_history_not_ready')
-        const stage = await ports.workspace.reopenGeneration(job.stage_ref)
-        requireCapture(stage.reference === job.stage_ref, 'capture_stage_mismatch')
-        published()
-        const state = createSessionStateLayers()
-        const reads = createSessionReadLayers(state)
         // Exit retains the original typed source failure. Lease failures remain
         // transport defects, never a fabricated successful source response.
-        const exit = await Effect.runPromise(Effect.scoped(Effect.exit(Effect.gen(function* () {
+        const program = Effect.gen(function* () {
           return yield* read(yield* ThreadReadService, selection)
-        }).pipe(Effect.provide(reads.layer.pipe(Layer.provideMerge(Layer.orDie(stage.sql))))))), { signal })
+        })
+        const evaluate = async () => {
+          if (held) {
+            requireCapture(held.stageReference === job.stage_ref, 'capture_stage_mismatch')
+            published()
+            return held.evaluate(program, signal)
+          }
+          const stage = await ports.workspace.reopenGeneration(job.stage_ref)
+          requireCapture(stage.reference === job.stage_ref, 'capture_stage_mismatch')
+          published()
+          const reads = createSessionReadLayers(createSessionStateLayers())
+          return Effect.runPromise(Effect.scoped(Effect.exit(program.pipe(
+            Effect.provide(reads.layer.pipe(Layer.provideMerge(Layer.orDie(stage.sql))))))), { signal })
+        }
+        const exit = await evaluate()
         await checkThreads()
         await catalogLease?.recheckSelection()
         await lease.recheckSource()
@@ -134,7 +178,9 @@ export function readRetainedEffect<A, E>(ports: RetainedCapturePorts, source: Re
     signal.throwIfAborted()
     ports.journal.requirePublished(completed.proven.physicalRootKey, source.generation)
     return completed
-  }).pipe(Effect.flatMap(({ exit, sourceSequence, proven, selection }) => Exit.isFailure(exit)
+  }
+  return Effect.promise(signal => held ? held.track(execute(AbortSignal.any([signal, held.signal]))) : execute(signal))
+    .pipe(Effect.flatMap(({ exit, sourceSequence, proven, selection }) => Exit.isFailure(exit)
     ? Effect.failCause(exit.cause)
     : Effect.succeed({ source: 't3' as const, physicalRootKey: proven.physicalRootKey,
       environmentId: proven.environmentId, captureGeneration: source.generation, sourceSequence,

@@ -40,6 +40,8 @@ the distinct prospective `withReadScope`, `withCatalogPublicationScope` and cata
 `withCatalogReadScope`. A scope verifies native liveness and the backend lease
 before/after use and every thread/source/selection recheck. Escaped callbacks fail.
 `recheckLocalConsent` checks only local liveness; it is not server admission.
+Catalog selections use the original source's branded thread/project IDs, with
+frozen arrays that preserve the explicitly granted order.
 
 Capture uses `RetainedCapturePorts.importRead`, never `originalOwner`. The caller
 must provide the existing capture journal/workspace and perform the original
@@ -51,3 +53,38 @@ the parent-integrated native producer still require actual journey qualification
 During unrelated waits, the caller must recheck the held source and local consent
 at least every 20 seconds; this preserves the physical producer's 55/60-second
 idle fence. It does not extend the hard native consent or backend lease expiry.
+# Operation catalog leases and bootstrap
+
+`RetainedImportLocalContext.bootstrapAuthority('capture' | 'publish')` uses the
+descriptors returned by the real `consent.commit` activation, inside its held
+native/source callback. Whole-source grants receive capture and publication;
+thread grants receive scoped read and publication. These descriptors cannot serve a lane
+request. Their deadline is bounded by the original consume proof, consumedAt +
+60 seconds, current human admission and the five-minute native consent. A commit
+retry may replace bootstrap tokens but cannot move that deadline.
+Before exposing the local callback, each bootstrap descriptor is verified using
+the actual native signed nonce and backend `lease.check`. This establishes finite
+read liveness for thread-only admission without using publication as read consent,
+reading any source row, or claiming inherited-history closure.
+
+The existing lane offer carries operation catalog descriptors. Before calling
+`local.authority(lease, binding)`, runtime calls
+`retainedImportOperationBinding(lease, decodedRequest, delivery.requestDigest)`
+from `src/t3-session/ownership/import-operation.ts`. It checks the SHA-256 of the
+original encoded request, the distinct `hmac-sha256:` broker digest, executor,
+environment and correlation ID. The authority still requires the *same* actual
+local consent grant, generation, issuer instance and receipt. A different human
+requires their own explicit native consent; tray creator authority is not lent.
+
+Each verification nonce and `lease.check` carries the exact operation binding.
+The server binds the native signature through its immutable nonce → lease row,
+checks the live relay and current credential reference, and returns the same
+binding. Thread-scoped operation selection narrows catalog access before queries.
+Neither physical renewal nor a stream credit extends the fixed 60-second lease.
+The broker persists descriptors in its encrypted request spool and replays them
+verbatim; an expired descriptor requires a new admitted operation.
+
+The added operation-binding fixtures are part of `test:t3-session-broker`.
+This checkpoint is source-only: no compiler, test, native ceremony or manual
+import journey has run. The integrated lane, protected native issuer and current
+UOA approval must be exercised together before positive import claims.

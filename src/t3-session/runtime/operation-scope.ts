@@ -1,10 +1,19 @@
 import * as Effect from 'effect/Effect'
+import * as Cause from 'effect/Cause'
 import * as Exit from 'effect/Exit'
 import * as Fiber from 'effect/Fiber'
 import * as Scope from 'effect/Scope'
 
 export class SessionOperationScopeClosed extends Error {
   constructor() { super('T3_RUNTIME_OPERATION_SCOPE_CLOSED'); this.name = 'SessionOperationScopeClosed' }
+}
+
+/** Preserve the caller's cancellation identity without hiding failed finalizers. */
+export const runSessionEffect = async <A, E>(operation: Effect.Effect<A, E>, signal: AbortSignal): Promise<A> => {
+  const exit = await Effect.runPromiseExit(operation, { signal })
+  if (Exit.isSuccess(exit)) return exit.value
+  if (signal.aborted && Cause.hasInterruptsOnly(exit.cause)) throw signal.reason
+  return Effect.runPromise(Effect.failCause(exit.cause))
 }
 
 /**

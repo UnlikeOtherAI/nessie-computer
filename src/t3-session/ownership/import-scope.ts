@@ -1,17 +1,19 @@
 import { performance } from 'node:perf_hooks'
 import { RetainedImportLeaseSchema, RetainedImportChallengeSchema, RetainedImportLocalReceiptSchema,
   RetainedImportVerificationSchema, RetainedImportLiveProofSchema,
-  RetainedImportGrantStatusSchema, canonicalExecutorJson, type RetainedImportLease,
-  type RetainedImportChallenge } from '@nessie/executor-protocol'
-import type { SourceContracts } from '@nessie/t3-session-source/engine'
+  RetainedImportActivationSchema, RetainedImportOperationBindingSchema, canonicalExecutorJson,
+  type RetainedImportLease, type RetainedImportOperationBinding, type RetainedImportChallenge } from '@nessie/executor-protocol'
+import { SourceContracts } from '@nessie/t3-session-source/engine'
 import { machineT3Sources } from '../source/owner.js'
 import type { RetainedImportConsentLease } from '../source/consent-consumer.js'
 import type { ProvenT3Source } from '../import/manifest.js'
 import type { RetainedReadScope } from './continuity.js'
-import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort } from '../catalog/selection.js'
+import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort,
+  RetainedCatalogSelection } from '../catalog/selection.js'
 import { requireCapture } from '../state/sqlite.js'
 import type { CaptureDatabase } from '../state/sqlite.js'
 import { retainedImportPost } from './import-transport.js'
+import { recheckRetainedImportLease } from './import-local-check.js'
 
 export interface RetainedImportReadScope extends RetainedReadScope {
   readonly basis: 'prospective-import-grant'
@@ -29,6 +31,8 @@ export interface RetainedImportAuthorityPort {
 }
 
 export interface RetainedImportLocalContext {
+  /** Exact consumption bootstrap; never used as a lane caller's catalog lease. */
+  readonly bootstrapLeases: readonly RetainedImportLease[]
   readonly grant: { grantId: string; generation: string; status: 'active'; basis: 'prospective_import';
     legacyCopyProvenance: 'not_attested_by_original_source' }
   readonly challenge: RetainedImportChallenge
@@ -38,7 +42,9 @@ export interface RetainedImportLocalContext {
   readonly captureGeneration: string
   /** Local liveness only; server read admission is checked by authority scopes. */
   recheckLocalConsent(): Promise<void>
-  authority(lease: RetainedImportLease): RetainedImportAuthorityPort & RetainedCatalogAuthorityPort
+  bootstrapAuthority(purpose: 'capture' | 'publish'): RetainedImportAuthorityPort & RetainedCatalogPublicationAuthorityPort
+  authority(lease: RetainedImportLease, operation?: RetainedImportOperationBinding):
+    RetainedImportAuthorityPort & RetainedCatalogAuthorityPort
     & RetainedCatalogPublicationAuthorityPort
 }
 
@@ -46,9 +52,12 @@ export interface RetainedImportLocalContext {
  * both the protected native approval and the current backend lease are rechecked.
  */
 function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImportLease,
-  consent: RetainedImportConsentLease):
+  consent: RetainedImportConsentLease, expectedOperation?: RetainedImportOperationBinding):
   RetainedImportAuthorityPort & RetainedCatalogAuthorityPort & RetainedCatalogPublicationAuthorityPort {
   const lease = RetainedImportLeaseSchema.parse(raw)
+  const operation = expectedOperation && RetainedImportOperationBindingSchema.parse(expectedOperation)
+  requireCapture(canonicalExecutorJson(lease.operationBinding ?? null) === canonicalExecutorJson(operation ?? null)
+    && (!operation || lease.purpose === 'catalog'), 'retained_import_operation_substitution')
   requireCapture(lease.grantId === consent.challenge.challengeId
     && lease.generation === consent.challenge.grantGeneration
     && lease.sourceOwnerGeneration === consent.receipt.issuerInstance
@@ -59,6 +68,10 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     Object.freeze(lease.selection.projectIds)
   }
   Object.freeze(lease.selection)
+  if (lease.operationBinding) {
+    Object.freeze(lease.operationBinding.scope)
+    Object.freeze(lease.operationBinding)
+  }
   Object.freeze(lease)
 
   const withScope = async <A>(input: { source: ProvenT3Source; physicalSourceRecheck: () => Promise<void>;
@@ -81,26 +94,12 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     const recheck = async (threadId?: SourceContracts.ThreadId) => {
       try {
         requireLive()
+        requireCapture(!threadId || lease.operationBinding?.scope.kind !== 'thread'
+          || threadId === lease.operationBinding.scope.threadId, 'retained_import_operation_thread_substitution')
         const current = await owner.recognize(input.physicalSourceRecheck)
         requireCapture(current.source === input.source && current.executorId === lease.executorId,
           'retained_import_source_replaced')
-        const verification = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
-          operation: 'verification.issue', grantId: lease.grantId, purpose: 'recheck', leaseId: lease.leaseId,
-        }))
-        const liveProof = RetainedImportLiveProofSchema.parse(await consent.recheck(verification))
-        const answer = await retainedImportPost(stateDirectory, {
-          operation: 'lease.check', leaseId: lease.leaseId, token: lease.token, grantId: lease.grantId, liveProof,
-          generation: lease.generation, sourceOwnerGeneration: lease.sourceOwnerGeneration,
-          selectionKey: lease.selectionKey,
-          source: { executorId: lease.executorId, environmentId: lease.environmentId,
-            physicalRootKey: lease.physicalRootKey, admittedRootKey: lease.admittedRootKey,
-            databaseIdentity: lease.databaseIdentity, environmentIdentity: lease.environmentIdentity,
-            captureGeneration: lease.captureGeneration }, purpose: lease.purpose, ...(threadId ? { threadId } : {}),
-        }) as { basis?: string; selection?: unknown; selectionKey?: string; generation?: string; expiresAt?: string }
-        requireCapture(answer.basis === 'prospective_import' && answer.generation === lease.generation
-          && answer.expiresAt === lease.expiresAt && answer.selectionKey === lease.selectionKey
-          && canonicalExecutorJson(answer.selection) === canonicalExecutorJson(lease.selection),
-        'retained_import_server_scope_changed')
+        await recheckRetainedImportLease(stateDirectory, lease, consent, threadId)
         requireLive()
         requireCapture((await owner.recognize(input.physicalSourceRecheck)).source === input.source,
           'retained_import_source_replaced')
@@ -118,10 +117,15 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     } finally { active = false }
   }
 
-  const selection = () => lease.selection.kind === 'whole_source'
-    ? { basis: 'prospective-import-grant' as const, revision: lease.selectionKey, scope: 'environment-owner' as const }
-    : { basis: 'prospective-import-grant' as const, revision: lease.selectionKey, scope: 'threads' as const,
-        threadIds: lease.selection.threadIds, projectIds: lease.selection.projectIds }
+  const selection = (): RetainedCatalogSelection => lease.operationBinding?.scope.kind === 'thread'
+    ? Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'threads',
+        threadIds: Object.freeze([SourceContracts.ThreadId.make(lease.operationBinding.scope.threadId)]),
+        projectIds: Object.freeze([]) })
+    : lease.selection.kind === 'whole_source'
+    ? Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'environment-owner' })
+    : Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'threads',
+        threadIds: Object.freeze(lease.selection.threadIds.map(id => SourceContracts.ThreadId.make(id))),
+        projectIds: Object.freeze(lease.selection.projectIds.map(id => SourceContracts.ProjectId.make(id))) })
   const authority: RetainedImportAuthorityPort & RetainedCatalogAuthorityPort & RetainedCatalogPublicationAuthorityPort = {
     basis: 'prospective-import-grant', captureGeneration: lease.captureGeneration,
     withReadScope: async (input, use) => {
@@ -169,17 +173,23 @@ export async function withRetainedImportLocally<A>(stateDirectory: string,
       let committed = false
       try {
         await consent.recheck()
-        const grant = RetainedImportGrantStatusSchema.parse(await retainedImportPost(stateDirectory, {
+        const { bootstrapLeases, ...grant } = RetainedImportActivationSchema.parse(await retainedImportPost(stateDirectory, {
           operation: 'consent.commit', challenge, receipt,
           liveProof: RetainedImportLiveProofSchema.parse(consent.initialProof) }))
         requireCapture(grant.status === 'active' && grant.grantId === challenge.challengeId
           && grant.generation === challenge.grantGeneration, 'retained_import_commit_substitution')
         committed = true
+        for (const lease of bootstrapLeases) await recheckRetainedImportLease(stateDirectory, lease, consent)
         await consent.recheck()
         const result = await use({ grant: { ...grant, status: 'active' }, source, database, physicalSourceRecheck,
-          challenge, captureGeneration: challenge.captureGeneration,
+          challenge, captureGeneration: challenge.captureGeneration, bootstrapLeases: Object.freeze(bootstrapLeases),
           recheckLocalConsent: () => consent.recheck(),
-          authority: lease => createRetainedImportAuthority(stateDirectory, lease, consent) })
+          bootstrapAuthority: purpose => {
+            const lease = bootstrapLeases.find(item => item.purpose === purpose)
+            requireCapture(lease && !lease.operationBinding, 'retained_import_bootstrap_unavailable')
+            return createRetainedImportAuthority(stateDirectory, lease, consent)
+          },
+          authority: (lease, operation) => createRetainedImportAuthority(stateDirectory, lease, consent, operation) })
         await consent.recheck()
         return result
       } finally {

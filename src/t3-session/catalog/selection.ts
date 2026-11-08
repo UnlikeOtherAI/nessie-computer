@@ -36,6 +36,24 @@ export interface RetainedCatalogAuthorityPort {
   }, use: (lease: RetainedCatalogReadScope) => Promise<A>): Promise<A>
 }
 
+/** Publication consent is distinct from permission to read a published catalog.
+ * The canonical producer must recognize the exact held physical callback and
+ * revalidate the source-owner import grant, current UOA admission and selection.
+ */
+export interface RetainedCatalogPublicationScope extends RetainedCatalogReadScope {
+  readonly publicationGrantId: string
+  readonly selectionKey: string
+}
+
+export interface RetainedCatalogPublicationAuthorityPort {
+  withCatalogPublicationScope<A>(input: {
+    readonly source: ProvenT3Source
+    readonly physicalSourceRecheck: () => Promise<void>
+    readonly captureGeneration: string
+    readonly purpose: 'retained-catalog-publish'
+  }, use: (lease: RetainedCatalogPublicationScope) => Promise<A>): Promise<A>
+}
+
 export const pinCatalogSelection = (selection: RetainedCatalogSelection): RetainedCatalogSelection =>
   selection.scope === 'environment-owner' ? Object.freeze({ ...selection })
     : Object.freeze({ ...selection, threadIds: Object.freeze([...new Set(selection.threadIds)]),

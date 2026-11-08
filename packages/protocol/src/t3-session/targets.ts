@@ -19,8 +19,14 @@ export const resourceTargets = (resource: AssetResource): readonly ExecutorT3Tar
   }
 }
 
-/** Original decoded inputs only. The routing thread is never the grant target set. */
-export const requestTargets = (request: ExecutorT3Request): readonly ExecutorT3Target[] => {
+type TargetRequest<R> = R extends ExecutorT3Request
+  ? Pick<R, 'method' | 'input'> & { readonly sourceThreadId?: R['sourceThreadId'] } : never
+
+/** Original decoded inputs only. Extraction may precede broker routing; it
+ * never requires fabricated epoch/generation fields. Method/input correlation
+ * and the optional original route-hint consistency check are preserved.
+ */
+export const requestTargets = (request: TargetRequest<ExecutorT3Request>): readonly ExecutorT3Target[] => {
   if (request.method === 'orchestration.dispatchCommand') {
     const targets = commandTargets(request.input)
     requireRouteTarget(request.sourceThreadId, targets)
