@@ -1,6 +1,5 @@
 import { pairedPersonalAuthority } from './personal-authority-origin.js'
 import { createHash } from 'node:crypto'
-import type { Readable } from 'node:stream'
 
 import {
   canonicalExecutorJson,
@@ -21,7 +20,7 @@ import {
 
 import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { executeWithCommandCancellation } from './command-cancellation.js'
-import { localCommandPolicyPermits } from './command-policy.js'
+import { admitCommandRun, admitTerminalLaunch, type ProgramAdmission } from './daemon-program-admission.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorBrowserSessionManager } from './browser-session-manager.js'
 import type { ExecutorConnectedBrowserSessionManager } from './connected-browser-session-manager.js'
@@ -150,12 +149,25 @@ export const executeExecutorCommand = async (
     mcpSessions?: ExecutorMcpSessionManager
     /** Stamps who a call to the built-in coding-sessions bridge is for. */
     codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
+    /** The owner paused this team on this computer (`owner-pause.ts`). */
+    ownerPaused?: () => boolean
+    /** Asks the owner about a launch refused only as not allowed; absent, it is refused as before. */
+    programRequests?: ProgramAdmission
     signal?: AbortSignal
   } = {},
 ): Promise<Record<string, unknown>> => {
   dependencies.signal?.throwIfAborted()
   if (!ImplementedExecutorOperationKeySchema.safeParse(command.operationKey).success) {
     return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }
+  }
+  // Paused, the team starts nothing new; what already runs finishes, and a
+  // stop, which only ends work, still ends it.
+  if (dependencies.ownerPaused?.() && command.operationKey !== 'sandbox.stop') {
+    return {
+      code: 'EXECUTOR_OWNER_PAUSED',
+      message: 'The computer\'s owner paused this team on the computer. Nothing new starts until they resume it.',
+      success: false,
+    }
   }
   if (new Date(command.expiresAt) <= new Date()) {
     return { code: 'EXECUTOR_COMMAND_EXPIRED', success: false }
@@ -304,21 +316,19 @@ export const executeExecutorCommand = async (
     if (!commandArguments.success) {
       return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
     }
+    const { commandSessions } = dependencies
+    const unavailable = (): Record<string, unknown> | null => guestSessionRefusal(state)
+      ?? (commandSessions ? null : { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false })
     // Refused here as well as in the session manager, against the same
     // predicate: this is the dispatch a person reads when they ask why a run
     // was refused, and it must not depend on a session backend being wired.
-    if (!localCommandPolicyPermits(
-      state,
-      commandArguments.data.program,
-      commandArguments.data.args,
-    )) {
-      return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
-    }
-    const refusal = guestSessionRefusal(state)
-    if (refusal) return refusal
-    return dependencies.commandSessions
-      ? dependencies.commandSessions.run(command, runId.data)
-      : { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false }
+    // The owner is asked only about a launch that could then actually run.
+    const admitted = await admitCommandRun(dependencies.programRequests, state, command,
+      commandArguments.data.program, commandArguments.data.args, unavailable, dependencies.signal)
+    if ('refusal' in admitted) return admitted.refusal
+    const refusal = unavailable()
+    if (refusal || !commandSessions) return refusal ?? { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false }
+    return admitted.run(() => commandSessions.run(command, runId.data))
   }
   if (command.operationKey === 'coding.launch') {
     if (!ExecutorCodingLaunchArgumentsSchema.safeParse(command.payload.args).success) {
@@ -354,12 +364,18 @@ export const executeExecutorCommand = async (
     }
   }
   if (command.operationKey === 'mcp.tools' || command.operationKey === 'mcp.call') {
-    const { attachments } = dependencies
-    return executeExecutorMcpCommand(command.operationKey, command.payload.args, dependencies.mcpSessions, {
+    const { attachments, mcpSessions } = dependencies
+    const operationKey = command.operationKey
+    const admitted = operationKey === 'mcp.call' && mcpSessions
+      ? await admitTerminalLaunch(dependencies.programRequests, state, command, dependencies.signal)
+      : undefined
+    if (admitted && 'refusal' in admitted) return admitted.refusal
+    const call = () => executeExecutorMcpCommand(operationKey, command.payload.args, mcpSessions, {
       codingBridge: dependencies.codingBridge,
       commandId: command.commandId,
       payload: command.payload,
     }, attachments && ((images) => attachments.write(command.commandId, images)), dependencies.signal)
+    return admitted ? admitted.run(call) : call()
   }
   // Other declared-only operations remain unavailable.
   return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }
@@ -372,18 +388,28 @@ export const executeExecutorCommand = async (
  * Windows. The journal it fronts is per-`stateDir` state, and `stateDir` does
  * not change across a daemon's life, so one store is the honest lifetime. The
  * sidecar store beside it is the caller's for the same reason.
+ *
+ * `state` is the daemon's state when this poll starts; its signed exchanges
+ * use that connection, as they always have.
  */
 export const pollAndExecuteCommand = async (
   stateDir: string,
   state: ExecutorLocalState,
-  browserSessions: ExecutorBrowserSessionManager,
-  commandSessions: ExecutorCommandSessionManager,
-  codingSessions: ExecutorCodingSessionManager,
-  mcpSessions: ExecutorMcpSessionManager,
-  store: ExecutorCommandRecoveryStore = createExecutorCommandRecoveryStore(stateDir),
-  codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>,
-  sidecars: ExecutorCommandAttachmentStore = createExecutorCommandAttachmentStore(stateDir),
+  backends: {
+    browserSessions: ExecutorBrowserSessionManager
+    commandSessions: ExecutorCommandSessionManager
+    codingSessions: ExecutorCodingSessionManager
+    mcpSessions: ExecutorMcpSessionManager
+    store?: ExecutorCommandRecoveryStore
+    codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
+    sidecars?: ExecutorCommandAttachmentStore
+    ownerPaused?: () => boolean
+    programRequests?: ProgramAdmission
+  },
 ): Promise<void> => {
+  const { browserSessions, commandSessions, codingSessions, mcpSessions, codingBridge } = backends
+  const store = backends.store ?? createExecutorCommandRecoveryStore(stateDir)
+  const sidecars = backends.sidecars ?? createExecutorCommandAttachmentStore(stateDir)
   const connectionEpoch = state.connectionEpoch
   if (!connectionEpoch) return
   await recoverOrPollExecutorCommand({
@@ -419,6 +445,8 @@ export const pollAndExecuteCommand = async (
       execute: (signal) => executeExecutorCommand(stateDir, state, command, {
         attachments: sidecars, browserSessions, codingSessions, mcpSessions, commandSessions,
         signal, ...(codingBridge ? { codingBridge } : {}),
+        ...(backends.ownerPaused ? { ownerPaused: backends.ownerPaused } : {}),
+        ...(backends.programRequests ? { programRequests: backends.programRequests } : {}),
       }),
     }),
     // The result itself stays on this machine: it can quote program output.
@@ -446,47 +474,4 @@ export const pollAndExecuteCommand = async (
       receipt: (input) => receipt(state, input),
     },
   })
-}
-
-export const waitForExecutorDaemonShutdown = async (
-  parentLiveness?: Readable,
-  updateReady?: Promise<void>,
-): Promise<void> => new Promise((resolve) => {
-  const stop = () => {
-    process.off('SIGINT', stop)
-    process.off('SIGTERM', stop)
-    parentLiveness?.off('close', stop)
-    parentLiveness?.off('end', stop)
-    parentLiveness?.off('error', stop)
-    // A signal stops the daemon while its parent still holds the pipe, and a
-    // resumed pipe left open keeps this process alive after its shutdown.
-    parentLiveness?.destroy()
-    resolve()
-  }
-  process.once('SIGINT', stop)
-  process.once('SIGTERM', stop)
-  void updateReady?.then(stop)
-  if (parentLiveness) {
-    parentLiveness.once('close', stop)
-    parentLiveness.once('end', stop)
-    parentLiveness.once('error', stop)
-    parentLiveness.resume()
-  }
-})
-
-export const createNonOverlappingExecutorTask = (
-  task: () => Promise<void>,
-): { current: () => Promise<void> | null; run: () => Promise<void> } => {
-  let current: Promise<void> | null = null
-  return {
-    current: () => current,
-    run: () => {
-      if (current) return current
-      const started = task().finally(() => {
-        if (current === started) current = null
-      })
-      current = started
-      return started
-    },
-  }
 }

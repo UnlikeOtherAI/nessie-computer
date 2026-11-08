@@ -7,7 +7,7 @@ import test from 'node:test'
 import {
   createNonOverlappingExecutorTask,
   waitForExecutorDaemonShutdown,
-} from '../src/daemon.js'
+} from '../src/daemon-tasks.js'
 
 test('a desktop parent-liveness pipe stops the daemon when its parent closes', async () => {
   const parentLiveness = new PassThrough()
@@ -24,7 +24,7 @@ test('a desktop parent-liveness pipe stops the daemon when its parent closes', a
 test('a daemon stopped by a signal exits while its parent still holds the liveness pipe', {
   skip: process.platform === 'win32' ? 'Windows has no catchable SIGTERM.' : false,
 }, async () => {
-  const daemon = new URL('../src/daemon.ts', import.meta.url).href
+  const daemon = new URL('../src/daemon-tasks.ts', import.meta.url).href
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
     const { waitForExecutorDaemonShutdown } = await import(${JSON.stringify(daemon)})
     const stopped = waitForExecutorDaemonShutdown(process.stdin)

@@ -75,6 +75,46 @@ export const heartbeatExecutor = async (
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void },
   monitor?: ExecutorMonitorSnapshot,
   onMonitorRequest?: (request: ExecutorMonitorRequest | null) => void,
+  ownerPause?: OwnerPauseReport,
+): Promise<unknown> => {
+  const report = ownerPause?.paused === true
+  try {
+    return await sendHeartbeat(state, report, localMcp, onExistingSessionAccess, folderSync, api, updates, monitor,
+      onMonitorRequest)
+  } catch (error) {
+    if (!report || !ownerPausedFieldRefused(error)) throw error
+    // An older Nessie parses the heartbeat strictly and refuses the field it
+    // does not know. The team stays paused here, where it is enforced; only
+    // what Nessie hears changes, so the heartbeat goes again without it.
+    ownerPause?.refused()
+    return sendHeartbeat(state, false, localMcp, onExistingSessionAccess, folderSync, api, updates, monitor,
+      onMonitorRequest)
+  }
+}
+
+/** Whether the heartbeat says the owner paused this team, and who hears that Nessie refused to be told. */
+export type OwnerPauseReport = { paused: boolean; refused: () => void }
+
+/**
+ * Nessie's strict request parsing answers an unknown key with a 400
+ * `VALIDATION_ERROR` naming it. Only that answer, about this field, is read as
+ * an older Nessie; every other refusal fails the heartbeat as before.
+ */
+export const ownerPausedFieldRefused = (error: unknown): boolean => error instanceof ExecutorApiError
+  && error.status === 400 && error.code === 'VALIDATION_ERROR'
+  && `${error.message} ${JSON.stringify(error.details ?? null)}`.includes('ownerPaused')
+
+const sendHeartbeat = async (
+  state: ExecutorLocalState,
+  ownerPaused: boolean,
+  localMcp: ExecutorLocalMcpReport | undefined,
+  onExistingSessionAccess: ((allowed: boolean) => void) | undefined,
+  folderSync: FolderSyncHeartbeatSummary | undefined,
+  api: Pick<ExecutorApiClient, 'heartbeat'>,
+  updates: { status: ExecutorSoftwareStatus;
+    onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void } | undefined,
+  monitor: ExecutorMonitorSnapshot | undefined,
+  onMonitorRequest: ((request: ExecutorMonitorRequest | null) => void) | undefined,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
     throw new Error('Executor has not claimed a live daemon connection.')
@@ -93,6 +133,7 @@ export const heartbeatExecutor = async (
     observedAt,
     ...(monitor === undefined ? {} : { monitor: ExecutorMonitorSnapshotSchema.parse(monitor) }),
     ...(onMonitorRequest ? { monitorVersion: 1 as const } : {}),
+    ...(ownerPaused ? { ownerPaused: true as const } : {}),
   }
   const signature = signExecutorDaemonPayload(state.machinePrivateKey, 'heartbeat', signed)
   type HeartbeatBody = Omit<ExecutorDaemonHeartbeatWithFolderSyncRequest, 'executorId'> & { executorId: string }
