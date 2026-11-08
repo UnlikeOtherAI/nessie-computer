@@ -13,7 +13,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
-import { executorApi, type ExecutorApiClient } from './api-client.js'
+import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-client.js'
 import { buildSignedDescriptor } from './descriptor.js'
 import { configureExecutorWorkspaceFolders } from './pair.js'
 import { clearPairingCode, loadPairingCode, savePairingCode, type PendingPairingCode } from './pairing-code-store.js'
@@ -42,7 +42,10 @@ export const pairingSignature = (key: string, action: string, payload: Record<st
 ).toString('base64url')
 
 export const postPairing: ExecutorApiClient['pairing'] = async (origin, action, body) => {
-  try { return await executorApi.pairing(origin, action, body) } catch {
+  try { return await executorApi.pairing(origin, action, body) } catch (error) {
+    if (action === 'connection' && error instanceof ExecutorApiError && error.code === 'UOA_SESSION_REQUIRED') {
+      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
+    }
     throw new Error('Nessie could not complete pairing. Check your connection and try again.')
   }
 }

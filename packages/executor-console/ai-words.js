@@ -48,3 +48,13 @@ const aiTranslations = {
 const aiLanguage = navigator.language.toLowerCase().split('-')[0]
 const aiValues = aiTranslations[aiLanguage] ?? aiTranslations.en
 window.aiConsoleWords = Object.fromEntries(aiKeys.map((key, index) => [key, aiValues[index]]))
+
+const restoreTeamNames = {
+  "en": "Open Nessie → Computers and confirm this computer’s owner to restore its team name.",
+  "cs": "V Nessie otevřete Počítače a potvrďte vlastníka tohoto počítače. Název týmu se obnoví.",
+  "de": "Öffnen Sie in Nessie „Computer“ und bestätigen Sie den Besitzer dieses Computers, um den Teamnamen wiederherzustellen.",
+  "es": "Abre Ordenadores en Nessie y confirma al propietario de este ordenador para recuperar el nombre del equipo.",
+  "fr": "Ouvrez Ordinateurs dans Nessie et confirmez le propriétaire de cet ordinateur pour rétablir le nom de l’équipe.",
+  "it": "Apri Computer in Nessie e conferma il proprietario di questo computer per ripristinare il nome del team."
+}
+window.aiConsoleWords.restoreNames = restoreTeamNames[aiLanguage] ?? restoreTeamNames.en

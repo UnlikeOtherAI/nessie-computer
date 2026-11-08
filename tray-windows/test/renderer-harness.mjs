@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright-core'
 import { installRendererHost } from './renderer-host.mjs'
+import { verifyAiConnections } from './ai-renderer.mjs'
 import { verifyChatgptLocales } from './chatgpt-renderer.mjs'
 import { verifyPersonalPlanPairing } from './personal-pairing-renderer.mjs'
 import { verifySyncTab } from './sync-renderer.mjs'
@@ -20,8 +21,14 @@ await mkdir(output, { recursive: true })
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
   ?? (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined)
 const browser = await chromium.launch({ executablePath, headless: true })
-const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name).at(-1), command)
+const lastCall = (page, command) => page.evaluate((name) => window.calls.filter((call) => call.command === name
+  && (name !== 'executor_personal_chatgpt' || call.args.operation.operation !== 'status')).at(-1), command)
 try {
+  if (process.argv.includes('--ai-only')) {
+    await verifyAiConnections(browser, ui, output, files)
+    await verifyChatgptLocales(browser, ui, output, files)
+    process.exit(0)
+  }
   if (process.argv.includes('--updates-only') || process.argv.includes('--updates-copy-only') || process.argv.includes('--updates-bootstrap-only')
     || process.argv.some((arg) => arg.startsWith('--updates-before='))) {
     await verifySoftwareUpdates(browser, ui, files, root)

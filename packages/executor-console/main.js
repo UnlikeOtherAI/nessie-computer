@@ -8,6 +8,7 @@ let currentTab = 'teams'
 const TEAM_TABS = ['folders', 'commands', 'sync']
 const connectionNames = new Map()
 const lookupFailed = new Set()
+const ownerConfirmationRequired = new Set()
 const connectionLabel = (connection) => [connection?.organizationName, connection?.teamName].filter(Boolean).join(' / ')
 const teamLabel = (executorId) => connectionLabel(connectionNames.get(executorId))
   || (lookupFailed.has(executorId) ? 'Team name unavailable' : 'Checking team…')

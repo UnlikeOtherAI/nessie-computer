@@ -56,6 +56,12 @@ const renderConnections = () => keepFocus(byId('executors-list'), () => {
       reason.textContent = connection.detail
       name.append(reason)
     }
+    if (ownerConfirmationRequired.has(connection.executorId)) {
+      const recovery = document.createElement('small')
+      recovery.className = 'connection-detail'
+      recovery.textContent = window.aiConsoleWords.restoreNames
+      name.append(recovery)
+    }
     const remove = document.createElement('button')
     remove.textContent = 'Remove'
     remove.setAttribute('aria-label', `Remove ${label} from this computer`)
@@ -112,8 +118,12 @@ const lookUpNames = async (executors) => {
       try {
         connectionNames.set(executorId, await invoke('executor_pairing_status', { executorId }))
         lookupFailed.delete(executorId)
+        ownerConfirmationRequired.delete(executorId)
         nameRetryAt.delete(executorId)
-      } catch {
+      } catch (error) {
+        if (String(error?.message ?? error).includes('PAIRING_OWNER_CONFIRMATION_REQUIRED')) {
+          ownerConfirmationRequired.add(executorId)
+        }
         lookupFailed.add(executorId)
         nameRetryAt.set(executorId, Date.now() + NAME_RETRY_MS)
       }
