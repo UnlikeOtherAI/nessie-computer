@@ -5,13 +5,14 @@ import { CliRefusal, CliTimeout, CliUsageError, printJson, type CliContext } fro
 import { findPendingConnections, labelFor, selectTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { defaultExecutorWorkspaceFolders } from './default-workspace-folders.js'
-import { acquireDefaultPairingLease, defaultPairingDirectory, promoteDefaultPairing } from './pairing-code-directory.js'
+import { defaultPairingDirectory, promoteDefaultPairing } from './pairing-code-directory.js'
 import { pairingCodeStatus, pairingOperationKeys, startPairingCode, type PairingCodeView } from './pairing-code.js'
 import { localDevelopmentApiOrigin } from './pairing-origin.js'
-import { createExecutorServiceEnvironment } from './service-environment.js'
+import { acquireExecutorProcessLease } from './process-lease.js'
+import { createExecutorServiceEnvironment, executorServiceStateRoot } from './service-environment.js'
+import { ensureOwnerOnlyStateDirectory } from './state-security.js'
 import { disableExecutorServiceIfPresent, enableExecutorService } from './service-linux.js'
 import { createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService } from './service-macos.js'
-import { unpairExecutor } from './unpair.js'
 
 /**
  * Connect a team and Disconnect, on the operations `login` and `unpair` use:
@@ -20,6 +21,13 @@ import { unpairExecutor } from './unpair.js'
  */
 
 const POLL_MS = 3_000
+
+/**
+ * The lease `login` and `unpair` hold over the command line's teams folder
+ * (`acquireDefaultPairingLease`), taken in this context's home folder.
+ */
+const pairingLease = async (home: string) => acquireExecutorProcessLease(
+  await ensureOwnerOnlyStateDirectory(executorServiceStateRoot(home)), 'pairing-operation.pid')
 
 const codeText = (code: string | undefined): string => (code ? `${code.slice(0, 4)} ${code.slice(4)}` : '')
 
@@ -59,7 +67,7 @@ export type PendingConnection = { code: string | null; expiresAt: string | null 
 export const advancePendingConnections = async (context: CliContext): Promise<PendingConnection[]> => {
   const directories = await findPendingConnections(context.home)
   if (!directories.length) return []
-  const lease = await acquireDefaultPairingLease().catch(() => null)
+  const lease = await pairingLease(context.home).catch(() => null)
   if (!lease) return directories.map(() => ({ code: null, expiresAt: null }))
   try {
     const waiting: PendingConnection[] = []
@@ -86,7 +94,7 @@ const connect = async (run: CliRun): Promise<void> => {
     localDevelopmentOrigin: localDevelopmentApiOrigin(),
   })
   if (!approved.ok) throw new CliUsageError(approved.reason, 'connect')
-  const lease = await acquireDefaultPairingLease()
+  const lease = await pairingLease(context.home)
   try {
     const directory = await defaultPairingDirectory()
     let view = await startPairingCode({ apiBaseUrl: approved.origin, operationKeys: pairingOperationKeys(undefined),
@@ -132,7 +140,7 @@ const disconnect = async (run: CliRun): Promise<void> => {
       + 'here are deleted. Your own files stay. Type yes to continue: ')
     if (answer.trim().toLowerCase() !== 'yes') throw new CliRefusal('NOT_CONFIRMED', 'Nothing was changed.')
   }
-  const lease = team.cliService ? await acquireDefaultPairingLease() : null
+  const lease = team.cliService ? await pairingLease(context.home) : null
   try {
     if (team.cliService && context.platform === 'darwin') {
       await disableMacExecutorService({ executorId: team.executorId }, createMacServiceEnvironment())
@@ -141,7 +149,7 @@ const disconnect = async (run: CliRun): Promise<void> => {
       await disableExecutorServiceIfPresent({ executorId: team.executorId },
         { ...createExecutorServiceEnvironment(), write: () => undefined })
     }
-    const result = await unpairExecutor(team.stateDir).catch((error: unknown) => {
+    const result = await run.unpair(team.stateDir).catch((error: unknown) => {
       if (error instanceof Error && error.message.startsWith('This connection is running.')) {
         throw new CliRefusal('TEAM_RUNNING', `Nessie Computer is running ${team.label}. `
           + 'Disconnect it in the app, or quit the app and try again.')

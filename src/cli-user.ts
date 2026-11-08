@@ -3,6 +3,7 @@ import { helpText } from './cli-help.js'
 import { parseCliOptions, type CliOptions } from './cli-options.js'
 import { CliUsageError, EXIT, processContext, reportFailure, type CliContext } from './cli-output.js'
 import { describeTeams, findTeams, selectTeam, type LabelledTeam, type NameLookup } from './cli-teams.js'
+import { unpairExecutor, type UnpairResult } from './unpair.js'
 import { executorSoftwareVersion } from './updates/version.js'
 
 /**
@@ -19,6 +20,8 @@ export type CliRun = {
   teams: () => Promise<LabelledTeam[]>
   /** The team `--team` names, or the only one. */
   team: () => Promise<LabelledTeam>
+  /** Removes a team's connection; `unpairExecutor` outside tests. */
+  unpair: (stateDir: string) => Promise<UnpairResult>
 }
 
 type Handler = (run: CliRun) => Promise<void>
@@ -67,7 +70,11 @@ const handlers = async (command: string): Promise<Handler | undefined> => {
   return undefined
 }
 
-export type UserCliOptions = { context?: CliContext; nameLookup?: NameLookup }
+export type UserCliOptions = {
+  context?: CliContext
+  nameLookup?: NameLookup
+  unpair?: (stateDir: string) => Promise<UnpairResult>
+}
 
 /** Runs one command line and returns its exit code. */
 export const runUserCli = async (args: readonly string[], dependencies: UserCliOptions = {}): Promise<number> => {
@@ -103,7 +110,7 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
       return found
     }
     const team = async () => selectTeam(await teams(), options.team, command)
-    await handler({ context, options, command, teams, team })
+    await handler({ context, options, command, teams, team, unpair: dependencies.unpair ?? unpairExecutor })
     return EXIT.ok
   } catch (error) {
     return reportFailure(context, json, error)
