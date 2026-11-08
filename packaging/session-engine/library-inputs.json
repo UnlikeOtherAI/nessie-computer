@@ -7,6 +7,9 @@
     "packaging/session-engine/core/Engine.ts",
     "packaging/session-engine/core/EngineLayers.ts",
     "packaging/session-engine/core/ReadLayers.ts",
+    "packaging/session-engine/core/RuntimeLayers.ts",
+    "packaging/session-engine/core/SessionLifecycle.ts",
+    "packaging/session-engine/core/StateDirectoryLock.ts",
     "packaging/session-engine/core/StateLayers.ts"
   ],
   "privacyCommit": "7567a431d3404a0c3a2610c23bebbc4e8eb6ff5f",

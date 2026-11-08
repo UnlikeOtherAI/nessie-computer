@@ -7,6 +7,7 @@ import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, R
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts } from '@nessie/t3-session-source/engine'
 import { ThreadId } from '@nessie/t3-session-source/contracts'
+import { createSessionRuntimeLayers, ProviderHost, NativeChildProcesses } from '@nessie/t3-session-source/engine'
 
 type Input<T> = T extends Layer.Layer<infer _Out, infer _Error, infer Required> ? Required : never
 type Services<T> = T extends Effect.Effect<infer _Out, infer _Error, infer Required> ? Required : never
@@ -14,6 +15,11 @@ type Reads = Input<ReturnType<typeof createSessionReadLayers>['layer']>
 type Engine = Input<ReturnType<typeof createSessionEngineLayers>['layer']>
 type Worker = Input<ReturnType<typeof createSessionEngineLayers>['worker']>
 type Shared = Input<ReturnType<typeof createSessionEngineLayers>['shared']>
+type Runtime = Input<ReturnType<typeof createSessionRuntimeLayers>['layer']>
+const runtimeHostRequired: ProviderHost.ProviderHost extends Runtime ? true : false = true
+const runtimeNativeRequired: NativeChildProcesses.ChildProcessSpawner extends Runtime ? true : false = true
+const runtimeProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Runtime ? true : false = true
+const runtimeCleanupRequired: ResourceOwners.ResourceCleanupService extends Runtime ? true : false = true
 const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = true
@@ -38,5 +44,6 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 // @ts-expect-error The original dedicated schema cannot be replaced with an ordinary value.
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
+  runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,
   fileSystemRequired, pathRequired, sharedOriginalId, invalidCommand, invalidSecret, retainedProjector]

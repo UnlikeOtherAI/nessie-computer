@@ -4,6 +4,8 @@ The normal workspace import is `@nessie/t3-session-source/engine`. Its
 [package contract](session-engine-package.md) covers the generated runtime/types,
 shared contract identity, frozen producer prerequisite and bounded verification.
 It is a machine-only library, with execution owners still required.
+The [runtime composition](session-runtime.md) documents ordered lifecycle and
+single-writer state source, required native/provider bindings and unrun gates.
 
 The machine-only contract foundation lives in `packages/t3-session-source` and
 `packages/protocol/src/t3-session`. It preserves the original 78-file contract
