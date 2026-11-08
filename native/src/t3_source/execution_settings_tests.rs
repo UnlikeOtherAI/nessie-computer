@@ -175,15 +175,25 @@ fn service_duplicates_provider_home_chain_and_pins_every_name_until_last_close()
 }
 #[test]
 fn settings_security_change_is_sticky_even_after_acl_restore() {
-    use windows_sys::Win32::Security::Authorization::{SetNamedSecurityInfoW, SE_FILE_OBJECT};
-    use windows_sys::Win32::Security::DACL_SECURITY_INFORMATION;
+    use windows_sys::Win32::{Foundation::LocalFree, Security::{Authorization::{
+        GetNamedSecurityInfoW, SetNamedSecurityInfoW, SE_FILE_OBJECT}, DACL_SECURITY_INFORMATION}};
     let f = Fixture::new(false); settings(&f, json!({}));
     let source = Resource::open(&f.request).unwrap();
     let held = Settings::open(source.execution_root().unwrap()).unwrap();
     let path = super::handles::wide(&f.root.join("settings.json"));
+    let mut original_dacl = std::ptr::null_mut();
+    let mut descriptor = std::ptr::null_mut();
+    assert_eq!(unsafe { GetNamedSecurityInfoW(path.as_ptr(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+        std::ptr::null_mut(), std::ptr::null_mut(), &mut original_dacl, std::ptr::null_mut(), &mut descriptor) }, 0);
     assert_eq!(unsafe { SetNamedSecurityInfoW(path.as_ptr(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
         std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut(), std::ptr::null_mut()) }, 0);
     assert!(held.recheck().is_err());
-    secure(&f.root.join("settings.json"));
+    // The production secure-file helper deliberately refuses insecure input.
+    // Restore the exact saved DACL through Windows, then prove the old watch
+    // still refuses a file whose current owner-only policy is valid again.
+    assert_eq!(unsafe { SetNamedSecurityInfoW(path.as_ptr(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION,
+        std::ptr::null_mut(), std::ptr::null_mut(), original_dacl, std::ptr::null_mut()) }, 0);
+    unsafe { LocalFree(descriptor); }
+    crate::state_security::verify_owner_only_file(f.root.join("settings.json").to_str().unwrap()).unwrap();
     assert!(held.recheck().is_err());
 }

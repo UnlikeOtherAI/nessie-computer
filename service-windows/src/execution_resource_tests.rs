@@ -113,6 +113,9 @@ fn execution_resource_candidate_keeps_real_directory_identity_across_volume_alia
     let copied = Duplicator::new(&owner).unwrap().file(&expected, &owner.sid).unwrap();
     let canonical = copied.directory_path(&owner.sid).unwrap();
     drop(original); drop(copied);
+    // Finish unrelated ACL setup before arming sticky ancestor security watches.
+    let other = root.path().join("other"); fs::create_dir(&other).unwrap();
+    let (other_pin, other_id) = open(&other, true, &owner.sid, "provider-home"); drop(other_pin);
     let guard = HeldCandidateDirectory::open(&directory, &owner.sid).unwrap();
     let alias = HeldCandidateDirectory::open(&canonical, &owner.sid).unwrap();
     assert_eq!(guard.identity(), expected.identity);
@@ -134,9 +137,7 @@ fn execution_resource_candidate_keeps_real_directory_identity_across_volume_alia
         racing.join().unwrap();
     });
     guard.recheck().unwrap(); alias.recheck().unwrap();
-    let other = root.path().join("other"); fs::create_dir(&other).unwrap();
-    let (other_pin, other_id) = open(&other, true, &owner.sid, "provider-home");
-    assert_ne!(other_id.identity, guard.identity()); drop(other_pin);
+    assert_ne!(other_id.identity, guard.identity());
     // A candidate cannot turn an administrator/SYSTEM claim into OS ownership.
     assert!(HeldCandidateDirectory::open(&directory, "S-1-5-18").is_err());
     drop(guard);

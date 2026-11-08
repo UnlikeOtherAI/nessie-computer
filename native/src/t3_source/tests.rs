@@ -72,7 +72,13 @@ fn replacements_are_denied_at_each_protocol_wait_boundary() {
             std::path::PathBuf::from(format!("{}-shm",fixture.database.display()))] {
             assert!(fs::rename(&path, path.with_extension("replaced")).is_err(), "{operation}: {}",path.display());
         }
-        pipe::dispatch(&json!({"op":operation,"action":"BEGIN","query":"migrations","statement":statement}), &mut source).unwrap();
+        let request = match operation {
+            "transaction" => json!({"op":operation,"action":"BEGIN"}),
+            "query" => json!({"op":operation,"query":"migrations"}),
+            "next" | "finalize" => json!({"op":operation,"statement":statement}),
+            _ => json!({"op":operation}),
+        };
+        pipe::dispatch(&request, &mut source).unwrap();
         source.recheck().unwrap();
     }
 }
