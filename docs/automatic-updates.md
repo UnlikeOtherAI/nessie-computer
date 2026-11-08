@@ -343,3 +343,27 @@ automatic/stable defaults with SELinux still enforcing. The root-owned legacy
 image remains. Packaging-plan tests and all 37 native Rust tests passed.
 This verifies service setup and restart recovery, not catalogue-driven A-to-B
 installation, notification, interrupted-transaction recovery or GNOME controls.
+
+## Windows installed setup and rollback
+
+The signed a24bd9c 1.0.3 MSI passed publisher, profile-EKU, timestamp and SignTool
+verification, but failed its first Maxis installation in SecureUpdaterStateRoot
+(MSI 1722/1603). It is not a usable installed baseline and remains unpublished.
+The default major-upgrade schedule had removed the old product outside the new
+transaction. Maxis was recovered with the existing published signed edge MSI,
+SHA-256 `8a7f7057fd97c13e89bd21b35feb6f15ef5e65aae048f8c67404ca10b1ddf005`.
+Kelpie confirmed its existing pairing, shared folder and provider returned online.
+No pairing or update journal was reset. Edge remains ineligible for stable A-to-B acceptance.
+
+Protected directory pins now request READ_CONTROL as well as file attributes,
+because [GetSecurityInfo](https://learn.microsoft.com/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo)
+requires that handle right to read owner/DACL information. The trusted-owner,
+write-access, reparse and file-identity checks remain mandatory. Inherit-only
+ACEs do not grant access to the directory itself; each executable input still
+requires its own effective DACL check. The standard Program Files DACL and its
+creator-owner inheritance are covered by a read-only Windows regression. A real Windows
+fixture accepts an Administrators-owned directory with public read/execute and
+rejects public write access; run the native Windows tests elevated as in CI.
+The MSI uses [afterInstallInitialize](https://docs.firegiant.com/wix/schema/wxs/majorupgrade/)
+so old-product removal participates in rollback. Corrected signed installation
+and failed-upgrade rollback remain installed acceptance work.
