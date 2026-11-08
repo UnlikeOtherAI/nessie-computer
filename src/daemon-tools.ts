@@ -19,8 +19,8 @@ import type { ExecutorLocalState } from './state-store.js'
  *
  * They are built from the saved launch specs, the bridge's reviewed facts and
  * the limits. When a live apply changes any of those, the toolbox builds a new
- * set and retires the old one between two commands, so no command is using it
- * and no connection, browser, guest or coding session is touched: coding
+ * set and retires the old one while no local-app command runs, so no command
+ * is using it and no connection, browser, guest or coding session is touched: coding
  * sessions run in their own host processes and outlive the bridge, as they
  * outlive a daemon restart. Command rules are not among the inputs — the
  * bridge stamps each call with the rules that hold at that moment.
@@ -63,20 +63,22 @@ const buildDaemonTools = (
 
 export type DaemonToolbox = {
   readonly current: DaemonTools
+  /** The saved inputs changed since the last build. */
+  stale: () => boolean
   /**
-   * Rebuilds when the saved inputs changed since the last build; called from
-   * the command lane between commands. True when it rebuilt.
+   * Rebuilds when the saved inputs changed since the last build; called while
+   * no local-app command runs (`CommandDispatcher.between`). True when it rebuilt.
    */
   refresh: () => Promise<boolean>
 }
 
 export const createDaemonToolbox = (input: {
   live: DaemonLiveState
-  /** The command rules, read as each call is stamped, so a saved or once-allowed rule needs no rebuild. */
+  /** The saved command rules, read as each call is stamped, so a saved rule needs no rebuild. */
   commandRules: () => LocalCommandPolicy
   ownerRequestsGate: OwnerRequestsGate
   runtime?: ExecutorRuntime
-  /** Settles once nothing outside the command lane uses the current set (the session view relay). */
+  /** Settles once nothing outside the commands uses the current set (the session view relay). */
   quiesce: () => Promise<void>
 }): DaemonToolbox => {
   const build = (): DaemonTools => buildDaemonTools(input.live.current, input.commandRules, input.ownerRequestsGate,
@@ -85,6 +87,7 @@ export const createDaemonToolbox = (input: {
   let tools = build()
   return {
     get current() { return tools },
+    stale: () => daemonToolsKey(input.live.current) !== key,
     refresh: async () => {
       const next = daemonToolsKey(input.live.current)
       if (next === key) return false

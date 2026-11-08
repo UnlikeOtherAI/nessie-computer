@@ -6,7 +6,7 @@ use std::{
 };
 use nessie_windows_common::{
     failure::{classify, retriable, Failure, StderrTail}, lease::unowned_daemon_is_stopping,
-    owner_controls::{read_paused, Answer, RequestCache}, unpair,
+    owner_controls::{read_paused, Answer, RequestCache}, owner_sessions::SessionsCache, unpair,
 };
 use crate::{pipe_client::ServiceResponse, state::{Connection, ExecutorStatus}, user_owner, user_runtime};
 
@@ -20,6 +20,7 @@ struct Connections {
     /// Why each connection last stopped on its own, until it is started again.
     failures: BTreeMap<String, Failure>,
     requests: BTreeMap<String, RequestCache>,
+    sessions: BTreeMap<String, SessionsCache>,
     /// When each connection that stopped on its own is next started.
     restart_at: BTreeMap<String, Instant>,
     /// The wait before the next restart of each connection.
@@ -256,7 +257,7 @@ impl Connections {
                 Ok(ServiceResponse::Describe(user_runtime::run(
                     &["describe".into(), "--state-dir".into(), path], None)?))
             }
-            "setPaused" | "programRequests" | "answerProgramRequest" | "audience" => {
+            "setPaused" | "programRequests" | "answerProgramRequest" | "sessions" | "stopSession" | "audience" => {
                 let id = id.ok_or("Select a paired team.")?;
                 if !owns(id) { return Err("This team is not paired under this account.".into()); }
                 let state_dir = directory(id)?;
@@ -266,6 +267,13 @@ impl Connections {
                         Ok(ServiceResponse::Status(self.statuses()?))
                     }
                     "audience" => Ok(ServiceResponse::Audience(user_owner::audience(&state_dir)?)),
+                    "sessions" => Ok(ServiceResponse::Sessions(self.sessions.entry(id.to_owned()).or_default()
+                        .refresh(&state_dir, Instant::now(), || user_owner::sessions(&state_dir))?)),
+                    "stopSession" => {
+                        let sessions = user_owner::stop_session(&state_dir, request["sessionId"].as_str().unwrap_or(""))?;
+                        self.sessions.entry(id.to_owned()).or_default().forget();
+                        Ok(ServiceResponse::Sessions(sessions))
+                    }
                     _ => {
                         let requests = if command == "programRequests" {
                             user_owner::program_requests(&state_dir)?

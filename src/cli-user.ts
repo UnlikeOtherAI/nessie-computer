@@ -27,7 +27,7 @@ export type CliRun = {
 type Handler = (run: CliRun) => Promise<void>
 
 const USER_COMMANDS = new Set(['help', 'status', 'teams', 'who', 'connect', 'disconnect', 'pause', 'resume',
-  'access', 'requests', 'documents', 'ai', 'settings'])
+  'access', 'requests', 'sessions', 'documents', 'ai', 'settings'])
 
 /** A team's state folder on the command line marks a plumbing verb, which the apps call. */
 const PLUMBING_OPTIONS = new Set(['--state-dir', '--state-root', '--executor'])
@@ -63,6 +63,7 @@ const handlers = async (command: string): Promise<Handler | undefined> => {
   if (command === 'access local-apps') return (await import('./cli-access-local-apps.js')).runAccessLocalApps
   if (group === 'access') return (await import('./cli-access.js')).ACCESS[command]
   if (command === 'requests') return (await import('./cli-requests.js')).runRequests
+  if (command === 'sessions') return (await import('./cli-sessions.js')).runSessions
   if (command === 'documents') return (await import('./cli-documents.js')).runDocuments
   if (command === 'ai plans') return (await import('./cli-ai-plans.js')).runAiPlans
   if (command === 'ai servers') return (await import('./cli-ai-servers.js')).runAiServers

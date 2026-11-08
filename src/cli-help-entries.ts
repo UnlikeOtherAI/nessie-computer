@@ -20,6 +20,7 @@ export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
   { title: 'Access', commands: ['access show', 'access folders', 'access programs', 'access websites',
     'access local-apps', 'access coding-assistants'] },
   { title: 'Program requests', commands: ['requests'] },
+  { title: 'Now working', commands: ['sessions'] },
   { title: 'Documents', commands: ['documents'] },
   { title: 'AI', commands: ['ai plans', 'ai servers'] },
   { title: 'Settings', commands: ['settings'] },
@@ -154,9 +155,22 @@ export const HELP_ENTRIES: HelpEntry[] = [
     notes: [
       'always adds the program to the team\'s programs. watch prints new requests as they arrive.',
       'An id may be shortened to its first characters while it stays unique.',
-      'A request waits up to 2 minutes, then is refused.',
+      'A request waits up to 15 minutes, then is refused. Only the agent\'s asking command waits.',
     ],
     examples: ['nessie-computer requests list', 'nessie-computer requests allow-once 7f3a9c21'],
+  },
+  {
+    command: 'sessions', summary: 'What agents are doing on this computer now, and Stop for one agent\'s work.',
+    usage: [
+      'nessie-computer sessions [list] [--team <team>] [--json]',
+      'nessie-computer sessions stop <id> [--team <team>]',
+    ],
+    notes: [
+      'Each session is one agent\'s work for a team, with its commands: running, waiting to start, or waiting for you.',
+      'stop ends everything that session is doing here and tells Nessie. Other sessions keep working.',
+      'An id may be shortened to its first characters while it stays unique.',
+    ],
+    examples: ['nessie-computer sessions', 'nessie-computer sessions stop 0b0c3a40'],
   },
   {
     command: 'documents', summary: 'Keep a copy of a team\'s documents on this computer.',

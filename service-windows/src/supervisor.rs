@@ -22,6 +22,7 @@ use std::{
 use nessie_windows_common::{
     failure::{classify, retriable, Failure, StderrTail},
     owner_controls::{read_paused, RequestCache},
+    owner_sessions::SessionsCache,
 };
 
 use crate::{
@@ -72,6 +73,7 @@ pub struct Supervisor {
     /// Why each team last stopped without being asked to, until it connects again.
     failures: BTreeMap<String, Failure>,
     pub(crate) program_requests: BTreeMap<String, RequestCache>,
+    pub(crate) sessions: BTreeMap<String, SessionsCache>,
     pub(crate) root: PathBuf,
     runtime: VerifiedRuntime,
     #[cfg(test)]
@@ -126,6 +128,7 @@ impl Supervisor {
             retry_delay: BTreeMap::new(),
             failures: BTreeMap::new(),
             program_requests: BTreeMap::new(),
+            sessions: BTreeMap::new(),
             root,
             runtime,
             #[cfg(test)]

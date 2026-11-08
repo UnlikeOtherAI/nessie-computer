@@ -38,6 +38,8 @@ pub enum ServiceResponse {
     Pairing(serde_json::Value),
     Removed { signed_off: bool },
     ProgramRequests(Vec<nessie_windows_common::owner_controls::ProgramRequest>),
+    /// The sessions agents are working in for one team, as `sessions --json` printed them.
+    Sessions(Vec<serde_json::Value>),
     Audience(serde_json::Value),
 }
 
@@ -212,6 +214,10 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             .ok_or_else(|| "The program requests could not be read.".to_owned())
             .and_then(nessie_windows_common::owner_controls::parse_program_requests)
             .map(ServiceResponse::ProgramRequests),
+        Some("sessions") => parsed.get("sessions").cloned()
+            .ok_or_else(|| "The list of what agents are doing could not be read.".to_owned())
+            .and_then(nessie_windows_common::owner_sessions::parse_sessions)
+            .map(ServiceResponse::Sessions),
         Some("audience") => parsed.get("audience").cloned().map(ServiceResponse::Audience)
             .ok_or_else(|| "Nessie didn’t say who can send work here.".to_owned()),
         Some("ok") => {
@@ -282,6 +288,12 @@ mod tests {
         assert_eq!(list[0].program, "python");
         assert!(decode(r#"{"status":"programRequests"}"#).is_err());
         assert!(decode(r#"{"status":"programRequests","requests":{}}"#).is_err());
+        let sessions = decode(r#"{"status":"sessions","sessions":[{"sessionId":"0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11","commands":[]}]}"#)
+            .unwrap();
+        let ServiceResponse::Sessions(list) = sessions else { panic!("expected sessions") };
+        assert_eq!(list.len(), 1);
+        assert!(decode(r#"{"status":"sessions","sessions":{}}"#).is_err());
+        assert!(decode(r#"{"status":"sessions"}"#).is_err());
         assert_eq!(decode(r#"{"status":"audience","audience":{"agents":[]}}"#),
             Ok(ServiceResponse::Audience(serde_json::json!({"agents":[]}))));
     }

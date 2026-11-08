@@ -127,6 +127,21 @@ public enum ExecutorCLI {
         ])
     }
 
+    /// What agents are doing on this computer for the team: its sessions and
+    /// their commands, in the shape the console's Now working reads.
+    public static func sessions(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["sessions", "--state-dir", stateDirectory, "--json"])
+    }
+
+    /// The owner's Stop for one session. The id is a UUID, checked before it
+    /// reaches `argv`, because it names a file in the state directory.
+    public static func stopSession(id: String, stateDirectory: String) throws -> ExecutorCLIInvocation {
+        guard WorkingSessions.isSessionID(id) else { throw ExecutorRefusal(.invalidRequest) }
+        return ExecutorCLIInvocation(arguments: [
+            "session", "stop", "--state-dir", stateDirectory, "--id", id, "--json"
+        ])
+    }
+
     private static func canonicalJSON(_ value: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }

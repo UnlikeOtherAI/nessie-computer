@@ -27,10 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.statusItem = StatusItemController(connections: controller, console: console)
         // A second copy — the nested helper inside Nessie Desktop, or the
         // standalone install — exits rather than adding a second status icon, and
-        // asks this instance to come forward on its way out. Opening the window
-        // is what a person can actually see happen.
-        self.secondLaunchObserver = MenuBarSingleInstance.observeSecondLaunches { [weak console] in
-            console?.show(ConsoleTarget(section: .overview))
+        // asks this instance to come forward on its way out, with the link it was
+        // opened with. Opening the window is what a person can actually see happen.
+        self.secondLaunchObserver = MenuBarSingleInstance.observeSecondLaunches { [weak self] links in
+            guard let self else { return }
+            if links.isEmpty { self.console?.show(ConsoleTarget(section: .overview)) }
+            links.forEach(self.follow)
         }
         try? ComputerUpdateService.prepare()
         // The first launch with no team says what this app is for, on

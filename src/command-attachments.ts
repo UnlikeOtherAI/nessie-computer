@@ -11,7 +11,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { EXECUTOR_API_REQUEST_TIMEOUT_MS, ExecutorApiError } from './api-client.js'
-import type { ExecutorCommandRecoveryStore } from './command-recovery.js'
+import type { ExecutorCommandJournal } from './command-journal.js'
 import {
   executorMcpImageReferences,
   withdrawExecutorMcpImage,
@@ -31,7 +31,7 @@ import { ensureExecutorRuntimeDirectory } from './state-store.js'
  * image is uploaded on its own signed request; a restart between an upload and
  * the receipt uploads again, which the control plane accepts as the same
  * attachment. An acknowledged receipt removes its command's sidecars, and the
- * daemon's start removes every command's but the journal's current one.
+ * daemon's start removes every command's but those the journal still holds.
  */
 
 const ATTACHMENTS_DIRECTORY = 'attachments'
@@ -40,8 +40,8 @@ export type ExecutorCommandAttachmentStore = {
   /** The kept bytes of one image, or null when they are missing or no longer match their digest. */
   read: (commandId: string, digest: string) => Promise<Buffer | null>
   remove: (commandId: string) => Promise<void>
-  /** Removes every command's sidecars except `keepCommandId`'s. */
-  sweep: (keepCommandId: string | undefined) => Promise<void>
+  /** Removes every command's sidecars except those of `keep`. */
+  sweep: (keep: readonly string[]) => Promise<void>
   write: (commandId: string, images: readonly ExecutorMcpImage[]) => Promise<void>
 }
 
@@ -94,7 +94,7 @@ export const createExecutorCommandAttachmentStore = (
     remove: async (commandId) => {
       await rm(await commandDirectory(commandId), { force: true, recursive: true })
     },
-    sweep: async (keepCommandId) => {
+    sweep: async (keep) => {
       const directory = await root()
       let entries: string[]
       try {
@@ -104,7 +104,7 @@ export const createExecutorCommandAttachmentStore = (
         throw error
       }
       await Promise.all(entries
-        .filter((entry) => entry !== keepCommandId)
+        .filter((entry) => !keep.includes(entry))
         .map((entry) => rm(resolve(directory, entry), { force: true, recursive: true })))
     },
     write: async (commandId, images) => {
@@ -125,16 +125,17 @@ export const createExecutorCommandAttachmentStore = (
 }
 
 /**
- * At daemon start, every sidecar folder but the one the journal still names
- * is a leftover of a command that already ended. A journal that cannot be read
- * removes nothing: which folder is current is exactly what it cannot say.
+ * At daemon start, every sidecar folder but those of commands the journal
+ * still holds is a leftover of a command that already ended. A journal that
+ * cannot be read removes nothing: which folders are current is exactly what
+ * it cannot say.
  */
 export const sweepExecutorCommandAttachments = async (
-  journal: Pick<ExecutorCommandRecoveryStore, 'load'>,
+  journal: Pick<ExecutorCommandJournal, 'list'>,
   sidecars: Pick<ExecutorCommandAttachmentStore, 'sweep'>,
 ): Promise<void> => {
-  const current = await journal.load()
-  await sidecars.sweep(current?.command.commandId)
+  const held = await journal.list()
+  await sidecars.sweep(held.map((record) => record.command.commandId))
 }
 
 /** The slow uplink an upload is sized for — 2 Mbit/s — in bytes a millisecond. */
@@ -232,12 +233,12 @@ export type ExecutorAttachmentDeliveryProgress = {
  * computed from what was journaled. A sidecar that is gone or no longer
  * matches is withdrawn the same way.
  *
- * Anything else — a timeout, a 5xx, a lost connection — is retried on the
- * next poll while the command is live, as `ExecutorAttachmentDeliveryDeferred`
+ * Anything else — a timeout, a 5xx, a lost connection — is retried with the
+ * command's next report while it is live, as `ExecutorAttachmentDeliveryDeferred`
  * (a fenced or stale connection throws as itself). Once the command has
  * expired, an image gets one more attempt and a failure withdraws it: the
- * journal holds the machine's only command lane, and a slow uplink or a lasting
- * storage fault must not hold it for good. Nessie still takes a late result,
+ * command's record, its slot and its session's place in "Now working" must not
+ * be held for good by a slow uplink or a lasting storage fault. Nessie still takes a late result,
  * so a daemon that restarts after the expiry still delivers what it can.
  */
 export const deliverExecutorCommandAttachments = async (input: {

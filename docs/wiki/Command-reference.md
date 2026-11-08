@@ -163,7 +163,24 @@ nessie-computer requests deny <id>
 nessie-computer requests watch    [--team <team>]   # prints new requests as they arrive
 ```
 An id may be shortened to its first characters while it stays unique. A
-request waits up to 2 minutes, then is refused.
+request waits up to 15 minutes, then is refused. Only the command that asked
+waits; the agent's other work carries on.
+
+---
+
+## Now working
+
+What agents are doing on this computer, one session per agent and team, as
+Overview shows it.
+
+```sh
+nessie-computer sessions [list] [--team <team>] [--json]
+nessie-computer sessions stop <id> [--team <team>]   # ends that session's work here
+```
+Each command shows as running, waiting to start, or waiting for you (a program
+request). `stop` ends everything the session is doing on this computer and
+tells Nessie; other sessions keep working. An id may be shortened to its first
+characters while it stays unique.
 
 ---
 
@@ -257,6 +274,7 @@ folder (`--state-dir`) and JSON on standard input or output. Their help is in
 | `pause`, `resume --state-dir <dir>` | The app's Pause |
 | `program-requests`, `program-request answer --state-dir <dir>` | The app's program requests |
 | `audience --state-dir <dir>` | The app's "Who can send work here" |
+| `sessions`, `session stop --state-dir <dir>` | The app's Now working and its Stop |
 | `sync --state-dir <dir> …` | The app's Documents tab |
 | `local-inference connections …` | The app's model servers |
 | `personal-chatgpt-local --state-dir <dir>` | The app's ChatGPT plans |

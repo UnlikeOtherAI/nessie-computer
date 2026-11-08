@@ -16,7 +16,14 @@ import { assertOwnerOnlyStatePath, ensureOwnerOnlyStateDirectory, secureOwnerOnl
  * `<id>.answer.json` once. A request exists only while a daemon holds its
  * launch, so a daemon starting up removes whatever an earlier one left.
  */
-export type ProgramRequest = {
+/** The command that asks, and whose agent: what links a request to its row under Now working. */
+export type ProgramRequestOrigin = {
+  commandId?: string
+  sessionId?: string
+  agentName?: string
+}
+
+export type ProgramRequest = ProgramRequestOrigin & {
   id: string
   program: string
   args: string[]
@@ -60,9 +67,12 @@ const parseRequest = (value: unknown, id: string): ProgramRequest | null => {
     || record.args.some((arg) => typeof arg !== 'string')
     || typeof record.requestedAt !== 'string' || typeof record.expiresAt !== 'string'
     || Number.isNaN(Date.parse(record.expiresAt))) return null
+  const origin = Object.fromEntries((['commandId', 'sessionId', 'agentName'] as const)
+    .filter((key) => typeof record[key] === 'string' && record[key] !== '')
+    .map((key) => [key, record[key] as string])) as ProgramRequestOrigin
   return {
     id, program: record.program, args: record.args as string[],
-    requestedAt: record.requestedAt, expiresAt: record.expiresAt,
+    requestedAt: record.requestedAt, expiresAt: record.expiresAt, ...origin,
   }
 }
 

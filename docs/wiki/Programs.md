@@ -44,8 +44,9 @@ see a notification, and the request appears under **Needs you** on Overview:
   `npm` command from now on.
 - **Don't allow** refuses it. The agent is told you declined.
 
-The agent waits up to 2 minutes for your answer. If you don't answer, the
-request is refused and the agent is told nobody answered. Only someone using
+The agent waits up to 15 minutes for your answer; only that command waits, and
+the agent's other work carries on. If you don't answer, the request is refused
+and the agent is told nobody answered. Only someone using
 this computer can answer; nobody can approve it from Nessie.
 
 ## Adding and blocking programs
