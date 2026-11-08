@@ -382,7 +382,8 @@ work until the signed candidate is exercised on FedoraMaxis.
 Build the Debug helper with `cargo build --manifest-path native/Cargo.toml`.
 The Windows source runner places Node beside that helper for real DACL, Job Object
 and ConPTY checks. Release Job/terminal helpers require an installed signed factory;
-source tests do not claim that factory. Public
+the source terminal driver selects only Debug, and source tests do not claim
+that factory. Public
 ACL operations use that fixed sibling without marking Node as an installed
 executor. Previously the runner set `NESSIE_EXECUTOR_PACKAGED_CLI=1` solely to
 reach the helper; that also activated installed-only custody and stranded source
