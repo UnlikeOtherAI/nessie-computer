@@ -94,7 +94,8 @@ around a query method does not establish correlation with later serialization.
 The launch grant must never authorize arbitrary later SDK input.
 
 Concrete serialization locations are now audited. Codex's original
-`protocol.ts` `offerOutgoing(message)` encodes and enqueues a string; capture
+`packages/effect-codex-app-server/src/protocol.ts` `offerOutgoing(message)`
+encodes and enqueues a string; capture
 the finite operation's association before that queue, and consume it at the
 protected write. In verified Claude SDK `0.3.316`, the six
 `this.transport.write` call sites are in `handleControlRequest` (reply),

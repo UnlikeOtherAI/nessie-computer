@@ -511,6 +511,8 @@ objects. Required original services remain required; none is mocked by the
 factory. Closing the owner refuses subsequent builds. Runtime demand must be
 interrupted and joined before that owner closes, as in `sessionOperationScope`.
 This internal owner is neither an authority grant nor an execution announcement.
+The authored-input allowlist registers `core/EngineGraph.ts` explicitly; the
+library producer must include it in the normal strict build and declarations.
 
 Three more fixtures cover shared phase selection, closed-graph refusal and the
 absence of provenance from inspection while the actual launch conversion keeps
