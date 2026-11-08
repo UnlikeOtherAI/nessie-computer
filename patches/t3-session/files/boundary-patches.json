@@ -450,6 +450,27 @@
       "afterSha256": "8b9c58079503d3cbfaf706df5078e275d9c5f85a60e98555c7c7890fe32c3fff",
       "from": "      }),\n  });\n};",
       "to": "      }),\n  }).pipe(Stream.mapEffect((chunk) => Effect.gen(function* () {\n    yield* recheck();\n    const now = yield* Effect.tryPromise({ try: () => file.handle.stat({ bigint: true }),\n      catch: () => new FileBoundaryError({ code: \"changed\" }) });\n    if (now.size !== file.info.size || now.mtimeNs !== file.info.mtimeNs || now.ctimeNs !== file.info.ctimeNs) {\n      return yield* new FileBoundaryError({ code: \"changed\" });\n    }\n    return chunk;\n  })));\n};"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "8b9c58079503d3cbfaf706df5078e275d9c5f85a60e98555c7c7890fe32c3fff",
+      "afterSha256": "1aa61c1aac45511959fda8e22288dc4d931cd208290de280ec8b46dd947974c9",
+      "from": "class MediaFileOpenError extends",
+      "to": "export class MediaFileOpenError extends"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "1aa61c1aac45511959fda8e22288dc4d931cd208290de280ec8b46dd947974c9",
+      "afterSha256": "0dcb98cac56b741e6f607249de4594151fc5ecb1f0ba8f4f479e73fe914fd2a9",
+      "from": "class MediaFileReadError extends",
+      "to": "export class MediaFileReadError extends"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "0dcb98cac56b741e6f607249de4594151fc5ecb1f0ba8f4f479e73fe914fd2a9",
+      "afterSha256": "20200b813a333472334a82ea46bd7bbffb630bdc9f1ef91f1ebff58e5dc188b1",
+      "from": "class MediaFileStatError extends",
+      "to": "export class MediaFileStatError extends"
     }
   ]
 }

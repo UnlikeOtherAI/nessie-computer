@@ -1,6 +1,7 @@
 import {
   decodeExecutorT3LaneOperation, encodeExecutorT3LaneReply, isExecutorT3Stream, T3_LANE_LIMITS,
   type ExecutorT3LaneDelivery,
+  type T3ExecutionReceipt, type T3ExecutionSignedAdmission,
   type ExecutorT3LaneOperation, type ExecutorT3LaneReply, type T3LaneFrame, type T3RuntimeAnnouncement,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
@@ -15,6 +16,11 @@ import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from './t3-session-deliv
  */
 export interface T3SessionLaneRuntime {
   describe(): Promise<readonly T3RuntimeAnnouncement[]>;
+  /** Nonexecuting demand. Only the service-registered held graph implements it;
+   * retained lanes omit it. The native service verifies the backend signature.
+   */
+  inspect?(request: ExecutorT3LaneOperation, signal: AbortSignal,
+    delivery: { inspection: T3ExecutionSignedAdmission; relayHmac: string }): Promise<T3ExecutionReceipt>;
   open(request: ExecutorT3LaneOperation, signal: AbortSignal,
     delivery: ExecutorT3LaneDelivery): AsyncIterable<ExecutorT3LaneReply>;
 }
