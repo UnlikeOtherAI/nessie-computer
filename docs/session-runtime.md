@@ -172,8 +172,8 @@ original descriptor's result/error. The four finite controls are
 
 Retained registration wraps the catalog owner's eight finite read handlers.
 Its capture/source-owner fences remain in that service; passive reads do not
-start providers. These imports require the coordinator-integrated control and
-catalog source, absent from this worker's base. They are not a runnable lane yet.
+start providers. Control and catalog source are now parent-integrated. A runnable
+read lane still requires the exact operation-bound catalog lease carrier.
 
 `sessionOperationScope<R>()` captures the held graph once. Each invocation
 evaluates the unresolved Effect in a joined scoped child. Caller abort interrupts
@@ -223,12 +223,54 @@ this scope after graph acquisition so it closes first.
 These exports are internal machinery, not a separately registered tool or
 transport. T07's one `describe/open` lane remains the doorway; WebMCP and
 internal/external MCP use the canonical operation ledger and original receipt
-and retry rules. Final read composition awaits the catalog owner's integrated
-`withHeldRetainedCatalogGraph` over the same callback, not per-request source
-or SQL acquisition. Controls remain unbound until the authenticated offer
-supplies prospective `ThreadManagementProvenance` from the actual principal
-and trusted entry point. Read/import consent supplies no execution or native
-association.
+and retry rules. The integrated `withHeldRetainedCatalogGraph` holds the same
+callback instead of acquiring source or SQL per request. The authenticated offer
+now carries prospective `ThreadManagementProvenance`; absence still refuses
+controls, and its presence does not replace the missing executing graph/native
+association. Read/import consent supplies no execution authority.
+
+### Durable capture workspace
+
+`withRetainedCaptureWorkspace(stateDirectory, physicalRootKey, use, signal)`
+owns one exclusive writer beneath the executor's private external state root.
+It opens the real capture journal and original SQLite layer once per generation.
+Opaque `t3-capture:v1:` stage references cannot select arbitrary paths. Capture,
+original legacy hydration and the held catalog graph reuse that same SQL service;
+reopening a stage does not build another layer. The shared database-file check
+rejects linked/non-private files and retains sticky file identity. Lock/file loss
+aborts the workspace. New stages use exclusive creation; partial files and failed
+acquisitions are retained for the existing journal recovery rules.
+
+Callback cancellation drains dependent work before SQL finalizers, journal and
+writer close, in that order. Finalizer failures remain errors. Escaped workspace
+and stage acquisitions refuse after closure. Callbacks must observe the supplied
+signal and await their operations. This workspace owns passive destination bytes,
+not the original source or an executing provider session.
+
+`withCapturedRetainedRuntime` composes the real held source callback, this
+workspace, original capture/resume and `withHeldRetainedCatalogGraph`. It passes
+the exact local source, database and physical recheck into capture, and the joined
+source/workspace signal into the held graph. Existing generations use original
+fingerprint/high-water recovery; partial captures are never silently replaced.
+The current internal signature accepts a separately validated capture lease.
+Production bootstrap must instead obtain that lease after actual signed
+`consent.commit` within the held callback. The retained owner's forthcoming
+`local.bootstrapAuthority('capture' | 'publish')` supplies this; it is not yet
+integrated in this checkpoint. No tray consumer or ready announcement is installed.
+
+Signed reads separately require the exact parent-integrated
+`retainedImportOperationBinding(lease, actualDecodedRequest, delivery.requestDigest)`
+and `local.authority(lease, binding)`. Their canonical digest, relay HMAC,
+correlation/scope and actual local consent must all match. Bootstrap capture or
+publication leases cannot authorize arbitrary lane callers. Unsupported requests
+with multiple grants must refuse atomically, never union their scopes or emit
+partial original results. Retried operation leases keep their fixed deadlines.
+
+Two workspace fixtures exercise real SQL service reuse, persisted reopen,
+competing writer refusal, invalid/duplicate references, escaped handles and
+cancellation/drain. They are authored and unrun, and require the same approved
+external `T3_RUNTIME_FIXTURE_ROOT` and native permission support as the writer
+fixtures. Builtin syntax parsing links no imports and proves none of these paths.
 
 Nine dispatch/lifetime fixtures are authored against the normal package and
 unrun. Seven authored files passed builtin syntax parsing without linking
