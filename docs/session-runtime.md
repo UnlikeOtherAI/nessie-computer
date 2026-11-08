@@ -114,18 +114,20 @@ source binding: recognized physical source and exact recheck, current source
 owner lease, original environment ID, and the journal's published capture
 generation. Those producers must bind the **same** graph. Executing-graph
 readiness also requires `SessionEngineLifecycle.phase === "running"` and a
-current writer. No complete source-to-writer binding is instantiated on this
-checkpoint; therefore no ready announcement is emitted. Missing source identity
-cannot be filled with a storage path, random root key, capture guess or a
-`VerifiedT3EffectGrant` that already assumes a runtime generation.
+current writer. The passive capture lane below binds its real source, destination
+writer and original read graph; it has a separate callback incarnation and no
+executing lifecycle. Missing source identity cannot be filled with a storage path,
+random root key, capture guess or a `VerifiedT3EffectGrant` that already assumes
+a runtime generation.
 
 ## Required integration
 
 Exact pinned Codex Stdio, Claude SDK process/history-child interfaces and the
 unbound per-operation byte correlation follow [native transport](session-native-transport.md).
 
-An immutable managed entry point must supply all the following. This checkpoint
-registers no CLI command, protocol implementation slot or advertised capability.
+An immutable managed executing entry point must supply all the following.
+The finite retained lane does not supply these execution prerequisites or add
+a CLI command.
 
 1. Native release admission, generation and lifetime custody, with positive
    previous-process-tree clearance before recovery and teardown proof afterward.
@@ -262,7 +264,8 @@ finite bootstrap read/publication scope does not authorize whole-source capture
 or prove inherited/shared closure. No caller-supplied cold capture lease remains.
 Publication must use the graph's existing `publish` with the same callback's separate
 `local.bootstrapAuthority('publish')`; capture authority cannot replace it.
-No tray consumer or ready announcement is installed.
+The callback now exposes the held finite-read lane described below. A tray
+snapshot-to-daemon consumer is still required before it is user reachable.
 
 Signed reads separately require the integrated
 `retainedImportOperationBinding(lease, actualDecodedRequest, delivery.requestDigest)`
@@ -271,8 +274,9 @@ correlation/scope and actual local consent must all match. Bootstrap capture or
 publication leases cannot authorize arbitrary lane callers. Unsupported requests
 with multiple grants must refuse atomically, never union their scopes or emit
 partial original results. Retried operation leases keep their fixed deadlines.
-The signed `catalogLeases` delivery carrier is still pending parent integration;
-these functions alone do not bind `describe/open` or advertise read readiness.
+The signed `catalogLeases` delivery carrier and retained implementation ceiling
+are parent-integrated. Their actual graph binding is described below; private
+issuer/replay composition and end-to-end availability remain unqualified.
 
 Two workspace fixtures exercise real SQL service reuse, persisted reopen,
 competing writer refusal, invalid/duplicate references, escaped handles and
@@ -344,8 +348,67 @@ an exchange is stalled. These checks establish correlation only.
 The held runtime must still consume each matching real local native grant through
 `local.authority(lease, retainedImportOperationBinding(...))`.
 
-The backend issuer/replay producer, private encrypted spool composition and held
-runtime adapter must be integrated before any read is ready. Multi-grant runtime
-composition remains unsupported and must fail atomically. Native effects remain
-unbound. Three additional lane fixtures are authored but unrun; this checkpoint
-has only bounded non-evaluating syntax checks, no compiler, native or runtime proof.
+The held runtime adapter now consumes this carrier. The private encrypted
+issuer/replay spool must still compose before end-to-end availability. Multi-grant
+runtime composition remains unsupported and fails atomically. Native effects
+remain unbound. Lane fixtures are authored but unrun; this checkpoint has only
+bounded non-evaluating syntax checks, no compiler, native or runtime proof.
+
+## Held finite-read lane
+
+`withCapturedRetainedRuntime(stateDirectory, { challenge, receipt }, use, signal)`
+now passes `{ held, graph, storage, lane, signal }` to `use`. `lane` implements
+the existing `T3SessionLaneRuntime` interface. Supply it to `serveExecutor`'s
+existing `options.t3Sessions` inside this callback. Observe the callback's
+`signal`, stop intake and drain the daemon lane before returning. No second
+transport, replay queue or engine graph is created. Tray snapshot delivery and
+that daemon registration remain an integration prerequisite; this internal
+adapter alone is not a reachable or qualified capability.
+
+`runtime/retained-lane.ts` composes the port inside the original held catalog
+callback. It verifies the exact source object and capture generation, actual
+writer/file currentness and enrolled executor, API URL, public key and connection
+epoch. It creates one callback incarnation only after graph acquisition and
+those checks. `describe()` rechecks before returning the source/environment/root
+and capture descriptor; closed or lost ownership returns no announcement and
+cannot revive that incarnation. Enrollment/source check failure aborts all lane
+demand. Existing 20-second physical/local-consent renewal remains in the outer
+source wrapper; these checks never extend consent or operation deadlines.
+
+`open(request, signal, delivery)` retains the exact decoded original request and
+requires `isRetainedT3LaneOperation(request)`. It snapshots the delivered lease,
+refuses anything except one grant before creating a read service, verifies the
+canonical request digest, keyed relay digest, correlation, exact routing and
+capture generation, then obtains the actual
+`local.authority(lease, retainedImportOperationBinding(...))`. That authority
+consumes the same held native consent and fresh server checks during the read.
+Per-request `graph.createReadService(authority)` shares the already captured
+SQL/read services. It does not reopen a source or build another read graph.
+
+The eight finite RPC and five HTTP handlers use `bindRetainedCatalogSlots` /
+`bindRetainedCatalogHttp` and the existing original-codec dispatch. They retain
+original input/result/error schemas and receipt-none retry semantics. The broker
+replays the saved descriptors under their original expiry; runtime neither
+renews them nor manufactures a receipt. Recheck failure is a failed operation,
+never an empty successful catalog. Streams, controls and native effects refuse
+before dispatch, regardless of supplied provenance.
+
+Each operation has a fixed local deadline, including while demand is idle or
+the signed exchange is stalled. At most 64 deadline owners exist. Cancellation
+closes demand without stopping any provider. A finite reply is exposed only
+after its iterator finishes, scoped slots close and source/enrollment/request
+checks pass again. The whole lane closes and joins demand before its surrounding
+catalog graph drains authority promises, SQL closes and physical consent releases.
+`runSessionEffect` preserves cancellation identity; `sessionDispatchScope`
+propagates the enclosing abort reason while retaining actual finalizer failures.
+Escaped ports refuse reads and cannot retain readiness after callback return.
+
+Four additional authored fixtures cover source/capture substitution, retired
+source/writer/graph rejection, real Effect cancellation finalizers and teardown
+defects. The graph substitution fixtures are refusal-only, not positive native
+authority proof. All remain unrun. Seven changed TS/MJS modules passed builtin
+syntax parsing with a 192 MiB heap, plus whitespace and line-cap checks; no
+imports, compiler, SQL, tests, native processes or user-facing journey ran.
+No shared manifests or tool registrations changed. Combined qualification must
+exercise valid publication/read, multigrant refusal, expiry, epoch/source loss,
+replay and drained teardown through the actual signed lane and tool doorways.

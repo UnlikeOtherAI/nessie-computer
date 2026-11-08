@@ -4,11 +4,17 @@ import { machineT3Sources } from '../source/owner.js'
 import { requireCapture } from '../state/sqlite.js'
 import { withRetainedRuntimeSource, type HeldRetainedRuntimeSource } from './retained-source.js'
 import { withRetainedCaptureWorkspace, type RetainedCaptureWorkspace } from './capture-workspace.js'
+import { withHeldRetainedLane } from './retained-lane.js'
+import type { T3SessionLaneRuntime } from '../../t3-session-lane.js'
 
 export interface CapturedRetainedRuntime {
   readonly held: HeldRetainedRuntimeSource
   readonly graph: HeldRetainedCatalogGraph
   readonly storage: RetainedCaptureWorkspace
+  /** Supply this port to the existing daemon t3Sessions option, inside this callback only. */
+  readonly lane: T3SessionLaneRuntime
+  /** Observe this signal and drain the daemon lane before returning. */
+  readonly signal: AbortSignal
 }
 
 /**
@@ -61,7 +67,9 @@ export async function withCapturedRetainedRuntime<A>(stateDirectory: string,
       await held.recheck()
       storage.assertCurrent()
       signal.throwIfAborted()
-      return withHeldRetainedCatalogGraph(ports, local, graph => use({ held, graph, storage }), signal)
+      return withHeldRetainedCatalogGraph(ports, local, graph =>
+        withHeldRetainedLane(stateDirectory, held, storage, graph,
+          (lane, runtimeSignal) => use({ held, graph, storage, lane, signal: runtimeSignal })), signal)
     }, held.signal)
   }, caller)
 }
