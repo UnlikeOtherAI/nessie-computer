@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { canonicalExecutorJson, canonicalExecutorPayload } from '@nessie/executor-protocol'
 import { T3EffectGrantReferenceSchema, T3EffectSelectionSchema, T3EffectAuthorityCheckedSchema,
   T3_EFFECT_SIGNATURE_DOMAIN, t3EffectSelection,
-  type T3EffectGrantReference, type T3EffectSelection } from '@nessie/executor-protocol/t3-session'
+  type T3EffectGrantReference, type T3EffectSelection, type T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
 import { executorApi } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
@@ -17,17 +17,27 @@ const digest = (value: unknown) => `sha256:${createHash('sha256').update(canonic
 const refused = () => new Error('T3_EFFECT_AUTHORITY_REFUSED')
 
 class FiniteGrant {
-  readonly #value: T3EffectGrantReference
+  readonly #proof: T3EffectAuthorityChecked
   readonly #renew: (value: T3EffectGrantReference, signal?: AbortSignal) => Promise<VerifiedT3EffectGrant>
-  constructor(token: typeof issuanceToken, value: T3EffectGrantReference, readonly issuerOrigin: string,
+  constructor(token: typeof issuanceToken, proof: T3EffectAuthorityChecked, readonly issuerOrigin: string,
     renew: (value: T3EffectGrantReference, signal?: AbortSignal) => Promise<VerifiedT3EffectGrant>) {
     if (token !== issuanceToken) throw refused()
-    this.#value = structuredClone(value)
+    this.#proof = structuredClone(proof)
     this.#renew = renew
     verified.add(this)
     Object.freeze(this)
   }
-  get reference(): T3EffectGrantReference { return structuredClone(this.#value) }
+  get reference(): T3EffectGrantReference { return structuredClone(this.#proof.grant) }
+  /** Already verified backend envelope for independent protected native checks.
+   * Copies cannot mutate the issued grant or promote an unverified response.
+   */
+  get signedProof(): T3EffectAuthorityChecked {
+    assertVerifiedT3EffectGrant(this)
+    const proof = structuredClone(this.#proof)
+    Object.freeze(proof.grant.nativeAssociation)
+    Object.freeze(proof.grant)
+    return Object.freeze(proof)
+  }
   async consume(signal?: AbortSignal): Promise<VerifiedT3EffectGrant> {
     assertVerifiedT3EffectGrant(this)
     return this.#renew(this.reference, signal)
@@ -80,7 +90,7 @@ export function createT3EffectAuthorityClient(state: () => ExecutorLocalState) {
       || Date.now() - started >= 5_000 || Date.parse(grant.issuedAt) < started - 2_000
       || Date.parse(grant.issuedAt) > Date.now() + 2_000 || Date.parse(grant.expiresAt) <= Date.now()
       || Date.parse(grant.expiresAt) > started + 5_000) throw refused()
-    return new FiniteGrant(issuanceToken, grant, origin.origin, request)
+    return new FiniteGrant(issuanceToken, response, origin.origin, request)
   }
   const request = async (value: T3EffectGrantReference, signal?: AbortSignal): Promise<VerifiedT3EffectGrant> => {
     const reference = T3EffectGrantReferenceSchema.parse(value)

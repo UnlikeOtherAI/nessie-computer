@@ -6,7 +6,7 @@ import { rawStoredPayload, storedPayload, encodeStoredPayload,
   attachmentArrayCodec, messageContextCodec } from './original-codecs.js'
 import { CaptureQuestions } from './questions.js'
 import type { CaptureTable } from './layout.js'
-import type { RetainedReadScope } from '../ownership/continuity.js'
+import type { SnapshotReadChecks } from './snapshot-view.js'
 import { SourceContracts as S } from '@nessie/t3-session-source/engine'
 
 const recordOf = (value: unknown): Record<string, unknown> | undefined =>
@@ -42,7 +42,7 @@ export class CapturePrivacy {
     return JSON.stringify([row.aggregate_kind ?? 'thread', entry.scope ? row[entry.scope] : 'unscoped'])
   }
 
-  async preflight(snapshot: T3SourceSnapshot, reads: RetainedReadScope): Promise<void> {
+  async preflight(snapshot: T3SourceSnapshot, reads: SnapshotReadChecks): Promise<void> {
     requireCapture(!this.started, 'capture_privacy_requires_fresh_preflight')
     this.started = true
     for (const entry of snapshot.tables) {
@@ -161,7 +161,7 @@ export class CapturePrivacy {
   }
 }
 
-export async function recheckRow(reads: RetainedReadScope, entry: CaptureTable, row: SqlRow): Promise<void> {
+export async function recheckRow(reads: SnapshotReadChecks, entry: CaptureTable, row: SqlRow): Promise<void> {
   await reads.recheckSource()
   if (entry.scope && row.aggregate_kind !== 'project' && typeof row[entry.scope] === 'string') {
     await reads.recheckThread(S.ThreadId.make(row[entry.scope] as string))
