@@ -8,6 +8,9 @@ import { dirname } from 'node:path'
 import { existingSessionsEnabled, setExistingSessionsEnabled } from './existing-session/settings.js'
 
 import { claimExecutor, heartbeatExecutor } from './daemon.js'
+import { readOwnerPause, setOwnerPaused } from './owner-pause.js'
+import { answerProgramRequest, printProgramRequests } from './program-request-cli.js'
+import { listProgramRequests } from './program-requests.js'
 import { serveExecutor } from './daemon-server.js'
 import { describeExecutor } from './describe.js'
 import { runDistributionCli } from './distribution-cli.js'
@@ -53,6 +56,16 @@ import {
   publishExecutorDeepTestExecutionGrant,
   revokeExecutorDeepTestExecutionGrant,
 } from './state-store.js'
+
+/** A pause file that cannot be read counts as paused, as it does in the daemon. */
+const ownerPaused = async (stateDir: string): Promise<boolean> =>
+  (await readOwnerPause(stateDir).catch(() => ({ paused: true }))) !== null
+
+/** The heartbeat a one-shot command sends says what the running daemon's would. */
+const ownerPauseReport = async (stateDir: string) => ({
+  paused: await ownerPaused(stateDir),
+  refused: () => { process.stderr.write('This Nessie cannot show that the team is paused; it stays paused here.\n') },
+})
 
 const readPairingChallenge = async (): Promise<string> => {
   const chunks: Buffer[] = []
@@ -240,10 +253,27 @@ export const run = async (args: string[]): Promise<void> => {
     if (input.existingCodingSessionsEnabled !== undefined) {
       await setExistingSessionsEnabled(command.stateDir, input.existingCodingSessionsEnabled)
     }
+    // A running team watches its saved state and applies this on its current connection.
     process.stdout.write(
-      `Local policy proposal saved as revision ${updated.descriptor.revision}. `
-      + 'Restart the local daemon to apply policy changes. The existing-session switch takes effect immediately.\n',
+      `Saved as revision ${updated.descriptor.revision}. A running team uses it within a second, `
+      + 'and a stopped one when it next starts.\n',
     )
+    return
+  }
+  if (command.kind === 'pause' || command.kind === 'resume') {
+    const pause = await setOwnerPaused(command.stateDir, command.kind === 'pause')
+    process.stdout.write(command.json ? `${JSON.stringify({ paused: pause !== null,
+      ...(pause ? { since: pause.since } : {}) })}\n`
+      : pause ? 'Paused. Agents in this team start nothing new on this computer until you resume it.\n'
+        : 'Resumed. Agents in this team can use this computer again.\n')
+    return
+  }
+  if (command.kind === 'program-requests') {
+    await printProgramRequests(command.stateDir, command.json, (text) => { process.stdout.write(text) })
+    return
+  }
+  if (command.kind === 'program-request-answer') {
+    await answerProgramRequest(command.stateDir, state, command, (text) => { process.stdout.write(text) })
     return
   }
   if (command.kind === 'configure-browser') {
@@ -263,6 +293,8 @@ export const run = async (args: string[]): Promise<void> => {
   }
   if (command.kind === 'describe') {
     process.stdout.write(`${JSON.stringify({ ...describeExecutor(state),
+      paused: await ownerPaused(command.stateDir),
+      pendingProgramRequests: (await listProgramRequests(command.stateDir)).length,
       folderSync: await describeFolderSync(command.stateDir, state.executorId),
       existingCodingSessionsEnabled: await existingSessionsEnabled(command.stateDir),
       existingClaudeChannelConfiguration: existingClaudeChannelConfiguration(state, command.stateDir) }, undefined, 2)}\n`)
@@ -270,12 +302,18 @@ export const run = async (args: string[]): Promise<void> => {
   }
   if (command.kind === 'connect') {
     const live = await claimExecutor(command.stateDir, state)
+    // A paused team connects paused: Nessie hears it before it could route anything here.
+    if (await ownerPaused(command.stateDir)) {
+      await heartbeatExecutor(live, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+        await ownerPauseReport(command.stateDir))
+    }
     await connectExecutorLocalInference(command.stateDir, live)
     process.stdout.write('Executor and local inference daemon connections established.\n')
     return
   }
   if (command.kind === 'heartbeat') {
-    await heartbeatExecutor(state)
+    await heartbeatExecutor(state, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      await ownerPauseReport(command.stateDir))
     process.stdout.write('Executor heartbeat accepted.\n')
     return
   }

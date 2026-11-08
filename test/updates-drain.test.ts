@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { LocalInferenceHostLoop } from '../src/local-inference-host.js'
-import { waitForExecutorDaemonShutdown } from '../src/daemon.js'
+import { waitForExecutorDaemonShutdown } from '../src/daemon-tasks.js'
 import { watchInferenceUpdateDrain } from '../src/updates/inference-drain.js'
 import type { ExecutorSoftwareStatus } from '@nessie/executor-protocol'
 import { setTimeout as delay } from 'node:timers/promises'

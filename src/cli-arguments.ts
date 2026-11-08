@@ -2,6 +2,7 @@ import { parseExecutorMcpServerArguments } from './mcp-server-arguments.js'
 import type { ExecutorLocalMcpServer } from './mcp-servers.js'
 import { parseSyncArguments, type SyncCliCommand } from './folder-sync/sync-cli.js'
 import { secureApiUrl } from './pairing-origin.js'
+import { PROGRAM_REQUEST_ANSWERS, type ProgramRequestAnswer } from './program-requests.js'
 import { parseExecutorWorkspaceFolderArguments, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 
 /**
@@ -51,6 +52,8 @@ export type ParsedCommand =
     vmHelperPath: string
   }
   | { kind: 'connect'; stateDir: string }
+  | { json: boolean; kind: 'pause' | 'resume' | 'program-requests'; stateDir: string }
+  | { answer: ProgramRequestAnswer; id: string; json: boolean; kind: 'program-request-answer'; stateDir: string }
   | { kind: 'serve-direct-local-inference' }
   | { kind: 'describe'; stateDir: string }
   | { kind: 'deeptest-source'; sourceGrantFile: string }
@@ -112,6 +115,10 @@ const usage = (): never => {
     + '--kernel <absolute-owner-only-file> --vm-helper <absolute-owner-only-file> '
     + '--runtime-bundle <absolute-owner-only-directory>\n'
     + '       nessie-executor connect|heartbeat|serve --state-dir <owner-only-path>\n'
+    + '       nessie-executor pause|resume --state-dir <owner-only-path> [--json]\n'
+    + '       nessie-executor program-requests --state-dir <owner-only-path> [--json]\n'
+    + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
+    + '--answer once|always|deny [--json]\n'
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
     + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
@@ -252,6 +259,21 @@ export const parseCommand = (args: string[]): ParsedCommand => {
   }
   if (command === 'connect' || command === 'heartbeat') {
     return { kind: command, stateDir: option(args, '--state-dir') }
+  }
+  if (command === 'pause' || command === 'resume' || command === 'program-requests') {
+    const json = args.includes('--json')
+    if (args.length !== (json ? 4 : 3)) return usage()
+    return { json, kind: command, stateDir: option(args, '--state-dir') }
+  }
+  if (command === 'program-request') {
+    const json = args.includes('--json')
+    const answer = option(args, '--answer')
+    if (args[1] !== 'answer' || args.length !== (json ? 9 : 8)
+      || !PROGRAM_REQUEST_ANSWERS.includes(answer as ProgramRequestAnswer)) return usage()
+    return {
+      answer: answer as ProgramRequestAnswer, id: option(args, '--id'), json,
+      kind: 'program-request-answer', stateDir: option(args, '--state-dir'),
+    }
   }
   if (command === 'serve-direct-local-inference') {
     if (!args.includes('--config-stdin') || args.length !== 2) return usage()
