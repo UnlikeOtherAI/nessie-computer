@@ -230,9 +230,13 @@ extension ExecutorCLI {
     }
 
     /// The steps from the sync root to a listed conflict's file: the team
-    /// folder, then the relative path's segments. None may climb or hide a separator.
+    /// folder — its organisation folder and its own (`Org/Team`), or one folder
+    /// for a sync named before teams shared a main folder — then the relative
+    /// path's segments. Each is checked for a link; none may climb or hide a separator.
     public static func syncSegments(teamLabel: String, relPath: String) throws -> [String] {
-        let segments = [teamLabel] + relPath.components(separatedBy: "/")
+        let team = teamLabel.components(separatedBy: "/")
+        if team.count > 2 { throw ExecutorRefusal(invalidSyncAction) }
+        let segments = team + relPath.components(separatedBy: "/")
         let unsafe = segments.contains { segment in
             segment.isEmpty || segment == "." || segment == ".." || segment.contains("\\") || segment.contains("\0")
         }

@@ -100,6 +100,14 @@ final class ExecutorCLISyncTests: XCTestCase {
             XCTAssertThrowsError(try ExecutorCLI.syncSegments(teamLabel: "Platform", relPath: path), path)
         }
         XCTAssertThrowsError(try ExecutorCLI.syncSegments(teamLabel: "..", relPath: "x"))
+        // A team folder inside its organisation's: both are steps of their own, each checked for a link.
+        XCTAssertEqual(
+            try ExecutorCLI.syncSegments(teamLabel: "UnlikeOtherAI/Platform", relPath: "Plan.md"),
+            ["UnlikeOtherAI", "Platform", "Plan.md"]
+        )
+        for team in ["UnlikeOtherAI/..", "../Platform", "/Platform", "UnlikeOtherAI/", "A/B/C"] {
+            XCTAssertThrowsError(try ExecutorCLI.syncSegments(teamLabel: team, relPath: "Plan.md"), team)
+        }
     }
 
     func testNessieOpensOnlyOverHTTPS() throws {

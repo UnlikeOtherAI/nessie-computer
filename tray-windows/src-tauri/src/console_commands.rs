@@ -181,11 +181,15 @@ fn restore_command(entry_id: &str) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "command": "restore_trash", "entryId": entry_id }))
 }
 
-/// The steps from the sync root to a conflict's file: the team folder, then
-/// the relative path's own segments. None may climb, name a drive or hide a
-/// separator.
+/// The steps from the sync root to a conflict's file: the team folder — its
+/// organisation folder and its own (`Org/Team`), or one folder for a sync
+/// named before teams shared a main folder — then the relative path's own
+/// segments. Each is checked for a link on the way; none may climb, name a
+/// drive or hide a separator.
 fn relative_segments<'a>(team_label: &'a str, rel_path: &'a str) -> Result<Vec<&'a str>, String> {
-    let segments: Vec<&str> = std::iter::once(team_label).chain(rel_path.split('/')).collect();
+    let team: Vec<&str> = team_label.split('/').collect();
+    if team.len() > 2 { return Err(SYNC_INVALID.into()); }
+    let segments: Vec<&str> = team.into_iter().chain(rel_path.split('/')).collect();
     if segments.iter().any(|segment| segment.is_empty() || *segment == "." || *segment == ".."
         || segment.contains(['\\', ':', '\0'])) {
         return Err(SYNC_INVALID.into());
@@ -350,6 +354,11 @@ mod sync_tests {
             assert!(relative_segments("Platform", path).is_err(), "{path}");
         }
         assert!(relative_segments("..", "x").is_err());
+        // A team folder inside its organisation's: both are steps of their own, each checked for a link.
+        assert_eq!(relative_segments("UnlikeOtherAI/Platform", "Plan.md").unwrap(), vec!["UnlikeOtherAI", "Platform", "Plan.md"]);
+        for team in ["UnlikeOtherAI/..", "../Platform", "/Platform", "UnlikeOtherAI/", "A/B/C", "C:/Platform"] {
+            assert!(relative_segments(team, "Plan.md").is_err(), "{team}");
+        }
     }
 }
 
