@@ -468,6 +468,9 @@ export const waitForExecutorDaemonShutdown = async (
   process.once('SIGTERM', stop)
   void updateReady?.then(stop)
   if (parentLiveness) {
+    // A retained handoff begins reading this same pipe during startup. EOF may
+    // therefore precede shutdown-listener installation; it must not orphan us.
+    if (parentLiveness.destroyed || parentLiveness.readableEnded) { stop(); return }
     parentLiveness.once('close', stop)
     parentLiveness.once('end', stop)
     parentLiveness.once('error', stop)

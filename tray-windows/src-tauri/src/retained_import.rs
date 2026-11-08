@@ -10,7 +10,10 @@ pub async fn executor_retained_status(executor_id:String)->Result<Value,String> 
     tauri::async_runtime::spawn_blocking(move || {
         let roots=report(&executor_id,json!({"operation":"roots"}))?;
         let pending=report(&executor_id,json!({"operation":"issuer.pending"}))?;
-        Ok(json!({"roots":roots,"pending":pending,"active":snapshot(&executor_id)?.is_some()}))
+        let held = snapshot(&executor_id)?;
+        let handoff = held.as_ref().and_then(|v|v["challenge"]["challengeId"].as_str())
+            .and_then(|id|crate::user_connections::retained_status(&executor_id,id));
+        Ok(json!({"roots":roots,"pending":pending,"active":held.is_some(),"handoff":handoff}))
     }).await.map_err(|_|ERROR.to_owned())?
 }
 #[tauri::command]
@@ -22,7 +25,18 @@ pub fn executor_retained_snapshot(executor_id:String)->Result<Value,String> {
     Ok(snapshot(&executor_id)?.unwrap_or(Value::Null))
 }
 fn action_inner(executor:&str,action:&str,id:&str)->Result<Value,String> {
-    if action=="revoke" {stop(executor)?;return Ok(json!({"status":"revoked"}));}
+    if !crate::user_connections::owns(executor) {return Err(ERROR.into());}
+    let held = snapshot(executor)?;
+    if action=="revoke" {
+        if let Some(held) = held {
+            let id = held["challenge"]["challengeId"].as_str().ok_or(ERROR)?;
+            if !matches!(crate::user_connections::retained_status(executor,id).as_deref(),Some("closed"|"refused")) {
+                crate::user_connections::retained_cancel(executor,id)?;
+            }
+        }
+        stop(executor)?;return Ok(json!({"status":"revoked"}));
+    }
+    if held.is_some() {return Err("retained_import_active_handoff_requires_close".into());}
     let (kind,input)=if action=="offer" {
         let roots=report(executor,json!({"operation":"roots"}))?;
         if !roots.as_array().is_some_and(|v|v.iter().any(|r|r["admittedRootKey"]==id)) {return Err(ERROR.into());}
@@ -32,17 +46,24 @@ fn action_inner(executor:&str,action:&str,id:&str)->Result<Value,String> {
         let (list,field,kind)=match action {"enroll"=>("enrollments","enrollmentId","enroll"),
             "approve"=>("imports","challengeId","approve"),_=>return Err(ERROR.into())};
         let input=pending[list].as_array().and_then(|v|v.iter().find(|r|r[field]==id)).ok_or(ERROR)?.clone();
-        if input["executorId"]!=executor {return Err(ERROR.into());}(kind,input)
+        if input["executorId"]!=executor {return Err(ERROR.into());}
+        if kind=="approve" && input["selection"]["kind"]!="whole_source" {
+            return Err("retained_import_whole_source_required".into());
+        }
+        (kind,input)
     };
+    if kind=="approve" {crate::user_connections::retained_ready(executor)?;}
     let output=start(executor,kind,input)?;
     let result=match kind {
         "offer"=>report(executor,json!({"operation":"issuer.offer","offer":output})),
         "enroll"=>report(executor,json!({"operation":"issuer.proof","proof":output})),
-        // No direct consent.commit: parent must compose this snapshot through
-        // withRetainedImportLocally and the actual retained capture/read owner.
-        _=>Ok(json!({"status":"locally-approved-awaiting-consumer"})),
+        // Only the actual held snapshot crosses the inherited pipe to this
+        // tray's already-running managed daemon. It performs consent.commit.
+        _=>crate::user_connections::retained_begin(executor,&snapshot(executor)?.ok_or(ERROR)?),
     };
-    if kind!="approve" || result.is_err() {let _=stop(executor);}result
+    // An uncertain handoff retains the issuer pipe until a correlated completed
+    // close/refusal or its original hard deadline. Never substitute process exit.
+    result
 }
 #[cfg(windows)]
 use windows::{start,stop,snapshot};
@@ -73,7 +94,9 @@ mod windows {
         entries.get(executor).map(|v|v.result.lock().map(|r|r.clone()).map_err(|_|ERROR.to_owned())).unwrap_or(Ok(None))
     }
     pub fn start(executor:&str,kind:&str,input:Value)->Result<Value,String> {
-        stop(executor)?;
+        let mut entries=active().lock().map_err(|_|ERROR)?;
+        entries.retain(|_,v|v.deadline>Instant::now() && !v.cancelled.load(Ordering::Acquire));
+        if entries.contains_key(executor) {return Err("retained_import_local_review_already_active".into());}
         nessie_windows_provenance::require_release_signature(option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"))?;
         let name:Vec<u16>=std::ffi::OsStr::new(r"\\.\pipe\NessieT3SourceIssuer").encode_wide().chain(Some(0)).collect();
         let handle=unsafe {CreateFileW(name.as_ptr(),nessie_windows_common::CONTROL_PIPE_CLIENT_ACCESS,0,
@@ -87,7 +110,8 @@ mod windows {
         pipe.write_all(&frame).map_err(|_|ERROR)?;
         let approval=Arc::new(Approval {pipe:pipe.try_clone().map_err(|_|ERROR)?,cancelled:AtomicBool::new(false),
             deadline:Instant::now()+Duration::from_secs(300),result:Mutex::new(None)});
-        active().lock().map_err(|_|ERROR)?.insert(executor.to_owned(),approval.clone());
+        entries.insert(executor.to_owned(),approval.clone());
+        drop(entries);
         let result=(|| {
             let mut size=None;
             while Instant::now()<approval.deadline && !approval.cancelled.load(Ordering::Acquire) {
@@ -113,11 +137,14 @@ mod windows {
                 *approval.result.lock().map_err(|_|ERROR)?=Some(json!({"challenge":input,"receipt":receipt,
                     "expiresAtMs":input["grantExpiresAtMs"]}));
                 let executor=executor.to_owned();let held=Arc::downgrade(&approval);
+                let challenge_id=input["challengeId"].as_str().ok_or(ERROR)?.to_owned();
                 std::thread::spawn(move || {
                     while let Some(v)=held.upgrade() {
                         let live=unsafe {PeekNamedPipe(v.pipe.as_raw_handle(),std::ptr::null_mut(),0,std::ptr::null_mut(),
                             std::ptr::null_mut(),std::ptr::null_mut())}!=0;
-                        if Instant::now()>=v.deadline || v.cancelled.load(Ordering::Acquire) || !live {break;}
+                        let drained=matches!(crate::user_connections::retained_status(&executor,&challenge_id).as_deref(),
+                            Some("closed"|"refused"));
+                        if Instant::now()>=v.deadline || v.cancelled.load(Ordering::Acquire) || !live || drained {break;}
                         drop(v);std::thread::sleep(Duration::from_millis(100));
                     }
                     if let Ok(mut entries)=active().lock() {
@@ -125,7 +152,14 @@ mod windows {
                     }
                 });
             }
-        } else {let _=stop(executor);}
+        }
+        if kind!="approve" || result.is_err() {
+            // A cancelled ceremony may finish after a new one was explicitly
+            // started. Cleanup owns only its original approval, never its successor.
+            if let Ok(mut entries)=active().lock() {
+                if entries.get(executor).is_some_and(|v|Arc::ptr_eq(v,&approval)) {entries.remove(executor);}
+            }
+        }
         result
     }
 }

@@ -17,6 +17,16 @@ test('a desktop parent-liveness pipe stops the daemon when its parent closes', a
   assert.equal(parentLiveness.readableEnded, true)
 })
 
+test('parent EOF consumed during retained handoff startup still stops the daemon', async () => {
+  const parent = new PassThrough()
+  const ended = once(parent, 'end')
+  parent.resume()
+  parent.end()
+  await ended
+  await waitForExecutorDaemonShutdown(parent)
+  assert.equal(parent.destroyed, true)
+})
+
 // The menu bar app stops its daemon with SIGTERM and keeps the pipe's write end
 // until the daemon exits. A resumed pipe left open held the stopped daemon's
 // process alive forever: no heartbeat, "Offline" in Nessie, and an app that

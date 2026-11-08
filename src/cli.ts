@@ -285,5 +285,6 @@ export const run = async (args: string[]): Promise<void> => {
   await assertPackagedExecutorRuntime()
   await serveExecutor(command.stateDir, state, {
     ...(command.parentLivenessFromStandardInput ? { parentLiveness: process.stdin } : {}),
+    ...(command.retainedParentStdio ? { retainedParentOutput: process.stdout } : {}),
   })
 }

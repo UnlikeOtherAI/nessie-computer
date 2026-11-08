@@ -189,6 +189,13 @@ test('desktop-supervised daemon reads its parent-liveness pipe only when explici
   )
 })
 
+test('retained handoff requires the inherited parent-liveness channel', () => {
+  assert.throws(() => parseCommand(['serve', '--parent-retained-stdio', '--state-dir', '/private/tmp/fixture']))
+  assert.deepEqual(parseCommand(['serve', '--parent-retained-stdio', '--parent-liveness-stdin',
+    '--state-dir', '/private/tmp/fixture']), { kind: 'serve', parentLivenessFromStandardInput: true,
+    retainedParentStdio: true, stateDir: '/private/tmp/fixture' })
+})
+
 test('the cookie-import native host receives only a pinned caller and owner-only state path', () => {
   assert.deepEqual(
     parseCommand([
