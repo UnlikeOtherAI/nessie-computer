@@ -1,5 +1,6 @@
-export const installRendererHost = async (context, host, { paired = false } = {}) => {
-await context.addInitScript(({ host, paired }) => {
+export const installRendererHost = async (context, host, { paired = false, ownerConfirmationRequired = false } = {}) => {
+await context.addInitScript(({ host, paired, ownerConfirmationRequired }) => {
+  window.ownerConfirmationRequired = ownerConfirmationRequired
   window.calls = []
   window.pairStatus = 'idle'
   window.paired = []
@@ -93,6 +94,9 @@ await context.addInitScript(({ host, paired }) => {
       window.pairStatus = 'waiting'
     }
     if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
+    if (command === 'executor_pairing_status' && id && window.ownerConfirmationRequired) {
+      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
+    }
     if (command.startsWith('executor_pairing_')) {
       const executorId = id ?? `team-${window.paired.length - 1}`
       return {
@@ -150,5 +154,5 @@ await context.addInitScript(({ host, paired }) => {
     window.emitTray = (event, payload) => window.dispatchEvent(new CustomEvent(event, { detail: payload }))
   }
   if (paired) window.claimInNessie()
-}, { host, paired })
+}, { host, paired, ownerConfirmationRequired })
 }

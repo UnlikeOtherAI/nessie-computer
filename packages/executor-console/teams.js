@@ -95,7 +95,7 @@ const applyView = (view, asked = 0) => {
   if (view.kind !== 'reachable') throw new Error(view.reason)
   connections = view.executors
   const signature = JSON.stringify([connections, connections.map((connection) => [
-    teamLabel(connection.executorId), serverHost(connection.executorId),
+    teamLabel(connection.executorId), serverHost(connection.executorId), ownerConfirmationRequired.has(connection.executorId),
   ]), currentExecutorId, switchPending])
   clearRecoveredConnections(asked)
   if (signature === renderedView) return

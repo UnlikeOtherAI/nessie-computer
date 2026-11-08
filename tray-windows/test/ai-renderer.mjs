@@ -8,7 +8,7 @@ export const verifyAiConnections = async (browser, ui, output, files) => {
     for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'es', 'fr', 'it']) {
       for (const width of [390, 1280]) {
         const context = await browser.newContext({ locale, viewport: { width, height: 800 } })
-        await installRendererHost(context, host, { paired: true })
+        await installRendererHost(context, host, { paired: true, ownerConfirmationRequired: true })
         const page = await context.newPage()
         const errors = []
         page.on('pageerror', error => errors.push(error.message))
@@ -18,12 +18,19 @@ export const verifyAiConnections = async (browser, ui, output, files) => {
           await route.fulfill({ body: await readFile(join(ui, file)), contentType: file.endsWith('.js')
             ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html' })
         })
+        await page.clock.install()
         await page.goto('http://localhost:5875/')
+        await page.waitForFunction(() => document.querySelector('#executors-list').textContent.includes(window.aiConsoleWords.restoreNames))
+        await page.screenshot({ path: join(output, `${host}-teams-owner-recovery-${locale}-${width}.png`), fullPage: true })
+        await page.evaluate(() => { window.ownerConfirmationRequired = false; window.chatgptProfiles = [] })
+        await page.clock.fastForward(65_000)
+        await page.getByRole('button', { name: 'AI · UnlikeOtherAI / Platform', exact: true }).waitFor()
+        await page.screenshot({ path: join(output, `${host}-teams-named-${locale}-${width}.png`), fullPage: true })
         await page.getByRole('button', { name: 'AI · UnlikeOtherAI / Platform', exact: true }).click()
         assert.deepEqual(await page.locator('[role=tab]').evaluateAll(nodes => nodes.map(node => node.dataset.tab)),
           ['teams', 'folders', 'commands', 'sync', 'ai', 'settings'])
         assert.equal(await page.locator('h1').evaluate(node => getComputedStyle(node).userSelect), 'none')
-        await page.locator('#ai-chatgpt-list button').waitFor()
+        await page.waitForFunction(() => document.querySelector('#ai-chatgpt-list').textContent === window.aiConsoleWords.emptyChatgpt)
         await page.screenshot({ path: join(output, `${host}-ai-empty-${locale}-${width}.png`), fullPage: true })
         for (const name of ['Personal', 'Work']) {
           await page.locator('#ai-add-chatgpt').click()
