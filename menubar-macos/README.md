@@ -46,8 +46,10 @@ selected. From the top:
 - **Quit Nessie Computer**, which adds "— agents stop until you open it again"
   while any team is working.
 
-Team labels are `{team} · {organisation}`, from the CLI's pairing status and
-held in memory only; two equal labels get the server's host.
+Team labels are `{team} · {organisation}`, from the label saved in each team's
+folder ([team names](../docs/team-names.md)); two equal labels get the server's
+host. The app asks Nessie for every team's names in one `team-names` call at
+launch and every hour; a team keeps its name while Nessie can't be reached.
 
 The icon is idle (nothing connected, everything paused, connecting, stopping),
 working, or needs you. Needs you means a program request, documents that need

@@ -17,6 +17,8 @@ final class ExecutorConnections: ObservableObject {
     private let isDevelopmentBuild: Bool
     private var observations: Set<AnyCancellable> = []
     private var discoveryTimer: Timer?
+    private var namesTimer: Timer?
+    private let namesWork = DispatchQueue(label: "com.unlikeotherai.nessie.executor.menubar.names")
     /// The directory the last Add this computer used, so the pairing dialog's
     /// status checks follow that attempt and no other.
     private var connectingDirectory: String?
@@ -71,7 +73,6 @@ final class ExecutorConnections: ObservableObject {
     func menuModel() -> ComputerMenuModel {
         let labels = labels()
         var unreadable = 0
-        var confirmation: [String] = []
         var runtimeMissing = false
         var teams: [TeamSnapshot] = []
         for controller in controllers {
@@ -80,7 +81,6 @@ final class ExecutorConnections: ObservableObject {
             case .unavailable:
                 if controller.runtimeMissing { runtimeMissing = true } else { unreadable += 1 }
             case let .paired(description):
-                if controller.pairing.ownerConfirmationRequired { confirmation.append(description.executorId) }
                 teams.append(TeamSnapshot(
                     executorId: description.executorId,
                     label: labels[description.executorId] ?? Word.teamNameUnavailable.text,
@@ -95,8 +95,7 @@ final class ExecutorConnections: ObservableObject {
             }
         }
         return ComputerMenuModel(
-            teams: teams, unreadableTeams: unreadable, confirmationTeams: confirmation,
-            runtimeMissing: runtimeMissing, updatesStuck: updatesStuck
+            teams: teams, unreadableTeams: unreadable, runtimeMissing: runtimeMissing, updatesStuck: updatesStuck
         )
     }
 
@@ -175,6 +174,25 @@ final class ExecutorConnections: ObservableObject {
         discoveryTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.adoptNewTeams() }
         }
+        refreshTeamNames()
+        namesTimer = Timer.scheduledTimer(withTimeInterval: 60 * 60, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.refreshTeamNames() }
+        }
+    }
+
+    /// Team names (`docs/team-names.md`): one `team-names` call for every team
+    /// on this Mac, at launch and every hour, which saves each team's label in
+    /// its folder. Each team's pairing status then reads that label again, so
+    /// the menu, notifications and the window follow a rename. A read that
+    /// fails leaves every saved name as it was.
+    func refreshTeamNames() {
+        guard let runner = controllers.lazy.compactMap(\.runner).first else { return }
+        let invocation = ExecutorCLI.teamNames(stateDirectories: controllers.map(\.stateDirectory))
+        let settled = controllers.filter { $0.pairing.state?.isAttemptOpen != true }
+        namesWork.async {
+            _ = try? runner.run(invocation)
+            Task { @MainActor in settled.forEach { $0.pairing.restore() } }
+        }
     }
 
     /// Starts a team that appeared in a state folder since the last look.
@@ -194,6 +212,8 @@ final class ExecutorConnections: ObservableObject {
     func shutdown() {
         discoveryTimer?.invalidate()
         discoveryTimer = nil
+        namesTimer?.invalidate()
+        namesTimer = nil
         controllers.forEach { $0.shutdown() }
     }
 }

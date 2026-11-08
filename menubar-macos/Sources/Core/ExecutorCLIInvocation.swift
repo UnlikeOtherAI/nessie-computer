@@ -64,6 +64,12 @@ public enum ExecutorCLI {
         ExecutorCLIInvocation(arguments: ["pairing-status", "--json", "--state-dir", stateDirectory])
     }
 
+    /// Every team's names in one request per Nessie server, saved as each
+    /// team's label (`docs/team-names.md`); folders without a team are skipped.
+    public static func teamNames(stateDirectories: [String]) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["team-names"] + stateDirectories.flatMap { ["--state-dir", $0] } + ["--json"])
+    }
+
     public static func pairingCancel(stateDirectory: String) -> ExecutorCLIInvocation {
         ExecutorCLIInvocation(arguments: ["pairing-cancel", "--json", "--state-dir", stateDirectory])
     }

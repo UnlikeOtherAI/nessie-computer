@@ -2,9 +2,10 @@ import Foundation
 
 /// What a team is called everywhere this app names one: `{team} · {organisation}`.
 ///
-/// The names come from the CLI's pairing status, read live from Nessie and held
-/// in memory for display only. A team whose names are not known yet is never
-/// shown by its id or its API address; it says so instead.
+/// The names come from the CLI's pairing status, which answers the label saved
+/// in the team's folder (`docs/team-names.md`) without asking anyone: display
+/// only, never an authority. A team that has never had a name is never shown
+/// by its id or its API address; it says so instead.
 public struct TeamNames: Equatable, Sendable {
     public let executorId: String
     public let teamName: String?
