@@ -49,8 +49,8 @@ importers:
         specifier: 4.1.2
         version: 4.1.2(effect@4.1.2)(redis@6.3.1)
       '@types/node':
-        specifier: ^20.19.24
-        version: 20.19.43
+        specifier: ^24.12.4
+        version: 24.12.4
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.58.0
         version: 8.72.1(@typescript-eslint/parser@8.72.1(eslint@10.14.0)(typescript@5.9.3))(eslint@10.14.0)(typescript@5.9.3)

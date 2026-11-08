@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 import { build } from 'esbuild'
+import { inspectPackagedNodeRuntime } from './packaged-node.mjs'
 
 /** The files present in every package, whatever the host. */
 export const EXECUTOR_RUNTIME_FIXED_FILES = ['nessie-executor.cjs', 'manifest.json', 'NODE_LICENSE']
@@ -57,8 +58,6 @@ const nativeHelperName = (platform) => (
   platform === 'win32' ? 'nessie-executor-native.exe' : 'nessie-executor-native'
 )
 
-const NODE_LICENSE_URL = `https://raw.githubusercontent.com/nodejs/node/v${process.versions.node}/LICENSE`
-
 const readNodeLicense = async (path, nodeExecutablePath) => {
   try {
     return await readFile(path)
@@ -78,13 +77,14 @@ export const resolveWindowsPackagedNodeLicense = async (nodeExecutablePath = pro
   try {
     return await readNodeLicense(localPath, nodeExecutablePath)
   } catch {
-    const response = await fetch(NODE_LICENSE_URL)
+    const { nodeVersion } = inspectPackagedNodeRuntime(nodeExecutablePath)
+    const response = await fetch(`https://raw.githubusercontent.com/nodejs/node/v${nodeVersion}/LICENSE`)
     if (!response.ok) {
-      throw new Error(`Unable to download the Node.js license for ${process.versions.node}.`)
+      throw new Error(`Unable to download the Node.js license for ${nodeVersion}.`)
     }
     const license = await response.text()
     if (!license.startsWith('Node.js is licensed for use as follows:')) {
-      throw new Error(`Downloaded Node.js license for ${process.versions.node} was invalid.`)
+      throw new Error(`Downloaded Node.js license for ${nodeVersion} was invalid.`)
     }
     return Buffer.from(license)
   }
@@ -94,7 +94,7 @@ export const resolveWindowsPackagedNodeLicense = async (nodeExecutablePath = pro
  * Bundles the executor CLI, copies the build host's Node beside it with its
  * licence, optionally copies the native helper, and writes the sha256 manifest.
  * The copied Node is the runtime the package ships, so every build host must run
- * the Node version the bundle targets (22).
+ * Node 24 with the SQLite authorization and transaction-state APIs.
  *
  * `platform` and `nodeExecutablePath` are injectable so both layouts are
  * exercised from one host; every caller in the repository takes the defaults.
@@ -124,6 +124,8 @@ export const prepareExecutorRuntime = async ({
   const isPosix = platform !== 'win32'
 
   const license = nodeLicenseContents ?? await readNodeLicense(licenseSourcePath, nodeExecutablePath)
+  // Reject unsupported inputs before replacing an existing staging directory.
+  const selectedNode = inspectPackagedNodeRuntime(nodeExecutablePath)
   await rm(runtimeDirectory, { force: true, recursive: true })
   await mkdir(runtimeDirectory, { recursive: true })
 
@@ -138,13 +140,15 @@ export const prepareExecutorRuntime = async ({
     format: 'cjs',
     outfile: executorBundlePath,
     platform: 'node',
-    target: 'node22',
+    target: 'node24',
   })
   // esbuild follows the builder's umask; group-writable output cannot be a
   // trusted Linux package even after dpkg gives it root ownership.
   if (isPosix) await chmod(executorBundlePath, 0o644)
   await copyFile(nodeExecutablePath, nodePath)
   if (isPosix) await chmod(nodePath, 0o755)
+  const copiedNode = inspectPackagedNodeRuntime(nodePath)
+  if (copiedNode.nodeVersion !== selectedNode.nodeVersion) throw new Error('The selected Node runtime changed during preparation.')
   await writeFile(resolve(runtimeDirectory, 'NODE_LICENSE'), license, { mode: 0o644 })
 
   // The helper establishes and proves the Windows state DACL, so a package that
@@ -172,7 +176,7 @@ export const prepareExecutorRuntime = async ({
       }),
     nodeExecutable,
     nodeSha256: await digest(nodePath),
-    nodeVersion: process.versions.node,
+    nodeVersion: copiedNode.nodeVersion,
   }
   const manifestPath = resolve(runtimeDirectory, 'manifest.json')
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 })

@@ -7,7 +7,7 @@ import { prepareExecutorRuntime } from '../../scripts/prepare-runtime.mjs'
 export const prepareMacExecutorRuntime = async (repository, outputDirectory,
   executorVersion = process.env.NESSIE_EXECUTOR_VERSION ?? 'development') => {
   if (process.platform !== 'darwin') throw new Error('Prepare the macOS executor on macOS.')
-  if (process.versions.node.split('.')[0] !== '22') throw new Error('Build the macOS packaged runtime with Node 22.')
+  if (process.versions.node.split('.')[0] !== '24') throw new Error('Build the macOS packaged runtime with Node 24.')
   await promisify(execFile)('cargo', ['build', '--release', '--manifest-path',
     join(repository, 'native/Cargo.toml')], { maxBuffer: 16 * 1024 * 1024,
     env: { ...process.env, NESSIE_EXECUTOR_VERSION: executorVersion } })
