@@ -20,7 +20,7 @@ test('initial sync brings every page down, byte-correct, and settles up to date'
   const state = await h.state()
   assert.equal(state.state, 'up_to_date')
   assert.equal(state.counts.entries, 3)
-  assert.equal(state.teamLabel, 'UnlikeOtherAI')
+  assert.equal(state.teamLabel, 'UnlikeOtherAI/Platform')
 })
 
 test('ongoing edits converge both ways', async (t) => {

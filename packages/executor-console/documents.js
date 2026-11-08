@@ -34,6 +34,19 @@
   const asksForDecision = (state) => state.conflicts.length > 0 || state.heldDeletes !== null
     || state.counts.openConflicts + state.counts.heldDeletes + state.counts.errors > 0
 
+  /**
+   * Where this team's files go, from the main folder's own name down:
+   * `Nessie/UnlikeOtherAI/Platform`. Several teams share the main folder, each
+   * in its own folder; null until the computer knows the team's names.
+   */
+  const destination = (state) => {
+    if (!state.teamFolder) return null
+    const root = state.root ?? state.defaultRoot
+    const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/'
+    const main = root.split(/[\\/]/).filter(Boolean).pop() ?? root
+    return [main, ...state.teamFolder.split('/')].join(separator)
+  }
+
   /** The status line never says Up to date while anything is pending, waiting or in conflict. */
   const statusKey = (state) => {
     if (state.state === 'not_private') return 'not_private'
@@ -61,6 +74,7 @@
     <div id="documents-body">
       <p id="documents-folder-label" class="label"></p>
       <div class="documents-folder-row"><p id="documents-folder" class="path"></p><button id="documents-choose" type="button" aria-describedby="documents-folder"></button></div>
+      <p id="documents-destination" class="hint" hidden></p>
       <p id="documents-refusal" class="field-error" role="alert" hidden></p>
       <div class="documents-actions">
         <button id="documents-open-nessie" type="button" class="primary" hidden></button>
@@ -204,6 +218,9 @@
     byId('documents-body').hidden = !state || key === 'not_private'
     if (!state || key === 'not_private') return
     byId('documents-folder').textContent = state.root ?? t('suggested', { path: state.defaultRoot })
+    const goesTo = destination(state)
+    byId('documents-destination').hidden = !goesTo
+    byId('documents-destination').textContent = goesTo ? t(`destination.${state.enabled ? 'on' : 'off'}`, { team, path: goesTo }) : ''
     byId('documents-choose').disabled = pendingSwitch !== null
     byId('documents-refusal').hidden = !refused
     byId('documents-refusal').textContent = refused ? words.maybe(`refusals.${refused}`) ?? t('refusals.other') : ''

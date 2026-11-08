@@ -15,11 +15,13 @@ import {
 } from '@nessie/executor-protocol'
 
 import type { StateSecurityDeps } from '../state-security.js'
-import { defaultFolderSyncRoot, loadFolderSyncConfig } from './config.js'
+import { loadFolderSyncConfig, type FolderSyncConfig } from './config.js'
+import { suggestedMainFolder } from './main-folder.js'
 import { mapTree } from './path-mapping.js'
 import type { RemoteManifest } from './reconcile-model.js'
 import { ConflictBook } from './report.js'
 import { folderSyncPaths, readStateJson, writeStateJson } from './state-files.js'
+import { chooseTeamFolder } from './team-folder.js'
 
 /**
  * What the native console reads (`sync status --json`, plan §5.2): the
@@ -34,7 +36,9 @@ export type FolderSyncStatusFile = {
   state: FolderSyncEngineState
   serverStatus: FolderSyncRecordStatus | null
   manageUrl: string | null
+  /** The team's and its organisation's names, as last learned (`team-names.ts`). */
   teamLabel: string | null
+  organizationName: string | null
   counts: FolderSyncCounts
   activity: { uploading: number; downloading: number }
   lastReconcileAt: string | null
@@ -55,6 +59,7 @@ export const emptyStatusFile = (): FolderSyncStatusFile => ({
   serverStatus: null,
   manageUrl: null,
   teamLabel: null,
+  organizationName: null,
   counts: EMPTY_COUNTS,
   activity: { uploading: 0, downloading: 0 },
   lastReconcileAt: null,
@@ -95,6 +100,19 @@ export const notSyncedItems = (
   return { items: all.slice(0, FOLDER_SYNC_CONSOLE_LIST_LIMIT), count: all.length }
 }
 
+/**
+ * Where this team's files go under `root`: the folder the engine named, or
+ * the one it would name now from the names it last learned; null while it
+ * knows none.
+ */
+const teamFolderFor = async (
+  config: FolderSyncConfig, status: FolderSyncStatusFile, root: string, executorId: string,
+): Promise<string | null> => {
+  if (config.teamFolder) return config.teamFolder
+  if (!status.teamLabel || !status.organizationName) return null
+  return chooseTeamFolder(root, { teamName: status.teamLabel, organizationName: status.organizationName }, executorId)
+}
+
 /** The console's whole view of one paired team's sync, validated against the shared schema. */
 export const readConsoleState = async (
   stateDir: string, executorId: string, home = homedir(),
@@ -104,14 +122,16 @@ export const readConsoleState = async (
   const status = await readStatusFile(stateDir)
   const book = await ConflictBook.open(paths.conflicts)
   const enabled = config.enabled && config.root !== null
+  const defaultRoot = await suggestedMainFolder(stateDir, home)
   return FolderSyncConsoleStateSchema.parse({
     executorId,
     // The team folder's name on disk: the console finds a file at root/teamLabel/relPath.
     teamLabel: config.teamFolder,
+    teamFolder: await teamFolderFor(config, status, config.root ?? defaultRoot, executorId),
     enabled,
     paused: config.paused,
     root: config.root,
-    defaultRoot: defaultFolderSyncRoot(home),
+    defaultRoot,
     trashPath: paths.trash,
     // Switched on here but not yet run is `starting`; turned off in Nessie stays `off`.
     state: !enabled ? 'off' : config.paused ? 'paused'
