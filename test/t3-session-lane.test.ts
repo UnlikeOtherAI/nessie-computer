@@ -4,6 +4,7 @@ import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
 import { canonicalExecutorPayload, RetainedImportLeaseSchema } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, decodeExecutorT3LaneReply, T3_SOURCE_COMMIT,
+  isRetainedT3LaneOperation,
   type T3LaneExchange, type T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
 import { createT3SessionLane } from '../src/t3-session-lane.js'
 import { snapshotT3LaneDelivery, t3LaneDeliveryExpiry } from '../src/t3-session-delivery.js'
@@ -126,6 +127,19 @@ function catalogDelivery(f: ReturnType<typeof fixture>) {
       scope: { kind: 'thread', threadId: 'original:thread' } } })
   return { requestDigest, catalogLeases: [lease] }
 }
+
+test('held retained readiness never implies stream, mutation or conditional refresh implementation', () => {
+  const f = fixture()
+  assert.equal(isRetainedT3LaneOperation(f.request), false)
+  const finite = decodeExecutorT3LaneOperation({ ...f.wire, method: 'orchestration.getThreadTitles',
+    input: { threadIds: ['original:thread'] } })
+  assert.equal(isRetainedT3LaneOperation(finite), true)
+  // Intentionally structural negative input: this inventory does not decode or
+  // grant a request. Production always runs the original codec before it.
+  for (const method of ['vcs.listRefs', 'orchestration.dispatchCommand', 'orchestration.launchThread']) {
+    assert.equal(isRetainedT3LaneOperation({ ...finite, method } as typeof finite), false)
+  }
+})
 
 test('catalog descriptors are copied, deeply frozen and never extended by lane credits', () => {
   const f = fixture()

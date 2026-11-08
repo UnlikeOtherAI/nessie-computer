@@ -326,6 +326,13 @@ separate bounded qualification after native/provider prerequisites integrate.
 
 ## Operation-bound catalog delivery
 
+`isRetainedT3LaneOperation` limits the current lane to the held graph's eight
+finite RPC reads and five HTTP reads. `state: ready` only describes that held
+read graph and source incarnation. It does not advertise streams, controls or
+native execution. The private broker applies this implementation ceiling before
+enqueue and offer; target/result policies may narrow it further. Broadening it
+requires an explicit runtime capability contract and its actual authority.
+
 The existing signed session lane carries `ExecutorT3LaneDelivery.catalogLeases`
 only to the private daemon. Descriptors use the canonical retained-import schema,
 with the original request SHA, keyed relay digest, correlation and exact scope.
