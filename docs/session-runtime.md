@@ -121,6 +121,9 @@ cannot be filled with a storage path, random root key, capture guess or a
 
 ## Required integration
 
+Exact pinned Codex Stdio, Claude SDK process/history-child interfaces and the
+unbound per-operation byte correlation follow [native transport](session-native-transport.md).
+
 An immutable managed entry point must supply all the following. This checkpoint
 registers no CLI command, protocol implementation slot or advertised capability.
 
