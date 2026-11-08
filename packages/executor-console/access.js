@@ -14,7 +14,6 @@ window.accessTab = (() => {
   let savedTimer = null
   const t = (key, vars) => nc.t(`access.${key}`, vars)
 
->>>
   const current = () => nc.team.current()
   /** The configuration the sections paint: the draft while one waits, otherwise what is saved. */
   const view = () => {

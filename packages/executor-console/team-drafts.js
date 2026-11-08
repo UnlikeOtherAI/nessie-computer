@@ -49,7 +49,8 @@ window.teamDrafts = (() => {
     ...(saved.mcpPolicy ? { mcpPolicy: { mode: saved.mcpPolicy.mode, disabled: [...saved.mcpPolicy.disabled] } } : {}),
   })
   /** What the page shows: the draft while one waits, otherwise what is saved. */
-  const shown = (executorId) => drafts.get(executorId)?.input ?? (described.has(executorId) ? inputOf(described.get(executorId)) : null)
+  const shown = (executorId) => drafts.get(executorId)?.input
+    ?? (described.has(executorId) ? inputOf(described.get(executorId)) : null)
 
   // A problem sits beside the control that asked for the change, with Try again.
   const renderProblem = (key) => {
@@ -73,7 +74,9 @@ window.teamDrafts = (() => {
       node.append(' ', retry)
     }
     const target = typeof problem.target === 'string' ? nc.byId(problem.target) : problem.target
-    if (!existing || existing.previousElementSibling !== target) target.parentElement.insertBefore(node, target.nextSibling)
+    if (!existing || existing.previousElementSibling !== target) {
+      target.parentElement.insertBefore(node, target.nextSibling)
+    }
   }
   const setProblem = (executorId, group, problem) => {
     const key = `${executorId}:${group}`
@@ -152,7 +155,9 @@ window.teamDrafts = (() => {
    * and names the rule still in force. Only the outcome for the draft as it
    * still stands is reported; a newer edit has its own save.
    */
-  const reportFailure = async ({ executorId, draft, revision, generation, sent, sections, target, inForce, reason }) => {
+  const reportFailure = async ({
+    executorId, draft, revision, generation, sent, sections, target, inForce, reason,
+  }) => {
     const superseded = () => editsOf(executorId) !== generation
     const saved = await nc.invoke('executor_describe', { executorId }).catch(() => null)
     if (saved) remember(saved)
@@ -177,7 +182,8 @@ window.teamDrafts = (() => {
   const edit = (executorId, { section, target, inForce, mutate, immediately = true }) => {
     const saved = described.get(executorId)
     if (!saved) return false
-    const draft = drafts.get(executorId) ?? { revision: 0, savedRevision: 0, sections: new Set(), input: inputOf(saved) }
+    const draft = drafts.get(executorId)
+      ?? { revision: 0, savedRevision: 0, sections: new Set(), input: inputOf(saved) }
     if (mutate(draft.input) === false) return false
     noteEdit(executorId)
     // Even an edit back to what is saved is sent: a save in flight may be about to change it.

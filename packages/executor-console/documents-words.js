@@ -274,10 +274,11 @@ const documentsByLocale = {
 window.documentsWords = (() => {
   const nc = window.nc
   const table = Object.fromEntries(Object.keys(documentsByLocale).map((locale) => [locale,
-    { ...documentsByLocale[locale], ...documentsReasonsByLocale[locale] }]))
+    { ...documentsByLocale[locale], ...window.documentsReasonsByLocale[locale] }]))
   nc.words.register('documents', table)
   const locale = () => (document.documentElement.lang in table ? document.documentElement.lang : 'en-GB')
-  const fill = (text, values = {}) => text.replace(/\{(\w+)\}/g, (whole, name) => (name in values ? String(values[name]) : whole))
+  const fill = (text, values = {}) => text.replace(/\{(\w+)\}/g,
+    (whole, name) => (name in values ? String(values[name]) : whole))
   const pick = (path) => path.split('.').reduce((node, key) => node?.[key], table[locale()])
   return {
     /** A sentence by its dotted key, with its placeholders filled. */

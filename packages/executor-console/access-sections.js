@@ -91,7 +91,8 @@
           // Native and runtime validation own path, overlap and name rules.
           access.edit({ section: 'folders', target: add, inForce, mutate: (input) => {
             if (input.workspaceFolders.some((folder) => folder.path === path)) return false
-            input.workspaceFolders = [...input.workspaceFolders, { name: folderName(path, input.workspaceFolders), path }]
+            const name = folderName(path, input.workspaceFolders)
+            input.workspaceFolders = [...input.workspaceFolders, { name, path }]
           } })
         }), { id: 'access-add-folder' })
         ;({ intro } = heading(node, 'folders', add))

@@ -86,7 +86,6 @@
     forget: (prefix) => { for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group); renderFooter() },
   }
 
->>>
   /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
   const keepFocus = (container, rebuild, fallback) => {
     const key = container.contains(document.activeElement) ? document.activeElement.dataset.key : undefined

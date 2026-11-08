@@ -91,5 +91,8 @@
     load()
     setInterval(() => load(), 15_000)
   })
-  nc.updates = { onStatus: (listener) => { listeners.add(listener); return () => listeners.delete(listener) }, status: () => status }
+  nc.updates = {
+    onStatus: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
+    status: () => status,
+  }
 })()

@@ -27,7 +27,8 @@
     return match ? match[1] : null
   }
   const same = (left, right) => JSON.stringify(normal(left)) === JSON.stringify(normal(right))
-  const normal = (policy) => ({ mode: policy.mode, allowlist: [...policy.allowlist].sort(), denylist: [...policy.denylist].sort(),
+  const normal = (policy) => ({
+    mode: policy.mode, allowlist: [...policy.allowlist].sort(), denylist: [...policy.denylist].sort(),
     trusted: policy.trusted ? BUILTINS.map((key) => Boolean(policy.trusted[key])) : null })
   const valid = (policy) => [...policy.allowlist, ...policy.denylist].every(validRule)
 
@@ -52,7 +53,8 @@
     access.render()
   }
   const setTrusted = (key, on) => change((draft) => {
-    draft.trusted = Object.fromEntries(BUILTINS.map((name) => [name, name === key ? on : Boolean(draft.trusted?.[name])]))
+    draft.trusted = Object.fromEntries(BUILTINS.map((name) => [name, name === key ? on : Boolean(draft.trusted?.[name])]),
+    )
   })
 
   const build = (node) => {
@@ -87,7 +89,10 @@
     for (const list of ['allowlist', 'denylist']) {
       nodes[list].oninput = () => change((draft) => { draft[list] = lines(nodes[list]) })
     }
-    nodes.undo.onclick = () => { const view = access.view(); if (view) { drafts.delete(view.executorId); access.render() } }
+    nodes.undo.onclick = () => {
+      const view = access.view()
+      if (view) { drafts.delete(view.executorId); access.render() }
+    }
     nodes.apply.onclick = () => {
       const view = access.view()
       if (!view) return

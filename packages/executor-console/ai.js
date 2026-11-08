@@ -17,7 +17,6 @@ window.aiTab = (() => {
     <div id="ai-endpoint-list"></div>
     <p id="ai-error" class="field-error" role="alert" hidden></p>
     <button type="button" id="ai-refresh"></button>`
->>>
   const row = (name, detail, id, manage) => {
     const node = document.createElement('div')
     node.className = 'list-row'

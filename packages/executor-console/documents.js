@@ -183,7 +183,8 @@
     const pendingSwitch = switchPending?.executorId === executorId ? switchPending.enabled : null
     const refused = refusal?.executorId === executorId ? refusal.reason : null
     const team = executorId ? nc.team.label(executorId) : ''
-    const signature = JSON.stringify([executorId, team, document.documentElement.lang, state, failure, pendingSwitch, refused, [...busy]])
+    const signature = JSON.stringify([executorId, team, document.documentElement.lang, state, failure, pendingSwitch, refused,
+      [...busy]])
     if (signature === painted) return
     painted = signature
     renderWords(team)
@@ -255,7 +256,7 @@
   }
 
   /** Applies a command's answer and says which one it was: applied, confirm or refused. */
-  const applyResult = (executorId, result, saved, command, target) => {
+  const applyResult = (executorId, result, saved, command) => {
     if (result.outcome === 'applied') {
       if (refusal?.executorId === executorId) refusal = null
       request += 1
@@ -280,9 +281,9 @@
   }
 
   /** A change waits behind every save already queued; its command is built when its turn comes. */
-  const queueCommand = (executorId, build, saved, target) => autosave.now(`${executorId}:documents`, async () => {
+  const queueCommand = (executorId, build, saved) => autosave.now(`${executorId}:documents`, async () => {
     const command = build()
-    return applyResult(executorId, await native.syncConfigure(executorId, command), saved, command, target)
+    return applyResult(executorId, await native.syncConfigure(executorId, command), saved, command)
   })
 
   const openExisting = (executorId, command, saved, fileCount) => {

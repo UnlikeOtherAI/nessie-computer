@@ -72,7 +72,8 @@
       if (current) describes.delete(current)
       notifySelection()
     }
-    const signature = JSON.stringify([executors, executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
+    const signature = JSON.stringify([executors,
+      executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
     if (signature === rendered) return
     rendered = signature
     for (const listener of listListeners) listener(executors)
