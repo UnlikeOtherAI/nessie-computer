@@ -14,7 +14,9 @@ import { sessionResourceCleanupLayer } from './ResourceLayers.ts'
 export const createSessionRuntimeLayers = (state = createSessionStateLayers()) => {
   const engine = createSessionEngineLayers(state)
   const host = Layer.mergeAll(sessionProviderHostLayer, sessionResourceCleanupLayer)
-  const services = Layer.mergeAll(engine.launch, engine.recovery, engine.worker).pipe(Layer.provideMerge(host))
+  const services = Layer.mergeAll(engine.launch, engine.recovery, engine.worker).pipe(
+    Layer.provideMerge(Layer.mergeAll(host, engine.finalization)),
+  )
   const layer = sessionLifecycleLayer.pipe(Layer.provideMerge(services))
   return { state, engine, host, services, layer }
 }

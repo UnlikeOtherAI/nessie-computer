@@ -268,25 +268,75 @@
       "file": "apps/server/src/git/GitManager.session-port.ts",
       "create": [
         {
-          "text": "import * as Effect from \"effect/Effect\";\nimport { GitActionProgressEvent, VcsStatusResult, ModelSelection, type SourceControlWritingStyleSettings } from \"@t3tools/contracts\";\nimport * as GitVcsDriver from \"../vcs/GitVcsDriver.session-port.ts\";\n"
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Scope from \"effect/Scope\";\nimport * as Stream from \"effect/Stream\";\nimport { GitActionProgressEvent, GitCommandError, GitPreparePullRequestThreadInput, GitPreparePullRequestThreadResult, GitPullRequestRefInput, GitResolvePullRequestResult, GitRunStackedActionInput, GitRunStackedActionResult, VcsStatusInput, type VcsStatusLocalResult, type VcsStatusRemoteResult, VcsStatusResult, ModelSelection, type SourceControlWritingStyleSettings, type ThreadPullRequestKey, type VcsCreateWorktreeInput, type VcsCreateWorktreeResult } from \"@t3tools/contracts\";\nimport type { GitManagerServiceError } from \"@t3tools/contracts\";\nimport * as GitVcsDriver from \"../vcs/GitVcsDriver.session-port.ts\";\n"
         },
         {
           "sourceFile": "apps/server/src/git/GitManager.ts",
           "start": 3613,
-          "end": 4430,
-          "sha256": "406e5b91d93e64adb58f928f8c12a1e17aaae0ce1c9eb363c50e3915a3729ac5"
+          "end": 6395,
+          "sha256": "00b15cab8fd0f8ec838c12149797a585c0e323bfcc550c5faaf3595bf0e45e31"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "684b1e5969d177f32b59f528ee37e83d30c25a07ed90c0eadb42f5ead1f8e04c"
+      "afterSha256": "b6b082b382a1760172ecc4896cadf5c22e3c368951e8238cda093c11c3e5a0dd"
     },
     {
       "id": "share-port:git/GitManager.ts",
       "file": "apps/server/src/git/GitManager.ts",
-      "from": "export interface GitActionProgressReporter {\n  readonly publish: (event: GitActionProgressEvent) => Effect.Effect<void, never>;\n}\n\nexport interface GitRunStackedActionOptions {\n  readonly actionId?: string;\n  readonly progressReporter?: GitActionProgressReporter;\n}\n\nexport interface GitRemoteStatusOptions extends GitVcsDriver.GitRemoteStatusOptions {\n  readonly refreshMissingPullRequest?: boolean;\n}\n\nexport type GitBranchPullRequest = NonNullable<VcsStatusResult[\"pr\"]> & {\n  readonly repositoryKey: string | null;\n  readonly updatedAt: string | null;\n  readonly closedAt?: string | null;\n  readonly mergedAt?: string | null;\n  readonly headSha?: string | null;\n};\n\ninterface SourceControlTextGenerationSettings {\n  readonly modelSelection: ModelSelection;\n  readonly style: SourceControlWritingStyleSettings;\n}\n\n",
-      "to": "import { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest } from \"./GitManager.session-port.ts\";\nexport { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest };\n\n",
+      "from": "export interface GitActionProgressReporter {\n  readonly publish: (event: GitActionProgressEvent) => Effect.Effect<void, never>;\n}\n\nexport interface GitRunStackedActionOptions {\n  readonly actionId?: string;\n  readonly progressReporter?: GitActionProgressReporter;\n}\n\nexport interface GitRemoteStatusOptions extends GitVcsDriver.GitRemoteStatusOptions {\n  readonly refreshMissingPullRequest?: boolean;\n}\n\nexport type GitBranchPullRequest = NonNullable<VcsStatusResult[\"pr\"]> & {\n  readonly repositoryKey: string | null;\n  readonly updatedAt: string | null;\n  readonly closedAt?: string | null;\n  readonly mergedAt?: string | null;\n  readonly headSha?: string | null;\n};\n\ninterface SourceControlTextGenerationSettings {\n  readonly modelSelection: ModelSelection;\n  readonly style: SourceControlWritingStyleSettings;\n}\n\nexport class GitManager extends Context.Service<\n  GitManager,\n  {\n    readonly createWorktree: (\n      input: VcsCreateWorktreeInput,\n      options?: GitVcsDriver.CreateWorktreeOptions,\n    ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;\n    readonly status: (\n      input: VcsStatusInput,\n    ) => Effect.Effect<VcsStatusResult, GitManagerServiceError>;\n    readonly localStatus: (\n      input: VcsStatusInput,\n    ) => Effect.Effect<VcsStatusLocalResult, GitManagerServiceError>;\n    readonly remoteStatus: (\n      input: VcsStatusInput,\n      options?: GitRemoteStatusOptions,\n    ) => Effect.Effect<VcsStatusRemoteResult | null, GitManagerServiceError>;\n    /** refresh queries the host; freshGitState rereads only git state and is required before persisting. */\n    readonly branchPullRequest: (\n      input: { readonly cwd: string; readonly branch: string },\n      options?: { readonly refresh?: boolean; readonly freshGitState?: boolean },\n    ) => Effect.Effect<GitBranchPullRequest | null, GitManagerServiceError>;\n    readonly invalidateLocalStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly invalidateRemoteStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly invalidateStatus: (cwd: string) => Effect.Effect<void, never>;\n    readonly resolvePullRequest: (\n      input: GitPullRequestRefInput,\n    ) => Effect.Effect<GitResolvePullRequestResult, GitManagerServiceError>;\n    readonly preparePullRequestThread: (\n      input: GitPreparePullRequestThreadInput,\n    ) => Effect.Effect<GitPreparePullRequestThreadResult, GitManagerServiceError>;\n    readonly runStackedAction: (\n      input: GitRunStackedActionInput,\n      options?: GitRunStackedActionOptions,\n    ) => Effect.Effect<GitRunStackedActionResult, GitManagerServiceError>;\n    readonly subscribePullRequestStateChanges: Effect.Effect<\n      Stream.Stream<ThreadPullRequestKey>,\n      never,\n      Scope.Scope\n    >;\n  }\n>()(\"t3/git/GitManager\") {}\n\n",
+      "to": "import { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest, GitManager } from \"./GitManager.session-port.ts\";\nexport { type GitActionProgressReporter, type GitRunStackedActionOptions, type GitRemoteStatusOptions, type GitBranchPullRequest, GitManager };\n\n",
       "beforeSha256": "42ac8f168b639497cbde2bee5913b3b53055aed431de08c22c84728ff4fa3bad",
-      "afterSha256": "8ef5a9da82052a1ef8539f86a1a85e344884f1cd500103baae15967c08426c89"
+      "afterSha256": "3618c6568419943d50adb279b914c0f1153b6de1d543ddaacb1c5ae6b8f32f5f"
+    },
+    {
+      "id": "extract-port:sourceControl/SourceControlProviderRegistry.ts",
+      "file": "apps/server/src/sourceControl/SourceControlProviderRegistry.session-port.ts",
+      "create": [
+        {
+          "text": "import { SourceControlProviderKind } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport { SourceControlProviderError, type SourceControlProviderDiscoveryItem } from \"@t3tools/contracts\";\nimport * as SourceControlProvider from \"@t3tools/source-control-core/server/SourceControlProvider\";\nimport { type SourceControlProviderDiscoverySpec } from \"@t3tools/source-control-core/server/discovery\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/sourceControl/SourceControlProviderRegistry.ts",
+          "start": 1431,
+          "end": 2799,
+          "sha256": "e4ebb16b806dba91fd91e2d61a3104e6c567e7e43520a6d22afe6f74f87df56c"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "9253eacfdb6866ebf8f12f51c39bd607d990faed8da38eca1865ce07e25e44fe"
+    },
+    {
+      "id": "share-port:sourceControl/SourceControlProviderRegistry.ts",
+      "file": "apps/server/src/sourceControl/SourceControlProviderRegistry.ts",
+      "from": "export interface SourceControlProviderRegistration {\n  readonly kind: SourceControlProviderKind;\n  readonly provider: SourceControlProvider.SourceControlProvider[\"Service\"];\n  readonly discovery: SourceControlProviderDiscoverySpec;\n}\n\nexport interface SourceControlProviderHandle {\n  readonly provider: SourceControlProvider.SourceControlProvider[\"Service\"];\n  readonly context: SourceControlProvider.SourceControlProviderContext | null;\n}\n\nexport class SourceControlProviderRegistry extends Context.Service<\n  SourceControlProviderRegistry,\n  {\n    readonly resolveLink: SourceControlProvider.ResolveSourceControlLink;\n    readonly get: (\n      kind: SourceControlProviderKind,\n    ) => Effect.Effect<\n      SourceControlProvider.SourceControlProvider[\"Service\"],\n      SourceControlProviderError\n    >;\n    readonly resolveHandle: (input: {\n      readonly cwd: string;\n      readonly context?: SourceControlProvider.SourceControlProviderContext;\n    }) => Effect.Effect<SourceControlProviderHandle, SourceControlProviderError>;\n    readonly resolve: (input: {\n      readonly cwd: string;\n    }) => Effect.Effect<\n      SourceControlProvider.SourceControlProvider[\"Service\"],\n      SourceControlProviderError\n    >;\n    readonly discover: Effect.Effect<ReadonlyArray<SourceControlProviderDiscoveryItem>>;\n  }\n>()(\"t3/sourceControl/SourceControlProviderRegistry\") {}\n\n",
+      "to": "import { type SourceControlProviderRegistration, type SourceControlProviderHandle, SourceControlProviderRegistry } from \"./SourceControlProviderRegistry.session-port.ts\";\nexport { type SourceControlProviderRegistration, type SourceControlProviderHandle, SourceControlProviderRegistry };\n\n",
+      "beforeSha256": "2f8f2928b6e692aafd1479dfb73d4041ea321b0e4a1ee25b42002b31cb1e4ec6",
+      "afterSha256": "54babc306a69942b656caae15e819d565cc5d01b27a5ad4a7948ff7284d188e1"
+    },
+    {
+      "id": "extract-port:policy/ManagedPolicy.ts",
+      "file": "apps/server/src/policy/ManagedPolicy.session-port.ts",
+      "create": [
+        {
+          "text": "import { ManagedPolicyDocument, type ManagedPolicySummary } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as ManagedProviders from \"./managedProviders.ts\";\nimport * as ManagedSettings from \"./managedSettings.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/policy/ManagedPolicy.ts",
+          "start": 1141,
+          "end": 1652,
+          "sha256": "a310b22e8ff7a4db9a4535f3fe71fbb1c5f9f6565f31ca07cc85f1ad7dd9c22b"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "16c227efb4d2384ee5ec2ad60135f2e9bc0851f2547b1790cadfaa4adb6fda08"
+    },
+    {
+      "id": "share-port:policy/ManagedPolicy.ts",
+      "file": "apps/server/src/policy/ManagedPolicy.ts",
+      "from": "export class ManagedPolicy extends Context.Service<\n  ManagedPolicy,\n  {\n    /** Where the policy is read from, whether or not a file exists there. */\n    readonly path: string;\n    readonly document: ManagedPolicyDocument | undefined;\n    readonly settings: ManagedSettings.ManagedSettings;\n    readonly providers: ManagedProviders.ManagedProviders;\n    /** What clients are told; absent when no policy applies. */\n    readonly summary: ManagedPolicySummary | undefined;\n  }\n>()(\"t3/policy/ManagedPolicy\") {}\n\n",
+      "to": "import { ManagedPolicy } from \"./ManagedPolicy.session-port.ts\";\nexport { ManagedPolicy };\n\n",
+      "beforeSha256": "88c85fcd795ba6fe7e46782cd88a28a90f6c74887b7bf2a99dec076d130a511f",
+      "afterSha256": "d9df65409a9701b4b5cab432d58e399bb4f1500a918a146a35ba835e0f4c84ec"
     },
     {
       "id": "extract-port:vcs/GitVcsDriver.ts",
@@ -431,12 +481,68 @@
       "afterSha256": "47e69382ebe31a75a3676b0da592f1ca4f180bc4d9eb84a738624b35c469e5c2"
     },
     {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:busyTurnPrefix",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "const busyTurnPrefix",
+      "to": "export const busyTurnPrefix",
+      "beforeSha256": "47e69382ebe31a75a3676b0da592f1ca4f180bc4d9eb84a738624b35c469e5c2",
+      "afterSha256": "b7be965f249f3bcaa2d0d53138f7050a44dc78a457aa85c11d28c3ca37e3006d"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:busyTurnKey",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "const busyTurnKey",
+      "to": "export const busyTurnKey",
+      "beforeSha256": "b7be965f249f3bcaa2d0d53138f7050a44dc78a457aa85c11d28c3ca37e3006d",
+      "afterSha256": "003c86e982ad1296c8ef1f7a55770e7124c843e055eba1726128d135e9953db4"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:UNLOAD_THREAD_TIMEOUT_MS",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "const UNLOAD_THREAD_TIMEOUT_MS",
+      "to": "export const UNLOAD_THREAD_TIMEOUT_MS",
+      "beforeSha256": "003c86e982ad1296c8ef1f7a55770e7124c843e055eba1726128d135e9953db4",
+      "afterSha256": "69204b68e09da31f9416207826381edd0a48ad2468acc6ca431c9996a8690d88"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:WORKING_RUN_STATUSES",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "const WORKING_RUN_STATUSES",
+      "to": "export const WORKING_RUN_STATUSES",
+      "beforeSha256": "69204b68e09da31f9416207826381edd0a48ad2468acc6ca431c9996a8690d88",
+      "afterSha256": "5174582331f15eee2a7a66f4bac70b2c480b1c70df503e4f50772d46ca729486"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:LiveSessionEntry",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "interface LiveSessionEntry",
+      "to": "export interface LiveSessionEntry",
+      "beforeSha256": "5174582331f15eee2a7a66f4bac70b2c480b1c70df503e4f50772d46ca729486",
+      "afterSha256": "bd402940c8a5eee7b94d52067a5aaafeb333833f05da089fd735402c5385d797"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:IdleThreadUnload",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "interface IdleThreadUnload",
+      "to": "export interface IdleThreadUnload",
+      "beforeSha256": "bd402940c8a5eee7b94d52067a5aaafeb333833f05da089fd735402c5385d797",
+      "afterSha256": "8d309de47966710bc784342f8ae7d04000343593fd83b6a2cf2255f57c712d17"
+    },
+    {
+      "id": "share-internal:orchestration-v2/ProviderSessionManager.ts:ProviderSessionEventSignal",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts",
+      "from": "type ProviderSessionEventSignal",
+      "to": "export type ProviderSessionEventSignal",
+      "beforeSha256": "8d309de47966710bc784342f8ae7d04000343593fd83b6a2cf2255f57c712d17",
+      "afterSha256": "989a25441be519a82840a39ab6b399a0c1285b74bca592e5898af2b60d7aba82"
+    },
+    {
       "id": "share-port:orchestration-v2/ProviderSessionManager.ts",
       "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "from": "export const PROVIDER_INTERRUPT_TIMEOUT_MS = 15 * 1000;\n\nconst busyTurnPrefix = (providerThreadId: ProviderThreadId) => `${providerThreadId}#`;\nconst busyTurnKey = (providerThreadId: ProviderThreadId, runOrdinal: number) =>\n  `${busyTurnPrefix(providerThreadId)}${runOrdinal}`;\nconst UNLOAD_THREAD_TIMEOUT_MS = 10 * 1000;\nconst WORKING_RUN_STATUSES: ReadonlySet<string> = new Set([\n  \"preparing\",\n  \"starting\",\n  \"running\",\n  \"waiting\",\n]);\n\nexport const ProviderSessionReleaseReason = Schema.Literals([\n  \"idle_timeout\",\n  \"runtime_error\",\n  \"manual_shutdown\",\n  \"server_shutdown\",\n]);\nexport type ProviderSessionReleaseReason = typeof ProviderSessionReleaseReason.Type;\n\nexport class ProviderSessionOpenError extends Schema.TaggedError<ProviderSessionOpenError>()(\n  \"ProviderSessionOpenError\",\n  {\n    instanceId: ProviderInstanceId,\n    providerSessionId: ProviderSessionId,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `Failed to open provider instance ${this.instanceId} session ${this.providerSessionId}.`;\n  }\n}\n\nexport class ProviderSessionLookupError extends Schema.TaggedError<ProviderSessionLookupError>()(\n  \"ProviderSessionLookupError\",\n  {\n    providerSessionId: ProviderSessionId,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `Failed to look up provider session ${this.providerSessionId}.`;\n  }\n}\n\nexport class ProviderSessionCloseError extends Schema.TaggedError<ProviderSessionCloseError>()(\n  \"ProviderSessionCloseError\",\n  {\n    providerSessionId: ProviderSessionId,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `Failed to close provider session ${this.providerSessionId}.`;\n  }\n}\n\nexport class ProviderSessionReleaseError extends Schema.TaggedError<ProviderSessionReleaseError>()(\n  \"ProviderSessionReleaseError\",\n  {\n    providerSessionId: ProviderSessionId,\n    reason: ProviderSessionReleaseReason,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `Failed to release provider session ${this.providerSessionId}.`;\n  }\n}\n\nexport class ProviderSessionActivityError extends Schema.TaggedError<ProviderSessionActivityError>()(\n  \"ProviderSessionActivityError\",\n  {\n    providerSessionId: ProviderSessionId,\n    cause: Schema.optional(Schema.Defect()),\n  },\n) {\n  override get message(): string {\n    return `Failed to update provider session activity for ${this.providerSessionId}.`;\n  }\n}\n\nexport const ProviderSessionManagerV2Error = Schema.Union([\n  ProviderSessionOpenError,\n  ProviderWorkspaceMissingError,\n  ProviderSessionLookupError,\n  ProviderSessionCloseError,\n  ProviderSessionReleaseError,\n  ProviderSessionActivityError,\n]);\nexport type ProviderSessionManagerV2Error = typeof ProviderSessionManagerV2Error.Type;\n\nexport interface ProviderSessionManagerV2Shape {\n  readonly shutdown: Effect.Effect<void>;\n  readonly open: (input: {\n    readonly threadId: ThreadId;\n    readonly providerSessionId: ProviderSessionId;\n    readonly modelSelection: ModelSelection;\n    readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;\n    readonly resumeFromSession?: OrchestrationV2ProviderSession;\n    readonly initialNativeThreadId?: string;\n    readonly initialProviderItemIdentityVersion?: 2;\n  }) => Effect.Effect<\n    ProviderAdapter.ProviderAdapterV2SessionRuntime,\n    ProviderSessionManagerV2Error\n  >;\n  readonly get: (\n    providerSessionId: ProviderSessionId,\n  ) => Effect.Effect<\n    Option.Option<ProviderAdapter.ProviderAdapterV2SessionRuntime>,\n    ProviderSessionManagerV2Error\n  >;\n  readonly isLive: (providerSessionId: ProviderSessionId) => Effect.Effect<boolean>;\n  readonly close: (\n    providerSessionId: ProviderSessionId,\n  ) => Effect.Effect<void, ProviderSessionManagerV2Error>;\n  readonly closeInstance: (\n    instanceId: ProviderInstanceId,\n  ) => Effect.Effect<void, ProviderSessionManagerV2Error>;\n  readonly release: (input: {\n    readonly providerSessionId: ProviderSessionId;\n    readonly reason: ProviderSessionReleaseReason;\n    readonly detail?: string;\n  }) => Effect.Effect<void, ProviderSessionManagerV2Error>;\n  readonly detach: (input: {\n    readonly providerSessionId: ProviderSessionId;\n    readonly threadId: ThreadId;\n    readonly detail?: string;\n    readonly revokeMcpCredential?: boolean;\n  }) => Effect.Effect<void, ProviderSessionManagerV2Error>;\n  /**\n   * Releases the session unless, at the moment of removal, a turn of a provider thread outside\n   * `ownProviderThreadIds` is busy on it. Checked atomically with turn starts. Succeeds with\n   * whether it was released.\n   */\n  readonly releaseUnlessBusy: (input: {\n    readonly providerSessionId: ProviderSessionId;\n    readonly ownProviderThreadIds: ReadonlyArray<ProviderThreadId>;\n    readonly reason: ProviderSessionReleaseReason;\n    readonly detail?: string;\n  }) => Effect.Effect<boolean, ProviderSessionManagerV2Error>;\n  /**\n   * Other threads with a run or background work on this session's shared process; empty when\n   * it serves one thread.\n   */\n  readonly otherWorkingThreads: (input: {\n    readonly providerSessionId: ProviderSessionId;\n    readonly threadId: ThreadId;\n  }) => Effect.Effect<ReadonlyArray<ThreadId>>;\n}\n\nexport class ProviderSessionManagerV2 extends Context.Service<\n  ProviderSessionManagerV2,\n  ProviderSessionManagerV2Shape\n>()(\"t3/orchestration-v2/ProviderSessionManager/ProviderSessionManagerV2\") {}\n\ninterface LiveSessionEntry {\n  readonly attachedThreadIds: ReadonlySet<ThreadId>;\n  readonly loadedProviderThreadKeyByThread: ReadonlyMap<ThreadId, string>;\n  /** Scope revocation to recorded credential ids so superseded sessions cannot revoke replacements opened before detach. */\n  readonly mcpCredentialIdByThread: ReadonlyMap<ThreadId, string>;\n  readonly supportsMultipleProviderThreads: boolean;\n  readonly runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime;\n  readonly exposedRuntime: ProviderAdapter.ProviderAdapterV2SessionRuntime;\n  readonly eventSubscribers: Ref.Ref<\n    ReadonlyMap<number, Queue.Queue<ProviderSessionEventSignal, Cause.Done>>\n  >;\n  readonly requestEventPermit: Semaphore.Semaphore;\n  readonly scope: Scope.Closeable;\n  readonly idleGeneration: number;\n  readonly busyTurns: ReadonlySet<string>;\n  readonly idleFiber: Fiber.Fiber<void, never> | null;\n  readonly pinnedSinceMs: number | null;\n  readonly idleThreadUnloads: ReadonlyMap<ThreadId, IdleThreadUnload>;\n}\n\ninterface IdleThreadUnload {\n  readonly providerThread: OrchestrationV2ProviderThread;\n  readonly generation: number;\n  readonly fiber: Fiber.Fiber<void, never> | null;\n}\n\ntype ProviderSessionEventSignal =\n  | { readonly type: \"event\"; readonly event: ProviderAdapter.ProviderAdapterV2Event }\n  | {\n      readonly type: \"failure\";\n      readonly cause: Cause.Cause<ProviderAdapter.ProviderAdapterV2Error>;\n    };\n\n",
-      "to": "import { PROVIDER_INTERRUPT_TIMEOUT_MS, ProviderSessionReleaseReason, ProviderSessionOpenError, ProviderSessionLookupError, ProviderSessionCloseError, ProviderSessionReleaseError, ProviderSessionActivityError, ProviderSessionManagerV2Error, type ProviderSessionManagerV2Shape, ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";\nexport { PROVIDER_INTERRUPT_TIMEOUT_MS, ProviderSessionReleaseReason, ProviderSessionOpenError, ProviderSessionLookupError, ProviderSessionCloseError, ProviderSessionReleaseError, ProviderSessionActivityError, ProviderSessionManagerV2Error, type ProviderSessionManagerV2Shape, ProviderSessionManagerV2 };\n\n",
+      "to": "import { PROVIDER_INTERRUPT_TIMEOUT_MS, ProviderSessionReleaseReason, ProviderSessionOpenError, ProviderSessionLookupError, ProviderSessionCloseError, ProviderSessionReleaseError, ProviderSessionActivityError, ProviderSessionManagerV2Error, type ProviderSessionManagerV2Shape, ProviderSessionManagerV2, busyTurnPrefix, busyTurnKey, UNLOAD_THREAD_TIMEOUT_MS, WORKING_RUN_STATUSES, type LiveSessionEntry, type IdleThreadUnload, type ProviderSessionEventSignal } from \"./ProviderSessionManager.session-port.ts\";\nexport { PROVIDER_INTERRUPT_TIMEOUT_MS, ProviderSessionReleaseReason, ProviderSessionOpenError, ProviderSessionLookupError, ProviderSessionCloseError, ProviderSessionReleaseError, ProviderSessionActivityError, ProviderSessionManagerV2Error, type ProviderSessionManagerV2Shape, ProviderSessionManagerV2, busyTurnPrefix, busyTurnKey, UNLOAD_THREAD_TIMEOUT_MS, WORKING_RUN_STATUSES, type LiveSessionEntry, type IdleThreadUnload, type ProviderSessionEventSignal };\n\n",
       "beforeSha256": "0ba8717bf18a2bc0203b9bfc810d8d2fd237d0e0407d95195e0eeb0659513751",
-      "afterSha256": "41e787ebfc79d84c2be25c6a0ea4942ff3fca02e8be7163b2f7eab454c0d9bdb"
+      "afterSha256": "48afeaf931986a3610501934d690378a35b1e29c408ba80acac98b0da584363a"
     },
     {
       "id": "extract-port:orchestration-v2/CheckpointService.ts",
@@ -456,12 +562,20 @@
       "afterSha256": "83222b4747dfd3e042a8b26d8f81d269e2ed3087a768f325a05ea3dee6be27fc"
     },
     {
+      "id": "share-internal:orchestration-v2/CheckpointService.ts:isCheckpointRestoreError",
+      "file": "apps/server/src/orchestration-v2/CheckpointService.session-port.ts",
+      "from": "const isCheckpointRestoreError",
+      "to": "export const isCheckpointRestoreError",
+      "beforeSha256": "83222b4747dfd3e042a8b26d8f81d269e2ed3087a768f325a05ea3dee6be27fc",
+      "afterSha256": "9d51b291c705b1b13f6c05054864edb7761b8dad4ebf6265ab5e9cd3bac7a814"
+    },
+    {
       "id": "share-port:orchestration-v2/CheckpointService.ts",
       "file": "apps/server/src/orchestration-v2/CheckpointService.ts",
       "from": "export class CheckpointRootScopePrepareError extends Schema.TaggedError<CheckpointRootScopePrepareError>()(\n  \"CheckpointRootScopePrepareError\",\n  {\n    threadId: ThreadId,\n    runId: RunId,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to prepare root checkpoint scope for run ${this.runId}.`;\n  }\n}\n\nexport class CheckpointBaselineCaptureError extends Schema.TaggedError<CheckpointBaselineCaptureError>()(\n  \"CheckpointBaselineCaptureError\",\n  {\n    scopeId: CheckpointScopeId,\n    ordinalWithinScope: Schema.Number,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to capture checkpoint baseline ${this.ordinalWithinScope} for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointCaptureError extends Schema.TaggedError<CheckpointCaptureError>()(\n  \"CheckpointCaptureError\",\n  {\n    scopeId: CheckpointScopeId,\n    parentCheckpointId: Schema.optional(CheckpointId),\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to capture checkpoint for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointRestoreError extends Schema.TaggedError<CheckpointRestoreError>()(\n  \"CheckpointRestoreError\",\n  {\n    scopeId: CheckpointScopeId,\n    checkpointId: CheckpointId,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to restore checkpoint ${this.checkpointId} for scope ${this.scopeId}.`;\n  }\n}\n\nexport class CheckpointDeleteStaleRefsError extends Schema.TaggedError<CheckpointDeleteStaleRefsError>()(\n  \"CheckpointDeleteStaleRefsError\",\n  {\n    scopeId: CheckpointScopeId,\n    checkpointIds: Schema.Array(CheckpointId),\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Failed to delete stale checkpoint refs for scope ${this.scopeId}.`;\n  }\n}\n\nexport const CheckpointServiceV2Error = Schema.Union([\n  CheckpointRootScopePrepareError,\n  CheckpointBaselineCaptureError,\n  CheckpointCaptureError,\n  CheckpointRestoreError,\n  CheckpointDeleteStaleRefsError,\n]);\nexport type CheckpointServiceV2Error = typeof CheckpointServiceV2Error.Type;\n\nconst isCheckpointRestoreError = Schema.is(CheckpointRestoreError);\n\nexport interface CheckpointServiceV2Shape {\n  readonly prepareRootRunScope: (input: {\n    readonly threadId: ThreadId;\n    readonly runId: RunId;\n    readonly rootNodeId: NodeId;\n    readonly providerThreadId: ProviderThreadId;\n    readonly cwd: string;\n    readonly createdAt: DateTime.Utc;\n  }) => Effect.Effect<OrchestrationV2CheckpointScope, CheckpointServiceV2Error>;\n  readonly captureBaseline: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly ordinalWithinScope: number;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n  readonly materializeBaselineCheckpoint: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly ordinalWithinScope: number;\n    /** The run materializing the baseline: its root node, and when it was requested. */\n    readonly nodeId: NodeId;\n    readonly capturedAt: DateTime.Utc;\n    /** Records a missing checkpoint without touching git, for side chats sharing a parent's worktree. */\n    readonly forceMissing?: boolean;\n  }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;\n  readonly capture: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly runId: RunId | null;\n    readonly nodeId: NodeId;\n    readonly ordinalWithinScope: number;\n    readonly appRunOrdinal: number | null;\n    readonly capturedAt: DateTime.Utc;\n    readonly forceMissing?: boolean;\n  }) => Effect.Effect<OrchestrationV2Checkpoint, CheckpointServiceV2Error>;\n  readonly restore: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly checkpoint: OrchestrationV2Checkpoint;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n  readonly deleteStaleRefs: (input: {\n    readonly scope: OrchestrationV2CheckpointScope;\n    readonly checkpoints: ReadonlyArray<OrchestrationV2Checkpoint>;\n  }) => Effect.Effect<void, CheckpointServiceV2Error>;\n}\n\nexport class CheckpointServiceV2 extends Context.Service<\n  CheckpointServiceV2,\n  CheckpointServiceV2Shape\n>()(\"t3/orchestration-v2/CheckpointService/CheckpointServiceV2\") {}\n\n",
-      "to": "import { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";\nexport { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2 };\n\n",
+      "to": "import { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2, isCheckpointRestoreError } from \"./CheckpointService.session-port.ts\";\nexport { CheckpointRootScopePrepareError, CheckpointBaselineCaptureError, CheckpointCaptureError, CheckpointRestoreError, CheckpointDeleteStaleRefsError, CheckpointServiceV2Error, type CheckpointServiceV2Shape, CheckpointServiceV2, isCheckpointRestoreError };\n\n",
       "beforeSha256": "12f8fc7280dbe754ca1700dad566e53558b861931a417d1b18687866888c28cb",
-      "afterSha256": "bffc28666ea668cc17b9c4045ed3367470ed6fa7321a16078a5691d61c824427"
+      "afterSha256": "f448f3cb825d6e5678b2c3590ba0879505612fe764fc59ad4032d1040e740b51"
     },
     {
       "id": "extract-port:orchestration-v2/ProviderTurnStartService.ts",
@@ -1367,6 +1481,215 @@
       "afterSha256": "df3aaf4579a5d6032d96598fec92bdad55cf5a102ae6672a431961a24ddbd367"
     },
     {
+      "id": "prelaunch-stored-project-import",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as CommandReceiptStore from \"./CommandReceiptStore.ts\";",
+      "to": "import * as ProjectStore from \"./ProjectStore.ts\";\nimport * as CommandReceiptStore from \"./CommandReceiptStore.ts\";",
+      "beforeSha256": "5b561004952993423123f3955cc9c08d2aa72ad2ee7b0a9f84e068e061e9e7d1",
+      "afterSha256": "09b591210943dc2ae7a3b93af482d7f0c12461b47a8ef5f9cce33ea624244eda"
+    },
+    {
+      "id": "prelaunch-stored-project-owner",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "  const projects = yield* ProjectService.ProjectService;",
+      "to": "  const projects = yield* ProjectService.ProjectService;\n  const storedProjects = yield* ProjectStore.ProjectStoreV2;",
+      "beforeSha256": "09b591210943dc2ae7a3b93af482d7f0c12461b47a8ef5f9cce33ea624244eda",
+      "afterSha256": "22fa342d748c129857be72c698f79181d69c2bb6dac00414d7153d979edc9482"
+    },
+    {
+      "id": "prelaunch-target-type",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "export class ThreadLaunchService extends",
+      "to": "export interface ThreadLaunchTarget {\n  readonly threadId: ThreadId;\n  readonly projectId: ProjectId;\n  readonly providerInstanceId: ThreadLaunchInput[\"modelSelection\"][\"instanceId\"];\n  readonly workspaceRoot: string;\n  readonly assertCurrent: Effect.Effect<void,\n    ThreadLaunchError | ThreadManagement.ThreadManagementProviderInstanceDisabledError>;\n}\n\nexport class ThreadLaunchService extends",
+      "beforeSha256": "22fa342d748c129857be72c698f79181d69c2bb6dac00414d7153d979edc9482",
+      "afterSha256": "c78b7600ef20ba533abd21fc0798136f62ec6bf6acf351724fa88af56470d67f"
+    },
+    {
+      "id": "prelaunch-target-service",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "    readonly launch: (\n",
+      "to": "    readonly prepareTarget: (input: ThreadLaunchInput) =>\n      Effect.Effect<ThreadLaunchTarget,\n        ThreadLaunchError | ThreadManagement.ThreadManagementProviderInstanceDisabledError, Scope.Scope>;\n    readonly launch: (\n",
+      "beforeSha256": "c78b7600ef20ba533abd21fc0798136f62ec6bf6acf351724fa88af56470d67f",
+      "afterSha256": "6bad67cd94f093ba7fc4ccad91ae5c67efe2725cf019065e9f125e78fa7ab104"
+    },
+    {
+      "id": "prelaunch-original-read-selection",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "  const launch: ThreadLaunchService[\"Service\"][\"launch\"] = Effect.fn(\"ThreadLaunchService.launch\")(\n    function* (request) {\n      // Scratch has no Git repository. Normalize before folder allocation so\n      // durable preparation and retries use the thread's own Scratch folder.\n      const input: ThreadLaunchInput =\n        request.workspaceStrategy.type === \"worktree\" &&\n        (yield* managedFolders.isScratchProject(request.projectId))\n          ? { ...request, workspaceStrategy: { type: \"root\" } }\n          : request;\n      yield* ProjectCloneTracker.rejectCommandsDuringClone(cloneTracker, {\n        type: \"thread.create\",\n        projectId: input.projectId,\n      }).pipe(Effect.mapError(mapError(input, \"resolve-project\")));\n      const project = yield* projects.getById(input.projectId).pipe(\n        Effect.mapError(mapError(input, \"resolve-project\")),\n        Effect.flatMap(\n          Option.match({\n            onNone: () => Effect.fail(mapError(input, \"resolve-project\")(\"Project not found.\")),\n            onSome: Effect.succeed,\n          }),\n        ),\n      );\n      if (input.reuseExistingThread === true && input.threadId === undefined) {\n        return yield* mapError(\n          input,\n          \"update-thread\",\n        )(\"Reusing an existing thread requires a thread id.\");\n      }\n\n      const launchReceipt = yield* readReceipt(input, input.commandId);\n      yield* threads.assertProviderInstanceEnabled({\n        projectId: input.projectId,\n        commandId: input.commandId,\n        instanceId: input.modelSelection.instanceId,\n      });\n      return yield* Effect.gen(function* () {\n        // Recover ids from accepted launch receipts before allocating; retries have no client id and new ids collide with receipts.\n        const reusableLaunchReceipt =\n          input.threadId === undefined &&\n          Option.isSome(launchReceipt) &&\n          launchReceipt.value.status === \"accepted\" &&\n          launchReceipt.value.commandType === \"thread.create\"\n            ? launchReceipt.value\n            : undefined;\n        const candidateThreadId =\n          input.threadId ??\n          reusableLaunchReceipt?.threadId ??\n          (yield* ids.allocate\n            .thread({ projectId: input.projectId })\n            .pipe(Effect.mapError(mapError(input, \"create-thread\"))));\n\n        if (reusableLaunchReceipt !== undefined) {\n          const shell = yield* threads\n            .getThreadShell(candidateThreadId)\n            .pipe(Effect.mapError(mapError(input, \"create-thread\", candidateThreadId)));\n          if (shell === null) {\n            return yield* mapError(input, \"create-thread\", candidateThreadId)(\"Thread not found.\");\n          }\n          if (shell.projectId !== input.projectId) {\n            return yield* mapError(\n              input,\n              \"resolve-project\",\n              candidateThreadId,\n            )(\"Project identity changed.\");\n          }\n        }\n\n        if (input.reuseExistingThread === true && Option.isNone(launchReceipt)) {\n          yield* validateReusableThread(input, candidateThreadId);\n        }\n\n",
+      "to": "  const prepared = new Map<CommandId, {\n    readonly signature: string; readonly threadId: ThreadId; holders: number;\n  }>();\n  yield* Effect.addFinalizer(() => Effect.sync(() => prepared.clear()));\n  // Attachment claiming happens later in ThreadMessageIntake. It may rewrite\n  // attachment paths but never this original launch target. The enclosing\n  // signed operation still binds the entire original request, including content.\n  const selectionSignature = (input: ThreadLaunchInput) =>\n    JSON.stringify({ ...input, initialMessage: undefined });\n  const resolveTarget = Effect.fn(\"ThreadLaunchService.resolveTarget\")(\n    function* (request: ThreadLaunchInput, inspection = false) {\n      // Scratch has no Git repository. Normalize before folder allocation so\n      // durable preparation and retries use the thread's own Scratch folder.\n      const input: ThreadLaunchInput =\n        !inspection && request.workspaceStrategy.type === \"worktree\" &&\n        (yield* managedFolders.isScratchProject(request.projectId))\n          ? { ...request, workspaceStrategy: { type: \"root\" } }\n          : request;\n      yield* ProjectCloneTracker.rejectCommandsDuringClone(cloneTracker, {\n        type: \"thread.create\",\n        projectId: input.projectId,\n      }).pipe(Effect.mapError(mapError(input, \"resolve-project\")));\n      const project = yield* (inspection ? storedProjects.getShell(input.projectId) : projects.getById(input.projectId)).pipe(\n        Effect.mapError(mapError(input, \"resolve-project\")),\n        Effect.flatMap(\n          Option.match({\n            onNone: () => Effect.fail(mapError(input, \"resolve-project\")(\"Project not found.\")),\n            onSome: Effect.succeed,\n          }),\n        ),\n      );\n      if (input.reuseExistingThread === true && input.threadId === undefined) {\n        return yield* mapError(\n          input,\n          \"update-thread\",\n        )(\"Reusing an existing thread requires a thread id.\");\n      }\n\n      const launchReceipt = yield* readReceipt(input, input.commandId);\n      yield* threads.assertProviderInstanceEnabled({\n        projectId: input.projectId,\n        commandId: input.commandId,\n        instanceId: input.modelSelection.instanceId,\n      });\n        // Recover ids from accepted launch receipts before allocating; retries have no client id and new ids collide with receipts.\n        const reusableLaunchReceipt =\n          input.threadId === undefined &&\n          Option.isSome(launchReceipt) &&\n          launchReceipt.value.status === \"accepted\" &&\n          launchReceipt.value.commandType === \"thread.create\"\n            ? launchReceipt.value\n            : undefined;\n        const candidateThreadId =\n          input.threadId ??\n          reusableLaunchReceipt?.threadId ??\n          prepared.get(input.commandId)?.threadId ??\n          (yield* ids.allocate\n            .thread({ projectId: input.projectId })\n            .pipe(Effect.mapError(mapError(input, \"create-thread\"))));\n\n        if (reusableLaunchReceipt !== undefined) {\n          const shell = yield* threads\n            .getThreadShell(candidateThreadId)\n            .pipe(Effect.mapError(mapError(input, \"create-thread\", candidateThreadId)));\n          if (shell === null) {\n            return yield* mapError(input, \"create-thread\", candidateThreadId)(\"Thread not found.\");\n          }\n          if (shell.projectId !== input.projectId) {\n            return yield* mapError(\n              input,\n              \"resolve-project\",\n              candidateThreadId,\n            )(\"Project identity changed.\");\n          }\n        }\n\n        if (input.reuseExistingThread === true && Option.isNone(launchReceipt)) {\n          if (inspection) return yield* mapError(input, \"update-thread\")(\"Existing empty-thread inspection requires admitted transcript preparation.\");\n          yield* validateReusableThread(input, candidateThreadId);\n        }\n\n\n    const existing = prepared.get(input.commandId);\n    if (existing && (existing.signature !== selectionSignature(request) || existing.threadId !== candidateThreadId)) {\n      return yield* mapError(input, \"create-thread\")(\"Prepared launch target changed.\");\n    }\n    return { input, project, launchReceipt, reusableLaunchReceipt, candidateThreadId };\n  });\n\n  const prepareTarget: ThreadLaunchService[\"Service\"][\"prepareTarget\"] = Effect.fn(\n    \"ThreadLaunchService.prepareTarget\",\n  )(function* (request) {\n    const resolved = yield* resolveTarget(request, true);\n    const { input, project, candidateThreadId } = resolved;\n    let record = prepared.get(input.commandId);\n    if (record && (record.signature !== selectionSignature(request) || record.threadId !== candidateThreadId)) {\n      return yield* mapError(input, \"create-thread\")(\"Concurrent launch target changed.\");\n    }\n    if (!record) {\n      if (prepared.size >= 64) return yield* mapError(input, \"create-thread\")(\"Launch target capacity reached.\");\n      record = { signature: selectionSignature(request), threadId: candidateThreadId, holders: 0 };\n      prepared.set(input.commandId, record);\n    }\n    const held = record;\n    held.holders++;\n    let active = true;\n    yield* Effect.addFinalizer(() => Effect.sync(() => {\n      active = false;\n      if (--held.holders === 0 && prepared.get(input.commandId) === held) prepared.delete(input.commandId);\n    }));\n    const assertCurrent = Effect.gen(function* () {\n      if (!active || prepared.get(input.commandId) !== held) {\n        return yield* mapError(input, \"create-thread\")(\"Launch target scope closed.\");\n      }\n      const current = yield* resolveTarget(request, true);\n      if (current.candidateThreadId !== candidateThreadId || current.project.id !== project.id\n        || current.project.workspaceRoot !== project.workspaceRoot) {\n        return yield* mapError(input, \"resolve-project\")(\"Launch target identity changed.\");\n      }\n    });\n    yield* assertCurrent;\n    return Object.freeze({ threadId: candidateThreadId, projectId: project.id,\n      providerInstanceId: input.modelSelection.instanceId, workspaceRoot: project.workspaceRoot, assertCurrent });\n  });\n\n  const launch: ThreadLaunchService[\"Service\"][\"launch\"] = Effect.fn(\"ThreadLaunchService.launch\")(\n    function* (request) {\n        const { input, project, launchReceipt, reusableLaunchReceipt, candidateThreadId } = yield* resolveTarget(request);\n      return yield* Effect.gen(function* () {\n",
+      "beforeSha256": "6bad67cd94f093ba7fc4ccad91ae5c67efe2725cf019065e9f125e78fa7ab104",
+      "afterSha256": "43e81baecb25e05c6ff8cfa0640f9f17d143991cd08339fc87bcc3db194c169c"
+    },
+    {
+      "id": "prelaunch-live-selection-export",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "return ThreadLaunchService.of({ launch, checkWorktreeBase, retryPreparation, prepareRun });",
+      "to": "return ThreadLaunchService.of({ prepareTarget, launch, checkWorktreeBase, retryPreparation, prepareRun });",
+      "beforeSha256": "43e81baecb25e05c6ff8cfa0640f9f17d143991cd08339fc87bcc3db194c169c",
+      "afterSha256": "8a632baa13448699153b45b43083587a3b8f6dbe057e049b3ebe7761db548af9"
+    },
+    {
+      "id": "session-manager-exclude-metric-decorator",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "        const turnMetrics = (operation: string, model?: string) =>\n          withMetrics({\n            counter: providerTurnsTotal,\n            ...(operation === \"send\" ? { timer: providerTurnDuration } : {}),\n            attributes: {\n              provider: runtime.driver,\n              operation,\n              modelFamily: normalizeModelMetricLabel(model),\n            },\n          });\n",
+      "to": "",
+      "beforeSha256": "48afeaf931986a3610501934d690378a35b1e29c408ba80acac98b0da584363a",
+      "afterSha256": "f565350a6c4e6c70648817c04b00b1ed02323a1b98f069e9d30135610e43ddd8"
+    },
+    {
+      "id": "session-manager-exclude-start-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "runtime.startTurn(input).pipe(turnMetrics(\"send\", input.modelSelection.model))",
+      "to": "runtime.startTurn(input)",
+      "beforeSha256": "f565350a6c4e6c70648817c04b00b1ed02323a1b98f069e9d30135610e43ddd8",
+      "afterSha256": "0515a4cbb1dd178a63616018bf0ff482e38faab9b88633ce9eb4e0c5ee492873"
+    },
+    {
+      "id": "session-manager-exclude-steer-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "runtime.steerTurn(input).pipe(turnMetrics(\"steer\"))",
+      "to": "runtime.steerTurn(input)",
+      "beforeSha256": "0515a4cbb1dd178a63616018bf0ff482e38faab9b88633ce9eb4e0c5ee492873",
+      "afterSha256": "d5d2e5eeda8db3510bdbfba207fb2ebab921ca581c78de91300e8863621c2568"
+    },
+    {
+      "id": "session-manager-exclude-interrupt-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "                  turnMetrics(\"interrupt\"),\n",
+      "to": "",
+      "beforeSha256": "d5d2e5eeda8db3510bdbfba207fb2ebab921ca581c78de91300e8863621c2568",
+      "afterSha256": "3f0a778348c04566508e4a24bdeeebf9975014130cb0d9d4cbee9eba34808cd5"
+    },
+    {
+      "id": "session-manager-exclude-response-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "runtime\n                  .respondToRuntimeRequest(input)\n                  .pipe(turnMetrics(\"runtime-request-response\"))",
+      "to": "runtime.respondToRuntimeRequest(input)",
+      "beforeSha256": "3f0a778348c04566508e4a24bdeeebf9975014130cb0d9d4cbee9eba34808cd5",
+      "afterSha256": "74e362f1f62e6d99de7f3dab91b775234ca9bd59f267e2bee0dad775963d0600"
+    },
+    {
+      "id": "session-manager-exclude-release-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "withMetrics({\n                    counter: providerSessionsTotal,\n                    attributes: {\n                      provider: entry.runtime.driver,\n                      operation: \"release\",\n                      reason: input.reason,\n                    },\n                  }),",
+      "to": "",
+      "beforeSha256": "74e362f1f62e6d99de7f3dab91b775234ca9bd59f267e2bee0dad775963d0600",
+      "afterSha256": "f5d052327af1f4544beb5da0f8974dbd78c9b4a16f5a7e3c6ee78abb38ed67db"
+    },
+    {
+      "id": "session-manager-exclude-open-metric",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "from": "withMetrics({\n                    counter: providerSessionsTotal,\n                    attributes: { provider: adapter.driver, operation: \"open\" },\n                  }),",
+      "to": "",
+      "beforeSha256": "f5d052327af1f4544beb5da0f8974dbd78c9b4a16f5a7e3c6ee78abb38ed67db",
+      "afterSha256": "b346f5d20b685e5dc7a15c281e60f1cd9dfda34fc535a76351abfd4b1e8ccc43"
+    },
+    {
+      "id": "original-provider-live:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderSessionManager.session-live.ts",
+      "create": [
+        {
+          "text": "import { AgentScope } from \"@t3tools/shared/AgentScope\";\nimport * as KeyedLock from \"@t3tools/shared/KeyedLock\";\nimport { resolveProjectSettings } from \"@t3tools/shared/projectSettings\";\nimport { isOrchestrationV2WorkActive, ModelSelection, OrchestrationV2DomainEvent, OrchestrationV2ProviderSession, type OrchestrationV2ProviderThread, OrchestrationV2RuntimeRequest, ProviderInstanceId, ProviderSessionId, ThreadId, type ProviderThreadId } from \"@t3tools/contracts\";\nimport * as Cause from \"effect/Cause\";\nimport * as Clock from \"effect/Clock\";\nimport * as DateTime from \"effect/DateTime\";\nimport * as Duration from \"effect/Duration\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as Fiber from \"effect/Fiber\";\nimport * as FiberSet from \"effect/FiberSet\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as Queue from \"effect/Queue\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schedule from \"effect/Schedule\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport { ProviderWorkspaceMissingError } from \"../provider/Errors.ts\";\nimport * as ProjectService from \"../project/ProjectService.session-port.ts\";\nimport * as McpProviderSessions from \"@t3tools/provider-core/server/McpProviderSessions\";\nimport * as ServerSettings from \"../serverSettings.session-port.ts\";\nimport * as McpSessionRegistry from \"../mcp/McpSessionRegistry.session-port.ts\";\nimport * as EventSink from \"./EventSink.ts\";\nimport * as CommandOutputHub from \"./CommandOutputHub.ts\";\nimport * as IdAllocator from \"@t3tools/provider-core/server/IdAllocator\";\nimport * as ProviderEventIngestor from \"./ProviderEventIngestor.ts\";\nimport * as ProviderAdapter from \"@t3tools/provider-core/server/ProviderAdapter\";\nimport { makeProviderFailure } from \"@t3tools/provider-core/server/failure\";\nimport * as ProviderAdapterRegistry from \"./ProviderAdapterRegistry.ts\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport { PROVIDER_INTERRUPT_TIMEOUT_MS, ProviderSessionReleaseReason, ProviderSessionOpenError, ProviderSessionLookupError, ProviderSessionCloseError, ProviderSessionReleaseError, ProviderSessionActivityError, ProviderSessionManagerV2Error, type ProviderSessionManagerV2Shape, ProviderSessionManagerV2, busyTurnPrefix, busyTurnKey, UNLOAD_THREAD_TIMEOUT_MS, WORKING_RUN_STATUSES, type LiveSessionEntry, type IdleThreadUnload, type ProviderSessionEventSignal } from \"./ProviderSessionManager.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+          "start": 2372,
+          "end": 2626,
+          "sha256": "928a24b4424b5679c865e2f6f3f8ba8bf39ce9a1a55e814c17ce37a4b57c36a0",
+          "sourceStage": "current",
+          "sourceSha256": "b346f5d20b685e5dc7a15c281e60f1cd9dfda34fc535a76351abfd4b1e8ccc43"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+          "start": 3134,
+          "end": 103918,
+          "sha256": "89267530d43f34b2eec2f5bcc74b47ad904d4c99e86ca34d3a7a61caebc617f4",
+          "sourceStage": "current",
+          "sourceSha256": "b346f5d20b685e5dc7a15c281e60f1cd9dfda34fc535a76351abfd4b1e8ccc43"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "d92d60f3b7dbea46ffc4523d68f7153ce06be08a5d5113aff85a4c6c02f904c8"
+    },
+    {
+      "id": "original-provider-live:apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "file": "apps/server/src/provider/ProviderInstanceRegistry.session-live.ts",
+      "create": [
+        {
+          "text": "import { providerInstanceConfigEnabledFlag, ProviderInstanceId, type ProviderInstanceConfig, type ProviderInstanceConfigMap, type ProviderInstanceEnvironment, type ProviderDriverKind, type ResolvedProviderInstanceEnvironment, type SecretReference, secretReferencesInSettings, type ServerProvider, type SettingsSecretSlot, withSettingsSecrets } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Equal from \"effect/Equal\";\nimport * as Exit from \"effect/Exit\";\nimport * as Layer from \"effect/Layer\";\nimport * as Option from \"effect/Option\";\nimport * as PubSub from \"effect/PubSub\";\nimport * as Ref from \"effect/Ref\";\nimport * as Schema from \"effect/Schema\";\nimport * as Scope from \"effect/Scope\";\nimport * as Semaphore from \"effect/Semaphore\";\nimport * as Stream from \"effect/Stream\";\nimport * as SecretResolver from \"@t3tools/secret-provider-core/server/SecretResolver\";\nimport { buildUnavailableProviderSnapshot } from \"./unavailableProviderSnapshot.ts\";\nimport * as ProviderInstanceRegistryMutator from \"./ProviderInstanceRegistryMutator.ts\";\nimport type { AnyProviderDriver, ProviderInstance } from \"@t3tools/provider-core/server/driver\";\nimport { ProviderInstanceRegistry } from \"./ProviderInstanceRegistry.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/ProviderInstanceRegistry.ts",
+          "start": 1327,
+          "end": 23688,
+          "sha256": "41a13b9fb5d1332d8adb8602244c3bc1fb6e557ae7923d2f300b4ad5074bd56a",
+          "sourceStage": "current",
+          "sourceSha256": "40ec3e81ac65121018a6b22e280cd4cfa10162980790a545e740aac29675266c"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "dc2f1addb6d7f390fb3e1cdefe07d9dcc556862f8225d2f3a0a5389fb6476f01"
+    },
+    {
+      "id": "original-finalization-live",
+      "file": "apps/server/src/orchestration-v2/RunFinalizationService.session-live.ts",
+      "create": [
+        {
+          "text": "import * as Effect from \"effect/Effect\";\nimport * as Layer from \"effect/Layer\";\nimport * as CheckpointCapture from \"./CheckpointCaptureService.ts\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport { RunFinalizationError, RunFinalizationRefreshError, RunFinalizationObserver, RunFinalizationService } from \"./RunFinalizationService.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/RunFinalizationService.ts",
+          "start": 909,
+          "end": 2423,
+          "sha256": "1441967858d4b35ed595440c1d538b8c601cac4e2a691fe796b45ac899a89bfc",
+          "sourceStage": "current",
+          "sourceSha256": "5b6b9b893eb4c84727cbbcd3b5eb748d4062a2768110e3226a494fdd676dc645"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "62aa60421196298b30d5ec6300276d2b9152eaf719597d61df86563314e32432"
+    },
+    {
+      "id": "provider-events-exclude-analytics-import",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "import {\n  ProviderTurnAnalytics,\n  type ProviderTurnAnalyticsContext,\n} from \"../telemetry/ProviderUsageAnalytics.ts\";\n",
+      "to": "",
+      "beforeSha256": "d9931f0ea37a146805c91e93acff8e3f6ce0d737cfc881a38bef73f327f7d785",
+      "afterSha256": "e60d578ffa2ea48c4756f9c33aeba7dd4f619cae492aae42e718887378eaca5d"
+    },
+    {
+      "id": "provider-events-exclude-analytics-context",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "  readonly analyticsContext?: ProviderTurnAnalyticsContext;\n",
+      "to": "",
+      "beforeSha256": "e60d578ffa2ea48c4756f9c33aeba7dd4f619cae492aae42e718887378eaca5d",
+      "afterSha256": "42e87115e1389da09d8b99c398d8c27c2e55bf242745c6a3db7b1abe2e2b9eeb"
+    },
+    {
+      "id": "provider-events-exclude-analytics-owner",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "    const analytics = yield* ProviderTurnAnalytics;\n",
+      "to": "",
+      "beforeSha256": "42e87115e1389da09d8b99c398d8c27c2e55bf242745c6a3db7b1abe2e2b9eeb",
+      "afterSha256": "613ddc666ac36eb4f1b88088a99d29c3a882d29b21aa39245d64866ff024d405"
+    },
+    {
+      "id": "provider-events-exclude-analytics-cache",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "    const completedTurnAnalytics = new Set<string>();\n",
+      "to": "",
+      "beforeSha256": "613ddc666ac36eb4f1b88088a99d29c3a882d29b21aa39245d64866ff024d405",
+      "afterSha256": "efcb316664a75a037c82126ff1c91a9c1f8f914d8bf74ef62f24f8f754762492"
+    },
+    {
+      "id": "provider-events-exclude-completion-analytics",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "              Effect.tap((storedEvents) =>\n                Effect.gen(function* () {\n                  if (storedEvents.length === 0 || input.event.type !== \"provider_turn.updated\")\n                    return;\n                  const providerTurn = input.event.providerTurn;\n                  if (\n                    providerTurn.status !== \"completed\" &&\n                    providerTurn.status !== \"failed\" &&\n                    providerTurn.status !== \"interrupted\" &&\n                    providerTurn.status !== \"cancelled\"\n                  )\n                    return;\n                  const key = `${input.providerInstanceId}:${providerTurn.id}`;\n                  if (completedTurnAnalytics.has(key)) return;\n                  completedTurnAnalytics.add(key);\n                  if (completedTurnAnalytics.size > 4096) {\n                    const oldest = completedTurnAnalytics.values().next().value;\n                    if (oldest !== undefined) completedTurnAnalytics.delete(oldest);\n                  }\n                  yield* analytics.turnCompleted({\n                    driver: input.event.driver,\n                    providerTurn,\n                    ...(input.analyticsContext === undefined\n                      ? {}\n                      : { context: input.analyticsContext }),\n                  });\n                }),\n              ),\n",
+      "to": "",
+      "beforeSha256": "efcb316664a75a037c82126ff1c91a9c1f8f914d8bf74ef62f24f8f754762492",
+      "afterSha256": "bbc05bc10e68d7d99706e818134cd2621ff3c68773325edbf3ac1498ce26c7f4"
+    },
+    {
       "id": "share-error-guard:isOrchestratorProjectionError",
       "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
       "from": "\nconst isOrchestratorProjectionError",
@@ -1508,6 +1831,150 @@
       "afterSha256": "f920b3b8d3687cce96173383fea0a77e9daa8dcd627a10772f3b81b7ac76620e"
     },
     {
+      "id": "port-import:apps/server/src/orchestration-v2/ProviderEventIngestor.ts:apps/server/src/vcs/GitVcsDriver.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "import * as GitVcsDriver from \"../vcs/GitVcsDriver.ts\";",
+      "to": "import * as GitVcsDriver from \"../vcs/GitVcsDriver.session-port.ts\";",
+      "beforeSha256": "bbc05bc10e68d7d99706e818134cd2621ff3c68773325edbf3ac1498ce26c7f4",
+      "afterSha256": "62ac3d1a9c580c941858f8f527051f06fb9eba9fa82c442e8233f35e992e96c8"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ProviderEventIngestor.ts:apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderEventIngestor.ts",
+      "from": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.ts\";",
+      "to": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.session-port.ts\";",
+      "beforeSha256": "62ac3d1a9c580c941858f8f527051f06fb9eba9fa82c442e8233f35e992e96c8",
+      "afterSha256": "9c43155c65bdb114ce5a7cea60c06ee90b1567189b181b3aa1cfedf4b2192cd1"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/CheckpointCaptureService.ts:apps/server/src/orchestration-v2/CheckpointService.ts",
+      "file": "apps/server/src/orchestration-v2/CheckpointCaptureService.ts",
+      "from": "import * as CheckpointService from \"./CheckpointService.ts\";",
+      "to": "import * as CheckpointService from \"./CheckpointService.session-port.ts\";",
+      "beforeSha256": "3d85f1903cf0e242f39af67fbe8f0bd4c6f12e4b18bde6d041a03a4322779c72",
+      "afterSha256": "adf82ab957b2882c087c0bb772980a40d634fd7fb9b8f462260d1ec5206574a4"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts:apps/server/src/provider/ProviderInstanceRegistry.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts",
+      "from": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.ts\";",
+      "to": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.session-port.ts\";",
+      "beforeSha256": "a8da97ea4f497de0759642c38070e29a885a2038f194fa91e23867d9da7ff74d",
+      "afterSha256": "33d2ee75a84945034122e367034d22d61b48cc49a5ae4cc0d562719a671dde03"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectCloneTracker.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.ts\";",
+      "to": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.session-port.ts\";",
+      "beforeSha256": "8a632baa13448699153b45b43083587a3b8f6dbe057e049b3ebe7761db548af9",
+      "afterSha256": "f911d0a7f7ce74e238e4eb908f81faf4119cbc80996e022f7727382d3fc95dbe"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/terminal/Manager.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as TerminalManager from \"../terminal/Manager.ts\";",
+      "to": "import * as TerminalManager from \"../terminal/Manager.session-port.ts\";",
+      "beforeSha256": "f911d0a7f7ce74e238e4eb908f81faf4119cbc80996e022f7727382d3fc95dbe",
+      "afterSha256": "04d74541e621dd91a4091ee4d24e424923c1342dfd38fc9eba9ff9c062fefe30"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/git/GitWorkflowService.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as GitWorkflow from \"../git/GitWorkflowService.ts\";",
+      "to": "import * as GitWorkflow from \"../git/GitWorkflowService.session-port.ts\";",
+      "beforeSha256": "04d74541e621dd91a4091ee4d24e424923c1342dfd38fc9eba9ff9c062fefe30",
+      "afterSha256": "dcf265d90807e515013268a4d05d702b8c2f2c9170a9606a38c8e59f9f26fc0c"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectService.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ProjectService from \"../project/ProjectService.ts\";",
+      "to": "import * as ProjectService from \"../project/ProjectService.session-port.ts\";",
+      "beforeSha256": "dcf265d90807e515013268a4d05d702b8c2f2c9170a9606a38c8e59f9f26fc0c",
+      "afterSha256": "e3e6f3f8f2c40b331a865c205296df5e44ad15a404d42d08bf86b5d9a089e87a"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectSetupScriptRunner.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.ts\";",
+      "to": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.session-port.ts\";",
+      "beforeSha256": "e3e6f3f8f2c40b331a865c205296df5e44ad15a404d42d08bf86b5d9a089e87a",
+      "afterSha256": "1930b47a75aeea3d7ff4d68c5eb32619d1a52056518ac2b6c40a1d58a6b2c1f3"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ManagedProjectFolders.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.ts\";",
+      "to": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.session-port.ts\";",
+      "beforeSha256": "1930b47a75aeea3d7ff4d68c5eb32619d1a52056518ac2b6c40a1d58a6b2c1f3",
+      "afterSha256": "feb92925e9611f4b245fe861ece17b9f823d2ed555d3ffcef5383275a86ffe0c"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/provider/ProviderRegistry.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ProviderRegistry from \"../provider/ProviderRegistry.ts\";",
+      "to": "import * as ProviderRegistry from \"../provider/ProviderRegistry.session-port.ts\";",
+      "beforeSha256": "feb92925e9611f4b245fe861ece17b9f823d2ed555d3ffcef5383275a86ffe0c",
+      "afterSha256": "88f997134a2160dee19c398415aad8c0388e3a0edb6ba78b877b81f942a6a4fa"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "88f997134a2160dee19c398415aad8c0388e3a0edb6ba78b877b81f942a6a4fa",
+      "afterSha256": "512266dc8330434b0622b1c5ed1c54ac8e3d689ef3f777f6bb858387edb03448"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/textGeneration/TextGeneration.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as TextGeneration from \"../textGeneration/TextGeneration.ts\";",
+      "to": "import * as TextGeneration from \"../textGeneration/TextGeneration.session-port.ts\";",
+      "beforeSha256": "512266dc8330434b0622b1c5ed1c54ac8e3d689ef3f777f6bb858387edb03448",
+      "afterSha256": "6b2dcb101064e124149b7ea14c503f1da59b3c3c63489e222a9761821aa7572f"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
+      "from": "import * as ThreadManagement from \"./ThreadManagementService.ts\";",
+      "to": "import * as ThreadManagement from \"./ThreadManagementLive.ts\";",
+      "beforeSha256": "6b2dcb101064e124149b7ea14c503f1da59b3c3c63489e222a9761821aa7572f",
+      "afterSha256": "e92c73ae7c2f472f7deda120e2eafaa1a5ae80ebaebb658d21dbec85a314449d"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/CheckpointService.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import { CheckpointServiceV2 } from \"./CheckpointService.ts\";",
+      "to": "import { CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";",
+      "beforeSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99",
+      "afterSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/RunExecutionService.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import * as RunExecutionService from \"./RunExecutionService.ts\";",
+      "to": "import * as RunExecutionService from \"./RunExecutionService.session-pure.ts\";",
+      "beforeSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f",
+      "afterSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.ts\";",
+      "to": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";",
+      "beforeSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa",
+      "afterSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a",
+      "afterSha256": "5b298e54b7e751b47b24bc60319f019cb225c3c1be96dfbd4045e683244dd119"
+    },
+    {
       "id": "port-import:apps/server/src/background/BackgroundPolicy.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/background/BackgroundPolicy.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
@@ -1548,46 +2015,6 @@
       "afterSha256": "d7372698584d277916284498611ee98d9b65796dc486584cb670474ab8e79cb6"
     },
     {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/CheckpointService.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import { CheckpointServiceV2 } from \"./CheckpointService.ts\";",
-      "to": "import { CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";",
-      "beforeSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99",
-      "afterSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/RunExecutionService.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import * as RunExecutionService from \"./RunExecutionService.ts\";",
-      "to": "import * as RunExecutionService from \"./RunExecutionService.session-pure.ts\";",
-      "beforeSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f",
-      "afterSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.ts\";",
-      "to": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa",
-      "afterSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a",
-      "afterSha256": "5b298e54b7e751b47b24bc60319f019cb225c3c1be96dfbd4045e683244dd119"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts:apps/server/src/provider/ProviderInstanceRegistry.ts",
-      "file": "apps/server/src/orchestration-v2/ProviderAdapterRegistry.ts",
-      "from": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.ts\";",
-      "to": "import * as ProviderInstanceRegistry from \"../provider/ProviderInstanceRegistry.session-port.ts\";",
-      "beforeSha256": "a8da97ea4f497de0759642c38070e29a885a2038f194fa91e23867d9da7ff74d",
-      "afterSha256": "33d2ee75a84945034122e367034d22d61b48cc49a5ae4cc0d562719a671dde03"
-    },
-    {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
       "file": "apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts",
       "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
@@ -1610,86 +2037,6 @@
       "to": "import * as ThreadManagement from \"./ThreadManagementLive.ts\";",
       "beforeSha256": "9776d98347ce3d167c4bc81c5e06967b220b85dce9cb06ba2009d57f8282599c",
       "afterSha256": "13d7a0dbc376c491f782dcc7c2a89535c2f3901c88d641a0904d276952857072"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectCloneTracker.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.ts\";",
-      "to": "import * as ProjectCloneTracker from \"../project/ProjectCloneTracker.session-port.ts\";",
-      "beforeSha256": "5b561004952993423123f3955cc9c08d2aa72ad2ee7b0a9f84e068e061e9e7d1",
-      "afterSha256": "129b27bcda1caf446e8bec32103f15e4ef8d7069b2a1dc1a7a478465d667575e"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/terminal/Manager.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as TerminalManager from \"../terminal/Manager.ts\";",
-      "to": "import * as TerminalManager from \"../terminal/Manager.session-port.ts\";",
-      "beforeSha256": "129b27bcda1caf446e8bec32103f15e4ef8d7069b2a1dc1a7a478465d667575e",
-      "afterSha256": "d89f71ae9a30c38ed1abd6f4ffcefd3f20eb5e6e4debb04ff9bced560b8d052f"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/git/GitWorkflowService.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as GitWorkflow from \"../git/GitWorkflowService.ts\";",
-      "to": "import * as GitWorkflow from \"../git/GitWorkflowService.session-port.ts\";",
-      "beforeSha256": "d89f71ae9a30c38ed1abd6f4ffcefd3f20eb5e6e4debb04ff9bced560b8d052f",
-      "afterSha256": "c4425d9d27f18b5a1beeabf62aabeba47631dd21ddb7a40723c4e4c8c6e882c5"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectService.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ProjectService from \"../project/ProjectService.ts\";",
-      "to": "import * as ProjectService from \"../project/ProjectService.session-port.ts\";",
-      "beforeSha256": "c4425d9d27f18b5a1beeabf62aabeba47631dd21ddb7a40723c4e4c8c6e882c5",
-      "afterSha256": "b264d5d79249c1fff05bbc13748917406105121edd87be1dcf2c4f57bde01b4e"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectSetupScriptRunner.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.ts\";",
-      "to": "import * as ProjectSetupScriptRunner from \"../project/ProjectSetupScriptRunner.session-port.ts\";",
-      "beforeSha256": "b264d5d79249c1fff05bbc13748917406105121edd87be1dcf2c4f57bde01b4e",
-      "afterSha256": "84713a44758fabe6323625fbf1d1e7c8e1abf50549db5ed6872b96c1d5ef1a00"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ManagedProjectFolders.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.ts\";",
-      "to": "import * as ManagedProjectFolders from \"../project/ManagedProjectFolders.session-port.ts\";",
-      "beforeSha256": "84713a44758fabe6323625fbf1d1e7c8e1abf50549db5ed6872b96c1d5ef1a00",
-      "afterSha256": "12a14acb18e1d2c8d928d8cf54e5da8c8c3e7bedbfabb6cf43727be0406b997d"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/provider/ProviderRegistry.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ProviderRegistry from \"../provider/ProviderRegistry.ts\";",
-      "to": "import * as ProviderRegistry from \"../provider/ProviderRegistry.session-port.ts\";",
-      "beforeSha256": "12a14acb18e1d2c8d928d8cf54e5da8c8c3e7bedbfabb6cf43727be0406b997d",
-      "afterSha256": "301a471a71589ba5ba53f8448bf7fdb6e1038761a56e9581d4f1aa5e91a7b857"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "301a471a71589ba5ba53f8448bf7fdb6e1038761a56e9581d4f1aa5e91a7b857",
-      "afterSha256": "407bcf57be466d1aa89dfce664bd06ed155a128cd5a8cd2fe68f292e7045548a"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/textGeneration/TextGeneration.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as TextGeneration from \"../textGeneration/TextGeneration.ts\";",
-      "to": "import * as TextGeneration from \"../textGeneration/TextGeneration.session-port.ts\";",
-      "beforeSha256": "407bcf57be466d1aa89dfce664bd06ed155a128cd5a8cd2fe68f292e7045548a",
-      "afterSha256": "4accf8a13165f9f1ebb1b536e36d8725b12bad9a90112f16ba04e30d09e524a0"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
-      "file": "apps/server/src/orchestration-v2/ThreadLaunchService.ts",
-      "from": "import * as ThreadManagement from \"./ThreadManagementService.ts\";",
-      "to": "import * as ThreadManagement from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "4accf8a13165f9f1ebb1b536e36d8725b12bad9a90112f16ba04e30d09e524a0",
-      "afterSha256": "4a57fd5c7f90b907e6995b893e7beb6a56d9b234c96af11e1280cd7061e1bb0a"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/AttachmentClaims.ts:apps/server/src/config.ts",

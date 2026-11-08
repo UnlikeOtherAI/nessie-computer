@@ -41,6 +41,16 @@ pub fn allow_process_for(process: HANDLE, observer: &str) -> Result<(), &'static
     result
 }
 
+/// Fixed execution launch/resource commands call this after their service gate.
+/// Only the service SID receives duplication; signed native code constructs the
+/// handle envelope internally rather than accepting caller-supplied handles.
+pub fn allow_execution_pipe_observer() -> Result<(), &'static str> {
+    let sid = crate::service_channel::service_account_sid().map_err(|_| ERROR)?;
+    let process = unsafe { GetCurrentProcess() };
+    allow_process_for(process, &sid)?;
+    grant_read(process, windows_sys::Win32::System::Threading::PROCESS_DUP_HANDLE, &sid)
+}
+
 struct Local(*mut std::ffi::c_void);
 impl Drop for Local {
     fn drop(&mut self) {

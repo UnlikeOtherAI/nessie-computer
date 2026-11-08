@@ -10,7 +10,7 @@
 #[cfg(windows)] mod pipe;
 #[cfg(windows)] mod lease;
 #[cfg(windows)] mod consent;
-#[cfg(windows)] mod consent_auth;
+#[cfg(windows)] use crate::owner_approval_windows as consent_auth;
 #[cfg(windows)] mod consent_contract;
 #[cfg(windows)] mod consent_peer;
 #[cfg(windows)] mod consent_pipe;
