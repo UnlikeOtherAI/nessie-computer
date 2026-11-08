@@ -81,74 +81,21 @@ export type ParsedCommand =
   | { executorId?: string; kind: 'status'; stateRoot?: string }
   | SyncCliCommand
 
+/**
+ * A plumbing command line that is malformed or names no command. The full
+ * grammar is `nessie-computer help plumbing` (`cli-help.ts`); `cli.ts` exits 2
+ * for it, the Command reference's "typed wrong".
+ */
+export class PlumbingUsageError extends Error {
+  constructor() {
+    super('Usage: nessie-computer <command> [options]. That command line is not one nessie-computer knows.\n'
+      + 'Run nessie-computer help for the commands, or nessie-computer help plumbing for the ones the apps use.')
+    this.name = 'PlumbingUsageError'
+  }
+}
+
 const usage = (): never => {
-  throw new Error(
-    'Usage: nessie-executor login --api <nessie|deeptest|https://your-nessie.example> [--workspace <folder>] '
-    + '[--operations file.list,file.read]\n'
-    + '       nessie-executor teams [--json] [--state-root <path>]\n'
-    + '       nessie-executor unpair (--executor <uuid>|--state-dir <owner-only-path>) [--json]\n'
-    + '       nessie-executor daemon --executor <uuid>\n'
-    + '       nessie-executor permissions --executor <uuid> [--existing-sessions on|off] [--allow-all|--allow "git *,pnpm *"] '
-    + '[--deny "git push *"|--clear-deny]\n'
-    + '       nessie-executor pairing-start --api <nessie|deeptest|https://your-nessie.example> '
-    + '[--cli] [--state-dir <owner-only-path>] [--replace --executor <uuid>]\n'
-    + '       nessie-executor pair --api <nessie|deeptest|https://your-nessie.example> --enrollment <uuid> '
-    + '(--challenge <token>|--challenge-stdin) --state-dir <owner-only-path> '
-    + '(--workspace <absolute-read-only-root>'
-    + '|--folder <name>=<absolute-read-only-root> [--folder ...])\n'
-    + '       nessie-executor pair --api <nessie|deeptest|https://your-nessie.example> --enrollment <uuid> '
-    + '--pair-input-stdin --state-dir <owner-only-path>\n'
-    + '       nessie-executor configure --state-dir <owner-only-path> '
-    + '--operations <file.list,file.read,file.write,command.run,browser.open,browser.observe,'
-    + 'browser.act,coding.launch,coding.observe,workspace.review,workspace.promote,sandbox.stop,'
-    + 'mcp.tools,mcp.call> '
-    + '[--native-helper </absolute/owner-only/nessie-executor-native>] '
-    + '[--workspace <absolute-read-only-root>'
-    + '|--folder <name>=<absolute-read-only-root> [--folder ...]] '
-    + '[--tools <program,program,...>|--clear-tools] '
-    + '[--mcp-server <name>=<command and arguments> [--mcp-server ...]|--clear-mcp-servers]\n'
-    + '       nessie-executor configure --configuration-input-stdin '
-    + '--state-dir <owner-only-path>\n'
-    + '       nessie-executor configure-browser --state-dir <owner-only-path> '
-    + '--allowed-origins <https://origin.example,...> --guest-initrd-builder <absolute-owner-only-file> '
-    + '--kernel <absolute-owner-only-file> --vm-helper <absolute-owner-only-file> '
-    + '--runtime-bundle <absolute-owner-only-directory>\n'
-    + '       nessie-executor configure-codex --state-dir <owner-only-path> '
-    + '--auth-profile <absolute-owner-only-auth.json> --guest-initrd-builder <absolute-owner-only-file> '
-    + '--kernel <absolute-owner-only-file> --vm-helper <absolute-owner-only-file> '
-    + '--runtime-bundle <absolute-owner-only-directory>\n'
-    + '       nessie-executor connect|heartbeat|serve --state-dir <owner-only-path>\n'
-    + '       nessie-executor pause|resume --state-dir <owner-only-path> [--json]\n'
-    + '       nessie-executor program-requests --state-dir <owner-only-path> [--json]\n'
-    + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
-    + '--answer once|always|deny [--json]\n'
-    + '       nessie-executor audience --state-dir <owner-only-path> [--json]\n'
-    + '       nessie-executor serve-ollama-search-mcp\n'
-    + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
-    + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
-    + '       nessie-executor coding-session-host --config <absolute-owner-only-file> --session <uuid>\n'
-    + '       nessie-executor serve-direct-local-inference --config-stdin\n'
-    + '       nessie-executor local-inference endpoint configure|status|remove --state-dir <path> [--config-stdin]\n'
-    + '       nessie-executor describe --state-dir <owner-only-path>\n'
-    + '       nessie-executor deeptest-source --source-grant-file <absolute-owner-only-file>\n'
-    + '       nessie-executor deeptest-execution --execution-grant-file <absolute-owner-only-file>\n'
-    + '       nessie-executor publish-deeptest-source-grant --state-dir <owner-only-path>\n'
-    + '       nessie-executor publish-deeptest-execution-grant --state-dir <owner-only-path> --confirm-active-testing\n'
-    + '       nessie-executor revoke-deeptest-execution-grant --state-dir <owner-only-path>\n'
-    + '       nessie-executor deeptest-inference --inference-grant-file <absolute-owner-only-file>\n'
-    + '       nessie-executor publish-deeptest-inference-grant --state-dir <owner-only-path> --engines <ollama,openai,codex,claude> [--ollama-context-length <tokens>] --confirm-inference\n'
-    + '       nessie-executor revoke-deeptest-inference-grant --state-dir <owner-only-path>\n'
-    + '       nessie-executor native-browser-cookie-import --state-root <owner-only-path> '
-    + '--extension-origin <chrome-extension://release-id/> --caller-origin <chrome-extension://release-id/>\n'
-    + '       nessie-executor enable <executorId> [--state-dir <owner-only-path>] [--yes]\n'
-    + '       nessie-executor disable <executorId>\n'
-    + '       nessie-executor autorestart <executorId> [on|off]\n'
-    + '       nessie-executor status [<executorId>] [--state-root <owner-only-path>]\n'
-    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) [--root <absolute-folder>] '
-    + '[on|off|pause|resume|status|verify|trash|resolve|confirm-held|restore-held] [--json] [--accept-existing-files] '
-    + '[--conflict <id> --resolution keep_mine|keep_nessie|dismiss] [--batch <id>]\n'
-    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) --input-stdin',
-  )
+  throw new PlumbingUsageError()
 }
 
 const positional = (args: string[]): string => {
