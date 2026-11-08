@@ -81,6 +81,15 @@ step when Nessie requires it), Pause/Resume, Open folder, Deleted files, files
 to check and deletions on hold. Behaviour and commands are unchanged from the
 former Sync tab; only the frame, the words and the error placement changed.
 
+Several teams share one main folder, each in its own `<Organisation>/<Team>`
+folder with its own switch. Under the folder the tab says where the team's
+files go — "Platform · UnlikeOtherAI's documents go in
+Nessie/UnlikeOtherAI/Platform" ("will go in" while off) — from the state's
+`teamFolder`, which the CLI fills before the engine has named the folder. The
+suggested folder (`defaultRoot`) is the main folder another team on this
+computer already syncs into. A team synced before this layout keeps its
+one-segment folder. The rule itself is `src/folder-sync/team-folder.ts`.
+
 ## AI
 
 ChatGPT plans: any number, each named (prefilled "ChatGPT plan N", editable)
@@ -105,7 +114,9 @@ is never a second team in the dropdown.
 the shell and these three tabs — against the real `index.html` with the one
 host fake in `tray-windows/test/renderer-host.mjs`, for both hosts, seven
 locales, light and dark, at 640×680 and the 440×500 minimum window.
-`--only=access,documents,ai` runs these tabs alone. Pictures land in
+`--only=access,documents,ai` runs these tabs alone; `documents-teams` is the
+two-team journey (`documents-teams-renderer.mjs`: two teams in one main
+folder, one switched off, an older folder). Pictures land in
 `.artifacts/executor-console/after` (`--output=<dir>` moves them);
 `--before=<rev>` captures an older revision beside them. Local only; never in CI.
 Styles live in `style.css` on the shell's tokens; the tabs inject no `<style>`.

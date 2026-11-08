@@ -10,7 +10,7 @@ import {
   mapTree,
   nameParts,
   renderName,
-  teamFolderName,
+  teamFolderSegment,
   titleForLocalName,
   utf8Bytes,
   type MappingPage,
@@ -113,7 +113,7 @@ test('a page is never mapped to a name the scanner ignores', () => {
   }
   assert.equal(tree.paths.get(pages.at(-1)!.id), 'Projects/Plain.md', 'ordinary names are untouched')
   assert.equal(isIgnoredName(tree.spaceDirs.get(spaces[0]!.id)!), false)
-  assert.equal(isIgnoredName(teamFolderName('Drafts.part', '30000000-0000-4000-8000-000000000001', [])), false)
+  assert.equal(isIgnoredName(teamFolderSegment('Drafts.part', '30000000-0000-4000-8000-000000000001', false)), false)
 })
 
 test('NFD titles map to NFC names and collide with their NFC twin', () => {
@@ -231,9 +231,9 @@ test('renderName returns null when not even a tagged stub fits', () => {
   assert.equal(renderName({ base: 'abc', ext: '.md', id: 'abcdef12', dup: null }, 6), 'abc.md')
 })
 
-test('the team folder is the cleaned team name, with the short id when another team holds it', () => {
-  assert.equal(teamFolderName('Unlike: Other AI', 't1', []), 'Unlike_ Other AI')
-  assert.equal(teamFolderName('Acme', 'abcdef99-0000', ['acme']), 'Acme abcdef')
+test('a team folder segment is the cleaned name, with the short id when tagged', () => {
+  assert.equal(teamFolderSegment('Unlike: Other AI', 't1', false), 'Unlike_ Other AI')
+  assert.equal(teamFolderSegment('Acme', 'abcdef99-0000', true), 'Acme abcdef')
 })
 
 test('copy names keep the extension, stay within a segment and are never ignored except quarantines', () => {

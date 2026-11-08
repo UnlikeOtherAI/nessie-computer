@@ -26,6 +26,8 @@ import {
   FolderSyncUploadPartEnvelopeSchema,
   FolderSyncUploadPartResponseSchema,
   FolderSyncWriteDocumentRequestSchema,
+  ExecutorPairingClaimSchema,
+  ExecutorPairingConnectionRequestSchema,
   canonicalExecutorJson,
   canonicalFolderSyncDescendantRevisions,
   canonicalExecutorPayload,
@@ -183,10 +185,24 @@ const completeUpload = (server: FolderSyncFakeServer, uploadId: string): FolderS
 type Handler = (server: FolderSyncFakeServer, body: Record<string, unknown>, match: RegExpMatchArray) => unknown
 
 const routes: Array<{ method: string; path: RegExp; operation: string; handle: Handler }> = [
+  // The pairing claim (`/api/executor-pairing/connection`), signed under its own domain: the names it carries.
+  { method: 'POST', path: /\/executor-pairing\/connection$/u, operation: 'pairing_connection', handle: (server, body) => {
+    const { signature, ...payload } = ExecutorPairingConnectionRequestSchema.parse(body)
+    if (!verify(null, Buffer.from(canonicalExecutorPayload('nessie.executor.pairing.connection.v1', payload)),
+      server.publicKey, Buffer.from(signature, 'base64url'))) throw new Refusal(401, 'EXECUTOR_SIGNATURE_INVALID')
+    return ExecutorPairingClaimSchema.parse({
+      executorId: server.executorId, machineName: server.computerLabel,
+      organization: { id: 'org-1', name: server.organizationName }, team: { id: 'team-1', name: server.teamLabel },
+      scope: { kind: 'private', organizationId: '00000000-0000-4000-8000-0000000000aa' }, claimDigest: `sha256:${'0'.repeat(64)}`,
+    })
+  } },
   { method: 'POST', path: /\/handshake$/u, operation: 'handshake', handle: (server, body) => {
-    parseSigned(server, FolderSyncHandshakeRequestSchema, body)
+    const request = parseSigned(server, FolderSyncHandshakeRequestSchema, body)
+    const named = request.wantsOrganizationName && server.handshakeNamesOrganization
     return FolderSyncHandshakeResponseSchema.parse({
-      status: server.status, teamLabel: server.teamLabel, computerLabel: server.computerLabel, includeSensitive: true,
+      status: server.status, teamLabel: server.teamLabel,
+      ...(named ? { organizationName: server.organizationName } : {}),
+      computerLabel: server.computerLabel, includeSensitive: true,
       manageUrl: `https://unlikeotherai.nessie.test/team/computers/${server.executorId}?tab=sync`,
       limits: {
         maxUploadBytes: server.maxUploadBytes, partBytes: FOLDER_SYNC_PART_BYTES,

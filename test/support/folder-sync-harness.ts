@@ -27,10 +27,12 @@ export const createSyncHarness = async (options: {
   spaceName?: string
   /** Wrap the signed transport, to act between a request and its answer. */
   wrap?: (transport: FolderSyncTransport) => FolderSyncTransport
+  /** Another team on the same computer: the same home and main folder, its state beside this one's. */
+  beside?: { tmp: string }
 } = {}) => {
   const server = new FolderSyncFakeServer()
   const space = server.actor.space(options.spaceName ?? 'Projects')
-  const tmp = await mkdtemp(join(tmpdir(), 'nessie-sync-'))
+  const tmp = options.beside?.tmp ?? await mkdtemp(join(tmpdir(), 'nessie-sync-'))
   const home = join(tmp, 'home')
   const stateDir = join(tmp, 'state', server.executorId)
   await mkdir(stateDir, { recursive: true, mode: 0o700 })
@@ -48,7 +50,8 @@ export const createSyncHarness = async (options: {
     now: () => clock, utcOffsetMinutes: () => 0,
   })
   let engine = newEngine()
-  const teamDir = () => join(root, 'UnlikeOtherAI')
+  // `<Organisation>/<Team>` under the main folder: the fake's names are already clean folder names.
+  const teamDir = () => join(root, server.organizationName, server.teamLabel)
   const path = (relPath: string) => join(teamDir(), ...relPath.split('/'))
 
   const harness = {
