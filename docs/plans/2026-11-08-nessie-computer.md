@@ -267,7 +267,8 @@ Settled during delivery (both hosts implement exactly this):
 - **Remedy ids** for `executor_apply_remedy`: `reProposePolicy`, `restartExecutor`,
   `openNessie`. The console may also handle "open Nessie" by calling
   `executor_open_nessie` itself.
-- **`executor_open_nessie { executorId? }`**: the host builds the URL from its
+- **`executor_open_nessie { executorId?, computer? }`** (`computer: true` opens that
+  team's computer page in Nessie): the host builds the URL from its
   own paired server and adds `?create=1&code=<code>` itself while a pairing
   code is showing. The page never passes a path or URL.
 - Removed: `executor_reconnect`, `executor_notify`, `executor_hide_status`.
