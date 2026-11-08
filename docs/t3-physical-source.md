@@ -5,6 +5,11 @@ Historical-human authority and server publication remain unbound. No provider or
 T3 serving process is started. Other platforms refuse; all-machine coverage is
 not claimed.
 
+Execution-only settings and opaque provider-home handles use a separate
+[protected graph resource scope](t3-execution-resources.md); retained consent
+does not authorize them. Its native gate and installed qualification remain
+required independently of this reader.
+
 ## Owning surface
 
 The existing local `configure --configuration-input-stdin` policy accepts

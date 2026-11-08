@@ -1,4 +1,7 @@
 #[cfg(windows)] mod handles;
+#[cfg(windows)] mod execution_settings;
+#[cfg(windows)] mod execution_resource;
+#[cfg(all(windows, test))] mod execution_settings_tests;
 #[cfg(windows)] mod resource;
 #[cfg(windows)] mod sqlite;
 #[cfg(windows)] mod sqlite_api;
@@ -25,6 +28,11 @@
 #[cfg(all(windows, test))] mod consent_tests;
 
 use crate::protocol::NativeError;
+
+#[cfg(windows)]
+pub fn run_execution() -> Result<(), NativeError> { execution_resource::run() }
+#[cfg(not(windows))]
+pub fn run_execution() -> Result<(), NativeError> { Err(NativeError::new("t3_execution_resource_platform_unsupported")) }
 
 #[cfg(windows)]
 pub fn approve_retained_import(nonce:&str) -> Result<(),NativeError> { consent::approve(nonce) }
