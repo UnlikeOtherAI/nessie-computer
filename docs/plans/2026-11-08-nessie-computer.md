@@ -367,3 +367,74 @@ Help text uses §2 words, has examples, and a test checks every verb's help.
   saved state on any machine; no pairing against production from a test.
 - Report: branch, every commit hash (pushed), what ran (host, command, result),
   what did not, deviations from this doc.
+
+## 11. Asynchronous computer: sessions and concurrent commands (wave 2, A3 + D2)
+
+Ruling: every piece of work runs inside a **session**; sessions run in
+parallel, and **commands inside a session run in parallel too**. Today the
+protocol is one command at a time per team (the daemon polls; while a command
+is active it polls only for its cancellation; Nessie hands out the next command
+after the receipt). That ends here.
+
+### 11.1 Session
+- A session has an id, belongs to one agent run on one computer (team), and
+  carries the person the run acts for and the conversation's computer lease.
+  Nessie opens it when the run first needs the computer and closes it when the
+  run ends, the owner chooses Stop, the lease ends, the team is paused or
+  disconnected. It survives individual commands and daemon restarts.
+- Existing terminal, coding and browser sessions keyed by `runId` become
+  resources *inside* the session, not separate concepts.
+
+### 11.2 Commands
+- Every command carries `sessionId` and has its own id, status and events.
+  Dispatch never waits for another command's result. The agent decides what to
+  wait for (one, several, any); a dependent step waits for its input.
+- The daemon serialises only per resource that cannot overlap: one terminal's
+  input, one browser tab's actions, writes to the same path, a local app that
+  declares itself single-request. Everything else runs concurrently.
+- Capacity: per-session and per-computer limits by kind (file operations high;
+  program/terminal launches, coding sessions and browser actions lower; guest
+  sandboxes per folder). Commands above capacity wait in the daemon's queue,
+  visible as "waiting to start".
+- A program request holds only its own command (no 120 s team-wide block); the
+  request can wait up to 15 minutes and the agent is told it is waiting for the
+  owner. Allow once applies to that command; Always allow adds the rule.
+- Stop cancels every command of a session; Pause refuses new commands in every
+  session; an update drains all sessions.
+
+### 11.3 Protocol (opt-in, backward compatible)
+- Poll request: new daemons send `concurrency: 1` (version) with
+  `capacity: { file, program, coding, browser, mcp }` (free slots) and
+  `activeCommands: CancellationTarget[]`. Nessie answers `commands: Command[]`
+  (≤ capacity, ordered by creation) and `cancellations: CancellationTarget[]`.
+  A daemon without `concurrency` keeps today's single `command`/`activeCommand`
+  shape, and Nessie keeps serving it.
+- Command envelope gains `sessionId`; Nessie also sends `sessionClose` items
+  (poll and doorbell) so the daemon ends a session's resources.
+- Doorbell: Nessie rings the computer's existing authenticated doorbell when a
+  command is queued for it, so work starts immediately; polling stays the fallback.
+- Receipts stay per command. The daemon's recovery journal becomes one record
+  per command id (it holds a single command today).
+- Ship order: Nessie understands the new fields before any daemon sends them.
+
+### 11.4 Nessie (D2)
+- Dispatch up to the daemon's capacity, preserving creation order only as a
+  tie-break; per-session and per-person fairness.
+- Agent tools return a command handle immediately ("running"); a
+  `computer_wait` style tool (or the existing catalogue's equivalent) waits for
+  one/all/any handles with a timeout; the run parks durably and resumes when a
+  receipt arrives (existing durable receipt/resume and internal events), never
+  holding a provider call open.
+- Conversation shows "waiting for the computer's owner to allow `docker build`"
+  and the outcome; `EXECUTOR_OWNER_PAUSED`, `owner_declined`,
+  `owner_did_not_answer` are shown in plain words. Commands carry the agent's
+  display name for program requests.
+- The computer page and Dev section list sessions and their running commands.
+
+### 11.5 The app (console + natives)
+Overview gains **Now working**: one row per session (agent · team), its running
+commands beneath ("running `npm test`", "reading report.md", "waiting for you:
+`docker build`", "waiting to start"), and **Stop** per session. Bridge:
+`executor_sessions { executorId? }` → sessions with commands;
+`executor_stop_session { executorId, sessionId }`. CLI: `nessie-computer
+sessions [list|stop <id>]` (also in the wiki Command reference).
