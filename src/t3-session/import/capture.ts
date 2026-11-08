@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import type { T3CaptureJournal } from '../state/journal.js'
 import type { CaptureAttempt } from '../state/capture-attempts.js'
-import type { RetainedCatalogAuthorityPort } from '../catalog/selection.js'
+import type { RetainedCatalogAuthorityPort, RetainedCatalogPublicationAuthorityPort } from '../catalog/selection.js'
 import type { NativeHistoryHomePort, RetainedOriginalOwnerPort, RetainedReadScope } from '../ownership/continuity.js'
 import type { AdmittedT3SourcePort, ProvenT3Source, T3SourceManifest } from './manifest.js'
 import { withT3SourceSnapshot } from './snapshot.js'
@@ -13,6 +13,7 @@ export interface RetainedCapturePorts {
   readonly source?: AdmittedT3SourcePort
   readonly originalOwner?: RetainedOriginalOwnerPort
   readonly catalogAuthority?: RetainedCatalogAuthorityPort
+  readonly catalogPublicationAuthority?: RetainedCatalogPublicationAuthorityPort
   readonly workspace: OwnedCaptureWorkspacePort
   readonly journal: T3CaptureJournal
   readonly nativeHomes?: NativeHistoryHomePort

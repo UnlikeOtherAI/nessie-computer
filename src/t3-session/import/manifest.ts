@@ -1,5 +1,6 @@
 import type { SourceContracts } from '@nessie/t3-session-source/engine'
 import type { CaptureDatabase } from '../state/sqlite.js'
+import type { T3CatalogPublicationReceipt } from '@nessie/executor-protocol/t3-session'
 
 /** These are explicit resource admissions, never filesystem search locations. */
 export interface T3SourceManifest {
@@ -32,8 +33,9 @@ export interface AdmittedT3SourcePort {
   ): Promise<A>
 }
 
-/** REQUIRED, UNBOUND. T07 must serialize with its existing environment/root rows.
- * A local capture receipt is data, never server catalog completion or entitlement.
+/** Implemented by createRetainedCatalogPublicationPort using the held generation
+ * and T07 signed transport. Runtime must supply actual publication authority.
+ * A local reference is resolved here, never sent to the server for dereferencing.
  */
 export interface T3CatalogPublicationPort {
   publishLocalCapture(input: {
@@ -41,7 +43,7 @@ export interface T3CatalogPublicationPort {
     readonly captureGeneration: string
     readonly sourceHighWater: number
     readonly localCatalogReference: string
-  }): Promise<void>
+  }, options?: { readonly signal?: AbortSignal }): Promise<T3CatalogPublicationReceipt>
 }
 
 export const retainedCaptureBindings = Object.freeze({
