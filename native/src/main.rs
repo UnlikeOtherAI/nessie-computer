@@ -420,7 +420,7 @@ fn main() {
     };
     if let Err((command, error)) = outcome {
         reject(command.as_ref(), &error);
-        let refused = matches!(command, Some(Command::JobRun(_)));
+        let refused = matches!(command, Some(Command::JobRun(_) | Command::JobRunAuthorized(_)));
         std::process::exit(if refused {
             JOB_RUN_REFUSED_EXIT_CODE
         } else {

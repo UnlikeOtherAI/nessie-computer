@@ -163,12 +163,12 @@ export class EffectReceiver {
       throw new SessionEffectRefused()
     }
     return { frame, consume: async () => {
-      const nonce = randomUUID(), started = Date.now()
+      const nonce = randomUUID(), started = performance.now()
       this.pipe.send({ type: 'consume', seq, digest, nonce })
       const permit = await this.pipe.read()
       if (permit.type !== 'permit' || permit.seq !== seq || permit.digest !== digest || permit.nonce !== nonce
         || typeof permit.validUntil !== 'number' || permit.validUntil <= Date.now()
-        || permit.validUntil > Date.now() + 5_000 || Date.now() - started >= 5_000) throw new SessionEffectRefused()
+        || permit.validUntil > Date.now() + 5_000 || performance.now() - started >= 5_000) throw new SessionEffectRefused()
     }, outcome: status => this.pipe.send({ type: 'outcome', seq, digest, status }) }
   }
 }

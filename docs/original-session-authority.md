@@ -113,3 +113,7 @@ The broker and host share the same in-memory original carrier: a successful
 signed consumption updates that carrier, rather than leaving a stale private
 copy in the caller. Native relay threads own duplicated Job handles so a late
 channel failure cannot act on a closed/reused handle.
+
+Receiver elapsed-time checks use a monotonic clock as well as the permit's wall
+deadline. Clock rollback cannot lengthen a pending challenge. Authorized Job
+launch refusals retain the wrapper's exit code 125.
