@@ -75,7 +75,7 @@ fn grant_read(object: HANDLE, rights: u32) -> UpdateResult<()> {
     let (mut present, mut defaulted, mut acl) = (0, 0, std::ptr::null_mut());
     if unsafe {
         GetSecurityDescriptorDacl(
-            current.as_ptr().cast(),
+            current.as_mut_ptr().cast(),
             &mut present,
             &mut acl,
             &mut defaulted,
@@ -192,7 +192,7 @@ mod tests {
         assert_ne!(
             unsafe {
                 GetSecurityDescriptorDacl(
-                    bytes.as_ptr().cast(),
+                    bytes.as_mut_ptr().cast(),
                     &mut present,
                     &mut acl,
                     &mut defaulted,
