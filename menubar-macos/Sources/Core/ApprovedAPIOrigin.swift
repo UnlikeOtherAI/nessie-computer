@@ -106,10 +106,12 @@ public enum ApprovedAPIOrigin {
     /// While a pairing code is showing, the page opens on Add a computer with
     /// that code filled in (`?create=1&code=<code>`), a one-shot intent the
     /// console strips once it has read it. Only an eight-digit code is passed.
+    /// `computerId` opens that team's own computer page rather than the list.
     public static func consoleURL(
         forAPIOrigin apiOrigin: String,
         isDevelopmentBuild: Bool,
-        pairingCode: String? = nil
+        pairingCode: String? = nil,
+        computerId: String? = nil
     ) -> URL {
         var components: URLComponents
         if isDevelopmentBuild, apiOrigin == localDevelopment {
@@ -124,6 +126,13 @@ public enum ApprovedAPIOrigin {
             return hostedNessieConsole
         }
         components.path = "/admin/computers"
+        let identity = { (scalar: Unicode.Scalar) in
+            scalar.isASCII && (CharacterSet.alphanumerics.contains(scalar) || scalar == "-")
+        }
+        if let computerId, !computerId.isEmpty, computerId.utf8.count <= 128,
+           computerId.unicodeScalars.allSatisfy(identity) {
+            components.path += "/" + computerId
+        }
         if let pairingCode, pairingCode.utf8.count == 8, pairingCode.utf8.allSatisfy({ (48...57).contains($0) }) {
             components.queryItems = [
                 URLQueryItem(name: "create", value: "1"), URLQueryItem(name: "code", value: pairingCode)

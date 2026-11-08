@@ -139,6 +139,24 @@ final class ApprovedAPIOriginTests: XCTestCase {
         XCTAssertEqual(ApprovedAPIOrigin.label(for: "https://nessie.example.com"), "nessie.example.com")
     }
 
+    func testAComputersOwnPageIsOnItsTeamsServer() {
+        XCTAssertEqual(
+            ApprovedAPIOrigin.consoleURL(
+                forAPIOrigin: "https://api.nessie.works", isDevelopmentBuild: false, computerId: "0b6a3f14-98d2"
+            ).absoluteString,
+            "https://app.nessie.works/admin/computers/0b6a3f14-98d2"
+        )
+        for unsafe in ["../x", "a/b", "a?b", ""] {
+            XCTAssertEqual(
+                ApprovedAPIOrigin.consoleURL(
+                    forAPIOrigin: "https://api.nessie.works", isDevelopmentBuild: false, computerId: unsafe
+                ).absoluteString,
+                "https://app.nessie.works/admin/computers",
+                unsafe
+            )
+        }
+    }
+
     func testTheConsoleLinkFollowsTheNessieThisMacIsPairedWith() {
         XCTAssertEqual(
             ApprovedAPIOrigin.consoleURL(

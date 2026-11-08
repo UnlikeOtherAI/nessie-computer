@@ -50,6 +50,7 @@ public enum Word: Equatable, Sendable {
     case needsYou(team: String, reason: NeedsYouReason)
     case needsYouReinstall
     case needsYouUnreadableTeam
+    case needsYouConfirmComputer
     case needsYouMany(Int)
     case pause
     case resume

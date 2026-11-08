@@ -69,6 +69,7 @@ final class ExecutorConnections: ObservableObject {
     func menuModel() -> ComputerMenuModel {
         let labels = labels()
         var unreadable = 0
+        var confirmation: [String] = []
         var runtimeMissing = false
         var teams: [TeamSnapshot] = []
         for controller in controllers {
@@ -77,6 +78,7 @@ final class ExecutorConnections: ObservableObject {
             case .unavailable:
                 if controller.runtimeMissing { runtimeMissing = true } else { unreadable += 1 }
             case let .paired(description):
+                if controller.pairing.ownerConfirmationRequired { confirmation.append(description.executorId) }
                 teams.append(TeamSnapshot(
                     executorId: description.executorId,
                     label: labels[description.executorId] ?? Word.teamNameUnavailable.text,
@@ -90,7 +92,9 @@ final class ExecutorConnections: ObservableObject {
                 ))
             }
         }
-        return ComputerMenuModel(teams: teams, unreadableTeams: unreadable, runtimeMissing: runtimeMissing)
+        return ComputerMenuModel(
+            teams: teams, unreadableTeams: unreadable, confirmationTeams: confirmation, runtimeMissing: runtimeMissing
+        )
     }
 
     /// "Open Nessie" from the menu: the first team's Nessie, or the hosted one

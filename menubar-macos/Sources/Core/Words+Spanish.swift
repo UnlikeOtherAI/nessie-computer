@@ -35,6 +35,7 @@ enum SpanishWords {
         case let .needsYou(team, why): return "Te necesita: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Te necesita: reinstala Nessie Computer"
         case .needsYouUnreadableTeam: return "Te necesita: no se puede leer un equipo de este Mac"
+        case .needsYouConfirmComputer: return "Te necesita: confirma este ordenador en Nessie"
         case let .needsYouMany(value): return "Te necesita: \(value) cosas — abre Nessie Computer"
         case .pause: return "Pausar"
         case .resume: return "Reanudar"

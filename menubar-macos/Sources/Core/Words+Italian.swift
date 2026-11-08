@@ -35,6 +35,7 @@ enum ItalianWords {
         case let .needsYou(team, why): return "Serve il tuo intervento: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Serve il tuo intervento: reinstalla Nessie Computer"
         case .needsYouUnreadableTeam: return "Serve il tuo intervento: un team su questo Mac non è leggibile"
+        case .needsYouConfirmComputer: return "Serve il tuo intervento: conferma questo computer in Nessie"
         case let .needsYouMany(value): return "Serve il tuo intervento: \(value) cose — apri Nessie Computer"
         case .pause: return "Metti in pausa"
         case .resume: return "Riprendi"

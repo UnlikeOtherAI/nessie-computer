@@ -23,9 +23,10 @@ extension ExecutorController {
 
     /// This team's Computers page on the Nessie it is paired with — never a
     /// stranger's console — with the one-shot pairing intent while a code is up.
-    func nessieConsoleURL(pairingCode: String? = nil) -> URL {
+    func nessieConsoleURL(pairingCode: String? = nil, computerId: String? = nil) -> URL {
         ApprovedAPIOrigin.consoleURL(
-            forAPIOrigin: apiOrigin, isDevelopmentBuild: isDevelopmentBuild, pairingCode: pairingCode
+            forAPIOrigin: apiOrigin, isDevelopmentBuild: isDevelopmentBuild, pairingCode: pairingCode,
+            computerId: computerId
         )
     }
 
