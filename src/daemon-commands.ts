@@ -37,6 +37,8 @@ export const createDaemonCommands = (input: {
   programGate: ProgramRequestGate
   /** Something the poll reports changed: poll now. */
   onChange: () => void
+  /** A run's session ended or was stopped: its Claude Code and Codex turns end too. */
+  onRunEnded?: (runId: string) => void
   log?: (message: string) => void
 }) => {
   const { stateDir, live, browserSessions, commandSessions, codingSessions } = input
@@ -45,6 +47,7 @@ export const createDaemonCommands = (input: {
   const sidecars = createExecutorCommandAttachmentStore(stateDir)
 
   const endRun = async (runId: string): Promise<void> => {
+    input.onRunEnded?.(runId)
     await Promise.allSettled([
       browserSessions.stop(runId), commandSessions.stop(runId), codingSessions.stop(runId),
     ])

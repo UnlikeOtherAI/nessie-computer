@@ -14,6 +14,8 @@
   // ---- what needs the owner, newest knowledge first
   const needItems = () => {
     const items = []
+    // Before anything else: while updates are stuck no team can start at all.
+    if (nc.updates?.stuck()) items.push({ kind: 'updates', text: t('updates.stuckNeed'), short: t('updates.stuck') })
     for (const request of requests) {
       const team = nc.team.label(request.executorId)
       const text = request.agentName ? t('overview.request', { agent: request.agentName, program: request.program })
@@ -45,7 +47,7 @@
     const needs = needItems()
     const paused = teams.filter((team) => team.paused).length
     const working = teams.filter((team) => nc.team.status(team) === 'working').length
-    byId('status-sentence').textContent = !teams.length ? t('shell.statusNone')
+    byId('status-sentence').textContent = nc.updates?.stuck() ? t('updates.stuck') : !teams.length ? t('shell.statusNone')
       : needs.length ? t('shell.statusNeedsYou', { what: needs[0].short })
         : paused === teams.length ? t('shell.statusPaused')
           : !working ? t('shell.statusNotConnected')
@@ -103,6 +105,14 @@
       button.dataset.key = `confirm:${item.team.executorId}`
       // The host opens this team's computer page on its own server (§5.1).
       button.onclick = () => attempt(() => invoke('executor_open_nessie', { executorId: item.team.executorId, computer: true }))
+      row.append(button)
+    }
+    if (item.kind === 'updates') {
+      const button = document.createElement('button')
+      button.className = 'primary'
+      button.textContent = t('updates.restart')
+      button.dataset.key = 'updates:restart'
+      button.onclick = () => attempt(async () => { await nc.updates.restart(); render() }, { target: button })
       row.append(button)
     }
     if (item.kind === 'sync') {
@@ -266,6 +276,8 @@
   nc.team.onListChange(() => { reload(false); render(); loadNeeds().catch(() => undefined) })
   nc.view.onChange((tab) => { if (tab === 'overview') { reload(true); loadNeeds().catch(() => undefined) } })
   window.addEventListener('DOMContentLoaded', () => {
+    // Updates load after this file; their status changes the header and Needs you.
+    nc.updates?.onStatus(() => render())
     setInterval(() => {
       if (nc.view.current() !== 'overview' || Date.now() - needsAt < 4000) return
       loadNeeds().catch(() => undefined)

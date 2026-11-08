@@ -27,6 +27,7 @@ mod custody_cleanup;
 mod deep_link;
 mod grant;
 mod inference_connections;
+mod local_ai;
 mod menu;
 mod menu_guard;
 mod nessie_desktop;
@@ -325,6 +326,11 @@ fn main() {
             console_commands::executor_sync_open_nessie,
             personal_chatgpt::executor_personal_chatgpt,
             inference_connections::executor_inference_connections,
+            local_ai::executor_local_ai,
+            local_ai::executor_set_local_ai,
+            local_ai::executor_local_ai_add_account,
+            local_ai::executor_local_ai_sign_in,
+            local_ai::executor_local_ai_remove_account,
             personal_chatgpt::executor_chatgpt_usage,
             commands::executor_choose_folder,
             commands::executor_open_logs,

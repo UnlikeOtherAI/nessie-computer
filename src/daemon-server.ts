@@ -104,7 +104,9 @@ export const serveExecutor = async (
     const commands = createDaemonCommands({
       stateDir, live, browserSessions, commandSessions, codingSessions, tools, paused: pause.paused, programGate,
       onChange: () => { if (commandsReady && !shuttingDown) cadence.wake(['commands']) },
+      onRunEnded: (runId) => localInference.supervisor.stopRuns([runId]),
     })
+    localInference.supervisor.setSessionGate({ refused: (sessionId) => commands.dispatcher.isStopped(sessionId) })
     // Local apps are replaced while no local-app command runs; other work goes on.
     const refreshTools = createNonOverlappingExecutorTask(() => commands.dispatcher.between('mcp', async () => {
       if (await toolbox.refresh().catch(() => false)) cadence.wake(['heartbeat'])

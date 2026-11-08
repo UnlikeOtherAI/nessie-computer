@@ -47,10 +47,12 @@ public enum Word: Equatable, Sendable {
     case statusWorking(working: Int, paused: Int, notConnected: Int)
     case statusConnecting
     case statusNotConnected
+    case statusUpdatesStuck
     case needsYou(team: String, reason: NeedsYouReason)
     case needsYouReinstall
     case needsYouUnreadableTeam
     case needsYouConfirmComputer
+    case needsYouUpdatesStuck
     case needsYouMany(Int)
     case pause
     case resume

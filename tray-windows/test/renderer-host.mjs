@@ -146,6 +146,38 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     if (operation.operation === 'remove') window.endpoints = window.endpoints.filter((endpoint) => endpoint.id !== operation.id)
     return { endpoints: window.endpoints.map((endpoint) => ({ ...endpoint })) }
   }
+  // Claude Code and Codex on this computer (ai-local.js): accounts are the computer's, switches each team's.
+  const localAi = (command, args) => {
+    if (window.localAiOffline) throw new Error('offline')
+    if ((window.localAiService ?? []).includes(args.executorId)) return { unavailable: 'service' }
+    window.localAiAccounts ??= []
+    window.localAiPrograms ??= { 'claude-code': { installed: true, signedIn: true, account: 'person@example.com' },
+      codex: { installed: false, signedIn: false } }
+    // On by default: only a team's explicit off is kept.
+    const off = ((window.localAiOff ??= {})[args.executorId] ??= [])
+    const key = (engine, profileId) => (profileId ? `${engine}:${profileId}` : engine)
+    if (command === 'executor_set_local_ai') {
+      const name = key(args.engine, args.profileId)
+      window.localAiOff[args.executorId] = args.available ? off.filter((entry) => entry !== name) : [...new Set([...off, name])]
+    }
+    if (command === 'executor_local_ai_add_account') {
+      window.localAiAccounts.push({ engine: args.engine, profileId: `00000000-0000-4000-8000-00000000000${window.localAiAccounts.length + 1}`,
+        name: args.name, signedIn: false })
+    }
+    if (command === 'executor_local_ai_remove_account') {
+      window.localAiAccounts = window.localAiAccounts.filter((account) => account.profileId !== args.profileId)
+    }
+    const switchedOff = window.localAiOff[args.executorId]
+    const row = (engine, profileId, name, program) => {
+      const available = !switchedOff.includes(key(engine, profileId))
+      return { engine, profileId, name, installed: program.installed, signedIn: program.signedIn,
+        ...(program.account ? { account: program.account } : {}), available,
+        offered: available && program.installed && program.signedIn ? window.localAiOffered ?? 'yes' : 'no' }
+    }
+    return [row('claude-code', null, null, window.localAiPrograms['claude-code']), row('codex', null, null, window.localAiPrograms.codex),
+      ...window.localAiAccounts.map((account) => row(account.engine, account.profileId, account.name,
+        { installed: window.localAiPrograms[account.engine].installed, signedIn: account.signedIn, account: account.signedIn ? 'work@example.com' : undefined }))]
+  }
   const updates = (command, args) => {
     if (command === 'executor_update_setup') {
       if (window.updateSetupDenied) throw new Error('update.coordinator_unavailable')
@@ -182,6 +214,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       window.launchLink = null
       return link
     }
+    if (command.startsWith('executor_local_ai') || command === 'executor_set_local_ai') return localAi(command, args)
     if (command === 'executor_inference_connections') return endpoints(args.operation)
     if (command === 'executor_view') return view()
     if (command === 'executor_set_paused') {
@@ -304,6 +337,6 @@ export const consoleFiles = {
     'overview-words.js', 'overview-summary.js', 'overview.js', 'overview-working-words.js', 'overview-working.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'updates.js',
     'settings-words.js', 'settings.js'],
   teamTabs: ['autosave.js', 'team-drafts.js', 'access-words.js', 'access.js', 'access-sections.js', 'access-programs.js',
-    'documents-reasons-words.js', 'documents-words.js', 'documents.js', 'ai-words.js', 'ai.js', 'chatgpt-words.js', 'chatgpt.js',
+    'documents-reasons-words.js', 'documents-words.js', 'documents.js', 'ai-local-words.js', 'ai-local.js', 'ai-words.js', 'ai.js', 'chatgpt-words.js', 'chatgpt.js',
     'ai-connection.js', 'inference-endpoints.js'],
 }

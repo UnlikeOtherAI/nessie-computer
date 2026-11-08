@@ -12,6 +12,8 @@ import SwiftUI
 @MainActor
 final class ExecutorConnections: ObservableObject {
     @Published private(set) var controllers: [ExecutorController]
+    /// The update helper can't be reached or refuses, so no team can start.
+    @Published var updatesStuck = false
     private let isDevelopmentBuild: Bool
     private var observations: Set<AnyCancellable> = []
     private var discoveryTimer: Timer?
@@ -93,7 +95,8 @@ final class ExecutorConnections: ObservableObject {
             }
         }
         return ComputerMenuModel(
-            teams: teams, unreadableTeams: unreadable, confirmationTeams: confirmation, runtimeMissing: runtimeMissing
+            teams: teams, unreadableTeams: unreadable, confirmationTeams: confirmation,
+            runtimeMissing: runtimeMissing, updatesStuck: updatesStuck
         )
     }
 

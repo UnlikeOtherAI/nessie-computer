@@ -6,6 +6,7 @@
 //   --output=<dir>         where pictures go (default .artifacts/executor-console)
 //   --before=<rev>         captures of the console as it was at <rev>, into <output>/before, for comparison
 //   --updates-only …       Software updates journeys alone (see docs/automatic-updates.md)
+//   --updates-stuck-only   the Mac helper-stuck state on Overview and Settings, seven locales, no pictures
 import { mkdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,10 +15,12 @@ import { consoleFiles } from './renderer-host.mjs'
 import { verifyConsoleShell } from './console-renderer.mjs'
 import { captureConsoleBefore } from './console-before.mjs'
 import { verifySoftwareUpdates } from './updates-renderer.mjs'
+import { verifyUpdatesStuck } from './updates-stuck-renderer.mjs'
 import { verifyAccessTab } from './access-renderer.mjs'
 import { verifyDocumentsTab } from './documents-renderer.mjs'
 import { captureDocumentsTeamsBefore, verifyDocumentsTeams } from './documents-teams-renderer.mjs'
 import { verifyAiTab } from './ai-tab-renderer.mjs'
+import { verifyAiLocal } from './ai-local-renderer.mjs'
 import { verifyNowWorking } from './working-renderer.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
@@ -36,6 +39,10 @@ try {
     await captureDocumentsTeamsBefore(browser, root, before, join(output, 'before'))
     process.exit(0)
   }
+  if (process.argv.includes('--updates-stuck-only')) {
+    await verifyUpdatesStuck(browser, ui, files)
+    process.exit(0)
+  }
   if (process.argv.some((arg) => arg.startsWith('--updates'))) {
     await verifySoftwareUpdates(browser, ui, files, root)
     process.exit(0)
@@ -48,6 +55,10 @@ try {
   if (only.includes('documents')) await verifyDocumentsTab(browser, ui, after)
   if (only.includes('documents-teams')) await verifyDocumentsTeams(browser, ui, after)
   if (only.includes('ai')) await verifyAiTab(browser, ui, after)
-  if (only.includes('updates')) await verifySoftwareUpdates(browser, ui, files, root)
+  if (only.includes('ai')) await verifyAiLocal(browser, ui)
+  if (only.includes('updates')) {
+    await verifySoftwareUpdates(browser, ui, files, root)
+    await verifyUpdatesStuck(browser, ui, files)
+  }
   process.stdout.write(`Shared Windows/macOS console passed. Pictures: ${after}\n`)
 } finally { await browser.close() }

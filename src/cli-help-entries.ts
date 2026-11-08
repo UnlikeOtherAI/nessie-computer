@@ -22,7 +22,7 @@ export const HELP_GROUPS: Array<{ title: string; commands: string[] }> = [
   { title: 'Program requests', commands: ['requests'] },
   { title: 'Now working', commands: ['sessions'] },
   { title: 'Documents', commands: ['documents'] },
-  { title: 'AI', commands: ['ai plans', 'ai servers'] },
+  { title: 'AI', commands: ['ai local', 'ai plans', 'ai servers'] },
   { title: 'Settings', commands: ['settings'] },
   { title: 'Help', commands: ['help'] },
 ]
@@ -201,6 +201,24 @@ export const HELP_ENTRIES: HelpEntry[] = [
       'held lists large deletions waiting for you.'],
     examples: ['nessie-computer documents on --team "Sales · Acme" --folder ~/Documents/Nessie',
       'nessie-computer documents conflicts --team "Sales · Acme"'],
+  },
+  {
+    command: 'ai local', summary: 'Claude Code and Codex on this computer, for agents to use.',
+    usage: [
+      'nessie-computer ai local [list] [--team <team>]',
+      'nessie-computer ai local on|off claude-code|codex [--account <account>] [--team <team>]',
+      'nessie-computer ai local add claude-code|codex <name> [--team <team>]',
+      'nessie-computer ai local sign-in <account> [--team <team>]',
+      'nessie-computer ai local remove <account> [--team <team>]',
+    ],
+    notes: [
+      'Each program is on for every team by default once it is installed and signed in; off stops that team\'s agents',
+      'using it, and on undoes that. Agents use the program\'s own sign-in; Nessie decides who may use it.',
+      'add makes another account on this computer and runs the program\'s own sign-in; --account picks it.',
+      'remove signs that account out and deletes it from this computer.',
+    ],
+    examples: ['nessie-computer ai local off codex --team "Sales · Acme"',
+      'nessie-computer ai local add claude-code "Work"'],
   },
   {
     command: 'ai plans', summary: 'ChatGPT plans that fund your own agents.',

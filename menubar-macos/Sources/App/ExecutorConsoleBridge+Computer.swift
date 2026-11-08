@@ -19,6 +19,12 @@ extension ExecutorConsoleBridge {
         case "executor_open_nessie": try await openNessie(args)
         case "executor_update_setup":
             guard args.isEmpty else { throw ExecutorRefusal("update.coordinator_unavailable") }
+            // One button: set the helper up, or restart one that is stuck.
+            if ComputerUpdateHealth.shared.stuck {
+                try await ComputerUpdateService.restart(requested: true)
+                ComputerUpdateHealth.shared.reset()
+                return ComputerUpdateService.unavailableStatus() ?? ComputerUpdateService.restartingStatus()
+            }
             try ComputerUpdateService.prepare(requested: true)
             return try await ExecutorUpdateControl.run(["operation": "status"])
         case "executor_update_control":

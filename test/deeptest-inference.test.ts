@@ -7,8 +7,9 @@ import test from 'node:test'
 
 import { createDeepTestInferenceAdapter } from '../src/deeptest-inference-adapter.js'
 import { createDeepTestLocalBackend } from '../src/deeptest-inference-backend.js'
-import { codingInferenceArguments, codingInferenceEnvironment, codingInferencePrompt, codingInferenceResult,
+import { codingInferenceArguments, codingInferencePrompt, codingInferenceResult,
   createDeepTestCodingBackends } from '../src/deeptest-inference-coding.js'
+import { cliEngineEnvironment as codingInferenceEnvironment } from '../src/local-cli-engine-process.js'
 import { createCodingProcessControl } from '../src/coding-session/process-control.js'
 import { DEEPTEST_INFERENCE_GRANT_FILE, currentInferenceConfig, loadDeepTestInferenceGrant,
   parseDeepTestInferenceGrant, publishDeepTestInferenceGrant, revokeDeepTestInferenceGrant, inferenceConfigDigest,

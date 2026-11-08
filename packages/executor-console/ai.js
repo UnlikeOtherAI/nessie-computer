@@ -1,4 +1,5 @@
-// The AI tab: the chosen team's ChatGPT plans and model servers on this computer.
+// The AI tab: Claude Code and Codex on this computer (ai-local.js), then the
+// chosen team's ChatGPT plans and model servers.
 window.aiTab = (() => {
   const nc = window.nc
   const t = (key, vars) => nc.t(`ai.${key}`, vars)
@@ -18,6 +19,8 @@ window.aiTab = (() => {
     <div id="ai-endpoint-list"></div>
     <p id="ai-error" class="field-error" role="alert" hidden></p>
     <button type="button" id="ai-refresh"></button>`
+  // "On this computer" comes first, above ChatGPT plans (contract §12).
+  nc.byId('ai-heading').after(window.aiLocal.section, document.createElement('hr'))
   const row = (name, detail, id, manage) => {
     const node = document.createElement('div')
     node.className = 'list-row'
@@ -63,6 +66,7 @@ window.aiTab = (() => {
     for (const id of ['ai-chatgpt-list', 'ai-endpoint-list']) nc.byId(id).textContent = t('loading')
     nc.byId('ai-error').hidden = true
     if (!executorId) return
+    void window.aiLocal.load()
     const plansOn = planConnection()
     nc.byId('ai-connection-needed').hidden = Boolean(plansOn)
     nc.byId('ai-connection-needed').textContent = t('connection.needed', { team: nc.team.label(executorId) })

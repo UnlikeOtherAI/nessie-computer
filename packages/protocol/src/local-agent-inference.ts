@@ -11,6 +11,7 @@ import {
   ToolSchemaDescriptorSchema,
 } from './inference-core.js'
 import { NonEmptyStringSchema, TimestampSchema } from './schema-primitives.js'
+import { LocalCliEngineSchema, LocalCliEngineStateSchema } from './local-cli-engine.js'
 
 /**
  * Contracts for the owner-host-only local Ollama lane.  This is deliberately
@@ -131,6 +132,9 @@ export const ObservedLocalModelSchema = z.object({
    * report rather than a weights manifest; absent identifies an observed Ollama weights manifest.
    */
   identitySource: z.literal('owner_configuration').optional(),
+  /** A Claude Code or Codex CLI engine on a `local_cli` host (docs/local-cli-engines.md). */
+  cliEngine: LocalCliEngineSchema.optional(),
+  cliEngineState: LocalCliEngineStateSchema.optional(),
   modelRevision: NonEmptyStringSchema.max(256).optional(),
   manifestDigest: z.string().regex(/^[a-f0-9]{64}$/),
   name: NonEmptyStringSchema.max(200),
@@ -162,7 +166,7 @@ export const ObservedLocalModelSchema = z.object({
 })
 export type ObservedLocalModel = z.infer<typeof ObservedLocalModelSchema>
 
-export const LocalInferenceHostRoleSchema = z.enum(['local_weights', 'chatgpt'])
+export const LocalInferenceHostRoleSchema = z.enum(['local_weights', 'chatgpt', 'local_cli'])
 export const LocalInferenceHostSchema = z.object({
   role: LocalInferenceHostRoleSchema,
   displayLabel: NonEmptyStringSchema,
@@ -222,6 +226,8 @@ export const LocalInferenceAttemptRequestSchema = z.object({
   protocolVersion: z.literal(1),
   runId: z.string().uuid(),
   runFence: NonEmptyStringSchema.max(160),
+  /** The §11 session of the run, sent to a `local_cli` host (docs/local-cli-engines.md). */
+  sessionId: z.string().uuid().optional(),
   // Whether the worker wants the model's separate thinking: true for a live
   // turn whose thought log can show it, absent/false for silent utility calls
   // and for an agent whose effort is `none`. A host only honours it for a

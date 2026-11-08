@@ -1,10 +1,31 @@
 import Darwin
 import Foundation
 
+/// Whether the update helper answers. Every caller shares one count, so a
+/// single slow reply never reads as stuck, and two failures in a row do.
+@MainActor
+final class ComputerUpdateHealth {
+    static let shared = ComputerUpdateHealth()
+    private(set) var failures = 0
+    var onChange: (@MainActor (Bool) -> Void)?
+
+    var stuck: Bool { ComputerUpdateRecovery.stuck(enabled: ComputerUpdateService.installed, failures: failures) }
+
+    func record(answered: Bool) {
+        let before = stuck
+        failures = answered ? 0 : failures + 1
+        if stuck != before { onChange?(stuck) }
+    }
+
+    /// A restart starts counting again; the helper needs a moment to answer.
+    func reset() { record(answered: true) }
+}
+
 /// Native control only: a blocked or stopped JavaScript runtime must not hide Updates.
 enum ExecutorUpdateControl {
     private static let unavailable = "update.coordinator_unavailable"
 
+    @MainActor
     static func run(_ request: [String: Any]) async throws -> [String: Any] {
         guard let operation = request["operation"] as? String else { throw ExecutorRefusal(unavailable) }
         let fields: Set<String>
@@ -20,7 +41,7 @@ enum ExecutorUpdateControl {
         let runtime = try PackagedRuntime.locate(in: Bundle.main.resourceURL).get()
         let helper = runtime.managedHelperURL() ?? ComputerUpdateService.factory
         do {
-            return try await withCheckedThrowingContinuation { continuation in
+            let response: [String: Any] = try await withCheckedThrowingContinuation { continuation in
                 DispatchQueue.global(qos: .utility).async {
                     do {
                         continuation.resume(returning: try exchange(helper: helper, payload: payload))
@@ -29,8 +50,15 @@ enum ExecutorUpdateControl {
                     }
                 }
             }
+            if operation == "status" { ComputerUpdateHealth.shared.record(answered: true) }
+            return response
         } catch {
-            if operation == "status", let setup = ComputerUpdateService.unavailableStatus() { return setup }
+            // Only status counts: a refused Remind or Install is an answer.
+            guard operation == "status" else { throw error }
+            // A timeout and a refused status are the same to a person: no team can start.
+            ComputerUpdateHealth.shared.record(answered: false)
+            if let setup = ComputerUpdateService.unavailableStatus() { return setup }
+            if ComputerUpdateHealth.shared.stuck { return ComputerUpdateService.stuckStatus() }
             throw error
         }
     }
@@ -81,8 +109,9 @@ final class ExecutorUpdateMonitor {
     func start(console: ConsoleWindowController, connections: ExecutorConnections) {
         task = Task { [weak self, weak console, weak connections] in
             while !Task.isCancelled {
-                if let status = try? await ExecutorUpdateControl.run(["operation": "status"]),
-                   let self, let console {
+                let status = try? await ExecutorUpdateControl.run(["operation": "status"])
+                await self?.restartHelperIfNeeded(status)
+                if let status, let self, let console {
                     let version = status["availableVersion"] as? String
                     if status["phase"] as? String == "waiting", status["draining"] as? Bool == true {
                         self.restart.start()
@@ -107,5 +136,19 @@ final class ExecutorUpdateMonitor {
     func stop() {
         task?.cancel()
         restart.stop()
+    }
+
+    /// An app update never reaches a helper that keeps running; restart it once.
+    private func restartHelperIfNeeded(_ status: [String: Any]?) async {
+        // The local stuck and setup states carry no installed version.
+        let answer = (status?["installedVersion"] as? String).flatMap { version in
+            (status?["phase"] as? String).map { (installedVersion: version, phase: $0) }
+        }
+        guard let version = ComputerUpdateService.applicationVersion, ComputerUpdateRecovery.shouldRestart(
+            enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
+            answer: answer, applicationVersion: version, restartedFor: ComputerUpdateService.restartedVersion
+        ) else { return }
+        await ComputerUpdateService.restartOnce(for: version)
+        ComputerUpdateHealth.shared.reset()
     }
 }

@@ -35,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             links.forEach(self.follow)
         }
         try? ComputerUpdateService.prepare()
+        ComputerUpdateHealth.shared.onChange = { [weak controller] stuck in controller?.updatesStuck = stuck }
         // The first launch with no team says what this app is for, on
         // Overview, rather than leaving a person to find an icon.
         let hasTeam = controller.controllers.contains { ExecutorPaths.hasPairingFile($0.stateDirectory) }

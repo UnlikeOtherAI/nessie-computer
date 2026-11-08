@@ -23,6 +23,13 @@ the exact file that was verified. Discovered local app launch specs stay in
 the owner-only state file, and a "who can send work here" answer is never
 stored.
 
+Claude Code and Codex offered as engines run the installed program headless
+with its own sign-in, its tools, MCP servers and history switched off; Nessie
+Computer never reads, copies or refreshes their credentials, and an added
+account is the program's own sign-in in a profile folder this app owns
+([engines](docs/local-cli-engines.md)). Prompts then go to the provider under
+the owner's plan, which Nessie must not present as local processing.
+
 Native custody checks bind processes to an immutable installed release and
 verify their creation and lifetime. A version string, a new file beside an old
 process, a process group or a successful compiler run does not establish

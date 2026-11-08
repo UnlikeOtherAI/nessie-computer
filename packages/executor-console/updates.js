@@ -16,8 +16,11 @@
     node('automatic').disabled = busy || !status?.canInstall
     node('policy').hidden = !status?.canInstall
     node('check').disabled = busy || status?.canInstall === false || active.has(status?.phase)
-    node('setup').hidden = status?.code !== 'update.setup_required'
+    // One action for both: approve the helper, or restart one that is stuck.
+    const stuck = status?.code === 'update.helper_unavailable'
+    node('setup').hidden = status?.code !== 'update.setup_required' && !stuck
     node('setup').disabled = busy
+    node('setup').textContent = text(stuck ? 'restart' : 'setup')
     const version = status?.targetVersion ?? status?.availableVersion
     const canUpdate = status?.canInstall && status?.availableVersion && !active.has(status.phase)
     node('install').hidden = !canUpdate
@@ -26,8 +29,8 @@
     node('hint').textContent = status?.automatic === false ? text('offHint') : text('automaticHint')
     const phase = status?.phase ?? 'checking'
     const known = ['idle', 'checking', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported', 'available']
-    node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : status?.code === 'update.bootstrap_required'
-      ? text('bootstrap') : text(known.includes(phase) ? phase : 'unavailable', version)
+    node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : stuck ? text('helperStuck')
+      : status?.code === 'update.bootstrap_required' ? text('bootstrap') : text(known.includes(phase) ? phase : 'unavailable', version)
     if (phase === 'failed' && status?.availableVersion) node('status').textContent += ` ${text('available', status.availableVersion)}`
     if (!status?.notify || status.automatic || !canUpdate) announced = null
     for (const listener of listeners) listener(status)
@@ -75,7 +78,6 @@
   node('version-label').textContent = text('installed')
   node('automatic-label').textContent = text('automatic')
   node('check').textContent = text('check')
-  node('setup').textContent = text('setup')
   node('prompt-title').textContent = text('promptTitle')
   node('prompt-remind').textContent = text('remind')
   node('prompt-hint').textContent = text('automaticHint')
@@ -94,5 +96,8 @@
   nc.updates = {
     onStatus: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
     status: () => status,
+    /** The helper can't be reached or refuses, so no team can start. */
+    stuck: () => status?.code === 'update.helper_unavailable',
+    restart: () => load({ operation: 'setup' }),
   }
 })()
