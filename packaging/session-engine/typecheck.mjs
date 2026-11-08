@@ -78,8 +78,8 @@ export const typecheckSessionState = async (snapshot, entryPoint,
       createHash('sha256').update(source.text).digest('hex')]).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))
   // Erased imports and authored declarations are inputs before emit or bundler tree shaking.
   assertAuthoredInputs?.(Object.keys(authoredInputs))
-  // Full upstream schema inference exceeds TS's declaration serializer. Check the complete graph;
-  // emit authored declarations and retain verified upstream type source instead of widening schemas.
+  // The contract schemas retain their shared, checked source-type export. Engine
+  // implementations emit real declarations so consumer settings never recompile them.
   const diagnostics = [...program.getOptionsDiagnostics(), ...program.getGlobalDiagnostics(),
     ...program.getSyntacticDiagnostics(), ...program.getSemanticDiagnostics()]
   if (diagnostics.length > 0) {
@@ -90,7 +90,7 @@ export const typecheckSessionState = async (snapshot, entryPoint,
   }
   if (declarations) {
     for (const source of program.getSourceFiles()) {
-      if (sourcePath(source.fileName) !== undefined) {
+      if (sourcePath(source.fileName)?.startsWith('packages/contracts/src/')) {
         declarations.addSourceTypes(source)
       } else if (!source.isDeclarationFile && !slash(source.fileName).includes('/node_modules/')) {
         const result = program.emit(source, declarations.writeFile, undefined, true)

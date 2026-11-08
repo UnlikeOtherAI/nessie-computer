@@ -63,7 +63,7 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, sharedC
   }
   const save = async (directory, entryPoint) => {
     const entry = location(entryPoint).replace(/\.d\.ts$/u, '.js')
-    files.set('index.d.ts', `export * from './${entry}'\n`)
+    files.set('index.d.ts', `/// <reference lib="es2023.array" />\nexport * from './${entry}'\n`)
     const identities = {}
     for (const [path, content] of [...files].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)) {
       const destination = resolve(directory, path)
@@ -76,7 +76,7 @@ export const declarationWriter = ({ virtualRoot, executorRoot, resolver, sharedC
       if (!existing) await writeFile(destination, content, { flag: 'wx' })
       identities[path] = hash(content)
     }
-    return { entry: 'index.d.ts', upstream: 'verified-type-source', files: identities,
+    return { entry: 'index.d.ts', upstream: 'compiler-declarations-with-shared-contract-source', files: identities,
       sha256: hash(JSON.stringify(identities)) }
   }
   return { writeFile: writeDeclaration, addSourceTypes, save }

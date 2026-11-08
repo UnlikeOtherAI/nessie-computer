@@ -9,7 +9,7 @@ const mode = process.argv[2]
 assert.ok(mode === 'Bundler' || mode === 'NodeNext')
 const program = ts.createProgram([resolve(root, 'consumer.mts')], {
   noEmit: true, strict: true, noUncheckedIndexedAccess: true, exactOptionalPropertyTypes: true,
-  target: ts.ScriptTarget.ESNext,
+  target: ts.ScriptTarget.ES2022, noUnusedLocals: true, noUnusedParameters: true,
   module: mode === 'NodeNext' ? ts.ModuleKind.NodeNext : ts.ModuleKind.ESNext,
   moduleResolution: mode === 'NodeNext' ? ts.ModuleResolutionKind.NodeNext : ts.ModuleResolutionKind.Bundler,
   allowImportingTsExtensions: true, resolveJsonModule: true, types: ['node'],

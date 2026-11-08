@@ -74,7 +74,11 @@ engine and contracts from the same exact patched snapshot, share portable types,
 and leave Effect 4.1.2 external for ordinary consumer resolution. Producer-only
 module counts do not establish the consumer's actual physical/runtime identity.
 The runtime is `dist/engine.js`; its declaration entry is
-`dist/engine-types/index.d.ts`. The contract barrels retain
+`dist/engine-types/index.d.ts`. Engine implementations emit compiler-generated
+`.d.ts` files, never copied implementation `.ts` files. This keeps consumer
+ES2022, Node typings and unused-symbol checks from recompiling the engine's
+internals. The engine entry declares the same `es2023.array` library requirement
+as the contract barrels; no executor compiler option changes. The contract barrels retain
 `dist/types/{index,settings,relay}.d.ts` and share their checked, patched
 `dist/source/*.ts` with the engine's type-source closure. The generated build
 helper at `dist/build/input.mjs` retains the existing `/build` API in a packed

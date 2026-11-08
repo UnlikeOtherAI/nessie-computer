@@ -55,7 +55,8 @@ test('authored admission checks erased type-only imports in the real TypeScript 
 test('normal package exports retain strict NodeNext and Bundler types and original required host ports', () => {
   for (const [module, resolution] of [['ESNext', 'Bundler'], ['NodeNext', 'NodeNext']]) {
     run(['--max-old-space-size=5120', require.resolve('typescript/bin/tsc'), '--noEmit', '--strict', '--noUncheckedIndexedAccess',
-      '--exactOptionalPropertyTypes', '--target', 'ESNext', '--module', module, '--moduleResolution', resolution,
+      '--exactOptionalPropertyTypes', '--noUnusedLocals', '--noUnusedParameters',
+      '--target', 'ES2022', '--module', module, '--moduleResolution', resolution,
       '--allowImportingTsExtensions', '--resolveJsonModule', '--types', 'node', resolve(import.meta.dirname, 'consumer.mts')])
   }
 })
@@ -87,6 +88,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
     assert.equal(bytes.includes(Buffer.from('layerLegacyV1ThreadImporterNoop')), false)
   }
   for (const [file, digest] of Object.entries(provenance.typecheck.declarations.files)) {
+    assert.ok(file.endsWith('.d.ts'), `Engine implementation escaped into consumer types: ${file}`)
     assert.equal(hash(await readFile(resolve(dist, 'engine-types', file))), digest)
   }
   for (const [file, digest] of Object.entries(provenance.sharedContractTypes)) {
