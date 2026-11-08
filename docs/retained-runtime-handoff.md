@@ -37,6 +37,9 @@ the handoff channel. After the ceremony it forwards the actual in-memory
 spool is written locally. The existing `t3-retained` management CLI remains
 proposal/status-only; its JSON output is now correctly read by the tray runner.
 It cannot accept a receipt or launch a second capture process.
+Offer/enrollment reviews keep their issuer pipe until server submission returns.
+Their scoped cleanup removes only the exact original ceremony, so a late return
+after cancellation cannot remove a newer review.
 
 ## Fixed protocol and results
 

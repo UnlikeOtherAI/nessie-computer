@@ -1,6 +1,10 @@
 //! Local, explicit review only. The backend's UOA enrollment action is separate.
 use serde_json::{Value,json};
 const ERROR:&str="retained_import_local_consent_unavailable";
+struct NativeReview { value: Value, release: Option<Box<dyn FnOnce()>> }
+impl Drop for NativeReview {
+    fn drop(&mut self) {if let Some(release)=self.release.take() {release();}}
+}
 fn report(executor:&str,input:Value)->Result<Value,String> {
     if !crate::user_connections::owns(executor) {return Err(ERROR.into());}
     crate::user_runtime::run(&["t3-retained".into(),"--executor".into(),executor.into()],Some(&input))
@@ -53,10 +57,10 @@ fn action_inner(executor:&str,action:&str,id:&str)->Result<Value,String> {
         (kind,input)
     };
     if kind=="approve" {crate::user_connections::retained_ready(executor)?;}
-    let output=start(executor,kind,input)?;
+    let review=start(executor,kind,input)?;
     let result=match kind {
-        "offer"=>report(executor,json!({"operation":"issuer.offer","offer":output})),
-        "enroll"=>report(executor,json!({"operation":"issuer.proof","proof":output})),
+        "offer"=>report(executor,json!({"operation":"issuer.offer","offer":&review.value})),
+        "enroll"=>report(executor,json!({"operation":"issuer.proof","proof":&review.value})),
         // Only the actual held snapshot crosses the inherited pipe to this
         // tray's already-running managed daemon. It performs consent.commit.
         _=>crate::user_connections::retained_begin(executor,&snapshot(executor)?.ok_or(ERROR)?),
@@ -68,7 +72,7 @@ fn action_inner(executor:&str,action:&str,id:&str)->Result<Value,String> {
 #[cfg(windows)]
 use windows::{start,stop,snapshot};
 #[cfg(not(windows))]
-fn start(_: &str,_:&str,_:Value)->Result<Value,String> {Err(ERROR.into())}
+fn start(_: &str,_:&str,_:Value)->Result<NativeReview,String> {Err(ERROR.into())}
 #[cfg(not(windows))]
 fn stop(_:&str)->Result<(),String> {Err(ERROR.into())}
 #[cfg(not(windows))]
@@ -93,7 +97,12 @@ mod windows {
         entries.retain(|_,v|v.deadline>Instant::now() && !v.cancelled.load(Ordering::Acquire));
         entries.get(executor).map(|v|v.result.lock().map(|r|r.clone()).map_err(|_|ERROR.to_owned())).unwrap_or(Ok(None))
     }
-    pub fn start(executor:&str,kind:&str,input:Value)->Result<Value,String> {
+    fn retire(executor:&str,approval:&Arc<Approval>) {
+        if let Ok(mut entries)=active().lock() {
+            if entries.get(executor).is_some_and(|v|Arc::ptr_eq(v,approval)) {entries.remove(executor);}
+        }
+    }
+    pub(super) fn start(executor:&str,kind:&str,input:Value)->Result<NativeReview,String> {
         let mut entries=active().lock().map_err(|_|ERROR)?;
         entries.retain(|_,v|v.deadline>Instant::now() && !v.cancelled.load(Ordering::Acquire));
         if entries.contains_key(executor) {return Err("retained_import_local_review_already_active".into());}
@@ -153,13 +162,17 @@ mod windows {
                 });
             }
         }
-        if kind!="approve" || result.is_err() {
-            // A cancelled ceremony may finish after a new one was explicitly
-            // started. Cleanup owns only its original approval, never its successor.
-            if let Ok(mut entries)=active().lock() {
-                if entries.get(executor).is_some_and(|v|Arc::ptr_eq(v,&approval)) {entries.remove(executor);}
-            }
+        match result {
+            Ok(value)=> {
+                // Offer/enrollment proof lifetime includes the server submission.
+                // Cleanup owns this exact ceremony, not a successor after revoke.
+                let release:Option<Box<dyn FnOnce()>>=if kind!="approve" {
+                    let executor=executor.to_owned();
+                    Some(Box::new(move || retire(&executor,&approval)))
+                } else {None};
+                Ok(NativeReview {value,release})
+            },
+            Err(error)=> {retire(executor,&approval);Err(error)},
         }
-        result
     }
 }
