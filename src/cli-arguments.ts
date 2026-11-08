@@ -188,7 +188,8 @@ const pairingChallenge = (args: string[]): Pick<Extract<ParsedCommand, { kind: '
 }
 
 /** The apps' `sessions` and `session stop` (`session-cli.ts`), or `undefined` for any other line. */
-export const parseSessionsCommand = (args: string[]): SessionsCliCommand | undefined => parseSessionsArguments(args, usage)
+export const parseSessionsCommand = (args: string[]): SessionsCliCommand | undefined =>
+  parseSessionsArguments(args, usage)
 
 export const parseCommand = (args: string[]): ParsedCommand => {
   const [command] = args
