@@ -107,7 +107,8 @@ export const startExecutorLocalInferenceSupervisor = async (
       stopRuns: (runIds) => cliEngines.stopRuns(runIds),
       setSessionGate: (gate) => cliEngines.setSessionGate(gate),
       heartbeat: async () => {
-        await cliEngines.heartbeat()
+        // A sibling: its detection and registrations never hold up the local-weights heartbeat.
+        void cliEngines.heartbeat().catch((error: unknown) => diagnose('heartbeat', error))
         let stage: 'connect' | 'heartbeat' = connected ? 'heartbeat' : 'connect'
         if (!connected && Date.now() < claimNotBefore) return
         try {

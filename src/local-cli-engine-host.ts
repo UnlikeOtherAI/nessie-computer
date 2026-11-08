@@ -37,8 +37,10 @@ export const registerLocalCliHost = async (
   now: () => Date = () => new Date(),
 ): Promise<LocalCliRegistration> => {
   if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
-  const payload = { available: offer === true, connectionEpoch: state.connectionEpoch, engine,
-    executorId: state.executorId, observedAt: now().toISOString(), profileId, ...(offer === true ? {} : { reason: offer }) }
+  const payload = {
+    available: offer === true, connectionEpoch: state.connectionEpoch, engine, executorId: state.executorId,
+    observedAt: now().toISOString(), profileId, ...(offer === true ? {} : { reason: offer }),
+  }
   try {
     const answer = await api.registerCliHost({ ...payload,
       signature: signExecutorDaemonPayload(state.machinePrivateKey, LOCAL_CLI_HOST_SIGNATURE_DOMAIN, payload) })
