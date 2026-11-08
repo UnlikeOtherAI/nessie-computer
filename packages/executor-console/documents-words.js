@@ -40,6 +40,7 @@ const documentsEnglish = {
     resumed: 'Sync resumed for {team}',
   },
   restored: 'Restored {path}',
+  destination: { on: '{team}’s documents go in {path}', off: '{team}’s documents will go in {path}' },
 }
 
 const documentsByLocale = {
@@ -90,6 +91,7 @@ const documentsByLocale = {
       paused: 'Synchronizace pro {team} je pozastavená', resumed: 'Synchronizace pro {team} pokračuje',
     },
     restored: 'Obnoveno: {path}',
+    destination: { on: 'Dokumenty týmu {team} se ukládají do {path}', off: 'Dokumenty týmu {team} se budou ukládat do {path}' },
   },
   de: {
     heading: 'Dokumente für {team}', switchLabel: 'Eine Kopie der Dokumente von {team} auf diesem Computer behalten',
@@ -134,6 +136,9 @@ const documentsByLocale = {
       paused: 'Synchronisierung für {team} pausiert', resumed: 'Synchronisierung für {team} fortgesetzt',
     },
     restored: 'Wiederhergestellt: {path}',
+    destination: {
+      on: 'Die Dokumente von {team} werden in {path} gespeichert', off: 'Die Dokumente von {team} werden künftig in {path} gespeichert',
+    },
   },
   es: {
     heading: 'Documentos de {team}', switchLabel: 'Guardar una copia de los documentos de {team} en este ordenador',
@@ -177,6 +182,7 @@ const documentsByLocale = {
       resumed: 'Sincronización reanudada para {team}',
     },
     restored: 'Restaurado: {path}',
+    destination: { on: 'Los documentos de {team} se guardan en {path}', off: 'Los documentos de {team} se guardarán en {path}' },
   },
   fr: {
     heading: 'Documents de {team}', switchLabel: 'Garder une copie des documents de {team} sur cet ordinateur',
@@ -222,6 +228,7 @@ const documentsByLocale = {
       resumed: 'Synchronisation reprise pour {team}',
     },
     restored: 'Restauré : {path}',
+    destination: { on: 'Les documents de {team} sont enregistrés dans {path}', off: 'Les documents de {team} seront enregistrés dans {path}' },
   },
   it: {
     heading: 'Documenti di {team}', switchLabel: 'Conserva una copia dei documenti di {team} su questo computer',
@@ -266,6 +273,7 @@ const documentsByLocale = {
       resumed: 'Sincronizzazione ripresa per {team}',
     },
     restored: 'Ripristinato: {path}',
+    destination: { on: 'I documenti di {team} vengono salvati in {path}', off: 'I documenti di {team} verranno salvati in {path}' },
   },
 }
 
