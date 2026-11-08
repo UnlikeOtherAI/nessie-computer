@@ -79,6 +79,18 @@ export const bindRetainedCatalogSlots = (service: RetainedCatalogService) => Eff
   } satisfies ExecutorT3ImplementationSlots
 })
 
+/** The five HTTP handlers share the same held operation lifetime as RPC reads. */
+export const bindRetainedCatalogHttp = (service: RetainedCatalogService) => Effect.gen(function* () {
+  const bind = yield* sessionOperationScope<never>()
+  return {
+    shellSnapshot: input => bind(service.http.shellSnapshot(input)),
+    threadSnapshot: input => bind(service.http.threadSnapshot(input)),
+    threadTranscript: input => bind(service.http.threadTranscript(input)),
+    threadBoundedSnapshot: input => bind(service.http.threadBoundedSnapshot(input)),
+    threadHistoryPage: input => bind(service.http.threadHistoryPage(input)),
+  } satisfies RetainedCatalogService['http']
+})
+
 export const isSessionControlRequest = (request: ExecutorT3Request): request is SessionControlRequest =>
   request.method === 'orchestration.dispatchCommand' || request.method === 'orchestration.launchThread'
   || request.method === 'orchestration.stopWorkflow' || request.method === 'orchestration.forceStopThread'
