@@ -32,17 +32,19 @@ export class TeamNames {
   }
 
   /**
-   * Before the folder is named and while a name is unknown: read the claim,
-   * at most once an hour. Answers the names to keep, or null when nothing new
-   * was learned; a failed read waits for the next hour quietly — it only
-   * delays the preview, never sync.
+   * Before the folder is named: read the claim once per daemon start, so a
+   * renamed team shows its new name, and again each hour while a name is
+   * still unknown. Answers the names to keep, or null when nothing was
+   * learned; a failed read is quiet — it only delays the preview, never sync.
    */
   async learn(known: KnownTeamNames): Promise<KnownTeamNames | null> {
-    if ((known.teamLabel && known.organizationName) || this.now() - this.askedAt < ASK_EVERY_MS) return null
+    const complete = Boolean(known.teamLabel && known.organizationName)
+    const asked = this.askedAt !== Number.NEGATIVE_INFINITY
+    if ((complete && asked) || this.now() - this.askedAt < ASK_EVERY_MS) return null
     this.askedAt = this.now()
     try {
       const names = await this.transport.teamNames()
-      return { teamLabel: known.teamLabel ?? names.teamName, organizationName: names.organizationName }
+      return { teamLabel: names.teamName ?? known.teamLabel, organizationName: names.organizationName }
     } catch {
       return null
     }
