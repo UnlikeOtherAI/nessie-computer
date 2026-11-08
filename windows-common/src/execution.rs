@@ -14,6 +14,14 @@ pub const RESERVATION_DOMAIN: &str = "nessie.t3.execution.reservation.v1";
 pub const GRAPH_DOMAIN: &str = "nessie.t3.execution.graph.v1";
 pub const PREPARATION_DOMAIN: &str = "nessie.t3.execution.preparation.v1";
 pub const ASSOCIATION_DOMAIN: &str = "nessie.t3.execution.association.v1";
+pub const HISTORY_RESULT_DOMAIN: &str = "nessie.t3.execution.history-result.v1";
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProcessPurpose {
+    Provider,
+    ClaudeHistoryRead,
+    ClaudeHistoryFork,
+}
 pub fn identifier(v: &str) -> bool {
     !v.is_empty() && v.len() <= 2048 && !v.contains('\0')
 }
@@ -150,19 +158,27 @@ pub struct Admission {
     pub launch_digest: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub process_purpose: Option<ProcessPurpose>,
 }
 impl Admission {
     pub fn validate(&self, now: u64) -> Result<(), String> {
         self.binding.validate(false)?;
         let shape = match self.phase.as_str() {
-            "reserve" => self.launch_digest.is_none() && self.provider_session_id.is_none(),
+            "reserve" => {
+                self.launch_digest.is_none()
+                    && self.provider_session_id.is_none()
+                    && self.process_purpose.is_none()
+            }
             "launch" => {
                 self.launch_digest.as_deref().is_some_and(digest)
                     && self.provider_session_id.is_none()
+                    && self.process_purpose.is_some()
             }
             "associate" => {
                 self.launch_digest.as_deref().is_some_and(digest)
                     && self.provider_session_id.as_deref().is_some_and(identifier)
+                    && self.process_purpose == Some(ProcessPurpose::Provider)
             }
             _ => false,
         };

@@ -7,6 +7,9 @@ export const T3_EXECUTION_RESERVATION_DOMAIN = 'nessie.t3.execution.reservation.
 export const T3_EXECUTION_ASSOCIATION_DOMAIN = 'nessie.t3.execution.association.v1' as const
 export const T3_EXECUTION_GRAPH_DOMAIN = 'nessie.t3.execution.graph.v1' as const
 export const T3_EXECUTION_PREPARATION_DOMAIN = 'nessie.t3.execution.preparation.v1' as const
+export const T3_EXECUTION_HISTORY_RESULT_DOMAIN = 'nessie.t3.execution.history-result.v1' as const
+export const T3ExecutionProcessPurposeSchema = z.enum(['provider', 'claude-history-read', 'claude-history-fork'])
+export type T3ExecutionProcessPurpose = z.infer<typeof T3ExecutionProcessPurposeSchema>
 /** Sign the exact payload bytes. No reserialization, key from receipt, or import-domain reuse. */
 export const t3ExecutionSigningBytes = (domain: string, payload: string): string => `${domain}\n${payload}`
 export const executionAdmissionBytes = (payload: string): Uint8Array =>
@@ -50,8 +53,9 @@ const admission = z.object({ version: z.literal(1), binding: T3ExecutionBindingS
 }).strict()
 export const T3ExecutionAdmissionSchema = z.discriminatedUnion('phase', [
   admission.extend({ phase: z.literal('reserve') }),
-  admission.extend({ phase: z.literal('launch'), launchDigest: sha }),
-  admission.extend({ phase: z.literal('associate'), launchDigest: sha, providerSessionId: id }),
+  admission.extend({ phase: z.literal('launch'), launchDigest: sha, processPurpose: T3ExecutionProcessPurposeSchema }),
+  admission.extend({ phase: z.literal('associate'), launchDigest: sha, providerSessionId: id,
+    processPurpose: z.literal('provider') }),
 ]).superRefine((value, context) => {
   if (value.expiresAtMs <= value.issuedAtMs || value.expiresAtMs - value.issuedAtMs > 5000) {
     context.addIssue({ code: 'custom', message: 'Execution admission lifetime must be positive and at most 5000ms' })
@@ -64,6 +68,7 @@ export const T3ExecutionReceiptSchema = z.object({ domain: z.enum([
   T3_EXECUTION_ISSUER_DOMAIN, T3_EXECUTION_RESERVATION_DOMAIN, T3_EXECUTION_ASSOCIATION_DOMAIN,
   T3_EXECUTION_GRAPH_DOMAIN,
   T3_EXECUTION_PREPARATION_DOMAIN,
+  T3_EXECUTION_HISTORY_RESULT_DOMAIN,
 ]), payload: z.string().min(1).max(32768), keyId: hex,
   signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/u),
 }).strict()
@@ -76,6 +81,7 @@ export const T3ExecutionReservationPayloadSchema = z.object({ version: z.literal
   custody: T3ExecutionCustodySchema, nonce: hex, issuedAtMs: millis, expiresAtMs: millis,
 }).strict()
 export const T3ExecutionAssociationPayloadSchema = T3ExecutionReservationPayloadSchema.extend({
+  processPurpose: z.literal('provider'),
   launchDigest: sha, providerSessionId: id, nativeId: id,
   provider: T3ExecutionGenerationSchema, providerImageDigest: hex,
   observation: z.object({ kind: z.literal('service-held-provider-stdout'), frameDigest: sha,
@@ -119,5 +125,12 @@ export type T3ExecutionInspection = z.infer<typeof T3ExecutionInspectionSchema>
 export const T3ExecutionPreparationPayloadSchema = T3ExecutionReservationPayloadSchema.extend({
   launchDigest: sha,
   providerSessionId: id,
+  processPurpose: T3ExecutionProcessPurposeSchema,
 }).strict()
 export type T3ExecutionPreparation = z.infer<typeof T3ExecutionPreparationPayloadSchema>
+export const T3ExecutionHistoryResultPayloadSchema = T3ExecutionPreparationPayloadSchema.extend({
+  processPurpose: z.enum(['claude-history-read', 'claude-history-fork']),
+  historyPayloadDigest: sha, resultDigest: sha, resultBytes: z.number().int().nonnegative().max(1_048_576),
+  child: T3ExecutionGenerationSchema, exitCode: z.literal(0), clearance: z.literal('service-observed-job-empty'),
+}).strict()
+export type T3ExecutionHistoryResult = z.infer<typeof T3ExecutionHistoryResultPayloadSchema>
