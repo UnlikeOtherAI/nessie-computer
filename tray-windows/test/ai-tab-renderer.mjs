@@ -1,7 +1,7 @@
 // The AI tab: ChatGPT plans named and signed in one by one, background work
 // consent kept, model servers saved, edited and removed, in every locale.
 import assert from 'node:assert/strict'
-import { LOCALES, assertFits, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
+import { LOCALES, assertFits, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
 
 const RETIRED_WORDS = /\b(Executor|Strata|personal|Personal)\b/
 
