@@ -2,7 +2,8 @@ import type { ExecutorT3Request } from './request.js'
 import ledger from './ledger.json' with { type: 'json' }
 
 /** Structural checks only; admission and source implementations belong to their owners. */
-export const isAdmissibleT3Request = (request: ExecutorT3Request): boolean => {
+type OperationInput<R> = R extends ExecutorT3Request ? Pick<R, 'method' | 'input' | 'commandId'> : never
+export const isAdmissibleT3Request = (request: OperationInput<ExecutorT3Request>): boolean => {
   const rule = ledger.rpc[request.method]
   if (rule.receipt !== 'none' && rule.receipt !== 'conditional-provider-session' && !request.commandId) return false
   if (request.method === 'server.refreshProviders') {
