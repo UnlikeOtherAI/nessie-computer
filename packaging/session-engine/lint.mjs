@@ -1,4 +1,4 @@
-import { readdir } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -7,10 +7,13 @@ const tools = fileURLToPath(new URL('.', import.meta.url))
 export const lintSessionEngineSources = async () => {
   const { ESLint } = await import('eslint')
   const { default: configuration } = await import('./eslint.config.mjs')
+  const registration = JSON.parse(await readFile(resolve(tools, 'library-inputs.json'), 'utf8'))
   const files = [
     ...(await readdir(tools)).filter(file => file.endsWith('.mjs')).map(file => resolve(tools, file)),
     ...(await readdir(resolve(tools, 'core'))).filter(file => file.endsWith('.ts'))
       .map(file => resolve(tools, 'core', file)),
+    ...registration.clientAuthoredInputs.filter(file => !file.startsWith('packaging/session-engine/core/'))
+      .map(file => resolve(tools, '../..', file)),
     ...(await readdir(resolve(tools, '../../patches/t3-session/extraction'))).filter(file => file.endsWith('.mjs'))
       .map(file => resolve(tools, '../../patches/t3-session/extraction', file)),
     ...(await readdir(resolve(tools, '../../patches/t3-session/session-control'))).filter(file => file.endsWith('.mjs'))

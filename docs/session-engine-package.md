@@ -224,6 +224,15 @@ browser bundle fixture separately resolves all external dependencies. The
 client export supplies original factories and selectors, not a second store,
 server, identity authority or source-readiness result.
 
+The [finite browser detail host](t3-session-client-connection.md#finite-browser-detail-host)
+adds `BrowserThreadHost.open` and the original transport/persistence namespaces.
+`clientAuthoredInputs` registers its four exact first-party platform/lifecycle
+files for strict lint, compilation, browser graph admission and provenance.
+The registry and `client-host` patch families follow the URL family and precede extraction;
+it factors original bearer-only factories without acquiring cloud/relay services.
+It changes the combined ordered patch digest, so historical qualification hashes
+do not apply to this composition.
+
 The normal package `test` includes the client fixtures. The focused gate is:
 
 ```powershell
