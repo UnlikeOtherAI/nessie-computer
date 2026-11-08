@@ -1,11 +1,12 @@
-// The Sync tab's words follow the OS locale, as the ChatGPT controls do. A
-// counted sentence is an Intl plural set; {n}, {team}, {path} and {date} are
-// filled in by the helpers at the end. Reason codes live in sync-reasons-words.js.
-const syncEnglish = {
-  switchLabel: 'Sync documents',
-  intro: 'Keep a copy of this team’s documents in a folder on this computer. Editable files sync both ways; some documents are read-only here.', folder: 'Folder',
+// The Documents tab's words in every console locale, registered with the shell
+// as `documents.*`. A counted sentence is an Intl plural set; {n}, {team},
+// {path} and {date} are filled in by the helpers at the end. Reason codes live
+// in documents-reasons-words.js.
+const documentsEnglish = {
+  heading: 'Documents for {team}', switchLabel: 'Keep a copy of {team}’s documents on this computer',
+  intro: 'All of {team}’s documents, in one folder on this computer. Edits there go back to Nessie.', folder: 'Folder',
   suggested: '{path} (suggested)', choose: 'Choose folder…', pause: 'Pause', resume: 'Resume', openFolder: 'Open folder',
-  deletedFiles: 'Deleted files…', openNessie: 'Open Nessie', checking: 'Checking…',
+  deletedFiles: 'Deleted files…', openNessie: 'Allow in Nessie', checking: 'Checking…',
   state: {
     off: 'Off', starting: 'Starting…', waiting_for_confirmation: 'Waiting for you to allow it in Nessie', up_to_date: 'Up to date', paused: 'Paused',
     root_missing: 'Folder missing — choose it again', disk_full: 'Disk full', needs_attention: 'Needs your attention',
@@ -41,14 +42,14 @@ const syncEnglish = {
   restored: 'Restored {path}',
 }
 
-const syncWordsByLocale = {
-  'en-GB': syncEnglish,
-  'en-US': syncEnglish,
-  'cs-CZ': {
-    switchLabel: 'Synchronizovat dokumenty',
-    intro: 'Uchovávejte kopii dokumentů tohoto týmu ve složce na tomto počítači. Upravitelné soubory se synchronizují oběma směry; některé dokumenty jsou zde jen pro čtení.', folder: 'Složka',
+const documentsByLocale = {
+  'en-GB': documentsEnglish,
+  'en-US': documentsEnglish,
+  cs: {
+    heading: 'Dokumenty pro {team}', switchLabel: 'Uchovávat kopii dokumentů týmu {team} na tomto počítači',
+    intro: 'Všechny dokumenty týmu {team} v jedné složce na tomto počítači. Úpravy v ní se vrací do Nessie.', folder: 'Složka',
     suggested: '{path} (doporučeno)', choose: 'Vybrat složku…', pause: 'Pozastavit', resume: 'Pokračovat', openFolder: 'Otevřít složku',
-    deletedFiles: 'Smazané soubory…', openNessie: 'Otevřít Nessie', checking: 'Kontrola…',
+    deletedFiles: 'Smazané soubory…', openNessie: 'Povolit v Nessie', checking: 'Kontrola…',
     state: {
       off: 'Vypnuto', starting: 'Spouštění…', waiting_for_confirmation: 'Čeká, až to povolíte v Nessie', up_to_date: 'Aktuální',
       paused: 'Pozastaveno', root_missing: 'Složka chybí — vyberte ji znovu', disk_full: 'Disk je plný', needs_attention: 'Vyžaduje vaši pozornost',
@@ -90,11 +91,11 @@ const syncWordsByLocale = {
     },
     restored: 'Obnoveno: {path}',
   },
-  'de-DE': {
-    switchLabel: 'Dokumente synchronisieren',
-    intro: 'Eine Kopie der Dokumente dieses Teams in einem Ordner auf diesem Computer behalten. Bearbeitbare Dateien werden in beide Richtungen synchronisiert; manche Dokumente sind hier schreibgeschützt.',
+  de: {
+    heading: 'Dokumente für {team}', switchLabel: 'Eine Kopie der Dokumente von {team} auf diesem Computer behalten',
+    intro: 'Alle Dokumente von {team} in einem Ordner auf diesem Computer. Änderungen dort gehen zurück an Nessie.',
     folder: 'Ordner', suggested: '{path} (Vorschlag)', choose: 'Ordner wählen…', pause: 'Pausieren', resume: 'Fortsetzen',
-    openFolder: 'Ordner öffnen', deletedFiles: 'Gelöschte Dateien…', openNessie: 'Nessie öffnen', checking: 'Wird geprüft…',
+    openFolder: 'Ordner öffnen', deletedFiles: 'Gelöschte Dateien…', openNessie: 'In Nessie erlauben', checking: 'Wird geprüft…',
     state: {
       off: 'Aus', starting: 'Wird gestartet…', waiting_for_confirmation: 'Wartet auf Ihre Freigabe in Nessie', up_to_date: 'Auf dem neuesten Stand',
       paused: 'Pausiert', root_missing: 'Ordner fehlt – bitte neu wählen', disk_full: 'Datenträger voll',
@@ -134,11 +135,11 @@ const syncWordsByLocale = {
     },
     restored: 'Wiederhergestellt: {path}',
   },
-  'es-ES': {
-    switchLabel: 'Sincronizar documentos',
-    intro: 'Guarda una copia de los documentos de este equipo en una carpeta de este ordenador. Los archivos editables se sincronizan en ambos sentidos; algunos documentos son de solo lectura aquí.',
+  es: {
+    heading: 'Documentos de {team}', switchLabel: 'Guardar una copia de los documentos de {team} en este ordenador',
+    intro: 'Todos los documentos de {team}, en una carpeta de este ordenador. Lo que edites ahí vuelve a Nessie.',
     folder: 'Carpeta', suggested: '{path} (sugerida)', choose: 'Elegir carpeta…', pause: 'Pausar', resume: 'Reanudar', openFolder: 'Abrir carpeta',
-    deletedFiles: 'Archivos eliminados…', openNessie: 'Abrir Nessie', checking: 'Comprobando…',
+    deletedFiles: 'Archivos eliminados…', openNessie: 'Permitir en Nessie', checking: 'Comprobando…',
     state: {
       off: 'Desactivada', starting: 'Iniciando…', waiting_for_confirmation: 'Esperando a que lo permitas en Nessie', up_to_date: 'Al día',
       paused: 'En pausa', root_missing: 'Falta la carpeta: elígela de nuevo', disk_full: 'Disco lleno', needs_attention: 'Necesita tu atención',
@@ -177,11 +178,11 @@ const syncWordsByLocale = {
     },
     restored: 'Restaurado: {path}',
   },
-  'fr-FR': {
-    switchLabel: 'Synchroniser les documents',
-    intro: 'Gardez une copie des documents de cette équipe dans un dossier sur cet ordinateur. Les fichiers modifiables se synchronisent dans les deux sens ; certains documents sont en lecture seule ici.',
+  fr: {
+    heading: 'Documents de {team}', switchLabel: 'Garder une copie des documents de {team} sur cet ordinateur',
+    intro: 'Tous les documents de {team}, dans un dossier sur cet ordinateur. Vos modifications y repartent vers Nessie.',
     folder: 'Dossier', suggested: '{path} (suggéré)', choose: 'Choisir un dossier…', pause: 'Mettre en pause', resume: 'Reprendre',
-    openFolder: 'Ouvrir le dossier', deletedFiles: 'Fichiers supprimés…', openNessie: 'Ouvrir Nessie', checking: 'Vérification…',
+    openFolder: 'Ouvrir le dossier', deletedFiles: 'Fichiers supprimés…', openNessie: 'Autoriser dans Nessie', checking: 'Vérification…',
     state: {
       off: 'Désactivée', starting: 'Démarrage…', waiting_for_confirmation: 'En attente de votre autorisation dans Nessie', up_to_date: 'À jour',
       paused: 'En pause', root_missing: 'Dossier introuvable — choisissez-le à nouveau', disk_full: 'Disque plein',
@@ -222,11 +223,11 @@ const syncWordsByLocale = {
     },
     restored: 'Restauré : {path}',
   },
-  'it-IT': {
-    switchLabel: 'Sincronizza documenti',
-    intro: 'Conserva una copia dei documenti di questo team in una cartella su questo computer. I file modificabili si sincronizzano in entrambe le direzioni; alcuni documenti qui sono di sola lettura.',
+  it: {
+    heading: 'Documenti di {team}', switchLabel: 'Conserva una copia dei documenti di {team} su questo computer',
+    intro: 'Tutti i documenti di {team}, in una cartella su questo computer. Le modifiche fatte lì tornano in Nessie.',
     folder: 'Cartella', suggested: '{path} (consigliata)', choose: 'Scegli cartella…', pause: 'Metti in pausa', resume: 'Riprendi',
-    openFolder: 'Apri cartella', deletedFiles: 'File eliminati…', openNessie: 'Apri Nessie', checking: 'Verifica…',
+    openFolder: 'Apri cartella', deletedFiles: 'File eliminati…', openNessie: 'Consenti in Nessie', checking: 'Verifica…',
     state: {
       off: 'Disattivata', starting: 'Avvio…', waiting_for_confirmation: 'In attesa della tua autorizzazione in Nessie', up_to_date: 'Aggiornata',
       paused: 'In pausa', root_missing: 'Cartella mancante: sceglila di nuovo', disk_full: 'Disco pieno',
@@ -268,29 +269,27 @@ const syncWordsByLocale = {
   },
 }
 
-const syncLocale = (() => {
-  const wanted = navigator.language.toLowerCase()
-  const locales = Object.keys(syncWordsByLocale)
-  return locales.find((locale) => locale.toLowerCase() === wanted)
-    ?? locales.find((locale) => locale.toLowerCase().split('-')[0] === wanted.split('-')[0])
-    ?? 'en-GB'
-})()
-
-window.syncConsoleWords = (() => {
-  const words = { ...syncWordsByLocale[syncLocale], ...syncReasonsByLocale[syncLocale] }
-  const rules = new Intl.PluralRules(syncLocale)
+// The shell resolves the locale once and writes it on <html lang>; the plural
+// and date helpers here follow that same choice.
+window.documentsWords = (() => {
+  const nc = window.nc
+  const table = Object.fromEntries(Object.keys(documentsByLocale).map((locale) => [locale,
+    { ...documentsByLocale[locale], ...documentsReasonsByLocale[locale] }]))
+  nc.words.register('documents', table)
+  const locale = () => (document.documentElement.lang in table ? document.documentElement.lang : 'en-GB')
   const fill = (text, values = {}) => text.replace(/\{(\w+)\}/g, (whole, name) => (name in values ? String(values[name]) : whole))
-  const pick = (path) => path.split('.').reduce((node, key) => node?.[key], words)
+  const pick = (path) => path.split('.').reduce((node, key) => node?.[key], table[locale()])
   return {
-    locale: syncLocale,
-    words,
     /** A sentence by its dotted key, with its placeholders filled. */
-    text: (path, values) => fill(pick(path), values),
+    text: (path, values) => nc.t(`documents.${path}`, values),
+    /** A sentence that may be missing for a code: the sentence, or undefined. */
+    maybe: (path) => pick(path),
     /** A counted sentence: the locale's plural form for `n`, or `other`. */
     count: (path, n, values = {}) => {
       const forms = pick(path)
-      return fill(forms[rules.select(n)] ?? forms.other, { ...values, n: new Intl.NumberFormat(syncLocale).format(n) })
+      return fill(forms[new Intl.PluralRules(locale()).select(n)] ?? forms.other,
+        { ...values, n: new Intl.NumberFormat(locale()).format(n) })
     },
-    date: (iso) => new Intl.DateTimeFormat(syncLocale, { dateStyle: 'medium' }).format(new Date(iso)),
+    date: (iso) => new Intl.DateTimeFormat(locale(), { dateStyle: 'medium' }).format(new Date(iso)),
   }
 })()

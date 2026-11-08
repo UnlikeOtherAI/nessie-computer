@@ -1,22 +1,24 @@
 # Local AI connections
 
-The shared Windows/macOS console owns AI connections in the **AI** tab, between
-Sync and Settings. A team's **AI** button opens the same tab with that team
-selected. Saved connections belong to that computer and selected team.
+The shared Windows/macOS console owns AI connections in the **AI** tab, which
+follows the team dropdown (see [the team tabs](nessie-computer-team-tabs.md)).
+Saved connections belong to that computer and selected team.
 
-## ChatGPT
+## ChatGPT plans
 
-Use **Add ChatGPT connection** for each account, give it a name, and complete
-the provider's sign-in. Each connection has a stable profile ID, independent
-sign-in, disconnect and background-work consent. **Manage** opens that profile;
-**Save name** changes only its local display label. Adding a profile does not
+Use **Add a ChatGPT plan** for each plan, yours or your company's; the name is
+prefilled "ChatGPT plan N" and editable, and **Sign in with ChatGPT** completes
+the provider's own sign-in. Each plan has a stable profile ID, independent
+sign-in, sign-out and background-work consent. **Manage** opens that plan;
+**Save name** changes only its local display label. Adding a plan does not
 resume another account or inherit another profile's provider registration.
-Native credential custody and per-account funding rules still apply.
+Native credential custody and per-plan funding rules still apply: a plan funds
+the owner's own agents.
 
 ## Local and network model servers
 
-Use **Add server**, enter a name and API address, and choose **On this computer**
-or **On my local network**. Strata and other OpenAI-compatible APIs expose their
+Use **Add a model server**, enter a name and API address, and choose **On this
+computer** or **On my local network**. OpenAI-compatible APIs expose their
 models through the server address, normally ending in /v1. The remote server
 needs no executor: this connected computer sends requests to it. The server
 must listen on an address this computer can reach. Local Ollama discovery is
@@ -58,7 +60,7 @@ Run the public Turbo task `//#test:ai-connections` with
 build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed
 credential authority. The local headless journey is
-`node tray-windows/test/renderer-harness.mjs --ai-only`.
+`node tray-windows/test/team-tabs-harness.mjs --ai-only`.
 
 Revision c9f4016 passed build, lint, typecheck and all 42 focused tests on Maxis,
 with no skips. Shared AI/ChatGPT journeys passed in seven locales at 390/1280 px
