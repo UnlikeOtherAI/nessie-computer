@@ -52,8 +52,11 @@ final class ExecutorConnections: ObservableObject {
     /// The paired teams, in a stable order.
     var teams: [ExecutorController] { controllers.filter { $0.model.description != nil } }
 
+    /// A team by its executor id, or by the console's name for one `describe` refuses.
     func team(_ executorId: String) -> ExecutorController? {
-        controllers.first { $0.model.description?.executorId == executorId }
+        controllers.first {
+            $0.model.description?.executorId == executorId || $0.unreadableIdentifier == executorId
+        }
     }
 
     /// `{team} · {organisation}` for every paired team, by executor id.

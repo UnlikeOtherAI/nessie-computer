@@ -5,13 +5,18 @@ import XCTest
 /// These model the Mac stuck on 8 November: 0.9.0 installed, a newer app,
 /// a helper whose status never answers in time.
 final class ComputerUpdateRecoveryTests: XCTestCase {
+    private let start = Date(timeIntervalSince1970: 1_794_200_000)
+
     private func restart(
         enabled: Bool = true, failures: Int = 0, installed: String? = "0.9.0", phase: String? = "waiting",
-        app: String? = "1.0.16", restartedFor: String? = nil
+        app: String? = "1.0.16", restarts: ComputerUpdateRestartRecord? = nil, now: Date? = nil
     ) -> Bool {
         let answer = installed.flatMap { version in phase.map { (installedVersion: version, phase: $0) } }
+        let record = app.map { version in
+            restarts.flatMap { $0.version == version ? $0 : nil } ?? ComputerUpdateRestartRecord(version: version)
+        }
         return ComputerUpdateRecovery.shouldRestart(
-            enabled: enabled, failures: failures, answer: answer, applicationVersion: app, restartedFor: restartedFor
+            enabled: enabled, failures: failures, answer: answer, restarts: record, now: now ?? start
         )
     }
 
@@ -59,17 +64,41 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         XCTAssertNil(attention(nil, refused: reason), "a development build manages no helper")
     }
 
-    func testANewerAppRestartsAnOlderOrStuckHelperOncePerVersion() {
+    func testANewerAppRestartsAnOlderOrStuckHelper() {
         XCTAssertFalse(restart(installed: nil, phase: nil), "one slow answer is not stuck")
         XCTAssertTrue(restart(failures: 2, installed: nil, phase: nil))
         XCTAssertTrue(restart(installed: "0.9.0", phase: "waiting"))
         XCTAssertTrue(restart(installed: "1.0.15", phase: "idle"))
         XCTAssertFalse(restart(installed: "1.0.16", phase: "idle"), "same version")
         XCTAssertFalse(restart(installed: "1.0.17", phase: "idle"), "never toward an older app")
-        XCTAssertFalse(restart(failures: 2, restartedFor: "1.0.16"), "no restart loop")
-        XCTAssertTrue(restart(failures: 2, app: "1.0.17", restartedFor: "1.0.16"), "the next version may")
         XCTAssertFalse(restart(enabled: false, failures: 3))
         XCTAssertFalse(restart(app: nil))
+    }
+
+    /// 9 November: one restart per version left a helper that could not swap
+    /// the runtime at that moment stuck for good. It is restarted again, later
+    /// each time, and never in a tight loop.
+    func testARestartThatDidNotHelpIsRetriedLaterEachTime() {
+        var record = ComputerUpdateRestartRecord(version: "1.0.16")
+        var now = start
+        for made in 1...8 {
+            XCTAssertTrue(restart(failures: 2, restarts: record, now: now), "restart \(made) comes by itself")
+            record = record.restarted(at: now)
+            let delay = ComputerUpdateRecovery.restartDelay(after: made)
+            XCTAssertFalse(restart(failures: 2, restarts: record, now: now.addingTimeInterval(delay - 1)))
+            XCTAssertFalse(restart(installed: "0.9.0", restarts: record, now: now.addingTimeInterval(delay - 1)))
+            now = now.addingTimeInterval(delay)
+        }
+        XCTAssertEqual((1...7).map { ComputerUpdateRecovery.restartDelay(after: $0) },
+                       [900, 1_800, 3_600, 7_200, 14_400, 14_400, 14_400])
+        XCTAssertTrue(restart(failures: 2, app: "1.0.17", restarts: record, now: start),
+                      "a new app version restarts at once")
+        XCTAssertFalse(restart(installed: "1.0.16", phase: "idle", restarts: record, now: now),
+                       "a helper running this app's runtime is left alone")
+        let saved = ComputerUpdateRestartRecord(stored: record.stored, version: "1.0.16")
+        XCTAssertEqual(saved, record)
+        XCTAssertEqual(ComputerUpdateRestartRecord(stored: record.stored, version: "1.0.17"),
+                       ComputerUpdateRestartRecord(version: "1.0.17"))
     }
 
     func testAStartedReplacementIsNeverInterrupted() {

@@ -128,6 +128,11 @@ the tab and the team dropdown already name what is shown.
   message literals the CLI prints. Unknown failures are quoted under Details.
 - `nc.failure.render(container, failure, { executorId, onRemedy })` fills the
   explanation, the one remedy button and the Details disclosure.
+- `nc.retrying()` → `{ failed(run), succeeded(), cancel() }`: one per read.
+  After a failure `run` is called again after 5 seconds, then twice as long
+  each time, at most a minute; `run` checks its tab and team still show.
+  Access, the AI tab's plans and servers, and On this computer use it;
+  Documents already re-reads every 5 seconds. Try again only hurries a read.
 - `nc.failure.sentence(failure)` → `{ text, code }`: the words for a failure
   shown in place. A native helper's refusal line
   (`{"code":"EXECUTOR_…","status":"rejected"}`) becomes a sentence and its

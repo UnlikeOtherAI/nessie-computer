@@ -57,6 +57,27 @@
     const element = typeof target === 'string' ? byId(target) : target
     if (element instanceof Element) element.removeAttribute('aria-invalid')
   }
+  /**
+   * A read that failed tries again by itself: after 5 seconds, then twice as
+   * long each time, at most a minute. `failed(run)` schedules `run`, which
+   * checks that its tab and team are still showing; `succeeded()` resets the
+   * wait. Try again only hurries it — nothing waits for a click to recover.
+   */
+  const retrying = () => {
+    let timer = null
+    let failures = 0
+    const cancel = () => { clearTimeout(timer); timer = null }
+    return {
+      failed: (run) => {
+        cancel()
+        timer = setTimeout(run, Math.min(5000 * 2 ** failures, 60000))
+        failures += 1
+      },
+      succeeded: () => { cancel(); failures = 0 },
+      cancel,
+    }
+  }
+
   /** Runs an action and reports its failure where the person is looking; it never locks the page. */
   const attempt = (action, { target } = {}) => {
     clearError(target)
@@ -189,7 +210,7 @@
   byId('no-team-connect').textContent = t('shell.addTeam')
 
   Object.assign(nc, {
-    byId, invoke, listen, attempt, reportError, clearError, footer, keepFocus, dialogs,
+    byId, invoke, listen, attempt, retrying, reportError, clearError, footer, keepFocus, dialogs,
     view: {
       current: () => currentTab,
       show: showTab,

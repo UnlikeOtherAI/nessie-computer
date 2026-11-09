@@ -19,27 +19,6 @@
     { code: 'EXECUTOR_API_TIMEOUT', messages: ['Executor API request timed out.'], remedy: 'restartExecutor', label: 'tryAgain' },
   ]
 
-  /**
-   * `{ code, explanation, remedy: { id, label } | null, detail }` for one
-   * failure. `detail` is what the CLI or Nessie actually said, for Details.
-   */
-  const translate = (failure) => {
-    const message = typeof failure === 'string' ? failure : String(failure?.message ?? '')
-    const detail = message.trim()
-    const code = typeof failure === 'object' && failure?.code ? String(failure.code) : null
-    const known = KNOWN.find((entry) => entry.code === code)
-      ?? KNOWN.find((entry) => entry.messages.some((literal) => detail.includes(literal)))
-    if (!known) {
-      return { code, explanation: t(detail ? 'errors.unknown' : 'errors.empty'), remedy: null, detail }
-    }
-    return {
-      code: known.code,
-      explanation: t(`errors.${known.code}`),
-      remedy: known.remedy ? { id: known.remedy, label: t(`errors.${known.label}`) } : null,
-      detail,
-    }
-  }
-
   // The signed native helper refuses a launch with one machine line on standard
   // error, `{"code":"EXECUTOR_…","status":"rejected"}`, and both hosts hand on
   // a failed command's last line. That line is for support, never the sentence
@@ -55,6 +34,31 @@
     if (!native) return { text, code: null }
     const code = native[1]
     return { text: t(WAITING_FOR_UPDATE.has(code) ? 'errors.nativeUpdate' : 'errors.nativeRefused'), code }
+  }
+
+  /**
+   * `{ code, explanation, remedy: { id, label } | null, detail }` for one
+   * failure. `detail` is what the CLI or Nessie actually said, for Details.
+   */
+  const translate = (failure) => {
+    const message = typeof failure === 'string' ? failure : String(failure?.message ?? '')
+    const detail = message.trim()
+    const native = sentence(detail)
+    // A refused native launch: its words, its code under Details, and no remedy
+    // button, because the computer retries it by itself.
+    if (native.code) return { code: native.code, explanation: native.text, remedy: null, detail: '' }
+    const code = typeof failure === 'object' && failure?.code ? String(failure.code) : null
+    const known = KNOWN.find((entry) => entry.code === code)
+      ?? KNOWN.find((entry) => entry.messages.some((literal) => detail.includes(literal)))
+    if (!known) {
+      return { code, explanation: t(detail ? 'errors.unknown' : 'errors.empty'), remedy: null, detail }
+    }
+    return {
+      code: known.code,
+      explanation: t(`errors.${known.code}`),
+      remedy: known.remedy ? { id: known.remedy, label: t(`errors.${known.label}`) } : null,
+      detail,
+    }
   }
 
   /**

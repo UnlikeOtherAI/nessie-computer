@@ -32,15 +32,21 @@ Login Items** and switch Nessie Computer on there; updates then finish by
 themselves.
 
 If the window or Settings says **Updates can't start:** followed by a reason,
-macOS refused to register the update helper, so it isn't running. Choose
-**Try again**. If macOS still refuses, Login Items opens: switch Nessie
-Computer on there, then choose **Try again** once more.
+macOS refused to register the update helper, so it isn't running yet. Nessie
+Computer asks macOS again by itself: after 15 seconds, then less often, at
+least every 15 minutes, for as long as it takes. **Try again** asks at once. If
+macOS still refuses, Login Items opens: switch Nessie Computer on there.
 
 If the window or Settings says **Updates are stuck — teams can't start**, the
-helper isn't answering. Choose **Restart updates**. Your teams, access and
-sign-ins stay on the computer. When you install a newer Nessie Computer on a
-Mac, it restarts the helper once by itself, so the helper picks up the new
-version.
+helper isn't answering. Nessie Computer restarts it by itself, and again later
+while it stays stuck: after 15 minutes, then less often, at least every four
+hours. **Restart updates** does it at once. Your teams, access and sign-ins stay
+on the computer. When you install a newer Nessie Computer on a Mac, it restarts
+the helper by itself, so the helper picks up the new version.
+
+On a Mac, the helper swaps in the new version's runtime only once no other
+Nessie app could start the old one. An older Nessie desktop app keeps it
+waiting until you quit that app; the helper finishes by itself once you do.
 
 If you installed with a package manager (such as `apt` or `dnf`), update with
 that tool; Settings says so.

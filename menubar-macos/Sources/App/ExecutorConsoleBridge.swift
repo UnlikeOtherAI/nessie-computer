@@ -64,7 +64,20 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
     /// failure is the CLI's own sentence; its code is set when this app
     /// recognises it, and the console translates either.
     func view() -> [String: Any] {
-        ["kind": "reachable", "executors": connections.teams.compactMap { controller -> [String: Any]? in
+        ["kind": "reachable", "executors": connections.controllers.compactMap { controller -> [String: Any]? in
+            if case let .unavailable(reason) = controller.model.pairing,
+               let identifier = controller.unreadableIdentifier {
+                // Paired, but `describe` is refused: listed, so the window is
+                // never empty and never offers to pair again. A daemon that is
+                // running still counts as working; a stopped one says why. The
+                // row takes its executor id back once a reading succeeds.
+                var row: [String: Any] = [
+                    "executorId": identifier, "daemonStatus": controller.model.daemon.rawValue,
+                    "paused": false, "pendingProgramRequests": 0
+                ]
+                if controller.model.daemon == .stopped { row["failure"] = ["message": reason] }
+                return row
+            }
             guard let description = controller.model.description else { return nil }
             var row: [String: Any] = [
                 "executorId": description.executorId,

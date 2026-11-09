@@ -68,7 +68,8 @@ window.accessTab = (() => {
     for (const section of sections.values()) section.render(shown)
   }
 
-  /** Reads the chosen team's access, once per selection; a failure says so and offers Try again. */
+  const retry = nc.retrying()
+  /** Reads the chosen team's access, once per selection; a failed read says so and tries again by itself. */
   const load = async ({ fresh = false } = {}) => {
     const executorId = current()
     if (!executorId || nc.view.current() !== 'access') { render(); return }
@@ -78,8 +79,14 @@ window.accessTab = (() => {
     render()
     try {
       await teamDrafts.describe(executorId, { fresh })
+      retry.succeeded()
     } catch (error) {
-      if (executorId === current()) failed = { executorId, reason: nc.failure.sentence(error).text }
+      if (executorId === current()) {
+        failed = { executorId, reason: nc.failure.sentence(error).text }
+        retry.failed(() => {
+          if (executorId === current() && nc.view.current() === 'access') nc.attempt(() => load({ fresh: true }))
+        })
+      }
     } finally {
       if (loading === executorId) loading = null
       render()
@@ -97,6 +104,7 @@ window.accessTab = (() => {
   // A selection reads the team afresh: a program request answered or a live-applied revision may have changed it.
   nc.team.onChange((executorId) => {
     failed = null
+    retry.succeeded()
     if (executorId && !teamDrafts.hasDraft(executorId)) teamDrafts.forget(executorId)
     nc.attempt(load)
   })

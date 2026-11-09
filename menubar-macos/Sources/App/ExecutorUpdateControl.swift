@@ -174,7 +174,8 @@ final class ExecutorUpdateMonitor {
         restart.stop()
     }
 
-    /// An app update never reaches a helper that keeps running; restart it once.
+    /// An app update never reaches a helper that keeps running; restart it,
+    /// and again later while it stays stuck or older than this app.
     private func restartHelperIfNeeded(_ status: [String: Any]?) async {
         // The local stuck and setup states carry no installed version.
         let answer = (status?["installedVersion"] as? String).flatMap { version in
@@ -182,9 +183,9 @@ final class ExecutorUpdateMonitor {
         }
         guard let version = ComputerUpdateService.applicationVersion, ComputerUpdateRecovery.shouldRestart(
             enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
-            answer: answer, applicationVersion: version, restartedFor: ComputerUpdateService.restartedVersion
+            answer: answer, restarts: ComputerUpdateService.restartRecord, now: Date()
         ) else { return }
-        await ComputerUpdateService.restartOnce(for: version)
+        await ComputerUpdateService.restartAutomatically(for: version)
         ComputerUpdateHealth.shared.restarted()
     }
 }

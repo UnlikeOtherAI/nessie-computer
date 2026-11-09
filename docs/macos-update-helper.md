@@ -221,14 +221,31 @@ Recovery now works from both ends without weakening a fence:
   01:38 and 02:12; every register made once the record had settled was
   accepted. The restart now polls the status every 250 ms, for up to ten
   seconds, until macOS stops reporting the helper enabled, and only then
-  registers. Only refusals count toward the two automatic attempts: an
-  accepted registration resets the count, so the launch's registration no
-  longer uses up the retry a refused restart is owed.
+  registers.
+- **Nothing waits for a click.** The two-attempt limit is gone. After each
+  refused `register()` the app registers again by itself once
+  `ComputerUpdateRegistration.retryDelay` has passed (15 seconds, doubling, at
+  most 15 minutes), for as long as macOS refuses; an accepted registration
+  resets it. The automatic helper restart is no longer once per app version:
+  while the helper stays unreachable or reports an installed runtime older than
+  the app, the app restarts it again after `ComputerUpdateRecovery.restartDelay`
+  (15 minutes, doubling, at most four hours), recorded under
+  `computer-update-helper-restarts`. **Try again** and **Restart updates** only
+  hurry these.
 - **Old entrypoints still hold the swap.** The app's runtime is installed only
-  once clearance passes. A running Nessie Desktop without the
-  `NessieExecutor*` floor keys (0.1.1 has none), or a runtime someone started
-  by hand outside custody, keeps it waiting, and the helper tries again every
-  three seconds while admissions are held. Quitting them lets it finish.
+  once clearance passes. Nessie Desktop (`nessie-desktop`; the allow list named
+  a `Nessie` executable that never existed) may stay only when its sealed floor
+  keys pass `require_independent_app`; otherwise clearance waits for it to quit
+  instead of failing, so recovery keeps trying. A desktop build without the
+  `NessieExecutor*` keys (0.1.1 has none), or a runtime someone started by hand
+  outside custody, keeps the swap waiting; the helper tries again every three
+  seconds while admissions are held, and the app's restarts give it further
+  chances when they are not.
+- **A refused team stays in the window.** The console's `executor_view` lists a
+  paired team whose `describe` is refused under `unreadable-<folder>`, so the
+  window never opens Add another team over a team that exists. It reads as
+  working while its daemon runs and says why when stopped; it takes its
+  executor id back on the next reading that succeeds.
 - **A running team is never "No team connected".** A team whose `describe` is
   refused (here, by the stale installed runtime the missing helper could not
   replace) still counts when its daemon lease is held by a live process, and

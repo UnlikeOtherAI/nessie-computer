@@ -224,6 +224,11 @@ export const verifyConsoleShell = async (browser, ui) => {
     await page.evaluate(() => { window.paired[0].failure = { message: 'Something new went wrong.' } })
     await needs.getByText('Nessie refused that. What it said is under Details.').waitFor()
     assert.equal(await page.locator('.need-failure details p').textContent(), 'Something new went wrong.')
+    // A refused native launch reads as words, its code under Details, with no button: the computer retries it.
+    await page.evaluate(() => { window.paired[0].failure = { message: '{"code":"EXECUTOR_MANAGED_RELEASE_REJECTED","status":"rejected"}' } })
+    await needs.getByText('Nessie Computer can’t start this until its update finishes.').waitFor()
+    assert.equal(await page.locator('.need-failure button').count(), 0)
+    assert.equal(await page.locator('.need-failure details p').textContent(), 'EXECUTOR_MANAGED_RELEASE_REJECTED')
     await page.evaluate(() => { delete window.paired[0].failure })
     await page.waitForFunction(() => document.getElementById('needs-you-list').hidden)
 
@@ -358,6 +363,31 @@ export const verifyConsoleShell = async (browser, ui) => {
     await page.waitForFunction(() => document.querySelector('#team-select option').textContent === 'Revenue · UnlikeOtherAI')
     assert.equal(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_pairing_status'
       && call.args?.executorId).length), 0, 'no per-team name lookups')
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
+
+  // 9 November, Mac: the installed runtime refused `describe`, the team vanished,
+  // and the window opened Add another team by itself. A paired team the runtime
+  // refuses is listed instead, its tabs say why in words, and once it reads
+  // again the window picks it up with no click.
+  {
+    const { context, page, errors } = await open({ host: 'macos', unreadable: true })
+    await page.getByText('Couldn’t load access for Team name not available yet. Nessie Computer can’t start this until its update finishes.').waitFor()
+    assert.equal(await page.locator('dialog[open]').count(), 0, 'a paired team never opens Add another team')
+    assert.deepEqual(await page.locator('#team-select option').allTextContents(), ['Team name not available yet', '＋ Add another team'])
+    assert.doesNotMatch(await page.locator('main').textContent(), /EXECUTOR_|"status"/)
+    await page.evaluate(() => {
+      window.paired = [{ executorId: 'team-0', daemonStatus: 'running', paused: false, pendingProgramRequests: 0,
+        names: { organizationName: 'UnlikeOtherAI', teamName: 'Platform', apiBaseUrl: 'https://api.nessie.works' } }]
+      window.teams['team-0'] = { folders: [{ name: 'nessie', path: '/Users/person/Nessie' }], policy: { mode: 'allowlist',
+        allowlist: [], denylist: [], trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true } },
+      existingSessions: true, allowedOrigins: [], browserConfigured: false, mcpServers: [] }
+      window.failDescribe = null
+    })
+    await page.waitForFunction(() => document.querySelector('#team-select option').textContent === 'Platform · UnlikeOtherAI')
+    await page.locator('#access-body:not([hidden])').waitFor()
     assert.deepEqual(errors, [])
     journeys++
     await context.close()
