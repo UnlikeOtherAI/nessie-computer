@@ -4,6 +4,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { ExecutorApiError, type ExecutorApiClient } from '../src/api-client.js'
 import { claimExecutor } from '../src/daemon-connection.js'
 import { loadExecutorState, saveExecutorState, type ExecutorLocalState } from '../src/state-store.js'
@@ -47,6 +48,8 @@ test('reconnect publishes current persisted policy under a fresh durable revisio
   })
   assert.deepEqual(revisions, [7, 8])
   assert.equal(result.connectionEpoch, 'new-epoch')
+  assert.equal(Object.hasOwn(result, 'sessionPairingSource'), false)
+  assert.doesNotThrow(() => canonicalExecutorJson(result), 'claim state must remain canonicalizable for live reload')
   assert.deepEqual(result.descriptor, { ...persisted.descriptor, revision: 8 })
 })
 

@@ -23,6 +23,7 @@ concurrency:
   group: executor-cli-${{ github.ref }}
   cancel-in-progress: false
 env:
+  NESSIE_COMPUTER_SENTRY_DSN: ${{ secrets.NESSIE_COMPUTER_SENTRY_DSN }}
   NESSIE_EXECUTOR_VERSION: ${{ inputs.version }}
   TURBO_CONCURRENCY: "4"
 

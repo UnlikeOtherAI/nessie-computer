@@ -31,6 +31,9 @@ import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 const skip = WINDOWS_STATE_HELPER_SKIP
 const runId = '00000000-0000-4000-8000-000000000a01'
 const executorId = '00000000-0000-4000-8000-000000000a02'
+const pairingSource = { kind: 'unbound_local' as const, executorId,
+  acceptedPairing: { kind: 'code' as const, id: '00000000-0000-4000-8000-000000000a05' },
+  machinePublicKeyDigest: 'a'.repeat(64) }
 const rules = (allowlist: string[], denylist: string[] = []): LocalCommandPolicy => ({ mode: 'allowlist', allowlist, denylist })
 
 const envelope = (
@@ -286,7 +289,9 @@ test('a terminal launch refused as not allowlisted is asked about, and the bridg
     const stamped = liveView(() => live.commandRules)
     const launched: string[][] = []
     const result = executeExecutorCommand(stateDir, live.current, terminalCall(['htop', '-d', '5']), {
-      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
+      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({
+        'nessie/command-rules': stamped, 'nessie/session-pairing-source': pairingSource,
+      }) },
       programRequests: admissionFor(stateDir),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))
@@ -308,7 +313,9 @@ test('a terminal program named by its path is asked about and runs once; always 
     // An absolute path on any host: only listed programs may start, so the rules refuse it as a path.
     const program = process.execPath
     const result = executeExecutorCommand(stateDir, live.current, terminalCall([program, '--version']), {
-      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({ 'nessie/command-rules': stamped }) },
+      mcpSessions: bridgeSessions(launched), codingBridge: { callMeta: () => ({
+        'nessie/command-rules': stamped, 'nessie/session-pairing-source': pairingSource,
+      }) },
       programRequests: admissionFor(stateDir),
     })
     const request = await ownerAnswers(stateDir, (waiting) => writeProgramRequestAnswer(stateDir, waiting.id, 'once'))

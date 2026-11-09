@@ -69,6 +69,7 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
   const policy = codexPolicy(context.agent.args)
   const turn = createCodexTurnState(context.projector)
   let agent: AgentProcess | undefined
+  let agentExit: Promise<void> | undefined
   let rpc: CodexAppConnection | undefined
   let threadId: string | undefined
   let starting: Promise<void> | undefined
@@ -243,7 +244,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     rpc = new CodexAppConnection((line, authority) => spawned.write(line, authority), 60_000,
       line => spawned.writeProtocol(line))
     context.update({ agentIdentity: spawned.identity })
-    void spawned.exited.then(({ clearance }) => exited(spawned, clearance)).catch(replyFailed)
+    agentExit = spawned.exited.then(({ clearance }) => exited(spawned, clearance))
+    void agentExit.catch(replyFailed)
     const connection = rpc
     try {
       await effect?.consume()
@@ -343,6 +345,7 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
 
   const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
+    const onExit = agentExit
     const identity = current?.identity ?? context.state().agentIdentity
     if (!identity) { if (stopDebt) throw stopDebt; return }
     ending = true
@@ -363,6 +366,8 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
         ? await current.confirmHostExecutionStopped(snapshot, effect)
         : await context.control.stopTree?.(identity, snapshot, effect) === 'stopped'
       if (!stopped) throw new AgentProcessStopUnproved(identity)
+      // Join this process's observer before another turn can replace its state.
+      await onExit
       stopDebt = undefined
       if (stopped && agent === current) {
         agent = undefined

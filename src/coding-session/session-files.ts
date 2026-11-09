@@ -4,6 +4,7 @@ import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ensureOwnerOnlyStateDirectory } from '../state-security.js'
+import { renameWithRetry } from '../file-rename.js'
 import { CODING_SESSION_ID_PATTERN } from './types.js'
 
 /**
@@ -92,24 +93,6 @@ const WINDOWS_BUSY_CODES = new Set(['EPERM', 'EACCES', 'EBUSY'])
 const FILE_RETRY_MS = 2_000
 
 const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
-
-/**
- * A rename that rides out Windows: a file an indexer, scanner or editor holds
- * open without FILE_SHARE_DELETE fails with EPERM, EACCES or EBUSY for a
- * moment, so those are retried for up to two seconds.
- */
-export const renameWithRetry = async (from: string, to: string): Promise<void> => {
-  const deadline = Date.now() + FILE_RETRY_MS
-  for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
-    try {
-      await rename(from, to)
-      return
-    } catch (error) {
-      if (!WINDOWS_BUSY_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
-      await delay(wait)
-    }
-  }
-}
 
 /** Replaces `path` atomically, through a temporary file and `renameWithRetry`. */
 export const writeJsonAtomic = async (path: string, value: unknown): Promise<void> => {

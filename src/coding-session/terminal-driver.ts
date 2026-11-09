@@ -1,7 +1,7 @@
 import { TerminalEffectOutcomes } from './terminal-effect-frame.js'
 import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
 import { executorChildCommand } from '../executor-child-command.js'
 
@@ -10,7 +10,7 @@ import { ExecutorSessionScreenSchema, type ExecutorSessionScreen } from '@nessie
 import { AgentProcessStopUnproved, AgentStartError, startAgentProcess, type AgentDriver, type AgentDriverContext, type AgentProcess } from './agent-process.js'
 import { resolveExecutorEntry } from './host-spawn.js'
 import { createDebouncedJsonWriter, writeJsonAtomic } from './session-files.js'
-import { packagedJobHelper } from './process-control.js'
+import { codingJobHelper } from './process-control.js'
 
 export const createTerminalDriver = (context: AgentDriverContext): AgentDriver => {
   const outcomes = new TerminalEffectOutcomes()
@@ -70,8 +70,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     context.update({ agentIdentity: child.identity, status: 'working', turn: 1 })
     const argv = [...context.agent.command, ...context.agent.args]
     if (globalThis.process.platform === 'win32') {
-      const helper = packagedJobHelper() ?? (globalThis.process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
-        ? undefined : fileURLToPath(new URL('../../native/target/debug/nessie-executor-native.exe', import.meta.url)))
+      const helper = codingJobHelper()
       if (!helper) throw new AgentStartError('terminal_helper_missing')
       argv.unshift(helper, effect ? 'terminal-run-authorized' : 'terminal-run', '--')
     }

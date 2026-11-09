@@ -41,6 +41,9 @@ const agentId = '00000000-0000-4000-8000-000000000802'
 const actorUserId = '00000000-0000-4000-8000-000000000803'
 const runId = '00000000-0000-4000-8000-000000000804'
 const digest = `sha256:${'c'.repeat(64)}`
+const pairingSource = { kind: 'unbound_local' as const, executorId,
+  acceptedPairing: { kind: 'code' as const, id: '00000000-0000-4000-8000-000000000806' },
+  machinePublicKeyDigest: 'a'.repeat(64) }
 const rules = { mode: 'allowlist' as const, allowlist: ['claude *'], denylist: ['git push *'] }
 /** The daemon reads the rules as it stamps each call. */
 const commandRules = () => rules
@@ -93,7 +96,9 @@ test('owner, command id and command rules reach the built-in bridge as reserved 
   const servers = [bridgeSpec(), otherSpec]
   const state = stateWith(servers)
   const mcpSessions = createExecutorMcpSessionManager(servers, { maxResultBytes: 65_536 }, { log: () => undefined })
-  const codingBridge = createCodingSessionsDaemon({ executorId, commandRules, facts, servers, sessions: mcpSessions })
+  const codingBridge = createCodingSessionsDaemon({
+    executorId, pairingSource: () => pairingSource, commandRules, facts, servers, sessions: mcpSessions,
+  })
   const run = (commandId: string, payload: Record<string, unknown>) => executeExecutorCommand(
     tmpdir(), state, envelope(commandId, payload), { mcpSessions, codingBridge },
   )
@@ -107,6 +112,7 @@ test('owner, command id and command rules reach the built-in bridge as reserved 
     assert.equal(codingSessionOwnerKey(executorId, owner), ownerKey)
     assert.deepEqual(toBridge.meta, {
       'nessie/command': 'command-a', 'nessie/owner': ownerKey, 'nessie/command-rules': rules,
+      'nessie/session-pairing-source': pairingSource,
     }, 'the rules this daemon runs under decide what a terminal may start')
     assert.deepEqual(toBridge.echoed, modelArguments, 'the model\'s arguments pass through untouched')
 
@@ -117,7 +123,8 @@ test('owner, command id and command rules reach the built-in bridge as reserved 
     assert.deepEqual(toOther.echoed, modelArguments)
 
     const unowned = echoOf(await run('command-c', { args: { server: 'coding-sessions', tool: 'echo' }, runId }))
-    assert.deepEqual(unowned.meta, { 'nessie/command': 'command-c', 'nessie/command-rules': rules },
+    assert.deepEqual(unowned.meta, { 'nessie/command': 'command-c', 'nessie/command-rules': rules,
+      'nessie/session-pairing-source': pairingSource },
       'without a stamped owner the bridge refuses')
 
     for (const payload of [
@@ -146,16 +153,20 @@ test('a ticket context is part of the owner key, and without one the key is the 
   assert.equal(codingSessionOwnerKey(executorId, { agentId, actorUserId, contextId }), ticket)
   const servers = [bridgeSpec()]
   const mcpSessions = createExecutorMcpSessionManager(servers, { maxResultBytes: 65_536 }, { log: () => undefined })
-  const codingBridge = createCodingSessionsDaemon({ executorId, commandRules, facts, servers, sessions: mcpSessions })
+  const codingBridge = createCodingSessionsDaemon({
+    executorId, pairingSource: () => pairingSource, commandRules, facts, servers, sessions: mcpSessions,
+  })
   const run = (commandId: string, payload: Record<string, unknown>) => executeExecutorCommand(
     tmpdir(), stateWith(servers), envelope(commandId, payload), { mcpSessions, codingBridge },
   )
   const args = { server: 'coding-sessions', tool: 'echo', arguments: {} }
   try {
     const withContext = echoOf(await run('command-t1', { args, owner: { agentId, actorUserId, contextId }, runId }))
-    assert.deepEqual(withContext.meta, { 'nessie/command': 'command-t1', 'nessie/owner': ticket, 'nessie/command-rules': rules })
+    assert.deepEqual(withContext.meta, { 'nessie/command': 'command-t1', 'nessie/owner': ticket,
+      'nessie/command-rules': rules, 'nessie/session-pairing-source': pairingSource })
     const without = echoOf(await run('command-t2', { args, owner: { agentId, actorUserId }, runId }))
-    assert.deepEqual(without.meta, { 'nessie/command': 'command-t2', 'nessie/owner': plain, 'nessie/command-rules': rules })
+    assert.deepEqual(without.meta, { 'nessie/command': 'command-t2', 'nessie/owner': plain,
+      'nessie/command-rules': rules, 'nessie/session-pairing-source': pairingSource })
     // A context in any other spelling never becomes a key: the envelope refuses it by name.
     const refused = await run('command-t3', { args, owner: { agentId, actorUserId, contextId: contextId.toUpperCase() }, runId })
     assert.equal(refused.code, 'EXECUTOR_COMMAND_ARGUMENTS_INVALID')
@@ -227,7 +238,9 @@ test('teardown closes everything once, then only when an owner was dispatched si
 
 test('the heartbeat\'s codingSessionClose closes those owners\' sessions, and nothing when malformed', async () => {
   const { calls, sessions } = recording()
-  const daemon = createCodingSessionsDaemon({ executorId, commandRules, facts, servers: [bridgeSpec()], sessions })
+  const daemon = createCodingSessionsDaemon({
+    executorId, pairingSource: () => pairingSource, commandRules, facts, servers: [bridgeSpec()], sessions,
+  })
   const ownerKey = codingSessionOwnerKey(executorId, { agentId, actorUserId })
   const sessionId = '00000000-0000-4000-8000-000000000806'
   await daemon.close([{ ownerKey, reason: 'lease_ended' }, { ownerKey, sessionId, reason: 'closed_by_person' }])

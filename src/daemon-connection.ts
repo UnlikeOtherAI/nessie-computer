@@ -47,7 +47,9 @@ export const claimExecutor = async (
   const source = parsedSource.success && parsedSource.data.executorId === persisted.executorId
     && parsedSource.data.machinePublicKeyDigest === createHash('sha256').update(persisted.machinePublicKey).digest('hex')
     ? parsedSource.data : undefined
-  const next = { ...persisted, connectionEpoch: connection.connectionEpoch, sessionPairingSource: source }
+  const next = { ...persisted, connectionEpoch: connection.connectionEpoch }
+  if (source) next.sessionPairingSource = source
+  else delete next.sessionPairingSource
   if (source) for (const server of next.mcpServers ?? []) {
     const config = isBuiltinCodingSessionsServer(server) ? codingSessionsServerConfigPath(server) : undefined
     if (config) await acceptSessionPairingSource(dirname(config), source)

@@ -104,7 +104,7 @@ export class SessionRequestBook {
     effect?.assertLive()
     this.settle(entry, 'answered', undefined, answer.decision)
     const delivered = entry.responder?.answer(answer, effect)
-    if (delivered) return delivered.then(() => undefined, error => {
+    if (delivered) return Promise.resolve(delivered).then(() => undefined, error => {
       this.settle(entry, 'expired', 'delivery_unknown')
       throw error
     })

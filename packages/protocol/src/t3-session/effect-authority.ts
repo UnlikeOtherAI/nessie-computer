@@ -36,7 +36,9 @@ export const T3EffectAuthorityCheckedSchema = z.object({
 export type T3EffectAuthorityChecked = z.infer<typeof T3EffectAuthorityCheckedSchema>
 export const T3_EFFECT_SIGNATURE_DOMAIN = 'nessie.executor.t3.effect-grant.v1'
 export const t3EffectSelection = (grant: T3EffectGrantReference): T3EffectSelection => {
-  const { issuedAt: _issuedAt, expiresAt: _expiresAt, requestNonce: _nonce, requestProofDigest: _digest,
-    ...selection } = grant
+  const selection = { ...grant }
+  for (const field of ['issuedAt', 'expiresAt', 'requestNonce', 'requestProofDigest']) {
+    Reflect.deleteProperty(selection, field)
+  }
   return T3EffectSelectionSchema.parse(selection)
 }

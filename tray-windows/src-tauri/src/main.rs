@@ -275,6 +275,12 @@ fn main() {
         *pending = Some(link);
     }
 
+    let dsn = std::env::var("NESSIE_COMPUTER_SENTRY_DSN").ok()
+        .or_else(|| option_env!("NESSIE_COMPUTER_SENTRY_DSN").map(str::to_owned))
+        .filter(|dsn| !dsn.is_empty());
+    let _sentry = dsn.map(|dsn| sentry::init(
+        sentry::ClientOptions::new().dsn(&dsn).maybe_release(option_env!("GITHUB_SHA")),
+    ));
     tauri::Builder::default()
         // First, so a second copy hands over before it builds anything.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _| {

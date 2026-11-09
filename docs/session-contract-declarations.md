@@ -1,5 +1,10 @@
 # Portable original contract declarations
 
+Protocol reply declarations select each original descriptor's result and stream
+error directly in the generated method map. Downstream compilers do not infer
+both parameters by comparing every original schema with the full stream schema
+interface. Decoded types, wire types and runtime codec identity stay unchanged.
+
 The three public contract entries and `/engine` share
 `dist/types/source/*.d.ts`. The owning package remains
 `@nessie/t3-session-source`; the doorways are its ordinary imports and build

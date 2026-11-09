@@ -238,11 +238,11 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       const paths = codingSessionPaths(stateDir, previous.sessionId)
       return { sessionId: previous.sessionId, ...await briefStatus(paths), replayed: true }
     }
+    requireReviewedConfig()
     const agent = (value && typeof value === 'object' ? (value as Record<string, unknown>).agent : undefined) as CodingAgentName
     const offered = offeredCodingAgents(loaded.config)
     if (typeof agent !== 'string' || !offered.includes(agent)) invalidArguments(`agent must be one of: ${offered.join(', ')}.`)
     const target = agent === 'terminal' ? await terminalTarget(value, commandRules) : await structuredTarget(value)
-    requireReviewedConfig()
     const live = []
     for (const meta of await listSessionMetas(stateDir)) {
       if (meta.ownerKey !== ownerKey) continue

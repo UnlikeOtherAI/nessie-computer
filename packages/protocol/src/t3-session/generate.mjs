@@ -70,14 +70,21 @@ ${selected.map(rpc => `  Schema.Struct({ ...ExecutorT3Routing.fields, kind: Sche
 `
 const reply = `// Generated result/error/stream relations; do not edit.
 import * as Schema from 'effect/Schema'
-import type * as RpcSchema from 'effect/rpc/RpcSchema'
 import { ExecutorT3Routing } from './routing.js'
-import { ExecutorT3Descriptors as D, type ExecutorT3Method, type ExecutorT3Descriptor } from './methods.js'
-type Success<M extends ExecutorT3Method> = ExecutorT3Descriptor<M>['successSchema']
-type Value<M extends ExecutorT3Method> = Success<M> extends RpcSchema.Stream<infer A, infer _E> ? A : Success<M>
-type Failure<M extends ExecutorT3Method> = ExecutorT3Descriptor<M>['errorSchema'] |
-  (Success<M> extends RpcSchema.Stream<infer _A, infer E> ? E : never)
-type Kind<M extends ExecutorT3Method> = Success<M> extends RpcSchema.Stream<infer _A, infer _E> ? 'stream' : 'result'
+import { ExecutorT3Descriptors as D, type ExecutorT3Method } from './methods.js'
+// Resolve stream relations at generation time instead of structurally inferring
+// both Schema parameters through every original RPC in each downstream compiler.
+type Replies = {
+${selected.map(rpc => {
+  const descriptor = `typeof D[${literal(rpc._tag)}]`
+  const stream = isStreamSchema(rpc.successSchema)
+  return `  ${literal(rpc._tag)}: { value: ${descriptor}['successSchema']${stream ? "['success']" : ''}; error: ${descriptor}['errorSchema']${stream ? ` | ${descriptor}['successSchema']['error']` : ''}; kind: '${stream ? 'stream' : 'result'}' }`
+}).join('\n')}
+}
+type Reply<M extends ExecutorT3Method> = Replies[M]
+type Value<M extends ExecutorT3Method> = Reply<M>['value']
+type Failure<M extends ExecutorT3Method> = Reply<M>['error']
+type Kind<M extends ExecutorT3Method> = Reply<M>['kind']
 export type ExecutorT3Result = { [M in ExecutorT3Method]: ExecutorT3Routing & {
   readonly kind: Kind<M>; readonly method: M; readonly result: Value<M>['Type']
 } }[ExecutorT3Method]

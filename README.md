@@ -96,3 +96,5 @@ Add `--json` to any command for scripts. [Command line guide](https://github.com
 for permitted purposes, including internal commercial use; competing commercial
 offerings are restricted. Each version becomes available under Apache 2.0 two
 years after its release. Bundled third-party components keep their own licences.
+
+Error reporting uses the standard Sentry SDKs. See [configuration and coverage](docs/error-reporting.md).

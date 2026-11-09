@@ -113,3 +113,7 @@ Team names come from a display-only label in each team's folder, refreshed in on
 
 Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 [sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.
+
+Standard SDK reporting, release configuration and native limitations follow [error reporting](docs/error-reporting.md).
+The focused `test:session-local-pairing` Turbo gate covers shared local bridge
+enrollment fixtures under [original session authority](docs/original-session-authority.md).

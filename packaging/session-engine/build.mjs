@@ -58,7 +58,10 @@ export const sessionDependencyNotices = async inputs => {
         if (!packages.has(manifest.name)) {
           let notice
           let noticeSource
-          for (const name of ['LICENSE', 'LICENSE.md', 'LICENSE.txt', 'LICENSE-MIT', 'LICENCE']) {
+          const files = (await readdir(directory)).sort()
+          for (const expected of ['license', 'license.md', 'license.txt', 'license-mit', 'licence']) {
+            const name = files.find(file => file.toLowerCase() === expected)
+            if (!name) continue
             notice = await readFile(resolve(directory, name), 'utf8').catch(() => undefined)
             if (notice) break
           }

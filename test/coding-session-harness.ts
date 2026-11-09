@@ -11,6 +11,7 @@ import {
   codingSessionsConfigDigest,
   normalizeCodingSessionsConfig,
 } from '../src/coding-session/config.js'
+import { acceptSessionPairingSource } from '../src/coding-session/session-authority.js'
 import type { ExecutorLocalMcpServer } from '../src/mcp-servers.js'
 import { createExecutorMcpSessionManager, type ExecutorMcpSessionManager } from '../src/mcp-session-manager.js'
 
@@ -152,6 +153,9 @@ export const createCodingHarness = async (options: {
   await mkdir(configDir)
   // Managed-session fixtures must never discover the developer's real provider sessions.
   await writeFile(join(configDir, 'existing-coding-sessions.json'), JSON.stringify({ enabled: false }))
+  const pairingSource = { kind: 'unbound_local' as const, executorId: randomUUID(),
+    acceptedPairing: { kind: 'code' as const, id: randomUUID() }, machinePublicKeyDigest: 'a'.repeat(64) }
+  await acceptSessionPairingSource(configDir, pairingSource)
   const configPath = join(configDir, 'coding-sessions.json')
   const agent = { command: [process.execPath, SCRIPTED_AGENT] }
   const agentEnv = options.agentEnv ?? { inheritUserSession: false }
@@ -200,6 +204,7 @@ export const createCodingHarness = async (options: {
   ): Promise<BridgeAnswer> => {
     const meta: Record<string, unknown> = {
       'nessie/command': callOptions.command ?? randomUUID(),
+      'nessie/session-pairing-source': pairingSource,
       ...(callOptions.owner === '' ? {} : { 'nessie/owner': callOptions.owner ?? OWNER_A }),
       ...(callOptions.daemon ? { 'nessie/daemon-control': true } : {}),
       ...(callOptions.commandRules === null ? {}

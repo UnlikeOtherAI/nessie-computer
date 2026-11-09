@@ -4,12 +4,17 @@ import { ExecutorT3HttpEndpoints, type ExecutorT3HttpEndpoint } from './http.js'
 
 /** HTTP paging has different codecs from RPC. Do not flatten cursors or boolean flags. */
 export const executorT3HistoryTools = () => Object.entries(ExecutorT3HttpEndpoints).map(([endpoint, descriptor]) => {
-  const inputCodec = Schema.Struct({
+  const target = {
     executorId: ExecutorT3Routing.fields.executorId,
     environmentId: ExecutorT3Routing.fields.environmentId,
-    ...(descriptor.params ? { params: descriptor.params } : {}),
-    ...(descriptor.query ? { query: descriptor.query } : {}),
-  })
+  }
+  const inputCodec = descriptor.params
+    ? descriptor.query
+      ? Schema.Struct({ ...target, params: descriptor.params, query: descriptor.query })
+      : Schema.Struct({ ...target, params: descriptor.params })
+    : descriptor.query
+      ? Schema.Struct({ ...target, query: descriptor.query })
+      : Schema.Struct(target)
   return {
     name: `t3_session_history_${endpoint}`,
     endpoint: endpoint as ExecutorT3HttpEndpoint,

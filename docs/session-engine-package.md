@@ -10,6 +10,10 @@ bundled; YAML is an exact declared external dependency, preserving Node's origin
 CommonJS loading. Its identity and license join the package provenance. See
 [selected Claude construction](claude-selected-host.md).
 
+Dependency notice collection resolves the actual license filename, including
+lowercase npm notices, before reading it. Windows and case-sensitive Linux
+builds retain the same upstream bytes and pinned missing-notice checks.
+
 The current [contract declaration producer](session-contract-declarations.md)
 emits shared `.d.ts` files instead of contract implementations. Its focused
 original-contract composite gate and the combined package build pass in root's

@@ -5,7 +5,7 @@ import { SessionEffectAuthority, SessionEffectRefused } from './session-effect-a
 import { spawn, type ChildProcess } from 'node:child_process'
 
 import { runsInOwnUserUnit } from './host-unit.js'
-import { createCodingProcessControl, packagedJobHelper, type CodingProcessControl } from './process-control.js'
+import { createCodingProcessControl, codingJobHelper, type CodingProcessControl } from './process-control.js'
 import type { CodingProcessIdentity } from './types.js'
 
 /**
@@ -160,7 +160,7 @@ export const createHostProcessControl = (entry: string, input: {
 } = {}): CodingProcessControl => {
   const platform = input.platform ?? process.platform
   const environment = input.environment ?? process.env
-  const jobHelper = 'jobHelper' in input ? input.jobHelper : platform === 'win32' ? packagedJobHelper(environment) : undefined
+  const jobHelper = 'jobHelper' in input ? input.jobHelper : platform === 'win32' ? codingJobHelper(environment) : undefined
   const control = createCodingProcessControl(platform, {
     jobHelper, packaged: environment.NESSIE_EXECUTOR_PACKAGED_CLI === '1', ...(input.log ? { log: input.log } : {}),
   })

@@ -45,6 +45,7 @@ const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeou
 
 export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => {
   let agent: AgentProcess | undefined
+  let agentExit: Promise<void> | undefined
   let stream: ClaudeStreamState | undefined
   let starting: Promise<AgentProcess> | undefined
   let interruptRequested = false
@@ -167,7 +168,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       })
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
-    void spawned.exited.then(async ({ code, clearance }) => {
+    agentExit = spawned.exited.then(async ({ code, clearance }) => {
       if (clearance === 'stopped' && agent === spawned) agent = undefined
       const reason = clearance === 'unknown' ? 'provider_stop_unproved' : agentFailureReason(spawned.stderrTail())
       rejectReady(new AgentStartError(reason))
@@ -184,7 +185,8 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         context.emit({ kind: 'system', subtype: 'agent_exited', reason })
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
       }
-    }).catch(replyFailed)
+    })
+    void agentExit.catch(replyFailed)
     await effect?.consume()
     effect?.assertLive()
     await spawned.write(claudeControlLine('initialize'), effect)
@@ -207,6 +209,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
 
   const stop = async (effect?: SessionEffectAuthority): Promise<void> => {
     const current = agent
+    const onExit = agentExit
     const identity = current?.identity ?? context.state().agentIdentity
     if (!identity) { if (stopDebt) throw stopDebt; return }
     ending = true
@@ -227,6 +230,8 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
         ? await current.confirmHostExecutionStopped(snapshot, effect)
         : await context.control.stopTree?.(identity, snapshot, effect) === 'stopped'
       if (!stopped) throw new AgentProcessStopUnproved(identity)
+      // The observer must finish before a new process or stop reason owns this state.
+      await onExit
       stopDebt = undefined
       if (stopped) agent = undefined
       // An interrupt the ended process never answered belongs to it, not to the next turn.

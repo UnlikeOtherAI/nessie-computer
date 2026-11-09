@@ -133,7 +133,11 @@ export const prepareExecutorRuntime = async ({
 
   await build({
     bundle: true,
+    banner: { js: "const __nessieBundleUrl = require('node:url').pathToFileURL(__filename).href;" },
     define: {
+      'process.env.NESSIE_COMPUTER_SENTRY_DSN': JSON.stringify(process.env.NESSIE_COMPUTER_SENTRY_DSN ?? ''),
+      'process.env.SENTRY_RELEASE': JSON.stringify(`nessie-computer@${executorVersion}+${sourceCommit}`),
+      'import.meta.url': '__nessieBundleUrl',
       __NESSIE_EXECUTOR_VERSION__: JSON.stringify(executorVersion),
       __NESSIE_EXECUTOR_SOURCE_COMMIT__: JSON.stringify(sourceCommit),
       __NESSIE_EXECUTOR_APPLE_TEAM_ID__: JSON.stringify(executorAppleTeamId),

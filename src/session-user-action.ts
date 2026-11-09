@@ -20,6 +20,10 @@ export const sessionUserAction = async (
   const receipt = (state: ExecutorSessionActionReceipt['state'], code: string): ExecutorSessionActionReceipt =>
     ({ id: action.id, state, code })
   if (Date.parse(action.expiresAt) <= Date.now()) return receipt('failed', 'input_expired')
+  // The authenticated local daemon selects the viewer's owner and idempotency
+  // key. Bound operations retain their original sealed metadata unchanged.
+  const operationMeta = originalMeta?.daemonControl && originalMeta.sessionPairingSource?.kind === 'unbound_local'
+    ? { ...originalMeta, ownerKey: action.ownerKey, commandId: action.id } : originalMeta
   if (action.kind === 'answer') {
     // A session found open on the computer belongs to its own client, which answers its own prompts.
     if (action.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) return receipt('failed', 'request_not_answerable')
@@ -27,7 +31,7 @@ export const sessionUserAction = async (
       await assertPersonalHostExecution()
       // Each request is claimed once (`session-answer.ts`), so a retried action reads its first outcome.
       const outcome = await managed.call('session_answer', { sessionId: action.sessionId, answer: action.answer },
-        originalMeta ? managedActionOperationMeta(originalMeta, 'session_answer', action.sessionId)
+        operationMeta ? managedActionOperationMeta(operationMeta, 'session_answer', action.sessionId)
           : { daemonControl: true, ownerKey: action.ownerKey, commandId: action.id })
       return outcome.state === 'accepted' || outcome.state === 'failed'
         ? receipt(outcome.state, typeof outcome.code === 'string' ? outcome.code : 'delivery_unknown')
@@ -48,7 +52,7 @@ export const sessionUserAction = async (
         sessionId: action.sessionId, action: action.kind, message: action.message ?? '', send: async () => {
           const value = await managed.call(action.kind === 'interrupt' ? 'session_interrupt' : 'session_send', {
             sessionId: action.sessionId, ...(action.message ? { message: action.message } : {}),
-          }, originalMeta ? managedActionOperationMeta(originalMeta,
+          }, operationMeta ? managedActionOperationMeta(operationMeta,
             action.kind === 'interrupt' ? 'session_interrupt' : 'session_send', action.sessionId)
             : { daemonControl: true, ownerKey: action.ownerKey, commandId: action.id })
           return { ...value, state: 'accepted', code: action.kind === 'interrupt' ? 'interrupt_requested' : 'input_queued' }

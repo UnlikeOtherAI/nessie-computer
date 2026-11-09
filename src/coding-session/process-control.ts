@@ -2,6 +2,7 @@ import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { lstatSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 
 import { packagedNativeHelperPath } from '../state-security.js'
 import type { CodingProcessIdentity } from './types.js'
@@ -114,6 +115,18 @@ const TERM_GRACE_MS = 2_000
 export const packagedJobHelper = (environment: NodeJS.ProcessEnv = process.env): string | undefined => {
   if (environment.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') return undefined
   const path = packagedNativeHelperPath()
+  try {
+    const entry = lstatSync(path)
+    return entry.isFile() && !entry.isSymbolicLink() ? path : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Source launches use the fixed Debug helper without claiming installed custody. */
+export const codingJobHelper = (environment: NodeJS.ProcessEnv = process.env): string | undefined => {
+  if (environment.NESSIE_EXECUTOR_PACKAGED_CLI === '1') return packagedJobHelper(environment)
+  const path = fileURLToPath(new URL('../../native/target/debug/nessie-executor-native.exe', import.meta.url))
   try {
     const entry = lstatSync(path)
     return entry.isFile() && !entry.isSymbolicLink() ? path : undefined

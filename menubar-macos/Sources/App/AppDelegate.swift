@@ -1,4 +1,5 @@
 import AppKit
+import Sentry
 
 /// A status-bar-only app: `LSUIElement` keeps it out of the Dock and the app
 /// switcher, so the icon beside the clock and the one window are its whole
@@ -18,6 +19,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var pendingLinks: [DeepLink] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let dsn = Bundle.main.object(forInfoDictionaryKey: "NessieSentryDSN") as? String, !dsn.isEmpty {
+            SentrySDK.start { options in
+                options.dsn = dsn
+                options.enableUncaughtNSExceptionReporting = true
+            }
+        }
         let controller = ExecutorConnections(isDevelopmentBuild: AppBuild.isDevelopment)
         let console = ConsoleWindowController(connections: controller)
         let notifier = ProgramRequestNotifier(connections: controller, console: console)

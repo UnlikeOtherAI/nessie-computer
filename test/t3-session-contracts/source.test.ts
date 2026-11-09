@@ -4,15 +4,17 @@ import { readFile, mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createRequire } from 'node:module'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { dirname } from 'node:path'
 import test from 'node:test'
 import { build } from 'esbuild'
-import ts from 'typescript'
 import { readSessionEngineSnapshot, sessionEngineSourcePlugin, sessionContractsAliasPlugin,
   T3_CONTRACTS_SOURCE_ENTRY } from '../../packages/t3-session-source/input.mjs'
 
 const packageRoot = resolve(import.meta.dirname, '../../packages/t3-session-source')
 const hash = (value: Uint8Array | string): string => createHash('sha256').update(value).digest('hex')
+const runCompiler = promisify(execFile)
 
 test('strict consumers resolve original Type and Encoded relations through published exports', async () => {
   const require = createRequire(resolve(packageRoot, 'package.json'))
@@ -21,22 +23,10 @@ test('strict consumers resolve original Type and Encoded relations through publi
   const fixture = resolve(packageRoot, '../protocol/.artifacts/type-consumer/consumer.mts')
   await mkdir(dirname(fixture), { recursive: true })
   await writeFile(fixture, await readFile(resolve(import.meta.dirname, 'consumer.fixture.ts')))
-  for (const moduleResolution of [ts.ModuleResolutionKind.NodeNext, ts.ModuleResolutionKind.Bundler]) {
-    const program = ts.createProgram([fixture], {
-      moduleResolution, module: moduleResolution === ts.ModuleResolutionKind.NodeNext
-        ? ts.ModuleKind.NodeNext : ts.ModuleKind.ESNext,
-      target: ts.ScriptTarget.ES2023, strict: true, noEmit: true,
-      exactOptionalPropertyTypes: true, noUncheckedIndexedAccess: true,
-      paths: { effect: [resolve(effectRoot, 'dist/index.d.ts')], 'effect/*': [resolve(effectRoot, 'dist/*.d.ts')] },
-    })
-    const diagnostics = ts.getPreEmitDiagnostics(program)
-    assert.equal(diagnostics.length, 0, ts.formatDiagnosticsWithColorAndContext(diagnostics, {
-      getCanonicalFileName: x => x, getCurrentDirectory: () => packageRoot, getNewLine: () => '\n',
-    }))
-    assert.ok(program.getSourceFiles().some(file => file.fileName.endsWith('/source/rpc.ts')))
-    const effectFiles = program.getSourceFiles().filter(file => /[/\\]effect[/\\]dist[/\\]/u.test(file.fileName))
-    assert.ok(effectFiles.length > 0)
-    assert.ok(effectFiles.every(file => file.fileName.replaceAll('\\', '/').startsWith(effectRoot.replaceAll('\\', '/'))))
+  for (const mode of ['nodenext', 'bundler']) {
+    await runCompiler(process.execPath, ['--max-old-space-size=5120',
+      resolve(import.meta.dirname, 'type-consumer.mjs'), fixture, effectRoot, mode],
+    { windowsHide: true, maxBuffer: 4 * 1024 * 1024 })
   }
 })
 

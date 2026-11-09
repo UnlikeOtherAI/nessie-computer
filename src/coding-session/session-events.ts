@@ -1,6 +1,7 @@
 import { open, stat, type FileHandle } from 'node:fs/promises'
 
-import { renameWithRetry, type CodingSessionPaths } from './session-files.js'
+import type { CodingSessionPaths } from './session-files.js'
+import { renameWithRetry } from '../file-rename.js'
 import type { CodingEventBody, CodingSessionEvent } from './types.js'
 
 /**

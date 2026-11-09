@@ -60,7 +60,9 @@
     "test:t3-session-catalog": "node --max-old-space-size=512 --experimental-test-isolation=none --test --test-concurrency=1 test/t3-session-catalog/catalog.test.mjs test/t3-session-catalog/authority.test.mjs test/t3-session-catalog/history.test.mjs test/t3-session-catalog/shared-selection.test.mjs test/t3-session-catalog/publication.test.mjs",
     "test:windows-source": "node scripts/run-tests.mjs --test-concurrency=1 test/state-security.test.ts test/windows-source-state.test.ts test/windows-process-deadline.test.ts test/coding-session-bridge.test.ts test/coding-session-containment.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/terminal-session.test.ts test/session-files.test.ts test/existing-claude-channel.test.ts test/state-store.test.ts test/guest-runtime.test.ts",
     "test:ai-connections": "node scripts/run-tests.mjs --test-concurrency=2 test/inference-endpoints.test.ts test/openai-local.test.ts test/local-model-server.test.ts test/chatgpt-profile-store.test.ts test/chatgpt-profile-authority.test.ts",
-    "test:cli-engines": "node scripts/run-tests.mjs --test-concurrency=1 test/local-cli-engine.test.ts test/local-cli-engine-settings.test.ts test/deeptest-inference.test.ts test/local-inference-host.test.ts test/local-inference-supervisor.test.ts test/cli-help.test.ts"
+    "test:cli-engines": "node scripts/run-tests.mjs --test-concurrency=1 test/local-cli-engine.test.ts test/local-cli-engine-settings.test.ts test/deeptest-inference.test.ts test/local-inference-host.test.ts test/local-inference-supervisor.test.ts test/cli-help.test.ts",
+    "test:error-reporting": "node scripts/run-tests.mjs --test-concurrency=1 test/error-reporting.test.ts",
+    "test:session-local-pairing": "node scripts/run-tests.mjs --test-concurrency=1 test/coding-session-daemon.test.ts test/coding-session-bridge.test.ts test/coding-session-owners.test.ts test/coding-session-guard.test.ts test/coding-session-limits.test.ts test/coding-session-systemd.test.ts test/coding-session-teardown.test.ts test/coding-session-review.test.ts test/session-requests-live.test.ts test/session-conversation-control.test.ts test/terminal-session.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -74,7 +76,8 @@
     "@nessie/executor-protocol": "workspace:*",
     "@nessie/executor-support": "workspace:*",
     "@nessie/t3-session-source": "workspace:*",
-    "effect": "4.1.2"
+    "effect": "4.1.2",
+    "@sentry/node": "11.11.0"
   },
   "devDependencies": {
     "@types/node": "^24.12.4",

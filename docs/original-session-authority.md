@@ -261,3 +261,23 @@ Codex ChatGPT token storage is T3-owned and excluded. Neither original native
 Codex nor Claude transport calls that seam. It stays unbound: do not fabricate
 a grouping key, equate a provider-instance ID to a native ID, or persist a
 second credential/identity authority.
+
+Source bridge fixtures persist an explicit synthetic unbound-local pairing
+reference through the production local claim store and carry that exact reference
+in reserved metadata. Missing-source and fabricated-mode negatives remain denied;
+these fixtures establish no bound UOA authority or installed readiness.
+
+Request responders may finish synchronously or return an acknowledgment promise.
+The request book normalizes either result before publishing delivery and awaits
+asynchronous acknowledgments, including their failures.
+
+Unbound local daemon viewer actions retain the enrolled pairing reference and
+forward the selected owner and action idempotency key. Bound actions keep their
+original sealed operation metadata. A changed reviewed configuration refuses a
+new start before resolving any configured root.
+
+Intentional provider stops remain attached to the exact process until its exit
+callback drains. Positive tree clearance is still required; a delayed callback
+cannot replace the recorded limit/close reason or interrupt a newer process.
+Private state replacement reuses the bounded atomic rename primitive, retaining
+the secured temporary inode while a Windows reader briefly holds the old file.

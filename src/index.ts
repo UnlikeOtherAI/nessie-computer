@@ -53,7 +53,16 @@ const runCommand = async (args: string[]): Promise<void> => {
 
 const entry = executorCliEntry(process.argv[1], process.env.NESSIE_EXECUTOR_PACKAGED_CLI)
 if (entry === 'run') {
-  runCommand(process.argv.slice(2)).catch((error: unknown) => {
+  import('./error-reporting.js').then(async ({ reportError, flushErrors }) => {
+    try {
+      await runCommand(process.argv.slice(2))
+    } catch (error) {
+      reportError(error)
+      throw error
+    } finally {
+      await flushErrors()
+    }
+  }).catch((error: unknown) => {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     process.exitCode = 1
   })

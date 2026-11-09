@@ -10,7 +10,7 @@ import { createCodexDriver } from '../src/coding-session/codex-driver.js'
 import { createCodexExecTurnState as createCodexTurnState } from '../src/coding-session/codex-exec-events.js'
 import { SessionRequestBook } from '../src/coding-session/session-request-book.js'
 import { createPathRewriter } from '../src/coding-session/path-rewrite.js'
-import { createCodingProcessControl } from '../src/coding-session/process-control.js'
+import { codingJobHelper, createCodingProcessControl } from '../src/coding-session/process-control.js'
 import { createProjector } from '../src/coding-session/projection.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { initialCodingSessionState, type CodingSessionState } from '../src/coding-session/types.js'
@@ -144,7 +144,9 @@ test('a message sent while one turn ends and the next is starting waits its turn
     const observed: { running: boolean; busy: boolean }[] = []
     const context: AgentDriverContext = {
       agent: { command: [process.execPath, SCRIPTED_AGENT], args: [], allowedTools: [], disallowedTools: [] },
-      control: createCodingProcessControl(process.platform, {}),
+      control: createCodingProcessControl(process.platform, {
+        jobHelper: process.platform === 'win32' ? codingJobHelper() : undefined,
+      }),
       env: { ...process.env, NESSIE_SCRIPTED_RECORD_DIR: dir },
       folder: dir, paths, projector,
       // Slow, so the gap between one turn's exit and the next turn's spawn is wide.
