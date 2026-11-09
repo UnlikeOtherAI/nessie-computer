@@ -32,6 +32,7 @@ import { loadDeepTestInferenceGrant, publishDeepTestInferenceGrant, revokeDeepTe
   type DeepTestInferenceEngine } from './deeptest-inference-grant.js'
 import { serveBrowserCookieImportNativeHost } from './browser-cookie-import-native-host.js'
 import { connectExecutorLocalInference } from './local-inference-runtime.js'
+import { connectTeam } from './cli-connect-team.js'
 import { runLocalInferenceCli } from './local-inference-cli.js'
 import { readConfigurationInput, type ExecutorConfigurationInput } from './configuration-input.js'
 import { serveDirectLocalInference } from './direct-local-inference-runtime.js'
@@ -366,13 +367,16 @@ export const run = async (args: string[]): Promise<void> => {
     return
   }
   if (command.kind === 'connect') {
-    const live = await claimExecutor(command.stateDir, state)
-    // A paused team connects paused: Nessie hears it before it could route anything here.
-    if (await teamPaused(command.stateDir)) {
-      await heartbeatExecutor(live, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-        await ownerPauseReport(command.stateDir))
-    }
-    await connectExecutorLocalInference(command.stateDir, live)
+    await connectTeam(command.stateDir, state, {
+      claim: claimExecutor,
+      // A paused team connects paused: Nessie hears it before it could route anything here.
+      reportPause: async (stateDir, live) => {
+        if (!await teamPaused(stateDir)) return
+        await heartbeatExecutor(live, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+          await ownerPauseReport(stateDir))
+      },
+      connectLocal: connectExecutorLocalInference,
+    })
     process.stdout.write('Connected to Nessie.\n')
     return
   }
