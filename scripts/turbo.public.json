@@ -90,6 +90,16 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:error-reporting": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false,
+      "env": [
+        "DATABASE_URL",
+        "TZ"
+      ]
     }
   }
 }

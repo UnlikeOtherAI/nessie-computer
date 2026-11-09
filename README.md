@@ -51,3 +51,5 @@ Bundled third-party components retain their own licences and notices.
 
 Computer telemetry, Claude/Codex account probes, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
+
+Error reporting uses the standard Sentry SDKs. See [configuration and coverage](docs/error-reporting.md).

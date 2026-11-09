@@ -26,9 +26,15 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
     CLANG_ENABLE_MODULES: YES
+packages:
+  Sentry:
+    url: https://github.com/getsentry/sentry-cocoa.git
+    exactVersion: "9.33.0"
 targets:
   NessieExecutorMenuBar:
     type: application
+    dependencies:
+      - package: Sentry
     platform: macOS
     # The core logic is compiled into the app and into the test bundle. It holds
     # no AppKit, so a test can decide a menu state or an argument vector without
