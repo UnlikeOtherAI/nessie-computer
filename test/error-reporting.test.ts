@@ -8,7 +8,8 @@ import test from 'node:test'
 const invoke = (args: string[], dsn: string): Promise<{ code: number | null; stdout: string; stderr: string }> =>
   new Promise((resolveResult, reject) => {
     const child = spawn(process.execPath, ['--import', 'tsx', resolve('src/index.ts'), ...args], {
-      env: { ...process.env, NESSIE_COMPUTER_SENTRY_DSN: dsn },
+      env: { ...process.env, NESSIE_COMPUTER_SENTRY_DSN: dsn,
+        SENTRY_RELEASE: 'nessie-computer@reporting-test', SENTRY_TRACES_SAMPLE_RATE: '1' },
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = '', stderr = ''
