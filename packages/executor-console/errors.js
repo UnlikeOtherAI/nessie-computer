@@ -19,6 +19,23 @@
     { code: 'EXECUTOR_API_TIMEOUT', messages: ['Executor API request timed out.'], remedy: 'restartExecutor', label: 'tryAgain' },
   ]
 
+  // The signed native helper refuses a launch with one machine line on standard
+  // error, `{"code":"EXECUTOR_…","status":"rejected"}`, and both hosts hand on
+  // a failed command's last line. That line is for support, never the sentence
+  // a person reads: `sentence` turns it into words and keeps the code apart.
+  const NATIVE_REFUSAL = /^\{"code":"(EXECUTOR_[A-Z0-9_]+)","status":"rejected"\}$/
+  // The selected protected runtime is not the one this app carries yet.
+  const WAITING_FOR_UPDATE = new Set(['EXECUTOR_MANAGED_RELEASE_REJECTED'])
+
+  /** `{ text, code }` for a failure shown where the person is looking. */
+  const sentence = (failure) => {
+    const text = String(failure?.message ?? failure ?? '').trim()
+    const native = NATIVE_REFUSAL.exec(text)
+    if (!native) return { text, code: null }
+    const code = native[1]
+    return { text: t(WAITING_FOR_UPDATE.has(code) ? 'errors.nativeUpdate' : 'errors.nativeRefused'), code }
+  }
+
   /**
    * `{ code, explanation, remedy: { id, label } | null, detail }` for one
    * failure. `detail` is what the CLI or Nessie actually said, for Details.
@@ -26,6 +43,10 @@
   const translate = (failure) => {
     const message = typeof failure === 'string' ? failure : String(failure?.message ?? '')
     const detail = message.trim()
+    const native = sentence(detail)
+    // A refused native launch: its words, its code under Details, and no remedy
+    // button, because the computer retries it by itself.
+    if (native.code) return { code: native.code, explanation: native.text, remedy: null, detail: '' }
     const code = typeof failure === 'object' && failure?.code ? String(failure.code) : null
     const known = KNOWN.find((entry) => entry.code === code)
       ?? KNOWN.find((entry) => entry.messages.some((literal) => detail.includes(literal)))
@@ -79,5 +100,5 @@
     return translated
   }
 
-  nc.failure = { translate, render }
+  nc.failure = { translate, render, sentence }
 })()

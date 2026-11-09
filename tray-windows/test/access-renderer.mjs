@@ -170,9 +170,19 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await selectTeam(page, 'team-0')
     await page.getByText('Couldn’t load access for Platform · UnlikeOtherAI. The local request timed out.').waitFor()
     await shot('load-failed')
-    await page.evaluate(() => { window.failDescribe = null })
+    // The signed helper's refusal line is for support: the tab says it in words (9 November, Mac and Minis).
+    await page.evaluate(() => { window.failDescribe = '{"code":"EXECUTOR_MANAGED_RELEASE_REJECTED","status":"rejected"}' })
+    await selectTeam(page, 'team-1')
+    await selectTeam(page, 'team-0')
+    await page.getByText('Couldn’t load access for Platform · UnlikeOtherAI. Nessie Computer can’t start this until its update finishes.').waitFor()
+    await page.evaluate(() => { window.failDescribe = '{"code":"EXECUTOR_MANAGED_LAUNCH_REJECTED","status":"rejected"}' })
     await page.locator('#access-reload').click()
-    await page.locator('#access-body').waitFor()
+    await page.getByText('Couldn’t load access for Platform · UnlikeOtherAI. Nessie Computer couldn’t start this. Try again in a moment.').waitFor()
+    assert.doesNotMatch(await page.locator('#tab-access').textContent(), /EXECUTOR_|"status"/)
+    await shot('native-refusal')
+    // Nothing waits for Try again: once the team reads again, the tab loads by itself.
+    await page.evaluate(() => { window.failDescribe = null })
+    await page.locator('#access-body').waitFor({ timeout: 15000 })
     // A program request answered in Needs you is read back when the team is chosen again (once per selection).
     await page.evaluate(() => { window.teams['team-0'].policy = { mode: 'allowlist', allowlist: ['npm *'], denylist: [], trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true } } })
     await selectTeam(page, 'team-1')

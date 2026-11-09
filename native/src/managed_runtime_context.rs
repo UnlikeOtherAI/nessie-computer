@@ -2,7 +2,6 @@
 use crate::{managed_machine_barrier::MachineBarrier, protocol::NativeError};
 use std::ffi::CStr;
 use std::fs::{self, File, OpenOptions};
-use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 pub use crate::kernel_context::{birth, boot_id, valid_boot_id};
@@ -115,9 +114,13 @@ pub struct Barrier {
     pub root: PathBuf,
 }
 
+/// How long a creation waits for another one to leave the barrier. Inventory
+/// holds it longest, probing each live runtime for at most 250 milliseconds.
+const CREATION_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl Barrier {
     pub fn acquire() -> Result<Self, NativeError> {
-        let machine = MachineBarrier::acquire()?;
+        let machine = MachineBarrier::wait(CREATION_WAIT)?;
         if unsafe { libc::getuid() } == 0 {
             crate::managed_machine_barrier::refuse_protected_users()?;
         }
@@ -139,9 +142,7 @@ impl Barrier {
         {
             return Err(refused());
         }
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            return Err(NativeError::new("EXECUTOR_MANAGED_ADMISSION_BUSY"));
-        }
+        crate::managed_machine_barrier::lock_within(&file, CREATION_WAIT, "EXECUTOR_MANAGED_ADMISSION_BUSY")?;
         Ok(Self {
             _file: file,
             _machine: machine,

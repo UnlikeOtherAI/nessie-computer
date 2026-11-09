@@ -72,17 +72,51 @@ fn host_members_cleared(state: &State, host: &Host, observer: Option<u32>) -> Re
             allowed.push(current.controller.pid);
         }
     }
-    let root = Process::open(host.runtime_child.pid)?;
+    // A runtime child this service can no longer open has ended (see `absent`).
+    let Ok(root) = Process::open(host.runtime_child.pid) else {
+        return Ok(false);
+    };
     if root.generation != host.runtime_child || !root.alive() {
         return Ok(false);
     }
     // Other active native lease holders contain no provider material. Their
     // arbitrary children remain extra kernel job members and prevent release.
     let members = job_members(&host.job_name)?;
-    Ok(
-        members.contains(&host.runtime_child.pid)
-            && members.iter().all(|pid| allowed.contains(pid)),
-    )
+    if !members.contains(&host.runtime_child.pid) {
+        return Ok(false);
+    }
+    for pid in members {
+        if !allowed.contains(&pid) && !registered_before(state, host, pid) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+/// A job member whose creation this service proved before the lease began:
+/// the supervisor or child of a registered runtime, still that kernel
+/// generation, started before the lease's controller. Nothing the lease ran
+/// can be that process. Without this, a daemon's long-lived coding-session
+/// bridge kept every lease on that daemon from ever being released.
+fn registered_before(state: &State, host: &Host, pid: u32) -> bool {
+    let Ok(lease_began) = host.controller.started_at.parse::<u64>() else {
+        return false;
+    };
+    let Ok(observed) = Process::open(pid) else {
+        return false;
+    };
+    observed.alive()
+        && state
+            .runtimes
+            .values()
+            .flat_map(|record| [&record.supervisor, &record.child])
+            .any(|generation| {
+                *generation == observed.generation
+                    && generation.boot_id == host.controller.boot_id
+                    && generation
+                        .started_at
+                        .parse::<u64>()
+                        .is_ok_and(|started| started < lease_began)
+            })
 }
 fn owner_registered(root: &Path, sid: &str) -> bool {
     crate::paths::paired_executors(root).into_iter().any(|id| {

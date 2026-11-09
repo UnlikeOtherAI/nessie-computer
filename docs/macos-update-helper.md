@@ -136,6 +136,56 @@ on every Mac with `EXECUTOR_MACOS_PROCESS_UNVERIFIED` and no managed runtime
 could start. A user process whose image was replaced on disk stays in the tree
 with no executable path unless its name is a product name, which still refuses.
 
+A process that ends or execs while a snapshot reads it is read again rather
+than refused. XNU releases an ending process's image before it marks it a
+zombie, answering ESRCH for its path in between, and a process in exec has no
+path for a moment (ENOENT). The snapshot rereads the record, 1 ms apart and up
+to 100 times, until the process is a zombie, gone or on its new image, and takes
+the generation from the record it read rather than a second kernel call. A name
+of 16 characters fills the kernel's command field with no terminator; that
+field is the name (`nessie-executor-` for `nessie-executor-native`), where it
+used to refuse. On 9 November dictator's ChatGPT app started and ended `node`
+helpers many times a second; the team's daemon ended seconds after every start
+with `EXECUTOR_MACOS_PROCESS_UNVERIFIED`, and one-shot commands with
+`EXECUTOR_KERNEL_CONTEXT_UNAVAILABLE`.
+
+A runtime's supervisor no longer ends on a snapshot it cannot verify. It goes
+on supervising and takes the next snapshot 25 ms later. Ending left the runtime
+unsupervised and its journal held, and the app then started a second daemon
+beside the first, which Nessie refused as a concurrent command poll. A
+descendant that left the child's group while a snapshot failed was never
+followed, and no later snapshot recovers that ancestry. So a supervisor that
+missed any snapshot keeps its journal when the tree it can see has ended, and
+still returns the command's exit code. `ended_creation` clears such a journal
+once its group is gone and its host admissions have ended. Once the runtime has
+exited, a minute of failing to verify its tree or to take
+the barrier ends supervision with the journal kept. A tree that is still
+running is waited for as long as it runs.
+
+Creations wait up to 10 seconds for the machine barrier and the per-account
+admission lock, polling every 10 ms, instead of refusing with
+`EXECUTOR_MACHINE_CUSTODY_BUSY` or `EXECUTOR_MANAGED_ADMISSION_BUSY` the moment
+another creation holds one. A supervisor that met another creation while
+dropping its journal used to leave the journal behind. Update service callers
+still take the barrier at once and retry on their own schedule, so status
+answers keep their deadlines.
+
+A crashed runtime's journal no longer waits for a restart. Its supervisor
+drops the journal itself after following the whole tree, so a journal left with
+its supervisor and child ended belongs to one that ended first. Every build
+before this one did that on a refused snapshot, a daemon's included. Such a
+journal ends like a one-shot command's (`ended_creation`): supervisor and child
+ended, nothing of any account left in the child's group, and no unresolved
+host admission of its own. A `host_execution` registration resolves once the
+process it bound, the descendants recorded with it and a group it leads are
+all gone (`execution_ended`, matching `ps`'s whole-second start time). An
+unbound registration may have started a process nobody recorded, so it stays.
+Clearance still waits for every product process, including any a crashed
+runtime left outside its group. On dictator, after 1.0.25 was installed, the
+1.0.24 runtime kept starting daemons that died. Each died with a Kelpie MCP
+lease the daemon never released, which kept ten journals, and the swap to the
+corrected runtime could not clear.
+
 ## Recovering a stuck helper
 
 On 8 November the Mac's helper had run since 6 November with maintenance state
@@ -213,6 +263,66 @@ Recovery now works from both ends without weakening a fence:
   can't start — <reason>". **Try again** registers again without limit and,
   if macOS still refuses, opens Login Items. `ComputerUpdateRegistration`
   and `ComputerUpdateRecovery.attention` decide this.
+- **The restart waits for macOS to let go.** 1.0.19 still had no helper on
+  9 November. Its launch registered (accepted), its restart unregistered and
+  called `register()` 12 ms later, and smd logged "Job is not allowed to
+  bootstrap": Login Items still listed the removed job as enabled, so macOS
+  returned "Operation not permitted". The same refusal is in the log at 22:11,
+  01:38 and 02:12; every register made once the record had settled was
+  accepted. The restart now polls the status every 250 ms, for up to ten
+  seconds, until macOS stops reporting the helper enabled, and only then
+  registers.
+- **Nothing waits for a click.** The two-attempt limit is gone. After each
+  refused `register()` the app registers again by itself once
+  `ComputerUpdateRegistration.retryDelay` has passed (15 seconds, doubling, at
+  most 15 minutes), for as long as macOS refuses; an accepted registration
+  resets it. The automatic helper restart is no longer once per app version:
+  while the helper stays unreachable or reports an installed runtime older than
+  the app, the app restarts it again after `ComputerUpdateRecovery.restartDelay`
+  (15 minutes, doubling, at most four hours), recorded under
+  `computer-update-helper-restarts`. **Try again** and **Restart updates** only
+  hurry these.
+- **Old entrypoints still hold the swap.** The app's runtime is installed only
+  once clearance passes. Nessie Desktop (`nessie-desktop`; the allow list named
+  a `Nessie` executable that never existed) may stay only when its sealed floor
+  keys pass `require_independent_app`; otherwise clearance waits for it to quit
+  instead of failing, so recovery keeps trying. A desktop build without the
+  `NessieExecutor*` keys (0.1.1 has none), or a runtime someone started by hand
+  outside custody, keeps the swap waiting; the helper tries again every three
+  seconds while admissions are held, and the app's restarts give it further
+  chances when they are not.
+- **Creation journals end with their command.** Clearance needs no creation
+  journal from this boot in `~/.nessie/personal-inference/managed-runtimes`.
+  The macOS creator kept a command's journal, and exited refused, whenever the
+  guard held any `host_execution` registration at all. On dictator a team's
+  local apps had left 405 of them, most from the previous boot, so every
+  five-second `describe` kept its journal (371 in half an hour), exited 1 after
+  printing its answer, and the app never started the team or passed clearance
+  again. A command now keeps its journal only for a host registration its own
+  child made in this boot (`unresolved_host`, `native/src/managed_macos_runtime.rs`),
+  and a registration made in a new boot drops the host and runtime
+  registrations an earlier boot left (`PersonalInferenceGuard.register`).
+  Each launch first drops this boot's journals a one-shot command would have
+  dropped itself (`reconcile`): no long-lived activity, supervisor and child
+  ended, nothing left in the child's process group, no host registration of
+  its own. Journals the old rule kept therefore clear on the next launch, not
+  only at the next restart; anything still running stays.
+  Update clearance (`ready_with`) does not wait for such journals either
+  (`ended_creation`, then named `ended_one_shot`): the installed older creator keeps adding them until the
+  swap installs the corrected one, so on dictator 1.0.22's helper could not
+  clear for that swap. Clearance only skips them; it deletes nothing. The
+  process-group check uses every account's processes (`live_groups`, from the
+  short process record), not the caller's own, so a Root helper still sees a
+  user's leftover descendant; a process it cannot read counts as running.
+  A child pid another process now holds proves the child's group ended, since
+  XNU never hands out a pid that is still a group or session id; on dictator
+  three of 1888 journals met a live group led by such a new process and held
+  the swap until this was taken into account.
+- **A refused team stays in the window.** The console's `executor_view` lists a
+  paired team whose `describe` is refused under `unreadable-<folder>`, so the
+  window never opens Add another team over a team that exists. It reads as
+  working while its daemon runs and says why when stopped; it takes its
+  executor id back on the next reading that succeeds.
 - **A running team is never "No team connected".** A team whose `describe` is
   refused (here, by the stale installed runtime the missing helper could not
   replace) still counts when its daemon lease is held by a live process, and

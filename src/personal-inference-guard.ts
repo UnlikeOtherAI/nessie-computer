@@ -202,6 +202,14 @@ export class PersonalInferenceGuard {
       if (kind === 'host_execution' && state.protection) {
         protectionError('personal_inference_host_isolation_required')
       }
+      // A restart ended every process an earlier boot registered. Host and
+      // runtime registrations from another boot go; credential runtimes keep
+      // their own reconciliation. On dictator 405 had piled up toward the
+      // 4096 this guard loads, and the native creator fenced on them.
+      if (identity.bootId) {
+        state.registrations = state.registrations.filter((item) => item.kind === 'credential_runtime'
+          || item.bootId === undefined || item.bootId === identity.bootId)
+      }
       const parsed = PersonalInferenceAuthoritySchema.safeParse(authority)
       state.registrations.push({ id, ...identity, label: label.slice(0, 200), kind,
         guardVersion: PERSONAL_INFERENCE_GUARD_VERSION,

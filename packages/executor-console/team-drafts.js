@@ -145,7 +145,7 @@ window.teamDrafts = (() => {
       announce(savedListeners, executorId, [...sections])
     } catch (error) {
       await reportFailure({ executorId, draft, revision, generation, sent, sections, target, inForce,
-        reason: error?.message ?? String(error) })
+        reason: nc.failure.sentence(error).text })
     }
   }
 

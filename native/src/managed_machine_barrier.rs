@@ -6,6 +6,7 @@ use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 #[cfg(target_os = "linux")]
 const ROOT: &str = "/var/lib/nessie-executor";
@@ -125,12 +126,32 @@ impl MachineBarrier {
     pub fn acquire() -> Result<Self, NativeError> {
         Self::lock(open()?)
     }
-    fn lock(file: File) -> Result<Self, NativeError> {
-        if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
-            return Err(NativeError::new("EXECUTOR_MACHINE_CUSTODY_BUSY"));
-        }
+    /// Waits up to `limit` while another holder finishes. Each native
+    /// creation holds the barrier for milliseconds, so taking it at once
+    /// refused any command that met another one's creation, and a runtime that
+    /// met one while dropping its journal left that journal behind.
+    pub fn wait(limit: Duration) -> Result<Self, NativeError> {
+        let file = open()?;
+        lock_within(&file, limit, "EXECUTOR_MACHINE_CUSTODY_BUSY")?;
         Ok(Self { _file: file })
     }
+    fn lock(file: File) -> Result<Self, NativeError> {
+        lock_within(&file, Duration::ZERO, "EXECUTOR_MACHINE_CUSTODY_BUSY")?;
+        Ok(Self { _file: file })
+    }
+}
+
+/// Takes an exclusive lock on `file`, retrying while another description holds
+/// it until `limit` has passed; any other failure refuses at once.
+pub(crate) fn lock_within(file: &File, limit: Duration, busy: &'static str) -> Result<(), NativeError> {
+    let deadline = Instant::now() + limit;
+    while unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+        if std::io::Error::last_os_error().raw_os_error() != Some(libc::EWOULDBLOCK) || Instant::now() >= deadline {
+            return Err(NativeError::new(busy));
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
 }
 
 fn check_home(home: &Path, uid: u32) -> Result<(), NativeError> {
@@ -245,6 +266,27 @@ mod tests {
     use super::*;
     use std::ffi::CString;
     use std::os::unix::ffi::OsStrExt;
+
+    /// A creation waits while another one holds the lock and takes it once
+    /// that one is done; a holder that outlasts the limit still refuses it.
+    #[test]
+    fn a_waiting_creation_takes_the_lock_once_its_holder_is_done() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("barrier.lock");
+        fs::write(&path, b"").unwrap();
+        let holder = File::open(&path).unwrap();
+        lock_within(&holder, Duration::ZERO, "BUSY").unwrap();
+        let waiting = File::open(&path).unwrap();
+        assert_eq!(lock_within(&waiting, Duration::from_millis(50), "BUSY").unwrap_err().code, "BUSY");
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(150));
+            drop(holder);
+        });
+        let started = Instant::now();
+        lock_within(&waiting, Duration::from_secs(5), "BUSY").unwrap();
+        assert!(started.elapsed() >= Duration::from_millis(100));
+        release.join().unwrap();
+    }
 
     #[test]
     fn native_machine_lock_serializes_processes_and_kernel_exit_recovers_same_inode() {

@@ -11,11 +11,16 @@ menu. It always says what is going on.
 | Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; the **Needs you** strip says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Amber (Mac) | **Needs you: allow Nessie Computer in System Settings to finish updating** | macOS is waiting for you to allow the update helper. Choose the line; Login Items opens. Switch Nessie Computer on. |
-| Amber (Mac) | **Needs you: updates can't start — …** | macOS refused to register the update helper, for the reason shown. Open Nessie Computer and choose **Try again**. |
-| Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
+| Amber (Mac) | **Needs you: updates can't start — …** | macOS refused to register the update helper, for the reason shown. Nessie Computer asks again by itself; **Try again** in the window asks at once. |
+| Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Nessie Computer restarts it by itself; **Restart updates** in the window does it at once. If an older Nessie desktop app is open, quit it. |
 | Red (Windows) | **Can't reach the Nessie Computer service** | The background service isn't answering. Restart Windows; if the icon stays red, reinstall Nessie Computer. |
 
-Every problem in the **Needs you** strip comes with one button that fixes it. **Details**
+A tab that couldn't read its team (Access, Documents, or AI's Claude Code,
+Codex and model-server checks) tries again by itself within a minute; **Try
+again** only hurries it.
+
+Every problem in the **Needs you** strip comes with one button that fixes it, unless
+Nessie Computer is already fixing it by itself. **Details**
 underneath shows the technical message, which helps if you contact support.
 
 ## Common problems

@@ -252,7 +252,7 @@
       if (failed?.executorId === executorId) failed = null
     } catch (error) {
       if (asked !== request) return
-      failed = { executorId, message: String(error?.message ?? error) }
+      failed = { executorId, message: nc.failure.sentence(error).text }
     }
     render()
   }

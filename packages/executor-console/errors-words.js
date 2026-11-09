@@ -11,6 +11,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'That pairing code has expired. Get a new code and add the computer again in Nessie.',
     EXECUTOR_API_TIMEOUT: 'Nessie did not answer in time. Check this computer’s network, then try again.',
     unknown: 'Nessie refused that. What it said is under Details.', empty: 'Nessie Computer could not finish that and gave no reason.',
+    nativeUpdate: 'Nessie Computer can’t start this until its update finishes.', nativeRefused: 'Nessie Computer couldn’t start this. Try again in a moment.',
     sendAgain: 'Send these settings again', reconnect: 'Connect again', openNessie: 'Open Nessie', tryAgain: 'Try again',
   },
   'en-US': {
@@ -23,6 +24,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'That pairing code has expired. Get a new code and add the computer again in Nessie.',
     EXECUTOR_API_TIMEOUT: 'Nessie did not answer in time. Check this computer’s network, then try again.',
     unknown: 'Nessie refused that. What it said is under Details.', empty: 'Nessie Computer could not finish that and gave no reason.',
+    nativeUpdate: 'Nessie Computer can’t start this until its update finishes.', nativeRefused: 'Nessie Computer couldn’t start this. Try again in a moment.',
     sendAgain: 'Send these settings again', reconnect: 'Connect again', openNessie: 'Open Nessie', tryAgain: 'Try again',
   },
   cs: {
@@ -35,6 +37,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'Tento párovací kód vypršel. Získejte nový kód a přidejte počítač v Nessie znovu.',
     EXECUTOR_API_TIMEOUT: 'Nessie neodpověděla včas. Zkontrolujte síť tohoto počítače a zkuste to znovu.',
     unknown: 'Nessie to odmítla. Co přesně řekla, najdete v Podrobnostech.', empty: 'Nessie Computer to nedokázal dokončit a neuvedl důvod.',
+    nativeUpdate: 'Nessie Computer to nemůže spustit, dokud nedokončí aktualizaci.', nativeRefused: 'Nessie Computer to nedokázal spustit. Zkuste to za chvíli znovu.',
     sendAgain: 'Odeslat nastavení znovu', reconnect: 'Připojit znovu', openNessie: 'Otevřít Nessie', tryAgain: 'Zkusit znovu',
   },
   de: {
@@ -47,6 +50,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'Dieser Kopplungscode ist abgelaufen. Holen Sie einen neuen Code und fügen Sie den Computer in Nessie erneut hinzu.',
     EXECUTOR_API_TIMEOUT: 'Nessie hat nicht rechtzeitig geantwortet. Prüfen Sie das Netzwerk dieses Computers und versuchen Sie es erneut.',
     unknown: 'Nessie hat das abgelehnt. Der Wortlaut steht unter Details.', empty: 'Nessie Computer konnte das nicht abschließen und nannte keinen Grund.',
+    nativeUpdate: 'Nessie Computer kann das erst starten, wenn sein Update abgeschlossen ist.', nativeRefused: 'Nessie Computer konnte das nicht starten. Versuchen Sie es gleich noch einmal.',
     sendAgain: 'Einstellungen erneut senden', reconnect: 'Erneut verbinden', openNessie: 'Nessie öffnen', tryAgain: 'Erneut versuchen',
   },
   es: {
@@ -59,6 +63,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'Ese código de emparejamiento ha caducado. Obtén un código nuevo y añade el ordenador otra vez en Nessie.',
     EXECUTOR_API_TIMEOUT: 'Nessie no respondió a tiempo. Revisa la red de este ordenador e inténtalo de nuevo.',
     unknown: 'Nessie lo rechazó. Lo que dijo está en Detalles.', empty: 'Nessie Computer no pudo terminar y no dio ningún motivo.',
+    nativeUpdate: 'Nessie Computer no puede iniciar esto hasta que termine su actualización.', nativeRefused: 'Nessie Computer no pudo iniciar esto. Inténtalo de nuevo en un momento.',
     sendAgain: 'Enviar estos ajustes de nuevo', reconnect: 'Conectar de nuevo', openNessie: 'Abrir Nessie', tryAgain: 'Reintentar',
   },
   fr: {
@@ -71,6 +76,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'Ce code d’appairage a expiré. Obtenez un nouveau code et ajoutez l’ordinateur à nouveau dans Nessie.',
     EXECUTOR_API_TIMEOUT: 'Nessie n’a pas répondu à temps. Vérifiez le réseau de cet ordinateur, puis réessayez.',
     unknown: 'Nessie a refusé. Sa réponse se trouve sous Détails.', empty: 'Nessie Computer n’a pas pu terminer et n’a donné aucune raison.',
+    nativeUpdate: 'Nessie Computer ne peut pas lancer ceci avant la fin de sa mise à jour.', nativeRefused: 'Nessie Computer n’a pas pu lancer ceci. Réessayez dans un instant.',
     sendAgain: 'Renvoyer ces réglages', reconnect: 'Se reconnecter', openNessie: 'Ouvrir Nessie', tryAgain: 'Réessayer',
   },
   it: {
@@ -83,6 +89,7 @@ window.nc.words.register('errors', {
     ENROLLMENT_EXPIRED: 'Questo codice di abbinamento è scaduto. Ottieni un nuovo codice e aggiungi di nuovo il computer in Nessie.',
     EXECUTOR_API_TIMEOUT: 'Nessie non ha risposto in tempo. Controlla la rete di questo computer e riprova.',
     unknown: 'Nessie ha rifiutato. Ciò che ha detto è sotto Dettagli.', empty: 'Nessie Computer non è riuscito a completare l’operazione e non ha dato un motivo.',
+    nativeUpdate: 'Nessie Computer non può avviarlo finché il suo aggiornamento non è terminato.', nativeRefused: 'Nessie Computer non è riuscito ad avviarlo. Riprova tra poco.',
     sendAgain: 'Invia di nuovo queste impostazioni', reconnect: 'Riconnetti', openNessie: 'Apri Nessie', tryAgain: 'Riprova',
   },
 })
