@@ -33,6 +33,13 @@ The copied app is read by an unprivileged process inside a private directory,
 then frozen and verified. A verified snapshot is reused for retries rather than
 copying the same app on each restart.
 
+A newer app installed over an older one restarts the helper by itself while
+the installed runtime is older than its own. The helper installs the app's
+runtime only while no team process runs, and tries for about a minute after it
+starts, so the app stops its teams for that restart and starts them again once
+the helper reports the app's version, or after two minutes. A restart for a
+helper that does not answer leaves the teams running.
+
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not

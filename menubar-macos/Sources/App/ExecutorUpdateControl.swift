@@ -143,7 +143,7 @@ final class ExecutorUpdateMonitor {
         task = Task { [weak self, weak console, weak connections] in
             while !Task.isCancelled {
                 let status = try? await ExecutorUpdateControl.run(["operation": "status"])
-                await self?.restartHelperIfNeeded(status)
+                await self?.restartHelperIfNeeded(status, connections: connections)
                 if let status, let self, let console {
                     let version = status["availableVersion"] as? String
                     if status["phase"] as? String == "waiting", status["draining"] as? Bool == true {
@@ -175,8 +175,10 @@ final class ExecutorUpdateMonitor {
     }
 
     /// An app update never reaches a helper that keeps running; restart it,
-    /// and again later while it stays stuck or older than this app.
-    private func restartHelperIfNeeded(_ status: [String: Any]?) async {
+    /// and again later while it stays stuck or older than this app. For this
+    /// app's newer runtime the teams stop meanwhile, or the helper never finds
+    /// the machine clear and the old runtime keeps serving them.
+    private func restartHelperIfNeeded(_ status: [String: Any]?, connections: ExecutorConnections?) async {
         // The local stuck and setup states carry no installed version.
         let answer = (status?["installedVersion"] as? String).flatMap { version in
             (status?["phase"] as? String).map { (installedVersion: version, phase: $0) }
@@ -185,7 +187,14 @@ final class ExecutorUpdateMonitor {
             enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
             answer: answer, restarts: ComputerUpdateService.restartRecord, now: Date()
         ) else { return }
-        await ComputerUpdateService.restartAutomatically(for: version)
+        if let connections,
+           ComputerUpdateRecovery.adoptsApplicationRuntime(answer: answer, applicationVersion: version) {
+            await connections.holdTeams(until: version) {
+                await ComputerUpdateService.restartAutomatically(for: version)
+            }
+        } else {
+            await ComputerUpdateService.restartAutomatically(for: version)
+        }
         ComputerUpdateHealth.shared.restarted()
     }
 }

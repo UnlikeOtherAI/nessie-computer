@@ -233,6 +233,23 @@ final class ExecutorConnections: ObservableObject {
 
     func refresh() { controllers.forEach { $0.refresh() } }
 
+    /// The helper installs this app's newer runtime only while no team process
+    /// runs, and tries for about a minute after it starts. The teams stop, the
+    /// helper restarts, and they start again on whatever runtime is installed
+    /// once it reports this app's version or two minutes pass.
+    func holdTeams(until version: String, restartingHelper restart: () async -> Void) async {
+        ComputerUpdateService.holdingTeams = true
+        for controller in controllers { _ = await controller.stopDaemonWithoutBlocking() }
+        await restart()
+        for _ in 0..<40 {
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            let status = try? await ExecutorUpdateControl.run(["operation": "status"])
+            if status?["installedVersion"] as? String == version { break }
+        }
+        ComputerUpdateService.holdingTeams = false
+        controllers.forEach { $0.refresh(startWhenPaired: true) }
+    }
+
     func shutdown() {
         discoveryTimer?.invalidate()
         discoveryTimer = nil

@@ -303,10 +303,11 @@ final class ExecutorController: ObservableObject {
             failure = TeamFailure(code: nil, message: PackagedRuntime.missingRefusal)
             return
         }
-        guard isDevelopmentBuild || ComputerUpdateService.factoryReady,
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady, !ComputerUpdateService.holdingTeams,
               !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) else {
-            // The update factory is not ready yet, or a prior daemon is still
-            // tearing down (an update restart looks like this): try at the next reading.
+            // The update factory is not ready yet, the helper is installing this
+            // app's runtime, or a prior daemon is still tearing down (an update
+            // restart looks like this): try at the next reading.
             startAfterRefresh = true
             return
         }

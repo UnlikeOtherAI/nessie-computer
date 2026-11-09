@@ -21,6 +21,9 @@ enum ComputerUpdateService {
 
     static var factoryReady: Bool { FileManager.default.fileExists(atPath: factory.path) }
 
+    /// Teams wait while the helper installs this app's newer runtime.
+    @MainActor static var holdingTeams = false
+
     static var enabled: Bool { supported && SMAppService.daemon(plistName: plist).status == .enabled }
 
     /// The helper's registration, `nil` where this app manages none.
