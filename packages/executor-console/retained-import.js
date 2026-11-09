@@ -2,7 +2,7 @@
 // Source-owner approval and the browser's fresh UOA key enrollment are separate.
 ;(async () => {
   if (window.executorNative.platform !== 'windows') return
-  const words = await fetch('retained-import-words.json').then(response => response.json())
+  const words = await window.fetch('retained-import-words.json').then(response => response.json())
   const language = (navigator.language || 'en').split('-')[0]
   const w = words[language] || words.en
   const node = id => document.getElementById(`retained-${id}`)
