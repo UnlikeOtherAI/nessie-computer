@@ -160,8 +160,10 @@ node --test packaging\windows\msi-plan.test.mjs
 The tray's tests cover the menu model, labels, words in every language, pause
 grouping, toast text, link parsing and the pipe answers. `installer-smoke.ps1`
 (CI's Windows Native job) installs the MSI on a clean runner and checks the
-service display name, the Start menu shortcut and the link registration, and
-that uninstall removes them. Never launch a candidate tray on a computer with
+service display name, the Start menu shortcut and the link registration, that
+a started tray keeps running with no visible window but its own Nessie Computer
+one (the framework's never-painted helper windows are matched exactly and
+ignored), and that uninstall removes them. Never launch a candidate tray on a computer with
 an installed Nessie Computer: it starts that person's paired teams.
 
 ## Claude Code and Codex (`local_ai.rs`)
