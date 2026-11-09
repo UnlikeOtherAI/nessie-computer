@@ -1,5 +1,6 @@
 //! Fixed signed release creation. Public journals outlive uncertain tree closure.
 use crate::{managed_release, managed_runtime_context, macos_processes, protocol::NativeError};
+use crate::managed_macos_closure::{reconcile, unresolved_host};
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ffi::CString, fs::{self, File, OpenOptions}, io::{Read, Write},
     os::{fd::AsRawFd, unix::{ffi::OsStrExt, fs::{OpenOptionsExt, PermissionsExt}, net::UnixStream}},
@@ -92,85 +93,6 @@ fn gated_child(release: &managed_release::Release, home: &Path, arguments: &[Str
     Ok((pid, gate[1]))
 }
 
-/// Whether this runtime admitted host execution that is still unresolved: a
-/// `host_execution` registration its own child made in this boot. Another
-/// runtime's registrations are not this journal's to keep, and a restart ended
-/// any an earlier boot made. Counting every registration made each one-shot
-/// command (`describe`, every five seconds) keep its journal and exit refused
-/// once any team had run a local app: 371 journals in half an hour on
-/// dictator, a team that never started and a runtime swap that never cleared.
-fn unresolved_host(root: &Path, record: &Record) -> Result<bool, NativeError> {
-    let file = match OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(root.join("guard.json")) {
-        Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
-        Err(_) => return Err(refused()),
-    };
-    let state: serde_json::Value = serde_json::from_reader(file).map_err(|_| refused())?;
-    Ok(state["registrations"].as_array().ok_or_else(refused)?.iter().any(|item| own_host(item, record)))
-}
-
-/// Drops this boot's journals that a one-shot command would have dropped
-/// itself under `unresolved_host`: no long-lived activity, its supervisor and
-/// child both ended, nothing left in the child's process group, and no host
-/// registration of its own. Builds before this kept them whenever any team
-/// held a host registration, and clearance waits for none to be left, so
-/// without this a Mac recovered only by restarting. Daemons and anything still
-/// running keep theirs.
-fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError> {
-    let root = directory.parent().ok_or_else(refused)?;
-    let entries = match fs::read_dir(directory) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
-        Err(_) => return Err(refused()),
-    };
-    let groups = macos_processes::live_groups()?;
-    for entry in entries {
-        let path = entry.map_err(|_| refused())?.path();
-        if path.extension().and_then(|extension| extension.to_str()) != Some("json") { continue; }
-        let Ok(file) = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&path) else { continue };
-        let Ok(record) = serde_json::from_reader::<_, Record>(file) else { continue };
-        if record.boot_id != boot || !ended_one_shot(&record, root, &groups)? { continue; }
-        fs::remove_file(&path).map_err(|_| refused())?;
-        let socket = path.with_extension("sock");
-        if fs::symlink_metadata(&socket).is_ok() { fs::remove_file(&socket).map_err(|_| refused())?; }
-    }
-    File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())
-}
-
-/// A one-shot command's journal its command would have dropped itself under
-/// `unresolved_host`: no long-lived activity, supervisor and child ended,
-/// nothing of any account left in the child's process group (`live_groups`,
-/// taken once by the caller), and no host registration of its own under
-/// `root`. A process this caller cannot read counts as still running. Update
-/// clearance does not wait for these either.
-pub(crate) fn ended_one_shot(
-    record: &Record, root: &Path, live_groups: &std::collections::HashSet<i32>,
-) -> Result<bool, NativeError> {
-    let gone = |pid: i32, started: &str| match macos_processes::information(pid) {
-        Ok(None) => true,
-        Ok(Some(process)) => process.zombie || process.started_at != started,
-        Err(_) => false,
-    };
-    // XNU, like every BSD, never hands out a pid that is still a process group
-    // or session id. A child pid another process now holds therefore means the
-    // child's group ended, and a live group with that id is the new process's.
-    // On dictator three of 1888 journals met such a group and held the swap.
-    let reused = matches!(macos_processes::information(record.child_pid),
-        Ok(Some(process)) if process.started_at != record.child_started_at);
-    Ok(record.activity.is_none()
-        && gone(record.supervisor_pid, &record.supervisor_started_at)
-        && gone(record.child_pid, &record.child_started_at)
-        && (reused || !live_groups.contains(&record.child_pid))
-        && !unresolved_host(root, record)?)
-}
-
-fn own_host(item: &serde_json::Value, record: &Record) -> bool {
-    item["kind"] == "host_execution"
-        && item["bootId"].as_str() == Some(record.boot_id.as_str())
-        && item["pid"].as_i64() == Some(i64::from(record.child_pid))
-        && item["startedAt"].as_str() == Some(record.child_started_at.as_str())
-}
-
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let release = managed_release::load()?;
     let _retained_release = (&release.node, &release.node_digest, &release.handles);
@@ -236,14 +158,18 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                 Ok(processes) if remains(processes, pid, &observed) => Ok(false),
                 Ok(_) => {
                     // Group absence alone is not escaped-host tree proof. Its
-                    // unresolved admission lease keeps this journal permanently.
-                    if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
-                    // A look it could not take lost the tree's ancestry for
-                    // that moment, so the journal stays: the one-shot rule
-                    // (`ended_one_shot`) clears it once the group is gone, and
-                    // a daemon's is kept until restart.
-                    if !settling.followed() { return Ok(exit); }
-                    drop_journal(&directory, &journal, &socket_name).map(|()| true)
+                    // unresolved admission lease keeps this journal until the
+                    // admitted process is proved ended (`ended_creation`).
+                    let root = directory.parent().ok_or_else(refused)?;
+                    match macos_processes::live_groups().and_then(|groups| unresolved_host(root, &record, &groups)) {
+                        Ok(true) => return Err(refused()),
+                        // A look it could not take lost the tree's ancestry
+                        // for that moment, so the journal stays for
+                        // `ended_creation`, which clears it once the group is gone.
+                        Ok(false) if !settling.followed() => return Ok(exit),
+                        Ok(false) => drop_journal(&directory, &journal, &socket_name).map(|()| true),
+                        Err(error) => Err(error),
+                    }
                 }
                 Err(error) => Err(NativeError::new(error.code)),
             };
@@ -317,92 +243,6 @@ mod tests {
         assert!(serde_json::from_value::<Record>(serde_json::json!({"pid":1,"trusted":true})).is_err());
     }
 
-    /// A one-shot `describe` must drop its journal while the team's daemon
-    /// holds host registrations of its own, and after a restart.
-    #[test]
-    fn only_this_childs_host_registrations_in_this_boot_keep_its_journal() {
-        let boot = "7035bda9-0000-4000-8000-000000000000";
-        let record = Record { protocol_version: 1, boot_id: boot.into(), guard_version: 2, supervisor_pid: 10,
-            supervisor_started_at: "1794222097171000".into(), child_pid: 11,
-            child_started_at: "1794222097171534".into(), release_digest: "a".repeat(64), activity: None };
-        let own = serde_json::json!({"kind":"host_execution","bootId":boot,"pid":11,"startedAt":"1794222097171534"});
-        assert!(own_host(&own, &record));
-        let mut others = Vec::new();
-        for (key, value) in [("pid", serde_json::json!(12)),
-            ("bootId", serde_json::json!("ff61df02-d264-4db7-9a2d-2fa908745780")),
-            ("startedAt", serde_json::json!("1794222097171535")), ("kind", serde_json::json!("runtime"))] {
-            let mut other = own.clone();
-            other[key] = value;
-            assert!(!own_host(&other, &record), "{key} differs");
-            others.push(other);
-        }
-        let root = tempfile::tempdir().unwrap();
-        assert!(!unresolved_host(root.path(), &record).unwrap(), "no guard, nothing to keep");
-        let guard = |registrations: &[serde_json::Value]| std::fs::write(root.path().join("guard.json"),
-            serde_json::json!({"registrations": registrations}).to_string()).unwrap();
-        guard(&others);
-        assert!(!unresolved_host(root.path(), &record).unwrap());
-        others.push(own);
-        guard(&others);
-        assert!(unresolved_host(root.path(), &record).unwrap());
-    }
-
-    /// The journals the old rule kept clear on the next launch; a live
-    /// command's, a daemon's and another boot's stay.
-    #[test]
-    fn reconcile_drops_only_ended_one_shot_journals_of_this_boot() {
-        let root = tempfile::tempdir().unwrap();
-        let directory = root.path().join("managed-runtimes");
-        std::fs::create_dir(&directory).unwrap();
-        let boot = managed_runtime_context::boot_id().unwrap();
-        let mut ended = std::process::Command::new("/usr/bin/true").spawn().unwrap();
-        let ended_pid = ended.id() as i32;
-        let ended_birth = managed_runtime_context::birth(ended_pid).unwrap();
-        ended.wait().unwrap();
-        let own = unsafe { libc::getpid() };
-        let own_birth = managed_runtime_context::birth(own).unwrap();
-        let journal = |name: &str, pid: i32, birth: &str, boot: &str, activity: Option<&str>| {
-            let record = Record { protocol_version: 1, boot_id: boot.into(), guard_version: 2, supervisor_pid: pid,
-                supervisor_started_at: birth.into(), child_pid: pid, child_started_at: birth.into(),
-                release_digest: "a".repeat(64), activity: activity.map(str::to_owned) };
-            std::fs::write(directory.join(format!("{name}.json")), serde_json::to_vec(&record).unwrap()).unwrap();
-            std::fs::write(directory.join(format!("{name}.sock")), b"").unwrap();
-        };
-        journal("ended", ended_pid, &ended_birth, &boot, None);
-        journal("live", own, &own_birth, &boot, None);
-        journal("daemon", ended_pid, &ended_birth, &boot, Some("serve"));
-        journal("earlier", ended_pid, &ended_birth, "ff61df02-d264-4db7-9a2d-2fa908745780", None);
-        reconcile(&directory, &boot).unwrap();
-        let mut left: Vec<_> = std::fs::read_dir(&directory).unwrap()
-            .map(|entry| entry.unwrap().file_name().into_string().unwrap()).collect();
-        left.sort();
-        assert_eq!(left, ["daemon.json", "daemon.sock", "earlier.json", "earlier.sock", "live.json", "live.sock"]);
-        reconcile(&root.path().join("missing"), &boot).unwrap();
-        assert!(macos_processes::live_groups().unwrap().contains(&unsafe { libc::getpgrp() }),
-            "the all-account snapshot sees this live group");
-    }
-
-    /// A child pid that a new process now holds, leading its own live group,
-    /// does not keep an ended command's journal; the same live leader recorded
-    /// as the child itself does.
-    #[test]
-    fn a_reused_child_pid_does_not_hold_an_ended_journal() {
-        use std::os::unix::process::CommandExt;
-        let root = tempfile::tempdir().unwrap();
-        let boot = managed_runtime_context::boot_id().unwrap();
-        let mut leader = std::process::Command::new("/bin/sleep").arg("30").process_group(0).spawn().unwrap();
-        let pid = leader.id() as i32;
-        let birth = managed_runtime_context::birth(pid).unwrap();
-        let groups = macos_processes::live_groups().unwrap();
-        assert!(groups.contains(&pid), "the new process leads its own live group");
-        let record = |started: &str| Record { protocol_version: 1, boot_id: boot.clone(), guard_version: 2,
-            supervisor_pid: pid, supervisor_started_at: "1".into(), child_pid: pid, child_started_at: started.into(),
-            release_digest: "a".repeat(64), activity: None };
-        assert!(ended_one_shot(&record("1"), root.path(), &groups).unwrap(), "an earlier holder of this pid");
-        assert!(!ended_one_shot(&record(&birth), root.path(), &groups).unwrap(), "the live child itself");
-        leader.kill().unwrap();
-        leader.wait().unwrap();
-    }
     /// A descendant that left the child's group is still the tree's, and the
     /// tree has ended once its last live member has.
     #[test]
