@@ -485,8 +485,10 @@ Nessie's setting, not the computer's.
 ## 13. Team names, layout and less text (rulings, 8 Nov — supersede earlier sections)
 
 **Team names never depend on a person.** A team ID → name is not a secret.
-- **UOA:** public, unauthenticated batch lookup by team ID, display fields
-  only (tranche U1; route recorded here when final).
+- **UOA:** `POST /public/teams/lookup` `{ teamIds: [...] }` (0–50 IDs, no auth,
+  1,200/min per IP) → `{ teams: [{ teamId, teamName, teamSlug, orgId, orgName,
+  orgSlug, avatarUrl }] }`; unknown or inactive teams omitted (UOA #146,
+  merged 2d836079).
 - **Nessie:** `POST /api/executor-daemon/teams`, entries each signed with that
   team's key → per executor `{ executorId, organizationName, teamName }`.
   Nessie calls UOA's public lookup in one call; stores nothing; unbound
