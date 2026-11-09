@@ -8,13 +8,27 @@ import test from 'node:test'
 
 import { prepareSessionEngineSource, T3_SESSION_ENGINE_SOURCE, verifySessionEngineSource } from './source.mjs'
 import { readSessionEngineSnapshot } from './snapshot.mjs'
-import { createSessionEngineSourceResolver } from './resolver.mjs'
+import { createSessionEngineSourceResolver, sessionEngineMetafileSourcePath } from './resolver.mjs'
 import { applySessionEngineBoundaryPatches, composeSessionEnginePatchManifests } from './patches.mjs'
 import { assertSessionEngineSourceGraph } from './graph.mjs'
 
 const artifacts = resolve(dirname(fileURLToPath(import.meta.url)), '../../.artifacts')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
 const environment = { ...process.env, GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z' }
+
+test('metafile JSON attributes bind the actual pinned file and reject unknown labels', () => {
+  const snapshot = { files: ['apps/server/package.json', 'apps/server/index.ts'] }
+  assert.equal(sessionEngineMetafileSourcePath("nessie-t3-source:apps/server/package.json with { type: 'json' }",
+    snapshot), 'apps/server/package.json')
+  assert.equal(sessionEngineMetafileSourcePath('nessie-t3-source:apps/server/index.ts', snapshot),
+    'apps/server/index.ts')
+  assert.equal(sessionEngineMetafileSourcePath('node_modules/diff/lib/index.js', snapshot), undefined)
+  for (const path of ["apps/server/index.ts with { type: 'json' }", 'apps/server/absent.json',
+    "apps/server/package.json with { type: 'other' }"]) {
+    assert.throws(() => sessionEngineMetafileSourcePath('nessie-t3-source:' + path, snapshot),
+      /SESSION_ENGINE_METAFILE_SOURCE_REFUSED/)
+  }
+})
 
 test('prefix-only Node builtins use the runtime admission API, including Node 22 SQLite', () => {
   const resolver = createSessionEngineSourceResolver({ files: [] })

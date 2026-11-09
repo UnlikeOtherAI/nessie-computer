@@ -55,6 +55,8 @@
     "@effect/platform-node": "4.1.2",
     "@effect/platform-node-shared": "4.1.2",
     "effect": "4.1.2",
+    "diff": "8.0.3",
+    "yaml": "2.9.0",
     "mdast-util-directive": "3.1.0",
     "micromark-extension-directive": "4.0.0",
     "micromark-util-character": "2.1.1",

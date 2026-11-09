@@ -9,6 +9,19 @@ const contractAliases = new Map([
   ['@nessie/t3-session-source/contracts/relay', 'packages/contracts/src/relay.ts'],
 ])
 const refuse = code => { throw new SessionEngineSourceError(code) }
+
+/** Esbuild decorates JSON input IDs with their import attributes. Preserve the
+ * actual pinned source path for hashing, and refuse every other decoration. */
+export const sessionEngineMetafileSourcePath = (input, snapshot) => {
+  const prefix = 'nessie-t3-source:'
+  if (!input.startsWith(prefix)) return undefined
+  const identifier = input.slice(prefix.length)
+  if (snapshot.files.includes(identifier)) return identifier
+  const suffix = " with { type: 'json' }"
+  const path = identifier.endsWith(suffix) ? identifier.slice(0, -suffix.length) : undefined
+  if (!path?.endsWith('.json') || !snapshot.files.includes(path)) refuse('SESSION_ENGINE_METAFILE_SOURCE_REFUSED')
+  return path
+}
 const target = value => {
   if (typeof value === 'string') return value
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined

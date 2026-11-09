@@ -17,6 +17,23 @@ const canary = ['synthetic', 'C05', 'private', 'č', '🧭'].join('-')
 const value = ` \r\n${canary}\u0000\t\n `
 const noCanary = item => assert.equal(JSON.stringify(item).includes(canary), false)
 
+test('shared original Claude instance assembly preserves its actual service references', async () => {
+  const { makeClaudeInstance } = await loader.load('apps/server/src/provider/ClaudeInstance.ts')
+  const snapshotOwner = Object.freeze({ fixture: 'snapshot' })
+  const textOwner = Object.freeze({ fixture: 'text-generation' })
+  const adapter = Object.freeze({ fixture: 'original-adapter' })
+  const continuationIdentity = Object.freeze({ driverKind: 'claudeAgent', continuationKey: 'claude:home:held' })
+  const instance = makeClaudeInstance({ instanceId: 'selected', continuationIdentity,
+    displayName: 'Selected', accentColor: 'blue', enabled: true, snapshot: snapshotOwner,
+    textGeneration: textOwner, orchestrationAdapter: adapter })
+  assert.equal(instance.snapshot, snapshotOwner)
+  assert.equal(instance.textGeneration, textOwner)
+  assert.equal(instance.orchestrationAdapter, adapter)
+  assert.equal(instance.continuationIdentity, continuationIdentity)
+  assert.equal(instance.driverKind, 'claudeAgent')
+  assert.equal(Object.hasOwn(instance, 'consumeResetCredit'), false)
+})
+
 test('selected original construction retains managed-policy denial before any driver effect', async () => {
   const Selected = await loader.load('apps/server/src/provider/SelectedProviderInstance.ts')
   const C = await loader.load('packages/contracts/src/index.ts')
@@ -51,37 +68,40 @@ const nativeOutput = sourceFunctions(snapshot, claude, 'function claudeNativeToo
     assertNever: () => { throw new Error('unexpected output variant') },
   })
 const idAllocator = { derive: { nodeFromProviderItem: x => `node:${x.nativeItemId}`, turnItemFromProviderItem: x => `item:${x.nativeItemId}` } }
-const { buildToolCallArtifacts } = sourceFunctions(snapshot, claude, '        const buildToolCallArtifacts = (input:',
+const claudeProjection = path => sourceFunctions(snapshot, path, '        const buildToolCallArtifacts = (input:',
   '        const emitToolCallArtifacts', ['buildToolCallArtifacts'], {
     ...privacy, ...nativeInput, ...nativeOutput, ...activity, idAllocator, CLAUDE_PROVIDER: 'claude',
     // Unrelated web-search/file helpers are inert in a dynamic-tool fixture.
     webSearchPatternsFromClaudeTool: () => [], webSearchResultsFromClaudeOutput: () => [],
-  })
+  }).buildToolCallArtifacts
 
-test('actual Claude tool factory excludes canaries on start, failure, completion and replay; originals remain executable', () => {
-  const toolInput = nativeInput.claudeNativeToolInputFromRecord({ label: 'Token', reason: 'Required', value })
-  for (const status of ['running', 'failed', 'completed', 'cancelled']) {
-    const artifacts = buildToolCallArtifacts({
-      context: null, nativeItemId: 'native:opaque', toolName: 'mcp__t3_code__request_secret',
+for (const [name, path] of [['application', claude], ['selected', claude.replace('.ts', '.session-live.ts')]]) {
+  test(`actual ${name} Claude tool factory excludes canaries while preserving original callback bytes`, () => {
+    const buildToolCallArtifacts = claudeProjection(path)
+    const toolInput = nativeInput.claudeNativeToolInputFromRecord({ label: 'Token', reason: 'Required', value })
+    for (const status of ['running', 'failed', 'completed', 'cancelled']) {
+      const artifacts = buildToolCallArtifacts({
+        context: null, nativeItemId: 'native:opaque', toolName: 'mcp__t3_code__request_secret',
+        classification: { normalizedName: 'mcp', itemType: 'dynamic_tool' }, toolInput,
+        threadId: 'thread:opaque', runId: null, rootNodeId: 'root', parentNodeId: 'root', ordinal: 9,
+        output: { type: 'structured_tool_use_result', value: { error: value, content: [{ type: 'text', text: value }] } },
+        status, startedAt: 1, updatedAt: 2, presentation: { title: value },
+      })
+      noCanary(artifacts)
+      assert.equal(artifacts.turnItem.nativeItemRef.nativeId, 'native:opaque')
+      assert.equal(artifacts.turnItem.ordinal, 9)
+      assert.equal(artifacts.turnItem.status, status)
+      assert.deepEqual(privacy.projectSecretRequestItem(artifacts.turnItem), artifacts.turnItem)
+    }
+    assert.equal(toolInput.value.value, value, 'provider callback retains exact original argument')
+    const ordinary = buildToolCallArtifacts({ context: null, nativeItemId: 'normal', toolName: 'foreign.echo',
       classification: { normalizedName: 'mcp', itemType: 'dynamic_tool' }, toolInput,
-      threadId: 'thread:opaque', runId: null, rootNodeId: 'root', parentNodeId: 'root', ordinal: 9,
-      output: { type: 'structured_tool_use_result', value: { error: value, content: [{ type: 'text', text: value }] } },
-      status, startedAt: 1, updatedAt: 2, presentation: { title: value },
-    })
-    noCanary(artifacts)
-    assert.equal(artifacts.turnItem.nativeItemRef.nativeId, 'native:opaque')
-    assert.equal(artifacts.turnItem.ordinal, 9)
-    assert.equal(artifacts.turnItem.status, status)
-    assert.deepEqual(privacy.projectSecretRequestItem(artifacts.turnItem), artifacts.turnItem)
-  }
-  assert.equal(toolInput.value.value, value, 'provider callback retains exact original argument')
-  const ordinary = buildToolCallArtifacts({ context: null, nativeItemId: 'normal', toolName: 'foreign.echo',
-    classification: { normalizedName: 'mcp', itemType: 'dynamic_tool' }, toolInput,
-    threadId: 't', runId: null, rootNodeId: 'root', parentNodeId: 'root', ordinal: 3,
-    output: { type: 'content_block', value: 'ordinary result' }, status: 'completed', startedAt: 1, updatedAt: 2 })
-  assert.equal(ordinary.turnItem.input.value, value)
-  assert.equal(ordinary.turnItem.output, 'ordinary result')
-})
+      threadId: 't', runId: null, rootNodeId: 'root', parentNodeId: 'root', ordinal: 3,
+      output: { type: 'content_block', value: 'ordinary result' }, status: 'completed', startedAt: 1, updatedAt: 2 })
+    assert.equal(ordinary.turnItem.input.value, value)
+    assert.equal(ordinary.turnItem.output, 'ordinary result')
+  })
+}
 
 const codexProjection = path => {
   const { codexDynamicToolOutput } = sourceFunctions(snapshot, path, 'export function codexDynamicToolOutput(',

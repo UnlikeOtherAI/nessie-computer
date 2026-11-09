@@ -5,6 +5,10 @@ capture transport in the same completed generation; see [Claude capture](claude-
 The public lock is an explicit build/typecheck cache input, matching the exact
 bytes recorded by package provenance. The ordinary engine gate checks that
 lock and the nested SDK output hashes, including when a cached build is restored.
+Selected Claude construction adds pinned `diff` 8.0.3 and `yaml` 2.9.0. Diff is
+bundled; YAML is an exact declared external dependency, preserving Node's original
+CommonJS loading. Its identity and license join the package provenance. See
+[selected Claude construction](claude-selected-host.md).
 
 The current [contract declaration producer](session-contract-declarations.md)
 emits shared `.d.ts` files instead of contract implementations. Its focused

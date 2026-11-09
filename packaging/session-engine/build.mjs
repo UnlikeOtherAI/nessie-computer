@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { prepareSessionEngineSource, SessionEngineSourceError } from './source.mjs'
 import { readSessionEngineSnapshot } from './snapshot.mjs'
-import { sessionEngineSourcePlugin } from './resolver.mjs'
+import { sessionEngineSourcePlugin, sessionEngineMetafileSourcePath } from './resolver.mjs'
 import { typecheckSessionState } from './typecheck.mjs'
 import { applySessionEngineBoundaryPatches } from './patches.mjs'
 import { prepareSessionEngineSnapshot } from './engine-snapshot.mjs'
@@ -118,8 +118,8 @@ const buildSessionModule = async ({ sourceRepository, outputPath, proof = false,
     })],
   })
   const inputs = Object.keys(result.metafile.inputs)
-  const sourceInputs = inputs.filter(input => input.startsWith('nessie-t3-source:'))
-    .map(input => input.slice('nessie-t3-source:'.length)).sort()
+  const sourceInputs = [...new Set(inputs.map(input => sessionEngineMetafileSourcePath(input, snapshot))
+    .filter(path => path !== undefined))].sort()
   assertSessionEngineSourceGraph(sourceInputs)
   for (const input of inputs.filter(input => !input.startsWith('nessie-t3-source:'))) {
     const path = relative(tools, resolve(tools, input)).replaceAll('\\', '/')

@@ -66,6 +66,7 @@ Runtime composition, opaque ProviderHost references, scoped operation slots and 
 The fixed `t3-session-runtime` entry and existing-daemon inspection channel follow [protected inspection](docs/session-runtime.md#protected-inspection-entry); source inspection never authorizes command/provider input.
 Original encoder capture, finite native phase relays and the unbound selected-secret preparation boundary follow [runtime serialization](docs/session-runtime.md#original-encoder-and-finite-native-composition); generic provider stdin remains denied.
 The pinned Claude SDK and shared original query runner follow [Claude capture](docs/claude-sdk-capture.md) and [runner composition](docs/claude-original-runner.md); full host activation remains unbound.
+Selected original Claude construction and required host owners follow [the Claude host contract](docs/claude-selected-host.md).
 The protected launch layer requires the same reservation's [original command recorder](docs/session-runtime.md#original-launch-command-capture); observing creation grants no effect or process authority.
 Accepted initial runs and preparation-release predecessors use that same recorder under [preparation lineage](docs/session-runtime.md#accepted-preparation-predecessor); recognition never authorizes an outbox claim.
 The original executor's [persisted effect command context](docs/session-runtime.md#persisted-effect-command-context) preserves outbox identity; it never replaces admission before claim.

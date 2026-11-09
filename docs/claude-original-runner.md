@@ -63,8 +63,9 @@ startup, as do SDK/in-process and stdio MCP hosts. HTTP/SSE MCP configuration
 uses the original stdin registration path, with real credential issue/resolve/
 revoke owners still required by full activation.
 
-Selected Claude instance construction, MCP credential ownership, startup/recovery
-authority, workspace/attachment/TurnStart effects, post-association input, history
+Selected Claude construction now follows [the original host contract](claude-selected-host.md).
+Real host services, MCP credential ownership, startup/recovery authority,
+workspace/attachment/TurnStart effects, post-association input, history
 and installed signed verification remain unfinished. Empty secret plans alone
 do not satisfy those dependencies.
 

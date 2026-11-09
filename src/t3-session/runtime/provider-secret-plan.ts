@@ -13,7 +13,8 @@ import { T3ExecutionSecretPlanCandidateSchema, T3ExecutionGraphPayloadSchema,
 import { CodexSettings, ClaudeSettings, ProviderInstanceConfig, ServerSettings,
   type ResolvedProviderInstanceEnvironment }
   from '@nessie/t3-session-source/contracts'
-import { ProviderSecretPlan, Settings, SelectedProvider, SelectedCodex, ProviderDirectory, OriginalCodexFactory }
+import { ProviderSecretPlan, Settings, SelectedProvider, SelectedCodex, SelectedClaude,
+  ProviderDirectory, OriginalCodexFactory, OriginalClaudeRunner }
   from '@nessie/t3-session-source/engine'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
@@ -25,6 +26,7 @@ import { snapshotT3LaneDelivery } from '../../t3-session-delivery.js'
 import { joinedNativeEffect } from './native-effect.js'
 import type { ReservedSessionLaunch } from './native-launch.js'
 import { makeSessionCodexClientFactory } from './codex-factory.js'
+import { makeSessionClaudeQueryRunner, type SessionClaudeHistoryOwner } from './claude-factory.js'
 
 const sha = (value: unknown) => 'sha256:' + createHash('sha256').update(canonicalExecutorJson(value)).digest('hex')
 const bytesSha = (value: string) => 'sha256:' + createHash('sha256').update(value, 'utf8').digest('hex')
@@ -145,21 +147,29 @@ export const recheckSessionProviderSecretPlan = (plan: HeldSessionProviderSecret
   }
 })
 
-/** Actual single-entry original registry. The only value consumer lives beside
- * the private sink; callers receive the original registry, never environment
- * values or an installer. Required original Codex services have no defaults.
- * Nonempty plans remain unavailable until the safe native read producer exists. */
-export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPlan,
-  launch: ReservedSessionLaunch): Effect.Effect<ProviderDirectory.ProviderInstanceRegistry['Service'],
-    SessionSecretPlanRefused | EffectFailure<SessionExecutionResourcesEffect>,
-    EffectServices<SessionExecutionResourcesEffect>
-    | Exclude<SelectedCodex.SelectedCodexDriverEnv, OriginalCodexFactory.CodexAppServerClientFactory>
-    | Scope.Scope> =>
+type SelectedRegistry = ProviderDirectory.ProviderInstanceRegistry['Service']
+type SelectedInstanceInput = Pick<Parameters<typeof SelectedProvider.makeSelectedProviderInstance>[0],
+  'instanceId' | 'entry' | 'secrets' | 'managedPolicy'>
+type SelectedProviderError = SessionSecretPlanRefused | EffectFailure<SessionExecutionResourcesEffect>
+type SelectedProviderBase = EffectServices<SessionExecutionResourcesEffect>
+  | Settings.ServerSettingsService | Scope.Scope
+type SelectedCodexHost = Exclude<SelectedCodex.SelectedCodexDriverEnv,
+  OriginalCodexFactory.CodexAppServerClientFactory>
+type SelectedClaudeHost = Exclude<SelectedClaude.SelectedClaudeDriverEnv,
+  OriginalClaudeRunner.ClaudeAgentSdkQueryRunner>
+
+/** The private plan owns the only value consumer. Both original constructors
+ * share these target/settings/lifetime checks without exposing environment
+ * values or requiring the other driver's host services. */
+const constructSelectedProvider = <R>(plan: HeldSessionProviderSecretPlan, launch: ReservedSessionLaunch,
+  driver: 'codex' | 'claudeAgent', construct: (input: SelectedInstanceInput) => Effect.Effect<SelectedRegistry, never, R>):
+  Effect.Effect<SelectedRegistry, SelectedProviderError, SelectedProviderBase | R> =>
   Effect.gen(function* () {
     yield* recheckSessionProviderSecretPlan(plan)
     const record = records.get(plan)
     if (!record || record.constructed || record.target !== launch.target || launch.signal.aborted
-      || record.target.driverKind !== 'codex' || record.evidence.selection.references.length !== 0
+      || record.target.driverKind !== driver
+      || record.evidence.selection.references.length !== 0
       || record.environment.some(variable => variable === undefined)) {
       return yield* Effect.fail(new SessionSecretPlanRefused())
     }
@@ -174,22 +184,41 @@ export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPla
     retainSecretLifetime(record, record.source.signal)
     const environment = record.environment.filter(
       (variable): variable is ResolvedProviderInstanceEnvironment[number] => variable !== undefined)
-    const factory = yield* makeSessionCodexClientFactory(launch)
-    const registry = yield* SelectedProvider.makeSelectedProviderInstance({
-      driver: SelectedCodex.SelectedCodexDriver, instanceId: record.target.providerInstanceId,
-      entry: record.entry, secrets: { environment, config: [] },
-      managedPolicy,
-    }).pipe(Effect.provideService(OriginalCodexFactory.CodexAppServerClientFactory,
-      factory))
+    const registry = yield* construct({ instanceId: record.target.providerInstanceId,
+      entry: record.entry, secrets: { environment, config: [] }, managedPolicy })
     yield* recheckSessionProviderSecretPlan(plan)
     const after = yield* settingsService.getSettings
     if (canonicalExecutorJson(Schema.encodeSync(ServerSettings)(after)) !== record.settings
-      || canonicalExecutorJson(settingsService.managedPolicy ?? null) !== canonicalExecutorJson(managedPolicy ?? null)) {
+      || canonicalExecutorJson(settingsService.managedPolicy ?? null)
+        !== canonicalExecutorJson(managedPolicy ?? null)) {
       return yield* Effect.fail(new SessionSecretPlanRefused())
     }
     if (launch.signal.aborted) return yield* Effect.fail(new SessionSecretPlanRefused())
     return registry
   })
+
+/** Codex retains its original independent host requirements. Nonempty plans
+ * still require the safe native read producer before any selected constructor. */
+export const createSessionSelectedProvider = (plan: HeldSessionProviderSecretPlan, launch: ReservedSessionLaunch):
+  Effect.Effect<SelectedRegistry, SelectedProviderError, SelectedProviderBase | SelectedCodexHost> =>
+  constructSelectedProvider(plan, launch, 'codex', input => Effect.gen(function* () {
+    const factory = yield* makeSessionCodexClientFactory(launch)
+    return yield* SelectedProvider.makeSelectedProviderInstance({ ...input, driver: SelectedCodex.SelectedCodexDriver })
+      .pipe(Effect.provideService(OriginalCodexFactory.CodexAppServerClientFactory, factory))
+  }))
+
+/** Claude requires an actual admitted history owner; no SDK/default fallback.
+ * Its query runner stays in the same original plan/launch scope. */
+export const createSessionSelectedClaudeProvider = (plan: HeldSessionProviderSecretPlan,
+  launch: ReservedSessionLaunch, history: SessionClaudeHistoryOwner):
+  Effect.Effect<SelectedRegistry, SelectedProviderError, SelectedProviderBase | SelectedClaudeHost> =>
+  Effect.suspend(() => history ? constructSelectedProvider(plan, launch, 'claudeAgent', input =>
+    Effect.gen(function* () {
+      const runner = yield* makeSessionClaudeQueryRunner(launch, history)
+      return yield* SelectedProvider.makeSelectedProviderInstance({ ...input,
+        driver: SelectedClaude.SelectedClaudeDriver })
+        .pipe(Effect.provideService(OriginalClaudeRunner.ClaudeAgentSdkQueryRunner, runner))
+    })) : Effect.fail(new SessionSecretPlanRefused()))
 
 /** Begin one selected full-array slot before native observation. This only
  * makes retries terminal. No value installer or native read is exposed here. */

@@ -121,21 +121,25 @@ export const buildRequestPrivacyManifest = snapshot => {
   patchQuestionAnswers(patch)
   // Extraction derives the execution adapter before this family runs. Apply
   // every original adapter privacy transformation to its actual derived bytes.
-  const selectedCodex = codex.replace('.ts', '.session-live.ts')
-  const selectedSource = snapshot.read(selectedCodex).toString()
-  // The extracted execution adapter excludes the application factory and its
-  // protocol logger together. A future logging path needs its own interception.
-  for (const name of ['makeCodexAppServerProtocolLogger', 'redactCodexProtocolValue',
-    'ProviderEventLoggers', 'nativeEventLogger']) {
-    if (selectedSource.includes(name)) throw new Error(`SELECTED_PROTOCOL_LOGGER_UNQUALIFIED:${name}`)
-  }
-  for (const change of patches.filter(change => change.file === codex)) {
-    if (change.id === 'codex-private-protocol-projector' || change.id === 'codex-private-protocol-before-bounds') continue
-    if (change.id === 'codex-request-privacy-import') {
-      const firstImport = snapshot.read(selectedCodex).toString().split('\n')[0]
-      patch(`${change.id}-selected`, selectedCodex, firstImport,
-        change.to.slice(0, -change.from.length) + firstImport)
-    } else patch(`${change.id}-selected`, selectedCodex, change.from, change.to)
+  for (const [driver, originalAdapter, loggerNames] of [
+    ['codex', codex, ['makeCodexAppServerProtocolLogger', 'redactCodexProtocolValue']],
+    ['claude', claude, ['makeClaudeAgentSdkProtocolLogger']],
+  ]) {
+    const selectedAdapter = originalAdapter.replace('.ts', '.session-live.ts')
+    const selectedSource = snapshot.read(selectedAdapter).toString()
+    // The extracted execution adapter excludes the application factory and its
+    // protocol logger together. A future logging path needs its own interception.
+    for (const name of [...loggerNames, 'ProviderEventLoggers', 'nativeEventLogger']) {
+      if (selectedSource.includes(name)) throw new Error(`SELECTED_PROTOCOL_LOGGER_UNQUALIFIED:${name}`)
+    }
+    for (const change of patches.filter(change => change.file === originalAdapter)) {
+      if (change.id === `${driver}-private-protocol-projector` || change.id === `${driver}-private-protocol-before-bounds`) continue
+      if (change.id === `${driver}-request-privacy-import`) {
+        const firstImport = snapshot.read(selectedAdapter).toString().split('\n')[0]
+        patch(`${change.id}-selected`, selectedAdapter, firstImport,
+          change.to.slice(0, -change.from.length) + firstImport)
+      } else patch(`${change.id}-selected`, selectedAdapter, change.from, change.to)
+    }
   }
   return Buffer.from(`${JSON.stringify({ format: 1, sourceCommit: snapshot.identity.commit, patches }, null, 2)}\n`)
 }

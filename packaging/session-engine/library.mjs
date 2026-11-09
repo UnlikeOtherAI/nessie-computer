@@ -8,7 +8,7 @@ import { sessionDependencyNotices } from './build.mjs'
 import { prepareSessionEngineSnapshot } from './engine-snapshot.mjs'
 import { assertSessionEngineSourceGraph } from './graph.mjs'
 import { lintSessionEngineSources } from './lint.mjs'
-import { sessionEngineSourcePlugin } from './resolver.mjs'
+import { sessionEngineSourcePlugin, sessionEngineMetafileSourcePath } from './resolver.mjs'
 import { typecheckSessionState } from './typecheck.mjs'
 import { clientSourceManifest, readClientSourceInputs } from './client-source.mjs'
 import { selectMobileClientSource } from './client-selection.mjs'
@@ -18,7 +18,7 @@ const tools = fileURLToPath(new URL('.', import.meta.url))
 const root = resolve(tools, '../..')
 const slash = path => path.replaceAll('\\', '/')
 const hash = bytes => createHash('sha256').update(bytes).digest('hex')
-const externalPackages = ['effect', '@effect/platform-node', '@effect/platform-node-shared', '@noble/hashes']
+const externalPackages = ['effect', '@effect/platform-node', '@effect/platform-node-shared', '@noble/hashes', 'yaml']
 const external = name => externalPackages.some(pkg => name === pkg || name.startsWith(`${pkg}/`))
 
 export const prepareLibrarySnapshot = async (original, { sourceRepository } = {}) => {
@@ -86,8 +86,8 @@ export const buildSessionPackage = async ({ original, prepared, outputDirectory,
   assertLibraryAuthoredInputs(registration.clientAuthoredInputs, registration)
   const clientGraph = assertBrowserClientGraph(result.metafile, registration.clientAuthoredInputs)
   const inputs = Object.keys(result.metafile.inputs)
-  const sourceInputs = inputs.filter(path => path.startsWith('nessie-t3-source:'))
-    .map(path => path.slice('nessie-t3-source:'.length)).sort()
+  const sourceInputs = [...new Set(inputs.map(input => sessionEngineMetafileSourcePath(input, snapshot))
+    .filter(path => path !== undefined))].sort()
   assertSessionEngineSourceGraph(sourceInputs)
   const authored = inputs.filter(path => !path.startsWith('nessie-t3-source:') && !path.startsWith('node_modules/'))
     .map(path => slash(relative(root, resolve(tools, path)))).sort()

@@ -119,8 +119,12 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    'd119f1166b95792fd9f7e8a69892f3310630bebcb58c8519ab231dc6478474c5')
+    '0c10eaf82253c260cf511291700470e4d4db10420c2c86f06d2b72b7c64f0698')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
+  assert.equal(provenance.sourceInputs['apps/server/package.json'],
+    provenance.originalSourceInputs['apps/server/package.json'])
+  assert.match(provenance.sourceInputs['apps/server/package.json'], /^[a-f0-9]{64}$/u)
+  assert.equal(Object.keys(provenance.sourceInputs).some(path => path.includes(' with {')), false)
   for (const file of provenance.modules) {
     const bytes = await readFile(resolve(dist, file.path))
     assert.equal(hash(bytes), file.sha256)
@@ -137,6 +141,10 @@ test('runtime/type/notices provenance binds generated package files and excludes
   const notices = JSON.parse(await readFile(resolve(dist, 'engine.licenses.json'), 'utf8'))
   assert.ok(notices.upstream.license.includes('MIT License'))
   assert.ok(notices.dependencies.some(item => item.name === 'effect' && item.version === '4.1.2'))
+  assert.ok(notices.dependencies.some(item => item.name === 'diff' && item.version === '8.0.3'))
+  assert.ok(notices.dependencies.some(item => item.name === 'yaml' && item.version === '2.9.0'))
+  assert.ok(provenance.externalDependencies.some(item => item.name === 'yaml' && item.version === '2.9.0'))
+  assert.equal(JSON.parse(await readFile(require.resolve('yaml/package.json'), 'utf8')).version, '2.9.0')
   const mathNotice = notices.dependencies.find(item => item.name === 'remark-math')
   assert.equal(mathNotice.version, '6.0.0')
   assert.equal(mathNotice.noticeSource.commit, 'd5d0660b150810a535bbb07eac6cc96a4510aa24')

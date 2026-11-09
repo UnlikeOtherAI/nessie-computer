@@ -32,14 +32,15 @@ const extractionBytes = readFileSync(new URL(`../../${extractionPath}`, import.m
 const legacyExtraction = committed(producerCommit, extractionPath)
 assert.equal(hash(legacyExtraction), '7af46ac8bf7d67cd59bb986150db5324e709856d94755d29e029858177a9a4ac')
 assert.equal(JSON.parse(legacyExtraction).patches.length, 150)
-assert.equal(hash(extractionBytes), 'b15a6b57e1dd1d99ef6edc07697ecef07eea4243dc22e53086439fa023d1549b')
+assert.equal(hash(extractionBytes), '63dbd14c638f1d6dad71520f883f58888c77f866c68afac3ea8c5dc9d6dde302')
 const extraction = JSON.parse(extractionBytes)
-assert.equal(extraction.patches.length, 330)
+assert.equal(extraction.patches.length, 343)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))
-assert.equal(privacyFiles.size, 7)
+assert.equal(privacyFiles.size, 8)
 const overlapping = [...new Set(extraction.patches.filter(patch => privacyFiles.has(patch.file))
   .map(patch => patch.file))].sort()
-assert.deepEqual(overlapping, ['apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts',
+assert.deepEqual(overlapping, ['apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts',
+  'apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts',
   'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts',
   'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts'])
 
@@ -65,4 +66,5 @@ console.log(JSON.stringify({ producerCommit, producerInputs, extractionManifestS
   combinedManifestSha256: hash(manifestBytes), patchOperations: manifest.patches.length,
   families: manifest.families, privacyAppliedAfterExtraction: overlapping,
   finalFiles: Object.fromEntries([...privacyFiles].map(file => [file, hash(snapshot.read(file))])),
-  rejectedBoundaryRefused: true, replayRefused: true, productionIntegration: false, engineTypecheck: false, bundle: false }))
+  rejectedBoundaryRefused: true, replayRefused: true, productionIntegration: false,
+  engineTypecheck: false, bundle: false }))

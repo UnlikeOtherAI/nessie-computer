@@ -145,7 +145,7 @@ These are concrete runtime composition work, including for an empty secret plan:
 | `ThreadLaunchService.make` / `schedulePreparation` | Actual project, managed-folder, git and setup-script owners. Fetch/worktree/attachment/overlay mutations still lack preparation-effect authority. |
 | `ProviderInstanceRegistry.buildEntry` / `registryView` | Shared single-entry construction is authored below. Bind it inside the same recognized engine owner; global reconciliation remains excluded. Nonempty plans still require the safe native read producer. |
 | `CodexDriver.create` / `makeCodexAdapterV2` | Selected construction and the protected client factory are authored below. Real `ManagedServerProvider`, `ProviderTextGeneration`, installation compatibility, environment and original FileSystem/config/MCP services remain required. No synthetic snapshot, text generator or ambient executable lookup is supplied. |
-| `ClaudeDriver.create` / `ClaudeAgentSdkQueryRunner` | The shared original queue and protected runner are composed in source. Selected instance construction, real snapshot/text-generation services, admitted history and pre-effect callback owners remain required. |
+| `ClaudeDriver.create` / `ClaudeAgentSdkQueryRunner` | Selected original construction and the protected runner are composed in source. Real snapshot/text-generation/configuration services, admitted history and pre-effect callback owners remain required. |
 | `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
 | `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. The original executor supplies persisted effect identity in fiber context; bind it to admitted TurnStart and the writer. |
 | `ThreadLaunchService` initial-message/preparation dispatch | Initial-message, accepted-run and release capture are implemented below. Use the same source context during activation and consume separate real admission before claim. |
@@ -205,6 +205,12 @@ Native session-ID timing remains an installed-interface qualification item;
 an allocated SDK/session ID or command argument cannot substitute for it.
 
 ## Selected original construction and Codex host
+
+The same private plan now supports selected Claude construction through the
+[original Claude host](claude-selected-host.md). It binds the existing runner tag
+and requires real snapshot, text-generation, catalog, configuration/filesystem,
+attachment-conversion and history owners. Empty plans alone provide none of
+those services or their authority; production `open` remains refused.
 
 `createSessionSelectedProvider(plan, launch)` consumes the private plan inside
 its owning module. It rechecks the same selected target/settings/resource and
