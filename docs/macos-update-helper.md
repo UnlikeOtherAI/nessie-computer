@@ -41,9 +41,10 @@ only once every team process has gone, including one the previous copy of the
 app started, which can outlive it for a minute or two. The helper answers status
 only once that attempt is over, and launchd can take minutes to start a helper
 that was just registered again, so the teams start again once the installed
-runtime is the app's version, the helper answers again at least ninety seconds
-after the restart (the helper being replaced can still answer for a moment), or
-ten minutes pass.
+runtime is the app's version, the helper answers ninety seconds or more after
+its registration took, or ten minutes pass. macOS can refuse a registration
+made right after removing the old one, so the hold registers again on the usual
+schedule meanwhile.
 The app reads the installed version from the runtime's manifest, so this holds
 even while the helper does not answer. Replacing the app unloads the helper,
 whose program lives inside it, so a newer app installed by hand makes this held

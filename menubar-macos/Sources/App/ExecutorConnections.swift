@@ -238,8 +238,8 @@ final class ExecutorConnections: ObservableObject {
     /// once that attempt is over. launchd can take minutes to start a helper
     /// that was just registered again. The teams stop, the helper restarts, and
     /// they start again on whatever runtime is installed once that runtime is
-    /// this app's version, the helper answers again at least ninety seconds
-    /// after the restart, or ten minutes pass. A
+    /// this app's version, the helper answers ninety seconds or more after its
+    /// registration took, or ten minutes pass. A
     /// helper waiting for the owner's approval cannot run, so they start then too.
     func holdTeams(until version: String, restartingHelper restart: () async -> Void) async {
         ComputerUpdateService.holdingTeams = true
@@ -251,13 +251,19 @@ final class ExecutorConnections: ObservableObject {
             try? await Task.sleep(nanoseconds: 2_000_000_000)
         }
         await restart()
-        let restarted = Date()
-        while Date() < restarted.addingTimeInterval(600), ComputerUpdateService.installedVersion != version,
-              ComputerUpdateService.registration != .requiresApproval {
+        let deadline = Date().addingTimeInterval(600)
+        var registeredAt: Date?
+        while Date() < deadline, ComputerUpdateService.installedVersion != version {
+            // macOS can refuse a registration made right after removing the
+            // old one; it is made again on the usual schedule, as the update
+            // loop would, which this hold keeps from running meanwhile.
+            ComputerUpdateService.prepare()
+            let registration = ComputerUpdateService.registration
+            if registration == .requiresApproval { break }
+            registeredAt = registration == .enabled ? registeredAt ?? Date() : nil
             try? await Task.sleep(nanoseconds: 3_000_000_000)
-            // The helper being replaced can still answer for a moment, so an
-            // answer counts only once the new one has had its minute.
-            guard Date() >= restarted.addingTimeInterval(90) else { continue }
+            // An answer counts only once the registered helper has had its minute.
+            guard let registeredAt, Date() >= registeredAt.addingTimeInterval(90) else { continue }
             if (try? await ExecutorUpdateControl.run(["operation": "status"])) != nil { break }
         }
         ComputerUpdateService.holdingTeams = false
