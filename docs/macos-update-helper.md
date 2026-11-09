@@ -264,6 +264,10 @@ Recovery now works from both ends without weakening a fence:
   process-group check uses every account's processes (`live_groups`, from the
   short process record), not the caller's own, so a Root helper still sees a
   user's leftover descendant; a process it cannot read counts as running.
+  A child pid another process now holds proves the child's group ended, since
+  XNU never hands out a pid that is still a group or session id; on dictator
+  three of 1888 journals met a live group led by such a new process and held
+  the swap until this was taken into account.
 - **A refused team stays in the window.** The console's `executor_view` lists a
   paired team whose `describe` is refused under `unreadable-<folder>`, so the
   window never opens Add another team over a team that exists. It reads as
