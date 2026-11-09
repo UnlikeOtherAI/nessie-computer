@@ -181,9 +181,19 @@ Recovery now works from both ends without weakening a fence:
 - **Plain words.** While the helper can't be reached or refuses, the app reports
   the local status `update.helper_unavailable`. The window's Needs you strip
   and the menu say "Updates are stuck — teams can't start" instead of "No team
-  connected", with Restart updates as the one action. The journey
+  connected", with Restart updates as the one action.
+- **Approval is asked for, not called stuck.** While SMAppService reports the
+  daemon `requiresApproval`, or after this app re-registered it and it has failed
+  two probes since (8 November, 1.0.16: no helper job ran for ten minutes after
+  the automatic re-register), the app reports `update.approval_required`
+  instead. The menu's Needs you line ("Needs you: allow Nessie Computer in
+  System Settings to finish updating") opens Login Items itself; Overview's
+  Needs you strip and Settings say "Allow Nessie Computer in System Settings to
+  finish updating" with **Open Login Items**, which calls
+  `SMAppService.openSystemSettingsLoginItems()`. `ComputerUpdateRecovery.attention`
+  decides between the two. The journey
   `node tray-windows/test/renderer-harness.mjs --updates-stuck-only` asserts
-  both places in seven locales.
+  both states in both places in seven locales.
 - **Monotonic for the app too.** Catalogue replacement refuses to put an older
   app over a newer hand-installed one (`update.downgrade_refused`), and the
   status client now waits nine seconds.

@@ -52,6 +52,7 @@ public enum Word: Equatable, Sendable {
     case needsYouReinstall
     case needsYouUnreadableTeam
     case needsYouUpdatesStuck
+    case needsYouUpdatesApproval
     case needsYouMany(Int)
     case pause
     case resume

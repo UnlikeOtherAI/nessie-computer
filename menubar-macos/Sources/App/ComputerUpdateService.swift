@@ -23,6 +23,12 @@ enum ComputerUpdateService {
 
     static var enabled: Bool { supported && SMAppService.daemon(plistName: plist).status == .enabled }
 
+    /// The helper's registration, `nil` where this app manages none.
+    static var registration: SMAppService.Status? { supported ? SMAppService.daemon(plistName: plist).status : nil }
+
+    /// Only the owner can let macOS run the helper, in Login Items.
+    static func openLoginItems() { SMAppService.openSystemSettingsLoginItems() }
+
     /// Approved and past first setup. Before the factory exists, the helper is
     /// still setting up, which has its own message; that is never "stuck".
     static var installed: Bool { enabled && factoryReady }
@@ -90,6 +96,9 @@ enum ComputerUpdateService {
     /// Shown while the helper can't be reached or refuses. Display only, like
     /// the setup states below; it never reaches a heartbeat or an install.
     static func stuckStatus() -> [String: Any] { localStatus(phase: "failed", code: "update.helper_unavailable") }
+
+    /// Shown while macOS waits for the owner to allow the helper. Display only.
+    static func approvalStatus() -> [String: Any] { localStatus(phase: "failed", code: "update.approval_required") }
 
     /// Shown right after a restart, before the helper answers again.
     static func restartingStatus() -> [String: Any] { localStatus(phase: "checking", code: nil) }

@@ -10,6 +10,7 @@ menu. It always says what is going on.
 | Grey | **No team connected** | Choose **＋ Add another team** in the **Team** list. |
 | Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; the **Needs you** strip says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
+| Amber (Mac) | **Needs you: allow Nessie Computer in System Settings to finish updating** | macOS is waiting for you to allow the update helper. Choose the line; Login Items opens. Switch Nessie Computer on. |
 | Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
 | Red (Windows) | **Can't reach the Nessie Computer service** | The background service isn't answering. Restart Windows; if the icon stays red, reinstall Nessie Computer. |
 

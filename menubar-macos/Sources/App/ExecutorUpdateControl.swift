@@ -7,18 +7,41 @@ import Foundation
 final class ComputerUpdateHealth {
     static let shared = ComputerUpdateHealth()
     private(set) var failures = 0
-    var onChange: (@MainActor (Bool) -> Void)?
+    /// This app re-registered the helper, and the helper has not answered since.
+    private(set) var reregistered = false
+    private var reported: ComputerUpdateAttention?
+    var onChange: (@MainActor (ComputerUpdateAttention?) -> Void)?
 
-    var stuck: Bool { ComputerUpdateRecovery.stuck(enabled: ComputerUpdateService.installed, failures: failures) }
-
-    func record(answered: Bool) {
-        let before = stuck
-        failures = answered ? 0 : failures + 1
-        if stuck != before { onChange?(stuck) }
+    var attention: ComputerUpdateAttention? {
+        ComputerUpdateRecovery.attention(
+            registration: ComputerUpdateService.registration, factoryReady: ComputerUpdateService.factoryReady,
+            failures: failures, reregistered: reregistered
+        )
     }
 
-    /// A restart starts counting again; the helper needs a moment to answer.
-    func reset() { record(answered: true) }
+    var stuck: Bool { attention == .stuck }
+
+    func record(answered: Bool) {
+        failures = answered ? 0 : failures + 1
+        if answered { reregistered = false }
+        publish()
+    }
+
+    /// A re-registered helper starts counting again; it needs a moment to answer.
+    func restarted() {
+        failures = 0
+        reregistered = true
+        publish()
+    }
+
+    /// Compared with what was last said, not with the moment before: approval
+    /// given in System Settings changes the answer between two probes.
+    private func publish() {
+        let now = attention
+        guard now != reported else { return }
+        reported = now
+        onChange?(now)
+    }
 }
 
 /// Native control only: a blocked or stopped JavaScript runtime must not hide Updates.
@@ -57,6 +80,7 @@ enum ExecutorUpdateControl {
             guard operation == "status" else { throw error }
             // A timeout and a refused status are the same to a person: no team can start.
             ComputerUpdateHealth.shared.record(answered: false)
+            if ComputerUpdateHealth.shared.attention == .needsApproval { return ComputerUpdateService.approvalStatus() }
             if let setup = ComputerUpdateService.unavailableStatus() { return setup }
             if ComputerUpdateHealth.shared.stuck { return ComputerUpdateService.stuckStatus() }
             throw error
@@ -149,6 +173,6 @@ final class ExecutorUpdateMonitor {
             answer: answer, applicationVersion: version, restartedFor: ComputerUpdateService.restartedVersion
         ) else { return }
         await ComputerUpdateService.restartOnce(for: version)
-        ComputerUpdateHealth.shared.reset()
+        ComputerUpdateHealth.shared.restarted()
     }
 }

@@ -23,6 +23,7 @@
     const list = []
     // Before anything else: while updates are stuck no team can start at all.
     if (nc.updates?.stuck()) list.push({ kind: 'updates', text: t('updates.stuckNeed') })
+    if (nc.updates?.approval()) list.push({ kind: 'updates-approval', text: t('updates.approval') })
     for (const request of requests) list.push({ kind: 'request', request, team: nc.team.label(request.executorId),
       text: request.agentName ? t('needs.request', { agent: request.agentName, program: request.program }) : t('needs.requestNoAgent', { program: request.program }) })
     for (const team of nc.team.list()) {
@@ -76,6 +77,10 @@
     if (item.kind === 'updates') {
       const restart = button(t('updates.restart'), 'updates:restart', () => attempt(async () => { await nc.updates.restart(); render() }, { target: restart }), 'primary')
       actions.append(restart)
+    }
+    if (item.kind === 'updates-approval') {
+      const open = button(t('updates.openLoginItems'), 'updates:approve', () => attempt(async () => { await nc.updates.approve(); render() }, { target: open }), 'primary')
+      actions.append(open)
     }
     if (item.kind === 'sync') {
       actions.append(button(t('needs.openDocuments'), `sync:${item.team.executorId}`,

@@ -45,6 +45,9 @@ enum CzechWords {
         case .needsYouReinstall: return "Potřebuje vás: přeinstalujte Nessie Computer"
         case .needsYouUnreadableTeam: return "Potřebuje vás: tým na tomto Macu nelze načíst"
         case .needsYouUpdatesStuck: return "Potřebuje vás: aktualizace se zasekly — otevřete Nessie Computer"
+        case .needsYouUpdatesApproval:
+            return "Potřebuje vás: povolte Nessie Computer v Nastavení "
+                + "systému, ať se dokončí aktualizace"
         case let .needsYouMany(value):
             return "Potřebuje vás: \(count(value, "věc", "věci", "věcí")) — otevřete Nessie Computer"
         case .pause: return "Pozastavit"

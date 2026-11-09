@@ -1,4 +1,13 @@
 import Foundation
+import ServiceManagement
+
+/// What the update helper needs from the owner, when anything does.
+public enum ComputerUpdateAttention: Equatable, Sendable {
+    /// Approved and installed, but it stopped answering: Restart updates.
+    case stuck
+    /// macOS won't run it until the owner allows it in Login Items.
+    case needsApproval
+}
 
 /// When the approved update helper counts as stuck, and when this app restarts it.
 ///
@@ -12,8 +21,20 @@ public enum ComputerUpdateRecovery {
     /// The update monitor asks every fifteen seconds.
     public static let unreachableProbes = 2
 
-    public static func stuck(enabled: Bool, failures: Int) -> Bool {
-        enabled && failures >= unreachableProbes
+    /// `registration` is SMAppService's status for the helper, `nil` where this
+    /// app manages none. Approval comes first: a helper waiting for it never
+    /// runs, and restarting it cannot help. After this app re-registered it,
+    /// macOS can also keep it from running while still reporting it enabled;
+    /// Login Items is where the owner starts it again then, too.
+    public static func attention(
+        registration: SMAppService.Status?, factoryReady: Bool, failures: Int, reregistered: Bool
+    ) -> ComputerUpdateAttention? {
+        guard let registration else { return nil }
+        if registration == .requiresApproval { return .needsApproval }
+        guard registration == .enabled, failures >= unreachableProbes else { return nil }
+        if reregistered { return .needsApproval }
+        // Before the factory exists the helper is still setting up, which has its own message.
+        return factoryReady ? .stuck : nil
     }
 
     /// At most once per app version: a restart that does not help is not

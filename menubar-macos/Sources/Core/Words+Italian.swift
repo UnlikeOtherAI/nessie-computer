@@ -37,6 +37,9 @@ enum ItalianWords {
         case .needsYouReinstall: return "Serve il tuo intervento: reinstalla Nessie Computer"
         case .needsYouUnreadableTeam: return "Serve il tuo intervento: un team su questo Mac non è leggibile"
         case .needsYouUpdatesStuck: return "Serve il tuo intervento: aggiornamenti bloccati — apri Nessie Computer"
+        case .needsYouUpdatesApproval:
+            return "Serve il tuo intervento: consenti Nessie Computer in "
+                + "Impostazioni di Sistema per completare l’aggiornamento"
         case let .needsYouMany(value): return "Serve il tuo intervento: \(value) cose — apri Nessie Computer"
         case .pause: return "Metti in pausa"
         case .resume: return "Riprendi"

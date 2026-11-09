@@ -6,7 +6,7 @@
 //   --output=<dir>         where pictures go (default .artifacts/executor-console)
 //   --before=<rev>         captures of the console as it was at <rev>, into <output>/before, for comparison
 //   --updates-only …       Software updates journeys alone (see docs/automatic-updates.md)
-//   --updates-stuck-only   the Mac helper-stuck state in Needs you and Settings, seven locales, no pictures
+//   --updates-stuck-only   the Mac helper-stuck and approval states in Needs you and Settings, seven locales, no pictures
 import { mkdir } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
