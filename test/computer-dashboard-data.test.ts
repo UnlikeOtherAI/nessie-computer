@@ -8,7 +8,6 @@ import { providerAccountIdentity, readClaudeOrganization } from '../src/provider
 import { kimiUsageWindows, readKimiQuota } from '../src/provider-process/kimi-quota.js'
 import { sysmonGrokSubscription } from '../src/provider-process/grok-quota.js'
 import { readQuotaFile } from '../src/provider-process/quota-file.js'
-import { readComputerCi } from '../src/computer-ci.js'
 import { nvidiaGpuReading, rc6Utilization } from '../src/system-monitor.js'
 import { quotaFetch } from '../src/provider-process/quota-fetch.js'
 import { startComputerMonitor } from '../src/computer-monitor.js'
@@ -46,7 +45,7 @@ test('transient failures retain a marked last reading but cannot carry an old al
     sample: async () => ({ capturedAt: at, os: 'windows', processor: 'Test', cpu: null, gpu: null, history: [],
       memoryUsedBytes: 1, memoryTotalBytes: 2, diskUsedBytes: null, diskTotalBytes: null,
       uptimeSeconds: 1, processes: [] }),
-    probe: async () => ({ accounts: [current], incomplete: false }), ci: async () => ({ status: 'ready', checkedAt: at, truncated: false, pullRequests: [] }),
+    probe: async () => ({ accounts: [current], incomplete: false }),
   })
   const refresh = async () => {
     monitor.request({ expiresAt: new Date(now + 15_000).toISOString() })
@@ -147,15 +146,4 @@ test('SysMon Grok projects actual windows without inventing identity or reset', 
   assert.equal(reading.windows[0]?.remainingPercent, 75)
   assert.equal(reading.windows[0]?.resetsAt, null)
   assert.equal(reading.windows.length, 1)
-})
-
-test('GitHub failures are bounded, reject foreign URLs and never report malformed results as all clear', async () => {
-  const read = (data: unknown) => readComputerCi({ env: {},
-    run: async () => ({ code: 0, missing: false, stdout: JSON.stringify(data) }) })
-  const good = { html_url: 'https://github.com/example/private/pull/12', title: 'A failing change' }
-  assert.equal((await read({ items: [good], total_count: 1 })).pullRequests[0]?.number, 12)
-  assert.equal((await read({ items: [], incomplete_results: true })).status, 'unavailable')
-  const invalid = await read({ items: [{ ...good, html_url: 'https://example.test/private/pull/12' }] })
-  assert.equal(invalid.status, 'unavailable')
-  assert.equal(invalid.pullRequests.length, 0)
 })
