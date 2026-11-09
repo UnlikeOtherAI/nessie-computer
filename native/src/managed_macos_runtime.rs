@@ -212,18 +212,15 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     } };
     let mut observed = BTreeMap::<i32, String>::new();
     let mut exited = None;
+    let mut settling = Settling::default();
     loop {
-        let processes = macos_processes::all()?;
-        for process in &processes {
-            let mut parent = process.parent_pid; let mut depth = 0;
-            let mut belongs = process.pid == pid || process.group == pid;
-            while !belongs && parent > 1 && depth < processes.len() {
-                belongs = parent == pid || observed.contains_key(&parent);
-                let Some(ancestor) = processes.iter().find(|item| item.pid == parent) else { break; };
-                parent = ancestor.parent_pid; depth += 1;
-            }
-            if belongs && !process.zombie { observed.insert(process.pid, process.started_at.clone()); }
-        }
+        // A snapshot this account cannot verify proves nothing either way, so
+        // it never ends supervision: the next one is taken as usual. Ending
+        // here left the daemon unsupervised and its journal held for good; on
+        // dictator a helper another app started and ended many times a second
+        // did that to the team's daemon seconds after every start.
+        let snapshot = macos_processes::all();
+        if let Ok(processes) = &snapshot { observe(processes, pid, &mut observed); }
         if exited.is_none() {
             let mut status = 0;
             let reaped = unsafe { libc::waitpid(pid, &mut status, libc::WNOHANG) };
@@ -234,21 +231,70 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
             } else if reaped < 0 { return Err(refused()); }
         }
         if let Some(exit) = exited {
-            let remaining = observed.iter().any(|(pid, birth)| processes.iter().any(|process|
-                process.pid == *pid && process.started_at == *birth && !process.zombie));
-            if !remaining && !processes.iter().any(|process| process.group == pid && !process.zombie) {
-                // Group absence alone is not escaped-host tree proof. Its
-                // unresolved admission lease keeps this journal permanently.
-                if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
-                let barrier = managed_runtime_context::Barrier::acquire()?;
-                fs::remove_file(&journal).map_err(|_| refused())?;
-                fs::remove_file(directory.join(&socket_name)).map_err(|_| refused())?;
-                File::open(&directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())?;
-                drop(barrier); return Ok(exit);
+            let ended = match &snapshot {
+                Ok(processes) if remains(processes, pid, &observed) => Ok(false),
+                Ok(_) => {
+                    // Group absence alone is not escaped-host tree proof. Its
+                    // unresolved admission lease keeps this journal permanently.
+                    if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
+                    release(&directory, &journal, &socket_name).map(|()| true)
+                }
+                Err(error) => Err(NativeError::new(error.code)),
+            };
+            match ended {
+                Ok(true) => return Ok(exit),
+                Ok(false) => settling.progressed(),
+                Err(error) => if settling.exhausted(std::time::Instant::now()) { return Err(error); },
             }
         }
         if let Ok((stream, _)) = listener.accept() { let _ = probe(stream, &record); }
         std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
+/// Adds every live process of the child's tree: its group and descendants of
+/// anything already observed, so one that leaves the group is still followed.
+fn observe(processes: &[macos_processes::Process], pid: i32, observed: &mut BTreeMap<i32, String>) {
+    for process in processes {
+        let mut parent = process.parent_pid; let mut depth = 0;
+        let mut belongs = process.pid == pid || process.group == pid;
+        while !belongs && parent > 1 && depth < processes.len() {
+            belongs = parent == pid || observed.contains_key(&parent);
+            let Some(ancestor) = processes.iter().find(|item| item.pid == parent) else { break; };
+            parent = ancestor.parent_pid; depth += 1;
+        }
+        if belongs && !process.zombie { observed.insert(process.pid, process.started_at.clone()); }
+    }
+}
+
+/// Whether any observed generation or member of the child's group still runs.
+fn remains(processes: &[macos_processes::Process], pid: i32, observed: &BTreeMap<i32, String>) -> bool {
+    observed.iter().any(|(pid, birth)| processes.iter().any(|process|
+        process.pid == *pid && process.started_at == *birth && !process.zombie))
+        || processes.iter().any(|process| process.group == pid && !process.zombie)
+}
+
+fn release(directory: &Path, journal: &Path, socket_name: &str) -> Result<(), NativeError> {
+    let barrier = managed_runtime_context::Barrier::acquire()?;
+    fs::remove_file(journal).map_err(|_| refused())?;
+    fs::remove_file(directory.join(socket_name)).map_err(|_| refused())?;
+    File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())?;
+    drop(barrier);
+    Ok(())
+}
+
+/// How long an exited runtime may keep failing to verify that its tree ended,
+/// or to take the barrier that drops its journal, before it stops and leaves
+/// the journal in place. A tree that is still running is waited for as long
+/// as it runs; only failures to look count.
+const SETTLE_LIMIT: Duration = Duration::from_secs(60);
+
+#[derive(Default)]
+struct Settling { failing_since: Option<std::time::Instant> }
+impl Settling {
+    fn progressed(&mut self) { self.failing_since = None; }
+    fn exhausted(&mut self, now: std::time::Instant) -> bool {
+        now.duration_since(*self.failing_since.get_or_insert(now)) >= SETTLE_LIMIT
     }
 }
 
@@ -345,6 +391,36 @@ mod tests {
         assert!(!ended_one_shot(&record(&birth), root.path(), &groups).unwrap(), "the live child itself");
         leader.kill().unwrap();
         leader.wait().unwrap();
+    }
+    /// A descendant that left the child's group is still the tree's, and the
+    /// tree has ended once its last live member has.
+    #[test]
+    fn the_tree_is_followed_out_of_its_group_until_its_last_member_ends() {
+        let process = |pid: i32, parent: i32, group: i32, zombie: bool| macos_processes::Process { pid,
+            parent_pid: parent, group, uid: 501, started_at: pid.to_string(), executable: "/bin/sh".into(), zombie };
+        let mut observed = BTreeMap::new();
+        observe(&[process(10, 1, 10, false), process(11, 10, 11, false), process(12, 11, 12, false),
+            process(20, 1, 20, false)], 10, &mut observed);
+        assert_eq!(observed.keys().copied().collect::<Vec<_>>(), [10, 11, 12]);
+        assert!(remains(&[process(12, 1, 12, false), process(20, 1, 20, false)], 10, &observed));
+        assert!(remains(&[process(30, 1, 10, false)], 10, &observed), "a member of the child's group");
+        assert!(!remains(&[process(12, 1, 12, true), process(20, 1, 20, false)], 10, &observed));
+        let mut reused = process(12, 1, 12, false);
+        reused.started_at = "later".into();
+        assert!(!remains(&[reused], 10, &observed), "another process now holds the pid");
+    }
+
+    /// Only a minute of failing to look ends an exited runtime's supervision;
+    /// any look that saw its tree starts the minute again.
+    #[test]
+    fn only_a_minute_of_failures_to_look_ends_settling() {
+        let start = std::time::Instant::now();
+        let mut settling = Settling::default();
+        assert!(!settling.exhausted(start));
+        assert!(!settling.exhausted(start + SETTLE_LIMIT - Duration::from_millis(1)));
+        settling.progressed();
+        assert!(!settling.exhausted(start + SETTLE_LIMIT));
+        assert!(settling.exhausted(start + SETTLE_LIMIT * 2));
     }
     #[test]
     fn unsigned_process_never_creates_a_managed_child() {

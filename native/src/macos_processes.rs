@@ -19,8 +19,11 @@ pub struct Process {
     pub zombie: bool,
 }
 
-pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
-    if pid <= 0 { return Err(refused()); }
+/// How long an ending process may take to read as a zombie or as gone.
+const ENDING_READS: u32 = 100;
+
+/// The full kernel record; `None` once the process is gone.
+fn record(pid: i32) -> Result<Option<libc::proc_bsdinfo>, NativeError> {
     let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
     let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
     if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
@@ -28,23 +31,49 @@ pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
             else { Err(refused()) };
     }
     let info = unsafe { info.assume_init() };
-    let zombie = info.pbi_status == 5; // sys/proc.h SZOMB
+    if info.pbi_pid != pid as u32 { return Err(refused()); }
+    Ok(Some(info))
+}
+
+/// The image path, or the errno that refused it.
+fn image(pid: i32) -> Result<PathBuf, Option<i32>> {
     let mut path = vec![0_i8; 4096]; // PROC_PIDPATHINFO_MAXSIZE
     let read = unsafe { proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
-    let executable = if zombie { PathBuf::new() } else if read > 0 {
-        PathBuf::from(unsafe { CStr::from_ptr(path.as_ptr()) }.to_str().map_err(|_| refused())?)
-    } else if std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT)
-        && !product_name(command(&info.pbi_comm)?) {
-        // A live process whose image was replaced on disk (a browser helper
-        // after its app updated) has no path. It cannot be a product process,
-        // so it stays in the tree with no executable rather than hiding it.
-        PathBuf::new()
-    } else { return Err(refused()); };
-    if info.pbi_pid != pid as u32 || !zombie && !executable.as_os_str().is_empty() && !executable.is_absolute() {
-        return Err(refused());
+    if read <= 0 { return Err(std::io::Error::last_os_error().raw_os_error()); }
+    unsafe { CStr::from_ptr(path.as_ptr()) }.to_str().map(PathBuf::from).map_err(|_| None)
+}
+
+pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
+    if pid <= 0 { return Err(refused()); }
+    let mut reads = 0;
+    loop {
+        let Some(info) = record(pid)? else { return Ok(None) };
+        let zombie = info.pbi_status == 5; // sys/proc.h SZOMB
+        let executable = if zombie { PathBuf::new() } else {
+            match image(pid) {
+                Ok(path) => path,
+                // XNU releases an ending process's image before it marks the
+                // process a zombie, and answers ESRCH in between. Read the
+                // record again until it is a zombie or gone: helpers that
+                // other apps start and end many times a second otherwise
+                // refused every snapshot, and each refusal ended a runtime.
+                Err(Some(libc::ESRCH)) if reads < ENDING_READS => {
+                    reads += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    continue;
+                }
+                // A live process whose image was replaced on disk (a browser
+                // helper after its app updated) has no path. It cannot be a
+                // product process, so it stays in the tree with no executable
+                // rather than hiding it.
+                Err(Some(libc::ENOENT)) if !product_name(command(&info.pbi_comm)?) => PathBuf::new(),
+                Err(_) => return Err(refused()),
+            }
+        };
+        if !zombie && !executable.as_os_str().is_empty() && !executable.is_absolute() { return Err(refused()); }
+        return Ok(Some(Process { pid, parent_pid: info.pbi_ppid as i32, group: info.pbi_pgid as i32,
+            uid: info.pbi_uid, started_at: kernel_context::started(&info)?, executable, zombie }));
     }
-    Ok(Some(Process { pid, parent_pid: info.pbi_ppid as i32, group: info.pbi_pgid as i32,
-        uid: info.pbi_uid, started_at: kernel_context::birth(pid)?, executable, zombie }))
 }
 
 fn command(name: &[libc::c_char]) -> Result<&str, NativeError> {
@@ -159,6 +188,35 @@ mod tests {
         let table = all().unwrap();
         assert!(table.iter().any(|process| process.pid == pid && process.executable.is_absolute()));
         assert!(table.iter().all(|process| process.uid == unsafe { libc::getuid() } || process.uid == 0));
+    }
+
+    /// Read throughout its exit, as a snapshot reads the helpers other apps
+    /// end, a process is live, a zombie or gone, never refused.
+    #[test]
+    fn a_process_read_throughout_its_exit_is_never_refused() {
+        for _ in 0..300 {
+            let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+            let pid = child.id() as i32;
+            while information(pid).unwrap().is_some_and(|process| !process.zombie) {}
+            child.wait().unwrap();
+        }
+    }
+
+    #[test]
+    fn snapshots_hold_while_processes_start_and_end() {
+        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        let stop = Arc::new(AtomicBool::new(false));
+        let churn = { let stop = stop.clone(); std::thread::spawn(move || while !stop.load(Ordering::Relaxed) {
+            std::process::Command::new("/usr/bin/true").status().unwrap();
+        }) };
+        let started = std::time::Instant::now();
+        let mut snapshots = Ok(0);
+        while snapshots.is_ok() && started.elapsed() < std::time::Duration::from_secs(3) {
+            snapshots = all().and_then(|_| live_groups()).map(|_| snapshots.unwrap() + 1);
+        }
+        stop.store(true, Ordering::Relaxed);
+        churn.join().unwrap();
+        assert!(snapshots.unwrap() > 0);
     }
 
     #[test]
