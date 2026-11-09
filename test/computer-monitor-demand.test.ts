@@ -37,7 +37,6 @@ test('idle local sampling sends nothing; first demand returns cached history, ex
   let samples = 0
   const monitor = startComputerMonitor('unused', {
     now: () => now, enabled: async () => true,
-    ci: async () => ({ status: 'ready', checkedAt: new Date(now).toISOString(), truncated: false, pullRequests: [] }),
     sample: async () => {
       samples += 1
       const current = sampleAt(now)
@@ -60,6 +59,7 @@ test('idle local sampling sends nothing; first demand returns cached history, ex
     assert.equal(samples, sampled, 'opening the view does not restart or oversample the history')
     await setImmediate()
     assert.equal(probes, 1)
+    assert.equal(monitor.current()?.ci, undefined, 'computer readings never collect GitHub checks')
     assert.equal(monitor.request({ expiresAt: new Date(now + EXECUTOR_MONITOR_VIEW_TTL_MS).toISOString() }), false,
       'renewing another viewer does not open a second stream')
     await advance(15_000)
@@ -86,7 +86,6 @@ test('an expired request cannot start a provider probe after the local setting r
   const setting = new Promise<boolean>(resolve => { allow = resolve })
   const monitor = startComputerMonitor('unused', {
     now: () => now, sample: async () => sampleAt(now), enabled: () => setting,
-    ci: async () => ({ status: 'ready', checkedAt: new Date(now).toISOString(), truncated: false, pullRequests: [] }),
     probe: async () => { probes += 1; return { accounts: [], incomplete: false } },
   })
   try {
