@@ -19,6 +19,7 @@ import { extractProviderEvents } from './provider-events.mjs'
 import { extractInspectionHosts } from './inspection-hosts.mjs'
 import { extractProviderSecretPlan } from './secret-plan.mjs'
 import { extractSelectedProvider } from './selected-provider.mjs'
+import { extractAdapterRegistry } from './adapter-registry.mjs'
 import { extractCodexHost } from './codex-host.mjs'
 import { extractClaudeQuery } from './claude-query.mjs'
 import { extractClaudeHost } from './claude-host.mjs'
@@ -72,6 +73,7 @@ export const generateExtractionManifest = snapshot => {
   extractWorkerClaims(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)
+  extractAdapterRegistry(author)
   extractCodexHost(author, redirects)
   extractClaudeQuery(author, redirects)
   extractClaudeHost(author, redirects)

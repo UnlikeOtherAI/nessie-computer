@@ -8,8 +8,6 @@ import * as Layer from 'effect/Layer'
 import * as Ref from 'effect/Ref'
 import * as Schema from 'effect/Schema'
 import * as Scope from 'effect/Scope'
-import * as ProviderHost from 't3-source:packages/provider-core/src/server/ProviderHost.ts'
-import * as ChildProcessSpawner from 'effect/process/ChildProcessSpawner'
 import * as LegacyImporter from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import * as Orchestrator from 't3-source:apps/server/src/orchestration-v2/Orchestrator.ts'
 import * as Sessions from 't3-source:apps/server/src/orchestration-v2/ProviderSessionManager.session-port.ts'
@@ -35,10 +33,9 @@ export class SessionEngineLifecycle extends Context.Service<SessionEngineLifecyc
 
 const make = Effect.gen(function* () {
   const authority = yield* SessionLifecycleAuthority
-  // Requiring the original tags prevents an accidentally providerless composition.
-  // Their production implementations must come from the admitted host, never NodeServices.layer.
-  yield* ProviderHost.ProviderHost
-  yield* ChildProcessSpawner.ChildProcessSpawner
+  // Require the actual original execution services below. Credential-reference
+  // lookup and a generic spawner are not lifecycle operations; each adapter
+  // retains only the concrete process hosts it actually consumes.
   const importer = yield* LegacyImporter.LegacyV1ThreadImporter
   const recovery = yield* Recovery.ProviderRuntimeRecoveryService
   const orchestrator = yield* Orchestrator.OrchestratorV2

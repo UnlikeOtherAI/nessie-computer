@@ -1,9 +1,8 @@
 import * as Layer from 'effect/Layer'
 import * as Effect from 'effect/Effect'
 import { createSessionStateLayers } from './StateLayers.ts'
-import { createSessionEngineLayers } from './EngineLayers.ts'
+import { createSessionEngineLayers, type SessionEngineLayers } from './EngineLayers.ts'
 import { sessionLifecycleLayer } from './SessionLifecycle.ts'
-import { sessionProviderHostLayer } from './ProviderHostLayers.ts'
 import { sessionResourceCleanupLayer } from './ResourceLayers.ts'
 import { SessionLifecycleAuthority } from './SessionLifecycleAuthority.ts'
 
@@ -13,9 +12,9 @@ import { SessionLifecycleAuthority } from './SessionLifecycleAuthority.ts'
  * layer. Missing provider/resource services remain real Layer requirements.
  * One state object supplies every store, outbox and post-commit wakeup lane.
  */
-export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
-  engine = createSessionEngineLayers(state)) => {
-  const host = Layer.mergeAll(sessionProviderHostLayer, sessionResourceCleanupLayer)
+export const composeSessionRuntimeLayers = <R>(state: ReturnType<typeof createSessionStateLayers>,
+  engine: SessionEngineLayers<R>) => {
+  const host = sessionResourceCleanupLayer
   const services = Layer.mergeAll(engine.launch, engine.recovery, engine.worker).pipe(
     Layer.provideMerge(Layer.mergeAll(host, engine.finalization)),
   )
@@ -25,6 +24,9 @@ export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
     () => sessionLifecycleLayer.pipe(Layer.provideMerge(services))))
   return { state, engine, host, services, layer }
 }
+
+export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
+  engine = createSessionEngineLayers(state)) => composeSessionRuntimeLayers(state, engine)
 
 export { SessionEngineLifecycle, SessionLifecycleError } from './SessionLifecycle.ts'
 export * as SessionLifecycle from './SessionLifecycle.ts'

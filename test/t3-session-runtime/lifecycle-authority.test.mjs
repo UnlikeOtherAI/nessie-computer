@@ -7,7 +7,7 @@ import * as Cause from 'effect/Cause'
 import * as SqlClient from 'effect/sql/SqlClient'
 import { CommandId, ThreadId, RunId } from '@nessie/t3-session-source/contracts'
 import { SessionLifecycleAuthority, SessionLifecycleActionRefused, withSessionLifecycleAction,
-  SessionLifecycle, createSessionRuntimeLayers, Outbox, ProviderHost, NativeChildProcesses,
+  SessionLifecycle, createSessionRuntimeLayers, Outbox,
   LegacyImporter, Recovery, Orchestrator, ProviderSessions, Worker } from '@nessie/t3-session-source/engine'
 import { withOriginalOutbox } from './outbox-fixture.mjs'
 
@@ -118,8 +118,6 @@ test('startup refusal still shuts down providers while unadmitted shutdown SQL r
     }, withShutdownPreparation: () => {
       actions.push('prepare-shutdown'); return Effect.fail(new SessionLifecycleActionRefused())
     } }),
-    Layer.succeed(ProviderHost.ProviderHost, {}),
-    Layer.succeed(NativeChildProcesses.ChildProcessSpawner, {}),
     Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { reconcileShells: mutation('legacy') }),
     Layer.succeed(Recovery.ProviderRuntimeRecoveryService, { recover: mutation('recover'),
       prepareShutdownPlan: Effect.succeed(Object.freeze({})),

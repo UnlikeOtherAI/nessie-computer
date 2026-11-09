@@ -1,5 +1,6 @@
 import { selectedImports } from './author.mjs'
 import { extractProviderSnapshot } from './provider-snapshot.mjs'
+import { extractProviderConstruction } from './provider-construction.mjs'
 
 const extractSelectionPolicy = author => {
   const file = 'apps/server/src/policy/managedProviders.ts'
@@ -50,13 +51,16 @@ export const extractSelectedProvider = (author, redirects) => {
     '? yield* input.readSecrets(driver, entry)', 'entry-use-explicit-reader')
   author.replace(file, '          deferSecrets,\n        });',
     '          deferSecrets,\n          readSecrets: readInstanceSecrets,\n        });', 'registry-retain-original-reader')
+  extractProviderConstruction(author)
 
   // Move the existing view, not a second hand-written registry implementation.
   const view = author.between(file, '  const registry: ProviderInstanceRegistry["Service"] = {',
     '  const mutator: ProviderInstanceRegistryMutator.ProviderInstanceRegistryMutatorShape = {')
-  const viewFunction = `const registryView = ({ entries, unavailable, changes }: RegistryState):
-  ProviderInstanceRegistry["Service"] => {
-${view}  return registry;
+  const sharedView = view.replace('const registry: ProviderInstanceRegistry["Service"]',
+    'const registry: ProviderRegistryView<A>').replace(' as ReadonlyArray<ProviderInstance>', '')
+  const viewFunction = `const registryView = <A>({ entries, unavailable, changes }: RegistryState<A>):
+  ProviderRegistryView<A> => {
+${sharedView}  return registry;
 };
 
 `
@@ -72,20 +76,22 @@ ${view}  return registry;
   const enabledProbe = author.between(file, '// The enabled state `buildEntry`', 'const buildEntry =')
   const selectedBuild = build.replace(enabledProbe, '')
   const factory = `
-/** A fixed selected instance; no mutator, refresh, prefetch or secret resolver. */
-export const makeSelectedProviderInstance = Effect.fn("ProviderInstanceRegistry.makeSelected")(
-  function* <R>(input: {
-    readonly driver: AnyProviderDriver<R>;
+interface SelectedProviderInput<R, A> {
+    readonly driver: ProviderConstructionDriver<R, A>;
     readonly instanceId: ProviderInstanceId;
     readonly entry: ProviderInstanceConfig;
     readonly secrets: InstanceSecrets;
     readonly managedPolicy: ManagedPolicySummary | undefined;
-  }): Effect.fn.Return<ProviderInstanceRegistry["Service"], never, R | Scope.Scope> {
+}
+/** One original validation/creation/view implementation for both projections. */
+const makeSelectedProviderView = Effect.fn("ProviderInstanceRegistry.makeSelected")(
+  function* <R, A>(input: SelectedProviderInput<R, A>):
+    Effect.fn.Return<ProviderRegistryView<A>, never, R | Scope.Scope> {
     const parentScope = yield* Scope.Scope;
     const changes = yield* PubSub.unbounded<void>();
     yield* Effect.addFinalizer(() => PubSub.shutdown(changes));
-    const state: RegistryState = {
-      entries: yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveEntry>>(new Map()),
+    const state: RegistryState<A> = {
+      entries: yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveEntry<A>>>(new Map()),
       unavailable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ServerProvider>>(new Map()),
       secretsUnreadable: yield* Ref.make<ReadonlyMap<ProviderInstanceId, ProviderInstanceConfig>>(new Map()),
       changes,
@@ -105,6 +111,15 @@ export const makeSelectedProviderInstance = Effect.fn("ProviderInstanceRegistry.
     return registryView(state);
   },
 );
+
+/** Full product construction still requires every real original host. */
+export const makeSelectedProviderInstance = <R>(input: SelectedProviderInput<R, ProviderInstance>):
+  Effect.Effect<ProviderInstanceRegistry["Service"], never, R | Scope.Scope> => makeSelectedProviderView(input);
+
+/** Execution construction supplies the actual original adapter and identity,
+ * without inventing a snapshot, text generator or authentication controller. */
+export const makeSelectedExecutionProvider = <R>(input: SelectedProviderInput<R, ProviderExecutionInstance>):
+  Effect.Effect<ProviderRegistryView<ProviderExecutionInstance>, never, R | Scope.Scope> => makeSelectedProviderView(input);
 `
   const body = declarations + secretHelpers + selectedBuild + factory
   author.derive(target, [`import type { ManagedPolicySummary } from "@t3tools/contracts";\n`

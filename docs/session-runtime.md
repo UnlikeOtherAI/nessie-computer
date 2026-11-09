@@ -12,6 +12,28 @@ their original special names. The workspace regression uses long private paths.
 It exercises migration, writes, reopen, competing ownership and cancellation;
 failed captures and journals remain retained.
 
+## Execution-only provider composition
+
+The protected graph uses `makeSessionEngineGraphWithAdapters`. It keeps the same
+original state, scope and memo map, and requires the actual adapter registry and
+runtime-policy owner when execution is built. The original managed runtime-mode
+ceiling wraps that policy. Cold inspection builds neither provider service.
+
+`createSessionSelectedCodexAdapters` and `createSessionSelectedClaudeAdapters`
+construct the original adapters through the shared original entry validation,
+child scope and registry lookup. Their execution projection contains the actual
+instance, continuation, enabled, adapter and optional authentication fields.
+Product snapshots and text generation remain separate capabilities; execution
+does not construct stand-ins for them. Credential-change and access guards are
+shared with the full product registry. Usage-limit failures still persist their
+original terminal events but do not trigger the excluded status refresh.
+
+Lifecycle no longer constructs the provisional credential-reference host or
+requires an unused generic spawner. Each original adapter retains its concrete
+process requirements. Current lifecycle admission, runtime policy, selected
+configuration/filesystem/MCP/workspace owners and production `open` composition
+remain necessary. These changes do not enable execution or secret reads.
+
 ## Original encoder and finite native composition
 
 `CodexClient.make` now accepts the internal `serializedOutput` transport. The
@@ -549,7 +571,7 @@ live layers; callers no longer implement those two services themselves.
 `sessionProviderHostLayer` preserves settings snapshot locking/subscriptions,
 background policy and original attachment/sidecar resolution. The extracted
 original `ProviderHost` replaces its raw `credentials.get/set/remove` API with
-`credentialReference(namespace, bindingId)`. The required native producer is
+`credentialReference(namespace, bindingId)`. A consumer of that optional host requires
 `ProviderCredentialReferences.resolve`, returning only an opaque binding key
 under the original `owner: "provider"` domain. Original auth grouping and its
 `withAccess` rules remain intact. Reference lookup grants no execution, login,
@@ -565,9 +587,9 @@ hashes the tuple into a T3-owned storage key. Neither original native Codex
 client factory nor Claude query transport calls the host credential method.
 There is **no authoritative mapping** from that tuple to `nativeId`, native
 home keys or auth grouping. The provisional reference lookup must remain
-unbound; it must not be implemented with a guessed key or hash. Final runtime
-composition must replace it with the integrated verified-grant/native
-association producer contract.
+unbound; it must not be implemented with a guessed key or hash. Selected Codex
+and Claude execution do not construct this unused host. A future actual consumer
+must supply an independently admitted association producer before using it.
 
 T07's finite native-effect producer is `VerifiedT3EffectGrant`, issued by
 `createT3EffectAuthorityClient(...).issue(selection, signal)` and consumed by

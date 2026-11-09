@@ -14,7 +14,7 @@ import { CodexSettings, ClaudeSettings, ProviderInstanceConfig, ServerSettings,
   type ResolvedProviderInstanceEnvironment }
   from '@nessie/t3-session-source/contracts'
 import { ProviderSecretPlan, Settings, SelectedProvider, SelectedCodex, SelectedClaude,
-  ProviderDirectory, OriginalCodexFactory, OriginalClaudeRunner }
+  ProviderDirectory, OriginalCodexFactory, OriginalClaudeRunner, Adapters }
   from '@nessie/t3-session-source/engine'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import { readSessionExecutionResources, type SessionExecutionResourcesEffect } from './execution-resources.js'
@@ -161,9 +161,9 @@ type SelectedClaudeHost = Exclude<SelectedClaude.SelectedClaudeDriverEnv,
 /** The private plan owns the only value consumer. Both original constructors
  * share these target/settings/lifetime checks without exposing environment
  * values or requiring the other driver's host services. */
-const constructSelectedProvider = <R>(plan: HeldSessionProviderSecretPlan, launch: ReservedSessionLaunch,
-  driver: 'codex' | 'claudeAgent', construct: (input: SelectedInstanceInput) => Effect.Effect<SelectedRegistry, never, R>):
-  Effect.Effect<SelectedRegistry, SelectedProviderError, SelectedProviderBase | R> =>
+const constructSelectedProvider = <A, R>(plan: HeldSessionProviderSecretPlan, launch: ReservedSessionLaunch,
+  driver: 'codex' | 'claudeAgent', construct: (input: SelectedInstanceInput) => Effect.Effect<A, never, R>):
+  Effect.Effect<A, SelectedProviderError, SelectedProviderBase | R> =>
   Effect.gen(function* () {
     yield* recheckSessionProviderSecretPlan(plan)
     const record = records.get(plan)
@@ -218,6 +218,34 @@ export const createSessionSelectedClaudeProvider = (plan: HeldSessionProviderSec
       return yield* SelectedProvider.makeSelectedProviderInstance({ ...input,
         driver: SelectedClaude.SelectedClaudeDriver })
         .pipe(Effect.provideService(OriginalClaudeRunner.ClaudeAgentSdkQueryRunner, runner))
+    })) : Effect.fail(new SessionSecretPlanRefused()))
+
+/** The original execution registry uses only actual adapter/identity/auth fields.
+ * Snapshot and text-generation construction remains with its owning capability. */
+export const createSessionSelectedCodexAdapters = (plan: HeldSessionProviderSecretPlan,
+  launch: ReservedSessionLaunch, hooks: Omit<SelectedCodex.SelectedCodexExecutionHooks, 'instanceId'>):
+  Effect.Effect<Adapters.ProviderAdapterRegistryV2Shape, SelectedProviderError, SelectedProviderBase |
+    Exclude<SelectedCodex.SelectedCodexExecutionEnv, OriginalCodexFactory.CodexAppServerClientFactory>> =>
+  constructSelectedProvider(plan, launch, 'codex', input => Effect.gen(function* () {
+    const factory = yield* makeSessionCodexClientFactory(launch)
+    const directory = yield* SelectedProvider.makeSelectedExecutionProvider({ ...input,
+      driver: SelectedCodex.makeSelectedCodexExecutionDriver({ ...hooks, instanceId: input.instanceId }) }).pipe(
+      Effect.provideService(OriginalCodexFactory.CodexAppServerClientFactory, factory))
+    return Adapters.fromProviderExecutionDirectory(directory)
+  }))
+
+export const createSessionSelectedClaudeAdapters = (plan: HeldSessionProviderSecretPlan,
+  launch: ReservedSessionLaunch, history: SessionClaudeHistoryOwner,
+  hooks: Omit<SelectedClaude.SelectedClaudeExecutionHooks, 'instanceId'>):
+  Effect.Effect<Adapters.ProviderAdapterRegistryV2Shape, SelectedProviderError, SelectedProviderBase |
+    Exclude<SelectedClaude.SelectedClaudeExecutionEnv, OriginalClaudeRunner.ClaudeAgentSdkQueryRunner>> =>
+  Effect.suspend(() => history ? constructSelectedProvider(plan, launch, 'claudeAgent', input =>
+    Effect.gen(function* () {
+      const runner = yield* makeSessionClaudeQueryRunner(launch, history)
+      const directory = yield* SelectedProvider.makeSelectedExecutionProvider({ ...input,
+        driver: SelectedClaude.makeSelectedClaudeExecutionDriver({ ...hooks, instanceId: input.instanceId }) }).pipe(
+        Effect.provideService(OriginalClaudeRunner.ClaudeAgentSdkQueryRunner, runner))
+      return Adapters.fromProviderExecutionDirectory(directory)
     })) : Effect.fail(new SessionSecretPlanRefused()))
 
 /** Begin one selected full-array slot before native observation. This only

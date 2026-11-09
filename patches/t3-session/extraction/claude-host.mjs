@@ -85,7 +85,8 @@ import * as Path from "effect/Path";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import type { ProviderDriver, ProviderInstance } from "@t3tools/provider-core/server/driver";
+import type { ProviderDriver, ProviderInstance, ProviderDriverCreateInput,
+  ProviderExecutionDriver } from "@t3tools/provider-core/server/driver";
 import { defaultProviderContinuationIdentity } from "@t3tools/provider-core/server/driver";
 import { ProviderDriverError } from "@t3tools/provider-core/server/errors";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
@@ -111,27 +112,40 @@ export class SelectedClaudeServices extends Context.Service<SelectedClaudeServic
   readonly scopedLimitNames: NonNullable<ClaudeAdapterV2Options["scopedLimitNames"]>;
 }>()("nessie/session-engine/SelectedClaudeServices") {}
 
-export type SelectedClaudeDriverEnv = SelectedClaudeServices | ClaudeAgentSdkQueryRunner |
+export type SelectedClaudeExecutionEnv = ClaudeAgentSdkQueryRunner |
   FileSystem.FileSystem | Path.Path | SecureRandom.SecureRandom | IdAllocator.IdAllocatorV2 |
   Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig |
   ChildProcessSpawner.ChildProcessSpawner | ServerSettingsService;
+export type SelectedClaudeDriverEnv = SelectedClaudeServices | SelectedClaudeExecutionEnv;
 
-export const SelectedClaudeDriver: ProviderDriver<ClaudeSettings, SelectedClaudeDriverEnv> = {
+export type SelectedClaudeExecutionHooks = Pick<SelectedClaudeServices["Service"],
+  "instanceId" | "modelCatalog" | "scopedLimitNames"> & {
+  readonly onUsageLimits?: NonNullable<ClaudeAdapterV2Options["onUsageLimits"]>;
+};
+
+const selectedClaudeConfigurationError = (input: ProviderDriverCreateInput<ClaudeSettings>) =>
+  !win32.isAbsolute(input.config.binaryPath)
+    || win32.extname(input.config.binaryPath).toLowerCase() !== ".exe" || !input.config.homePath.trim()
+    ? new ProviderDriverError({ driver: ProviderDriverKind.make("claudeAgent"), instanceId: input.instanceId,
+      detail: "Selected Claude launch resolution is not admitted." }) : undefined;
+
+const claudeDefinition = {
   driverKind: ProviderDriverKind.make("claudeAgent"),
   metadata: { displayName: "Claude", supportsMultipleInstances: true },
   configSchema: ClaudeSettings,
   defaultConfig: () => Schema.decodeSync(ClaudeSettings)({}),
-  create: Effect.fn("ClaudeDriver.createSelected")(function* (input) {
+};
+
+/** Actual original adapter with the execution projection of its instance. */
+export const makeSelectedClaudeExecutionDriver = (hooks: SelectedClaudeExecutionHooks):
+  ProviderExecutionDriver<ClaudeSettings, SelectedClaudeExecutionEnv> => ({
+  ...claudeDefinition,
+  create: Effect.fn("ClaudeDriver.createSelectedExecution")(function* (input) {
     // The service pins the actual explicit image and home at preparation. PATH,
     // launch scripts and default homes have no admitted resolution here.
-    if (!win32.isAbsolute(input.config.binaryPath)
-      || win32.extname(input.config.binaryPath).toLowerCase() !== ".exe"
-      || !input.config.homePath.trim()) return yield* new ProviderDriverError({
-        driver: ProviderDriverKind.make("claudeAgent"), instanceId: input.instanceId,
-        detail: "Selected Claude launch resolution is not admitted.",
-      });
-    const services = yield* SelectedClaudeServices;
-    if (services.instanceId !== input.instanceId) return yield* new ProviderDriverError({
+    const invalid = selectedClaudeConfigurationError(input);
+    if (invalid) return yield* invalid;
+    if (hooks.instanceId !== input.instanceId) return yield* new ProviderDriverError({
       driver: ProviderDriverKind.make("claudeAgent"), instanceId: input.instanceId,
       detail: "Selected Claude services belong to another instance.",
     });
@@ -149,13 +163,27 @@ export const SelectedClaudeDriver: ProviderDriver<ClaudeSettings, SelectedClaude
       random: yield* SecureRandom.SecureRandom, idAllocator: yield* IdAllocator.IdAllocatorV2,
       queryRunner: yield* ClaudeAgentSdkQueryRunner,
       continuationRequests: yield* Continuations.ProviderContinuationRequests,
-      modelCatalog: services.modelCatalog, scopedLimitNames: services.scopedLimitNames,
-      onUsageLimits: services.snapshot.applyUsageLimits,
+      modelCatalog: hooks.modelCatalog, scopedLimitNames: hooks.scopedLimitNames,
+      ...(hooks.onUsageLimits ? { onUsageLimits: hooks.onUsageLimits } : {}),
     });
-    return makeClaudeInstance({ ...input,
+    return { instanceId: input.instanceId, driverKind: ProviderDriverKind.make("claudeAgent"), enabled: input.enabled,
       continuationIdentity: { ...defaultProviderContinuationIdentity({
         driverKind: ProviderDriverKind.make("claudeAgent"), instanceId: input.instanceId }), continuationKey },
-      snapshot: services.snapshot, textGeneration: services.textGeneration, orchestrationAdapter });
+      orchestrationAdapter };
+  }),
+});
+
+export const SelectedClaudeDriver: ProviderDriver<ClaudeSettings, SelectedClaudeDriverEnv> = {
+  ...claudeDefinition,
+  create: Effect.fn("ClaudeDriver.createSelected")(function* (input) {
+    const invalid = selectedClaudeConfigurationError(input);
+    if (invalid) return yield* invalid;
+    const services = yield* SelectedClaudeServices;
+    const execution = yield* makeSelectedClaudeExecutionDriver({ instanceId: services.instanceId,
+      modelCatalog: services.modelCatalog, scopedLimitNames: services.scopedLimitNames,
+      onUsageLimits: update => services.snapshot.applyUsageLimits(update) }).create(input);
+    return makeClaudeInstance({ ...input, ...execution, snapshot: services.snapshot,
+      textGeneration: services.textGeneration });
   }),
 };
 `, 'claude-selected-original-driver')

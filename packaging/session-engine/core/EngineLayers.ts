@@ -31,7 +31,8 @@ import { createSessionStateLayers } from './StateLayers.ts'
  * Building higher layers starts original scoped orchestration reactions. Use ReadLayers for passive reads.
  * Consumers, recovery and provider admission require the separately ordered runtime owner.
  */
-export const createSessionEngineLayers = (state = createSessionStateLayers()) => {
+const makeSessionEngineLayers = <R>(state: ReturnType<typeof createSessionStateLayers>,
+  providerLayers: Layer.Layer<Adapters.ProviderAdapterRegistryV2 | Policy.RuntimePolicyV2, never, R>) => {
   const shared = Layer.mergeAll(IdAllocator.layer, ContinuationRequests.layer,
     ThreadCommandExecutor.layer, CommandPolicy.layer, Forks.layer, Output.layer).pipe(Layer.provideMerge(state.layer))
   // Cold inspection builds only the original stores, allocator and selection.
@@ -39,15 +40,14 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
   const inspection = LaunchSelection.layer.pipe(
     Layer.provideMerge(Layer.mergeAll(state.layer, IdAllocator.layer, CloneState.readLayer)),
   )
-  const adapters = Adapters.layerFromProviderInstanceRegistry.pipe(Layer.provide(shared))
+  const adapters = providerLayers.pipe(Layer.provide(shared))
   const providerEvents = ProviderEvents.layer.pipe(Layer.provideMerge(shared))
   const sessions = SessionsLive.layer.pipe(Layer.provideMerge(Layer.mergeAll(adapters, providerEvents)))
   const checkpointCapture = CheckpointCapture.layer.pipe(Layer.provideMerge(shared))
   const finalization = FinalizationLive.layer.pipe(Layer.provideMerge(checkpointCapture))
   const turns = Layer.mergeAll(ControlLive.layer, RequestsLive.layer).pipe(Layer.provideMerge(sessions))
   const switches = Switches.layer.pipe(Layer.provide(adapters))
-  const decisions = Layer.mergeAll(Handoffs.layer, Policy.layerFromProjectStore,
-    adapters, switches).pipe(Layer.provideMerge(turns))
+  const decisions = Layer.mergeAll(Handoffs.layer, adapters, switches).pipe(Layer.provideMerge(turns))
   const legacyImporter = LegacyImporter.layer.pipe(Layer.provide(decisions))
   const orchestrator = Orchestrator.layer.pipe(Layer.provideMerge(decisions))
   const threads = Threads.layerWithLegacyImporter.pipe(
@@ -63,6 +63,23 @@ export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
     turns, decisions, legacyImporter, orchestrator, threads, launch, recovery,
     effectExecutor, worker, continuationConsumer, layer: Layer.mergeAll(launch, recovery) }
 }
+
+export type SessionEngineLayers<R> = ReturnType<typeof makeSessionEngineLayers<R>>
+
+export const createSessionEngineLayers = (state = createSessionStateLayers()) =>
+  makeSessionEngineLayers(state,
+    Layer.mergeAll(Adapters.layerFromProviderInstanceRegistry, Policy.layerFromProjectStore))
+
+/** The protected host supplies its actual adapter registry and runtime policy
+ * at activation. Preserve the original managed ceiling over that policy;
+ * supplying an execution adapter never grants a higher runtime mode. */
+export const sessionExecutionProvidersLayer = Layer.mergeAll(
+  Layer.effect(Adapters.ProviderAdapterRegistryV2, Adapters.ProviderAdapterRegistryV2),
+  Policy.layerEnforcingCeiling)
+
+/** Cold inspection evaluates neither required provider service. */
+export const createSessionEngineLayersWithAdapters = (state = createSessionStateLayers()) =>
+  makeSessionEngineLayers(state, sessionExecutionProvidersLayer)
 
 export { IdAllocator, ContinuationRequests, ThreadCommandExecutor, Orchestrator, Launch, LaunchSelection, CloneState,
   Policy, CommandPolicy, Forks, Handoffs, Adapters, Switches, Output, Recovery, Continuations, Worker }
@@ -106,6 +123,8 @@ export * as OriginalCodexLaunch from 't3-source:apps/server/src/provider/codexLa
 export * as SelectedCodex from 't3-source:apps/server/src/provider/SelectedCodexDriver.ts'
 export * as SelectedClaude from 't3-source:apps/server/src/provider/SelectedClaudeDriver.ts'
 export * as OriginalProviderAdapter from 't3-source:packages/provider-core/src/server/ProviderAdapter.ts'
+export * as OriginalMcpProviderSessions from 't3-source:packages/provider-core/src/server/McpProviderSessions.ts'
+export * as OriginalHostProcess from 't3-source:packages/shared/src/HostProcess.ts'
 export * as RuntimeRequests from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts'
 export * as Rollback from 't3-source:apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts'
 export * as Titles from 't3-source:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts'

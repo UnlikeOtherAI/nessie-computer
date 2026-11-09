@@ -22,14 +22,20 @@ application host aggregates; no exception was added for the old directory.
 
 `makeClaudeInstance` shares the original instance assembly. The application driver
 retains its existing cache invalidation, workspace probe and reset-credit methods.
-Selected construction supplies the actual orchestration adapter, snapshot and
-text-generation services without starting application maintenance or probes.
+Full selected construction supplies the actual orchestration adapter, snapshot
+and text-generation services without starting application maintenance or probes.
+Execution-only construction uses `makeSelectedClaudeExecutionDriver` and the
+shared original registry projection. It requires the actual adapter, continuation
+identity and enabled/auth fields, without constructing product snapshots or text
+generation services. The original registry credential-change guards still apply.
 
 ## Required owners
 
 `SelectedClaudeServices` requires the real selected instance's snapshot,
 text-generation service, model catalog and scoped limit-name Ref. No service
 implementation, synthetic readiness or default text generator is supplied.
+The execution-only driver takes only the selected instance, actual model catalog
+and scoped limit-name Ref, plus its independently required effect hosts.
 
 `SelectedClaudeDriver` retains the original environment merge and Claude-home
 selection. An absolute Windows EXE and explicit configured home are required;

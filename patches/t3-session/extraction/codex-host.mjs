@@ -114,7 +114,8 @@ import * as Digest from "effect/crypto/Digest";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import type { ProviderDriver, ProviderInstance } from "@t3tools/provider-core/server/driver";
+import type { ProviderDriver, ProviderInstance, ProviderDriverCreateInput,
+  ProviderExecutionDriver } from "@t3tools/provider-core/server/driver";
 import { ProviderDriverError } from "@t3tools/provider-core/server/errors";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
@@ -139,26 +140,39 @@ export class SelectedCodexServices extends Context.Service<SelectedCodexServices
   readonly compatibility: NonNullable<CodexAdapterV2Options["compatibility"]>;
 }>()("nessie/session-engine/SelectedCodexServices") {}
 
-export type SelectedCodexDriverEnv = SelectedCodexServices | CodexAppServerClientFactory |
+export type SelectedCodexExecutionEnv = CodexAppServerClientFactory |
   Digest.Digest | FileSystem.FileSystem | Path.Path | IdAllocator.IdAllocatorV2 |
   Continuations.ProviderContinuationRequests | McpProviderSessions.McpProviderSessions | ServerConfig |
   ServerSettingsService;
+export type SelectedCodexDriverEnv = SelectedCodexServices | SelectedCodexExecutionEnv;
 
-export const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {
+export type SelectedCodexExecutionHooks = Pick<SelectedCodexServices["Service"], "instanceId" | "compatibility"> & {
+  readonly onUsageLimits?: NonNullable<CodexAdapterV2Options["onUsageLimits"]>;
+};
+
+const selectedCodexConfigurationError = (input: ProviderDriverCreateInput<CodexSettings>) =>
+  input.config.setupMode === "managed" || input.config.shadowHomePath.trim() || !input.config.homePath.trim()
+    ? new ProviderDriverError({ driver: ProviderDriverKind.make("codex"), instanceId: input.instanceId,
+      detail: "Selected Codex home preparation is not admitted." }) : undefined;
+
+const codexDefinition = {
   driverKind: ProviderDriverKind.make("codex"),
   metadata: { displayName: "Codex", supportsMultipleInstances: true },
   configSchema: CodexSettings,
   defaultConfig: () => Schema.decodeSync(CodexSettings)({}),
-  create: Effect.fn("CodexDriver.createSelected")(function* (input) {
+};
+
+/** Actual original adapter construction. Product snapshots and text generation
+ * retain their own hosts; no replacement implementation is supplied here. */
+export const makeSelectedCodexExecutionDriver = (hooks: SelectedCodexExecutionHooks):
+  ProviderExecutionDriver<CodexSettings, SelectedCodexExecutionEnv> => ({
+  ...codexDefinition,
+  create: Effect.fn("CodexDriver.createSelectedExecution")(function* (input) {
     // A saved overlay requires materializeCodexShadowHome: mkdir, symlink,
     // replacement and private-auth checks. Launch/reserve do not grant it.
-    if (input.config.setupMode === "managed" || input.config.shadowHomePath.trim()
-      || !input.config.homePath.trim()) return yield* new ProviderDriverError({
-        driver: ProviderDriverKind.make("codex"), instanceId: input.instanceId,
-        detail: "Selected Codex home preparation is not admitted.",
-      });
-    const services = yield* SelectedCodexServices;
-    if (services.instanceId !== input.instanceId) return yield* new ProviderDriverError({
+    const invalid = selectedCodexConfigurationError(input);
+    if (invalid) return yield* invalid;
+    if (hooks.instanceId !== input.instanceId) return yield* new ProviderDriverError({
       driver: ProviderDriverKind.make("codex"), instanceId: input.instanceId,
       detail: "Selected Codex services belong to another instance.",
     });
@@ -176,10 +190,23 @@ export const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDri
       digest: yield* Digest.Digest, fileSystem: yield* FileSystem.FileSystem,
       idAllocator: yield* IdAllocator.IdAllocatorV2, serverConfig: yield* ServerConfig,
       continuationRequests: yield* Continuations.ProviderContinuationRequests,
-      onUsageLimits: services.snapshot.applyUsageLimits, compatibility: services.compatibility,
+      ...(hooks.onUsageLimits ? { onUsageLimits: hooks.onUsageLimits } : {}), compatibility: hooks.compatibility,
     });
-    return makeCodexInstance({ ...input, continuationIdentity: codexContinuationIdentity(homeLayout),
-      snapshot: services.snapshot, textGeneration: services.textGeneration, orchestrationAdapter });
+    return { instanceId: input.instanceId, driverKind: ProviderDriverKind.make("codex"), enabled: input.enabled,
+      continuationIdentity: codexContinuationIdentity(homeLayout), orchestrationAdapter };
+  }),
+});
+
+export const SelectedCodexDriver: ProviderDriver<CodexSettings, SelectedCodexDriverEnv> = {
+  ...codexDefinition,
+  create: Effect.fn("CodexDriver.createSelected")(function* (input) {
+    const invalid = selectedCodexConfigurationError(input);
+    if (invalid) return yield* invalid;
+    const services = yield* SelectedCodexServices;
+    const execution = yield* makeSelectedCodexExecutionDriver({ instanceId: services.instanceId,
+      compatibility: services.compatibility, onUsageLimits: update => services.snapshot.applyUsageLimits(update) }).create(input);
+    return makeCodexInstance({ ...input, ...execution, snapshot: services.snapshot,
+      textGeneration: services.textGeneration });
   }),
 };
 `, 'codex-selected-original-driver')

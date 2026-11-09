@@ -1,8 +1,10 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Context from 'effect/Context'
-import { createSessionEngineLayers } from './EngineLayers.ts'
-import { createSessionRuntimeLayers } from './RuntimeLayers.ts'
+import { createSessionEngineLayers, createSessionEngineLayersWithAdapters, type SessionEngineLayers }
+  from './EngineLayers.ts'
+import { createSessionStateLayers } from './StateLayers.ts'
+import { composeSessionRuntimeLayers } from './RuntimeLayers.ts'
 
 export class SessionEngineGraphClosed extends Error {
   constructor() { super('T3_SESSION_ENGINE_GRAPH_CLOSED'); this.name = 'SessionEngineGraphClosed' }
@@ -13,11 +15,12 @@ export class SessionEngineGraphClosed extends Error {
  * actual original host services; this owner confers no execution authority.
  * The enclosing runtime must interrupt/join demand before closing its scope.
  */
-export const makeSessionEngineGraph = Effect.gen(function* () {
+const makeSessionGraph = <R>(createLayers: (state: ReturnType<typeof createSessionStateLayers>) =>
+  SessionEngineLayers<R>) => Effect.gen(function* () {
   const scope = yield* Effect.scope
   const memo = yield* Layer.makeMemoMap
-  const layers = createSessionEngineLayers()
-  const runtime = createSessionRuntimeLayers(layers.state, layers)
+  const layers = createLayers(createSessionStateLayers())
+  const runtime = composeSessionRuntimeLayers(layers.state, layers)
   let open = true
   yield* Effect.addFinalizer(() => Effect.sync(() => { open = false }))
   const build = <A, E, R>(layer: Layer.Layer<A, E, R>) =>
@@ -33,3 +36,6 @@ export const makeSessionEngineGraph = Effect.gen(function* () {
     finalization: build(layers.finalization),
   }
 })
+
+export const makeSessionEngineGraph = makeSessionGraph(createSessionEngineLayers)
+export const makeSessionEngineGraphWithAdapters = makeSessionGraph(createSessionEngineLayersWithAdapters)

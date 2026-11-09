@@ -19,4 +19,21 @@ export const extractProviderEvents = author => {
                   if (storedEvents.length === 0 || input.event.type !== "provider_turn.updated")`
   const end = '              (effect) =>\n                input.event.type === "app_thread.created"'
   author.replace(file, author.between(file, start, end), '', 'provider-events-exclude-completion-analytics')
+  // Usage refresh is an excluded diagnostic effect. It must not construct a
+  // product-wide provider directory or spawn an unadmitted probe on turn failure.
+  const refresh = author.between(file, `              Effect.tap((storedEvents) =>
+                Effect.gen(function* () {
+                  if (
+                    storedEvents.length === 0 ||
+                    input.event.type !== "turn.terminal"`, `              Effect.flatMap((storedEvents) =>
+                Effect.gen(function* () {
+                  if (input.event.type !== "app_thread.created")`)
+  author.replace(file, refresh, '', 'provider-events-exclude-usage-refresh')
+  author.replace(file, 'import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";\n', '',
+    'provider-events-no-diagnostic-directory-import')
+  author.replace(file, '  | ProviderInstanceRegistry.ProviderInstanceRegistry\n', '',
+    'provider-events-no-diagnostic-directory-requirement')
+  author.replace(file, '    const instances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;\n', '',
+    'provider-events-no-diagnostic-directory-owner')
+  author.replace(file, '    const scope = yield* Effect.scope;\n', '', 'provider-events-no-diagnostic-fiber-scope')
 }

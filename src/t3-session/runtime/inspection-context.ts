@@ -3,7 +3,8 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Scope from 'effect/Scope'
 import type * as SqlClient from 'effect/sql/SqlClient'
-import { makeSessionEngineGraph, Settings, CommandLineage, EffectClaims, Outbox } from '@nessie/t3-session-source/engine'
+import { makeSessionEngineGraphWithAdapters, Settings, CommandLineage, EffectClaims, Outbox }
+  from '@nessie/t3-session-source/engine'
 import type { ServerSettingsError } from '@nessie/t3-session-source/contracts'
 import type { OwnedCaptureSqlError } from '../import/materialize.js'
 import type { ExecutorT3Request, ExecutorT3LaneDelivery, T3ExecutionSignedAdmission }
@@ -22,7 +23,7 @@ import { makeSessionCommandLineageRegistry, type SessionCommandLineageRegistry }
 import { joinedNativeEffect } from './native-effect.js'
 
 type LaunchRequest = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
-type EngineOwner = EffectValue<typeof makeSessionEngineGraph>
+type EngineOwner = EffectValue<typeof makeSessionEngineGraphWithAdapters>
 type Inspection = EngineOwner['inspection']
 type HostServices = SqlClient.SqlClient | Settings.ServerSettingsReadService | SessionStateOwner
   | CommandLineage.SessionCommandLineage | EffectClaims.SessionEffectClaimAuthority
@@ -68,7 +69,7 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
       sessionExecutionSettingsLayer(source), Layer.succeed(SessionStateOwner, state.owner),
       Layer.succeed(CommandLineage.SessionCommandLineage, commandLineage.service),
       Layer.succeed(EffectClaims.SessionEffectClaimAuthority, commandLineage.effectClaims)))
-    const engine = yield* makeSessionEngineGraph
+    const engine = yield* makeSessionEngineGraphWithAdapters
     const cold = yield* engine.inspection.pipe(Effect.provide(host))
     const context = Context.merge(host, cold)
     yield* current

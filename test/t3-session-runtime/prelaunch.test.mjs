@@ -7,7 +7,7 @@ import * as Schema from 'effect/Schema'
 import * as Ref from 'effect/Ref'
 import { LaunchSelection, ProjectStore, ProjectionStore, CommandReceipts, IdAllocator,
   Settings, ProjectClones, SourceContracts, SessionControl, Launch,
-  makeSessionEngineGraph, SessionEngineGraphClosed, CloneState,
+  makeSessionEngineGraph, makeSessionEngineGraphWithAdapters, SessionEngineGraphClosed, CloneState,
 } from '@nessie/t3-session-source/engine'
 
 // Exercises the original extracted launch constructor against refusal traps.
@@ -73,9 +73,11 @@ test('separate phase builds share the original selection when owned by one memo 
 })
 
 test('closed graph cannot construct inspection or activate host services', async () => {
-  const graph = await Effect.runPromise(Effect.scoped(makeSessionEngineGraph))
-  for (const phase of [graph.inspection, graph.activate, graph.recovery, graph.continuationConsumer]) {
-    await assert.rejects(Effect.runPromise(phase), SessionEngineGraphClosed)
+  for (const make of [makeSessionEngineGraph, makeSessionEngineGraphWithAdapters]) {
+    const graph = await Effect.runPromise(Effect.scoped(make))
+    for (const phase of [graph.inspection, graph.activate, graph.recovery, graph.continuationConsumer]) {
+      await assert.rejects(Effect.runPromise(phase), SessionEngineGraphClosed)
+    }
   }
 })
 

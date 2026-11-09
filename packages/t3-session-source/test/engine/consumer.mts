@@ -3,7 +3,9 @@ import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
-import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, ProviderDirectory, ResourceOwners, Settings,
+import { createSessionReadLayers, createSessionEngineLayers, createSessionEngineLayersWithAdapters,
+  ProviderSessions, ProviderDirectory, ResourceOwners, Settings, Adapters, SelectedCodex, SelectedClaude,
+  Policy, ProviderEvents,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
   EnvironmentIdentity, type SessionStateServices, LegacyImporter, SourceContracts,
   SessionControl, Threads, Launch, CommandLineage, EffectClaims, Outbox, ScheduledTasks }
@@ -21,14 +23,14 @@ type Worker = Input<ReturnType<typeof createSessionEngineLayers>['worker']>
 type Shared = Input<ReturnType<typeof createSessionEngineLayers>['shared']>
 type Runtime = Input<ReturnType<typeof createSessionRuntimeLayers>['layer']>
 const runtimeHostRequired: ProviderHost.ProviderHost extends Runtime ? true : false = false
-const runtimeCredentialsRequired: ProviderCredentialReferences extends Runtime ? true : false = true
+const runtimeCredentialsRequired: ProviderCredentialReferences extends Runtime ? true : false = false
 const runtimeResourceOwnersRequired: SessionResourceTargets extends Runtime ? true : false = true
 const runtimeControlRequired: TurnControl.ProviderTurnControlServiceV2 extends Runtime ? true : false = false
 const runtimeRequestsRequired: RuntimeRequests.RuntimeRequestServiceV2 extends Runtime ? true : false = false
 type Host = Input<typeof sessionProviderHostLayer>
 const hostCredentialProducerRequired: ProviderCredentialReferences extends Host ? true : false = true
 const noRawCredentials: 'credentials' extends keyof ProviderHost.ProviderHost['Service'] ? false : true = true
-const runtimeNativeRequired: NativeChildProcesses.ChildProcessSpawner extends Runtime ? true : false = true
+const runtimeNativeRequired: NativeChildProcesses.ChildProcessSpawner extends Runtime ? true : false = false
 const runtimeProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Runtime ? true : false = false
 const runtimeDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Runtime ? true : false = true
 const runtimeCleanupRequired: ResourceOwners.ResourceCleanupService extends Runtime ? true : false = false
@@ -36,6 +38,26 @@ const readSqlRequired: SqlClient.SqlClient extends Reads ? true : false = true
 const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Reads ? true : false = false
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
 const engineDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Engine ? true : false = true
+type ProtectedEngine = Input<ReturnType<typeof createSessionEngineLayersWithAdapters>['layer']>
+const protectedAdapterRequired: Adapters.ProviderAdapterRegistryV2 extends ProtectedEngine ? true : false = true
+const protectedPolicyRequired: Policy.RuntimePolicyV2 extends ProtectedEngine ? true : false = true
+const protectedFullDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends ProtectedEngine ? true : false = false
+type EventPorts = Input<typeof ProviderEvents.layer>
+const eventsNeedNoProductDirectory: ProviderDirectory.ProviderInstanceRegistry extends EventPorts ? true : false = false
+type CodexExecution = Services<ReturnType<ReturnType<typeof SelectedCodex.makeSelectedCodexExecutionDriver>['create']>>
+type ClaudeExecution = Services<ReturnType<ReturnType<typeof SelectedClaude.makeSelectedClaudeExecutionDriver>['create']>>
+// Default Context references are structurally broad. Check actual union members,
+// rather than whether an unrelated service is assignable to a default reference.
+type RequiresCodexProduct = Extract<CodexExecution, SelectedCodex.SelectedCodexServices>
+type RequiresClaudeProduct = Extract<ClaudeExecution, SelectedClaude.SelectedClaudeServices>
+const codexFullProductRequired: RequiresCodexProduct extends never ? false : true = false
+const claudeFullProductRequired: RequiresClaudeProduct extends never ? false : true = false
+type CodexSpawner = Extract<CodexExecution, NativeChildProcesses.ChildProcessSpawner>
+type ClaudeSpawner = Extract<ClaudeExecution, NativeChildProcesses.ChildProcessSpawner>
+const codexGenericSpawnerRequired: CodexSpawner extends never ? false : true = false
+const claudeSpawnerRequired: ClaudeSpawner extends never ? false : true = true
+// @ts-expect-error A full provider snapshot cannot replace the execution adapter registry.
+const invalidExecutionRegistry: Adapters.ProviderAdapterRegistryV2['Service'] = { snapshot: {} }
 const engineSettingsRequired: Settings.ServerSettingsService extends Engine ? true : false = true
 const engineLineageRequired: CommandLineage.SessionCommandLineage extends Engine ? true : false = true
 const readsNeedNoLineage: CommandLineage.SessionCommandLineage extends Reads ? true : false = false
@@ -82,6 +104,10 @@ void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSetti
   engineLineageRequired, readsNeedNoLineage,
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   runtimeDirectoryRequired, engineDirectoryRequired,
+  protectedAdapterRequired, protectedPolicyRequired, protectedFullDirectoryRequired, eventsNeedNoProductDirectory,
+  codexFullProductRequired, claudeFullProductRequired,
+  codexGenericSpawnerRequired, claudeSpawnerRequired,
+  invalidExecutionRegistry,
   runtimeCredentialsRequired, runtimeResourceOwnersRequired, runtimeControlRequired, runtimeRequestsRequired,
   hostCredentialProducerRequired, noRawCredentials,
   sharedSqlRequired, sharedProjectionRequired, engineEventSinkRequired, exactReadLayer, transcriptIdentityRequired,
