@@ -74,6 +74,7 @@ The bounded original T3 daemon lane and finite effect-grant verification follow 
 Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).
 Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
 Execution-only held settings, opaque provider homes and the protected graph/service duplication contract follow [execution resources](docs/t3-execution-resources.md); retained read consent grants no execution authority.
+Execution SQL uses the native [destination owner](docs/t3-execution-resources.md#native-execution-destination-ownership); writer/file pins grant no pending-row claim or recovery authority.
 The fixed `t3-execution secret-observe` companion records terminal environment-slot attempts; secret reads remain unavailable under [prelaunch secret reads](docs/prelaunch-secret-read.md).
 Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.
 Prospective source issuer enrollment, protected local review, online receipt consumption and the unqualified Windows tray/service gates follow [source consent](docs/t3-source-consent.md).

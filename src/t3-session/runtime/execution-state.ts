@@ -5,9 +5,9 @@ import { withSourceSnapshotView } from '../import/snapshot-view.js'
 import type { ProvenT3Source } from '../import/manifest.js'
 import { recognizeT3ExecutionResource, type T3ExecutionResourceScope } from '../source/execution.js'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
-import { withOwnedSnapshotWorkspace } from './capture-workspace.js'
+import { withPinnedExecutionWorkspace } from './capture-workspace.js'
 import { SessionStateOwner } from './state-owner.js'
-import { SessionStateError } from './paths.js'
+import { resolveT3SessionStateDir, SessionStateError } from './paths.js'
 
 export interface HeldSessionExecutionState {
   readonly source: ProvenT3Source
@@ -29,7 +29,11 @@ export async function withSessionExecutionState<A>(source: T3ExecutionResourceSc
   const receipt = await recognizeT3ExecutionResource(source)
   const signal = AbortSignal.any([source.signal, callerSignal])
   signal.throwIfAborted()
-  return withOwnedSnapshotWorkspace(storageRoot, receipt.evidence.source.physicalRootKey, 'execution-state',
+  // Create only the owner-checked directory before native pins the fixed actual
+  // token path. Every original SQL connection opens afterward in that namespace.
+  await resolveT3SessionStateDir(storageRoot, `execution-state:${receipt.evidence.source.physicalRootKey}`)
+  await recognizeT3ExecutionResource(source)
+  return source.withDestination(destination => withPinnedExecutionWorkspace(destination,
     async storage => {
       let active = true
       const assertCurrent = () => {
@@ -121,5 +125,5 @@ export async function withSessionExecutionState<A>(source: T3ExecutionResourceSc
         journal.attempts.fail(attempt, code)
         throw new CaptureFailure(code)
       } finally { active = false }
-    }, signal)
+    }, signal))
 }

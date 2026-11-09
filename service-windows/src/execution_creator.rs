@@ -260,6 +260,7 @@ pub fn handle(
             {
                 return Err(REJECTED.into());
             }
+            if creation.role.is_none() { crate::execution_resource::release_cleared_graph(child)?; }
             let record = state.execution_creations.get_mut(&id).ok_or(REJECTED)?;
             record.cleared = true;
             record.cleared_at_ms.get_or_insert(now_ms()?);

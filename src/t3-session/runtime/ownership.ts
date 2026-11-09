@@ -13,8 +13,11 @@ import { assertOutsideCheckout } from './paths.js'
 export const acquireSessionStateWriter = async (directory: string): Promise<StateDirectoryLock> => {
   await assertOutsideCheckout(directory)
   await assertOwnerOnlyStatePath(directory, 'directory')
-  const physical = await realpath(directory)
-  await assertOutsideCheckout(physical)
+  const resolved = await realpath(directory)
+  await assertOutsideCheckout(resolved)
+  // Native execution storage already holds this exact volume namespace. A
+  // realpath drive-letter spelling must not reintroduce an alias on lock open.
+  const physical = directory.startsWith('\\\\?\\Volume{') ? directory : resolved
   const lockPath = join(physical, 'server-owner.sqlite')
   try { closeSync(openSync(lockPath, 'wx', 0o600)) }
   catch (error) { if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error }

@@ -381,11 +381,12 @@ row refuses. Execution, cancellation and settlement still use the original
 worker implementation. Admission changes can wake an idle worker independently
 of SQL notifications, and scheduled deadlines use the same command scope.
 
-This is a consumer boundary, not a positive grant producer. Current native
-resource custody holds source/settings/home handles, not the mutable destination
-SQL stage or its pending row. `OwnedCaptureStage` currently exposes a reference
-and held SQL layer only. Independent destination ownership and native observation,
-the current backend admission and its transport still need concrete composition.
+This is a consumer boundary, not a positive grant producer. Native destination
+ownership now pins the actual execution directory, writer and stage files before
+original SQL opens, under the [destination contract](t3-execution-resources.md#native-execution-destination-ownership).
+`OwnedCaptureStage` still exposes a reference and held SQL layer only; no pending
+row observation is manufactured from it. Independent native row observation,
+current backend admission and their transport still need concrete composition.
 Startup importer/recovery writes also need their own authority before activation.
 Neither captured lineage, reserve, graph nor FRAME authorizes these mutations.
 An uncertain outcome after an actual claim must retain and reconcile its durable
@@ -411,17 +412,14 @@ Evidence and the retained database are under
 `D:/BuildArtifacts/nessie/t3-7a4698a9-verification/effect-claim-interface-rE9UCK`.
 This exercises SQL primitives only, with no positive admission owner or provider.
 
-The destination-owner audit identified the concrete next seam. `protected-source`
-chooses local storage from the graph process's home; `capture-workspace` builds
-the original SQL layer once, and `database-file` checks the destination inode and
-owner policy. None registers that destination with native. The resource service's
-`Held` map contains duplicated source/settings/home objects only. Native's source
-SQLite connection is read-only and bound to its own main/WAL handles; it cannot
-attest a row in the destination merely because its graph shares source custody.
-A future observer must bind the actual destination namespace, database and writer
-generation before reading a pending row. It must compare the full retained row
-and original command relationship; a stage reference or caller-supplied digest
-cannot supply that evidence. This audit introduces no wire domain or signer.
+The destination-owner audit led to the native directory/writer/file producer.
+`capture-workspace` now consumes its recognized volume namespace and service-issued
+writer generation. Native's source SQLite connection remains separate and
+read-only; it cannot attest a destination row merely because its graph shares
+source custody. The next observer must use the held destination file and verify
+the main/WAL objects of its own SQLite connection. It must compare the full
+retained row and original command relationship; a stage reference or caller
+digest cannot supply that evidence. No claim wire domain or signer exists yet.
 
 ## Composition and ownership
 

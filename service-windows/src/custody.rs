@@ -35,6 +35,9 @@ fn reconcile(state: &mut State) -> Result<(), String> {
         if let Some(job)=&record.job_name{
             let gone=match &record.child {Some(child)=>absent(child)?,None=>record.expires_at_ms<=now};
             if gone&&job_members(job)?.is_empty(){
+                if record.role.is_none() {
+                    if let Some(child) = &record.child { crate::execution_resource::release_cleared_graph(child)?; }
+                }
                 record.cleared=true;record.cleared_at_ms.get_or_insert(now);
             }
         }
@@ -52,6 +55,7 @@ fn reconcile(state: &mut State) -> Result<(), String> {
                 && absent(&record.child)?
                 && absent(&record.supervisor)?)
         {
+            if record.kind == RuntimeKind::T3SessionGraph { crate::execution_resource::release_cleared_graph(&record.child)?; }
             gone.push(key.clone());
         }
     }

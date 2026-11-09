@@ -28,3 +28,14 @@ export const T3ExecutionResourceReceiptSchema = z.object({
 }).strict()
 export type T3ExecutionResourceReceipt = z.infer<typeof T3ExecutionResourceReceiptSchema>
 export type T3ExecutionProviderResource = z.infer<typeof T3ExecutionProviderResourceSchema>
+
+/** Local native storage metadata only; neither schema creates custody or a grant. */
+export const T3ExecutionDestinationReceiptSchema = z.object({
+  version: z.literal(1), resourceId: hex, resourceGeneration: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+  runtimeGeneration: z.string().regex(/^destination-sha256:[a-f0-9]{64}$/u), directoryIdentity: id, writerIdentity: id,
+}).strict()
+export const T3ExecutionDestinationFileReceiptSchema = z.object({
+  version: z.literal(1), runtimeGeneration: z.string().regex(/^destination-sha256:[a-f0-9]{64}$/u),
+  reference: z.union([z.literal('journal'), z.string().regex(/^t3-capture:v1:[a-f0-9]{64}$/u)]), databaseIdentity: id,
+}).strict()
+export type T3ExecutionDestinationReceipt = z.infer<typeof T3ExecutionDestinationReceiptSchema>

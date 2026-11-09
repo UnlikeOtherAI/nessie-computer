@@ -59,7 +59,8 @@ fn fixture() -> Fixture {
     let held = Held { receipt: Receipt { version: 1, resource_id: "a".repeat(64), resource_generation: "component-test".into(),
         evidence, custody }, caller, objects, watches: Vec::new(), deadline: Instant::now() + Duration::from_secs(10),
         config_digest: Sha256::digest(b"{}").to_vec(), graph_generation: None, inspections: HashMap::new(),
-        paired_origin: "https://example.invalid".into(), service_root: root.path().into() };
+        paired_origin: "https://example.invalid".into(), service_root: root.path().into(), destination: None, destination_closed: false,
+        runtime_process: Some(Process::open(std::process::id()).unwrap()) };
     Fixture { root, native, held }
 }
 #[test]
@@ -74,6 +75,83 @@ fn execution_resource_receiver_retains_actual_files_and_rejects_substituted_sour
     fixture.held.receipt.evidence.source.environment_id = "original:env".into();
     fixture.held.receipt.evidence.settings_digest = "f".repeat(64);
     assert!(fixture.held.recheck_objects().is_err());
+}
+
+fn destination_file(path: &Path, sid: &str, exclusive: bool) -> (File, Object) {
+    use std::os::windows::fs::OpenOptionsExt;
+    let (secured, mut object) = open(path, false, sid, "database");
+    drop(secured);
+    let file = fs::OpenOptions::new().access_mode(0xC002_0080).share_mode(if exclusive { 0 } else { 3 })
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT).open(path).unwrap();
+    object.handle = file.as_raw_handle() as usize as u64;
+    (file, object)
+}
+
+#[test]
+fn execution_destination_receiver_retains_native_writer_and_mutable_database_after_sender_close() {
+    let fixture = fixture();
+    let caller = Process::open(std::process::id()).unwrap();
+    let path = fixture.root.path().join("execution-destination");
+    fs::create_dir(&path).unwrap();
+    let (directory, directory_object) = open(&path, true, &caller.sid, "directory");
+    let writer_path = path.join(nessie_windows_common::execution_destination::WRITER_FILE);
+    fs::write(&writer_path, []).unwrap();
+    let (writer, writer_object) = destination_file(&writer_path, &caller.sid, true);
+    let journal = path.join("capture-journal.sqlite");
+    fs::write(&journal, "mutable destination component").unwrap();
+    let (file, object) = destination_file(&journal, &caller.sid, false);
+    let reference = format!("t3-capture:v1:{:x}", Sha256::digest(b"nessie:t3-capture-stage:v1\0captured-generation"));
+    let stage = path.join(nessie_windows_common::execution_destination::filename(&reference).unwrap());
+    fs::write(&stage, "stage namespace component").unwrap();
+    let (stage_file, stage_object) = destination_file(&stage, &caller.sid, false);
+    // Calls the real receiver's object seam, not authenticate_graph or a grant.
+    let mut held = destination::Destination::from_directory(&caller, &fixture.held.receipt, &"a".repeat(64),
+        &directory_object, &writer_object, Vec::new(), &path).unwrap();
+    let receipt = held.hold_file(&caller, "journal", &object).unwrap();
+    assert_eq!(receipt.database_identity, object.identity);
+    held.hold_file(&caller, &reference, &stage_object).unwrap();
+    assert_eq!(held.stage_reference("captured-generation").unwrap(), reference);
+    let wrong_file = fixture.held.objects.iter().find(|o| o.description.kind == "database").unwrap().description.clone();
+    assert!(held.hold_file(&caller, &format!("t3-capture:v1:{}", "a".repeat(64)), &wrong_file).is_err());
+    assert!(held.stage_reference("missing-generation").is_err());
+    drop(file); drop(stage_file); drop(writer); drop(directory);
+    held.recheck().unwrap();
+    assert!(fs::OpenOptions::new().read(true).open(&writer_path).is_err());
+    fs::write(&journal, "original writer may still update contents").unwrap();
+    assert!(fs::rename(&journal, path.join("replacement.sqlite")).is_err());
+    assert!(fs::rename(&path, fixture.root.path().join("replacement")).is_err());
+    held.recheck().unwrap();
+    drop(held);
+    assert!(fs::OpenOptions::new().read(true).open(&writer_path).is_ok());
+}
+
+#[test]
+fn execution_destination_retirement_requires_actual_graph_process_exit_before_releasing_writer() {
+    use std::os::windows::process::CommandExt;
+    let fixture = fixture();
+    let caller = Process::open(std::process::id()).unwrap();
+    let path = fixture.root.path().join("retiring-destination");
+    fs::create_dir(&path).unwrap();
+    let (directory, directory_object) = open(&path, true, &caller.sid, "directory");
+    let writer_path = path.join(nessie_windows_common::execution_destination::WRITER_FILE);
+    fs::write(&writer_path, []).unwrap();
+    let (writer, writer_object) = destination_file(&writer_path, &caller.sid, true);
+    let held = destination::Destination::from_directory(&caller, &fixture.held.receipt, &"b".repeat(64),
+        &directory_object, &writer_object, Vec::new(), &path).unwrap();
+    let mut child = std::process::Command::new("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 1"])
+        .creation_flags(0x0800_0000).spawn().unwrap();
+    let graph = Process::open(child.id()).unwrap();
+    assert!(graph.alive());
+    let generation = graph.generation.clone();
+    destination::retire(held, graph);
+    drop(writer); drop(directory);
+    destination::cleanup_retired();
+    assert!(fs::OpenOptions::new().read(true).open(&writer_path).is_err());
+    assert!(destination::release_graph(&generation).is_err());
+    assert!(child.wait().unwrap().success());
+    destination::release_graph(&generation).unwrap();
+    assert!(fs::OpenOptions::new().read(true).open(&writer_path).is_ok());
 }
 #[test]
 fn execution_resource_receiver_expiry_and_unlinked_registration_never_recover() {

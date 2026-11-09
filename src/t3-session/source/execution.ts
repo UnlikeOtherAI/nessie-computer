@@ -10,6 +10,7 @@ import type { CaptureDatabase } from '../state/sqlite.js'
 import type { ProvenT3Source } from '../import/manifest.js'
 import { tablesForLayout } from '../import/layout.js'
 import { checkT3SourceLayout } from './layout-check.js'
+import { withNativeExecutionDestination, type T3ExecutionDestinationScope } from './execution-destination.js'
 
 export interface T3ExecutionSourceSnapshot {
   readonly source: ProvenT3Source
@@ -29,6 +30,7 @@ export interface T3ExecutionResourceScope {
   readonly providerReferences: readonly T3ExecutionProviderResource[]
   readonly signal: AbortSignal
   withReadonlySourceSnapshot<A>(use: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>): Promise<A>
+  withDestination<A>(use: (destination: T3ExecutionDestinationScope) => Promise<A>): Promise<A>
   recheck(): Promise<void>
 }
 const scopes = new WeakMap<T3ExecutionResourceScope, () => Promise<void>>()
@@ -42,7 +44,8 @@ function freeze<T>(value: T): T {
 
 /** Recognition checks the issued object, never a deserialized receipt or caller
  * callback. The underlying service also rechecks the real graph kernel peer. */
-export async function recognizeT3ExecutionResource(scope: T3ExecutionResourceScope): Promise<T3ExecutionResourceReceipt> {
+export async function recognizeT3ExecutionResource(scope: T3ExecutionResourceScope):
+Promise<T3ExecutionResourceReceipt> {
   const recheck = scopes.get(scope)
   requireCapture(recheck, 't3_execution_resource_not_issued')
   await recheck()
@@ -101,9 +104,12 @@ export async function withT3ExecutionResources<A>(input: {
       && receipt.custody.runtime.pid === process.pid, 't3_execution_resource_mismatch')
     const rawSource = receipt.evidence.source
     const source: ProvenT3Source = Object.freeze({ admittedRootKey: rawSource.admittedRootKey,
-      physicalRootKey: rawSource.physicalRootKey, environmentId: Schema.decodeUnknownSync(EnvironmentId)(rawSource.environmentId),
+      physicalRootKey: rawSource.physicalRootKey,
+      environmentId: Schema.decodeUnknownSync(EnvironmentId)(rawSource.environmentId),
       layout: rawSource.layout, databaseRole: rawSource.databaseRole })
-    const withReadonlySourceSnapshot = async <A>(useSnapshot: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>): Promise<A> => {
+    const withReadonlySourceSnapshot = async <A>(
+      useSnapshot: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>,
+    ): Promise<A> => {
       assertLive()
       requireCapture(!snapshotActive, 't3_execution_source_snapshot_busy')
       snapshotActive = true
@@ -172,7 +178,14 @@ export async function withT3ExecutionResources<A>(input: {
         requireCapture(live && !abort.signal.aborted, 't3_execution_resource_closed')
         return heldBytes
       },
-      receipt, providerReferences: receipt.evidence.providerReferences, signal: abort.signal, recheck, withReadonlySourceSnapshot,
+      receipt, providerReferences: receipt.evidence.providerReferences, signal: abort.signal,
+      recheck, withReadonlySourceSnapshot,
+      withDestination: async <R>(useDestination: (destination: T3ExecutionDestinationScope) => Promise<R>) => {
+        await recheck()
+        const result = await withNativeExecutionDestination(native.exchange, receipt, abort.signal, useDestination)
+        await recheck()
+        return result
+      },
     })
     scopes.set(scope, recheck)
     // Renewal checks actual service/native resources. It does not renew any

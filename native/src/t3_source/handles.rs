@@ -46,6 +46,10 @@ impl Held {
             std::ptr::null_mut()) };
         if handle == INVALID_HANDLE_VALUE { return Err(fail()); }
         let file = unsafe { File::from_raw_handle(handle) };
+        Self::from_file(file, directory, private)
+    }
+    pub(super) fn from_file(file: File, directory: bool, private: bool) -> Result<Self, NativeError> {
+        let handle = file.as_raw_handle();
         let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
         if unsafe { GetFileInformationByHandle(handle, &mut info) } == 0
             || info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
@@ -109,6 +113,9 @@ impl Watch {
                 | if writes { FILE_NOTIFY_CHANGE_LAST_WRITE } else { 0 })
     }
     pub fn security(path: &Path) -> Result<Self, NativeError> { Self::flags(path, FILE_NOTIFY_CHANGE_SECURITY) }
+    pub fn metadata(path: &Path) -> Result<Self, NativeError> {
+        Self::flags(path, FILE_NOTIFY_CHANGE_SECURITY | FILE_NOTIFY_CHANGE_ATTRIBUTES)
+    }
     fn flags(path: &Path, flags: u32) -> Result<Self, NativeError> {
         let handle = unsafe { FindFirstChangeNotificationW(wide(path).as_ptr(), 0,
             flags) };

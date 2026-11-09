@@ -1,11 +1,10 @@
-# Held execution source, settings and provider homes
+# Held execution source and destination resources
 
-Status: authored Windows x64 implementation, pending combined integration and
-qualification. No compiler, native build, signed install, provider or personal
-session ran. Linux, macOS and other Windows architectures refuse. The existing
-same-user managed launcher is injectable: native16's execution gate must require
-protected SYSTEM-created graph/helper provenance. Images and Job membership
-alone must never enable this producer.
+Status: Windows x64 source with compiler and kernel-component results recorded
+below. The protected SYSTEM creator and fixed companion roles are integrated;
+images and Job membership alone cannot enable this producer. Signed installed
+source enrollment, provider execution and production journeys remain unqualified.
+Linux, macOS and other Windows architectures refuse.
 
 This machine-only resource doorway belongs to the separate prospective execution
 enrollment and finite command flow. It adds no settings opcode or secret/native
@@ -67,6 +66,59 @@ renewing human/backend authority. Closure invalidates recognition and zeroes
 the original byte buffer. Escaped scopes refuse. Never copy/log/serialize/return
 settings: original files can contain inline credentials. Buffer zeroing does not
 claim to erase every transient V8 JSON/base64 representation.
+
+## Native execution destination ownership
+
+`T3ExecutionResourceScope.withDestination` now retains a native destination owner
+around the original execution-state workspace. Native resolves the actual token's
+profile and the fixed local layout using the executor ID and held physical source
+key. The graph supplies no path. The existing owner-checked directory preparation
+runs first; original journal, writer and stage SQL connections open only after
+native pins that directory's complete no-reparse namespace.
+
+The native owner opens `native-execution-owner.lock` with read/write access and
+zero sharing. `OPEN_ALWAYS` preserves the lock artifact. A competing owner,
+preexisting incompatible handle, rename or deletion refuses. Service independently
+resolves the actual peer's fixed directory, compares the real directory identity,
+and duplicates the writer handle and sticky metadata watches. It mints the
+`destination-sha256:...` runtime generation from those held objects and a fresh
+native nonce; the graph no longer invents its execution writer generation.
+
+Only the authenticated resource companion can register destination files. The
+private wire accepts `journal` or an exact `t3-capture:v1:<lowercase SHA-256>`
+reference, never arbitrary SQL or a path. Native and service retain each actual
+single-link, owner-only main file before the original SQL layer opens it. Contents
+may change through SQLite; omitted DELETE sharing pins the file name. The graph
+uses the native volume-GUID path for all SQL opens, including the original state
+writer. A drive-letter alias is not reintroduced by `realpath`.
+
+Local receipt schemas contain identities and the writer generation only. The
+canonical destination path crosses only the private resource channel into its
+fixed graph, never a daemon/backend DTO. Scope recognition refuses serialized or
+escaped destinations. Passive retained captures keep their own namespace and do
+not acquire this native owner. Graph acceptance now checks the held destination
+writer generation and exact stage reference derived from the capture generation.
+
+Callback exit joins the original SQL and state-writer finalizers before requesting
+native destination close. Source loss or uncertain close cannot stand in for that
+drain: service retains destination handles against its already-held actual graph
+process handle until the process ends. Creator and custody reconciliation release
+those handles before recording positive graph clearance, after their existing
+process/Job checks. Cleanup never deletes a journal, stage or writer artifact.
+
+This ownership producer does not inspect pending row contents, sign a claim
+receipt, grant startup/recovery writes or launch a provider. Independent native
+destination SQLite observation and current finite backend admission remain
+required. Existing reserve, graph and FRAME authority do not authorize a claim.
+
+On Maxis, 9 November 2026, the strict source/protocol/CLI build and all 109 runtime
+cases passed. The Windows common suite passed 61 cases, service 71, and native
+helper 78 plus five Job cases, with zero ignored tests. Real kernel cases cover
+exclusive writer/ancestor lifetimes, sender-close duplication, actual mutable
+SQLite contents, hard-link refusal and process-observed retirement. The elevated
+fixture stamps its user at file creation; strict native ownership stays unchanged.
+Runtime transport doubles exercise metadata/refusal and drain ordering only.
+These checks do not qualify a signed installed resource entry or provider launch.
 
 ## Finite readonly source snapshots
 

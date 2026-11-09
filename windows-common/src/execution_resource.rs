@@ -60,6 +60,9 @@ pub enum Request {
     LinkRegistration { executor_id: String, review_id: String, review_digest: String },
     Register { executor_id: String, resource_id: String, evidence: Evidence, objects: Vec<Object>, watches: Vec<u64> },
     Recheck { executor_id: String, resource_id: String },
+    OpenDestination { executor_id: String, resource_id: String, nonce: String, directory: Object, writer: Object, watches: Vec<u64> },
+    HoldDestinationFile { executor_id: String, resource_id: String, reference: String, file: Object },
+    CloseDestination { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
 }
 impl Request {
@@ -67,7 +70,9 @@ impl Request {
         match self {
             Self::Authorize { executor_id } | Self::Register { executor_id, .. }
             | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. }
-            | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. } => executor_id,
+            | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. }
+            | Self::OpenDestination { executor_id, .. } | Self::HoldDestinationFile { executor_id, .. }
+            | Self::CloseDestination { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -85,8 +90,20 @@ impl Request {
             Self::LinkRegistration { review_id, review_digest, .. } => {
                 if !valid_nonce(review_id) || !valid_nonce(review_digest) { return Err(REJECTED.into()); }
             }
-            Self::Close { resource_id, .. } | Self::Recheck { resource_id, .. } => {
+            Self::Close { resource_id, .. } | Self::Recheck { resource_id, .. } | Self::CloseDestination { resource_id, .. } => {
                 if !valid_nonce(resource_id) { return Err(REJECTED.into()); }
+            }
+            Self::OpenDestination { resource_id, nonce, directory, writer, watches, .. } => {
+                if !valid_nonce(resource_id) || !valid_nonce(nonce)
+                    || watches.is_empty() || watches.len() > 128 || watches.contains(&0)
+                    || !crate::execution_destination::valid_object(directory, true)
+                    || !crate::execution_destination::valid_object(writer, false) { return Err(REJECTED.into()); }
+            }
+            Self::HoldDestinationFile { resource_id, reference, file, .. } => {
+                crate::execution_destination::filename(reference)?;
+                if !valid_nonce(resource_id) || !crate::execution_destination::valid_object(file, false) {
+                    return Err(REJECTED.into());
+                }
             }
             Self::Register { resource_id, evidence: e, objects, watches, .. } => {
                 if !valid_nonce(resource_id) || e.source.executor_id != self.executor()
@@ -172,5 +189,21 @@ mod tests {
                 kind:"configuration".into(),private:true},source_root:Object {handle:0,identity:"fixture:root".into(),
                 kind:"source-root".into(),private:true} };
         assert!(review.validate().is_err());
+    }
+    #[test]
+    fn execution_destination_wire_cannot_supply_a_path_runtime_generation_or_arbitrary_file() {
+        let directory = Object { handle: 1, identity: "component:directory".into(), kind: "directory".into(), private: true };
+        let file = Object { handle: 2, identity: "component:writer".into(), kind: "database".into(), private: true };
+        let value = Request::OpenDestination { executor_id: "executor".into(), resource_id: "a".repeat(64),
+            nonce: "b".repeat(64), directory, writer: file.clone(), watches: vec![3] };
+        value.validate().unwrap(); // Shape only; actual native handles remain required.
+        for field in ["path", "runtimeGeneration", "ready", "admitted"] {
+            let mut raw = serde_json::to_value(&value).unwrap();
+            raw[field] = json!("caller assertion");
+            assert!(serde_json::from_value::<Request>(raw).is_err());
+        }
+        let held = Request::HoldDestinationFile { executor_id: "executor".into(), resource_id: "a".repeat(64),
+            reference: "../source.sqlite".into(), file };
+        assert!(held.validate().is_err());
     }
 }

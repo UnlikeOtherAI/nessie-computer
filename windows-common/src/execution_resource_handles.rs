@@ -65,6 +65,20 @@ impl HeldObject {
         if !["directory", "source-root", "provider-home"].contains(&self.description.kind.as_str()) {
             return Err(REJECTED.into());
         }
+        self.canonical_path(owner)
+    }
+    /// Mutable destination contents are allowed; the one underlying file/name
+    /// must remain held, owner-only and without hard-link aliases.
+    pub fn single_file_path(&self, owner: &str) -> Result<PathBuf, String> {
+        self.recheck(owner)?;
+        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        if unsafe { GetFileInformationByHandle(self.file.as_raw_handle(), &mut info) } == 0
+            || info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0 || info.nNumberOfLinks != 1 {
+            return Err(REJECTED.into());
+        }
+        self.canonical_path(owner)
+    }
+    fn canonical_path(&self, owner: &str) -> Result<PathBuf, String> {
         let mut buffer = vec![0u16; 32768];
         let length = unsafe { GetFinalPathNameByHandleW(self.file.as_raw_handle(), buffer.as_mut_ptr(),
             buffer.len() as u32, 1) } as usize;

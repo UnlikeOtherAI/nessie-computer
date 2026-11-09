@@ -15,7 +15,8 @@ import { T3CaptureJournal } from '../state/journal.js'
 import { requireCapture } from '../state/sqlite.js'
 import { ownDatabaseFile } from './database-file.js'
 import { acquireSessionStateWriter } from './ownership.js'
-import { resolveT3SessionStateDir } from './paths.js'
+import { resolveT3SessionStateDir, assertOutsideCheckout } from './paths.js'
+import { recognizeT3ExecutionDestination, type T3ExecutionDestinationScope } from '../source/execution-destination.js'
 
 export interface OwnedSnapshotWorkspace {
   readonly workspace: OwnedCaptureWorkspacePort
@@ -35,18 +36,29 @@ export type RetainedCaptureWorkspace = OwnedSnapshotWorkspace
  */
 export async function withRetainedCaptureWorkspace<A>(stateDirectory: string, physicalRootKey: string,
   use: (storage: RetainedCaptureWorkspace) => Promise<A>, caller: AbortSignal): Promise<A> {
-  return withOwnedSnapshotWorkspace(stateDirectory, physicalRootKey, 'retained-capture', use, caller)
+  caller.throwIfAborted()
+  const directory = await resolveT3SessionStateDir(stateDirectory, `retained-capture:${physicalRootKey}`)
+  return withSnapshotWorkspaceAtDirectory(directory, use, caller)
 }
 
-/** Distinct namespaces ensure a passive capture can never become a live writer.
- * Both use the same checked file/SQL lifetime implementation. */
-export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, physicalRootKey: string,
-  purpose: 'retained-capture' | 'execution-state',
+/** Recognized native namespace before original SQL opens. Passive storage never
+ * acquires this owner or promotes itself into an execution destination. */
+export async function withPinnedExecutionWorkspace<A>(destination: T3ExecutionDestinationScope,
   use: (storage: OwnedSnapshotWorkspace) => Promise<A>, caller: AbortSignal): Promise<A> {
+  recognizeT3ExecutionDestination(destination)
+  const directory = destination.directory
+  await assertOutsideCheckout(directory)
+  recognizeT3ExecutionDestination(destination)
+  return withSnapshotWorkspaceAtDirectory(directory, use,
+    AbortSignal.any([caller, destination.signal]), destination)
+}
+
+async function withSnapshotWorkspaceAtDirectory<A>(directory: string,
+  use: (storage: OwnedSnapshotWorkspace) => Promise<A>, caller: AbortSignal,
+  destination?: T3ExecutionDestinationScope): Promise<A> {
   caller.throwIfAborted()
-  const directory = await resolveT3SessionStateDir(stateDirectory, `${purpose}:${physicalRootKey}`)
   const writer = await acquireSessionStateWriter(directory)
-  const runtimeGeneration = randomUUID()
+  const runtimeGeneration = destination?.receipt.runtimeGeneration ?? randomUUID()
   const lifetime = new AbortController()
   const signal = AbortSignal.any([caller, lifetime.signal])
   let scopes: Awaited<ReturnType<typeof makeSqlScope>> | undefined
@@ -62,6 +74,7 @@ export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, phys
       signal.throwIfAborted()
       requireCapture(active, 'retained_capture_workspace_closed')
       writer.assertCurrent()
+      if (destination) recognizeT3ExecutionDestination(destination)
       for (const check of checks) check()
     } catch (error) {
       if (!failed) { failed = true; failure = error }
@@ -80,6 +93,7 @@ export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, phys
     assertCurrent()
     const journalPath = join(directory, 'capture-journal.sqlite')
     checks.add(await ownDatabaseFile(journalPath, 'create-or-open'))
+    destination?.holdFile('journal')
     assertCurrent()
     journalDatabase = new DatabaseSync(journalPath, { enableForeignKeyConstraints: true,
       enableDoubleQuotedStringLiterals: false })
@@ -94,8 +108,10 @@ export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, phys
       const opening = (async () => {
         const path = join(directory, `capture-${reference.slice('t3-capture:v1:'.length)}.sqlite`)
         checks.add(await ownDatabaseFile(path, create ? 'create' : 'existing'))
+        destination?.holdFile(reference)
         assertCurrent()
-        const layer = Sqlite.layerFromPath(path).pipe(Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)))
+        const layer = Sqlite.layerFromPath(path).pipe(
+          Layer.provide(Layer.mergeAll(NodeFileSystem.layer, NodePath.layer)))
         const context = await Effect.runPromise(Layer.build(layer).pipe(Effect.provideService(Scope.Scope, sqlScope)),
           { signal })
         assertCurrent()
@@ -135,7 +151,8 @@ export async function withOwnedSnapshotWorkspace<A>(stateDirectory: string, phys
     try { journalDatabase?.close() } catch (error) { cleanupErrors.push(error) }
     try { writer.close() } catch (error) { cleanupErrors.push(error) }
   }
-  const errors = [...(useFailed ? [useFailure] : []), ...(failed && failure !== useFailure ? [failure] : []), ...cleanupErrors]
+  const errors = [...(useFailed ? [useFailure] : []),
+    ...(failed && failure !== useFailure ? [failure] : []), ...cleanupErrors]
   if (errors.length === 1) throw errors[0]
   if (errors.length) throw new AggregateError(errors, 'retained_capture_workspace_failed')
   return result as A

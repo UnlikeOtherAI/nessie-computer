@@ -22,12 +22,15 @@ struct ExecutionResource {
     receipt: Receipt,
     snapshot: super::execution_snapshot::Snapshot,
     closed: bool,
+    destination: Option<super::execution_destination::Destination>,
+    destination_closed: bool,
 }
 impl ExecutionResource {
     fn recheck(&self) -> Result<(), NativeError> {
         if self.closed { return Err(fail()); }
         self.source.recheck()?;
         self.settings.recheck()?;
+        if let Some(destination) = &self.destination { destination.recheck()?; }
         let response = service(Request::Recheck { executor_id: self.receipt.evidence.source.executor_id.clone(),
             resource_id: self.receipt.resource_id.clone() })?;
         if response["resourceId"] != self.receipt.resource_id
@@ -53,6 +56,25 @@ impl Session for ExecutionResource {
             "executionDescribe" if fields.len() == 1 => Ok(json!({"receipt":self.receipt,
                 "settingsBase64":base64::engine::general_purpose::STANDARD.encode(self.settings.bytes()?)})),
             "recheck" if fields.len() == 1 => Ok(json!({})),
+            "executionDestinationOpen" if fields.len() == 1 => {
+                if self.destination.is_some() || self.destination_closed { return Err(fail()); }
+                let destination = super::execution_destination::Destination::open(&self.receipt)?;
+                let answer = json!({"receipt":destination.receipt,"directory":destination.directory()?});
+                self.destination = Some(destination);
+                Ok(answer)
+            },
+            "executionDestinationHoldFile" if fields.len() == 2 => {
+                let reference = request["reference"].as_str().ok_or_else(fail)?;
+                let destination = self.destination.as_mut().ok_or_else(fail)?;
+                Ok(json!({"receipt":destination.hold_file(&self.receipt, reference)?}))
+            },
+            "executionDestinationClose" if fields.len() == 1 => {
+                service(Request::CloseDestination { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone() })?;
+                self.destination_closed = true;
+                self.destination = None;
+                Ok(json!({"closed":true}))
+            },
             "close" if fields.len() == 1 => { self.close()?; return Ok(json!({})); },
             _ => Err(fail()),
         }?;
@@ -116,7 +138,7 @@ pub(super) fn run() -> Result<(), NativeError> {
         _ => { let _ = service(Request::Close { executor_id: executor, resource_id }); return Err(fail()); }
     };
     let session = ExecutionResource { source, settings, _configuration: configuration, receipt,
-        snapshot: Default::default(), closed: false };
+        snapshot: Default::default(), closed: false, destination: None, destination_closed: false };
     session.recheck()?;
     pipe::serve_session(&request, session)
 }
