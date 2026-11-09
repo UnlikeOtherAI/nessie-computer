@@ -130,6 +130,8 @@ export const prepareExecutorRuntime = async ({
   await build({
     bundle: true,
     define: {
+      'process.env.NESSIE_COMPUTER_SENTRY_DSN': JSON.stringify(process.env.NESSIE_COMPUTER_SENTRY_DSN ?? ''),
+      'process.env.SENTRY_RELEASE': JSON.stringify(`nessie-computer@${executorVersion}+${sourceCommit}`),
       __NESSIE_EXECUTOR_VERSION__: JSON.stringify(executorVersion),
       __NESSIE_EXECUTOR_SOURCE_COMMIT__: JSON.stringify(sourceCommit),
       __NESSIE_EXECUTOR_APPLE_TEAM_ID__: JSON.stringify(executorAppleTeamId),

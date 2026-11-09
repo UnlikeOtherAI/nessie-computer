@@ -60,3 +60,5 @@ Windows runtime admission uses its own fixed local pipe; keep pairing-control AC
 The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
 [local AI connections](docs/local-ai-connections.md); use the public Turbo
 `test:ai-connections` gate and local `renderer-harness.mjs --ai-only` journey.
+
+Standard SDK reporting, release configuration and native limitations follow [error reporting](docs/error-reporting.md).

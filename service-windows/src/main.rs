@@ -122,6 +122,12 @@ fn configure_updater(operation: &str) -> Result<(), String> {
 fn configure_updater(_operation: &str) -> Result<(), String> { Err("Updater setup requires Windows.".into()) }
 
 fn main() {
+    let dsn = std::env::var("NESSIE_COMPUTER_SENTRY_DSN").ok()
+        .or_else(|| option_env!("NESSIE_COMPUTER_SENTRY_DSN").map(str::to_owned))
+        .filter(|dsn| !dsn.is_empty());
+    let _sentry = dsn.map(|dsn| sentry::init(
+        sentry::ClientOptions::new().dsn(&dsn).maybe_release(option_env!("GITHUB_SHA")),
+    ));
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match parse_mode(&arguments) {
         Ok(Mode::RunService) => service::run(),
@@ -135,6 +141,8 @@ fn main() {
         // A custom action reads the exit code; the SCM reads the service status.
         // Either way the reason belongs on stderr rather than in a dialog no
         // unattended install would ever show.
+        sentry::capture_message(&reason, sentry::Level::Error);
+        drop(_sentry);
         eprintln!("{reason}");
         std::process::exit(1);
     }
