@@ -238,16 +238,20 @@ final class ExecutorConnections: ObservableObject {
     /// once that attempt is over. launchd can take minutes to start a helper
     /// that was just registered again. The teams stop, the helper restarts, and
     /// they start again on whatever runtime is installed once that runtime is
-    /// this app's version, the helper answers again, or ten minutes pass. A
+    /// this app's version, the helper answers again at least ninety seconds
+    /// after the restart, or ten minutes pass. A
     /// helper waiting for the owner's approval cannot run, so they start then too.
     func holdTeams(until version: String, restartingHelper restart: () async -> Void) async {
         ComputerUpdateService.holdingTeams = true
         for controller in controllers { _ = await controller.stopDaemonWithoutBlocking() }
         await restart()
-        let deadline = Date().addingTimeInterval(600)
-        while Date() < deadline, ComputerUpdateService.installedVersion != version,
+        let restarted = Date()
+        while Date() < restarted.addingTimeInterval(600), ComputerUpdateService.installedVersion != version,
               ComputerUpdateService.registration != .requiresApproval {
             try? await Task.sleep(nanoseconds: 3_000_000_000)
+            // The helper being replaced can still answer for a moment, so an
+            // answer counts only once the new one has had its minute.
+            guard Date() >= restarted.addingTimeInterval(90) else { continue }
             if (try? await ExecutorUpdateControl.run(["operation": "status"])) != nil { break }
         }
         ComputerUpdateService.holdingTeams = false

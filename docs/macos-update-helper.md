@@ -39,7 +39,9 @@ runtime only while no team process runs, and tries for about a minute after it
 starts, so the app stops its teams for that restart. The helper answers status
 only once that attempt is over, and launchd can take minutes to start a helper
 that was just registered again, so the teams start again once the installed
-runtime is the app's version, the helper answers again, or ten minutes pass.
+runtime is the app's version, the helper answers again at least ninety seconds
+after the restart (the helper being replaced can still answer for a moment), or
+ten minutes pass.
 The app reads the installed version from the runtime's manifest, so this holds
 even while the helper does not answer. Replacing the app unloads the helper,
 whose program lives inside it, so a newer app installed by hand makes this held
