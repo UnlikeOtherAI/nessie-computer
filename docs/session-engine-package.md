@@ -1,10 +1,14 @@
 # Generated session-engine package
 
+The `/claude-sdk` export builds the pinned original SDK and private native
+capture transport in the same completed generation; see [Claude capture](claude-sdk-capture.md).
+
 The current [contract declaration producer](session-contract-declarations.md)
 emits shared `.d.ts` files instead of contract implementations. Its focused
-original-contract composite gate passes; the full package build on approved
-parent `f0753613` remains blocked by request-privacy source composition. The
-qualification records below describe their historical revisions.
+original-contract composite gate and the combined package build pass in root's
+integrated qualification. The `f0753613` privacy composition failure was repaired
+before that qualification; the records below describe their historical revisions.
+See the private combined qualification record for exact revisions and limits.
 
 ## Historical combined integration build
 

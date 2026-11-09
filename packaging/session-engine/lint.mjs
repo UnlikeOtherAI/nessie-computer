@@ -12,6 +12,8 @@ export const lintSessionEngineSources = async () => {
     ...(await readdir(tools)).filter(file => file.endsWith('.mjs')).map(file => resolve(tools, file)),
     ...(await readdir(resolve(tools, 'core'))).filter(file => file.endsWith('.ts'))
       .map(file => resolve(tools, 'core', file)),
+    ...(await readdir(resolve(tools, 'claude-sdk'))).filter(file => /\.(?:mjs|ts)$/u.test(file))
+      .map(file => resolve(tools, 'claude-sdk', file)),
     ...registration.clientAuthoredInputs.filter(file => !file.startsWith('packaging/session-engine/core/'))
       .map(file => resolve(tools, '../..', file)),
     ...(await readdir(resolve(tools, '../../patches/t3-session/extraction'))).filter(file => file.endsWith('.mjs'))

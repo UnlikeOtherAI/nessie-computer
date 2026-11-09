@@ -51,6 +51,7 @@
         "../../src/t3-session/requests/**",
         "!../../packaging/session-engine/node_modules/**", "!../../packaging/session-engine/.artifacts/**"] },
     "test:t3-session-engine": { "dependsOn": ["build"], "cache": false },
+    "test:t3-session-claude-sdk": { "dependsOn": ["build"], "cache": false },
     "test:t3-session-client": { "dependsOn": ["build"], "cache": false },
     "test:t3-session-engine-browser": { "dependsOn": ["build"], "cache": false,
       "env": ["T3_SESSION_BROWSER_EXECUTABLE"] },

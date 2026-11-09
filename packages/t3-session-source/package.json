@@ -32,6 +32,10 @@
     "./client": {
       "types": "./dist/engine-types/client.d.ts",
       "default": "./dist/client.js"
+    },
+    "./claude-sdk": {
+      "types": "./dist/claude-sdk/runtime.d.ts",
+      "default": "./dist/claude-sdk/runtime.js"
     }
   },
   "scripts": {
@@ -39,12 +43,13 @@
     "build": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs",
     "typecheck": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs --check",
     "lint": "node --check build.mjs && node --check publish.mjs && node --check input.mjs && node --check cache.mjs && node --check routes.mjs && node --check inventory.mjs && node --check prepare.mjs",
-    "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs test/client/*.test.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs test/client/*.test.mjs test/claude-sdk/*.test.mjs",
     "test:t3-session-engine": "node --test --test-concurrency=1 test/engine/*.test.mjs",
     "test:t3-session-engine-browser": "node test/engine/browser.mjs",
     "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs",
     "test:t3-session-declarations": "node --max-old-space-size=512 test/declarations/reproduce.mjs",
-    "test:t3-session-client": "node --max-old-space-size=512 --test --test-concurrency=1 test/client/*.test.mjs"
+    "test:t3-session-client": "node --max-old-space-size=512 --test --test-concurrency=1 test/client/*.test.mjs",
+    "test:t3-session-claude-sdk": "node --max-old-space-size=512 --test --test-concurrency=1 test/claude-sdk/*.test.mjs"
   },
   "dependencies": {
     "@effect/platform-node": "4.1.2",
@@ -64,7 +69,11 @@
     "unified": "11.0.5",
     "@types/mdast": "4.0.4",
     "micromark-util-types": "2.0.2",
-    "@noble/hashes": "1.8.0"
+    "@noble/hashes": "1.8.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.316",
+    "@anthropic-ai/sdk": "0.93.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "esbuild": "0.25.12",

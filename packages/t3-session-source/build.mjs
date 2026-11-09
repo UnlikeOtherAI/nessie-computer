@@ -14,6 +14,7 @@ import { extractT3CommandInventory } from './inventory.mjs'
 import { ensurePinnedSourceObject } from './cache.mjs'
 import { writeContractDeclarationEntries } from '../../packaging/session-engine/declarations.mjs'
 import { publishSessionPackage } from './publish.mjs'
+import { buildSessionClaudeSdk } from '../../packaging/session-engine/claude-sdk/build.mjs'
 
 const root = dirname(fileURLToPath(import.meta.url))
 const output = resolve(root, '.artifacts/package-builds', randomUUID())
@@ -76,6 +77,7 @@ if (!/^\s*effect: 4\.1\.2\s*$/m.test(snapshot.read('pnpm-workspace.yaml').toStri
 // Engine.ts exports the entire contract namespace. One strict, library-checking
 // program below checks both graphs; retaining a second contract program doubled memory.
 if (process.argv.includes('--check')) {
+  await buildSessionClaudeSdk(output, { check: true })
   await buildSessionPackage({ original, prepared, outputDirectory: output,
     contractsAliasPlugin: sessionContractsAliasPlugin, check: true })
   process.exit(0)
@@ -90,6 +92,7 @@ await writeFile(resolve(output, 'routes.json'), `${JSON.stringify(rawHttpRoutes,
 await writeFile(resolve(output, 'command-inventory.json'), commandInventory)
 const { result, provenance: engine } = await buildSessionPackage({ original, prepared,
   outputDirectory: output, contractsAliasPlugin: sessionContractsAliasPlugin })
+const claudeSdk = await buildSessionClaudeSdk(output)
 for (const [path, sha256] of Object.entries(engine.sharedContractTypes)) declarations.push({ path, sha256 })
 const modules = []
 for (const path of Object.keys(result.metafile.outputs).sort()) modules.push({
@@ -107,6 +110,7 @@ for (const file of ['input.mjs', 'resolver.mjs', 'snapshot.mjs', 'source.mjs', '
   buildHelperFiles.push({ path: `build/${file}`, sha256: digest(bytes) })
 }
 const provenance = {
+  claudeSdk,
   format: 1, source: T3_SESSION_ENGINE_SOURCE, effect: '4.1.2', patches: [{
     kind: 'compiler-declarations', algorithm: 'exact original constructor naming and portable module paths',
     sha256: digest(JSON.stringify(declarations)),

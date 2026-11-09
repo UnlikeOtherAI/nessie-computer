@@ -165,6 +165,9 @@ admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
 
 ### Pinned Claude SDK source audit
 
+The private native query/encoder/parser capsule and its remaining integration
+work follow [Claude SDK capture](claude-sdk-capture.md).
+
 The original source lock resolves `@anthropic-ai/claude-agent-sdk` to `0.3.316`
 with integrity `sha512-mCMr0que5kIy80JslJub6WFDB2+GYRGWNeVgSZaBpkBwXrr4wnRMnnGHitkA2BEJ5QP5xWyc6YH/6do/edxCWg==`.
 The fetched 1,435,061-byte artifact matched that exact integrity; SHA-256 is
