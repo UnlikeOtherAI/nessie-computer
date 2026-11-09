@@ -86,9 +86,9 @@ enum ComputerUpdateService {
                 logger.error("Background helper restart failed to unregister: \(message, privacy: .public)")
                 return
             }
-            let settled = await ComputerUpdateRegistration.settle(status: { service.status }) {
-                try? await Task.sleep(nanoseconds: 250_000_000)
-            }
+            let settled = await ComputerUpdateRegistration.settle(
+                status: { service.status }, pause: { try? await Task.sleep(nanoseconds: 250_000_000) }
+            )
             if !settled { logger.error("Background helper still registered ten seconds after unregister") }
         }
         register(service, automatic: !requested)

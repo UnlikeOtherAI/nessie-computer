@@ -95,17 +95,19 @@ final class ComputerUpdateRegistrationTests: XCTestCase {
     func testTheRestartWaitsUntilTheRemovedHelperIsGone() async {
         var answers: [SMAppService.Status] = [.enabled, .enabled, .enabled, .notRegistered]
         var pauses = 0
-        let settled = await ComputerUpdateRegistration.settle(status: { answers.removeFirst() }) { pauses += 1 }
+        let settled = await ComputerUpdateRegistration.settle(
+            status: { answers.removeFirst() }, pause: { pauses += 1 }
+        )
         XCTAssertTrue(settled)
         XCTAssertEqual(pauses, 3)
 
         pauses = 0
-        let immediate = await ComputerUpdateRegistration.settle(status: { .notFound }) { pauses += 1 }
+        let immediate = await ComputerUpdateRegistration.settle(status: { .notFound }, pause: { pauses += 1 })
         XCTAssertTrue(immediate)
         XCTAssertEqual(pauses, 0, "nothing to wait for")
 
         pauses = 0
-        let stuck = await ComputerUpdateRegistration.settle(polls: 5, status: { .enabled }) { pauses += 1 }
+        let stuck = await ComputerUpdateRegistration.settle(polls: 5, status: { .enabled }, pause: { pauses += 1 })
         XCTAssertFalse(stuck)
         XCTAssertEqual(pauses, 5, "bounded: it registers anyway and keeps any refusal")
     }
