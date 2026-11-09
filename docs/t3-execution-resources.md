@@ -120,6 +120,18 @@ fixture stamps its user at file creation; strict native ownership stays unchange
 Runtime transport doubles exercise metadata/refusal and drain ordering only.
 These checks do not qualify a signed installed resource entry or provider launch.
 
+The direct machine-only package interface was exercised at public
+`f914883154099963d50c125e9568eab60d8f1d87` on Maxis/Node 24.19.0. An external
+fixture used actual Windows directory/writer/main-file handles and the kernel's
+volume-GUID spelling. The original state writer kept that spelling and the
+original Sqlite layer updated/read the database while pinned. A competing writer
+and directory rename refused; rename succeeded after all pins closed. Evidence,
+SQL files and logs remain under
+`D:/BuildArtifacts/nessie/t3-7a4698a9-verification/destination-volume-61655e98-3b67-4cb7-801d-04fc6c2a4df5`.
+This probe supplied no native grant or provider. The newly built unsigned helper's
+actual `t3-execution-resource` entry separately refused an unprotected launch with
+exit 1 and `t3_source_resource_changed_or_unavailable`. No installed source was opened.
+
 ## Finite readonly source snapshots
 
 The same issued `T3ExecutionResourceScope` now exposes:

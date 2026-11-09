@@ -22,7 +22,8 @@ export interface OwnedSnapshotWorkspace {
   readonly workspace: OwnedCaptureWorkspacePort
   readonly journal: T3CaptureJournal
   readonly signal: AbortSignal
-  /** Minted only after this process acquired the exclusive destination writer. */
+  /** Native execution owners issue this generation; passive captures mint it
+   * locally after acquiring the original exclusive writer. */
   readonly runtimeGeneration: string
   assertCurrent(): void
 }
