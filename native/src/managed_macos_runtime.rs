@@ -237,7 +237,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                     // Group absence alone is not escaped-host tree proof. Its
                     // unresolved admission lease keeps this journal permanently.
                     if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
-                    release(&directory, &journal, &socket_name).map(|()| true)
+                    drop_journal(&directory, &journal, &socket_name).map(|()| true)
                 }
                 Err(error) => Err(NativeError::new(error.code)),
             };
@@ -274,7 +274,7 @@ fn remains(processes: &[macos_processes::Process], pid: i32, observed: &BTreeMap
         || processes.iter().any(|process| process.group == pid && !process.zombie)
 }
 
-fn release(directory: &Path, journal: &Path, socket_name: &str) -> Result<(), NativeError> {
+fn drop_journal(directory: &Path, journal: &Path, socket_name: &str) -> Result<(), NativeError> {
     let barrier = managed_runtime_context::Barrier::acquire()?;
     fs::remove_file(journal).map_err(|_| refused())?;
     fs::remove_file(directory.join(socket_name)).map_err(|_| refused())?;

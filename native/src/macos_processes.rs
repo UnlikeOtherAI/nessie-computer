@@ -53,11 +53,14 @@ pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
             match image(pid) {
                 Ok(path) => path,
                 // XNU releases an ending process's image before it marks the
-                // process a zombie, and answers ESRCH in between. Read the
-                // record again until it is a zombie or gone: helpers that
-                // other apps start and end many times a second otherwise
-                // refused every snapshot, and each refusal ended a runtime.
-                Err(Some(libc::ESRCH)) if reads < ENDING_READS => {
+                // process a zombie, answering ESRCH in between, and a process
+                // in exec has no image path for a moment (ENOENT). Read the
+                // record again until it is a zombie, gone or its new image:
+                // helpers that other apps start and end many times a second
+                // otherwise refused every snapshot, and a refusal ended the
+                // runtime that took it, as did every command a runtime started.
+                Err(Some(errno)) if reads < ENDING_READS && (errno == libc::ESRCH
+                    || errno == libc::ENOENT && product_name(command(&info.pbi_comm)?)) => {
                     reads += 1;
                     std::thread::sleep(std::time::Duration::from_millis(1));
                     continue;
@@ -76,9 +79,13 @@ pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
     }
 }
 
+/// The kernel's command name. A name of `MAXCOMLEN` characters fills the
+/// record's field with no terminator, as `nessie-executor-native` does
+/// (`nessie-executor-`), so the whole field is then the name.
 fn command(name: &[libc::c_char]) -> Result<&str, NativeError> {
-    if !name.contains(&0) { return Err(refused()); }
-    unsafe { CStr::from_ptr(name.as_ptr()) }.to_str().map_err(|_| refused())
+    let bytes = unsafe { std::slice::from_raw_parts(name.as_ptr().cast::<u8>(), name.len()) };
+    let end = bytes.iter().position(|byte| *byte == 0).unwrap_or(bytes.len());
+    std::str::from_utf8(&bytes[..end]).map_err(|_| refused())
 }
 
 /// Names a Node or product process may carry. Such a process is observed in
@@ -205,9 +212,15 @@ mod tests {
     #[test]
     fn snapshots_hold_while_processes_start_and_end() {
         use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        // A shell named like the product that replaces itself: its record
+        // keeps the product name while exec leaves it without an image path.
+        let directory = tempfile::tempdir().unwrap();
+        let product = directory.path().join("nessie-executor-churn");
+        std::fs::copy("/bin/zsh", &product).unwrap();
         let stop = Arc::new(AtomicBool::new(false));
         let churn = { let stop = stop.clone(); std::thread::spawn(move || while !stop.load(Ordering::Relaxed) {
             std::process::Command::new("/usr/bin/true").status().unwrap();
+            std::process::Command::new(&product).args(["-c", "exec /usr/bin/true"]).status().unwrap();
         }) };
         let started = std::time::Instant::now();
         let mut snapshots = Ok(0);
@@ -225,6 +238,11 @@ mod tests {
             assert!(product_name(name), "{name}");
         }
         for name in ["browser_crashpa", "launchd", "nodes", ""] { assert!(!product_name(name), "{name}"); }
-        assert!(command(&[b'a' as libc::c_char; 4]).is_err());
+        // MAXCOMLEN characters fill the field with no terminator.
+        let full = b"nessie-executor-".map(|byte| byte as libc::c_char);
+        assert_eq!(command(&full).unwrap(), "nessie-executor-");
+        assert!(product_name(command(&full).unwrap()));
+        assert_eq!(command(&[b'n' as libc::c_char, 0, b'x' as libc::c_char]).unwrap(), "n");
+        assert!(command(&[0xff_u8 as libc::c_char, 0]).is_err());
     }
 }
