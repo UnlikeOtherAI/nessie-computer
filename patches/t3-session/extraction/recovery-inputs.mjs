@@ -24,7 +24,15 @@ export const recoveryInputQueries = text => {
   const tables = [...new Set([...thread.matchAll(/\b(?:FROM|JOIN)\s+(orchestration_v2_\w+)/gu),
     ...sections.flatMap(value => [...value.query.matchAll(/\b(?:FROM|JOIN)\s+(orchestration_v2_\w+)/gu)])]
     .map(match => match[1]))].sort()
-  return { version: 1, sourceCommit: '25bf84ab07f53f141c20239c63e383823a9d5ea0', tables,
+  const selection = between(text, '            case "restart-continuations":', '            case "runtime":')
+  const restart = /return sql`([\s\S]*?)`;/u.exec(selection)?.[1]
+  if (!restart || restart.includes('${')) throw Error('Unsupported original restart selection')
+  const shutdownSelection = { parameters: 3, query: `SELECT thread_id FROM orchestration_v2_projection_threads
+    WHERE deleted_at IS NULL AND thread_id IN (${restart})
+      AND (? = 'all' OR project_id IN (SELECT value FROM json_each(?)))
+      AND project_id NOT IN (SELECT value FROM json_each(?))
+    ORDER BY updated_at ASC, thread_id ASC` }
+  return { version: 1, sourceCommit: '25bf84ab07f53f141c20239c63e383823a9d5ea0', tables, shutdownSelection,
     thread: { query: thread.replaceAll('${threadId}', '?'), parameters: 1 },
     sections: sections.sort((a, b) => a.section < b.section ? -1 : a.section > b.section ? 1 : 0) }
 }
@@ -34,6 +42,9 @@ export const recoveryInputQueries = text => {
 export const extractRecoveryInputs = (author, redirects) => {
   const target = file.replace('ProjectionStore.ts', 'RecoveryProjectionInputs.ts')
   const original = author.between(file, start, end)
+  const restartCase = author.between(file, '            case "restart-continuations":', '            case "runtime":')
+  const restartFragment = /return (sql`[\s\S]*?`);/u.exec(restartCase)?.[1]
+  if (!restartFragment) throw Error('Original restart candidate fragment changed')
   const thread = between(original, '          const threadRows = yield* sql<PayloadRow>`',
     '          if (threadRows[0] === undefined)')
   const sections = between(original, '          const queries = {', '          const readRows =')
@@ -59,8 +70,12 @@ export const inputDigest = (threadId: string, threadPayload: string, rows: Reado
     types, 'export const readThread = (sql: SqlClient.SqlClient, threadId: ThreadId) => Effect.gen(function* () {\n',
     author.sourcePart(file, thread, { current: true }), '  return threadRows;\n});\n',
     'export const readSections = (sql: SqlClient.SqlClient, threadId: ThreadId) => Effect.gen(function* () {\n',
-    author.sourcePart(file, sections, { current: true }), '  return rows;\n});\n', hash],
+    author.sourcePart(file, sections, { current: true }), '  return rows;\n});\n',
+    'export const restartCandidates = (sql: SqlClient.SqlClient) => ',
+    author.sourcePart(file, restartFragment, { current: true }), ';\n', hash],
   'recovery-original-physical-input-queries')
+  author.replace(file, restartCase, restartCase.replace(restartFragment, 'RecoveryInputs.restartCandidates(sql)'),
+    'recovery-share-original-restart-candidate-query')
   author.replace(file, thread, '          const threadRows = yield* RecoveryInputs.readThread(sql, threadId);\n',
     'recovery-shared-thread-input-query')
   author.replace(file, sections, '          const rows = yield* RecoveryInputs.readSections(sql, threadId);\n',

@@ -20,13 +20,18 @@ export const shutdownPreparationOwner = `
       return yield* refused("shutdown-plan-ambient-transaction");
     }
   });
-  const readPlan = Effect.gen(function* () {
+  const readPlan = (selectionAtMs: number) => Effect.gen(function* () {
     const value = yield* settings.getSettings.pipe(Effect.mapError(cause =>
       new ProviderRuntimeRecoveryError({ operation: "read-settings", cause })));
     // The original codecs copy settings before any further async read. Neither
     // their bytes nor projection payloads are exposed by the candidate.
     const encodedSettings = encodeSettings(value);
     const selectedSettings = decodeSettings(encodedSettings);
+    const policy = [selectedSettings.continueThreadsAfterServerUpdate,
+      Object.entries(selectedSettings.projectSettingsOverrides)
+        .filter(([, value]) => typeof value.continueThreadsAfterServerUpdate === "boolean")
+        .map(([id, value]) => [id, value.continueThreadsAfterServerUpdate] as const)
+        .sort(([a], [b]) => Buffer.compare(Buffer.from(a), Buffer.from(b)))] as const;
     const threadIds = yield* readThreadIds(selectedSettings);
     if (threadIds.length > 256 || new Set(threadIds).size !== threadIds.length) {
       return yield* refused("shutdown-plan-size");
@@ -43,7 +48,7 @@ export const shutdownPreparationOwner = `
       const captured = yield* projections.getRuntimeRecoveryProjectionWithInputs(threadId);
       const projection = captured.projection;
       if (projection.thread.id !== threadId) return yield* refused("shutdown-plan-thread-mismatch");
-      const now = yield* DateTime.now;
+      const now = DateTime.makeUnsafe(selectionAtMs);
       const encoded = encodeProjection(projection);
       bytes += Buffer.byteLength(JSON.stringify(encoded), "utf8");
       if (bytes > 4 * 1024 * 1024) return yield* refused("shutdown-plan-size");
@@ -56,9 +61,13 @@ export const shutdownPreparationOwner = `
     const inputDigest = digest("nessie.t3.shutdown-inputs.v2", [encodedSettings, inputs, projectionInputs]);
     const settingsDigest = digest("nessie.t3.shutdown-settings.v1", encodedSettings);
     const planDigest = digest("nessie.t3.shutdown-plan.v1", [inputDigest, effects, slots]);
-    return { inputDigest, settingsDigest, planDigest, threadIds, effects, slots, projectionInputs };
+    const authorityDigest = digest("nessie.t3.shutdown-authority.v1", [selectionAtMs, policy,
+      projectionInputs.map(value => [value.threadId, value.projectId, value.inputDigest]),
+      effects.map((effect, index) => [effect.threadId, effect.request.sourceRunId,
+        effect.id, effect.commandId, slots[index]!.rowDigest])]);
+    return { inputDigest, settingsDigest, planDigest, authorityDigest, threadIds, effects, slots, projectionInputs };
   }).pipe(Effect.withTracerEnabled(false));
-  type Plan = Effect.Success<typeof readPlan> & { readonly scope: Scope.Scope;
+  type Plan = Effect.Success<ReturnType<typeof readPlan>> & { readonly scope: Scope.Scope;
     readonly observedAtMs: number; readonly observedMonotonicMs: number };
   const plans = new WeakMap<ShutdownPreparationCandidate, Plan>();
   const key = Object.freeze({});
@@ -75,6 +84,7 @@ export const shutdownPreparationOwner = `
     get inputDigest(): string { return get(this).inputDigest; }
     get settingsDigest(): string { return get(this).settingsDigest; }
     get planDigest(): string { return get(this).planDigest; }
+    get authorityDigest(): string { return get(this).authorityDigest; }
     get threadIds(): ReadonlyArray<ThreadId> { return [...get(this).threadIds]; }
     get projectionInputs(): ShutdownPreparationCandidate["projectionInputs"] {
       return get(this).projectionInputs.map(value => Object.freeze({ ...value }));
@@ -96,7 +106,7 @@ export const shutdownPreparationOwner = `
     const observedAtMs = Date.now(), observedMonotonicMs = performance.now();
     // Shutdown finalizers are masked. This readonly observation still needs a
     // finite wait; it cannot strand cleanup before an owner even sees a plan.
-    const plan = yield* sql.withTransaction(readPlan).pipe(NodeSqliteClient.readOnly,
+    const plan = yield* sql.withTransaction(readPlan(observedAtMs)).pipe(NodeSqliteClient.readOnly,
       Effect.interruptible, Effect.timeout(5000));
     if (Date.now() >= observedAtMs + 5000 || performance.now() >= observedMonotonicMs + 5000) {
       return yield* refused("shutdown-plan-expired");
@@ -126,11 +136,11 @@ export const shutdownPreparationOwner = `
         yield* withoutAmbientTransaction;
         return yield* eventSink.withProviderBatch(Effect.gen(function* () {
           yield* deadline;
-          const current = yield* readPlan;
+          const current = yield* readPlan(plan.observedAtMs);
           if (current.planDigest !== plan.planDigest) return yield* refused("shutdown-plan-changed");
           yield* Effect.forEach(plan.effects, effect => deadline.pipe(Effect.andThen(writeContinuation(effect))),
             { concurrency: 2, discard: true });
-          const after = yield* readPlan;
+          const after = yield* readPlan(plan.observedAtMs);
           if (after.inputDigest !== plan.inputDigest || JSON.stringify(after.effects) !== JSON.stringify(plan.effects)
             || after.slots.some((slot, index) => slot.rowDigest === null
               || (plan.slots[index]!.rowDigest !== null && slot.rowDigest !== plan.slots[index]!.rowDigest))) {

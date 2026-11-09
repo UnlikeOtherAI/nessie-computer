@@ -8,6 +8,8 @@ mod process_loss_tests;
 mod legacy_shell_tests;
 #[path = "execution_destination_recovery_inputs_tests.rs"]
 mod recovery_inputs_tests;
+#[path = "execution_destination_shutdown_tests.rs"]
+mod shutdown_tests;
 use super::*;
 use nessie_windows_common::{
     execution_resource::Object,

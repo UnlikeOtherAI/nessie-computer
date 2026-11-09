@@ -19,6 +19,8 @@ mod legacy_shell;
 mod lineage;
 #[path = "execution_destination_recovery_inputs.rs"]
 mod recovery_inputs;
+#[path = "execution_destination_shutdown.rs"]
+mod shutdown;
 pub(super) use lineage::BoundObservation;
 
 static RETIRED: OnceLock<Mutex<Vec<(Process, Destination)>>> = OnceLock::new();
@@ -63,6 +65,11 @@ pub(super) struct Destination {
     owner: String,
 }
 impl Destination {
+    pub fn observe_shutdown(&self, generation: &str, settings: &[u8], selection_at_ms: u64,
+        deadline: std::time::Instant) -> Result<nessie_windows_common::execution_shutdown::Observation, String> {
+        let value = shutdown::observe(self.stage(generation)?, &self.owner, settings, selection_at_ms, deadline)?;
+        self.recheck()?; Ok(value)
+    }
     pub fn observe_recovery_inputs(&self, generation: &str, thread: &str)
         -> Result<nessie_windows_common::execution_recovery_inputs::Observation, String> {
         let value = recovery_inputs::read(self.stage(generation)?, &self.owner, thread)?;

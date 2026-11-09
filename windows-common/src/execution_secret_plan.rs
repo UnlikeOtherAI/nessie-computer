@@ -3,6 +3,7 @@
 use crate::{custody::REJECTED, execution::value_digest, execution_json};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
+use crate::execution_codec::trimmed;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -33,19 +34,6 @@ pub struct Observed {
 #[cfg(test)]
 #[path = "execution_secret_plan_tests.rs"]
 mod tests;
-fn trimmed(value: &Value) -> Result<String, String> {
-    let raw = value.as_str().ok_or(REJECTED)?;
-    // ECMAScript String.trim, used by the original Effect codec.
-    let value = raw.trim_matches(|c| {
-        matches!(c, '\u{0009}'..='\u{000d}' | '\u{0020}' | '\u{00a0}'
-        | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}'
-        | '\u{205f}' | '\u{3000}' | '\u{feff}')
-    });
-    if value.is_empty() {
-        return Err(REJECTED.into());
-    }
-    Ok(value.into())
-}
 fn slug(value: &Value, leading_digit: bool) -> Result<String, String> {
     let value = trimmed(value)?;
     if value.len() > 64

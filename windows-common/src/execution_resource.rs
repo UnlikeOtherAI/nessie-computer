@@ -82,6 +82,8 @@ pub enum Request {
         graph: crate::execution::Graph, thread_id: String },
     PrepareLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, not_after_ms: u64 },
     ConsumeLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, admission: crate::execution::SignedAdmission },
+    PrepareShutdown { executor_id: String, resource_id: String, graph: crate::execution::Graph, selection_at_ms: u64 },
+    ConsumeShutdown { executor_id: String, resource_id: String, graph: crate::execution::Graph, admission: crate::execution::SignedAdmission },
     OpenCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, retention_expires_at: u64 },
     RecordCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, edge: crate::execution_command_lineage::Edge },
     CloseCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph },
@@ -103,6 +105,7 @@ impl Request {
             | Self::ObserveDestinationLegacyShells { executor_id, .. }
             | Self::ObserveDestinationRecoveryInputs { executor_id, .. }
             | Self::PrepareLegacyShells { executor_id, .. } | Self::ConsumeLegacyShells { executor_id, .. }
+            | Self::PrepareShutdown { executor_id, .. } | Self::ConsumeShutdown { executor_id, .. }
             | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
             | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
             Self::PrepareEffectClaim { executor_id, .. } | Self::ConsumeEffectClaim { executor_id, .. } => executor_id,
@@ -140,12 +143,15 @@ impl Request {
             }
             Self::ObserveDestinationProcessLoss { resource_id, graph, .. }
             | Self::ObserveDestinationLegacyShells { resource_id, graph, .. }
-            | Self::PrepareLegacyShells { resource_id, graph, .. } => {
+            | Self::PrepareLegacyShells { resource_id, graph, .. } | Self::PrepareShutdown { resource_id, graph, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
                 if let Self::PrepareLegacyShells { not_after_ms, .. } = self {
                     if *not_after_ms == 0 || *not_after_ms > 9_007_199_254_740_991 { return Err(REJECTED.into()); }
+                }
+                if let Self::PrepareShutdown { selection_at_ms, .. } = self {
+                    if *selection_at_ms == 0 || *selection_at_ms > 9_007_199_254_735_991 { return Err(REJECTED.into()); }
                 }
             }
             Self::ObserveDestinationEffect { resource_id, graph, effect_id, .. }
@@ -167,7 +173,8 @@ impl Request {
                 // receipt freshness is not a new resource-retention deadline.
             }
             Self::ConsumeEffectClaim { resource_id, graph, admission, .. }
-            | Self::ConsumeLegacyShells { resource_id, graph, admission, .. } => {
+            | Self::ConsumeLegacyShells { resource_id, graph, admission, .. }
+            | Self::ConsumeShutdown { resource_id, graph, admission, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || graph.binding.executor_id != self.executor()
                     || admission.payload.is_empty() || admission.payload.len() > 32768

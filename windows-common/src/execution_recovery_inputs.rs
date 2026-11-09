@@ -61,12 +61,14 @@ pub struct Queries {
     pub source_commit: String,
     pub tables: Vec<String>,
     pub thread: Query,
+    pub shutdown_selection: Query,
     pub sections: Vec<SectionQuery>,
 }
 pub fn queries() -> Result<Queries, String> {
     let value: Queries = serde_json::from_str(include_str!("execution_recovery_queries.json"))
         .map_err(|_| REJECTED)?;
     if value.version != 1
+        || value.shutdown_selection.parameters != 3
         || value.thread.parameters != 1
         || value.sections.len() != SECTIONS.len()
         || value.source_commit != "25bf84ab07f53f141c20239c63e383823a9d5ea0"

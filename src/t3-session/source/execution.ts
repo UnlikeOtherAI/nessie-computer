@@ -50,6 +50,10 @@ export interface T3ExecutionResourceScope {
     Promise<T3ExecutionBoundPendingEffectObservation | null>
   prepareEffectClaim(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionReceipt>
   prepareLegacyShells(graph: T3ExecutionGraph, notAfterMs: number): Promise<T3ExecutionReceipt>
+  prepareShutdown(graph: T3ExecutionGraph, selectionAtMs: number): Promise<T3ExecutionReceipt>
+  consumeShutdown(graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission): Promise<{
+    slotId: string; authorityDigest: string; notAfterMs: number; remainingMs: number
+  }>
   consumeLegacyShells(graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission): Promise<{
     slotId: string; planDigest: string; notAfterMs: number; remainingMs: number
   }>
@@ -272,6 +276,30 @@ export async function withT3ExecutionResources<A>(input: {
         const proof = T3ExecutionReceiptSchema.parse(answer.receipt)
         await recheck()
         return proof
+      },
+      prepareShutdown: async (graph: T3ExecutionGraph, selectionAtMs: number) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        requireCapture(Number.isSafeInteger(selectionAtMs) && selectionAtMs > 0, 'execution_shutdown_window_invalid')
+        await recheck()
+        const answer = native.exchange({ op: 'executionShutdownPrepare', graph: candidate, selectionAtMs })
+        const proof = T3ExecutionReceiptSchema.parse(answer.receipt)
+        await recheck()
+        return proof
+      },
+      consumeShutdown: async (graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        const signed = T3ExecutionSignedAdmissionSchema.parse(admission)
+        await recheck()
+        const answer = native.exchange({ op: 'executionShutdownConsume', graph: candidate, admission: signed })
+        requireCapture(Object.keys(answer).sort().join(',') === 'authorityDigest,notAfterMs,remainingMs,slotId'
+          && typeof answer.slotId === 'string' && /^[a-f0-9]{64}$/u.test(answer.slotId)
+          && typeof answer.authorityDigest === 'string' && /^sha256:[a-f0-9]{64}$/u.test(answer.authorityDigest)
+          && typeof answer.notAfterMs === 'number' && Number.isSafeInteger(answer.notAfterMs)
+          && typeof answer.remainingMs === 'number' && Number.isSafeInteger(answer.remainingMs)
+          && answer.remainingMs > 0 && answer.remainingMs <= 5000, 'execution_shutdown_unavailable')
+        await recheck()
+        return { slotId: answer.slotId, authorityDigest: answer.authorityDigest,
+          notAfterMs: answer.notAfterMs, remainingMs: answer.remainingMs }
       },
       prepareLegacyShells: async (graph: T3ExecutionGraph, notAfterMs: number) => {
         const candidate = executionGraphCandidate(graph, receipt)

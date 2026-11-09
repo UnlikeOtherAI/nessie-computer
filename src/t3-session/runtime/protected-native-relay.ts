@@ -61,6 +61,7 @@ export function createProtectedNativeRelay(send: (result: ProtectedNativeResult)
               case 'execution.secretRead': return entry.port.secretRead(operation.input, entry.signal)
               case 'execution.preclaim': return entry.port.preclaim(operation.input, entry.signal)
               case 'execution.legacyShells': return entry.port.legacyShells(operation.input, entry.signal)
+              case 'execution.prepareShutdown': return entry.port.prepareShutdown(operation.input, entry.signal)
               case 'execution.effect': return entry.port.effect(entry.signal)
               case 'execution.receipt': return entry.port.receipt(operation.receipt, entry.signal)
               default: throw protectedRuntimeRefused()
@@ -159,6 +160,8 @@ export function createProtectedNativeClient(send: (request: ProtectedNativeReque
           await tracked({ operation: 'execution.preclaim', input }, signal)),
         legacyShells: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
           await tracked({ operation: 'execution.legacyShells', input }, signal)),
+        prepareShutdown: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
+          await tracked({ operation: 'execution.prepareShutdown', input }, signal)),
         effect: async signal => T3EffectAuthorityCheckedSchema.parse(
           await tracked({ operation: 'execution.effect' }, signal)),
         receipt: async (receipt, signal) => T3NativeExecutionReceiptAcceptedSchema.parse(

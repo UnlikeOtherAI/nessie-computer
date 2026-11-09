@@ -14,6 +14,28 @@ const secretRead = { preparationReceipt: { domain: 'nessie.t3.execution.secret-r
   keyId: 'c'.repeat(64), payload: '{ "observed": "exact preparation bytes" }', signature: 'd'.repeat(86) } }
 const legacyShells = { preparationReceipt: { ...secretRead.preparationReceipt,
   domain: 'nessie.t3.execution.legacy-shell-preparation.v1' } }
+const prepareShutdown = { preparationReceipt: { ...secretRead.preparationReceipt,
+  domain: 'nessie.t3.execution.shutdown-preparation.v1' } }
+
+test('shutdown relay uses the captured operation port and preserves exact signed bytes without accepting selectors', async () => {
+  let calls = 0
+  const stop = parent()
+  const child = createProtectedNativeClient(async request => daemon.receive(request))
+  const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
+    preclaim: unsupported, legacyShells: unsupported, effect: unsupported, receipt: unsupported,
+    prepareShutdown: async input => { calls++; assert.deepEqual(input, prepareShutdown); return proof } }, stop.signal)
+  const local = child.open(held.operationId, stop.signal)
+  assert.deepEqual(await local.port.prepareShutdown(prepareShutdown, stop.signal), proof)
+  assert.equal(calls, 1)
+  assert.equal(ProtectedRuntimeOutputSchema.safeParse({ type: 'native', operationId: held.operationId,
+    callId: 'a'.repeat(64), operation: { operation: 'execution.prepareShutdown',
+      input: { ...prepareShutdown, effects: [] } } }).success, false)
+  await local.close()
+  await held.close()
+  await child.close()
+  await daemon.close()
+})
 
 test('shell relay uses only its captured port, preserves exact bytes and refuses call replay or retired demand', async () => {
   let observed, calls = 0
@@ -21,7 +43,8 @@ test('shell relay uses only its captured port, preserves exact bytes and refuses
   const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
   const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
   const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
-    preclaim: unsupported, effect: unsupported, receipt: unsupported, legacyShells: async input => {
+    preclaim: unsupported, prepareShutdown: unsupported, effect: unsupported, receipt: unsupported,
+    legacyShells: async input => {
       calls++; assert.deepEqual(input, legacyShells); return proof
     } }, stop.signal)
   const local = child.open(held.operationId, stop.signal)
@@ -174,7 +197,9 @@ test('preclaim uses the exact captured port and bytes; selector injection and ca
   const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
   const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
   const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
-    receipt: unsupported, preclaim: async input => { calls++; assert.deepEqual(input, preclaim); return proof } }, stop.signal)
+    receipt: unsupported, preclaim: async input => {
+      calls++; assert.deepEqual(input, preclaim); return proof
+    } }, stop.signal)
   const local = child.open(held.operationId, stop.signal)
   assert.deepEqual(await local.port.preclaim(preclaim, stop.signal), proof)
   assert.equal(observed.operation.operation, 'execution.preclaim')

@@ -26,6 +26,8 @@ export const T3NativeExecutionLegacyShellInputSchema = z.object({
   preparationReceipt: T3ExecutionReceiptSchema,
 }).strict()
 export type T3NativeExecutionLegacyShellInput = z.infer<typeof T3NativeExecutionLegacyShellInputSchema>
+export const T3NativeExecutionShutdownInputSchema = z.object({ preparationReceipt: T3ExecutionReceiptSchema }).strict()
+export type T3NativeExecutionShutdownInput = z.infer<typeof T3NativeExecutionShutdownInputSchema>
 
 /** Finite protected-child messages. No caller actor, request, binding, key,
  * homes, frame bytes or raw method/hash selector travels through this port.
@@ -38,12 +40,14 @@ const receipt = z.object({ operation: z.literal('execution.receipt'), receipt: T
 const preclaim = z.object({ operation: z.literal('execution.preclaim'), input: T3NativeExecutionPreclaimInputSchema }).strict()
 const legacyShells = z.object({ operation: z.literal('execution.legacyShells'),
   input: T3NativeExecutionLegacyShellInputSchema }).strict()
+const prepareShutdown = z.object({ operation: z.literal('execution.prepareShutdown'),
+  input: T3NativeExecutionShutdownInputSchema }).strict()
 // Child-only request: its captured daemon port derives every selector from an
 // already accepted native association and uses the existing effect endpoint.
 // It is deliberately absent from the native-execution HTTP intake below.
 const effect = z.object({ operation: z.literal('execution.effect') }).strict()
 export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation',
-  [phase, frame, secretRead, preclaim, legacyShells, receipt, effect])
+  [phase, frame, secretRead, preclaim, legacyShells, prepareShutdown, receipt, effect])
 export type T3NativeExecutionOperation = z.infer<typeof T3NativeExecutionOperationSchema>
 
 const envelope = z.object({ executorId: z.string().uuid(),
@@ -58,6 +62,7 @@ export const T3NativeExecutionIntakeSchema = z.discriminatedUnion('operation', [
   originalOperation.extend(secretRead.shape),
   originalOperation.extend(preclaim.shape),
   originalOperation.extend(legacyShells.shape),
+  originalOperation.extend(prepareShutdown.shape),
   envelope.extend({ operation: z.literal('execution.issuer.offer'), descriptor: T3ExecutionIssuerDescriptorSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.proof'), receipt: T3ExecutionReceiptSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.pending') }),

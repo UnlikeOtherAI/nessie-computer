@@ -37,6 +37,7 @@ export interface ShutdownPreparationCandidate {
   readonly settingsDigest: string;
   readonly inputDigest: string;
   readonly planDigest: string;
+  readonly authorityDigest: string;
   readonly threadIds: ReadonlyArray<ThreadId>;
   readonly projectionInputs: ReadonlyArray<{ readonly threadId: ThreadId; readonly projectId: string;
     readonly inputDigest: string }>;

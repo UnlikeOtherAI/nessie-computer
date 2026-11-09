@@ -12,6 +12,8 @@ import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, isT3Nativ
   T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN,
   T3ExecutionLegacyShellPreparationPayloadSchema, T3ExecutionLegacyShellAdmissionSchema,
   T3_EXECUTION_LEGACY_SHELL_PREPARATION_DOMAIN,
+  T3ExecutionShutdownPreparationPayloadSchema, T3ExecutionShutdownAdmissionSchema,
+  T3_EXECUTION_SHUTDOWN_PREPARATION_DOMAIN, type T3NativeExecutionShutdownInput,
   type ExecutorT3LaneOperation, type ExecutorT3LaneDelivery, type T3ExecutionBinding,
   type T3ExecutionReceipt, type T3ExecutionSignedAdmission, type T3NativeExecutionPhaseInput,
   type T3NativeExecutionFrameInput, type T3NativeExecutionOperation, type T3NativeExecutionReceiptAccepted,
@@ -32,6 +34,7 @@ export interface T3NativeExecutionTransport {
   secretRead(input: T3NativeExecutionSecretReadInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   preclaim(input: T3NativeExecutionPreclaimInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   legacyShells(input: T3NativeExecutionLegacyShellInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
+  prepareShutdown(input: T3NativeExecutionShutdownInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   /** No raw selection. The same actual operation and accepted association only. */
   effect(signal: AbortSignal): Promise<T3EffectAuthorityChecked>;
   receipt(receipt: T3ExecutionReceipt, signal: AbortSignal): Promise<T3NativeExecutionReceiptAccepted>;
@@ -92,6 +95,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     const preparedShells = operation.operation === 'execution.legacyShells'
       ? T3ExecutionLegacyShellPreparationPayloadSchema.parse(JSON.parse(operation.input.preparationReceipt.payload))
       : undefined
+    const preparedShutdown = operation.operation === 'execution.prepareShutdown'
+      ? T3ExecutionShutdownPreparationPayloadSchema.parse(JSON.parse(operation.input.preparationReceipt.payload))
+      : undefined
     let timeoutMs = 5_000
     if (preparedRead && operation.operation === 'execution.secretRead') {
       binding(preparedRead.binding)
@@ -122,6 +128,17 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
       if (operation.input.preparationReceipt.domain !== T3_EXECUTION_LEGACY_SHELL_PREPARATION_DOMAIN
         || preparedShells.issuedAtMs > now || timeoutMs <= 0 || preparedShells.acceptedGraphNonce !== graph.nonce
         || canonicalExecutorJson(preparedShells.evidence.custody) !== canonicalExecutorJson(graph.custody)) {
+        throw refused()
+      }
+    }
+    if (preparedShutdown && operation.operation === 'execution.prepareShutdown') {
+      binding(preparedShutdown.binding)
+      const now = Date.now()
+      timeoutMs = Math.min(timeoutMs, preparedShutdown.expiresAtMs - now,
+        preparedShutdown.observation.selectionAtMs + 5000 - now)
+      if (operation.input.preparationReceipt.domain !== T3_EXECUTION_SHUTDOWN_PREPARATION_DOMAIN
+        || preparedShutdown.issuedAtMs > now || timeoutMs <= 0 || preparedShutdown.acceptedGraphNonce !== graph.nonce
+        || canonicalExecutorJson(preparedShutdown.evidence.custody) !== canonicalExecutorJson(graph.custody)) {
         throw refused()
       }
     }
@@ -176,6 +193,17 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
         || canonicalExecutorJson({ ...observed, nonce: preparedShells.nonce,
           issuedAtMs: preparedShells.issuedAtMs, expiresAtMs: preparedShells.expiresAtMs })
           !== canonicalExecutorJson(preparedShells)) throw refused()
+    } else if (operation.operation === 'execution.prepareShutdown' && preparedShutdown) {
+      const permission = T3ExecutionShutdownAdmissionSchema.parse(JSON.parse(signed.payload))
+      const { issuerKeyId, preparationReceiptDigest, ...observed } = permission
+      binding(permission.binding)
+      if (issuerKeyId !== operation.input.preparationReceipt.keyId
+        || preparationReceiptDigest !== sha(operation.input.preparationReceipt.payload)
+        || permission.issuedAtMs < preparedShutdown.issuedAtMs || permission.issuedAtMs > Date.now()
+        || permission.expiresAtMs <= Date.now() || permission.expiresAtMs > preparedShutdown.expiresAtMs
+        || canonicalExecutorJson({ ...observed, nonce: preparedShutdown.nonce,
+          issuedAtMs: preparedShutdown.issuedAtMs, expiresAtMs: preparedShutdown.expiresAtMs })
+          !== canonicalExecutorJson(preparedShutdown)) throw refused()
     } else if (operation.operation === 'execution.phase') {
       const phase = T3ExecutionAdmissionSchema.parse(JSON.parse(signed.payload))
       binding(phase.binding)
@@ -213,6 +241,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     legacyShells: async (input: T3NativeExecutionLegacyShellInput, signal: AbortSignal) =>
       Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
         await send({ operation: 'execution.legacyShells', input }, signal))),
+    prepareShutdown: async (input: T3NativeExecutionShutdownInput, signal: AbortSignal) =>
+      Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
+        await send({ operation: 'execution.prepareShutdown', input }, signal))),
     effect: async (callerSignal: AbortSignal) => {
       const signal = AbortSignal.any([parentSignal, callerSignal])
       signal.throwIfAborted(); current()

@@ -58,7 +58,7 @@ fn fixture() -> Fixture {
         settings_digest: format!("{:x}", Sha256::digest(b"{}")), settings_length: 2, provider_references: Vec::new() };
     let held = Held { receipt: Receipt { version: 1, resource_id: "a".repeat(64), resource_generation: "component-test".into(),
         evidence, custody }, caller, objects, watches: Vec::new(), deadline: Instant::now() + Duration::from_secs(10),
-        config_digest: Sha256::digest(b"{}").to_vec(), graph_generation: None, inspections: HashMap::new(), command_lineages: HashMap::new(), preclaims: HashMap::new(), legacy_shells: HashMap::new(),
+        config_digest: Sha256::digest(b"{}").to_vec(), graph_generation: None, inspections: HashMap::new(), command_lineages: HashMap::new(), preclaims: HashMap::new(), legacy_shells: HashMap::new(), shutdowns: HashMap::new(),
         paired_origin: "https://example.invalid".into(), service_root: root.path().into(), destination: None, destination_closed: false,
         runtime_process: Some(Process::open(std::process::id()).unwrap()) };
     Fixture { root, native, held }

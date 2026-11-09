@@ -15,6 +15,10 @@
     "orchestration_v2_projection_threads",
     "orchestration_v2_projection_turn_items"
   ],
+  "shutdownSelection": {
+    "parameters": 3,
+    "query": "SELECT thread_id FROM orchestration_v2_projection_threads\n    WHERE deleted_at IS NULL AND thread_id IN (\n                SELECT bindings.thread_id\n                FROM orchestration_v2_projection_provider_sessions AS sessions\n                JOIN orchestration_v2_projection_provider_session_bindings AS bindings\n                  ON bindings.provider_session_id = sessions.provider_session_id\n                WHERE sessions.status NOT IN ('stopped', 'error')\n                UNION\n                SELECT thread_id FROM orchestration_v2_projection_provider_sessions AS sessions\n                WHERE status NOT IN ('stopped', 'error') AND thread_id IS NOT NULL\n                  AND NOT EXISTS (\n                    SELECT 1 FROM orchestration_v2_projection_provider_session_bindings AS bindings\n                    WHERE bindings.provider_session_id = sessions.provider_session_id\n                  )\n                UNION\n                SELECT thread_id FROM orchestration_v2_projection_runs\n                WHERE status = 'starting'\n                  AND CASE WHEN json_valid(payload_json)\n                    THEN json_extract(payload_json, '$.restartContinuationOfRunId') IS NOT NULL\n                    ELSE 0 END\n              )\n      AND (? = 'all' OR project_id IN (SELECT value FROM json_each(?)))\n      AND project_id NOT IN (SELECT value FROM json_each(?))\n    ORDER BY updated_at ASC, thread_id ASC"
+  },
   "thread": {
     "query": "\n            SELECT payload_json FROM orchestration_v2_projection_threads\n            WHERE thread_id = ?\n          ",
     "parameters": 1

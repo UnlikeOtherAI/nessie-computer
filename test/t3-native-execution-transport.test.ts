@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { T3ExecutionShutdownPreparationPayloadSchema, T3_EXECUTION_SHUTDOWN_SLOT_DOMAIN,
+  T3_EXECUTION_SHUTDOWN_PREPARATION_DOMAIN } from '@nessie/executor-protocol/t3-session'
 import { createHash, generateKeyPairSync, sign, verify } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
@@ -170,6 +172,46 @@ test('whole shell HTTP preserves all observed targets and refuses altered eviden
     } })
     const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
     const result = port.legacyShells({ preparationReceipt }, f.signal)
+    if (mode === 'exact') assert.deepEqual(await result, answer)
+    else await assert.rejects(result)
+    assert.equal(calls, 1)
+  }
+})
+
+test('whole shutdown HTTP preserves all observed targets and refuses altered evidence, expiry or epoch without retry', async () => {
+  for (const mode of ['exact', 'targets', 'source', 'receipt', 'expiry', 'epoch', 'abort']) {
+    const f = fixture(), issuedAtMs = Date.now()
+    const raw = T3ExecutionShutdownPreparationPayloadSchema.parse(JSON.parse(readFileSync(new URL(
+      './t3-session-runtime/fixtures/execution-shutdown.json', import.meta.url), 'utf8')).preparation)
+    const binding = f.admission.binding
+    const slotId = hash(canonicalExecutorJson({ domain: T3_EXECUTION_SHUTDOWN_SLOT_DOMAIN,
+      executorId: binding.executorId, sourceEvidenceDigest: binding.sourceEvidenceDigest,
+      acceptedGraphNonce: '7'.repeat(64) })).slice(7)
+    const observed = { ...raw, binding, slotId, nonce: slotId, acceptedGraphNonce: '7'.repeat(64),
+      evidence: { ...raw.evidence, custody: f.custody }, issuedAtMs, expiresAtMs: issuedAtMs + 5000,
+      observation: { ...raw.observation, observedAtMs: issuedAtMs, selectionAtMs: issuedAtMs } }
+    const preparationReceipt = f.receipt(T3_EXECUTION_SHUTDOWN_PREPARATION_DOMAIN, observed)
+    const candidate = { ...observed, issuerKeyId: preparationReceipt.keyId,
+      preparationReceiptDigest: hash(preparationReceipt.payload), nonce: '0'.repeat(64), issuedAtMs: Date.now() }
+    if (mode === 'targets') candidate.observation = { ...candidate.observation, targets: [] }
+    if (mode === 'source') candidate.binding = { ...binding, sourceEvidenceDigest: hash('another-graph') }
+    if (mode === 'receipt') candidate.preparationReceiptDigest = hash('another-receipt')
+    if (mode === 'expiry') candidate.expiresAtMs++
+    const answer = f.signed(candidate)
+    let calls = 0
+    const api = createExecutorApi({ fetchImpl: async (_url, init) => {
+      calls++
+      const body = JSON.parse(String(init?.body)) as T3NativeExecutionOperationIntake
+      assert.equal(body.operation, 'execution.prepareShutdown')
+      if (body.operation !== 'execution.prepareShutdown') assert.fail('wrong operation')
+      assert.equal(body.input.preparationReceipt.payload, preparationReceipt.payload)
+      assert.equal(init?.redirect, 'error')
+      if (mode === 'epoch') f.state = { ...f.state, connectionEpoch: '2' }
+      if (mode === 'abort') f.controller.abort()
+      return new Response(JSON.stringify({ data: answer }))
+    } })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    const result = port.prepareShutdown({ preparationReceipt }, f.signal)
     if (mode === 'exact') assert.deepEqual(await result, answer)
     else await assert.rejects(result)
     assert.equal(calls, 1)

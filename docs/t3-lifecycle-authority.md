@@ -7,8 +7,9 @@ do not authorize these operations. Production `open` remains refused.
 This is a machine-only boundary owned by `SessionEngineGraph.activate` and
 `SessionEngineLifecycle.stop`. `SessionLifecycleAuthority` is required before the
 runtime layer builds its original execution hosts. There is no default owner.
-The complete legacy-shell action now has a finite native/backend consumer; the
-other four actions still need their own owners. Supplying a parsed graph or
+The complete legacy-shell and shutdown-preparation actions now have finite
+native/backend consumers; the other three actions still need their own owners.
+Supplying a parsed graph or
 admission object cannot satisfy the Context service.
 
 Five concrete original actions are guarded:
@@ -20,6 +21,49 @@ Five concrete original actions are guarded:
 | `delegated-task-recover` | `Orchestrator.recoverDelegatedTasks`: reconciles app-owned subagents and delegated completion delivery through their actual parent/thread locks. |
 | `prepare-shutdown` | Complete original plan and admitted conditional write. |
 | `runtime-reconcile-shutdown` | `ProviderRuntimeRecoveryService.reconcile('shutdown')`: commits shutdown reconciliation and process-loss transitions. |
+
+## Finite original shutdown preparation
+
+The prepared shutdown writer retains its full normalized settings/projection
+checks. It additionally exposes an authority digest over the original selection
+time, only the restart policy fields that selection uses, every selected physical
+projection digest, the exact continuation effect IDs and existing physical slots.
+The ordinary unprepared method keeps its original timing and behavior. Prepared
+reads and consumption use one fixed selection time within their original five
+second wall/monotonic window, so a snooze boundary cannot change the action mid-call.
+
+`prepareShutdown(graph, selectionAtMs)` uses the same held resource companion.
+The service claims the permanent graph/action identity before reading, decodes
+its held settings, runs the pinned original restart-candidate SQL and independently
+selects continuation metadata from the exact recovery input rows. The native
+selector mirrors the original pure `ShutdownSelection`; the original module is
+shared with restart continuation before reuse. Original-codec fixtures cover
+selection and exact full-row slot digests. Settings or raw projection text never
+crosses this protocol. Each SQL snapshot has one monotonic deadline and verifies
+actual main/WAL handles before return.
+
+The enrolled shutdown receipt binds all targets, effects, source/settings/file
+identities, custody, graph and original command binding. The existing
+`execution.prepareShutdown` daemon relay restores the original current authority
+and resolves every target with the same whole-copy maintenance policy used by
+shell reconciliation. It does not grant transcript reads or provider execution.
+Migration `11008` stores immutable, graph-unique receipt/payload evidence and
+the original selection time; both SQL and signing cap expiry at that time plus
+five seconds. Retry can return only the same unexpired payload.
+
+`consumeShutdown` burns the held attempt before parsing, independently verifies
+backend RSA, rereads the complete action/settings and claims its durable slot
+and nonce before returning the remaining writer window. `makeSessionShutdownHost`
+requires that exact receipt to match the actual opaque candidate before invoking
+the existing one-use conditional writer. Abort/closure joins work; uncertainty
+cannot retry. Component qualification on Maxis/Windows 11 passed the 15-task
+combined build after one receipt-domain correction, 231 runtime, 55 authority,
+30 broker, 14 engine and 14 combined-source tests. Locked Windows checks passed
+42 common, 20 destination-reader and 11 source-reader tests plus service/native
+production checks. The cross-language fixture covers 23 original selection cases
+and a real original physical slot. These use synthetic data/keys and actual
+SQLite/held files; no installed authenticated graph or provider is established.
+The remaining lifecycle/activation composition still prevents production `open`.
 
 ## Complete legacy-shell reconciliation
 

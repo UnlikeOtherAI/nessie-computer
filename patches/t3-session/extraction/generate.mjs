@@ -37,6 +37,7 @@ import { extractFiniteSql } from './finite-sql.mjs'
 import { extractLegacyShellPlans } from './legacy-shells.mjs'
 import { extractDelegatedRecovery } from './delegated-recovery.mjs'
 import { extractRecoveryInputs, recoveryInputQueries } from './recovery-inputs.mjs'
+import { extractShutdownSelection } from './shutdown-selection.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -75,6 +76,7 @@ export const generateExtractionManifest = snapshot => {
   extractShutdownOutbox(author)
   extractSqlitePaths(author)
   extractShutdownPreparation(author, redirects, exports)
+  extractShutdownSelection(author, redirects)
   extractRecoveryInputs(author, redirects)
   extractFiniteSql(author)
   extractLegacyShellPlans(author)

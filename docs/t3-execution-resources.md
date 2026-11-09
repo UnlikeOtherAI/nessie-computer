@@ -184,6 +184,12 @@ verification and commit. More than 16,384 selected rows or 4 MiB of encoded
 inputs refuses without truncation. This is unsigned input evidence; it does not
 independently select the complete shutdown action or authorize any mutation.
 
+The separate [shutdown admission](t3-lifecycle-authority.md#finite-original-shutdown-preparation)
+now combines those same private reads with independently held settings, original
+candidate selection, native continuation selection and exact existing outbox
+slots. Its receipt/consume methods remain distinct from the unsigned per-thread
+input query. No caller SQL, candidate effect set, path or settings bytes is accepted.
+
 `T3ExecutionPendingEffectObservation` is explicitly unsigned. The original durable
 receipt records command type and result sequence but no parent-command edge;
 accepted status cannot establish this graph's original operation relationship.
