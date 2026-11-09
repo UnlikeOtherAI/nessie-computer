@@ -97,6 +97,12 @@ test('runtime/type/notices provenance binds generated package files and excludes
   const hash = bytes => createHash('sha256').update(bytes).digest('hex')
   const contractsProvenance = JSON.parse(await readFile(resolve(dist, 'provenance.json'), 'utf8'))
   assert.equal(contractsProvenance.publicationAdapterSha256, hash(await readFile(resolve(root, 'publish.mjs'))))
+  assert.equal(contractsProvenance.dependencyLockSha256, hash(await readFile(resolve(root, '../../pnpm-lock.yaml'))))
+  const claude = JSON.parse(await readFile(resolve(dist, 'claude-sdk/provenance.json'), 'utf8'))
+  assert.deepEqual(contractsProvenance.claudeSdk, claude)
+  for (const [file, digest] of Object.entries(claude.outputs)) {
+    assert.equal(hash(await readFile(resolve(dist, 'claude-sdk', file))), digest)
+  }
   assert.equal(provenance.kind, 'session-engine-package')
   assert.equal(provenance.qualification.distributableLibrary, true)
   assert.equal(provenance.qualification.syntheticProofs, false)

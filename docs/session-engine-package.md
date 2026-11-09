@@ -2,6 +2,9 @@
 
 The `/claude-sdk` export builds the pinned original SDK and private native
 capture transport in the same completed generation; see [Claude capture](claude-sdk-capture.md).
+The public lock is an explicit build/typecheck cache input, matching the exact
+bytes recorded by package provenance. The ordinary engine gate checks that
+lock and the nested SDK output hashes, including when a cached build is restored.
 
 The current [contract declaration producer](session-contract-declarations.md)
 emits shared `.d.ts` files instead of contract implementations. Its focused
