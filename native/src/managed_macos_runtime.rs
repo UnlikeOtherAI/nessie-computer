@@ -268,6 +268,39 @@ mod tests {
         guard(&others);
         assert!(unresolved_host(root.path(), &record).unwrap());
     }
+
+    /// The journals the old rule kept clear on the next launch; a live
+    /// command's, a daemon's and another boot's stay.
+    #[test]
+    fn reconcile_drops_only_ended_one_shot_journals_of_this_boot() {
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("managed-runtimes");
+        std::fs::create_dir(&directory).unwrap();
+        let boot = managed_runtime_context::boot_id().unwrap();
+        let mut ended = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let ended_pid = ended.id() as i32;
+        let ended_birth = managed_runtime_context::birth(ended_pid).unwrap();
+        ended.wait().unwrap();
+        let own = unsafe { libc::getpid() };
+        let own_birth = managed_runtime_context::birth(own).unwrap();
+        let journal = |name: &str, pid: i32, birth: &str, boot: &str, activity: Option<&str>| {
+            let record = Record { protocol_version: 1, boot_id: boot.into(), guard_version: 2, supervisor_pid: pid,
+                supervisor_started_at: birth.into(), child_pid: pid, child_started_at: birth.into(),
+                release_digest: "a".repeat(64), activity: activity.map(str::to_owned) };
+            std::fs::write(directory.join(format!("{name}.json")), serde_json::to_vec(&record).unwrap()).unwrap();
+            std::fs::write(directory.join(format!("{name}.sock")), b"").unwrap();
+        };
+        journal("ended", ended_pid, &ended_birth, &boot, None);
+        journal("live", own, &own_birth, &boot, None);
+        journal("daemon", ended_pid, &ended_birth, &boot, Some("serve"));
+        journal("earlier", ended_pid, &ended_birth, "ff61df02-d264-4db7-9a2d-2fa908745780", None);
+        reconcile(&directory, &boot).unwrap();
+        let mut left: Vec<_> = std::fs::read_dir(&directory).unwrap()
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap()).collect();
+        left.sort();
+        assert_eq!(left, ["daemon.json", "daemon.sock", "earlier.json", "earlier.sock", "live.json", "live.sock"]);
+        reconcile(&root.path().join("missing"), &boot).unwrap();
+    }
     #[test]
     fn unsigned_process_never_creates_a_managed_child() {
         assert!(run(&["describe".into()]).is_err());
