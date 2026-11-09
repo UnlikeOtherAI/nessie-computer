@@ -35,3 +35,5 @@ Also: [Glossary](Glossary) · [FAQ](FAQ)
 - **Nessie Computer** runs on the computer. There you choose *what* agents may
   use: folders, programs, websites and local apps. Nessie can't change these.
 - The computer connects out to Nessie. Nothing on the internet can connect in.
+
+See [error reporting](https://github.com/UnlikeOtherAI/nessie-executor/blob/main/docs/error-reporting.md) for SDK coverage, configuration and verification limits.
