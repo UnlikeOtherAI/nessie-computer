@@ -163,6 +163,39 @@ SDK 0.3.316 immutable serialization is still unbound; the original history worke
 `runClaudeHistoryWorker(method, sessionId, rawOptions)` requires separately
 admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
 
+### Pinned Claude SDK source audit
+
+The original source lock resolves `@anthropic-ai/claude-agent-sdk` to `0.3.316`
+with integrity `sha512-mCMr0que5kIy80JslJub6WFDB2+GYRGWNeVgSZaBpkBwXrr4wnRMnnGHitkA2BEJ5QP5xWyc6YH/6do/edxCWg==`.
+The fetched 1,435,061-byte artifact matched that exact integrity; SHA-256 is
+`d0e613aeaa8d861dcaecfee281baa8998cb05a1a87407d080ccce941cbddca92`.
+Its `sdk.mjs` SHA-256 is
+`dc85a850b6806de3c5dd19b9c1412ac7410546741e5f79a4e7a8e984e4135442`.
+Package metadata names Claude Code `2.1.316`; the SDK and CLI versions are
+different identifiers. No downloaded SDK or CLI was executed for this audit.
+
+The actual original query runner lives inside `ClaudeAdapterV2.ts`, not a
+separate `ClaudeAgentSdkQueryRunner.ts`. It queues `SDKUserMessage` objects
+before SDK serialization. SDK `Query.streamInput` uses its original `ae` encoder
+and adds `client_composed: true` only when `verbatimPrompts` is enabled. The
+protected path must preserve that conversion and capture the exact encoder
+output before queueing; a hand-built user JSON frame is not equivalent.
+
+SDK control requests encode before waiting on `initializeWritten`. Its process
+transport has another `pendingWrites` queue for deferred spawn. Its ordinary
+`write` returns before a real write acknowledgement, and may drop a write after
+stdin ends. Protected capture must precede those queues and acknowledgement
+must wait for actual native commit. Existing SDK queueing does not supply it.
+
+The public custom-spawn callback is synchronous and returns `SpawnedProcess`
+with generic stdin. The real protected launch is asynchronous and exposes no
+such stdin capability. A fake ChildProcess or generic Writable facade cannot
+bridge this difference. The source integration still needs an actual immutable
+SDK spawn/transport refactor and the same original invocation context. SDK
+process exit and its bounded `waitForExit` are not positive native Job clearance.
+Native session-ID timing remains an installed-interface qualification item;
+an allocated SDK/session ID or command argument cannot substitute for it.
+
 ## Selected original construction and Codex host
 
 `createSessionSelectedProvider(plan, launch)` consumes the private plan inside
