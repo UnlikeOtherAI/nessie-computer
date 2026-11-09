@@ -15,7 +15,8 @@ final class ComputerUpdateHealth {
     var attention: ComputerUpdateAttention? {
         ComputerUpdateRecovery.attention(
             registration: ComputerUpdateService.registration, factoryReady: ComputerUpdateService.factoryReady,
-            failures: failures, reregistered: reregistered
+            failures: failures, reregistered: reregistered,
+            registrationFailure: ComputerUpdateService.registrationFailure
         )
     }
 
@@ -26,6 +27,9 @@ final class ComputerUpdateHealth {
         if answered { reregistered = false }
         publish()
     }
+
+    /// A `register()` succeeded, waits for approval or was refused.
+    func registrationChanged() { publish() }
 
     /// A re-registered helper starts counting again; it needs a moment to answer.
     func restarted() {
@@ -60,6 +64,11 @@ enum ExecutorUpdateControl {
         default: throw ExecutorRefusal(unavailable)
         }
         guard Set(request.keys) == fields else { throw ExecutorRefusal(unavailable) }
+        // launchd runs no registered helper, whatever an older process still
+        // answers: the person sees why macOS refused, with Try again.
+        if operation == "status", case let .registrationFailed(reason) = ComputerUpdateHealth.shared.attention {
+            return ComputerUpdateService.registrationFailedStatus(reason)
+        }
         let payload = try JSONSerialization.data(withJSONObject: request) + Data([10])
         let runtime = try PackagedRuntime.locate(in: Bundle.main.resourceURL).get()
         let helper = runtime.managedHelperURL() ?? ComputerUpdateService.factory
@@ -153,6 +162,9 @@ final class ExecutorUpdateMonitor {
                     } else if !notify { self.announced = nil }
                 }
                 try? await Task.sleep(nanoseconds: 15_000_000_000)
+                // A registration macOS refused, by the restart or at launch, is
+                // made again here, a bounded number of times for this version.
+                ComputerUpdateService.prepare()
             }
         }
     }

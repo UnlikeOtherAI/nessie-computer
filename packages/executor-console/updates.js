@@ -4,6 +4,8 @@
   const nc = window.nc
   const node = (id) => document.getElementById(`update-${id}`)
   const text = (key, version) => nc.t(`updates.${key}`, { version: version ?? '' })
+  // macOS's own short reason for refusing the helper's registration.
+  const cantStart = () => nc.t('updates.cantStart', { reason: status?.reason ?? '' })
   let status = null
   let busy = false
   let announced = null
@@ -21,12 +23,13 @@
     node('policy').hidden = !status?.canInstall
     node('check').disabled = busy || status?.canInstall === false || active.has(status?.phase)
     // One action for each: set the helper up, open Login Items for one macOS
-    // holds back, or restart one that is stuck.
+    // holds back, restart one that is stuck, or register again one macOS refused.
     const stuck = status?.code === 'update.helper_unavailable'
     const approval = status?.code === 'update.approval_required'
-    node('setup').hidden = status?.code !== 'update.setup_required' && !stuck && !approval
+    const refused = status?.code === 'update.registration_failed'
+    node('setup').hidden = status?.code !== 'update.setup_required' && !stuck && !approval && !refused
     node('setup').disabled = busy
-    node('setup').textContent = text(approval ? 'openLoginItems' : stuck ? 'restart' : 'setup')
+    node('setup').textContent = text(approval ? 'openLoginItems' : stuck ? 'restart' : refused ? 'tryAgain' : 'setup')
     const version = status?.targetVersion ?? status?.availableVersion
     const canUpdate = status?.canInstall && status?.availableVersion && !active.has(status.phase)
     node('install').hidden = !canUpdate
@@ -36,7 +39,7 @@
     const phase = status?.phase ?? 'checking'
     const known = ['idle', 'checking', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported', 'available']
     node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : stuck ? text('helperStuck')
-      : approval ? text('approval')
+      : approval ? text('approval') : refused ? cantStart()
       : status?.code === 'update.bootstrap_required' ? text('bootstrap') : text(known.includes(phase) ? phase : 'unavailable', version)
     if (phase === 'failed' && status?.availableVersion) node('status').textContent += ` ${text('available', status.availableVersion)}`
     if (!status?.notify || status.automatic || !canUpdate) announced = null
@@ -106,7 +109,11 @@
     stuck: () => status?.code === 'update.helper_unavailable',
     /** macOS won't run the helper until the owner allows it in Login Items. */
     approval: () => status?.code === 'update.approval_required',
+    /** macOS refused to register the helper; the line says why. */
+    refused: () => status?.code === 'update.registration_failed',
+    cantStart,
     restart: () => load({ operation: 'setup' }),
     approve: () => load({ operation: 'setup' }),
+    retry: () => load({ operation: 'setup' }),
   }
 })()

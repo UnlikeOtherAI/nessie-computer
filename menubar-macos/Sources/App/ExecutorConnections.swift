@@ -74,6 +74,7 @@ final class ExecutorConnections: ObservableObject {
     func menuModel() -> ComputerMenuModel {
         let labels = labels()
         var unreadable = 0
+        var unreadableRunning = 0
         var runtimeMissing = false
         var teams: [TeamSnapshot] = []
         for controller in controllers {
@@ -81,6 +82,7 @@ final class ExecutorConnections: ObservableObject {
             case .unpaired: continue
             case .unavailable:
                 if controller.runtimeMissing { runtimeMissing = true } else { unreadable += 1 }
+                if controller.model.daemon != .stopped { unreadableRunning += 1 }
             case let .paired(description):
                 teams.append(TeamSnapshot(
                     executorId: description.executorId,
@@ -96,8 +98,8 @@ final class ExecutorConnections: ObservableObject {
             }
         }
         return ComputerMenuModel(
-            teams: teams, unreadableTeams: unreadable, runtimeMissing: runtimeMissing,
-            updatesStuck: updateAttention == .stuck, updatesNeedApproval: updateAttention == .needsApproval
+            teams: teams, unreadableTeams: unreadable, unreadableRunning: unreadableRunning,
+            runtimeMissing: runtimeMissing, updates: updateAttention
         )
     }
 

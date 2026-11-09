@@ -34,10 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if links.isEmpty { self.console?.show(ConsoleTarget()) }
             links.forEach(self.follow)
         }
-        try? ComputerUpdateService.prepare()
         ComputerUpdateHealth.shared.onChange = { [weak controller] attention in
             controller?.updateAttention = attention
         }
+        // Registered before the first status probe; a refusal shows at once.
+        ComputerUpdateService.prepare()
         // The first launch with no team opens the window, which opens straight
         // on a pairing code, rather than leaving a person to find an icon.
         let hasTeam = controller.controllers.contains { ExecutorPaths.hasPairingFile($0.stateDirectory) }

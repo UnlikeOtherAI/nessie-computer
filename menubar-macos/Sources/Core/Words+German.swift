@@ -37,6 +37,8 @@ enum GermanWords {
         case .needsYouReinstall: return "Braucht Sie: Nessie Computer neu installieren"
         case .needsYouUnreadableTeam: return "Braucht Sie: Ein Team auf diesem Mac kann nicht gelesen werden"
         case .needsYouUpdatesStuck: return "Braucht Sie: Updates hängen – Nessie Computer öffnen"
+        case let .needsYouUpdatesCantStart(reason):
+            return "Braucht Sie: Updates können nicht starten – \(reason)"
         case .needsYouUpdatesApproval:
             return "Braucht Sie: Nessie Computer in den Systemeinstellungen "
                 + "erlauben, damit das Update fertig wird"
@@ -63,6 +65,7 @@ enum GermanWords {
             return "Nur das Fenster von Nessie Computer kann die Einstellungen dieses Computers ändern."
         case .invalidRequest: return "Nessie Computer konnte das nicht ausführen. Versuchen Sie es erneut."
         case .teamNotFound: return "Dieses Team ist auf diesem Computer nicht verbunden."
+        case .updatesRegistrationRefused: return "macOS hat den Hintergrunddienst nicht registriert."
         case .runtimeMissing: return "Ein Teil von Nessie Computer fehlt. Installieren Sie Nessie Computer neu."
         case .changeRefused: return "Nessie Computer konnte diese Änderung nicht vornehmen."
         case .teamStillStopping: return "Dieses Team wird noch gestoppt. Versuchen Sie es gleich erneut."

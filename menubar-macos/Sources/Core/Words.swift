@@ -53,6 +53,7 @@ public enum Word: Equatable, Sendable {
     case needsYouUnreadableTeam
     case needsYouUpdatesStuck
     case needsYouUpdatesApproval
+    case needsYouUpdatesCantStart(reason: String)
     case needsYouMany(Int)
     case pause
     case resume
@@ -75,6 +76,7 @@ public enum Word: Equatable, Sendable {
     case invalidRequest
     case teamNotFound
     case runtimeMissing
+    case updatesRegistrationRefused
     case changeRefused
     case teamStillStopping
     case teamNotStarted

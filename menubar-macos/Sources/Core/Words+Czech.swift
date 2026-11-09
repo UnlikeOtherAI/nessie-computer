@@ -45,6 +45,8 @@ enum CzechWords {
         case .needsYouReinstall: return "Potřebuje vás: přeinstalujte Nessie Computer"
         case .needsYouUnreadableTeam: return "Potřebuje vás: tým na tomto Macu nelze načíst"
         case .needsYouUpdatesStuck: return "Potřebuje vás: aktualizace se zasekly — otevřete Nessie Computer"
+        case let .needsYouUpdatesCantStart(reason):
+            return "Potřebuje vás: aktualizace nejdou spustit — \(reason)"
         case .needsYouUpdatesApproval:
             return "Potřebuje vás: povolte Nessie Computer v Nastavení "
                 + "systému, ať se dokončí aktualizace"
@@ -70,6 +72,7 @@ enum CzechWords {
         case .onlyLocalWindow: return "Nastavení tohoto počítače může měnit jen okno Nessie Computer."
         case .invalidRequest: return "Nessie Computer to nedokázal provést. Zkuste to znovu."
         case .teamNotFound: return "Tento tým není na tomto počítači připojený."
+        case .updatesRegistrationRefused: return "macOS pomocnou službu na pozadí nezaregistroval."
         case .runtimeMissing: return "Část Nessie Computer chybí. Přeinstalujte Nessie Computer."
         case .changeRefused: return "Nessie Computer tuto změnu nedokázal provést."
         case .teamStillStopping: return "Tento tým se ještě zastavuje. Zkuste to za chvíli."

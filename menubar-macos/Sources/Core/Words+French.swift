@@ -38,6 +38,8 @@ enum FrenchWords {
         case .needsYouReinstall: return "Action requise : réinstallez Nessie Computer"
         case .needsYouUnreadableTeam: return "Action requise : une équipe de ce Mac est illisible"
         case .needsYouUpdatesStuck: return "Action requise : les mises à jour sont bloquées — ouvrez Nessie Computer"
+        case let .needsYouUpdatesCantStart(reason):
+            return "Action requise : les mises à jour ne peuvent pas démarrer — \(reason)"
         case .needsYouUpdatesApproval:
             return "Action requise : autorisez Nessie Computer dans "
                 + "Réglages Système pour terminer la mise à jour"
@@ -65,6 +67,7 @@ enum FrenchWords {
                 + "ordinateur."
         case .invalidRequest: return "Nessie Computer n’a pas pu le faire. Réessayez."
         case .teamNotFound: return "Cette équipe n’est pas connectée sur cet ordinateur."
+        case .updatesRegistrationRefused: return "macOS n’a pas enregistré le service d’arrière-plan."
         case .runtimeMissing: return "Une partie de Nessie Computer est manquante. Réinstallez Nessie Computer."
         case .changeRefused: return "Nessie Computer n’a pas pu effectuer cette modification."
         case .teamStillStopping: return "Cette équipe est encore en train de s’arrêter. Réessayez dans un instant."

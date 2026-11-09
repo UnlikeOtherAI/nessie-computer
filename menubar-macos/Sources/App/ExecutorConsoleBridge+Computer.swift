@@ -19,19 +19,7 @@ extension ExecutorConsoleBridge {
         case "executor_open_nessie": try await openNessie(args)
         case "executor_update_setup":
             guard args.isEmpty else { throw ExecutorRefusal("update.coordinator_unavailable") }
-            // One button: open Login Items for a helper macOS holds back, set
-            // the helper up, or restart one that is stuck.
-            if ComputerUpdateHealth.shared.attention == .needsApproval {
-                ComputerUpdateService.openLoginItems()
-                return ComputerUpdateService.approvalStatus()
-            }
-            if ComputerUpdateHealth.shared.stuck {
-                try await ComputerUpdateService.restart(requested: true)
-                ComputerUpdateHealth.shared.restarted()
-                return ComputerUpdateService.unavailableStatus() ?? ComputerUpdateService.restartingStatus()
-            }
-            try ComputerUpdateService.prepare(requested: true)
-            return try await ExecutorUpdateControl.run(["operation": "status"])
+            return try await updateSetup()
         case "executor_update_control":
             guard let request = args["request"] as? [String: Any] else {
                 throw ExecutorRefusal("update.coordinator_unavailable")
@@ -47,6 +35,27 @@ extension ExecutorConsoleBridge {
         default: return nil
         }
         return NSNull()
+    }
+
+    /// One button: open Login Items for a helper macOS holds back, restart one
+    /// that is stuck, or register one macOS has no registration for — Set up
+    /// updates and Try again alike.
+    private func updateSetup() async throws -> [String: Any] {
+        switch ComputerUpdateHealth.shared.attention {
+        case .needsApproval:
+            ComputerUpdateService.openLoginItems()
+            return ComputerUpdateService.approvalStatus()
+        case .stuck:
+            await ComputerUpdateService.restart(requested: true)
+            ComputerUpdateHealth.shared.restarted()
+            if case let .registrationFailed(reason) = ComputerUpdateHealth.shared.attention {
+                return ComputerUpdateService.registrationFailedStatus(reason)
+            }
+            return ComputerUpdateService.unavailableStatus() ?? ComputerUpdateService.restartingStatus()
+        case .registrationFailed, nil:
+            ComputerUpdateService.prepare(requested: true)
+            return try await ExecutorUpdateControl.run(["operation": "status"])
+        }
     }
 
     /// "Open Nessie" opens the Nessie a team is paired with: the named team's,

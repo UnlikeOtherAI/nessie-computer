@@ -31,6 +31,11 @@ finish updating**, macOS is waiting for you to allow the helper. Choose **Open
 Login Items** and switch Nessie Computer on there; updates then finish by
 themselves.
 
+If the window or Settings says **Updates can't start:** followed by a reason,
+macOS refused to register the update helper, so it isn't running. Choose
+**Try again**. If macOS still refuses, Login Items opens: switch Nessie
+Computer on there, then choose **Try again** once more.
+
 If the window or Settings says **Updates are stuck — teams can't start**, the
 helper isn't answering. Choose **Restart updates**. Your teams, access and
 sign-ins stay on the computer. When you install a newer Nessie Computer on a

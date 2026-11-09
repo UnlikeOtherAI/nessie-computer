@@ -7,6 +7,9 @@ public enum ComputerUpdateAttention: Equatable, Sendable {
     case stuck
     /// macOS won't run it until the owner allows it in Login Items.
     case needsApproval
+    /// macOS refused to register it, so launchd runs no helper: Try again.
+    /// `reason` is macOS's own short reason.
+    case registrationFailed(reason: String)
 }
 
 /// When the approved update helper counts as stuck, and when this app restarts it.
@@ -26,11 +29,18 @@ public enum ComputerUpdateRecovery {
     /// runs, and restarting it cannot help. After this app re-registered it,
     /// macOS can also keep it from running while still reporting it enabled;
     /// Login Items is where the owner starts it again then, too.
+    /// `registrationFailure` is why macOS last refused this app's `register()`;
+    /// it counts only while the helper is still not registered.
     public static func attention(
-        registration: SMAppService.Status?, factoryReady: Bool, failures: Int, reregistered: Bool
+        registration: SMAppService.Status?, factoryReady: Bool, failures: Int, reregistered: Bool,
+        registrationFailure: String?
     ) -> ComputerUpdateAttention? {
         guard let registration else { return nil }
         if registration == .requiresApproval { return .needsApproval }
+        if registration == .notRegistered || registration == .notFound {
+            // Not yet attempted, or attempts still to come: setup has its own state.
+            return registrationFailure.map { .registrationFailed(reason: $0) }
+        }
         guard registration == .enabled, failures >= unreachableProbes else { return nil }
         if reregistered { return .needsApproval }
         // Before the factory exists the helper is still setting up, which has its own message.
