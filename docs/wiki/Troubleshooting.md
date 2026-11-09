@@ -34,7 +34,15 @@ organisation runs its own.
 Nessie hasn't named that team on this computer yet. Nessie Computer asks for
 every team's name when it opens and every hour after, and keeps a name once it
 has one, even while Nessie can't be reached. To ask now, quit and reopen Nessie
-Computer, or run `nessie-computer teams`.
+Computer, or run `nessie-computer teams`. If Nessie still can't name the team,
+`nessie-computer teams` says why: the server, the team and the answer it gave.
+
+### A local app doesn't start
+Nessie Computer tries again later and later: twice at once, then after a
+minute, then twice as long each time, up to every 30 minutes. It starts as
+usual as soon as the app works again, for example once Kelpie's device is back
+on the network. `nessie-computer access local-apps --json` shows, under
+`start`, how many starts in a row failed, why, and when it tries next.
 
 ### Nessie says the computer is offline
 - The computer may be asleep. Work waits until it wakes.

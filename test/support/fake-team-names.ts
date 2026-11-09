@@ -14,15 +14,20 @@ export type FakeNames = { organizationName: string; teamName: string | null }
  * A stand-in Nessie for team names. It answers the batched
  * `POST /api/executor-daemon/teams` from `names`, checking every entry's
  * signature against the team's machine key the way Nessie must, or — as a
- * Nessie from before that route — answers 404 there and names teams through
+ * Nessie from before that route — fails it (`batch`: a 404, the 401
+ * `AUTH_REQUIRED` production answers an unknown route with, a 500, or an
+ * answer that is not well formed) and names teams through
  * `POST /api/executor-pairing/connection`, which may also refuse as an older
  * server does without a person's session.
  */
+export type FakeBatchFailure = 'missing' | 'auth_required' | 'server_error' | 'malformed'
 export const fakeTeamNames = (options: {
   names: Map<string, FakeNames> | Record<string, FakeNames>
   /** executorId → the team's machine private key (pkcs8 DER, base64url), for verifying signatures. */
   keys?: Map<string, string>
+  /** Shorthand for `batch: 'missing'`. */
   old?: boolean
+  batch?: FakeBatchFailure
   refuseConnection?: boolean
   unreachable?: boolean
 }) => {
@@ -40,7 +45,13 @@ export const fakeTeamNames = (options: {
       if (options.unreachable) throw new ExecutorApiError('Executor API request timed out.', { code: 'EXECUTOR_API_TIMEOUT' })
       const request = ExecutorDaemonTeamsRequestSchema.parse(input)
       calls.push({ route: 'teams', baseUrl, executorIds: request.entries.map((entry) => entry.executorId) })
-      if (options.old) throw new ExecutorApiError('Route POST:/api/executor-daemon/teams not found', { status: 404 })
+      const batch = options.batch ?? (options.old ? 'missing' : undefined)
+      if (batch === 'missing') throw new ExecutorApiError('Route POST:/api/executor-daemon/teams not found', { status: 404 })
+      if (batch === 'auth_required') {
+        throw new ExecutorApiError('Authentication required.', { code: 'AUTH_REQUIRED', status: 401 })
+      }
+      if (batch === 'server_error') throw new ExecutorApiError('Internal error.', { code: 'INTERNAL', status: 500 })
+      if (batch === 'malformed') return { teams: [{ executorId: 'not-a-team' }] }
       for (const { signature, ...payload } of request.entries) {
         verifySigned(payload.executorId, EXECUTOR_DAEMON_TEAMS_SIGNATURE_DOMAIN, payload, signature)
       }
@@ -51,6 +62,7 @@ export const fakeTeamNames = (options: {
     },
     pairing: async (baseUrl, action, input) => {
       assert.equal(action, 'connection', 'names are read only through the connection read')
+      if (options.unreachable) throw new ExecutorApiError('Executor API request timed out.', { code: 'EXECUTOR_API_TIMEOUT' })
       const { signature, ...payload } = input as { executorId: string; timestamp: string; signature: string }
       calls.push({ route: 'connection', baseUrl, executorIds: [payload.executorId] })
       verifySigned(payload.executorId, 'nessie.executor.pairing.connection.v1', payload, signature)

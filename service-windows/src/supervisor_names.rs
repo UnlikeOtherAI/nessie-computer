@@ -3,11 +3,17 @@
 //! asks Nessie once per server and saves each team's label in its folder.
 //! Status rows then carry that label (`team_label::read_team_label`). The call
 //! runs off the supervisor's lock, so a slow Nessie holds up no pipe request,
-//! and a failed one leaves every saved name as it was.
+//! and a failed one leaves every saved name as it was. What the call says went
+//! wrong — a server that did not answer, a team it did not name — lands in the
+//! service log, one line each.
 
-use std::{path::PathBuf, process::Command, time::Duration};
+use std::{
+    path::PathBuf,
+    process::{Command, Stdio},
+    time::Duration,
+};
 
-use nessie_windows_common::team_label::team_names_arguments;
+use nessie_windows_common::team_label::{collect_team_names_failures, team_names_arguments};
 
 use crate::{
     paths::paired_executors,
@@ -31,18 +37,22 @@ impl Supervisor {
     }
 }
 
-/// Runs a naming call to its end, stopping it if it overruns.
-pub fn run_team_names(mut command: Command) -> Result<(), String> {
-    let mut child = command.spawn().map_err(|_| "Team names could not be read: the command did not start.".to_owned())?;
-    match wait_bounded(&mut child, TEAM_NAMES_TIMEOUT) {
-        Ok(Some(0)) => Ok(()),
-        Ok(Some(code)) => Err(format!("Team names could not be read (exit {code}).")),
-        _ => {
-            let _ = child.kill();
-            let _ = child.wait();
-            Err("Team names took too long and were stopped.".to_owned())
-        }
+/// Runs a naming call to its end, stopping it if it overruns. Answers the
+/// failures it printed, for the service log; `Err` when the call itself failed.
+pub fn run_team_names(mut command: Command) -> Result<Vec<String>, String> {
+    let mut child = command.stderr(Stdio::piped()).spawn()
+        .map_err(|_| "Team names could not be read: the command did not start.".to_owned())?;
+    let errors = child.stderr.take().map(collect_team_names_failures);
+    let Ok(Some(code)) = wait_bounded(&mut child, TEAM_NAMES_TIMEOUT) else {
+        // The reader is left to end with the pipe: whatever still holds it must not hold up this thread.
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("Team names took too long and were stopped.".to_owned());
+    };
+    if code != 0 {
+        return Err(format!("Team names could not be read (exit {code})."));
     }
+    Ok(errors.and_then(|reader| reader.join().ok()).unwrap_or_default())
 }
 
 #[cfg(test)]

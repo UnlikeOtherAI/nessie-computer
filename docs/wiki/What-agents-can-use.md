@@ -65,7 +65,9 @@ computer, and lets agents use all of them.
 
 Each app has a switch. Switch one off and agents stop using it; install a new
 one and it appears, switched on. The details of how an app starts stay on this
-computer; Nessie only learns its name.
+computer; Nessie only learns its name. An app that keeps failing to start is
+tried again less and less often, up to every 30 minutes (see
+[Troubleshooting](Troubleshooting)).
 
 ## Coding assistants
 

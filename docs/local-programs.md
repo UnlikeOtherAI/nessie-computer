@@ -132,6 +132,38 @@ Only the names reach Nessie, in the signed descriptor. A change in the
 discovered set is a new revision: `localAppsRevision` and `refreshLocalApps`
 (`src/local-mcp-apps.ts`) produce and save it, and the daemon applies it live.
 
+### Starting and stopping a local app
+
+The daemon starts a local app when a command or the two-minute local-app
+report first needs it (`src/mcp-session-manager.ts`). On a packaged runtime each
+start is admitted first (`admitPersonalHostExecution`); on Windows that
+admission is a `managed-host-barrier` helper process holding the service's host
+lease. The admission ends on every path out of the session — a start that
+times out, exits or throws, a crash, an idle close, a stop
+(`endLocalAppAdmission`, `src/mcp-host-execution.ts`):
+
+- It is released once nothing it admitted can still run: no process was
+  started, or the process tree is proved stopped. On packaged Windows a local
+  app starts inside the job helper's Job Object (`job-run`, as coding agents
+  do), so its whole tree ends with the helper and the stop can be proved. The
+  program is resolved first through `PATH` and `PATHEXT`, because the helper's
+  `CreateProcessW` appends only `.exe`; a program on no `PATH` entry is
+  `not_installed` and nothing is admitted. The coding-sessions bridge is not
+  contained: its detached hosts outlive it.
+- When a stop cannot be proved (no Job Object, or a process that exited before
+  its start time was read), the admission stays — custody does not change —
+  but its barrier process is ended. Before this a Kelpie whose device was
+  away failed its handshake every two minutes and left a barrier process
+  behind each time.
+
+A local app that keeps failing to start is retried later and later
+(`src/mcp-start-backoff.ts`): the first two failures in a row are retried at
+once, then it waits a minute, then twice as long after each further failure,
+up to 30 minutes. A start that works forgets them. The running daemon saves the
+failing apps to `local-apps-status.json` in the team's folder
+(`src/local-app-start-status.ts`) on every change and empties it when it starts
+and stops; `describe` reads it.
+
 ## Websites
 
 `configure` takes `allowedOrigins` (HTTPS origins, `[]` for none). Once the
@@ -158,15 +190,22 @@ the workspace file operations are not affected.
   where `source` is `configured` (owner-named), `unlikeotherai`,
   `claude-code` or `codex`, and `reason` says why a discovered app is off
   (`switched_off`, `not_installed`, `limit`, `listed_only`). An owner-named app
-  reads `installed: true`; whether it starts is the MCP report's answer.
+  reads `installed: true`; whether it starts is the MCP report's answer. An
+  enabled app whose last starts failed carries `start: { failures, reason,
+  retryAt? }`: failed starts in a row, the last reason (`not_installed`,
+  `launch_failed`, `handshake_failed`) and, while it waits, when it is tried
+  again.
 - `reach.allowedOrigins` and `reach.mcpServers` (each with its `source`).
 
 ## Verification
 
 `test/program-trust.test.ts`, `test/local-app-discovery.test.ts`,
 `test/local-mcp-apps.test.ts` and `test/command-policy.test.ts`
-cover these rules, including a file named like an UnlikeOtherAI program that
-must not count. The signature checks are exercised with injected checkers;
+cover these rules; `test/mcp-session-admission.test.ts` covers the admission on
+every exit path, the backoff and (on Windows with the job helper) a real Job
+Object start, and `test/local-app-start-status.test.ts` the `describe` field.
+The first four include a file named like an UnlikeOtherAI program that must
+not count. The signature checks are exercised with injected checkers;
 the macOS requirement was checked by hand against installed apps (it accepts
 the Developer ID-signed Nessie Executor app and rejects T3 Code's Developer ID
 and a copied-out binary). A real Windows Authenticode check against an

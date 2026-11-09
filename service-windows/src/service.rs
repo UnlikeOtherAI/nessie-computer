@@ -189,8 +189,10 @@ mod imp {
                     next = Instant::now() + every;
                     let command = control.supervisor().and_then(|supervisor| supervisor.lock().ok()
                         .and_then(|supervisor| supervisor.team_names_command()));
-                    if let Some(Err(reason)) = command.map(crate::supervisor_names::run_team_names) {
-                        log_line(&root, &reason);
+                    match command.map(crate::supervisor_names::run_team_names) {
+                        Some(Ok(failures)) => failures.iter().for_each(|failure| log_line(&root, failure)),
+                        Some(Err(reason)) => log_line(&root, &reason),
+                        None => {}
                     }
                 }
                 std::thread::sleep(Duration::from_secs(1));

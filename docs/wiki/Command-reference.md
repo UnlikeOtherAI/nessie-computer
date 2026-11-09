@@ -138,6 +138,8 @@ nessie-computer access local-apps remove <name> [--team <team>]
   switched on.
 - `remove` takes away a local app you added yourself. Apps found on the
   computer are switched off instead.
+- `--json` lists each app as `describe` reports it; an app whose last starts
+  failed has `start: { failures, reason, retryAt }`.
 
 ### `access coding-assistants`
 ```sh

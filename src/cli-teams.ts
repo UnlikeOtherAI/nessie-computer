@@ -172,7 +172,8 @@ const NAME_TIMEOUT_MS = 4_000
 /**
  * Asks Nessie again for the names of the teams in this account's folders whose
  * label is missing or an hour old, in one batch per server (`team-names.ts`).
- * A slow or unreachable Nessie leaves the saved labels as they are.
+ * A slow or unreachable Nessie leaves the saved labels as they are, and says
+ * why on standard error.
  */
 export const refreshStaleTeamNames = async (
   teams: readonly LocalTeam[], api: TeamNamesApi = createExecutorApi({ requestTimeoutMs: NAME_TIMEOUT_MS }),
@@ -182,7 +183,8 @@ export const refreshStaleTeamNames = async (
   for (const team of teams) {
     if (teamLabelStale(await readTeamLabel(team.stateDir), team.state.apiBaseUrl, now())) stale.push(team)
   }
-  if (stale.length) await refreshTeamNames(stale, { api, now }).catch(() => undefined)
+  // A refresh logs each failure itself and never blanks a saved label.
+  if (stale.length) await refreshTeamNames(stale, { api, now })
 }
 
 /**

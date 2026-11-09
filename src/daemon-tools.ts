@@ -6,7 +6,9 @@ import type { LocalCommandPolicy } from './command-policy.js'
 import type { DaemonLiveState } from './daemon-live-state.js'
 import { createLocalMcpReporter, type LocalMcpReporter } from './local-mcp-report.js'
 import type { ExecutorLocalMcpServer } from './mcp-servers.js'
+import { createLocalAppStartStatusWriter } from './local-app-start-status.js'
 import { createExecutorMcpSessionManager, type ExecutorMcpSessionManager } from './mcp-session-manager.js'
+import type { LocalAppStartFailure } from './mcp-start-backoff.js'
 import type { OwnerRequestsGate } from './owner-requests-gate.js'
 import { createSessionViewRelay, type SessionViewRelay } from './session-view-relay.js'
 import type { ExecutorLocalState } from './state-store.js'
@@ -44,9 +46,11 @@ const buildDaemonTools = (
   commandRules: () => LocalCommandPolicy,
   ownerRequestsGate: OwnerRequestsGate,
   runtime: ExecutorRuntime | undefined,
+  onStartFailures: ((apps: LocalAppStartFailure[]) => void) | undefined,
 ): DaemonTools => {
   const servers = withDaemonSupervisor(withBridgeOnRuntime(state.mcpServers ?? [], runtime))
-  const mcpSessions = createExecutorMcpSessionManager(servers, state.descriptor.limits)
+  const mcpSessions = createExecutorMcpSessionManager(servers, state.descriptor.limits,
+    onStartFailures ? { onStartFailures } : {})
   const codingBridge = createCodingSessionsDaemon({
     executorId: state.executorId,
     commandRules,
@@ -70,6 +74,8 @@ export type DaemonToolbox = {
    * no local-app command runs (`CommandDispatcher.between`). True when it rebuilt.
    */
   refresh: () => Promise<boolean>
+  /** Empties the local apps' start status (`local-app-start-status.ts`) as the daemon stops. */
+  forgetStartFailures: () => Promise<void>
 }
 
 export const createDaemonToolbox = (input: {
@@ -80,12 +86,25 @@ export const createDaemonToolbox = (input: {
   runtime?: ExecutorRuntime
   /** Settles once nothing outside the commands uses the current set (the session view relay). */
   quiesce: () => Promise<void>
+  /** The team's folder, where the local apps' start status is kept for `describe`. */
+  stateDir?: string
 }): DaemonToolbox => {
-  const build = (): DaemonTools => buildDaemonTools(input.live.current, input.commandRules, input.ownerRequestsGate,
-    input.runtime)
+  const saveStatus = input.stateDir ? createLocalAppStartStatusWriter(input.stateDir) : undefined
+  let generation = 0
+  // Each set starts with no failures, and only the current set's are saved.
+  const build = (): DaemonTools => {
+    const built = ++generation
+    void saveStatus?.([])
+    return buildDaemonTools(input.live.current, input.commandRules, input.ownerRequestsGate, input.runtime,
+      saveStatus && ((apps) => { if (built === generation) void saveStatus(apps) }))
+  }
   let key = daemonToolsKey(input.live.current)
   let tools = build()
   return {
+    forgetStartFailures: async () => {
+      generation += 1
+      await saveStatus?.([])
+    },
     get current() { return tools },
     stale: () => daemonToolsKey(input.live.current) !== key,
     refresh: async () => {

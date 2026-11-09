@@ -82,7 +82,7 @@ export const serveExecutor = async (
     // Coding sessions outlive runs and daemon restarts, so the daemon ends
     // them itself wherever it ends its other sessions.
     const toolbox = createDaemonToolbox({
-      live, commandRules: () => live.commandRules, ownerRequestsGate, runtime: options.runtime,
+      live, commandRules: () => live.commandRules, ownerRequestsGate, runtime: options.runtime, stateDir,
       quiesce: async () => { await screenPoll.current()?.catch(() => undefined) },
     })
     const tools = () => toolbox.current
@@ -310,6 +310,7 @@ export const serveExecutor = async (
         // The bridge answers through the MCP session, so it closes before that session stops.
         withinShutdownBudget(codingBridge.shutdown()).then(() => mcpSessions.stopAll()),
       ])
+      await toolbox.forgetStartFailures()
     }
   } finally {
     try { await protectionRuntime?.release() } finally { await daemonLease.release() }

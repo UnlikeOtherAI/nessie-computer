@@ -41,4 +41,18 @@ final class TeamLabelTests: XCTestCase {
             XCTAssertFalse(label.contains("https://"))
         }
     }
+
+    func testATeamNamesCallsFailuresAreKeptForTheLogAndNothingElse() {
+        let printed = """
+        [nessie-executor] team names: api.nessie.works did not answer (HTTP 401 AUTH_REQUIRED).
+        (node:1) Warning: something else
+        [nessie-executor] heartbeat failed: x
+        [nessie-executor] team names: api.nessie.works did not name team 48d72fea (HTTP 401).
+        """
+        XCTAssertEqual(TeamNamesFailures.lines(in: printed), [
+            "team names: api.nessie.works did not answer (HTTP 401 AUTH_REQUIRED).",
+            "team names: api.nessie.works did not name team 48d72fea (HTTP 401)."
+        ])
+        XCTAssertEqual(TeamNamesFailures.lines(in: ""), [])
+    }
 }

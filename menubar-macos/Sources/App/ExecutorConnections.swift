@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 import SwiftUI
 
 /// Every team on this Mac, one controller each. Nothing here is "selected":
@@ -185,14 +186,31 @@ final class ExecutorConnections: ObservableObject {
     /// on this Mac, at launch and every hour, which saves each team's label in
     /// its folder. Each team's pairing status then reads that label again, so
     /// the menu, notifications and the window follow a rename. A read that
-    /// fails leaves every saved name as it was.
+    /// fails leaves every saved name as it was, and says why in this app's log.
     func refreshTeamNames() {
         guard let runner = controllers.lazy.compactMap(\.runner).first else { return }
         let invocation = ExecutorCLI.teamNames(stateDirectories: controllers.map(\.stateDirectory))
         let settled = controllers.filter { $0.pairing.state?.isAttemptOpen != true }
         namesWork.async {
-            _ = try? runner.run(invocation)
+            Self.logTeamNames(Result { try runner.run(invocation) })
             Task { @MainActor in settled.forEach { $0.pairing.restore() } }
+        }
+    }
+
+    private nonisolated static let namesLog = Logger(
+        subsystem: "com.unlikeotherai.nessie.executor.menubar", category: "team-names"
+    )
+
+    private nonisolated static func logTeamNames(_ outcome: Result<ExecutorProcessRunner.Completion, Error>) {
+        switch outcome {
+        case let .success(completion) where completion.succeeded:
+            TeamNamesFailures.lines(in: completion.standardError).forEach {
+                namesLog.error("\($0, privacy: .public)")
+            }
+        case .success:
+            namesLog.error("team names were not refreshed: the command refused.")
+        case .failure:
+            namesLog.error("team names were not refreshed: the command did not start.")
         }
     }
 
