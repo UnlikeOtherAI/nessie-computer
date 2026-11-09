@@ -94,6 +94,10 @@ export const verifyAiLocal = async (browser, ui) => {
         await page.waitForFunction((text) => document.getElementById('ai-local-list').textContent === text, await word(page, 'failed'))
         assert.equal(await page.locator('#ai-add-chatgpt').isEnabled(), true)
         await page.evaluate(() => { window.localAiOffline = false })
+        if (locale === 'en-GB' && size === 'desktop') {
+          // It checks again by itself (Minis, 9 November): the rows come back without a click.
+          await page.waitForFunction(() => document.querySelectorAll('#ai-local-list .list-row').length === 2, undefined, { timeout: 9000 })
+        }
         if (host === 'windows') {
           // A team the background service runs cannot use the owner's sign-in.
           await page.evaluate(() => { window.localAiService = ['team-0'] })

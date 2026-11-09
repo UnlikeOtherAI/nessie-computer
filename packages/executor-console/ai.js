@@ -61,6 +61,7 @@ window.aiTab = (() => {
    */
   const planConnection = () => nc.team.planConnectionOf(nc.team.current())
 
+  const retry = nc.retrying()
   const load = async () => {
     const asked = ++request
     const executorId = nc.team.current()
@@ -101,6 +102,10 @@ window.aiTab = (() => {
       }
       if (!endpoints.length) endpointList.textContent = t('emptyServers')
     } else endpointList.textContent = t('failed')
+    // A plan or server read that failed tries again by itself while this team's AI tab shows.
+    if (results.some((result) => result.status === 'rejected')) {
+      retry.failed(() => { if (shown() && executorId === nc.team.current()) nc.attempt(load) })
+    } else retry.succeeded()
   }
   const shown = () => nc.view.current() === 'ai' && Boolean(nc.team.current())
   const refresh = () => { if (shown()) nc.attempt(load) }

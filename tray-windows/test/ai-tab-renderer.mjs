@@ -114,6 +114,15 @@ export const verifyAiTab = async (browser, ui, output) => {
         await page.locator('#endpoint-remove').click()
         await page.locator('#endpoint-dialog').waitFor({ state: 'hidden' })
         await page.waitForFunction(() => window.endpoints.length === 0)
+        if (locale === 'en-GB' && size === 'desktop') {
+          // A server check that failed (Minis, 9 November) comes back by itself, without a click.
+          await page.evaluate(() => { window.endpointOffline = true })
+          await page.locator('#ai-refresh').click()
+          await page.waitForFunction(() => document.getElementById('ai-endpoint-list').textContent === window.nc.t('ai.failed'))
+          await page.evaluate(() => { window.endpointOffline = false })
+          await page.waitForFunction(() => document.getElementById('ai-endpoint-list').textContent === window.nc.t('ai.emptyServers'),
+            undefined, { timeout: 9000 })
+        }
         await assertFits(page, `${host} ${locale} ${size} ai`)
         assert.deepEqual(errors, [])
         await context.close()

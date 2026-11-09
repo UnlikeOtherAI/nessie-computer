@@ -5,7 +5,7 @@ import ServiceManagement
 /// Apple owns approval; the registered native helper owns the installed factory.
 enum ComputerUpdateService {
     private static let plist = "com.unlikeotherai.nessie.executor.updater.plist"
-    private static let restarted = "computer-update-helper-restarted-for"
+    private static let restartsKey = "computer-update-helper-restarts"
     private static let registrationKey = "computer-update-helper-registration"
     private static let logger = Logger(subsystem: "com.unlikeotherai.nessie.executor.menubar", category: "updates")
     static let factory = URL(fileURLWithPath:
@@ -37,8 +37,12 @@ enum ComputerUpdateService {
     static let applicationVersion: String? =
         (try? PackagedRuntime.locate(in: Bundle.main.resourceURL).get())?.executorVersion()
 
-    /// The version whose automatic restart already happened, so it is not repeated.
-    static var restartedVersion: String? { UserDefaults.standard.string(forKey: restarted) }
+    /// This app version's automatic helper restarts, so each next one waits longer.
+    static var restartRecord: ComputerUpdateRestartRecord? {
+        applicationVersion.map {
+            ComputerUpdateRestartRecord(stored: UserDefaults.standard.dictionary(forKey: restartsKey), version: $0)
+        }
+    }
 
     /// This app version's own registrations, and why macOS last refused one.
     static var registrationRecord: ComputerUpdateRegistrationRecord {
@@ -51,16 +55,17 @@ enum ComputerUpdateService {
     static var registrationFailure: String? { supported ? registrationRecord.failure : nil }
 
     /// Registers when macOS has no registration: first setup, a restart whose
-    /// `register()` was refused, or the owner's Try again (`requested`). The app
-    /// makes `ComputerUpdateRegistration.automaticAttempts` attempts by itself
-    /// for each version, never a loop; the owner's request is never limited.
-    /// A refusal is kept for the window and the menu, and logged.
+    /// `register()` was refused, or the owner's Try again (`requested`). The
+    /// update loop calls this every 15 seconds, and after a refusal the app
+    /// registers again by itself once `ComputerUpdateRegistration.retryDelay`
+    /// has passed, for as long as macOS keeps refusing. A refusal is kept for
+    /// the window and the menu, and logged.
     @MainActor
     static func prepare(requested: Bool = false) {
         guard supported else { return }
         let service = SMAppService.daemon(plistName: plist)
         if ComputerUpdateRegistration.shouldRegister(
-            status: service.status, requested: requested, attempts: registrationRecord.attempts
+            status: service.status, requested: requested, record: registrationRecord, now: Date()
         ) {
             register(service, automatic: !requested)
             logger.info("Background helper status: \(service.status.rawValue)")
@@ -96,10 +101,13 @@ enum ComputerUpdateService {
         if requested && service.status != .enabled { SMAppService.openSystemSettingsLoginItems() }
     }
 
-    /// The automatic restart: at most once for each app version.
+    /// An automatic restart, recorded so the next one waits longer.
     @MainActor
-    static func restartOnce(for version: String) async {
-        UserDefaults.standard.set(version, forKey: restarted)
+    static func restartAutomatically(for version: String) async {
+        let record = ComputerUpdateRestartRecord(
+            stored: UserDefaults.standard.dictionary(forKey: restartsKey), version: version
+        )
+        UserDefaults.standard.set(record.restarted(at: Date()).stored, forKey: restartsKey)
         await restart(requested: false)
     }
 
@@ -114,7 +122,8 @@ enum ComputerUpdateService {
             registrationRecord, automatic: automatic,
             failure: ComputerUpdateRegistration.failure(
                 after: refusal, status: service.status, fallback: Word.updatesRegistrationRefused.text
-            )
+            ),
+            at: Date()
         )
         if let failure = record.failure {
             let detail = refusal.map { String(describing: $0) } ?? failure

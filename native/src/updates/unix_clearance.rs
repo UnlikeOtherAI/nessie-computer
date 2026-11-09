@@ -5,6 +5,11 @@ use nessie_executor_updater::catalog::UpdateResult;
 use std::{ffi::CStr, fs::{self, OpenOptions}, os::unix::fs::{MetadataExt, OpenOptionsExt}, path::{Path, PathBuf}};
 
 const ERROR: &str = "update.custody_unverified";
+#[cfg(target_os = "macos")]
+const DESKTOP_EXECUTABLES: [&str; 2] = [
+    "/Applications/Nessie.app/Contents/MacOS/nessie-desktop",
+    "/Applications/Nessie Desktop.app/Contents/MacOS/nessie-desktop",
+];
 pub(crate) fn activity(arguments: &[String]) -> Option<String> {
     arguments.first().filter(|argument| matches!(argument.as_str(),
         "serve" | "serve-direct-local-inference" | "personal-chatgpt-credential")).cloned()
@@ -98,12 +103,15 @@ fn allowed(process: &Process, menu_apps: bool) -> UpdateResult<bool> {
     }
     #[cfg(target_os = "macos")]
     if super::macos_applications::allowed(process, menu_apps)? { return Ok(true); }
+    // Nessie Desktop stays only when its sealed floor says it launches the
+    // installed runtime and never its own. Any other build (an older one, a
+    // development-signed one) must exit first; that is a wait, not a failure,
+    // so recovery keeps trying instead of giving up. The bundle's executable
+    // is `nessie-desktop`; the earlier `Nessie` path never matched.
     #[cfg(target_os = "macos")]
-    if ["/Applications/Nessie.app/Contents/MacOS/Nessie", "/Applications/Nessie Desktop.app/Contents/MacOS/Nessie"]
-        .iter().any(|path| process.executable == Path::new(path)) {
+    if DESKTOP_EXECUTABLES.iter().any(|path| process.executable == Path::new(path)) {
         let app = process.executable.parent().and_then(Path::parent).and_then(Path::parent).ok_or(ERROR)?;
-        crate::macos_provenance::require_independent_app(app).map_err(|_| ERROR)?;
-        return Ok(true);
+        return Ok(crate::macos_provenance::require_independent_app(app).is_ok());
     }
     // All runtimes, credential actors, native parents and sandbox processes
     // must leave naturally. The menu app also exits before its package changes.

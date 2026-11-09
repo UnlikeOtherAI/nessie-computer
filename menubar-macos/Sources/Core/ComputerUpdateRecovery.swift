@@ -12,13 +12,51 @@ public enum ComputerUpdateAttention: Equatable, Sendable {
     case registrationFailed(reason: String)
 }
 
+/// The automatic helper restarts this app made for one app version, and when
+/// it made the last one.
+public struct ComputerUpdateRestartRecord: Equatable, Sendable {
+    public let version: String
+    public var count: Int
+    public var last: Date?
+
+    public init(version: String, count: Int = 0, last: Date? = nil) {
+        self.version = version
+        self.count = count
+        self.last = last
+    }
+
+    /// The saved record when it belongs to `version`; a new app version starts afresh.
+    public init(stored: [String: Any]?, version: String) {
+        guard let stored, stored["version"] as? String == version else {
+            self.init(version: version)
+            return
+        }
+        self.init(version: version, count: stored["count"] as? Int ?? 0,
+                  last: (stored["last"] as? Double).map(Date.init(timeIntervalSince1970:)))
+    }
+
+    public var stored: [String: Any] {
+        var stored: [String: Any] = ["version": version, "count": count]
+        if let last { stored["last"] = last.timeIntervalSince1970 }
+        return stored
+    }
+
+    /// The record after one more automatic restart at `now`.
+    public func restarted(at now: Date) -> ComputerUpdateRestartRecord {
+        ComputerUpdateRestartRecord(version: version, count: count + 1, last: now)
+    }
+}
+
 /// When the approved update helper counts as stuck, and when this app restarts it.
 ///
 /// launchd keeps running the helper an older app registered until that job
 /// restarts, and the helper hands over to the installed worker, which is as old
 /// as the installed runtime. Replacing the app therefore never reaches the
-/// helper by itself. A newer app restarts its helper once, so the helper's
-/// app-bundled entry can install this app's runtime.
+/// helper by itself. A newer app restarts its helper, so the helper's
+/// app-bundled entry can install this app's runtime, and restarts it again,
+/// later each time, for as long as the helper stays stuck or older: a swap
+/// that had to wait (Nessie Desktop open, say) gets another chance without a
+/// click.
 public enum ComputerUpdateRecovery {
     /// Consecutive failed status probes before a slow helper counts as stuck.
     /// The update monitor asks every fifteen seconds.
@@ -47,14 +85,34 @@ public enum ComputerUpdateRecovery {
         return factoryReady ? .stuck : nil
     }
 
-    /// At most once per app version: a restart that does not help is not
-    /// repeated in a loop. The person's own Restart updates is never limited.
-    /// `answer` is what the helper last said: its installed runtime and phase.
+    /// How long after `count` automatic restarts for this version the next one
+    /// may come: 15 minutes, doubling, at most 4 hours.
+    public static func restartDelay(after count: Int) -> TimeInterval {
+        guard count > 0 else { return 0 }
+        return min(900 * pow(2, Double(min(count, 6) - 1)), 14_400)
+    }
+
+    /// Whether the helper needs restarting now. The first restart for an app
+    /// version comes at once; each further one waits out `restartDelay`, so a
+    /// restart that did not help is retried, never in a tight loop. The
+    /// person's own Restart updates is never limited. `answer` is what the
+    /// helper last said: its installed runtime and phase.
     public static func shouldRestart(
         enabled: Bool, failures: Int, answer: (installedVersion: String, phase: String)?,
-        applicationVersion: String?, restartedFor: String?
+        applicationVersion: String?, restarts: ComputerUpdateRestartRecord?, now: Date
     ) -> Bool {
-        guard enabled, let applicationVersion, restartedFor != applicationVersion else { return false }
+        guard enabled, let applicationVersion, needsRestart(failures: failures, answer: answer,
+                                                            applicationVersion: applicationVersion) else {
+            return false
+        }
+        guard let restarts, restarts.version == applicationVersion, restarts.count > 0,
+              let last = restarts.last else { return true }
+        return now.timeIntervalSince(last) >= restartDelay(after: restarts.count)
+    }
+
+    private static func needsRestart(
+        failures: Int, answer: (installedVersion: String, phase: String)?, applicationVersion: String
+    ) -> Bool {
         if failures >= unreachableProbes { return true }
         // A started replacement belongs to the helper; never interrupt it.
         guard let answer, !["installing", "restarting"].contains(answer.phase) else { return false }

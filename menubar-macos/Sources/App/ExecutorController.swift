@@ -54,6 +54,15 @@ final class ExecutorController: ObservableObject {
     /// A failure is not yet the owner's while a restart is about to retry it.
     var retrying: Bool { restarts.dueAt != nil }
 
+    /// How the console names a paired team whose `describe` is refused: by its
+    /// folder, until a reading gives its executor id. The folder never changes,
+    /// and this app never opens the pairing file to learn the id. Without it a
+    /// refused team vanished from the window, which then offered to pair again.
+    var unreadableIdentifier: String? {
+        guard case .unavailable = model.pairing, ExecutorPaths.hasPairingFile(stateDirectory) else { return nil }
+        return "unreadable-" + (stateDirectory as NSString).lastPathComponent
+    }
+
     /// The ordinary status command resumes only a profile that intentionally
     /// drained for an update, retaining its original registration and consent.
     func resumePersonalUpdate() {

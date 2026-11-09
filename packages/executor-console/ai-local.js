@@ -105,6 +105,8 @@ window.aiLocal = (() => {
     if (service) byId('ai-local-add').replaceChildren()
   }
 
+  const retry = nc.retrying()
+  /** Reads this computer's engines; a failed read tries again by itself while the AI tab shows this team. */
   const load = async () => {
     const asked = ++request
     const executorId = nc.team.current()
@@ -116,8 +118,11 @@ window.aiLocal = (() => {
     try {
       const answer = await nc.invoke('executor_local_ai', { executorId })
       if (asked === request && executorId === nc.team.current()) show(executorId, answer)
+      retry.succeeded()
     } catch {
-      if (asked === request) byId('ai-local-list').textContent = t('failed')
+      if (asked !== request) return
+      byId('ai-local-list').textContent = t('failed')
+      retry.failed(() => { if (nc.view.current() === 'ai' && executorId === nc.team.current()) void load() })
     }
   }
 

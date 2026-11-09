@@ -9,8 +9,8 @@ export const OLD_POLICY = { mode: 'all', allowlist: [], denylist: ['rm *'] }
  * `paired` is how many teams start connected (true = 1). `legacy` describes
  * them as an older runtime would, without `localApps` or `mcpPolicy`.
  */
-export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false } = {}) => {
-await context.addInitScript(({ host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY }) => {
+export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false, unreadable = false } = {}) => {
+await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, NEW_POLICY, OLD_POLICY }) => {
   // A team that has never had a name: its row carries no `names` (docs/team-names.md).
   window.unnamed = unnamed
   window.calls = []
@@ -312,7 +312,12 @@ await context.addInitScript(({ host, paired, legacy, unnamed, NEW_POLICY, OLD_PO
     window.emitTray = (event, payload) => window.dispatchEvent(new CustomEvent(event, { detail: payload }))
   }
   for (let count = Number(paired); count > 0; count -= 1) window.claimInNessie()
-}, { host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY })
+  // A paired team whose `describe` the installed runtime refuses: the Mac lists it by its folder, with no names.
+  if (unreadable) {
+    window.paired.push(row('unreadable-6F1C2D0A', { daemonStatus: 'running' }))
+    window.failDescribe = '{"code":"EXECUTOR_MANAGED_RELEASE_REJECTED","status":"rejected"}'
+  }
+}, { host, paired, legacy, unnamed, unreadable, NEW_POLICY, OLD_POLICY })
 }
 
 /** Every file `index.html` loads, shell and team tabs alike, in load order. */

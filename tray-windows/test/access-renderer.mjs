@@ -180,9 +180,9 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.getByText('Couldn’t load access for Platform · UnlikeOtherAI. Nessie Computer couldn’t start this. Try again in a moment.').waitFor()
     assert.doesNotMatch(await page.locator('#tab-access').textContent(), /EXECUTOR_|"status"/)
     await shot('native-refusal')
+    // Nothing waits for Try again: once the team reads again, the tab loads by itself.
     await page.evaluate(() => { window.failDescribe = null })
-    await page.locator('#access-reload').click()
-    await page.locator('#access-body').waitFor()
+    await page.locator('#access-body').waitFor({ timeout: 15000 })
     // A program request answered in Needs you is read back when the team is chosen again (once per selection).
     await page.evaluate(() => { window.teams['team-0'].policy = { mode: 'allowlist', allowlist: ['npm *'], denylist: [], trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true } } })
     await selectTeam(page, 'team-1')

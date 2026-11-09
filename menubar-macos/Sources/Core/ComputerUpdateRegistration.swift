@@ -2,17 +2,19 @@ import Foundation
 import ServiceManagement
 
 /// What this app's own `register()` calls did for one app version: how many of
-/// its automatic ones macOS refused since it last accepted one, and why macOS
-/// last refused, in macOS's own words.
+/// its automatic ones macOS refused in a row, when the last one was made, and
+/// why macOS last refused, in macOS's own words.
 public struct ComputerUpdateRegistrationRecord: Equatable, Sendable {
     public let version: String
     public var attempts: Int
     public var failure: String?
+    public var lastAttempt: Date?
 
-    public init(version: String, attempts: Int = 0, failure: String? = nil) {
+    public init(version: String, attempts: Int = 0, failure: String? = nil, lastAttempt: Date? = nil) {
         self.version = version
         self.attempts = attempts
         self.failure = failure
+        self.lastAttempt = lastAttempt
     }
 
     /// The saved record when it belongs to `version`; a new app version starts afresh.
@@ -21,12 +23,16 @@ public struct ComputerUpdateRegistrationRecord: Equatable, Sendable {
             self.init(version: version)
             return
         }
-        self.init(version: version, attempts: stored["attempts"] as? Int ?? 0, failure: stored["failure"] as? String)
+        self.init(
+            version: version, attempts: stored["attempts"] as? Int ?? 0, failure: stored["failure"] as? String,
+            lastAttempt: (stored["lastAttempt"] as? Double).map(Date.init(timeIntervalSince1970:))
+        )
     }
 
     public var stored: [String: Any] {
         var stored: [String: Any] = ["version": version, "attempts": attempts]
         if let failure { stored["failure"] = failure }
+        if let lastAttempt { stored["lastAttempt"] = lastAttempt.timeIntervalSince1970 }
         return stored
     }
 }
@@ -34,23 +40,29 @@ public struct ComputerUpdateRegistrationRecord: Equatable, Sendable {
 /// When this app registers its update helper with macOS, and what it keeps
 /// from a refusal.
 public enum ComputerUpdateRegistration {
-    /// Refused registrations this app makes by itself for one app version: the
-    /// first refusal (the restart's, say) and one more. After that only the
-    /// owner's Try again registers, so a refusal is never retried in a loop.
-    public static let automaticAttempts = 2
+    /// How long the app waits after `attempts` refusals in a row before it
+    /// registers again by itself: 15 seconds, doubling, at most 15 minutes. It
+    /// never stops: a helper macOS refused is the one thing that can install
+    /// the runtime teams need, so the app keeps asking without being clicked.
+    public static func retryDelay(after attempts: Int) -> TimeInterval {
+        guard attempts > 0 else { return 0 }
+        return min(15 * pow(2, Double(min(attempts, 7) - 1)), 900)
+    }
 
-    /// The record after one `register()`. Only refusals count: on 9 November
-    /// (1.0.19) the launch's accepted registration used the first attempt, the
-    /// restart's refusal the second, and the app never registered again.
+    /// The record after one `register()` made at `now`. Only refusals count:
+    /// on 9 November (1.0.19) the launch's accepted registration used up the
+    /// retry the restart's refusal was owed, and the app never asked again.
     public static func recorded(
-        _ record: ComputerUpdateRegistrationRecord, automatic: Bool, failure: String?
+        _ record: ComputerUpdateRegistrationRecord, automatic: Bool, failure: String?, at now: Date
     ) -> ComputerUpdateRegistrationRecord {
         var next = record
         next.failure = failure
         if failure == nil {
             next.attempts = 0
+            next.lastAttempt = nil
         } else if automatic {
             next.attempts += 1
+            next.lastAttempt = now
         }
         return next
     }
@@ -72,9 +84,15 @@ public enum ComputerUpdateRegistration {
 
     /// A missing BTM record (`notFound`) is a first-registration state, not a
     /// missing certificate. `notRegistered` also follows a restart whose
-    /// `register()` macOS refused: launchd then runs no helper at all.
-    public static func shouldRegister(status: SMAppService.Status, requested: Bool, attempts: Int) -> Bool {
-        (status == .notRegistered || status == .notFound) && (requested || attempts < automaticAttempts)
+    /// `register()` macOS refused: launchd then runs no helper at all. The
+    /// owner's Try again registers at once; otherwise the app waits out
+    /// `retryDelay` after each refusal and then registers again, forever.
+    public static func shouldRegister(
+        status: SMAppService.Status, requested: Bool, record: ComputerUpdateRegistrationRecord, now: Date
+    ) -> Bool {
+        guard status == .notRegistered || status == .notFound else { return false }
+        guard !requested, record.attempts > 0, let last = record.lastAttempt else { return true }
+        return now.timeIntervalSince(last) >= retryDelay(after: record.attempts)
     }
 
     /// Kept after one `register()`. Approval and success clear an old refusal; a
