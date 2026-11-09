@@ -32,7 +32,11 @@ const server = (mode: string, env: Record<string, string> = {}): ExecutorLocalMc
   command: [process.execPath, SCRIPT], env: { NESSIE_TEST_MCP_MODE: mode, ...env }, name: 'app',
 })
 
-type Recorder = { events: string[]; identities: CodingProcessIdentity[]; admit: () => Promise<PersonalHostExecutionLease> }
+type Recorder = {
+  events: string[]
+  identities: CodingProcessIdentity[]
+  admit: () => Promise<PersonalHostExecutionLease>
+}
 
 const recorder = (options: { failBind?: boolean } = {}): Recorder => {
   const events: string[] = []

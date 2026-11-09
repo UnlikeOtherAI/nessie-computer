@@ -88,7 +88,8 @@ test('offline, refused or left out, a known name stays as it was', { skip }, asy
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
     await refreshTeamNames(sources, { api: fakeTeamNames({ names: {} }).api, now, log })
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
-    await refreshTeamNames(sources, { api: fakeTeamNames({ old: true, refuseConnection: true, names: {} }).api, now, log })
+    await refreshTeamNames(sources, { now, log,
+      api: fakeTeamNames({ old: true, refuseConnection: true, names: {} }).api })
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
   })
 })
