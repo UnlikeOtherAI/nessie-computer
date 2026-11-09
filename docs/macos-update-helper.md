@@ -252,6 +252,11 @@ Recovery now works from both ends without weakening a fence:
   child made in this boot (`unresolved_host`, `native/src/managed_macos_runtime.rs`),
   and a registration made in a new boot drops the host and runtime
   registrations an earlier boot left (`PersonalInferenceGuard.register`).
+  Each launch first drops this boot's journals a one-shot command would have
+  dropped itself (`reconcile`): no long-lived activity, supervisor and child
+  ended, nothing left in the child's process group, no host registration of
+  its own. Journals the old rule kept therefore clear on the next launch, not
+  only at the next restart; a daemon's journal and anything running stay.
 - **A refused team stays in the window.** The console's `executor_view` lists a
   paired team whose `describe` is refused under `unreadable-<folder>`, so the
   window never opens Add another team over a team that exists. It reads as

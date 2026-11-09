@@ -109,6 +109,40 @@ fn unresolved_host(root: &Path, record: &Record) -> Result<bool, NativeError> {
     Ok(state["registrations"].as_array().ok_or_else(refused)?.iter().any(|item| own_host(item, record)))
 }
 
+/// Drops this boot's journals that a one-shot command would have dropped
+/// itself under `unresolved_host`: no long-lived activity, its supervisor and
+/// child both ended, nothing left in the child's process group, and no host
+/// registration of its own. Builds before this kept them whenever any team
+/// held a host registration, and clearance waits for none to be left, so
+/// without this a Mac recovered only by restarting. Daemons and anything still
+/// running keep theirs.
+fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError> {
+    let root = directory.parent().ok_or_else(refused)?;
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(_) => return Err(refused()),
+    };
+    let processes = macos_processes::all()?;
+    let gone = |pid: i32, started: &str| !processes.iter().any(|process|
+        process.pid == pid && process.started_at == started && !process.zombie);
+    for entry in entries {
+        let path = entry.map_err(|_| refused())?.path();
+        if path.extension().and_then(|extension| extension.to_str()) != Some("json") { continue; }
+        let Ok(file) = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&path) else { continue };
+        let Ok(record) = serde_json::from_reader::<_, Record>(file) else { continue };
+        if record.boot_id != boot || record.activity.is_some()
+            || !gone(record.supervisor_pid, &record.supervisor_started_at)
+            || !gone(record.child_pid, &record.child_started_at)
+            || processes.iter().any(|process| process.group == record.child_pid && !process.zombie)
+            || unresolved_host(root, &record)? { continue; }
+        fs::remove_file(&path).map_err(|_| refused())?;
+        let socket = path.with_extension("sock");
+        if fs::symlink_metadata(&socket).is_ok() { fs::remove_file(&socket).map_err(|_| refused())?; }
+    }
+    File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())
+}
+
 fn own_host(item: &serde_json::Value, record: &Record) -> bool {
     item["kind"] == "host_execution"
         && item["bootId"].as_str() == Some(record.boot_id.as_str())
@@ -126,6 +160,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     let directory = barrier.root.join("managed-runtimes");
     let supervisor = unsafe { libc::getpid() };
     let boot = managed_runtime_context::boot_id()?;
+    reconcile(&directory, &boot)?;
     let start = managed_runtime_context::birth(supervisor)?;
     let stem = format!("{}_{supervisor}-{start}", &boot[..8]);
     let socket_name = format!("{stem}.sock");
