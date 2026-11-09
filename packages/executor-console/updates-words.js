@@ -18,6 +18,7 @@
       stuck: 'Updates are stuck — teams can’t start', restart: 'Restart updates',
       stuckNeed: 'Nessie’s background helper isn’t responding, so no team can start.',
       approval: 'Allow Nessie Computer in System Settings to finish updating.', openLoginItems: 'Open Login Items',
+      cantStart: 'Updates can’t start: {reason}', tryAgain: 'Try again',
       helperStuck: 'Nessie’s background helper isn’t responding, so no team can start.',
   }
   window.nc.words.register('updates', {
@@ -41,6 +42,7 @@
       stuck: 'Aktualizace se zasekly — týmy nejde spustit', restart: 'Restartovat aktualizace',
       stuckNeed: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit.',
       approval: 'Povolte Nessie Computer v Nastavení systému, ať se dokončí aktualizace.', openLoginItems: 'Otevřít Položky po přihlášení',
+      cantStart: 'Aktualizace nejdou spustit: {reason}', tryAgain: 'Zkusit znovu',
       helperStuck: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit.',
     },
     de: {
@@ -61,6 +63,7 @@
       stuck: 'Updates hängen – Teams können nicht starten', restart: 'Updates neu starten',
       stuckNeed: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten.',
       approval: 'Erlauben Sie Nessie Computer in den Systemeinstellungen, damit das Update fertig wird.', openLoginItems: 'Anmeldeobjekte öffnen',
+      cantStart: 'Updates können nicht starten: {reason}', tryAgain: 'Erneut versuchen',
       helperStuck: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten.',
     },
     fr: {
@@ -81,6 +84,7 @@
       stuck: 'Les mises à jour sont bloquées — les équipes ne peuvent pas démarrer', restart: 'Redémarrer les mises à jour',
       stuckNeed: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer.',
       approval: 'Autorisez Nessie Computer dans Réglages Système pour terminer la mise à jour.', openLoginItems: 'Ouvrir les éléments d’ouverture',
+      cantStart: 'Les mises à jour ne peuvent pas démarrer : {reason}', tryAgain: 'Réessayer',
       helperStuck: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer.',
     },
     it: {
@@ -101,6 +105,7 @@
       stuck: 'Gli aggiornamenti sono bloccati — i team non possono avviarsi', restart: 'Riavvia gli aggiornamenti',
       stuckNeed: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi.',
       approval: 'Consenti Nessie Computer in Impostazioni di Sistema per completare l’aggiornamento.', openLoginItems: 'Apri Elementi login',
+      cantStart: 'Gli aggiornamenti non possono avviarsi: {reason}', tryAgain: 'Riprova',
       helperStuck: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi.',
     },
     es: {
@@ -121,6 +126,7 @@
       stuck: 'Las actualizaciones están atascadas — los equipos no pueden iniciarse', restart: 'Reiniciar actualizaciones',
       stuckNeed: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse.',
       approval: 'Permite Nessie Computer en Ajustes del Sistema para terminar la actualización.', openLoginItems: 'Abrir Ítems de inicio de sesión',
+      cantStart: 'Las actualizaciones no pueden iniciarse: {reason}', tryAgain: 'Reintentar',
       helperStuck: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse.',
     },
   })

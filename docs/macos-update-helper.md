@@ -191,9 +191,34 @@ Recovery now works from both ends without weakening a fence:
   Needs you strip and Settings say "Allow Nessie Computer in System Settings to
   finish updating" with **Open Login Items**, which calls
   `SMAppService.openSystemSettingsLoginItems()`. `ComputerUpdateRecovery.attention`
-  decides between the two. The journey
+  decides between them. The journey
   `node tray-windows/test/renderer-harness.mjs --updates-stuck-only` asserts
-  both states in both places in seven locales.
+  these states and the refused registration below in both places in seven
+  locales.
+- **A refused registration is said, not swallowed.** On 9 November (1.0.18)
+  the automatic restart unregistered the helper and macOS refused the new
+  `register()` with "Operation not permitted". The restart ignored the error,
+  SMAppService then reported `notRegistered`, launchd ran no helper job, and
+  the app had already spent its one automatic registration, so it never
+  registered again. The menu said "No team connected" while a team, started by
+  another process, was serving. Now every `register()` refusal goes to the
+  unified log and is kept, with the app version and its attempt count, under
+  `computer-update-helper-registration` in the app's defaults (display only).
+  While SMAppService reports `notRegistered` or `notFound`, the app registers
+  again by itself at most twice per app version (the restart's or first
+  setup's attempt and one more, 15 seconds later), never in a loop. While the
+  refusal holds, the app reports `update.registration_failed` with macOS's
+  short reason; the window's Needs you strip and Settings say "Updates can't
+  start: <reason>" with **Try again**, and the menu says "Needs you: updates
+  can't start — <reason>". **Try again** registers again without limit and,
+  if macOS still refuses, opens Login Items. `ComputerUpdateRegistration`
+  and `ComputerUpdateRecovery.attention` decide this.
+- **A running team is never "No team connected".** A team whose `describe` is
+  refused (here, by the stale installed runtime the missing helper could not
+  replace) still counts when its daemon lease is held by a live process, and
+  the menu says "Working for 1 team". A pairing that can't be read and isn't
+  running reads "Not connected — open Nessie Computer". Neither depends on the
+  helper's state.
 - **Monotonic for the app too.** Catalogue replacement refuses to put an older
   app over a newer hand-installed one (`update.downgrade_refused`), and the
   status client now waits nine seconds.
@@ -202,7 +227,8 @@ Source checks cover these with the live state as fixtures: 22 updater tests on
 macOS (two model the 8 November state and fail without the change), 51 native
 Mac tests, 149 app unit tests, strict SwiftLint and an App/Core typecheck.
 Still unverified on the real Mac: whether SMAppService keeps the existing
-approval across unregister and register; that the 0.9.0 worker verifies the new
+approval across unregister and register (9 November suggests not: the
+re-registration was refused); that the 0.9.0 worker verifies the new
 release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
 newer app to a working team. Any extra product process, such as a team daemon
 started by hand from the app bundle, holds clearance until it exits.

@@ -37,6 +37,8 @@ enum EnglishWords {
         case .needsYouReinstall: return "Needs you: reinstall Nessie Computer"
         case .needsYouUnreadableTeam: return "Needs you: a team on this Mac can’t be read"
         case .needsYouUpdatesStuck: return "Needs you: updates are stuck — open Nessie Computer"
+        case let .needsYouUpdatesCantStart(reason):
+            return "Needs you: updates can’t start — \(reason)"
         case .needsYouUpdatesApproval: return "Needs you: allow Nessie Computer in System Settings to finish updating"
         case let .needsYouMany(value): return "Needs you: \(value) things — open Nessie Computer"
         case .pause: return "Pause"
@@ -60,6 +62,7 @@ enum EnglishWords {
         case .onlyLocalWindow: return "Only the Nessie Computer window can change this computer’s settings."
         case .invalidRequest: return "Nessie Computer couldn’t do that. Try again."
         case .teamNotFound: return "This team isn’t connected on this computer."
+        case .updatesRegistrationRefused: return "macOS didn’t register the background helper."
         case .runtimeMissing: return "Part of Nessie Computer is missing. Reinstall Nessie Computer."
         case .changeRefused: return "Nessie Computer couldn’t make this change."
         case .teamStillStopping: return "This team is still stopping. Try again in a moment."

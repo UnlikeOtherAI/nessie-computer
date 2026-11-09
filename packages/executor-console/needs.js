@@ -1,6 +1,6 @@
 // Needs you: a strip under the team dropdown, on every tab, shown only while
 // something waits for the owner — a program request answered inline, a team
-// that is not connected with its one remedy, stuck updates, Documents waiting
+// that is not connected with its one remedy, stuck or refused updates, Documents waiting
 // for a decision. Read every 5 s.
 (() => {
   const nc = window.nc
@@ -24,6 +24,7 @@
     // Before anything else: while updates are stuck no team can start at all.
     if (nc.updates?.stuck()) list.push({ kind: 'updates', text: t('updates.stuckNeed') })
     if (nc.updates?.approval()) list.push({ kind: 'updates-approval', text: t('updates.approval') })
+    if (nc.updates?.refused()) list.push({ kind: 'updates-registration', text: nc.updates.cantStart() })
     for (const request of requests) list.push({ kind: 'request', request, team: nc.team.label(request.executorId),
       text: request.agentName ? t('needs.request', { agent: request.agentName, program: request.program }) : t('needs.requestNoAgent', { program: request.program }) })
     for (const team of nc.team.list()) {
@@ -81,6 +82,10 @@
     if (item.kind === 'updates-approval') {
       const open = button(t('updates.openLoginItems'), 'updates:approve', () => attempt(async () => { await nc.updates.approve(); render() }, { target: open }), 'primary')
       actions.append(open)
+    }
+    if (item.kind === 'updates-registration') {
+      const retry = button(t('updates.tryAgain'), 'updates:retry', () => attempt(async () => { await nc.updates.retry(); render() }, { target: retry }), 'primary')
+      actions.append(retry)
     }
     if (item.kind === 'sync') {
       actions.append(button(t('needs.openDocuments'), `sync:${item.team.executorId}`,

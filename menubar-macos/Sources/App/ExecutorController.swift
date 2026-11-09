@@ -135,13 +135,17 @@ final class ExecutorController: ObservableObject {
             // not a failure. Only its *presence* is checked — never its contents:
             // the moment this app read that file it would become a second
             // interpretation of the policy the daemon enforces.
+            guard ExecutorPaths.hasPairingFile(stateDirectory) else {
+                model = ConnectionModel(pairing: .unpaired, daemon: .stopped)
+                return
+            }
+            // A team `describe` refuses can still be running — this app's own
+            // daemon, or one another process started — and the menu says so.
             model = ConnectionModel(
-                pairing: ExecutorPaths.hasPairingFile(stateDirectory)
-                    ? .unavailable(completion.map {
-                        ExecutorProcessRunner.refusal(from: $0, fallback: Word.existingTeamNeedsAttention.text).message
-                    } ?? PackagedRuntime.missingRefusal)
-                    : .unpaired,
-                daemon: .stopped
+                pairing: .unavailable(completion.map {
+                    ExecutorProcessRunner.refusal(from: $0, fallback: Word.existingTeamNeedsAttention.text).message
+                } ?? PackagedRuntime.missingRefusal),
+                daemon: currentDaemonState(lease: lease)
             )
             return
         }

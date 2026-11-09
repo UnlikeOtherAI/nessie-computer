@@ -23,7 +23,7 @@ final class WordsTests: XCTestCase {
         .addressNeedsHTTPS, .addressHasCredentials, .addressHasPath, .addressMustBeHTTPS, .pairingFailed,
         .pairingCleanupRequired, .pairingCodeMissing, .existingTeamsUnreadable, .existingTeamNeedsAttention,
         .settingsStillOlder(attempts: 25), .settingsNotProposed, .planNameRequired, .planCheckFailed,
-        .planCheckPending
+        .planCheckPending, .needsYouUpdatesCantStart(reason: "Operation not permitted"), .updatesRegistrationRefused
     ]
 
     func testEveryWordIsWrittenInEveryLanguageWithoutTheOldName() {

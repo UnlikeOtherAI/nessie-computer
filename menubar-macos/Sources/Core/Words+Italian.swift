@@ -37,6 +37,8 @@ enum ItalianWords {
         case .needsYouReinstall: return "Serve il tuo intervento: reinstalla Nessie Computer"
         case .needsYouUnreadableTeam: return "Serve il tuo intervento: un team su questo Mac non è leggibile"
         case .needsYouUpdatesStuck: return "Serve il tuo intervento: aggiornamenti bloccati — apri Nessie Computer"
+        case let .needsYouUpdatesCantStart(reason):
+            return "Serve il tuo intervento: gli aggiornamenti non possono avviarsi — \(reason)"
         case .needsYouUpdatesApproval:
             return "Serve il tuo intervento: consenti Nessie Computer in "
                 + "Impostazioni di Sistema per completare l’aggiornamento"
@@ -63,6 +65,7 @@ enum ItalianWords {
                 + "computer."
         case .invalidRequest: return "Nessie Computer non è riuscito a farlo. Riprova."
         case .teamNotFound: return "Questo team non è connesso su questo computer."
+        case .updatesRegistrationRefused: return "macOS non ha registrato il servizio in background."
         case .runtimeMissing: return "Manca una parte di Nessie Computer. Reinstalla Nessie Computer."
         case .changeRefused: return "Nessie Computer non è riuscito ad applicare questa modifica."
         case .teamStillStopping: return "Questo team si sta ancora fermando. Riprova tra un momento."

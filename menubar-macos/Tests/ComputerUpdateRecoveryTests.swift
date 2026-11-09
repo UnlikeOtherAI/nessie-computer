@@ -16,10 +16,12 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
     }
 
     private func attention(
-        _ registration: SMAppService.Status?, failures: Int = 0, reregistered: Bool = false, factoryReady: Bool = true
+        _ registration: SMAppService.Status?, failures: Int = 0, reregistered: Bool = false, factoryReady: Bool = true,
+        refused: String? = nil
     ) -> ComputerUpdateAttention? {
         ComputerUpdateRecovery.attention(
-            registration: registration, factoryReady: factoryReady, failures: failures, reregistered: reregistered
+            registration: registration, factoryReady: factoryReady, failures: failures, reregistered: reregistered,
+            registrationFailure: refused
         )
     }
 
@@ -40,6 +42,21 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         XCTAssertEqual(attention(.enabled, failures: 2, reregistered: true), .needsApproval,
                        "silent since this app re-registered it")
         XCTAssertEqual(attention(.enabled, failures: 2, reregistered: true, factoryReady: false), .needsApproval)
+    }
+
+    /// Every SMAppService status, with and without a refused `register()`.
+    func testARefusedRegistrationAsksToTryAgainOnlyWhileNothingIsRegistered() {
+        let reason = "Operation not permitted"
+        for status in [SMAppService.Status.notRegistered, .notFound] {
+            XCTAssertEqual(attention(status, refused: reason), .registrationFailed(reason: reason))
+            XCTAssertEqual(attention(status, failures: 4, reregistered: true, refused: reason),
+                           .registrationFailed(reason: reason))
+            XCTAssertNil(attention(status), "not attempted yet: setup has its own state")
+        }
+        XCTAssertEqual(attention(.requiresApproval, refused: reason), .needsApproval)
+        XCTAssertNil(attention(.enabled, refused: reason), "registered since: an old refusal no longer holds")
+        XCTAssertEqual(attention(.enabled, failures: 2, refused: reason), .stuck)
+        XCTAssertNil(attention(nil, refused: reason), "a development build manages no helper")
     }
 
     func testANewerAppRestartsAnOlderOrStuckHelperOncePerVersion() {
@@ -78,34 +95,34 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
 
     func testMenuAsksForApprovalAndItsLineOpensLoginItems() {
         for language in NativeLanguage.allCases {
-            let waiting = ComputerMenuModel(teams: [], updatesNeedApproval: true, language: language)
+            let waiting = ComputerMenuModel(teams: [], updates: .needsApproval, language: language)
             XCTAssertEqual(waiting.needsYou?.title, Word.needsYouUpdatesApproval.text(in: language))
             XCTAssertEqual(waiting.needsYou?.opensLoginItems, true)
             XCTAssertEqual(waiting.icon, .needsYou)
             XCTAssertNotEqual(waiting.status, Word.statusUpdatesStuck.text(in: language), "approval is not stuck")
         }
-        let english = ComputerMenuModel(teams: [], updatesNeedApproval: true, language: .britishEnglish)
+        let english = ComputerMenuModel(teams: [], updates: .needsApproval, language: .britishEnglish)
         XCTAssertEqual(english.needsYou?.title,
                        "Needs you: allow Nessie Computer in System Settings to finish updating")
         // With another thing waiting, the one line opens the window, whose Overview has the button.
         let two = ComputerMenuModel(
-            teams: [], runtimeMissing: true, updatesNeedApproval: true, language: .britishEnglish
+            teams: [], runtimeMissing: true, updates: .needsApproval, language: .britishEnglish
         )
         XCTAssertEqual(two.needsYouItems.first?.opensLoginItems, true)
         XCTAssertEqual(two.needsYou?.opensLoginItems, false)
-        XCTAssertEqual(ComputerMenuModel(teams: [], updatesStuck: true).needsYou?.opensLoginItems, false)
+        XCTAssertEqual(ComputerMenuModel(teams: [], updates: .stuck).needsYou?.opensLoginItems, false)
     }
 
     func testMenuSaysUpdatesAreStuckInsteadOfNoTeam() {
         for language in NativeLanguage.allCases {
-            let stuck = ComputerMenuModel(teams: [], updatesStuck: true, language: language)
+            let stuck = ComputerMenuModel(teams: [], updates: .stuck, language: language)
             XCTAssertEqual(stuck.status, Word.statusUpdatesStuck.text(in: language))
             XCTAssertNotEqual(stuck.status, Word.statusNoTeam.text(in: language))
             XCTAssertEqual(stuck.needsYou?.title, Word.needsYouUpdatesStuck.text(in: language))
             XCTAssertEqual(stuck.needsYou?.target, ConsoleTarget())
             XCTAssertEqual(stuck.icon, .needsYou)
         }
-        let english = ComputerMenuModel(teams: [], updatesStuck: true, language: .britishEnglish)
+        let english = ComputerMenuModel(teams: [], updates: .stuck, language: .britishEnglish)
         XCTAssertEqual(english.status, "Updates are stuck — teams can’t start")
         XCTAssertEqual(ComputerMenuModel(teams: [], language: .britishEnglish).status, "No team connected")
     }

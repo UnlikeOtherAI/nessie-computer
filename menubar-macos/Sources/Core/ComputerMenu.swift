@@ -46,26 +46,27 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public let teams: [TeamSnapshot]
     /// Directories that hold a pairing this Mac cannot read.
     public let unreadableTeams: Int
+    /// Of those, the ones whose daemon is alive all the same: a team started by
+    /// another process, or one still running while `describe` refuses.
+    public let unreadableRunning: Int
     public let runtimeMissing: Bool
-    /// The update helper can't be reached or refuses, so no team can start.
-    public let updatesStuck: Bool
-    /// macOS won't run the update helper until the owner allows it in Login Items.
-    public let updatesNeedApproval: Bool
+    /// What the update helper needs from the owner, if anything.
+    public let updates: ComputerUpdateAttention?
     public let language: NativeLanguage
 
     public init(
         teams: [TeamSnapshot],
         unreadableTeams: Int = 0,
+        unreadableRunning: Int = 0,
         runtimeMissing: Bool = false,
-        updatesStuck: Bool = false,
-        updatesNeedApproval: Bool = false,
+        updates: ComputerUpdateAttention? = nil,
         language: NativeLanguage = .current
     ) {
         self.teams = teams
         self.unreadableTeams = unreadableTeams
+        self.unreadableRunning = unreadableRunning
         self.runtimeMissing = runtimeMissing
-        self.updatesStuck = updatesStuck
-        self.updatesNeedApproval = updatesNeedApproval
+        self.updates = updates
         self.language = language
     }
 
@@ -76,13 +77,20 @@ public struct ComputerMenuModel: Equatable, Sendable {
         let activities = teams.map(\.activity)
         let working = activities.filter { $0 == .working }.count
         let paused = activities.filter { $0 == .paused }.count
-        // Said before "No team connected": the teams are there but can't start.
-        if updatesStuck { return say(.statusUpdatesStuck) }
-        if teams.isEmpty { return say(.statusNoTeam) }
-        if paused == teams.count { return say(.statusPaused) }
-        if working > 0 {
-            return say(.statusWorking(working: working, paused: paused, notConnected: teams.count - working - paused))
+        // A running team is working whatever the update helper says, even one
+        // this app can't read because the helper's runtime refuses `describe`.
+        if working + unreadableRunning > 0 {
+            return say(.statusWorking(
+                working: working + unreadableRunning, paused: paused, notConnected: teams.count - working - paused
+            ))
         }
+        // Said before "No team connected": the teams are there but can't start.
+        if updates == .stuck { return say(.statusUpdatesStuck) }
+        if teams.isEmpty {
+            // A pairing this app can't read is still a team on this Mac.
+            return say(unreadableTeams > 0 || runtimeMissing ? .statusNotConnected : .statusNoTeam)
+        }
+        if paused == teams.count { return say(.statusPaused) }
         if activities.contains(.connecting) { return say(.statusConnecting) }
         return say(.statusNotConnected)
     }
@@ -90,13 +98,17 @@ public struct ComputerMenuModel: Equatable, Sendable {
     /// Everything that needs the owner, most urgent first.
     public var needsYouItems: [NeedsYouItem] {
         var items: [NeedsYouItem] = []
-        if updatesNeedApproval {
+        switch updates {
+        case .needsApproval:
             items.append(NeedsYouItem(
                 title: say(.needsYouUpdatesApproval), target: ConsoleTarget(), opensLoginItems: true
             ))
-        }
-        if updatesStuck {
+        case .stuck:
             items.append(NeedsYouItem(title: say(.needsYouUpdatesStuck), target: ConsoleTarget()))
+        case let .registrationFailed(reason):
+            // The window's Needs you strip has Try again beside the same reason.
+            items.append(NeedsYouItem(title: say(.needsYouUpdatesCantStart(reason: reason)), target: ConsoleTarget()))
+        case nil: break
         }
         if runtimeMissing {
             items.append(NeedsYouItem(title: say(.needsYouReinstall), target: ConsoleTarget()))
@@ -130,7 +142,7 @@ public struct ComputerMenuModel: Equatable, Sendable {
     /// nothing connected, everything paused and connecting are all idle.
     public var icon: MenuIcon {
         if needsYou != nil { return .needsYou }
-        return teams.contains { $0.activity == .working } ? .working : .idle
+        return unreadableRunning > 0 || teams.contains { $0.activity == .working } ? .working : .idle
     }
 
     public var iconDescription: String {
