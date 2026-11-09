@@ -269,6 +269,12 @@ fn main() {
             return;
         }
     }
+    let dsn = std::env::var("NESSIE_COMPUTER_SENTRY_DSN").ok()
+        .or_else(|| option_env!("NESSIE_COMPUTER_SENTRY_DSN").map(str::to_owned))
+        .filter(|dsn| !dsn.is_empty());
+    let _sentry = dsn.map(|dsn| sentry::init(
+        sentry::ClientOptions::new().dsn(&dsn).maybe_release(option_env!("GITHUB_SHA")),
+    ));
     if let (Some(link), Ok(mut pending)) = (deep_link::from_arguments(&arguments), LAUNCH_LINK.lock()) {
         *pending = Some(link);
     }
