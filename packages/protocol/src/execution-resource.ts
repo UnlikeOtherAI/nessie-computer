@@ -71,3 +71,8 @@ export const T3ExecutionLegacyShellObservationSchema = z.object({
   targets: z.array(z.object({ action: z.enum(['repair', 'import']), threadId: id, projectId: id }).strict()).max(256),
 }).strict()
 export type T3ExecutionLegacyShellObservation = z.infer<typeof T3ExecutionLegacyShellObservationSchema>
+
+export const T3ExecutionDestinationEvidenceSchema = z.object({
+  resourceId: hex, resourceGeneration: z.string().regex(/^sha256:[a-f0-9]{64}$/u), sourceDatabaseIdentity: id,
+  destinationDatabaseIdentity: id, settingsIdentity: id, settingsDigest: hex, custody: T3ExecutionCustodySchema,
+}).strict()

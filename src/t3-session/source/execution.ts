@@ -47,6 +47,10 @@ export interface T3ExecutionResourceScope {
   inspectBoundPendingEffect(graph: T3ExecutionGraph, effectId: string):
     Promise<T3ExecutionBoundPendingEffectObservation | null>
   prepareEffectClaim(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionReceipt>
+  prepareLegacyShells(graph: T3ExecutionGraph, notAfterMs: number): Promise<T3ExecutionReceipt>
+  consumeLegacyShells(graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission): Promise<{
+    slotId: string; planDigest: string; notAfterMs: number; remainingMs: number
+  }>
   consumeEffectClaim(graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission): Promise<{
     claimId: string; effectId: string; rowDigest: string; notAfterMs: number; remainingMs: number
   }>
@@ -255,6 +259,30 @@ export async function withT3ExecutionResources<A>(input: {
         const proof = T3ExecutionReceiptSchema.parse(answer.receipt)
         await recheck()
         return proof
+      },
+      prepareLegacyShells: async (graph: T3ExecutionGraph, notAfterMs: number) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        requireCapture(Number.isSafeInteger(notAfterMs) && notAfterMs > 0, 'execution_legacy_shell_window_invalid')
+        await recheck()
+        const answer = native.exchange({ op: 'executionLegacyShellPrepare', graph: candidate, notAfterMs })
+        const proof = T3ExecutionReceiptSchema.parse(answer.receipt)
+        await recheck()
+        return proof
+      },
+      consumeLegacyShells: async (graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        const signed = T3ExecutionSignedAdmissionSchema.parse(admission)
+        await recheck()
+        const answer = native.exchange({ op: 'executionLegacyShellConsume', graph: candidate, admission: signed })
+        requireCapture(Object.keys(answer).sort().join(',') === 'notAfterMs,planDigest,remainingMs,slotId'
+          && typeof answer.slotId === 'string' && /^[a-f0-9]{64}$/u.test(answer.slotId)
+          && typeof answer.planDigest === 'string' && /^sha256:[a-f0-9]{64}$/u.test(answer.planDigest)
+          && typeof answer.notAfterMs === 'number' && Number.isSafeInteger(answer.notAfterMs)
+          && typeof answer.remainingMs === 'number' && Number.isSafeInteger(answer.remainingMs)
+          && answer.remainingMs > 0 && answer.remainingMs <= 5000, 'execution_legacy_shell_unavailable')
+        await recheck()
+        return { slotId: answer.slotId, planDigest: answer.planDigest,
+          notAfterMs: answer.notAfterMs, remainingMs: answer.remainingMs }
       },
       consumeEffectClaim: async (graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission) => {
         const candidate = executionGraphCandidate(graph, receipt)

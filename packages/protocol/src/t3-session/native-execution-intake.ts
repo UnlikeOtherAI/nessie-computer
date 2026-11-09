@@ -22,6 +22,10 @@ export const T3NativeExecutionSecretReadInputSchema = z.object({
 export type T3NativeExecutionSecretReadInput = z.infer<typeof T3NativeExecutionSecretReadInputSchema>
 export const T3NativeExecutionPreclaimInputSchema = z.object({ preparationReceipt: T3ExecutionReceiptSchema }).strict()
 export type T3NativeExecutionPreclaimInput = z.infer<typeof T3NativeExecutionPreclaimInputSchema>
+export const T3NativeExecutionLegacyShellInputSchema = z.object({
+  preparationReceipt: T3ExecutionReceiptSchema,
+}).strict()
+export type T3NativeExecutionLegacyShellInput = z.infer<typeof T3NativeExecutionLegacyShellInputSchema>
 
 /** Finite protected-child messages. No caller actor, request, binding, key,
  * homes, frame bytes or raw method/hash selector travels through this port.
@@ -32,12 +36,14 @@ const secretRead = z.object({ operation: z.literal('execution.secretRead'),
   input: T3NativeExecutionSecretReadInputSchema }).strict()
 const receipt = z.object({ operation: z.literal('execution.receipt'), receipt: T3ExecutionReceiptSchema }).strict()
 const preclaim = z.object({ operation: z.literal('execution.preclaim'), input: T3NativeExecutionPreclaimInputSchema }).strict()
+const legacyShells = z.object({ operation: z.literal('execution.legacyShells'),
+  input: T3NativeExecutionLegacyShellInputSchema }).strict()
 // Child-only request: its captured daemon port derives every selector from an
 // already accepted native association and uses the existing effect endpoint.
 // It is deliberately absent from the native-execution HTTP intake below.
 const effect = z.object({ operation: z.literal('execution.effect') }).strict()
 export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation',
-  [phase, frame, secretRead, preclaim, receipt, effect])
+  [phase, frame, secretRead, preclaim, legacyShells, receipt, effect])
 export type T3NativeExecutionOperation = z.infer<typeof T3NativeExecutionOperationSchema>
 
 const envelope = z.object({ executorId: z.string().uuid(),
@@ -51,6 +57,7 @@ export const T3NativeExecutionIntakeSchema = z.discriminatedUnion('operation', [
   originalOperation.extend(phase.shape), originalOperation.extend(frame.shape), originalOperation.extend(receipt.shape),
   originalOperation.extend(secretRead.shape),
   originalOperation.extend(preclaim.shape),
+  originalOperation.extend(legacyShells.shape),
   envelope.extend({ operation: z.literal('execution.issuer.offer'), descriptor: T3ExecutionIssuerDescriptorSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.proof'), receipt: T3ExecutionReceiptSchema }),
   envelope.extend({ operation: z.literal('execution.issuer.pending') }),

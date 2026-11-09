@@ -9,6 +9,8 @@ import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, T3_SOURCE
   T3_EXECUTION_ASSOCIATION_DOMAIN, T3_EFFECT_SIGNATURE_DOMAIN, T3NativeExecutionIntakeSchema,
   T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN, T3_EXECUTION_PRECLAIM_ID_DOMAIN,
   T3ExecutionPreclaimPreparationPayloadSchema,
+  T3ExecutionLegacyShellPreparationPayloadSchema, T3_EXECUTION_LEGACY_SHELL_PREPARATION_DOMAIN,
+  T3_EXECUTION_LEGACY_SHELL_SLOT_DOMAIN,
   T3NativeExecutionOperationSchema,
   type T3ExecutionReceipt, type T3NativeExecutionOperationIntake,
 } from '@nessie/executor-protocol/t3-session'
@@ -50,7 +52,8 @@ function fixture() {
     machinePrivateKey: key.privateKey.export({ type: 'pkcs8', format: 'der' }).toString('base64url'),
     machinePublicKey: key.publicKey.export({ type: 'spki', format: 'der' }).toString('base64url'),
   } as ExecutorLocalState
-  const admission = { version: 1, phase: 'reserve', binding: { ...binding, sourceEvidenceDigest: hash('graph') },
+  const admission = { version: 1, phase: 'reserve', binding: {
+    ...binding, sourceEvidenceDigest: hash(delivery.executionGraph.payload) },
     reservationId, issuerKeyId: '6'.repeat(64), releaseDigest: custody.releaseDigest, nonce: '8'.repeat(64),
     issuedAtMs: now, expiresAtMs: now + 5000 }
   const signed = (payload: unknown) => ({ payload: JSON.stringify(payload, null, 2),
@@ -130,6 +133,46 @@ test('preclaim HTTP preserves exact row/lineage bytes and refuses changed eviden
     if (mode === 'exact') assert.deepEqual(await work, answer)
     else await assert.rejects(work)
     assert.equal(calls, 1, 'uncertain admission must not retry HTTP')
+  }
+})
+
+test('whole shell HTTP preserves all observed targets and refuses altered evidence, expiry or epoch without retry', async () => {
+  for (const mode of ['exact', 'targets', 'source', 'receipt', 'expiry', 'epoch', 'abort']) {
+    const f = fixture(), issuedAtMs = Date.now()
+    const raw = T3ExecutionLegacyShellPreparationPayloadSchema.parse(JSON.parse(readFileSync(new URL(
+      './t3-session-runtime/fixtures/execution-legacy-shell.json', import.meta.url), 'utf8')).preparation)
+    const binding = f.admission.binding
+    const slotId = hash(canonicalExecutorJson({ domain: T3_EXECUTION_LEGACY_SHELL_SLOT_DOMAIN,
+      executorId: binding.executorId, sourceEvidenceDigest: binding.sourceEvidenceDigest,
+      acceptedGraphNonce: '7'.repeat(64) })).slice(7)
+    const observed = { ...raw, binding, slotId, nonce: slotId, acceptedGraphNonce: '7'.repeat(64),
+      evidence: { ...raw.evidence, custody: f.custody }, issuedAtMs, expiresAtMs: issuedAtMs + 5000,
+      observation: { ...raw.observation, observedAtMs: issuedAtMs } }
+    const preparationReceipt = f.receipt(T3_EXECUTION_LEGACY_SHELL_PREPARATION_DOMAIN, observed)
+    const candidate = { ...observed, issuerKeyId: preparationReceipt.keyId,
+      preparationReceiptDigest: hash(preparationReceipt.payload), nonce: '0'.repeat(64), issuedAtMs: Date.now() }
+    if (mode === 'targets') candidate.observation = { ...candidate.observation, targets: [] }
+    if (mode === 'source') candidate.binding = { ...binding, sourceEvidenceDigest: hash('another-graph') }
+    if (mode === 'receipt') candidate.preparationReceiptDigest = hash('another-receipt')
+    if (mode === 'expiry') candidate.expiresAtMs++
+    const answer = f.signed(candidate)
+    let calls = 0
+    const api = createExecutorApi({ fetchImpl: async (_url, init) => {
+      calls++
+      const body = JSON.parse(String(init?.body)) as T3NativeExecutionOperationIntake
+      assert.equal(body.operation, 'execution.legacyShells')
+      if (body.operation !== 'execution.legacyShells') assert.fail('wrong operation')
+      assert.equal(body.input.preparationReceipt.payload, preparationReceipt.payload)
+      assert.equal(init?.redirect, 'error')
+      if (mode === 'epoch') f.state = { ...f.state, connectionEpoch: '2' }
+      if (mode === 'abort') f.controller.abort()
+      return new Response(JSON.stringify({ data: answer }))
+    } })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    const result = port.legacyShells({ preparationReceipt }, f.signal)
+    if (mode === 'exact') assert.deepEqual(await result, answer)
+    else await assert.rejects(result)
+    assert.equal(calls, 1)
   }
 })
 

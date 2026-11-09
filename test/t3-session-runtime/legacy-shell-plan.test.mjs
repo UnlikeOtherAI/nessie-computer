@@ -1,12 +1,16 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFile } from 'node:fs/promises'
+import { createHash } from 'node:crypto'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
 import { LegacyImporter, EventSink, SessionLifecycleActionRefused, withSessionLegacyShellReconciliation,
   OriginalSqliteClient } from '@nessie/t3-session-source/engine'
-import { T3ExecutionLegacyShellObservationSchema } from '@nessie/executor-protocol'
+import { T3ExecutionLegacyShellObservationSchema, canonicalExecutorJson } from '@nessie/executor-protocol'
+import { T3ExecutionLegacyShellPreparationPayloadSchema, T3ExecutionLegacyShellAdmissionSchema,
+  T3_EXECUTION_LEGACY_SHELL_DOMAIN, T3_EXECUTION_LEGACY_SHELL_SLOT_DOMAIN, executionLegacyShellAdmissionBytes }
+  from '@nessie/executor-protocol/t3-session'
 import { withOriginalState } from './outbox-fixture.mjs'
 
 // Synthetic data and owners through actual original SQL/events. No native or
@@ -262,5 +266,26 @@ test('unsigned shell metadata accepts no raw plan, path, additional target field
     { ...raw, targets: [{ ...raw.targets[0], action: 'authorize' }] },
     { ...raw, targets: Array.from({ length: 257 }, () => raw.targets[0]) }]) {
     assert.equal(T3ExecutionLegacyShellObservationSchema.safeParse(value).success, false)
+  }
+})
+
+test('finite shell preparation shares the native permanent graph slot and exact signing domain', async () => {
+  const raw = JSON.parse(await readFile(new URL('./fixtures/execution-legacy-shell.json', import.meta.url), 'utf8'))
+  const p = T3ExecutionLegacyShellPreparationPayloadSchema.parse(raw.preparation)
+  const slot = createHash('sha256').update(canonicalExecutorJson({ domain: T3_EXECUTION_LEGACY_SHELL_SLOT_DOMAIN,
+    executorId: p.binding.executorId, sourceEvidenceDigest: p.binding.sourceEvidenceDigest,
+    acceptedGraphNonce: p.acceptedGraphNonce })).digest('hex')
+  assert.equal(slot, raw.expectedSlotId)
+  assert.equal(p.slotId, slot)
+  const admission = { ...p, nonce: 'c'.repeat(64), issuedAtMs: p.issuedAtMs + 1, expiresAtMs: p.expiresAtMs - 1,
+    issuerKeyId: 'a'.repeat(64), preparationReceiptDigest: 'sha256:' + 'b'.repeat(64) }
+  const payload = JSON.stringify(T3ExecutionLegacyShellAdmissionSchema.parse(admission))
+  assert.equal(Buffer.from(executionLegacyShellAdmissionBytes(payload)).toString('utf8'),
+    `${T3_EXECUTION_LEGACY_SHELL_DOMAIN}\n${payload}`)
+  // Schema metadata is neither an opaque backend admission nor native consume.
+  for (const changed of [{ ...p, expiresAtMs: p.observation.observedAtMs + 5001 },
+    { ...p, nonce: '0'.repeat(64) }, { ...p, action: 'runtime-recover' },
+    { ...p, inputs: {} }, { ...p, providerSessionId: 'unrelated-process' }]) {
+    assert.equal(T3ExecutionLegacyShellPreparationPayloadSchema.safeParse(changed).success, false)
   }
 })

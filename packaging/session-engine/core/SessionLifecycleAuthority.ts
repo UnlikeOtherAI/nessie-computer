@@ -66,7 +66,8 @@ export const withSessionLifecycleAction = <A, E, R>(authority: SessionLifecycleA
 
 /** Observe the complete actual action in the original graph before its owner
  * can admit the conditional writer. Neither candidate nor deadline is authority. */
-export const withSessionLegacyShellReconciliation = (authority: SessionLifecycleAuthority['Service'],
+export const withSessionLegacyShellReconciliation = (
+  authority: Pick<SessionLifecycleAuthority['Service'], 'withLegacyShellReconciliation'>,
   importer: Legacy.LegacyV1ThreadImporter['Service']):
   Effect.Effect<Legacy.LegacyV1ImportSummary, Legacy.LegacyV1ThreadImportError | SessionLifecycleActionRefused> =>
   Effect.scoped(Effect.gen(function* () {

@@ -6,9 +6,10 @@ do not authorize these operations. Production `open` remains refused.
 
 This is a machine-only boundary owned by `SessionEngineGraph.activate` and
 `SessionEngineLifecycle.stop`. `SessionLifecycleAuthority` is required before the
-runtime layer builds its original execution hosts. There is no default owner or
-native/backend positive producer for it. Supplying a parsed graph or admission
-object cannot satisfy the Context service.
+runtime layer builds its original execution hosts. There is no default owner.
+The complete legacy-shell action now has a finite native/backend consumer; the
+other four actions still need their own owners. Supplying a parsed graph or
+admission object cannot satisfy the Context service.
 
 Five concrete original actions are guarded:
 
@@ -76,9 +77,47 @@ compares those facts with its private candidate before returning either. The
 writer checks its own connection-local TEMP schema; a separate native reader
 cannot observe that TEMP namespace. Neither side returns raw rows or payloads.
 The cross-language fixture is synthetic and checked by both the real original
-importer and the actual Windows held-file reader. An enrolled observation
-receipt, current backend authority for every target and finite native consumption
-still need binding; these unsigned matching facts grant no lifecycle permission.
+importer and the actual Windows held-file reader. These unsigned matching facts
+grant no lifecycle permission.
+
+### Finite signed shell-action admission
+
+`prepareLegacyShells(graph, notAfterMs)` burns a durable graph/action slot before
+the native read, independently reproduces the complete plan, and signs an enrolled
+`nessie.t3.execution.legacy-shell-preparation.v1` receipt. Lost, failed or expired
+observations cannot create another window. The required original candidate cap
+can only shorten the native five-second absolute and monotonic deadline.
+
+The existing authenticated daemon relay's `execution.legacyShells` method restores
+the original operation and consumes its current human, source, graph and relay
+authority. The backend resolves every indexed target under locks. This is
+maintenance of the private owner's explicitly granted whole captured copy,
+including indexed tombstones; ordinary transcript reads still exclude deleted
+sources. Missing mappings, absent import provenance, changed project/root/capture,
+thread-scoped grants or another owner refuse the complete action.
+
+Migration `11007` stores one immutable receipt and exact signed payload per graph.
+Repeated requests can return only that same unexpired payload. They cannot change
+its targets, receipt, nonce or expiry. `consumeLegacyShells(graph, signedAdmission)`
+burns its held attempt before parsing, verifies backend RS256 independently,
+rechecks the complete actual plan and source, then durably claims the slot and
+nonce before returning the remaining writer window.
+
+`makeSessionLegacyShellHost` connects this path to the same opaque original
+candidate and conditional writer. It carries the minimum original monotonic,
+native remaining and signed absolute deadline. Cancellation and closure join
+the operation; no generic lifecycle permission or provider authority is supplied.
+The transport preserves exact signed bytes and never retries uncertain work.
+
+Qualification on 9 November 2026, Maxis/Windows 11, Node 24.19.0 and pnpm 10.22.0:
+six public and 13 private build tasks passed; migration `11007` applied to the
+isolated PostgreSQL database. All 49 private authority, 221 runtime, 29 broker,
+14 engine and 14 request-source tests passed with zero skips. This includes real
+database tombstone/read separation, immutable storage and the original SQLite
+writer. Scoped lint, code caps and whitespace passed. Native source had already
+passed 34 common and 25 resource tests plus the companion check; unchanged native
+checks were reused. No signed installation or production journey ran. Production
+`open` remains refused until the remaining real lifecycle and provider hosts exist.
 
 The original process-loss transition cancels pending/running process-bound effects
 and requeues running replay-safe effects. Its existing global scope includes

@@ -31,6 +31,7 @@ pub mod execution_pending_effect;
 pub(crate) mod execution_outbox_row;
 pub mod execution_process_loss;
 pub mod execution_legacy_shell;
+pub mod execution_legacy_shell_admission;
 pub mod execution_command_lineage;
 pub mod execution_preclaim;
 #[cfg(windows)]

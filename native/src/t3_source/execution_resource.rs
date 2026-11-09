@@ -89,6 +89,20 @@ impl Session for ExecutionResource {
                     executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone(), graph })
             },
+            "executionLegacyShellPrepare" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let not_after_ms = request["notAfterMs"].as_u64().ok_or_else(fail)?;
+                service(Request::PrepareLegacyShells { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, not_after_ms })
+            },
+            "executionLegacyShellConsume" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let admission = serde_json::from_value(request["admission"].clone()).map_err(|_| fail())?;
+                service(Request::ConsumeLegacyShells { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, admission })
+            },
             "executionCommandOpen" if fields.len() == 3 => {
                 self.destination.as_ref().ok_or_else(fail)?.recheck()?;
                 let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;

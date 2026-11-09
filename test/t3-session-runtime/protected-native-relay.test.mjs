@@ -12,6 +12,29 @@ const unsupported = async () => { throw new Error('unexpected method') }
 // Transport-shape fixture only; these bytes cannot authorize a native read.
 const secretRead = { preparationReceipt: { domain: 'nessie.t3.execution.secret-read-preparation.v1',
   keyId: 'c'.repeat(64), payload: '{ "observed": "exact preparation bytes" }', signature: 'd'.repeat(86) } }
+const legacyShells = { preparationReceipt: { ...secretRead.preparationReceipt,
+  domain: 'nessie.t3.execution.legacy-shell-preparation.v1' } }
+
+test('shell relay uses only its captured port, preserves exact bytes and refuses call replay or retired demand', async () => {
+  let observed, calls = 0
+  const stop = parent()
+  const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
+  const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
+    preclaim: unsupported, effect: unsupported, receipt: unsupported, legacyShells: async input => {
+      calls++; assert.deepEqual(input, legacyShells); return proof
+    } }, stop.signal)
+  const local = child.open(held.operationId, stop.signal)
+  assert.deepEqual(await local.port.legacyShells(legacyShells, stop.signal), proof)
+  assert.deepEqual(observed.operation, { operation: 'execution.legacyShells', input: legacyShells })
+  assert.throws(() => daemon.receive(observed), /REFUSED/u)
+  assert.equal(ProtectedRuntimeOutputSchema.safeParse({ ...observed, operation: {
+    operation: 'execution.legacyShells', input: { ...legacyShells, targets: [] } } }).success, false)
+  await local.close(); await held.close()
+  await assert.rejects(local.port.legacyShells(legacyShells, stop.signal))
+  assert.equal(calls, 1)
+  await child.close(); await daemon.close()
+})
 
 test('finite native relay preserves signed bytes and refuses replay of a consumed call ID', async () => {
   let observed, calls = 0

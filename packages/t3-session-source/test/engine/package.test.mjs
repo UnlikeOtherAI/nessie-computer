@@ -119,7 +119,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '3d00b1e01c6fe38014384bcc20f2bb23351bfd3cb942811ccebe9f735713218b')
+    '35776dee587c182ab5f83cdda4d69f7521c625a3cef423f72a142b29f7b56dac')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   assert.equal(provenance.sourceInputs['apps/server/package.json'],
     provenance.originalSourceInputs['apps/server/package.json'])

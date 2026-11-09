@@ -22,6 +22,7 @@ export interface LegacyShellTarget {
 export interface LegacyShellReconciliationCandidate {
   readonly [legacyShellCandidateBrand]: true;
   readonly observedAtMs: number;
+  readonly notAfterMonotonicMs: number;
   readonly planDigest: string;
   readonly targets: ReadonlyArray<LegacyShellTarget>;
 }
@@ -62,6 +63,7 @@ export const makeLegacyShellReconciliation = <I>(sql: SqlClient.SqlClient,
     declare readonly [legacyShellCandidateBrand]: true;
     constructor(supplied: object) { if (supplied !== key) throw refused("shell-plan-closed"); }
     get observedAtMs(): number { return get(this).observedAtMs; }
+    get notAfterMonotonicMs(): number { return get(this).observedMonotonicMs + 5000; }
     get planDigest(): string { return get(this).digest; }
     get targets(): ReadonlyArray<LegacyShellTarget> { return get(this).data.targets.map(target => ({ ...target })); }
   }

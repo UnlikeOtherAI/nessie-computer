@@ -1,7 +1,7 @@
 //! Finite SQL lease/attempt transition only. No provider or filesystem effect.
 use crate::{
     custody::{valid_nonce, REJECTED},
-    execution::{digest, identifier, value_digest, Binding, Custody},
+    execution::{digest, identifier, value_digest, Binding},
     execution_command_lineage::BoundObservation,
 };
 use serde::{Deserialize, Serialize};
@@ -11,17 +11,7 @@ pub const ID_DOMAIN: &str = "nessie.t3.execution.sql-preclaim.slot.v1";
 #[cfg(test)]
 #[path = "execution_preclaim_tests.rs"]
 mod tests;
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct Evidence {
-    pub resource_id: String,
-    pub resource_generation: String,
-    pub source_database_identity: String,
-    pub destination_database_identity: String,
-    pub settings_identity: String,
-    pub settings_digest: String,
-    pub custody: Custody,
-}
+pub use crate::execution_resource::DestinationEvidence as Evidence;
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Preclaim {

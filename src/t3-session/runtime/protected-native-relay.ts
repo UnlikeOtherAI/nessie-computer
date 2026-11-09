@@ -54,17 +54,18 @@ export function createProtectedNativeRelay(send: (result: ProtectedNativeResult)
       const job = (async () => {
         try {
           entry.signal.throwIfAborted()
-          const value = operation.operation === 'execution.phase'
-            ? await entry.port.phase(operation.input, entry.signal)
-            : operation.operation === 'execution.frame'
-              ? await entry.port.frame(operation.input, entry.signal)
-              : operation.operation === 'execution.secretRead'
-                ? await entry.port.secretRead(operation.input, entry.signal)
-                : operation.operation === 'execution.preclaim'
-                  ? await entry.port.preclaim(operation.input, entry.signal)
-                  : operation.operation === 'execution.effect'
-                    ? await entry.port.effect(entry.signal)
-                : await entry.port.receipt(operation.receipt, entry.signal)
+          const value = await (() => {
+            switch (operation.operation) {
+              case 'execution.phase': return entry.port.phase(operation.input, entry.signal)
+              case 'execution.frame': return entry.port.frame(operation.input, entry.signal)
+              case 'execution.secretRead': return entry.port.secretRead(operation.input, entry.signal)
+              case 'execution.preclaim': return entry.port.preclaim(operation.input, entry.signal)
+              case 'execution.legacyShells': return entry.port.legacyShells(operation.input, entry.signal)
+              case 'execution.effect': return entry.port.effect(entry.signal)
+              case 'execution.receipt': return entry.port.receipt(operation.receipt, entry.signal)
+              default: throw protectedRuntimeRefused()
+            }
+          })()
           entry.signal.throwIfAborted()
           if (!live || entries.get(message.operationId) !== entry) throw protectedRuntimeRefused()
           await send({ type: 'native-result', operationId: message.operationId, callId: message.callId,
@@ -156,6 +157,8 @@ export function createProtectedNativeClient(send: (request: ProtectedNativeReque
           await tracked({ operation: 'execution.secretRead', input }, signal)),
         preclaim: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
           await tracked({ operation: 'execution.preclaim', input }, signal)),
+        legacyShells: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
+          await tracked({ operation: 'execution.legacyShells', input }, signal)),
         effect: async signal => T3EffectAuthorityCheckedSchema.parse(
           await tracked({ operation: 'execution.effect' }, signal)),
         receipt: async (receipt, signal) => T3NativeExecutionReceiptAcceptedSchema.parse(

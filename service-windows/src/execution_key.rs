@@ -107,6 +107,7 @@ impl Key {
             HISTORY_RESULT_DOMAIN,
             nessie_windows_common::execution_frame::PREPARATION_DOMAIN,
             nessie_windows_common::execution_preclaim::PREPARATION_DOMAIN,
+            nessie_windows_common::execution_legacy_shell_admission::PREPARATION_DOMAIN,
         ]
         .contains(&domain)
         {
@@ -137,6 +138,9 @@ impl Key {
                 "secret-slot-observed",
                 "preclaim-observed",
                 "preclaim-consumed",
+                "legacy-shell-observed",
+                "legacy-shell-prepared",
+                "legacy-shell-consumed",
             ]
             .contains(&kind)
         {
@@ -166,6 +170,7 @@ impl Key {
                 "graph",
                 "preclaim-observed",
                 "process-cleared",
+                "legacy-shell-prepared",
             ]
             .contains(&kind)
         {

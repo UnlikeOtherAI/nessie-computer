@@ -5,6 +5,19 @@ use serde::{Deserialize, Serialize};
 pub const SETTINGS_LIMIT: usize = 1024 * 1024;
 pub const LEASE_MILLIS: u64 = 55_000;
 
+/// Current physical source/destination evidence shared by finite SQL actions.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DestinationEvidence {
+    pub resource_id: String,
+    pub resource_generation: String,
+    pub source_database_identity: String,
+    pub destination_database_identity: String,
+    pub settings_identity: String,
+    pub settings_digest: String,
+    pub custody: crate::execution::Custody,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Source {
@@ -65,6 +78,8 @@ pub enum Request {
     ObserveDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
     ObserveDestinationProcessLoss { executor_id: String, resource_id: String, graph: crate::execution::Graph },
     ObserveDestinationLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph },
+    PrepareLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, not_after_ms: u64 },
+    ConsumeLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, admission: crate::execution::SignedAdmission },
     OpenCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, retention_expires_at: u64 },
     RecordCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, edge: crate::execution_command_lineage::Edge },
     CloseCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph },
@@ -84,6 +99,7 @@ impl Request {
             | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. }
             | Self::ObserveDestinationProcessLoss { executor_id, .. }
             | Self::ObserveDestinationLegacyShells { executor_id, .. }
+            | Self::PrepareLegacyShells { executor_id, .. } | Self::ConsumeLegacyShells { executor_id, .. }
             | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
             | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
             Self::PrepareEffectClaim { executor_id, .. } | Self::ConsumeEffectClaim { executor_id, .. } => executor_id,
@@ -120,10 +136,14 @@ impl Request {
                 }
             }
             Self::ObserveDestinationProcessLoss { resource_id, graph, .. }
-            | Self::ObserveDestinationLegacyShells { resource_id, graph, .. } => {
+            | Self::ObserveDestinationLegacyShells { resource_id, graph, .. }
+            | Self::PrepareLegacyShells { resource_id, graph, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
+                if let Self::PrepareLegacyShells { not_after_ms, .. } = self {
+                    if *not_after_ms == 0 || *not_after_ms > 9_007_199_254_740_991 { return Err(REJECTED.into()); }
+                }
             }
             Self::ObserveDestinationEffect { resource_id, graph, effect_id, .. }
             | Self::ObserveBoundDestinationEffect { resource_id, graph, effect_id, .. } => {
@@ -138,7 +158,8 @@ impl Request {
                 // Only an already accepted exact Graph may be used. Its 5s
                 // receipt freshness is not a new resource-retention deadline.
             }
-            Self::ConsumeEffectClaim { resource_id, graph, admission, .. } => {
+            Self::ConsumeEffectClaim { resource_id, graph, admission, .. }
+            | Self::ConsumeLegacyShells { resource_id, graph, admission, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || graph.binding.executor_id != self.executor()
                     || admission.payload.is_empty() || admission.payload.len() > 32768
@@ -255,5 +276,29 @@ mod tests {
         let held = Request::HoldDestinationFile { executor_id: "executor".into(), resource_id: "a".repeat(64),
             reference: "../source.sqlite".into(), file };
         assert!(held.validate().is_err());
+    }
+    #[test]
+    fn legacy_shell_preparation_wire_requires_an_explicit_restrictive_cap_and_no_plan_assertions() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../test/t3-session-runtime/fixtures/execution-legacy-shell.json")).unwrap();
+        let p = &fixture["preparation"];
+        let mut binding = p["binding"].clone();
+        binding.as_object_mut().unwrap().remove("sourceEvidenceDigest");
+        let graph = json!({"version":1,"binding":binding,"nonce":p["acceptedGraphNonce"],
+            "sourceRevision":"25bf84ab07f53f141c20239c63e383823a9d5ea0","targets":[],
+            "issuedAtMs":p["issuedAtMs"],"expiresAtMs":p["expiresAtMs"]});
+        let raw = json!({"operation":"prepareLegacyShells","executorId":p["binding"]["executorId"],
+            "resourceId":"a".repeat(64),"graph":graph,"notAfterMs":p["expiresAtMs"]});
+        serde_json::from_value::<Request>(raw.clone()).unwrap().validate().unwrap(); // Shape, never admission.
+        for cap in [0, 9_007_199_254_740_992_u64] {
+            let mut changed = raw.clone(); changed["notAfterMs"] = json!(cap);
+            assert!(serde_json::from_value::<Request>(changed).unwrap().validate().is_err());
+        }
+        for field in ["inputs", "targets", "planDigest", "admitted"] {
+            let mut changed = raw.clone(); changed[field] = json!("caller assertion");
+            assert!(serde_json::from_value::<Request>(changed).is_err());
+        }
+        let mut missing = raw; missing.as_object_mut().unwrap().remove("notAfterMs");
+        assert!(serde_json::from_value::<Request>(missing).is_err());
     }
 }
