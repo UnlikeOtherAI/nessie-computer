@@ -39,6 +39,12 @@ export type PersonalHostExecutionLease = {
   bindExecution: (identity: CodingProcessIdentity, descendants?: CodingProcessIdentity[]) => Promise<void>
   /** Only after the admitted process tree is proven stopped, not on transport abort. */
   release: () => Promise<void>
+  /**
+   * When a stop could not be proved: the admission stays (custody), but
+   * whatever process holds it open is ended, so a retried start never
+   * accumulates them. Absent where nothing does.
+   */
+  abandon?: () => Promise<void>
 }
 
 export type PersonalInferenceGuardOptions = {

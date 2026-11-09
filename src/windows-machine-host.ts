@@ -35,9 +35,13 @@ export const acquireWindowsMachineHostLease = async () => {
     },
   })
   held.assertLive()
-  return { release: async () => {
-    // Failure keeps the durable service host lease. Killing its pipe or local
-    // registration cannot prove an arbitrary process tree has stopped.
-    try { await held.release() } finally { await held.abort() }
-  } }
+  return {
+    release: async () => {
+      // Failure keeps the durable service host lease. Killing its pipe or local
+      // registration cannot prove an arbitrary process tree has stopped.
+      try { await held.release() } finally { await held.abort() }
+    },
+    /** Ends the barrier process without a release: the service keeps the durable host lease. */
+    abandon: () => held.abort(),
+  }
 }

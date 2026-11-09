@@ -5,6 +5,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { discoverLocalApps, type DiscoveredLocalApp, type LocalAppDiscoveryOptions } from './local-app-discovery.js'
+import type { LocalAppStartState } from './local-app-start-status.js'
 import { localMcpPolicyOf, MCP_OPERATION_KEYS, type LocalMcpPolicy } from './mcp-policy.js'
 import { executorLocalMcpServerNames, type ExecutorLocalMcpServer, type LocalAppSource } from './mcp-servers.js'
 import { saveExecutorState, type ExecutorLocalState } from './state-store.js'
@@ -134,7 +135,21 @@ export type LocalAppDescription = {
   installed: boolean
   /** Why a discovered app is not enabled. */
   reason?: 'switched_off' | 'not_installed' | 'limit' | 'listed_only'
+  /**
+   * An enabled app whose last starts failed, as the running daemon saw them
+   * (`local-app-start-status.ts`): how many in a row, why, and when it is
+   * tried again. Absent while it starts.
+   */
+  start?: LocalAppStartState
 }
+
+/** Each enabled app with its start state, when its last starts failed. */
+export const withLocalAppStartStates = (
+  apps: readonly LocalAppDescription[], starts: ReadonlyMap<string, LocalAppStartState>,
+): LocalAppDescription[] => apps.map((app) => {
+  const start = app.enabled ? starts.get(app.name) : undefined
+  return start ? { ...app, start } : app
+})
 
 /**
  * Every local app this computer knows of for the team: the owner-named ones,

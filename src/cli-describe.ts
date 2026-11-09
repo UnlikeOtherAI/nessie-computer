@@ -1,6 +1,8 @@
 import { existingClaudeChannelConfiguration } from './existing-session/setup.js'
 import { existingSessionsEnabled } from './existing-session/settings.js'
 import { describeExecutorWithLocalApps } from './describe.js'
+import { readLocalAppStartStatus } from './local-app-start-status.js'
+import { withLocalAppStartStates } from './local-mcp-apps.js'
 import { describeFolderSync } from './folder-sync/console-state.js'
 import { listProgramRequests } from './program-requests.js'
 import { configureExecutorLocalPolicy } from './pair.js'
@@ -15,8 +17,16 @@ import type { ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
  * One team's full settings, the JSON `describe --state-dir` prints and
  * `access show --json` prints: the same answer for the apps and for a person.
  */
-export const describeTeam = async (stateDir: string, state: ExecutorLocalState) => ({
-  ...await describeExecutorWithLocalApps(state),
+export const describeTeam = async (stateDir: string, state: ExecutorLocalState) => {
+  const description = await describeExecutorWithLocalApps(state)
+  return {
+    ...description,
+    localApps: withLocalAppStartStates(description.localApps, await readLocalAppStartStatus(stateDir)),
+    ...await teamSettings(stateDir, state),
+  }
+}
+
+const teamSettings = async (stateDir: string, state: ExecutorLocalState) => ({
   paused: await teamPaused(stateDir),
   pendingProgramRequests: (await listProgramRequests(stateDir)).length,
   folderSync: await describeFolderSync(stateDir, state.executorId),
