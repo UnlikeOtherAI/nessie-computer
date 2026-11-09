@@ -101,6 +101,9 @@ final class ExecutorController: ObservableObject {
     /// One `describe`, applied, and whatever follows from it. Awaited by the
     /// bridge so the view it answers with is the state after a change.
     func reload() async {
+        // Every `describe` is a runtime process, and the helper installs this
+        // app's runtime only while none runs; the hold ends with a refresh.
+        guard !ComputerUpdateService.holdingTeams else { return }
         guard let runner else {
             if case let .failure(refusal) = runtime {
                 model = ConnectionModel(pairing: .unavailable(refusal.message), daemon: .stopped)

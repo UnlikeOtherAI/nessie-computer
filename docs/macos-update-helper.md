@@ -44,7 +44,9 @@ that was just registered again, so the teams start again once the installed
 runtime is the app's version, the helper answers ninety seconds or more after
 its registration took, or ten minutes pass. macOS can refuse a registration
 made right after removing the old one, so the hold registers again on the usual
-schedule meanwhile.
+schedule meanwhile. Every `describe` and status question is a runtime process
+too, so during the hold the teams' five-second reads pause and the helper is
+asked at most every fifteen seconds.
 The app reads the installed version from the runtime's manifest, so this holds
 even while the helper does not answer. Replacing the app unloads the helper,
 whose program lives inside it, so a newer app installed by hand makes this held

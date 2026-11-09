@@ -253,6 +253,7 @@ final class ExecutorConnections: ObservableObject {
         await restart()
         let deadline = Date().addingTimeInterval(600)
         var registeredAt: Date?
+        var askedAt = Date.distantPast
         while Date() < deadline, ComputerUpdateService.installedVersion != version {
             // macOS can refuse a registration made right after removing the
             // old one; it is made again on the usual schedule, as the update
@@ -262,8 +263,11 @@ final class ExecutorConnections: ObservableObject {
             if registration == .requiresApproval { break }
             registeredAt = registration == .enabled ? registeredAt ?? Date() : nil
             try? await Task.sleep(nanoseconds: 3_000_000_000)
-            // An answer counts only once the registered helper has had its minute.
-            guard let registeredAt, Date() >= registeredAt.addingTimeInterval(90) else { continue }
+            // An answer counts only once the registered helper has had its
+            // minute. Each question is a runtime process too, so it is rare.
+            guard let registeredAt, Date() >= registeredAt.addingTimeInterval(90),
+                  Date() >= askedAt.addingTimeInterval(15) else { continue }
+            askedAt = Date()
             if (try? await ExecutorUpdateControl.run(["operation": "status"])) != nil { break }
         }
         ComputerUpdateService.holdingTeams = false
