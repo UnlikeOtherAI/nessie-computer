@@ -101,6 +101,9 @@ final class ExecutorController: ObservableObject {
     /// One `describe`, applied, and whatever follows from it. Awaited by the
     /// bridge so the view it answers with is the state after a change.
     func reload() async {
+        // Every `describe` is a runtime process, and the helper installs this
+        // app's runtime only while none runs; the hold ends with a refresh.
+        guard !ComputerUpdateService.holdingTeams else { return }
         guard let runner else {
             if case let .failure(refusal) = runtime {
                 model = ConnectionModel(pairing: .unavailable(refusal.message), daemon: .stopped)
@@ -272,8 +275,14 @@ final class ExecutorController: ObservableObject {
 
     // MARK: - Supervision
 
+    /// A team process still holds this team's lease: this app's own, or one an
+    /// earlier copy of the app started, which can outlive it for a while.
+    var daemonLeaseHeld: Bool {
+        leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 })
+    }
+
     private var pairingBlocksStart: Bool {
-        pairing.busy || pairing.state?.isAttemptOpen == true
+        pairing.busy || pairing.state?.isPending == true
             || ExecutorStateDiscovery.pendingAttemptBlocksStart(in: stateDirectory)
     }
 
@@ -303,10 +312,11 @@ final class ExecutorController: ObservableObject {
             failure = TeamFailure(code: nil, message: PackagedRuntime.missingRefusal)
             return
         }
-        guard isDevelopmentBuild || ComputerUpdateService.factoryReady,
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady, !ComputerUpdateService.holdingTeams,
               !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) else {
-            // The update factory is not ready yet, or a prior daemon is still
-            // tearing down (an update restart looks like this): try at the next reading.
+            // The update factory is not ready yet, the helper is installing this
+            // app's runtime, or a prior daemon is still tearing down (an update
+            // restart looks like this): try at the next reading.
             startAfterRefresh = true
             return
         }

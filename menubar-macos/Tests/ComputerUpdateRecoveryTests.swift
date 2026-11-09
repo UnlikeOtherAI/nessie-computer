@@ -101,6 +101,33 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
                        ComputerUpdateRestartRecord(version: "1.0.17"))
     }
 
+    /// 9 November: 1.0.27 and then 1.0.28 installed by hand over 1.0.26 kept
+    /// their teams on the old runtime, because the helper only installs the
+    /// app's runtime while no team process runs, and right after launch it did
+    /// not answer. The installed runtime's own version decides.
+    func testAnOlderInstalledRuntimeStopsTheTeamsEvenWithoutAnAnswer() {
+        let adopts = { (installed: String?, phase: String?) in
+            ComputerUpdateRecovery.adoptsApplicationRuntime(
+                installedVersion: installed, phase: phase, applicationVersion: "1.0.28")
+        }
+        XCTAssertTrue(adopts("1.0.26", "idle"))
+        XCTAssertTrue(adopts("1.0.26", "waiting"))
+        XCTAssertTrue(adopts("1.0.26", nil), "a helper that does not answer still gets a clear machine")
+        XCTAssertFalse(adopts("1.0.28", "idle"), "the helper already runs this app's runtime")
+        XCTAssertFalse(adopts("1.0.29", nil), "never toward an older app")
+        XCTAssertFalse(adopts("1.0.26", "installing"), "a started replacement owns the machine")
+        XCTAssertFalse(adopts(nil, nil), "no installed runtime yet: first setup has its own path")
+    }
+
+    func testALaunchBringsTheRuntimeOnlyWhenARestartIsDue() {
+        let fresh = ComputerUpdateRestartRecord(version: "1.0.30")
+        XCTAssertTrue(ComputerUpdateRecovery.restartDue(fresh, now: start), "the first one for a version is at once")
+        let tried = fresh.restarted(at: start)
+        XCTAssertFalse(ComputerUpdateRecovery.restartDue(tried, now: start.addingTimeInterval(899)),
+                       "relaunching right after a try does not hold the teams again")
+        XCTAssertTrue(ComputerUpdateRecovery.restartDue(tried, now: start.addingTimeInterval(900)))
+    }
+
     func testAStartedReplacementIsNeverInterrupted() {
         XCTAssertFalse(restart(phase: "installing"))
         XCTAssertFalse(restart(phase: "restarting"))

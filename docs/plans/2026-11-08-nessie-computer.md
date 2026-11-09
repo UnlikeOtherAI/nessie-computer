@@ -151,7 +151,10 @@ an organisation that runs its own Nessie.
 2. Shows the 8-digit code (Copy), the countdown, and "In Nessie, open Computers
    and choose **Add a computer**." plus **Open Nessie to finish**, which opens
    `<console>/admin/computers?create=1&code=<code>` for the paired server (§5.4).
-   An expired code stays visible, greyed, with **Get a new code**.
+   An expired code stays visible, greyed, with **Get a new code**. Cancel
+   always closes the dialog and ends the attempt on the computer, even when
+   Nessie no longer knows the code. A code Nessie reports expired ends there
+   too, so it never reopens the dialog at the next launch.
 3. On success the dialog closes and Overview shows a success card: "Connected to
    {team}. Agents in this team can now use: {folders}; {programs}; {local apps}."
    with **Change access** and **Done**. If the owner didn't expect it:

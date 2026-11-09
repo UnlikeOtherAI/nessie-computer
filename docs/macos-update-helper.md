@@ -33,6 +33,27 @@ The copied app is read by an unprivileged process inside a private directory,
 then frozen and verified. A verified snapshot is reused for retries rather than
 copying the same app on each restart.
 
+A newer app installed over an older one restarts the helper by itself while
+the installed runtime is older than its own. The helper installs the app's
+runtime only while no team process runs, and tries for about a minute after it
+starts, so the app stops its teams for that restart, and restarts the helper
+only once every team process has gone, including one the previous copy of the
+app started, which can outlive it for a minute or two. The helper answers status
+only once that attempt is over, and launchd can take minutes to start a helper
+that was just registered again, so the teams start again once the installed
+runtime is the app's version, the helper answers ninety seconds or more after
+its registration took, or ten minutes pass. macOS can refuse a registration
+made right after removing the old one, so the hold registers again on the usual
+schedule meanwhile. Every `describe` and status question is a runtime process
+too, so during the hold the teams' five-second reads pause and the helper is
+asked at most every fifteen seconds.
+The app reads the installed version from the runtime's manifest, so this holds
+even while the helper does not answer. Replacing the app unloads the helper,
+whose program lives inside it, so a newer app installed by hand makes this held
+restart at launch, before any team starts, instead of a plain registration. A
+helper waiting for the owner's approval cannot run, so the teams start then
+too. Relaunching soon after a try follows the same retry schedule.
+
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not

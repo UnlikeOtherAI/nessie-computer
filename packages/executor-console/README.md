@@ -163,8 +163,12 @@ the tab and the team dropdown already name what is shown.
   code belongs to such a server. **Get code** asks the host first: a refused
   address leaves a waiting code as it was, and that code is cancelled only once
   the host accepts an address for another server. The claim in Nessie closes
-  the dialog, selects the team and opens its Access tab.
-  `nc.pairing.restore()` reopens an attempt left waiting and answers whether it did.
+  the dialog, selects the team and opens its Access tab. **Cancel** always
+  closes the dialog: the runtime ends the attempt on the computer even when
+  Nessie refuses or cannot be reached, and any other failure is said in the
+  window. `nc.pairing.restore()` reopens a code still waiting and answers
+  whether it did; a code that ran out while the window was closed has ended
+  and opens nothing.
 - `nc.updates.onStatus(fn)` / `nc.updates.status()` — the update broker's
   latest status.
 

@@ -62,7 +62,8 @@
     if (view.kind !== 'reachable') throw new Error(view.reason)
     executors = view.executors
     if (!teams().some((team) => team.executorId === current)) {
-      current = teams()[0]?.executorId ?? null
+      // With nothing chosen yet the window opens on a team that is working.
+      current = (teams().find((team) => status(team) === 'working') ?? teams()[0])?.executorId ?? null
       if (current) describes.delete(current)
       notifySelection()
     }

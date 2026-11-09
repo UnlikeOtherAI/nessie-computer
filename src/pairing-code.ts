@@ -156,11 +156,11 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
       if (operations && !sameOperations(operations, pending.request.descriptor.descriptor.operationKeys)) {
         throw new Error('This pairing already uses different operations. Finish it before choosing another policy.')
       }
+      // Only the server's poll outcome may retire an attempt: an old local deadline
+      // can also belong to a claimed pairing whose answer has not arrived yet. The
+      // status call has already ended an attempt Nessie calls expired.
       const view = await pairingCodeStatus(input.stateDir)
       if (view.status !== 'expired') return view
-      // Only the server's poll outcome may retire an attempt: an old local deadline
-      // can also belong to a claimed pairing whose answer has not arrived yet.
-      await clearPairingCode(input.stateDir)
     }
     const existing = await existingState(input.stateDir)
     if (existing && !input.replace && operations
@@ -245,7 +245,9 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     // reads `confirmed` saves this machine's connection, and nothing here asks.
     const result = await poll(pending)
     if (result.status === 'confirmed' && result.claim) await complete(directory, pending, result.claim)
-    if (result.status === 'rejected') await clearPairingCode(directory)
+    // Nessie refuses a claim once the code has run out, so an attempt it calls
+    // expired can never finish; it ends here, and nothing reopens its code.
+    if (result.status === 'rejected' || result.status === 'expired') await clearPairingCode(directory)
     return {
       status: result.status === 'confirmed' ? 'paired' : result.status === 'rejected' ? 'cancelled' : result.status,
       code: pending.response?.code, expiresAt: result.expiresAt, fingerprint: result.fingerprint,
@@ -254,16 +256,27 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     }
   }
 
+  /** Stops the attempt's code in Nessie, and revokes a claim made a moment before. */
+  const cancelInNessie = async (directory: string, stored: PendingPairingCode): Promise<void> => {
+    const pending = stored.response ? stored : await mint(directory, stored)
+    await clearRetiredState(directory, pending)
+    if (!pending.response) return
+    const payload = { pairingId: pending.response.pairingId, timestamp: new Date().toISOString() }
+    await postPairing(pending.apiBaseUrl, 'cancel', {
+      ...payload, signature: pairingSignature(pending.machinePrivateKey, 'cancel', payload),
+    })
+  }
+
+  /**
+   * Cancel always ends the attempt on this computer, so its dialog can always
+   * close. Nessie hears first when it can. When it cannot — it deletes a code
+   * some time after the code runs out and then refuses to cancel it, or it
+   * cannot be reached — the attempt still ends here: a code it still holds
+   * runs out by itself within ten minutes.
+   */
   const cancelPairingCode = async (directory: string): Promise<PairingCodeView> => {
-    let pending = await loadPairingCode(directory)
-    if (pending && !pending.response) pending = await mint(directory, pending)
-    if (pending) await clearRetiredState(directory, pending)
-    if (pending?.response) {
-      const payload = { pairingId: pending.response.pairingId, timestamp: new Date().toISOString() }
-      await postPairing(pending.apiBaseUrl, 'cancel', {
-        ...payload, signature: pairingSignature(pending.machinePrivateKey, 'cancel', payload),
-      })
-    }
+    const pending = await loadPairingCode(directory)
+    if (pending) await cancelInNessie(directory, pending).catch(() => undefined)
     await clearPairingCode(directory)
     return { status: 'cancelled' }
   }

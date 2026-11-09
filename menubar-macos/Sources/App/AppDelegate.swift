@@ -38,7 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller?.updateAttention = attention
         }
         // Registered before the first status probe; a refusal shows at once.
-        ComputerUpdateService.prepare()
+        // A newer app over an older runtime registers it through the held
+        // restart instead, and no team starts before that.
+        let bringsRuntime = ComputerUpdateService.bringsNewerRuntimeAtLaunch
+        if bringsRuntime { ComputerUpdateService.holdingTeams = true } else { ComputerUpdateService.prepare() }
         // The first launch with no team opens the window, which opens straight
         // on a pairing code, rather than leaving a person to find an icon.
         let hasTeam = controller.controllers.contains { ExecutorPaths.hasPairingFile($0.stateDirectory) }
@@ -52,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         controller.start()
         notifier.start()
-        updates.start(console: console, connections: controller)
+        updates.start(console: console, connections: controller, bringingRuntime: bringsRuntime)
     }
 
     /// `nessie-computer://` links. They only navigate; see `DeepLink`.
