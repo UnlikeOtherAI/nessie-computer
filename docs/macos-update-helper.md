@@ -264,6 +264,12 @@ Recovery now works from both ends without weakening a fence:
   process-group check uses every account's processes (`live_groups`, from the
   short process record), not the caller's own, so a Root helper still sees a
   user's leftover descendant; a process it cannot read counts as running.
+  Each recovery attempt then holds the machine barrier for up to 15 seconds
+  (`SETTLE`, `macos_recovery.rs`), so no native creation starts while the
+  commands already running end: the app asks its runtime something every few
+  seconds, and a single clearance check per attempt met one every time, so
+  1.0.22's helper never swapped on dictator. A launch refused in that window is
+  retried by the app and the window's tabs.
 - **A refused team stays in the window.** The console's `executor_view` lists a
   paired team whose `describe` is refused under `unreadable-<folder>`, so the
   window never opens Add another team over a team that exists. It reads as

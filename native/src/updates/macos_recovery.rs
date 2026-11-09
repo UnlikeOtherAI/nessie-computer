@@ -24,11 +24,17 @@ use nessie_executor_updater::{
     recovery::{self, ApplicationPlan},
     storage::Store,
 };
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// A healthy older factory keeps serving its teams: try for about a minute,
 /// then hand over and let the catalogue deliver the update normally.
 const BRIEF_ATTEMPTS: u32 = 20;
+
+/// How long one attempt holds the machine barrier, so no native creation
+/// starts, while commands already running end. The app asks its runtime
+/// something every few seconds; on dictator a single check per attempt met one
+/// of those every time and 1.0.22's helper never cleared for the swap.
+const SETTLE: Duration = Duration::from_secs(15);
 
 fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64
@@ -59,8 +65,10 @@ fn attempt(coordinator: &Coordinator, bundle: &Bundle, process: &Process) -> Upd
         return Ok(true);
     }
     // The menu app stays: only the factory changes, never the app bundle.
-    if !unix_clearance::ready_with(true, Some(process))? {
-        return Ok(false);
+    let settled = Instant::now() + SETTLE;
+    while !unix_clearance::ready_with(true, Some(process))? {
+        if Instant::now() >= settled { return Ok(false); }
+        std::thread::sleep(Duration::from_millis(250));
     }
     let digest = bundle.install_factory()?;
     unix_legacy::retire_cleared(&digest)?;

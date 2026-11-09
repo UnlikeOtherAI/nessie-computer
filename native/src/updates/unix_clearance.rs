@@ -133,9 +133,15 @@ pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResu
     #[cfg(target_os = "macos")]
     let groups = crate::macos_processes::live_groups().map_err(|_| ERROR)?;
     for (uid, root) in roots()? {
-        for record in records(uid, &root)? {
+        let records = records(uid, &root)?;
+        // A guard that cannot be read leaves every journal blocking.
+        #[cfg(target_os = "macos")]
+        let registrations = if records.is_empty() { Ok(Vec::new()) }
+            else { crate::managed_runtime::host_registrations(&root) };
+        for record in records {
             #[cfg(target_os = "macos")]
-            if matches!(crate::managed_runtime::ended_one_shot(&record, &root, &groups), Ok(true)) { continue; }
+            if registrations.as_ref().is_ok_and(|registrations|
+                crate::managed_runtime::ended_one_shot(&record, registrations, &groups)) { continue; }
             let _ = record;
             return Ok(false);
         }

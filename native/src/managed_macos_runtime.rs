@@ -100,13 +100,22 @@ fn gated_child(release: &managed_release::Release, home: &Path, arguments: &[Str
 /// once any team had run a local app: 371 journals in half an hour on
 /// dictator, a team that never started and a runtime swap that never cleared.
 fn unresolved_host(root: &Path, record: &Record) -> Result<bool, NativeError> {
+    Ok(host_registrations(root)?.iter().any(|item| own_host(item, record)))
+}
+
+/// The guard's registrations under `root`, read once for a whole pass over
+/// many journals; none when there is no guard.
+pub(crate) fn host_registrations(root: &Path) -> Result<Vec<serde_json::Value>, NativeError> {
     let file = match OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(root.join("guard.json")) {
         Ok(file) => file,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(_) => return Err(refused()),
     };
-    let state: serde_json::Value = serde_json::from_reader(file).map_err(|_| refused())?;
-    Ok(state["registrations"].as_array().ok_or_else(refused)?.iter().any(|item| own_host(item, record)))
+    let mut state: serde_json::Value = serde_json::from_reader(file).map_err(|_| refused())?;
+    match state["registrations"].take() {
+        serde_json::Value::Array(registrations) => Ok(registrations),
+        _ => Err(refused()),
+    }
 }
 
 /// Drops this boot's journals that a one-shot command would have dropped
@@ -124,12 +133,13 @@ fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError> {
         Err(_) => return Err(refused()),
     };
     let groups = macos_processes::live_groups()?;
+    let registrations = host_registrations(root)?;
     for entry in entries {
         let path = entry.map_err(|_| refused())?.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("json") { continue; }
         let Ok(file) = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&path) else { continue };
         let Ok(record) = serde_json::from_reader::<_, Record>(file) else { continue };
-        if record.boot_id != boot || !ended_one_shot(&record, root, &groups)? { continue; }
+        if record.boot_id != boot || !ended_one_shot(&record, &registrations, &groups) { continue; }
         fs::remove_file(&path).map_err(|_| refused())?;
         let socket = path.with_extension("sock");
         if fs::symlink_metadata(&socket).is_ok() { fs::remove_file(&socket).map_err(|_| refused())?; }
@@ -140,22 +150,23 @@ fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError> {
 /// A one-shot command's journal its command would have dropped itself under
 /// `unresolved_host`: no long-lived activity, supervisor and child ended,
 /// nothing of any account left in the child's process group (`live_groups`,
-/// taken once by the caller), and no host registration of its own under
-/// `root`. A process this caller cannot read counts as still running. Update
-/// clearance does not wait for these either.
+/// taken once by the caller), and none of `registrations` (the guard's, read
+/// once by the caller) is its own unresolved host. A process this caller
+/// cannot read counts as still running. Update clearance does not wait for
+/// these either.
 pub(crate) fn ended_one_shot(
-    record: &Record, root: &Path, live_groups: &std::collections::HashSet<i32>,
-) -> Result<bool, NativeError> {
+    record: &Record, registrations: &[serde_json::Value], live_groups: &std::collections::HashSet<i32>,
+) -> bool {
     let gone = |pid: i32, started: &str| match macos_processes::information(pid) {
         Ok(None) => true,
         Ok(Some(process)) => process.zombie || process.started_at != started,
         Err(_) => false,
     };
-    Ok(record.activity.is_none()
+    record.activity.is_none()
         && gone(record.supervisor_pid, &record.supervisor_started_at)
         && gone(record.child_pid, &record.child_started_at)
         && !live_groups.contains(&record.child_pid)
-        && !unresolved_host(root, record)?)
+        && !registrations.iter().any(|item| own_host(item, record))
 }
 
 fn own_host(item: &serde_json::Value, record: &Record) -> bool {
