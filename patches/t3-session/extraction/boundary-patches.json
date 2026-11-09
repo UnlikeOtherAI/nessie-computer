@@ -1953,6 +1953,62 @@
       "afterSha256": "e0fef18b9fae6501d89423dd742ba175669dadddc80d16e97808ae0e8c693f65"
     },
     {
+      "id": "lifecycle-remove-best-effort-recovery-cause-import",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "import * as Cause from \"effect/Cause\";\n",
+      "to": "",
+      "beforeSha256": "62d4cdfeb1f2623133c709ed41ef104e6864f0ae78be3c2770c73f21982307eb",
+      "afterSha256": "8dda1f0e2b1cd94a918e2e7593ddf2de77521bb526609f5176edc4dad6b4e13d"
+    },
+    {
+      "id": "lifecycle-retain-recovery-settings-stage",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "operation: Schema.Literals([\"read-projections\", \"reconcile\", \"drain-outbox\"]),",
+      "to": "operation: Schema.Literals([\"read-settings\", \"read-projections\", \"reconcile\", \"drain-outbox\"]),",
+      "beforeSha256": "8dda1f0e2b1cd94a918e2e7593ddf2de77521bb526609f5176edc4dad6b4e13d",
+      "afterSha256": "c39a3a295585c7c86b7b097d390af0b24a487c1f31ff2e256a13555977966da0"
+    },
+    {
+      "id": "lifecycle-required-recovery-settings:continueAfterRestart",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "const continueAfterRestart = yield* settings.getSettings.pipe(Effect.orElseSucceed(() => null));",
+      "to": "const continueAfterRestart = yield* settings.getSettings.pipe(Effect.mapError((cause) =>\n      new ProviderRuntimeRecoveryError({ operation: \"read-settings\", cause })));",
+      "beforeSha256": "c39a3a295585c7c86b7b097d390af0b24a487c1f31ff2e256a13555977966da0",
+      "afterSha256": "40827f605eee1165355f32e039c3dc8771e28220da7071c480a7802cf5b538c4"
+    },
+    {
+      "id": "lifecycle-required-recovery-settings:enabled",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "const enabled = yield* settings.getSettings.pipe(Effect.orElseSucceed(() => null));",
+      "to": "const enabled = yield* settings.getSettings.pipe(Effect.mapError((cause) =>\n      new ProviderRuntimeRecoveryError({ operation: \"read-settings\", cause })));",
+      "beforeSha256": "40827f605eee1165355f32e039c3dc8771e28220da7071c480a7802cf5b538c4",
+      "afterSha256": "83a323dc5c810d3dc43487cfd4780146e55e645eabf12da992ac28398da3c995"
+    },
+    {
+      "id": "lifecycle-no-unavailable-settings-as-empty-work",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "    if (!enabled) return;\n",
+      "to": "",
+      "beforeSha256": "83a323dc5c810d3dc43487cfd4780146e55e645eabf12da992ac28398da3c995",
+      "afterSha256": "32f13ab4cb95e7e8fb398ea9f9ad73c6085d84de49b038eadc9a64180273cf47"
+    },
+    {
+      "id": "lifecycle-retain-restart-preparation-failure",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "          Effect.catchCauseIf(\n            (cause) => !Cause.hasInterruptsOnly(cause),\n            (cause) =>\n              Effect.logWarning(\"Failed to prepare a restart continuation\", { threadId, cause }),\n          ),",
+      "to": "          Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause\n            : new ProviderRuntimeRecoveryError({ operation: \"reconcile\", threadId, cause })),",
+      "beforeSha256": "32f13ab4cb95e7e8fb398ea9f9ad73c6085d84de49b038eadc9a64180273cf47",
+      "afterSha256": "c3cff976601818b0149846daefc2d80bd4683e015eb0cc614fcfe266594dc225"
+    },
+    {
+      "id": "lifecycle-preserve-original-recovery-error",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "    Effect.mapError((cause) => new ProviderRuntimeRecoveryError({ operation: \"reconcile\", cause })),",
+      "to": "    Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause\n      : new ProviderRuntimeRecoveryError({ operation: \"reconcile\", cause })),",
+      "beforeSha256": "c3cff976601818b0149846daefc2d80bd4683e015eb0cc614fcfe266594dc225",
+      "afterSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9"
+    },
+    {
       "id": "process-loss-share-physical-row-digest",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "        return \"sha256:\" + createHash(\"sha256\").update(JSON.stringify([\n          \"nessie.t3.pending-effect-row.v1\", ...claimColumns.map(column => prepared.row[column]),\n        ]), \"utf8\").digest(\"hex\");",
@@ -3717,6 +3773,30 @@
       "afterSha256": "def93a53c1eaccdd3da865f54978b9e4f0955b6cd3f82d67abe54196b94462a9"
     },
     {
+      "id": "port-import:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9",
+      "afterSha256": "a1d9ae3e29d4a7b08073ee8010a397c0b66cdd7dd8c352e691ef322cab91ba63"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "e5646b4fbd9d5926c219ca156123498b8461af333bac46cfcdb5f2b65d312f9a",
+      "afterSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
+      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
+      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
+      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
+      "beforeSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52",
+      "afterSha256": "7d5873322a40f50c89bf9493267f595cf4c0e15a7e26e838047fb3b454958a6c"
+    },
+    {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RunFinalizationService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as RunFinalizationService from \"./RunFinalizationService.ts\";",
@@ -3795,22 +3875,6 @@
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
       "beforeSha256": "cc8e74f261d0da16bab662f14acbc418833e924e08e496db9a91caa0149d1999",
       "afterSha256": "6d23e1951b1be39d1ccf05c0b8e30c2f7e36eb44159c8afcd5a7dc7daa5de97a"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "e5646b4fbd9d5926c219ca156123498b8461af333bac46cfcdb5f2b65d312f9a",
-      "afterSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
-      "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
-      "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
-      "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52",
-      "afterSha256": "7d5873322a40f50c89bf9493267f595cf4c0e15a7e26e838047fb3b454958a6c"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
@@ -4011,14 +4075,6 @@
       "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
       "beforeSha256": "ea13213ad7dcb3563c1041fae9600ad3c0a9d3e42be58cb62d45b9d6b2e1e6b1",
       "afterSha256": "f350984db8c7c8bb94850048a1b6ef920eeebc825e2036698e63e125304adeb3"
-    },
-    {
-      "id": "port-import:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "62d4cdfeb1f2623133c709ed41ef104e6864f0ae78be3c2770c73f21982307eb",
-      "afterSha256": "a8e6e828d3f44d583eb5442d8d9f1818a71002cf24a7f0307618f0c6db37e99c"
     },
     {
       "id": "required-owner:ResourceCleanupService",

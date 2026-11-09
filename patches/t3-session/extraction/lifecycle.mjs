@@ -47,3 +47,35 @@ export const extractLifecycleTransactions = author => {
     + '    onCommitFailure: (connection) => recoveryFor(connection).onCommitFailure(connection),',
     'lifecycle-clean-rejected-sqlite-commit')
 }
+
+/** A protected lifecycle must retain unavailable inputs and refused writes.
+ * The original application's best-effort shutdown policy cannot certify this
+ * finite action as completed after a settings, projection or SQL failure. */
+export const extractRecoveryFailures = author => {
+  const file = 'apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts'
+  author.replace(file, 'import * as Cause from "effect/Cause";\n', '',
+    'lifecycle-remove-best-effort-recovery-cause-import')
+  author.replace(file, 'operation: Schema.Literals(["read-projections", "reconcile", "drain-outbox"]),',
+    'operation: Schema.Literals(["read-settings", "read-projections", "reconcile", "drain-outbox"]),',
+    'lifecycle-retain-recovery-settings-stage')
+  for (const name of ['continueAfterRestart', 'enabled']) {
+    author.replace(file,
+      `const ${name} = yield* settings.getSettings.pipe(Effect.orElseSucceed(() => null));`,
+      `const ${name} = yield* settings.getSettings.pipe(Effect.mapError((cause) =>
+      new ProviderRuntimeRecoveryError({ operation: "read-settings", cause })));`,
+      `lifecycle-required-recovery-settings:${name}`)
+  }
+  author.replace(file, '    if (!enabled) return;\n', '', 'lifecycle-no-unavailable-settings-as-empty-work')
+  author.replace(file, `          Effect.catchCauseIf(
+            (cause) => !Cause.hasInterruptsOnly(cause),
+            (cause) =>
+              Effect.logWarning("Failed to prepare a restart continuation", { threadId, cause }),
+          ),`, `          Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause
+            : new ProviderRuntimeRecoveryError({ operation: "reconcile", threadId, cause })),`,
+  'lifecycle-retain-restart-preparation-failure')
+  author.replace(file,
+    '    Effect.mapError((cause) => new ProviderRuntimeRecoveryError({ operation: "reconcile", cause })),',
+    '    Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause\n'
+    + '      : new ProviderRuntimeRecoveryError({ operation: "reconcile", cause })),',
+    'lifecycle-preserve-original-recovery-error')
+}

@@ -62,6 +62,46 @@ effects. Authorizing or observing the final outbox transaction alone therefore
 cannot authorize a complete startup or shutdown action. The same graph, SQLite
 owner and Layer memo map must remain in use throughout those original operations.
 
+Protected recovery now retains settings-read failures as
+`ProviderRuntimeRecoveryError` at `read-settings`, before selecting projections
+or changing any rows. Unavailable settings cannot mean disabled continuations
+or an empty recovery set. Successful settings reads retain the original global
+and per-project continuation policy.
+
+`prepareForShutdown` also propagates a selected projection or enqueue failure
+with its thread ID. It no longer logs a non-interruption failure as successful
+preparation. Defects remain failures. Its original concurrency of two remains;
+failure interrupts and joins in-flight work, including SQL rollback, before
+returning. Continuations already committed by another iteration remain durable;
+this is not an atomic transaction across all selected threads and supplies no
+automatic retry or permission to repeat them. The original deterministic
+command/effect IDs and restart planner remain unchanged.
+
+The lifecycle still runs provider shutdown after a preparation failure. It skips
+subsequent reconciliation, retains the failed state and refuses positive stop
+completion. An actual disabled setting or successfully read empty selection can
+still finish without enqueuing work; a failed observation cannot establish that
+result. A positive whole-action authority producer remains required.
+
+Failure-policy qualification on 9 November 2026, Maxis/Windows 11, Node 24.19.0,
+pnpm 10.22.0 and TypeScript 5.9.3: six public build tasks passed, followed by
+175 runtime, 14 engine, 11 producer and 14 privacy-source tests, with zero skips.
+The runtime total includes eight original recovery cases over actual SQLite,
+event sink and outbox, with synthetic settings/projection inputs. They cover
+unavailable settings, original selection/IDs, idempotence, projection failure,
+defects, real enqueue refusal, joined concurrent rollback and provider cleanup.
+The ordinary composite consumer reaches 77 contract declarations and zero
+dependency implementations. Scoped lint, caps and whitespace passed.
+
+A separate package-interface probe refused startup, shutdown reconciliation and
+preparation on unavailable settings, selected no projections and preserved every
+physical outbox field. An actual disabled setting still completed preparation.
+This used synthetic inputs and an external fixture database through the source
+ACL helper; it proves neither installed graph authority nor positive execution.
+No new native build, PostgreSQL, private API/worker compiler, signed installation
+or production flow ran. Five preexisting Markdown style findings remain in this
+guide, with zero introduced; its full style check remains unqualified.
+
 `withSessionLifecycleAction` issues a one-use finite Effect for the actual
 original action. It refuses skipped operations, repeated invocation, replacement
 results and promotion of an original failure to success. The action runs in a
