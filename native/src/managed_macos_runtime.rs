@@ -92,14 +92,28 @@ fn gated_child(release: &managed_release::Release, home: &Path, arguments: &[Str
     Ok((pid, gate[1]))
 }
 
-fn unresolved_host(root: &Path) -> Result<bool, NativeError> {
+/// Whether this runtime admitted host execution that is still unresolved: a
+/// `host_execution` registration its own child made in this boot. Another
+/// runtime's registrations are not this journal's to keep, and a restart ended
+/// any an earlier boot made. Counting every registration made each one-shot
+/// command (`describe`, every five seconds) keep its journal and exit refused
+/// once any team had run a local app: 371 journals in half an hour on
+/// dictator, a team that never started and a runtime swap that never cleared.
+fn unresolved_host(root: &Path, record: &Record) -> Result<bool, NativeError> {
     let file = match OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(root.join("guard.json")) {
         Ok(file) => file,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
         Err(_) => return Err(refused()),
     };
     let state: serde_json::Value = serde_json::from_reader(file).map_err(|_| refused())?;
-    Ok(state["registrations"].as_array().ok_or_else(refused)?.iter().any(|item| item["kind"] == "host_execution"))
+    Ok(state["registrations"].as_array().ok_or_else(refused)?.iter().any(|item| own_host(item, record)))
+}
+
+fn own_host(item: &serde_json::Value, record: &Record) -> bool {
+    item["kind"] == "host_execution"
+        && item["bootId"].as_str() == Some(record.boot_id.as_str())
+        && item["pid"].as_i64() == Some(i64::from(record.child_pid))
+        && item["startedAt"].as_str() == Some(record.child_started_at.as_str())
 }
 
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
@@ -169,7 +183,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
             if !remaining && !processes.iter().any(|process| process.group == pid && !process.zombie) {
                 // Group absence alone is not escaped-host tree proof. Its
                 // unresolved admission lease keeps this journal permanently.
-                if unresolved_host(&directory.parent().ok_or_else(refused)?)? { return Err(refused()); }
+                if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
                 let barrier = managed_runtime_context::Barrier::acquire()?;
                 fs::remove_file(&journal).map_err(|_| refused())?;
                 fs::remove_file(directory.join(&socket_name)).map_err(|_| refused())?;
@@ -188,6 +202,36 @@ mod tests {
     #[test]
     fn creation_record_rejects_unknown_fields() {
         assert!(serde_json::from_value::<Record>(serde_json::json!({"pid":1,"trusted":true})).is_err());
+    }
+
+    /// A one-shot `describe` must drop its journal while the team's daemon
+    /// holds host registrations of its own, and after a restart.
+    #[test]
+    fn only_this_childs_host_registrations_in_this_boot_keep_its_journal() {
+        let boot = "7035bda9-0000-4000-8000-000000000000";
+        let record = Record { protocol_version: 1, boot_id: boot.into(), guard_version: 2, supervisor_pid: 10,
+            supervisor_started_at: "1794222097171000".into(), child_pid: 11,
+            child_started_at: "1794222097171534".into(), release_digest: "a".repeat(64), activity: None };
+        let own = serde_json::json!({"kind":"host_execution","bootId":boot,"pid":11,"startedAt":"1794222097171534"});
+        assert!(own_host(&own, &record));
+        let mut others = Vec::new();
+        for (key, value) in [("pid", serde_json::json!(12)),
+            ("bootId", serde_json::json!("ff61df02-d264-4db7-9a2d-2fa908745780")),
+            ("startedAt", serde_json::json!("1794222097171535")), ("kind", serde_json::json!("runtime"))] {
+            let mut other = own.clone();
+            other[key] = value;
+            assert!(!own_host(&other, &record), "{key} differs");
+            others.push(other);
+        }
+        let root = tempfile::tempdir().unwrap();
+        assert!(!unresolved_host(root.path(), &record).unwrap(), "no guard, nothing to keep");
+        let guard = |registrations: &[serde_json::Value]| std::fs::write(root.path().join("guard.json"),
+            serde_json::json!({"registrations": registrations}).to_string()).unwrap();
+        guard(&others);
+        assert!(!unresolved_host(root.path(), &record).unwrap());
+        others.push(own);
+        guard(&others);
+        assert!(unresolved_host(root.path(), &record).unwrap());
     }
     #[test]
     fn unsigned_process_never_creates_a_managed_child() {
