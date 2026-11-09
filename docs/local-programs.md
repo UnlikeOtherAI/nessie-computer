@@ -156,6 +156,26 @@ times out, exits or throws, a crash, an idle close, a stop
   away failed its handshake every two minutes and left a barrier process
   behind each time.
 
+The service releases a host lease (`HostRelease`, and again on every later
+service call through `reconcile`, `service-windows/src/custody.rs`) once the
+daemon's Job Object holds nothing but the daemon, live barrier processes and
+registered runtimes that started before the lease. Those last ones are the
+coding-sessions bridge: it runs inside the daemon's job for the daemon's whole
+life, and until 9 November it alone kept every lease from being released. Minis
+had 260 leases after seven hours. The custody store refuses to load past 4096
+leases or 1 MiB, which would have stopped every launch on the computer within
+about three days. A registered runtime that started after the lease began could
+be the lease's own work, so it still holds it.
+
+Each call also checks that a lease's barrier process has ended. A PID that the
+service account cannot open belongs to a different process that reused it,
+because every process custody records first grants the service query access
+(`absent`, `windows-common/src/custody_observation.rs`). Before 9 November that
+denial failed the whole call, so one unrelated process that happened to get a
+dead barrier's PID (a `node_repl`, an `sshd`) refused every Nessie Computer
+launch until it exited. The Documents tab and the AI tab's Claude Code, Codex
+and model-server checks all start this way, so all of them failed together.
+
 A local app that keeps failing to start is retried later and later
 (`src/mcp-start-backoff.ts`): the first two failures in a row are retried at
 once, then it waits a minute, then twice as long after each further failure,

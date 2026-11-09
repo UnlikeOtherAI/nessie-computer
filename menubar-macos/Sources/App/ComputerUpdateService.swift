@@ -72,10 +72,10 @@ enum ComputerUpdateService {
 
     /// launchd keeps the job an older app registered until that job restarts,
     /// so a newer app's helper never runs by itself. Removing and adding the
-    /// registration starts this app's bundled helper. A requested restart that
-    /// ends awaiting approval opens the place to give it. When macOS refuses
-    /// the new registration, launchd runs no helper; the refusal is kept, and
-    /// `prepare` registers again.
+    /// registration starts this app's bundled helper, once macOS has finished
+    /// removing it. A requested restart that ends awaiting approval opens the
+    /// place to give it. When macOS refuses the new registration, launchd runs
+    /// no helper; the refusal is kept, and `prepare` registers again.
     @MainActor
     static func restart(requested: Bool) async {
         guard supported else { return }
@@ -86,6 +86,10 @@ enum ComputerUpdateService {
                 logger.error("Background helper restart failed to unregister: \(message, privacy: .public)")
                 return
             }
+            let settled = await ComputerUpdateRegistration.settle(status: { service.status }) {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            if !settled { logger.error("Background helper still registered ten seconds after unregister") }
         }
         register(service, automatic: !requested)
         logger.info("Background helper restarted, status: \(service.status.rawValue)")
@@ -104,12 +108,13 @@ enum ComputerUpdateService {
     /// Any other refusal is never swallowed: it is logged and kept.
     @MainActor
     private static func register(_ service: SMAppService, automatic: Bool) {
-        var record = registrationRecord
-        if automatic { record.attempts += 1 }
         var refusal: Error?
         do { try service.register() } catch { refusal = error }
-        record.failure = ComputerUpdateRegistration.failure(
-            after: refusal, status: service.status, fallback: Word.updatesRegistrationRefused.text
+        let record = ComputerUpdateRegistration.recorded(
+            registrationRecord, automatic: automatic,
+            failure: ComputerUpdateRegistration.failure(
+                after: refusal, status: service.status, fallback: Word.updatesRegistrationRefused.text
+            )
         )
         if let failure = record.failure {
             let detail = refusal.map { String(describing: $0) } ?? failure

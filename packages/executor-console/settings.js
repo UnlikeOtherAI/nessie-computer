@@ -42,7 +42,7 @@
       nc.attempt(async () => {
         try { await invoke(write, { enabled: wanted }) } catch (error) {
           input.checked = !wanted
-          throw new Error(t('settings.saveFailed', { reason: error?.message ?? error }))
+          throw new Error(t('settings.saveFailed', { reason: nc.failure.sentence(error).text }))
         }
       }, { target: input }).finally(() => { input.disabled = false })
     }

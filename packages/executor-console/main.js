@@ -40,7 +40,11 @@
   }
   const reportError = (error, target) => {
     const slot = slotFor(target)
-    slot.textContent = String(error?.message ?? error)
+    // errors.js loads after this file; a native refusal line becomes words here.
+    const { text, code } = nc.failure.sentence(error)
+    slot.textContent = text
+    if (code) slot.dataset.code = code
+    else delete slot.dataset.code
     slot.hidden = false
     const element = typeof target === 'string' ? byId(target) : target
     if (element instanceof Element && /^(INPUT|SELECT|TEXTAREA)$/.test(element.tagName)) element.setAttribute('aria-invalid', 'true')
@@ -49,6 +53,7 @@
     const slot = slotFor(target)
     slot.hidden = true
     slot.textContent = ''
+    delete slot.dataset.code
     const element = typeof target === 'string' ? byId(target) : target
     if (element instanceof Element) element.removeAttribute('aria-invalid')
   }

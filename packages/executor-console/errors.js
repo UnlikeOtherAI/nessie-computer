@@ -40,6 +40,23 @@
     }
   }
 
+  // The signed native helper refuses a launch with one machine line on standard
+  // error, `{"code":"EXECUTOR_…","status":"rejected"}`, and both hosts hand on
+  // a failed command's last line. That line is for support, never the sentence
+  // a person reads: `sentence` turns it into words and keeps the code apart.
+  const NATIVE_REFUSAL = /^\{"code":"(EXECUTOR_[A-Z0-9_]+)","status":"rejected"\}$/
+  // The selected protected runtime is not the one this app carries yet.
+  const WAITING_FOR_UPDATE = new Set(['EXECUTOR_MANAGED_RELEASE_REJECTED'])
+
+  /** `{ text, code }` for a failure shown where the person is looking. */
+  const sentence = (failure) => {
+    const text = String(failure?.message ?? failure ?? '').trim()
+    const native = NATIVE_REFUSAL.exec(text)
+    if (!native) return { text, code: null }
+    const code = native[1]
+    return { text: t(WAITING_FOR_UPDATE.has(code) ? 'errors.nativeUpdate' : 'errors.nativeRefused'), code }
+  }
+
   /**
    * Fills a failure block: the explanation, the one remedy button and the
    * Details disclosure holding the code and the raw sentence. `onRemedy(id)`
@@ -79,5 +96,5 @@
     return translated
   }
 
-  nc.failure = { translate, render }
+  nc.failure = { translate, render, sentence }
 })()

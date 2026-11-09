@@ -1,8 +1,9 @@
 import Foundation
 import ServiceManagement
 
-/// What this app's own `register()` calls did for one app version: how many it
-/// made by itself, and why macOS last refused, in macOS's own words.
+/// What this app's own `register()` calls did for one app version: how many of
+/// its automatic ones macOS refused since it last accepted one, and why macOS
+/// last refused, in macOS's own words.
 public struct ComputerUpdateRegistrationRecord: Equatable, Sendable {
     public let version: String
     public var attempts: Int
@@ -33,10 +34,41 @@ public struct ComputerUpdateRegistrationRecord: Equatable, Sendable {
 /// When this app registers its update helper with macOS, and what it keeps
 /// from a refusal.
 public enum ComputerUpdateRegistration {
-    /// Registrations this app makes by itself for one app version: the first
-    /// one (or the automatic restart's) and one more. After that only the
+    /// Refused registrations this app makes by itself for one app version: the
+    /// first refusal (the restart's, say) and one more. After that only the
     /// owner's Try again registers, so a refusal is never retried in a loop.
     public static let automaticAttempts = 2
+
+    /// The record after one `register()`. Only refusals count: on 9 November
+    /// (1.0.19) the launch's accepted registration used the first attempt, the
+    /// restart's refusal the second, and the app never registered again.
+    public static func recorded(
+        _ record: ComputerUpdateRegistrationRecord, automatic: Bool, failure: String?
+    ) -> ComputerUpdateRegistrationRecord {
+        var next = record
+        next.failure = failure
+        if failure == nil {
+            next.attempts = 0
+        } else if automatic {
+            next.attempts += 1
+        }
+        return next
+    }
+
+    /// Waits until macOS no longer reports the helper registered after
+    /// `unregister()` returned. Login Items keeps the removed job enabled for
+    /// a moment; a `register()` in that moment is refused with "Operation not
+    /// permitted" (smd: "Job is not allowed to bootstrap"), which is what left
+    /// 1.0.19 with no helper. `false` when it never settled within `polls`.
+    public static func settle(
+        polls: Int = 40, status: () -> SMAppService.Status, pause: () async -> Void
+    ) async -> Bool {
+        for poll in 0...polls {
+            if status() != .enabled { return true }
+            if poll < polls { await pause() }
+        }
+        return false
+    }
 
     /// A missing BTM record (`notFound`) is a first-registration state, not a
     /// missing certificate. `notRegistered` also follows a restart whose
