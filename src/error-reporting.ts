@@ -6,7 +6,11 @@ if (dsn) {
     dsn,
     release: process.env.SENTRY_RELEASE,
     initialScope: { tags: { component: 'computer' } },
-    integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
+    tracesSampleRate: 0,
+    integrations: defaults => [
+      ...defaults.filter(integration => integration.name !== 'ProcessSession'),
+      Sentry.captureConsoleIntegration({ levels: ['error'] }),
+    ],
   })
 }
 
