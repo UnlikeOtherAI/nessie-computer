@@ -3,6 +3,7 @@ import { canonicalExecutorJson } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, isT3NativeLaunchOperation,
   T3ExecutionAdmissionSchema, T3ExecutionFrameAdmissionSchema, T3ExecutionFramePreparationPayloadSchema,
   T3ExecutionGraphPayloadSchema, T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
+  T3ExecutionAssociationPayloadSchema, T3_EXECUTION_ASSOCIATION_DOMAIN,
   T3NativeExecutionOperationSchema, T3NativeExecutionReceiptAcceptedSchema,
   T3ExecutionSecretReadPreparationPayloadSchema, T3ExecutionSecretReadAdmissionSchema,
   T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
@@ -14,17 +15,21 @@ import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, isT3Nativ
   type T3NativeExecutionFrameInput, type T3NativeExecutionOperation, type T3NativeExecutionReceiptAccepted,
   type T3NativeExecutionSecretReadInput,
   type T3NativeExecutionPreclaimInput,
+  type T3EffectAuthorityChecked, type T3ExecutionAssociation,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import { snapshotT3LaneDelivery } from './t3-session-delivery.js'
 import type { ExecutorLocalState } from './state-store.js'
+import { createT3EffectAuthorityClient } from './t3-effect-authority-client.js'
 
 export interface T3NativeExecutionTransport {
   phase(input: T3NativeExecutionPhaseInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   frame(input: T3NativeExecutionFrameInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   secretRead(input: T3NativeExecutionSecretReadInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   preclaim(input: T3NativeExecutionPreclaimInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
+  /** No raw selection. The same actual operation and accepted association only. */
+  effect(signal: AbortSignal): Promise<T3EffectAuthorityChecked>;
   receipt(receipt: T3ExecutionReceipt, signal: AbortSignal): Promise<T3NativeExecutionReceiptAccepted>;
 }
 const refused = () => new Error('T3_NATIVE_TRANSPORT_FENCED')
@@ -44,6 +49,7 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
   const delivery = snapshotT3LaneDelivery(originalDelivery, request)
   if (!isT3NativeLaunchOperation(request) || request.kind !== 'request' || !request.commandId
     || !delivery.executionGraph) throw refused()
+  const commandId = request.commandId
   const graph = T3ExecutionGraphPayloadSchema.parse(JSON.parse(delivery.executionGraph.payload))
   const initial = state(), identityKey = identity(initial), origin = new URL(initial.apiBaseUrl)
   if (origin.protocol !== 'https:' || origin.username || origin.password || origin.search || origin.hash
@@ -57,6 +63,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     return value
   }
   current()
+  let associated: { readonly payload: Readonly<T3ExecutionAssociation>; readonly receiptDigest: string;
+    readonly expiresAtMs: number } | undefined
+  const effects = createT3EffectAuthorityClient(state)
   const binding = (value: T3ExecutionBinding) => {
     if (value.requestSha256 !== requestSha256 || value.relayHmac !== delivery.requestDigest
       || Object.entries(graph.binding).some(([key, expected]) =>
@@ -64,6 +73,7 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
   }
   const send = async (raw: T3NativeExecutionOperation, callerSignal: AbortSignal) => {
     const operation = T3NativeExecutionOperationSchema.parse(raw)
+    if (operation.operation === 'execution.effect') throw refused()
     const signal = AbortSignal.any([parentSignal, callerSignal])
     signal.throwIfAborted()
     const before = current()
@@ -169,7 +179,43 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     preclaim: async (input: T3NativeExecutionPreclaimInput, signal: AbortSignal) =>
       Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
         await send({ operation: 'execution.preclaim', input }, signal))),
-    receipt: async (receipt: T3ExecutionReceipt, signal: AbortSignal) => T3NativeExecutionReceiptAcceptedSchema.parse(
-      await send({ operation: 'execution.receipt', receipt: T3ExecutionReceiptSchema.parse(receipt) }, signal)),
+    effect: async (callerSignal: AbortSignal) => {
+      const signal = AbortSignal.any([parentSignal, callerSignal])
+      signal.throwIfAborted(); current()
+      const held = associated
+      if (!held || held.expiresAtMs <= Date.now()) throw refused()
+      const actual = held.payload
+      const grant = await effects.issue({ kind: 't3-effect', version: 1, purpose: 'execute',
+        executorId: request.executorId, environmentId: request.environmentId,
+        threadId: actual.binding.threadId, providerSessionId: actual.providerSessionId,
+        connectionEpoch: request.connectionEpoch, runtimeGeneration: request.runtimeGeneration,
+        correlationId: request.correlationId, commandId, requestDigest: delivery.requestDigest,
+        nativeAssociation: { driver: actual.binding.driver, nativeId: actual.nativeId,
+          continuationHomeKey: actual.binding.continuationHomeKey, historyHomeKey: actual.binding.historyHomeKey },
+      }, signal)
+      signal.throwIfAborted(); current()
+      if (associated !== held || Date.parse(grant.reference.expiresAt) > held.expiresAtMs
+        || held.expiresAtMs <= Date.now()) throw refused()
+      // The existing client verified this backend proof. Native still verifies
+      // it independently against its own held child, association and frame.
+      return grant.signedProof
+    },
+    receipt: async (input: T3ExecutionReceipt, signal: AbortSignal) => {
+      const receipt = T3ExecutionReceiptSchema.parse(input)
+      const accepted = T3NativeExecutionReceiptAcceptedSchema.parse(
+        await send({ operation: 'execution.receipt', receipt }, signal))
+      if (receipt.domain === T3_EXECUTION_ASSOCIATION_DOMAIN) {
+        const actual = T3ExecutionAssociationPayloadSchema.parse(JSON.parse(receipt.payload))
+        binding(actual.binding)
+        const receiptDigest = sha(receipt.payload)
+        if (canonicalExecutorJson(actual.custody) !== canonicalExecutorJson(graph.custody)
+          || associated && associated.receiptDigest !== receiptDigest) throw refused()
+        const expiresAtMs = Math.min(Date.parse(accepted.expiresAt), associated?.expiresAtMs ?? Infinity)
+        if (!associated || expiresAtMs < associated.expiresAtMs) {
+          associated = Object.freeze({ payload: Object.freeze(actual), receiptDigest, expiresAtMs })
+        }
+      }
+      return accepted
+    },
   })
 }

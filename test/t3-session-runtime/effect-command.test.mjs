@@ -46,7 +46,7 @@ test('original executor supplies the exact persisted command separately from pro
       assert.equal(yield* context, undefined)
     }), start)
     assert.deepEqual(captured, { effectId: effect.id, commandId: effect.commandId,
-      threadId: effect.threadId, effectType: 'provider-turn.start' })
+      threadId: effect.threadId, effectType: 'provider-turn.start', runId: effect.request.runId })
     assert.deepEqual(startInput, { threadId: effect.threadId, runId: effect.request.runId, willRetry: false })
   })
 
@@ -110,7 +110,7 @@ test('original executor failure retains metadata for cleanup without leaking it 
     assert.equal(yield* context, undefined)
   }), start)
   assert.deepEqual(observed, [{ effectId: effect.id, commandId: effect.commandId,
-    threadId: effect.threadId, effectType: 'provider-turn.start' }])
+    threadId: effect.threadId, effectType: 'provider-turn.start', runId: effect.request.runId }])
 })
 
 test('interruption keeps original effect metadata through joined cleanup and restores the caller context', async () => {
@@ -127,5 +127,5 @@ test('interruption keeps original effect metadata through joined cleanup and res
     assert.equal(yield* context, undefined)
   }), start)
   assert.deepEqual(cleaned, { effectId: effect.id, commandId: effect.commandId,
-    threadId: effect.threadId, effectType: 'provider-turn.start' })
+    threadId: effect.threadId, effectType: 'provider-turn.start', runId: effect.request.runId })
 })

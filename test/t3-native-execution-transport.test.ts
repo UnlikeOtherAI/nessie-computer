@@ -1,17 +1,18 @@
 import assert from 'node:assert/strict'
-import { createHash, generateKeyPairSync, verify } from 'node:crypto'
+import { createHash, generateKeyPairSync, sign, verify } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 import { canonicalExecutorJson, canonicalExecutorPayload } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, T3_SOURCE_COMMIT,
   T3_EXECUTION_GRAPH_DOMAIN, T3_EXECUTION_FRAME_PREPARATION_DOMAIN, T3_EXECUTION_RESERVATION_DOMAIN,
   T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
+  T3_EXECUTION_ASSOCIATION_DOMAIN, T3_EFFECT_SIGNATURE_DOMAIN, T3NativeExecutionIntakeSchema,
   T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN, T3_EXECUTION_PRECLAIM_ID_DOMAIN,
   T3ExecutionPreclaimPreparationPayloadSchema,
   T3NativeExecutionOperationSchema,
   type T3ExecutionReceipt, type T3NativeExecutionOperationIntake,
 } from '@nessie/executor-protocol/t3-session'
-import { createExecutorApi } from '../src/api-client.js'
+import { createExecutorApi, executorApi } from '../src/api-client.js'
 import { createT3NativeExecutionTransport } from '../src/t3-native-execution-transport.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 
@@ -308,4 +309,63 @@ test('secret response cannot reset the observation window or substitute any held
     await assert.rejects(port.secretRead({ preparationReceipt: f.preparationReceipt }, f.signal))
     assert.equal(calls, 1)
   }
+})
+
+test('effect proof requires accepted association and derives every selector from the captured launch', async t => {
+  const f = fixture(), issuer = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const association = { version: 1, binding: f.admission.binding, reservationId: f.reservationId,
+    providerSessionId: 'actual-original-session', launchDigest: hash('launch'), admissionDigest: hash('admission'),
+    processPurpose: 'provider', custody: f.custody, nativeId: 'observed-native', provider: f.generation,
+    providerImageDigest: 'a'.repeat(64), observation: { kind: 'service-held-provider-stdout',
+      requestId: '1', frameDigest: hash('stdout'), observedAtMs: Date.now() },
+    nonce: 'b'.repeat(64), issuedAtMs: Date.now(), expiresAtMs: Date.now() + 5000 }
+  const receipt = f.receipt(T3_EXECUTION_ASSOCIATION_DOMAIN, association)
+  let expiresAt = new Date(Date.now() + 60_000).toISOString(), calls = 0, replaced = false
+  const api = createExecutorApi({ fetchImpl: async () => new Response(JSON.stringify({ data: {
+    reservationId: f.reservationId, domain: receipt.domain, expiresAt,
+  } })) })
+  t.mock.method(executorApi, 't3EffectIssuerKeys', async () => ({ keys: [
+    { ...issuer.publicKey.export({ format: 'jwk' }), kid: 'issuer', alg: 'RS256', use: 'sig' },
+  ] }))
+  t.mock.method(executorApi, 'checkT3EffectAuthority', async (_url, input) => {
+    calls++
+    assert.deepEqual(input.selection, { kind: 't3-effect', version: 1, purpose: 'execute',
+      executorId: f.request.executorId, environmentId: f.request.environmentId, threadId: 'thread:one',
+      providerSessionId: association.providerSessionId, connectionEpoch: f.request.connectionEpoch,
+      runtimeGeneration: f.request.runtimeGeneration, correlationId: f.request.correlationId,
+      commandId: 'command:one', requestDigest: f.delivery.requestDigest, nativeAssociation: {
+        driver: 'codex', nativeId: association.nativeId, continuationHomeKey: 'continuation:one',
+        historyHomeKey: 'history:one' } })
+    const { signature: _signature, ...payload } = input
+    const grant = { ...input.selection, issuedAt: input.observedAt,
+      expiresAt: new Date(Date.now() + 4000).toISOString(), requestNonce: input.requestNonce,
+      requestProofDigest: hash(canonicalExecutorJson(payload)) }
+    if (replaced) f.state = { ...f.state, connectionEpoch: '2' }
+    return { grant, keyId: 'issuer', signature: sign('RSA-SHA256',
+      Buffer.from(canonicalExecutorPayload(T3_EFFECT_SIGNATURE_DOMAIN, grant)), issuer.privateKey).toString('base64url') }
+  })
+  const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+  await assert.rejects(port.effect(f.signal), /FENCED/u)
+  assert.equal(calls, 0)
+  await port.receipt(receipt, f.signal)
+  const proof = await port.effect(f.signal)
+  assert.equal(verify('RSA-SHA256', Buffer.from(canonicalExecutorPayload(T3_EFFECT_SIGNATURE_DOMAIN, proof.grant)),
+    issuer.publicKey, Buffer.from(proof.signature, 'base64url')), true)
+  assert.equal(T3NativeExecutionOperationSchema.safeParse({ operation: 'execution.effect' }).success, true)
+  assert.equal(T3NativeExecutionOperationSchema.safeParse({ operation: 'execution.effect',
+    selection: proof.grant }).success, false)
+  assert.equal(T3NativeExecutionIntakeSchema.safeParse({ operation: 'execution.effect' }).success, false)
+  await assert.rejects(port.receipt({ ...receipt, payload: JSON.stringify({ ...association,
+    nativeId: 'substituted-native' }) }, f.signal), /FENCED/u)
+  // The backend retention cap may shorten, but replay must never lengthen it.
+  expiresAt = new Date(Date.now() + 2000).toISOString()
+  await port.receipt(receipt, f.signal)
+  expiresAt = new Date(Date.now() + 60_000).toISOString()
+  await port.receipt(receipt, f.signal)
+  await assert.rejects(port.effect(f.signal), /FENCED/u)
+  replaced = true
+  await assert.rejects(port.effect(f.signal), /REFUSED/u)
+  f.controller.abort()
+  await assert.rejects(port.effect(f.signal))
+  assert.equal(calls, 3)
 })

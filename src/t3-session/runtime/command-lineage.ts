@@ -9,6 +9,7 @@ type Release = CommandLineage.PreparedRunReleaseCommandEdge
 export type SessionProviderTurnStartEffect = Pick<Outbox.OrchestrationEffectV2, 'commandId' | 'threadId' | 'request'>
 export interface SessionLaunchCommandLineage {
   readonly service: CommandLineage.SessionCommandLineage['Service']
+  readonly signal: AbortSignal
   assertInitialMessage(threadId: string): Effect.Effect<void, CommandLineage.SessionCommandLineageError>
   /** Metadata match only. The caller still needs real admission BEFORE claiming the row. */
   assertProviderTurnStart(effect: SessionProviderTurnStartEffect):
@@ -23,6 +24,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
   recheck: () => Promise<void>, signal: AbortSignal,
   observe?: SessionOriginalCommandSink): SessionLaunchCommandLineage {
   const parentCommandId = binding.commandId, threadId = binding.threadId
+  const stop = new AbortController()
   let live = true
   let initial: Readonly<Edge> | undefined
   let acceptedRun: Readonly<RunEdge> | undefined
@@ -32,6 +34,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
   const close = () => {
     if (!live) return
     live = false; initial = undefined; acceptedRun = undefined; release = undefined; released = false
+    stop.abort()
     signal.removeEventListener('abort', close)
     observe?.retire()
   }
@@ -53,6 +56,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
   signal.addEventListener('abort', close, { once: true })
   if (signal.aborted) close()
   return Object.freeze<SessionLaunchCommandLineage>({
+    signal: AbortSignal.any([signal, stop.signal]),
     service: CommandLineage.SessionCommandLineage.of({ recordInitialMessage: edge => checked(async () => {
       const captured = Object.freeze({ parentCommandId: edge.parentCommandId, commandId: edge.commandId,
         threadId: edge.threadId, messageId: edge.messageId })

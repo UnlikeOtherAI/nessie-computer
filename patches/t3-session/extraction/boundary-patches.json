@@ -1810,11 +1810,11 @@
       "file": "apps/server/src/orchestration-v2/OriginalEffectCommandContext.ts",
       "create": [
         {
-          "text": "import type { CommandId, ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type { OrchestrationEffectV2 } from \"./EffectOutbox.ts\";\n\nexport interface OriginalEffectCommand {\n  readonly effectId: string;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly effectType: OrchestrationEffectV2[\"request\"][\"type\"];\n}\n\n/** Original outbox invocation metadata only. Absent outside an executor call;\n * presence does not authorize a claim, provider, recovery or serialized frame. */\nexport class OriginalEffectCommandContext extends Context.Reference<OriginalEffectCommand | undefined>(\n  \"nessie/session-engine/OriginalEffectCommandContext\", { defaultValue: () => undefined },\n) {}\n"
+          "text": "import type { CommandId, ThreadId, RunId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type { OrchestrationEffectV2 } from \"./EffectOutbox.ts\";\n\nexport interface OriginalEffectCommand {\n  readonly effectId: string;\n  readonly commandId: CommandId;\n  readonly threadId: ThreadId;\n  readonly effectType: OrchestrationEffectV2[\"request\"][\"type\"];\n  readonly runId?: RunId;\n}\n\n/** Original outbox invocation metadata only. Absent outside an executor call;\n * presence does not authorize a claim, provider, recovery or serialized frame. */\nexport class OriginalEffectCommandContext extends Context.Reference<OriginalEffectCommand | undefined>(\n  \"nessie/session-engine/OriginalEffectCommandContext\", { defaultValue: () => undefined },\n) {}\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "0914a1436bfa6768fe092b93b778d7b2c152b82a1bdf806a05c23ea3fcf5a024"
+      "afterSha256": "2d62c765321a136a4af9796a9ac329b0df892d0128a94db569f4f1aae8aa5ae9"
     },
     {
       "id": "original-effect-command-import",
@@ -1828,9 +1828,9 @@
       "id": "original-effect-command-per-invocation",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "        }\n      }),\n    });\n  }),\n);\n\n// A running effect blocks later work",
-      "to": "        }\n      }, (execution, effect) => execution.pipe(Effect.provideService(OriginalEffectCommandContext,\n        Object.freeze({ effectId: effect.id, commandId: effect.commandId,\n          threadId: effect.threadId, effectType: effect.request.type })))),\n    });\n  }),\n);\n\n// A running effect blocks later work",
+      "to": "        }\n      }, (execution, effect) => execution.pipe(Effect.provideService(OriginalEffectCommandContext,\n        Object.freeze({ effectId: effect.id, commandId: effect.commandId,\n          threadId: effect.threadId, effectType: effect.request.type,\n          ...(effect.request.type === \"provider-turn.start\" ? { runId: effect.request.runId } : {}) })))),\n    });\n  }),\n);\n\n// A running effect blocks later work",
       "beforeSha256": "17d8ea15a22c4eacc24dc1805200d0edc64783f0e0f3a932dc4eb604b0e097b7",
-      "afterSha256": "68e94934a6ff25f4640eaf4719fd7a2860be7a843323246a642237bc70e799c9"
+      "afterSha256": "1e92535ce607b08d14f5e7a0d87162c46fecda83b83ea898641690d040a24c5f"
     },
     {
       "id": "effect-claim-monotonic-sql-import",
@@ -2279,56 +2279,56 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import { OriginalEffectCommandContext } from \"./OriginalEffectCommandContext.ts\";",
       "to": "import { SessionEffectClaimAuthority, SessionEffectClaimRefused } from \"./SessionEffectClaimAuthority.ts\";\nimport { OriginalEffectCommandContext } from \"./OriginalEffectCommandContext.ts\";",
-      "beforeSha256": "68e94934a6ff25f4640eaf4719fd7a2860be7a843323246a642237bc70e799c9",
-      "afterSha256": "d64c2bd61c199cf9490a84c3c09e59888dc3e1288ffa1c88e7b9ac2702c3edf0"
+      "beforeSha256": "1e92535ce607b08d14f5e7a0d87162c46fecda83b83ea898641690d040a24c5f",
+      "afterSha256": "c7d4624546b1cff5673ad05bd68ed94828d7c642056e54eadfcfa1a1a1fed877"
     },
     {
       "id": "protected-worker-shared-original-constructor",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "export const layerWithOptions = (\n  options: OrchestrationEffectWorkerOptions = {},\n): Layer.Layer<",
       "to": "const makeWorkerLayer = (\n  options: OrchestrationEffectWorkerOptions = {},\n  admission?: SessionEffectClaimAuthority[\"Service\"],\n): Layer.Layer<",
-      "beforeSha256": "d64c2bd61c199cf9490a84c3c09e59888dc3e1288ffa1c88e7b9ac2702c3edf0",
-      "afterSha256": "c7dc08b2717631d7792a5790d45ec11d90b8943c0fdd9d3aaa01dc643135b233"
+      "beforeSha256": "c7d4624546b1cff5673ad05bd68ed94828d7c642056e54eadfcfa1a1a1fed877",
+      "afterSha256": "28b14e0b55b4a1db991e85f7e5f866f560aeb6cced1ea3bc601666408c457b34"
     },
     {
       "id": "protected-worker-admit-before-original-claim",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "      // The worker probes for work repeatedly, including when the outbox is empty.",
       "to": "      const claimNext = (excludeRestartContinuations: boolean) => {\n        if (admission === undefined) return outbox.claimNext({ workerId, excludeRestartContinuations });\n        return Effect.scoped(Effect.gen(function* () {\n          const commandIds = yield* admission.commands;\n          const prepared = yield* outbox.prepareClaim({ workerId, commandIds, excludeRestartContinuations });\n          if (Option.isNone(prepared)) return Option.none();\n          let called = false;\n          let actual: Option.Option<EffectOutbox.OrchestrationEffectV2> | undefined;\n          const admitted = yield* admission.withClaim(prepared.value, (deadline) => Effect.gen(function* () {\n            if (called) return yield* new EffectOutbox.EffectOutboxError({ operation: \"claim-candidate-replayed\" });\n            called = true;\n            actual = yield* outbox.claimPrepared({ candidate: prepared.value, ...deadline });\n            return actual;\n          }));\n          // A required host cannot substitute a fabricated success or a different\n          // query result for the actual original conditional transition.\n          if ((!called && Option.isSome(admitted)) || (called && admitted !== actual)) {\n            return yield* Effect.fail(new SessionEffectClaimRefused());\n          }\n          return admitted;\n        }));\n      };\n\n      // The worker probes for work repeatedly, including when the outbox is empty.",
-      "beforeSha256": "c7dc08b2717631d7792a5790d45ec11d90b8943c0fdd9d3aaa01dc643135b233",
-      "afterSha256": "760b00b46a56d7993ae0ab2dc24cc702f20c2e6b4d8b811d8fd244a2134ea1b1"
+      "beforeSha256": "28b14e0b55b4a1db991e85f7e5f866f560aeb6cced1ea3bc601666408c457b34",
+      "afterSha256": "537d157ac883a7643f768a2cfece750d4698d9d1a343e008f7292cfb3aa7ed23"
     },
     {
       "id": "protected-worker-use-admitted-claim",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "            outbox.claimNext({ workerId, excludeRestartContinuations }),",
       "to": "            claimNext(excludeRestartContinuations),",
-      "beforeSha256": "760b00b46a56d7993ae0ab2dc24cc702f20c2e6b4d8b811d8fd244a2134ea1b1",
-      "afterSha256": "6b0243bf1f47ba02a4171b9b202f2cf6ce13ff3ee663c7657a65f783761a4b2f"
+      "beforeSha256": "537d157ac883a7643f768a2cfece750d4698d9d1a343e008f7292cfb3aa7ed23",
+      "afterSha256": "464604cbbc8836e3cb98e73de795a4eaa2ba2d1bfe36cee9bece2d31f918d87e"
     },
     {
       "id": "protected-worker-admission-wakeup",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "        awaitWork: outbox.awaitAvailable,",
       "to": "        awaitWork: admission === undefined ? outbox.awaitAvailable\n          : Effect.raceFirst(outbox.awaitAvailable, admission.awaitChanged),",
-      "beforeSha256": "6b0243bf1f47ba02a4171b9b202f2cf6ce13ff3ee663c7657a65f783761a4b2f",
-      "afterSha256": "6fc3623242f254ee051d7de2e62c792abb65f5bb5e91493a13e39ee90fc5f3f4"
+      "beforeSha256": "464604cbbc8836e3cb98e73de795a4eaa2ba2d1bfe36cee9bece2d31f918d87e",
+      "afterSha256": "e4d4b365c440a669760fac058f7595ff881f698ed3bf87e792628afbd54dd29b"
     },
     {
       "id": "protected-worker-scope-next-deadline",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "        nextClaimableAt: outbox.nextClaimableAt.pipe(",
       "to": "        nextClaimableAt: (admission === undefined ? outbox.nextClaimableAt\n          : admission.commands.pipe(Effect.flatMap(outbox.nextClaimableAtForCommands))).pipe(",
-      "beforeSha256": "6fc3623242f254ee051d7de2e62c792abb65f5bb5e91493a13e39ee90fc5f3f4",
-      "afterSha256": "2d437c834cd6f8b9c1d254517fdca009af8307a0d1057f62f9a2714f596254b5"
+      "beforeSha256": "e4d4b365c440a669760fac058f7595ff881f698ed3bf87e792628afbd54dd29b",
+      "afterSha256": "44334035820e951da4b39b50e08fa55ce02b4fdf4cc3f8c121ef6843918bdab9"
     },
     {
       "id": "protected-worker-required-session-layer",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "export const layer = layerWithOptions();",
       "to": "export const layerWithOptions = (options: OrchestrationEffectWorkerOptions = {}) => makeWorkerLayer(options);\nexport const layer = layerWithOptions();\n/** No default admission owner; source metadata and a reserve receipt cannot supply it. */\nexport const sessionLayerWithOptions = (options: OrchestrationEffectWorkerOptions = {}) =>\n  Layer.unwrap(Effect.map(SessionEffectClaimAuthority, (admission) => makeWorkerLayer(options, admission)));\nexport const sessionLayer = sessionLayerWithOptions();",
-      "beforeSha256": "2d437c834cd6f8b9c1d254517fdca009af8307a0d1057f62f9a2714f596254b5",
-      "afterSha256": "d8f508a50a2f10549dd2409ead75417de27d0d187d7b5fe44c7aa5bf38f2c78c"
+      "beforeSha256": "44334035820e951da4b39b50e08fa55ce02b4fdf4cc3f8c121ef6843918bdab9",
+      "afterSha256": "5030eed90b9da38526b2965aaf9eefaae41da9c9b50c5d114b0d326ea952564b"
     },
     {
       "id": "provider-original-secret-plan",
@@ -4016,80 +4016,80 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as RunFinalizationService from \"./RunFinalizationService.ts\";",
       "to": "import * as RunFinalizationService from \"./RunFinalizationService.session-port.ts\";",
-      "beforeSha256": "d8f508a50a2f10549dd2409ead75417de27d0d187d7b5fe44c7aa5bf38f2c78c",
-      "afterSha256": "cb0a3686a4b5dea436c7c937f245dc42df5bb364e23056242ef6deff13be2742"
+      "beforeSha256": "5030eed90b9da38526b2965aaf9eefaae41da9c9b50c5d114b0d326ea952564b",
+      "afterSha256": "489730b36bca5208c6a04cf215848d5f84b65aeb447d9ef21d1e7a1ee7cb4778"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ResourceCleanupService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ResourceCleanupService from \"./ResourceCleanupService.ts\";",
       "to": "import * as ResourceCleanupService from \"./ResourceCleanupService.session-port.ts\";",
-      "beforeSha256": "cb0a3686a4b5dea436c7c937f245dc42df5bb364e23056242ef6deff13be2742",
-      "afterSha256": "5134d8e568b50fcbed732a72044d637dc774310d71ccd1d9374e325a2f3ec79b"
+      "beforeSha256": "489730b36bca5208c6a04cf215848d5f84b65aeb447d9ef21d1e7a1ee7cb4778",
+      "afterSha256": "f76c79f895445ec52f30e3142440a90e84b0df199ee32b10ad61422d246c8ac1"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.ts\";",
       "to": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.session-port.ts\";",
-      "beforeSha256": "5134d8e568b50fcbed732a72044d637dc774310d71ccd1d9374e325a2f3ec79b",
-      "afterSha256": "3a29222a2487811707898a073a7f6927b76523514fce655c007ba3ea66e6e2a8"
+      "beforeSha256": "f76c79f895445ec52f30e3142440a90e84b0df199ee32b10ad61422d246c8ac1",
+      "afterSha256": "172e71c569abad0064d15608da14b5f4789c6a73688e127c8d3b4663a0d26c8a"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderSessionManager from \"./ProviderSessionManager.ts\";",
       "to": "import * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "3a29222a2487811707898a073a7f6927b76523514fce655c007ba3ea66e6e2a8",
-      "afterSha256": "b585ddeae2a3b696237dab725e89212fc071b882f5189743aa09003380287d6b"
+      "beforeSha256": "172e71c569abad0064d15608da14b5f4789c6a73688e127c8d3b4663a0d26c8a",
+      "afterSha256": "46eed44e241d1ccaddbbf8f544b3ae561136360fe6a5465173b98d43f53fbae1"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.ts\";",
       "to": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.session-port.ts\";",
-      "beforeSha256": "b585ddeae2a3b696237dab725e89212fc071b882f5189743aa09003380287d6b",
-      "afterSha256": "f415e777096266b1026d4bb5656c87ca16cdac5004d3d0b6dc2ae9f1e8b5610c"
+      "beforeSha256": "46eed44e241d1ccaddbbf8f544b3ae561136360fe6a5465173b98d43f53fbae1",
+      "afterSha256": "19fa982538bd09bf085d9c8fdb7c1dd3329c700d5e2f2278d80e4a8dc1b0efc8"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnStartService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.ts\";",
       "to": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.session-port.ts\";",
-      "beforeSha256": "f415e777096266b1026d4bb5656c87ca16cdac5004d3d0b6dc2ae9f1e8b5610c",
-      "afterSha256": "46865fc2e09315b9695da548688e202a52fa5b9b6446fd18460f703b214b29f1"
+      "beforeSha256": "19fa982538bd09bf085d9c8fdb7c1dd3329c700d5e2f2278d80e4a8dc1b0efc8",
+      "afterSha256": "a28218fdf75bc7ff2868f5ff0fb67afa05c66bb99236c4d4d1389f6816bddb00"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RuntimeRequestService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as RuntimeRequestService from \"./RuntimeRequestService.ts\";",
       "to": "import * as RuntimeRequestService from \"./RuntimeRequestService.session-port.ts\";",
-      "beforeSha256": "46865fc2e09315b9695da548688e202a52fa5b9b6446fd18460f703b214b29f1",
-      "afterSha256": "9af3233bcc9cfb83b4170ceb483d953601db003f6a60cc693698fa7addbb57f3"
+      "beforeSha256": "a28218fdf75bc7ff2868f5ff0fb67afa05c66bb99236c4d4d1389f6816bddb00",
+      "afterSha256": "c971e72b89a255502ef1df039fd7a8bd8695ec1871eb0079523e4426efa0eb91"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.ts\";",
       "to": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.session-port.ts\";",
-      "beforeSha256": "9af3233bcc9cfb83b4170ceb483d953601db003f6a60cc693698fa7addbb57f3",
-      "afterSha256": "53b9a95443b2588a8c4ebd124462719289c903d6a56954f51fe5b03abc703fec"
+      "beforeSha256": "c971e72b89a255502ef1df039fd7a8bd8695ec1871eb0079523e4426efa0eb91",
+      "afterSha256": "311bb70e1c667609777b58bb2a899c28d203e582293f86539378198d03ea6bd9"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
       "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "53b9a95443b2588a8c4ebd124462719289c903d6a56954f51fe5b03abc703fec",
-      "afterSha256": "cc8e74f261d0da16bab662f14acbc418833e924e08e496db9a91caa0149d1999"
+      "beforeSha256": "311bb70e1c667609777b58bb2a899c28d203e582293f86539378198d03ea6bd9",
+      "afterSha256": "6626e0692ce25440479b2589325f83f860b03f240b9783f94600440234935e34"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "cc8e74f261d0da16bab662f14acbc418833e924e08e496db9a91caa0149d1999",
-      "afterSha256": "6d23e1951b1be39d1ccf05c0b8e30c2f7e36eb44159c8afcd5a7dc7daa5de97a"
+      "beforeSha256": "6626e0692ce25440479b2589325f83f860b03f240b9783f94600440234935e34",
+      "afterSha256": "799bb740211937abcb34d7e7678140953186b239a58757cef052518c02bc2599"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
@@ -4328,8 +4328,8 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "  | RunFinalizationService.RunFinalizationService\n",
       "to": "  | RunFinalizationService.RunFinalizationService\n  | ResourceCleanupService.ResourceCleanupService\n",
-      "beforeSha256": "6d23e1951b1be39d1ccf05c0b8e30c2f7e36eb44159c8afcd5a7dc7daa5de97a",
-      "afterSha256": "28b577caf95f26c3007117a3fcd953f783891d47f550d09afe8b12f4dff98933"
+      "beforeSha256": "799bb740211937abcb34d7e7678140953186b239a58757cef052518c02bc2599",
+      "afterSha256": "8faaffa03ec1c3e6157191fc3e047eea50ac2bc932d861d0ead725e53f5b07de"
     }
   ]
 }

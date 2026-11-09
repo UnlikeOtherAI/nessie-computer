@@ -32,7 +32,7 @@ const extractionBytes = readFileSync(new URL(`../../${extractionPath}`, import.m
 const legacyExtraction = committed(producerCommit, extractionPath)
 assert.equal(hash(legacyExtraction), '7af46ac8bf7d67cd59bb986150db5324e709856d94755d29e029858177a9a4ac')
 assert.equal(JSON.parse(legacyExtraction).patches.length, 150)
-assert.equal(hash(extractionBytes), '3eab27a4e7552c56a6fdd4bc6cbcff359278f566681bfe7727c02a42b1c7615d')
+assert.equal(hash(extractionBytes), '79f7810c30f9fb174ef815bb7b7962d9ff66c225b083a4d28d2c0967759bc2e9')
 const extraction = JSON.parse(extractionBytes)
 assert.equal(extraction.patches.length, 384)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))

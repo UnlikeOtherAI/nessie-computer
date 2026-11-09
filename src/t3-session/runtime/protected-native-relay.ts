@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 import { T3NativeExecutionOperationSchema, T3NativeExecutionOperationResultSchema,
   T3ExecutionSignedAdmissionSchema, T3NativeExecutionReceiptAcceptedSchema,
+  T3EffectAuthorityCheckedSchema,
   type T3NativeExecutionOperation, type T3NativeExecutionOperationResult,
 } from '@nessie/executor-protocol/t3-session'
 import type { T3NativeExecutionTransport } from '../../t3-native-execution-transport.js'
@@ -61,6 +62,8 @@ export function createProtectedNativeRelay(send: (result: ProtectedNativeResult)
                 ? await entry.port.secretRead(operation.input, entry.signal)
                 : operation.operation === 'execution.preclaim'
                   ? await entry.port.preclaim(operation.input, entry.signal)
+                  : operation.operation === 'execution.effect'
+                    ? await entry.port.effect(entry.signal)
                 : await entry.port.receipt(operation.receipt, entry.signal)
           entry.signal.throwIfAborted()
           if (!live || entries.get(message.operationId) !== entry) throw protectedRuntimeRefused()
@@ -153,6 +156,8 @@ export function createProtectedNativeClient(send: (request: ProtectedNativeReque
           await tracked({ operation: 'execution.secretRead', input }, signal)),
         preclaim: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
           await tracked({ operation: 'execution.preclaim', input }, signal)),
+        effect: async signal => T3EffectAuthorityCheckedSchema.parse(
+          await tracked({ operation: 'execution.effect' }, signal)),
         receipt: async (receipt, signal) => T3NativeExecutionReceiptAcceptedSchema.parse(
           await tracked({ operation: 'execution.receipt', receipt }, signal)),
       })

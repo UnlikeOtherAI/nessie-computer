@@ -3,6 +3,7 @@ import test from 'node:test'
 import { createProtectedNativeRelay, createProtectedNativeClient }
   from '../../dist/t3-session/runtime/protected-native-relay.js'
 import { ProtectedRuntimeOutputSchema } from '../../dist/t3-session/runtime/protected-wire.js'
+import { providerFrameFixture } from './provider-frame-fixture.mjs'
 
 const parent = () => new AbortController()
 const phase = { phase: 'reserve', graphId: 'a'.repeat(64) }
@@ -198,4 +199,49 @@ test('closing a preclaim port aborts and joins its original HTTP demand before r
   await closing
   assert.equal(drained, true)
   await daemon.close()
+})
+
+test('effect relay uses only the captured port and refuses selectors, replay and a retired port', async () => {
+  const f = await providerFrameFixture(), checked = f.proof()
+  let observed, calls = 0
+  const stop = parent()
+  const child = createProtectedNativeClient(async request => { observed = request; daemon.receive(request) })
+  const daemon = createProtectedNativeRelay(async result => child.receive(result), () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
+    preclaim: unsupported, receipt: unsupported, effect: async signal => {
+      assert.equal(signal.aborted, false); calls++; return checked
+    } }, stop.signal)
+  const local = child.open(held.operationId, stop.signal)
+  assert.deepEqual(await local.port.effect(stop.signal), checked)
+  assert.deepEqual(observed.operation, { operation: 'execution.effect' })
+  assert.equal(observed.operationId, held.operationId)
+  assert.throws(() => daemon.receive(observed), /REFUSED/u)
+  for (const injected of [{ selection: checked.grant }, { input: {} }, { commandId: 'other' }]) {
+    assert.equal(ProtectedRuntimeOutputSchema.safeParse({ ...observed,
+      operation: { ...observed.operation, ...injected } }).success, false)
+  }
+  await local.close(); await held.close()
+  await assert.rejects(local.port.effect(stop.signal))
+  assert.equal(calls, 1)
+  await child.close(); await daemon.close(); f.lineage.close()
+})
+
+test('closing an effect port aborts and joins its actual demand before releasing the association', async () => {
+  const f = await providerFrameFixture(), entered = Promise.withResolvers(), finished = Promise.withResolvers()
+  let drained = false
+  const daemon = createProtectedNativeRelay(async () => {}, () => assert.fail('relay failed'))
+  const held = daemon.register({ phase: unsupported, frame: unsupported, secretRead: unsupported,
+    preclaim: unsupported, receipt: unsupported, effect: async signal => {
+      entered.resolve(signal); await finished.promise; return f.proof()
+    } }, parent().signal)
+  daemon.receive({ type: 'native', operationId: held.operationId, callId: 'c'.repeat(64),
+    operation: { operation: 'execution.effect' } })
+  const signal = await entered.promise
+  const closing = held.close().then(() => { drained = true })
+  assert.equal(signal.aborted, true)
+  await Promise.resolve()
+  assert.equal(drained, false)
+  finished.resolve(); await closing
+  assert.equal(drained, true)
+  await daemon.close(); f.lineage.close()
 })

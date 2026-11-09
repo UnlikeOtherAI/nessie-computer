@@ -6,7 +6,7 @@ import type { Readable } from 'node:stream'
 import { CodexClient, CodexStdio, CodexErrors, type CodexSerializedOutput } from '@nessie/t3-session-source/engine'
 import type { HeldNativeSessionProvider } from './native-launch.js'
 import type { EffectValue } from './effect-types.js'
-import { isSessionScopeOpen } from './native-effect.js'
+import { isSessionScopeOpen, joinedNativeEffect } from './native-effect.js'
 
 type Termination = Parameters<typeof CodexStdio.makeTerminationError>[0]
 type ExitCode = EffectValue<Termination['exitCode']>
@@ -19,7 +19,8 @@ export const makeProtectedOriginalCodexClient = (provider: HeldNativeSessionProv
   Effect.Effect<CodexClient.CodexAppServerClient['Service'], never, Scope.Scope> => Effect.gen(function* () {
   if (provider.driver !== 'codex') return yield* Effect.die(new Error('T3_CODEX_PROVIDER_MISMATCH'))
   const scope = yield* Scope.Scope
-  const current = Effect.suspend(() => isSessionScopeOpen(scope) ? Effect.void : Effect.fail(
+  const current = Effect.suspend(() => isSessionScopeOpen(scope) && !provider.signal.aborted
+    ? Effect.void : Effect.fail(
     new CodexErrors.CodexAppServerTransportError({ operation: 'write-output-stream',
       cause: new Error('T3_CODEX_ORIGINAL_HOST_REFUSED') })))
   const serializedOutput: CodexSerializedOutput = {
@@ -51,5 +52,23 @@ export const makeProtectedOriginalCodexClient = (provider: HeldNativeSessionProv
   })
   const termination = CodexStdio.makeTerminationError({ exitCode,
     pid: provider.process.pid as Termination['pid'] }, stderr.read)
-  return yield* CodexClient.make(stdio, { serializedOutput }, termination)
+  const client = yield* CodexClient.make(stdio, { serializedOutput }, termination)
+  // The actual original adapter awaits these responses before publishing its
+  // provider thread. Native already observed the same stdout; no response ID is
+  // supplied as authority. Both typed and raw original resume paths use this
+  // handoff, and an uncertain association cannot be retried by another request.
+  const associate = yield* Effect.cached(joinedNativeEffect(async signal => {
+    signal.throwIfAborted(); provider.signal.throwIfAborted()
+    await provider.associate()
+    signal.throwIfAborted(); provider.signal.throwIfAborted()
+  }, () => new CodexErrors.CodexAppServerTransportError({ operation: 'read-input-stream',
+    cause: new Error('T3_CODEX_ASSOCIATION_REFUSED') })))
+  const accepted = (method: string) => method === 'thread/start' || method === 'thread/resume' || method === 'thread/fork'
+    ? current.pipe(Effect.andThen(associate), Effect.andThen(current)) : Effect.void
+  return CodexClient.CodexAppServerClient.of({ ...client,
+    request: (method, payload) => client.request(method, payload).pipe(Effect.tap(() => accepted(method))),
+    raw: { ...client.raw,
+      request: (method, payload) => client.raw.request(method, payload).pipe(Effect.tap(() => accepted(method))),
+    },
+  })
 })

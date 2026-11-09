@@ -26,11 +26,21 @@ cannot use the bootstrap frame path.
 `createProtectedCodexSerialization` copies the exact encoder bytes and the
 preparation's original command/correlation/HMAC/provider-session context before
 queueing. It bounds captures to eight, 256 KiB total and 128 KiB per frame. Each
-write obtains a service-held frame receipt, relays it for a fresh signed FRAME,
-and awaits `commitFrame`. Cancellation joins that write. Association permanently
-closes this bootstrap writer; post-association commands need a distinct effect
-binding, which is not supplied by this adapter. No latest-grant lookup or generic
-stdin is used.
+bootstrap write obtains a service-held frame receipt, relays it for a fresh signed
+FRAME, and awaits `commitFrame`. Cancellation joins that write. Association closes
+bootstrap input and discards its remaining captures. A capture cannot change phase.
+
+After the native association receipt is accepted by the backend, the same Codex
+adapter can capture the initial `provider-turn.start` effect. It copies the actual
+original executor's command, thread and run before the queue and matches them
+against the accepted preparation-release lineage at capture and drain. It stages
+the exact bytes through `stageEffectFrame`, obtains the existing backend effect
+proof and awaits `commitEffectFrame`'s native write acknowledgement. Native still
+verifies that proof independently against its held child, association and bytes.
+Retiring the original lineage aborts the provider and pending work. This path is
+limited to the captured initial launch operation while its demand remains open;
+later commands, human answers and Claude associated input need their own binding.
+No latest-grant lookup or generic stdin is used.
 
 `withReservedSessionLaunch` retains the same recognized selection and original
 engine scope across reserve, actual native preparation, launch and association.
@@ -40,17 +50,29 @@ retains that descriptor and starts only the signed launch. Association consumes
 native's own held stdout evidence. Callback exit drains serialization and
 association before positive provider Job clearance. `makeProtectedOriginalCodexClient`
 uses the original client, codecs, stderr tail and exit handling; its generic
-Stdio output refuses. These internal source adapters are not yet called by an
-activated original `launchThread` graph.
+Stdio output refuses. Its original typed and raw thread-start/resume/fork response
+paths await the native association handoff before returning the provider thread.
+They pass no caller-selected native ID, and reuse the same result or failure
+without reissuing association. These internal source adapters are not yet called
+by an activated original `launchThread` graph.
 
 `protected-native-relay.ts` implements both finite pipe endpoints. An operation
-port accepts only phase/frame/secretRead/receipt requests; it carries no caller-supplied
-original operation, keys, frame bytes or method/hash selector. Call IDs cannot
-replay, responses cannot cross operation IDs, and close aborts then joins pending
+port accepts only phase/frame/secretRead/preclaim/receipt/effect requests. It
+carries no caller-supplied original operation, keys, frame bytes or method/hash
+selector. Call IDs cannot replay, responses cannot cross operation IDs, and close
+aborts then joins pending
 HTTP demand. The fixed entry and daemon recognize these wire messages. The
 production `open` registration still refuses: the complete original activation
 and its preparation-effect authority are not bound. Therefore no native port is
 registered from inspection, and none of this advertises executing readiness.
+
+The child-only `execution.effect` message has no selection fields. Its daemon
+port derives the entire selection from the original offered operation and the
+backend-accepted association, then uses the existing effect endpoint and RSA
+verifier. Association replay cannot extend retention. Source/parent cancellation,
+identity replacement, a different association or an expired cap fences the result.
+This message is absent from the native-execution HTTP intake; no new backend
+route, signer or authority domain is introduced.
 
 The `secretRead` child method forwards only the strict preparation receipt to
 the already captured daemon transport. Both directions retain the operation ID
@@ -263,8 +285,9 @@ A failed preparation cannot reopen that factory; owner-scope closure revokes
 an escaped factory even while the outer reservation remains held.
 
 This does not activate production `open`. The real snapshot/text-generation
-services, TurnStart/MCP/workspace authority, original effect lineage, association
-placement and post-association writes remain unbound. No new authority follows
+services and TurnStart/MCP/workspace authority remain unbound. Initial Codex
+association and frame writing now have the finite binding described above;
+later operation lifetimes remain unfinished. No new authority follows
 from successfully constructing an adapter. Both application and derived execution
 adapters now receive request privacy after extraction. The selected adapter
 excludes the application protocol logger; generation refuses a later logger

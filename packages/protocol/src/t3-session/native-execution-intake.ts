@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { T3ExecutionIssuerDescriptorSchema, T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
   T3_EXECUTION_RESERVATION_DOMAIN, T3_EXECUTION_PREPARATION_DOMAIN, T3_EXECUTION_ASSOCIATION_DOMAIN,
 } from './native-execution.js'
+import { T3EffectAuthorityCheckedSchema } from './effect-authority.js'
 
 const id = z.string().regex(/^[a-f0-9]{64}$/u)
 export const T3NativeExecutionPhaseInputSchema = z.discriminatedUnion('phase', [
@@ -31,7 +32,12 @@ const secretRead = z.object({ operation: z.literal('execution.secretRead'),
   input: T3NativeExecutionSecretReadInputSchema }).strict()
 const receipt = z.object({ operation: z.literal('execution.receipt'), receipt: T3ExecutionReceiptSchema }).strict()
 const preclaim = z.object({ operation: z.literal('execution.preclaim'), input: T3NativeExecutionPreclaimInputSchema }).strict()
-export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation', [phase, frame, secretRead, preclaim, receipt])
+// Child-only request: its captured daemon port derives every selector from an
+// already accepted native association and uses the existing effect endpoint.
+// It is deliberately absent from the native-execution HTTP intake below.
+const effect = z.object({ operation: z.literal('execution.effect') }).strict()
+export const T3NativeExecutionOperationSchema = z.discriminatedUnion('operation',
+  [phase, frame, secretRead, preclaim, receipt, effect])
 export type T3NativeExecutionOperation = z.infer<typeof T3NativeExecutionOperationSchema>
 
 const envelope = z.object({ executorId: z.string().uuid(),
@@ -58,6 +64,6 @@ export const T3NativeExecutionReceiptAcceptedSchema = z.object({ reservationId: 
 }).strict()
 export type T3NativeExecutionReceiptAccepted = z.infer<typeof T3NativeExecutionReceiptAcceptedSchema>
 export const T3NativeExecutionOperationResultSchema = z.union([
-  T3ExecutionSignedAdmissionSchema, T3NativeExecutionReceiptAcceptedSchema,
+  T3ExecutionSignedAdmissionSchema, T3NativeExecutionReceiptAcceptedSchema, T3EffectAuthorityCheckedSchema,
 ])
 export type T3NativeExecutionOperationResult = z.infer<typeof T3NativeExecutionOperationResultSchema>
