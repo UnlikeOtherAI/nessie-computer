@@ -130,6 +130,11 @@ export const verifyDocumentsTab = async (browser, ui, output) => {
     await showTab(page, 'documents')
     await page.getByText('Couldn’t check sync on this computer. The local request timed out.').waitFor()
     await shot('failed')
+    // A refused native launch (Minis, 9 November) reads as words, not the helper's line.
+    await page.evaluate(() => { window.syncStatusFails = '{"code":"EXECUTOR_MANAGED_LAUNCH_REJECTED","status":"rejected"}' })
+    await page.locator('#documents-reload').click()
+    await page.getByText('Couldn’t check sync on this computer. Nessie Computer couldn’t start this. Try again in a moment.').waitFor()
+    assert.doesNotMatch(await page.locator('#tab-documents').textContent(), /EXECUTOR_|"status"/)
     await page.evaluate(() => { window.syncStatusFails = null })
     await page.locator('#documents-reload').click()
     await page.locator('#documents-load-error').waitFor({ state: 'hidden' })
