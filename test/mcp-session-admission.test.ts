@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -223,4 +223,25 @@ test('on Windows a local app runs in the job helper\'s Job Object, so a failed s
       await working.stopAll()
       assert.deepEqual(ok.events, ['release'])
     } finally { await sessions.stopAll() }
+  })
+
+test('on Windows a bare name finds its .cmd through PATHEXT, as Kelpie\'s npm shim is, and runs in the Job Object',
+  { skip: jobHelper ? false : 'Windows with the native job helper beside the running Node only' }, async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'nessie-mcp-cmd-'))
+    const shim = recorder()
+    const control = createCodingProcessControl('win32', { jobHelper, packaged: false })
+    const sessions = createExecutorMcpSessionManager([{ name: 'app', command: ['scripted-shim'],
+      env: { NESSIE_TEST_MCP_MODE: 'ok', PATH: `${directory};${process.env.PATH ?? ''}` } }],
+    { maxResultBytes: 65_536 }, { admit: shim.admit, processControl: control, log: () => undefined,
+      startTimeoutMs: 15_000 })
+    try {
+      await writeFile(join(directory, 'scripted-shim.cmd'), `@"${process.execPath}" "${SCRIPT}" %*\r\n`)
+      assert.equal((await sessions.listTools('app')).success, true)
+      await sessions.stopAll()
+      assert.deepEqual(shim.events, ['release'])
+      assert.ok(shim.identities.every((identity) => identity.containment === 'windows_job'))
+    } finally {
+      await sessions.stopAll()
+      await rm(directory, { force: true, recursive: true })
+    }
   })
