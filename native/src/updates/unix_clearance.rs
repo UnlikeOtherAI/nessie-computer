@@ -131,11 +131,11 @@ pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResu
     // the swap that brings the corrected creator could never clear. Nothing
     // is pruned here; the new creator removes them on its first launch.
     #[cfg(target_os = "macos")]
-    let processes = crate::macos_processes::all().map_err(|_| ERROR)?;
+    let groups = crate::macos_processes::live_groups().map_err(|_| ERROR)?;
     for (uid, root) in roots()? {
         for record in records(uid, &root)? {
             #[cfg(target_os = "macos")]
-            if matches!(crate::managed_runtime::ended_one_shot(&record, &root, &processes), Ok(true)) { continue; }
+            if matches!(crate::managed_runtime::ended_one_shot(&record, &root, &groups), Ok(true)) { continue; }
             let _ = record;
             return Ok(false);
         }

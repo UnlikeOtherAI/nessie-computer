@@ -58,24 +58,44 @@ fn product_name(name: &str) -> bool {
     ["node", "nodejs", "Nessie", "nessie", "Nessie Executor"].contains(&name) || name.starts_with("nessie-executor")
 }
 
-pub fn all() -> Result<Vec<Process>, NativeError> {
-    // Refuse a filled buffer; a truncated process list cannot establish absence.
+/// Every process id, refusing a filled buffer: a truncated list cannot establish absence.
+fn pids() -> Result<Vec<i32>, NativeError> {
     let mut pids = vec![0_i32; 65_536];
     let capacity = (pids.len() * std::mem::size_of::<i32>()) as i32;
     let bytes = unsafe { proc_listpids(1, 0, pids.as_mut_ptr().cast(), capacity) };
     if bytes <= 0 || bytes >= capacity || bytes % 4 != 0 { return Err(refused()); }
+    Ok(pids.into_iter().take(bytes as usize / 4).filter(|pid| *pid > 0).collect())
+}
+
+/// The short record, readable for every account's process; `None` once it is gone.
+/// The full record is refused (EPERM) for other users, including Root daemons.
+fn short(pid: i32) -> Result<Option<libc::proc_bsdshortinfo>, NativeError> {
+    let mut info = std::mem::MaybeUninit::<libc::proc_bsdshortinfo>::zeroed();
+    let size = std::mem::size_of::<libc::proc_bsdshortinfo>() as i32;
+    if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDT_SHORTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
+        if std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) { return Ok(None); }
+        return Err(refused());
+    }
+    Ok(Some(unsafe { info.assume_init() }))
+}
+
+/// The process groups that still hold a live process of any account. Unlike
+/// `all`, which keeps to the caller's account, this sees a descendant another
+/// account's command left behind, so a Root caller can rule out a surviving group.
+pub fn live_groups() -> Result<std::collections::HashSet<i32>, NativeError> {
+    let mut groups = std::collections::HashSet::new();
+    for pid in pids()? {
+        // sys/proc.h SZOMB
+        if let Some(info) = short(pid)? { if info.pbsi_status != 5 { groups.insert(info.pbsi_pgid as i32); } }
+    }
+    Ok(groups)
+}
+
+pub fn all() -> Result<Vec<Process>, NativeError> {
     let own = unsafe { libc::getuid() };
     let mut found = Vec::new();
-    for pid in pids.into_iter().take(bytes as usize / 4).filter(|pid| *pid > 0) {
-        // The short record is readable for every user's process; the full
-        // record is refused (EPERM) for other users, including Root daemons.
-        let mut info = std::mem::MaybeUninit::<libc::proc_bsdshortinfo>::zeroed();
-        let size = std::mem::size_of::<libc::proc_bsdshortinfo>() as i32;
-        if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDT_SHORTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
-            if std::io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH) { continue; }
-            return Err(refused());
-        }
-        let info = unsafe { info.assume_init() };
+    for pid in pids()? {
+        let Some(info) = short(pid)? else { continue };
         if info.pbsi_uid != own {
             if info.pbsi_uid != 0 { continue; }
             // Root system daemons are irrelevant; an elevated Node/product
