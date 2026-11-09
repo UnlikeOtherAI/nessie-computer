@@ -13,6 +13,9 @@ use std::{
 };
 #[path = "execution_destination_read.rs"]
 mod read;
+#[path = "execution_destination_lineage.rs"]
+mod lineage;
+pub(super) use lineage::BoundObservation;
 
 static RETIRED: OnceLock<Mutex<Vec<(Process, Destination)>>> = OnceLock::new();
 /// Source loss is not SQL teardown proof. Retain namespace/writer pins until
@@ -56,6 +59,28 @@ pub(super) struct Destination {
     owner: String,
 }
 impl Destination {
+    fn stage(&self, generation: &str) -> Result<&HeldObject, String> {
+        self.files.get(&self.stage_reference(generation)?).ok_or_else(|| REJECTED.into())
+    }
+    pub fn accept_initial_command(&self, graph: &nessie_windows_common::execution::Graph,
+        first: &nessie_windows_common::execution_command_lineage::Initial, run: &str)
+        -> Result<nessie_windows_common::execution_command_lineage::AcceptedInitial, String> {
+        let result = lineage::accept_initial(self.stage(&graph.binding.source_generation)?, &self.owner, graph, first, run)?;
+        self.recheck()?; Ok(result)
+    }
+    pub fn accept_release_command(&self, graph: &nessie_windows_common::execution::Graph,
+        first: &nessie_windows_common::execution_command_lineage::Initial,
+        accepted: &nessie_windows_common::execution_command_lineage::AcceptedInitial, release: &str)
+        -> Result<nessie_windows_common::execution_command_lineage::AcceptedRelease, String> {
+        let result = lineage::accept_release(self.stage(&graph.binding.source_generation)?, &self.owner, graph, first, accepted, release)?;
+        self.recheck()?; Ok(result)
+    }
+    pub fn observe_bound_effect(&self, graph: &nessie_windows_common::execution::Graph,
+        evidence: nessie_windows_common::execution_command_lineage::Evidence, effect: &str)
+        -> Result<Option<BoundObservation>, String> {
+        let result = lineage::observe(self.stage(&graph.binding.source_generation)?, &self.owner, graph, evidence, effect)?;
+        self.recheck()?; Ok(result)
+    }
     pub fn open(
         caller: &Process,
         resource: &ResourceReceipt,

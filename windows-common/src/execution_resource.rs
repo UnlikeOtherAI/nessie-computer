@@ -63,6 +63,10 @@ pub enum Request {
     OpenDestination { executor_id: String, resource_id: String, nonce: String, directory: Object, writer: Object, watches: Vec<u64> },
     HoldDestinationFile { executor_id: String, resource_id: String, reference: String, file: Object },
     ObserveDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
+    OpenCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, retention_expires_at: u64 },
+    RecordCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, edge: crate::execution_command_lineage::Edge },
+    CloseCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph },
+    ObserveBoundDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
     CloseDestination { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
 }
@@ -73,7 +77,9 @@ impl Request {
             | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. }
             | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. }
             | Self::OpenDestination { executor_id, .. } | Self::HoldDestinationFile { executor_id, .. }
-            | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. } => executor_id,
+            | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. }
+            | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
+            | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -106,12 +112,24 @@ impl Request {
                     return Err(REJECTED.into());
                 }
             }
-            Self::ObserveDestinationEffect { resource_id, graph, effect_id, .. } => {
+            Self::ObserveDestinationEffect { resource_id, graph, effect_id, .. }
+            | Self::ObserveBoundDestinationEffect { resource_id, graph, effect_id, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(effect_id)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
                 // Only an already accepted exact Graph may be used. Its 5s
                 // receipt freshness is not a new resource-retention deadline.
+            }
+            Self::OpenCommandLineage { resource_id, graph, .. } | Self::CloseCommandLineage { resource_id, graph, .. }
+            | Self::RecordCommandLineage { resource_id, graph, .. } => {
+                graph.binding.validate(true)?;
+                if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || graph.binding.executor_id != self.executor() {
+                    return Err(REJECTED.into());
+                }
+                if let Self::OpenCommandLineage { retention_expires_at, .. } = self {
+                    if *retention_expires_at == 0 || *retention_expires_at > 9_007_199_254_740_991 { return Err(REJECTED.into()); }
+                }
+                if let Self::RecordCommandLineage { edge, .. } = self { edge.validate()?; }
             }
             Self::Register { resource_id, evidence: e, objects, watches, .. } => {
                 if !valid_nonce(resource_id) || e.source.executor_id != self.executor()

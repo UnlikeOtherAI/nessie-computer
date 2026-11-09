@@ -1,13 +1,14 @@
 import * as Effect from 'effect/Effect'
 import { CommandLineage } from '@nessie/t3-session-source/engine'
 import type { T3ExecutionBinding } from '@nessie/executor-protocol/t3-session'
+import type { SessionOriginalCommandSink } from '../source/execution-command.js'
 import { makeSessionLaunchCommandLineage, type SessionLaunchCommandLineage,
   type SessionProviderTurnStartEffect } from './command-lineage.js'
 
 export interface SessionCommandLineageRegistry {
   readonly service: CommandLineage.SessionCommandLineage['Service']
   register(binding: Pick<T3ExecutionBinding, 'commandId' | 'threadId'>, recheck: () => Promise<void>,
-    parent: AbortSignal): SessionLaunchCommandLineage
+    parent: AbortSignal, observe?: SessionOriginalCommandSink): SessionLaunchCommandLineage
   /** Finds the recorded predecessor; returning an owner supplies no claim permission. */
   recognizeProviderTurnStart(effect: SessionProviderTurnStartEffect):
     Effect.Effect<SessionLaunchCommandLineage, CommandLineage.SessionCommandLineageError>
@@ -74,12 +75,12 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
       const owner = live && !signal.aborted && parentCommandId !== undefined ? entries.get(parentCommandId) : undefined
       return owner ? owner.assertProviderTurnStart(effect).pipe(Effect.as(owner)) : Effect.fail(refused())
     }),
-    register: (binding, recheck, parent) => {
+    register: (binding, recheck, parent, observe) => {
       const commandId = binding.commandId
       // The fixed source control channel also bounds all call IDs to 4096.
       if (!live || signal.aborted || parent.aborted || !commandId || !binding.threadId
         || entries.has(commandId) || entries.size >= 4096) throw refused()
-      const owner = makeSessionLaunchCommandLineage(binding, recheck, AbortSignal.any([signal, parent]))
+      const owner = makeSessionLaunchCommandLineage(binding, recheck, AbortSignal.any([signal, parent]), observe)
       const registered = Object.freeze<SessionLaunchCommandLineage>({ ...owner, close: () => {
         owner.close()
         if (live) entries.set(commandId, undefined)

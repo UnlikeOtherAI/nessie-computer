@@ -88,85 +88,87 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     }
     await transport.receipt(reservationReceipt, signal)
     await recheck()
-    const commandLineage = held.original.commandLineage.register(reserve.binding, recheck, signal)
-    const launchProvider = async <T>(providerSessionId: string, launch: ProviderLaunch,
-      callback: (provider: HeldNativeSessionProvider) => Promise<T>): Promise<T> => {
-      await recheck()
-      if (launched || launch.processPurpose !== 'provider') throw protectedRuntimeRefused()
-      launched = true // Ambiguous preparation/spawn cannot retry this reservation.
-      const preparationReceipt = await native.prepare(reserve.reservationId, providerSessionId, launch, signal)
-      const preparation = T3ExecutionPreparationPayloadSchema.parse(JSON.parse(preparationReceipt.payload))
-      if (preparation.processPurpose !== 'provider' || preparation.providerSessionId !== providerSessionId
-        || preparation.reservationId !== reserve.reservationId || preparation.admissionDigest !== sha(signed.payload)
-        || canonicalExecutorJson(preparation.binding) !== canonicalExecutorJson(reserve.binding)
-        || canonicalExecutorJson(preparation.custody) !== canonicalExecutorJson(native.descriptor.custody)) {
-        throw protectedRuntimeRefused()
-      }
-      await recheck()
-      const admitted = await transport.phase({ phase: 'launch', reservationId: reserve.reservationId,
-        preparationReceipt }, signal)
-      const phase = T3ExecutionAdmissionSchema.parse(JSON.parse(admitted.payload))
-      if (phase.phase !== 'launch' || phase.processPurpose !== 'provider'
-        || phase.reservationId !== reserve.reservationId || phase.launchDigest !== preparation.launchDigest
-        || canonicalExecutorJson(phase.binding) !== canonicalExecutorJson(reserve.binding)) {
-        throw protectedRuntimeRefused()
-      }
-      await recheck()
-      const process = await startProtectedT3Provider(admitted, signal)
-      let serialization: ProtectedCodexSerialization | undefined
-      let association: Promise<T3ExecutionReceipt> | undefined
-      try {
+    return held.original.withCommandLineageCapture(graph, Date.parse(accepted.expiresAt), parent, async sink => {
+      const commandLineage = held.original.commandLineage.register(reserve.binding, recheck, signal, sink)
+      const launchProvider = async <T>(providerSessionId: string, launch: ProviderLaunch,
+        callback: (provider: HeldNativeSessionProvider) => Promise<T>): Promise<T> => {
         await recheck()
-        serialization = createProtectedCodexSerialization(process, transport, native.descriptor, preparation, signal)
-        const originalSerialization = serialization
-        const associate = () => {
-          if (association) return association
-          association = (async () => {
-            await originalSerialization.finishBootstrap()
-            await recheck()
-            const permission = await transport.phase({ phase: 'associate', reservationId: reserve.reservationId,
-              providerSessionId }, signal)
-            const receipt = await native.associate(permission, signal)
-            const actual = T3ExecutionAssociationPayloadSchema.parse(JSON.parse(receipt.payload))
-            if (actual.providerSessionId !== providerSessionId || actual.reservationId !== reserve.reservationId
-              || actual.launchDigest !== preparation.launchDigest
-              || canonicalExecutorJson(actual.binding) !== canonicalExecutorJson(reserve.binding)) {
-              throw protectedRuntimeRefused()
-            }
-            await transport.receipt(receipt, signal)
-            await recheck()
-            return receipt
-          })()
-          void association.catch(error => { failure ??= error; stop.abort() })
-          return association
+        if (launched || launch.processPurpose !== 'provider') throw protectedRuntimeRefused()
+        launched = true // Ambiguous preparation/spawn cannot retry this reservation.
+        const preparationReceipt = await native.prepare(reserve.reservationId, providerSessionId, launch, signal)
+        const preparation = T3ExecutionPreparationPayloadSchema.parse(JSON.parse(preparationReceipt.payload))
+        if (preparation.processPurpose !== 'provider' || preparation.providerSessionId !== providerSessionId
+          || preparation.reservationId !== reserve.reservationId || preparation.admissionDigest !== sha(signed.payload)
+          || canonicalExecutorJson(preparation.binding) !== canonicalExecutorJson(reserve.binding)
+          || canonicalExecutorJson(preparation.custody) !== canonicalExecutorJson(native.descriptor.custody)) {
+          throw protectedRuntimeRefused()
         }
-        return await callback(Object.freeze({ process, signal, preparation: Object.freeze(preparation),
-          serialization, associate }))
-      } finally {
-        // Callback return withdraws this finite launch. Writes and association
-        // must finish before service-positive provider Job clearance, then SQL.
-        stop.abort()
-        try { await serialization?.close(); await association?.catch(() => undefined) }
-        finally { await process.terminate(); await process.closed }
+        await recheck()
+        const admitted = await transport.phase({ phase: 'launch', reservationId: reserve.reservationId,
+          preparationReceipt }, signal)
+        const phase = T3ExecutionAdmissionSchema.parse(JSON.parse(admitted.payload))
+        if (phase.phase !== 'launch' || phase.processPurpose !== 'provider'
+          || phase.reservationId !== reserve.reservationId || phase.launchDigest !== preparation.launchDigest
+          || canonicalExecutorJson(phase.binding) !== canonicalExecutorJson(reserve.binding)) {
+          throw protectedRuntimeRefused()
+        }
+        await recheck()
+        const process = await startProtectedT3Provider(admitted, signal)
+        let serialization: ProtectedCodexSerialization | undefined
+        let association: Promise<T3ExecutionReceipt> | undefined
+        try {
+          await recheck()
+          serialization = createProtectedCodexSerialization(process, transport, native.descriptor, preparation, signal)
+          const originalSerialization = serialization
+          const associate = () => {
+            if (association) return association
+            association = (async () => {
+              await originalSerialization.finishBootstrap()
+              await recheck()
+              const permission = await transport.phase({ phase: 'associate', reservationId: reserve.reservationId,
+                providerSessionId }, signal)
+              const receipt = await native.associate(permission, signal)
+              const actual = T3ExecutionAssociationPayloadSchema.parse(JSON.parse(receipt.payload))
+              if (actual.providerSessionId !== providerSessionId || actual.reservationId !== reserve.reservationId
+                || actual.launchDigest !== preparation.launchDigest
+                || canonicalExecutorJson(actual.binding) !== canonicalExecutorJson(reserve.binding)) {
+                throw protectedRuntimeRefused()
+              }
+              await transport.receipt(receipt, signal)
+              await recheck()
+              return receipt
+            })()
+            void association.catch(error => { failure ??= error; stop.abort() })
+            return association
+          }
+          return await callback(Object.freeze({ process, signal, preparation: Object.freeze(preparation),
+            serialization, associate }))
+        } finally {
+          // Callback return withdraws this finite launch. Writes and association
+          // must finish before service-positive provider Job clearance, then SQL.
+          stop.abort()
+          try { await serialization?.close(); await association?.catch(() => undefined) }
+          finally { await process.terminate(); await process.closed }
+        }
       }
-    }
-    try {
-      return await use(Object.freeze({ target, signal, binding: Object.freeze(structuredClone(reserve.binding)),
-        secretReadAttempts, commandLineage,
-        withProvider: <T>(providerSessionId: string, launch: ProviderLaunch,
-          callback: (provider: HeldNativeSessionProvider) => Promise<T>) => {
-          const work = launchProvider(providerSessionId, structuredClone(launch), callback)
-          pending.add(work)
-          void work.catch(error => { failure ??= error }).finally(() => pending.delete(work))
-          return work
-        },
-      }))
-    } finally {
-      live = false
-      stop.abort()
-      commandLineage.close()
-      while (pending.size) await Promise.allSettled([...pending])
-      if (failure) throw failure
-    }
+      try {
+        return await use(Object.freeze({ target, signal, binding: Object.freeze(structuredClone(reserve.binding)),
+          secretReadAttempts, commandLineage,
+          withProvider: <T>(providerSessionId: string, launch: ProviderLaunch,
+            callback: (provider: HeldNativeSessionProvider) => Promise<T>) => {
+            const work = launchProvider(providerSessionId, structuredClone(launch), callback)
+            pending.add(work)
+            void work.catch(error => { failure ??= error }).finally(() => pending.delete(work))
+            return work
+          },
+        }))
+      } finally {
+        live = false
+        stop.abort()
+        commandLineage.close()
+        while (pending.size) await Promise.allSettled([...pending])
+        if (failure) throw failure
+      }
+    })
   })
 }

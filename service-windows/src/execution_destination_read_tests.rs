@@ -1,5 +1,7 @@
 //! Real Windows SQLite/handle components. These do not substitute for protected
 //! graph authentication, a native signature or current operation admission.
+#[path = "execution_destination_lineage_tests.rs"]
+mod lineage_tests;
 use super::*;
 use nessie_windows_common::{
     execution_resource::Object,

@@ -75,6 +75,32 @@ impl Session for ExecutionResource {
                 service(Request::ObserveDestinationEffect { executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone(), graph, effect_id })
             },
+            "executionCommandOpen" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let retention_expires_at = request["retentionExpiresAt"].as_u64().ok_or_else(fail)?;
+                service(Request::OpenCommandLineage { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, retention_expires_at })
+            },
+            "executionCommandRecord" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let edge = serde_json::from_value(request["edge"].clone()).map_err(|_| fail())?;
+                service(Request::RecordCommandLineage { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, edge })
+            },
+            "executionCommandClose" if fields.len() == 2 => {
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                service(Request::CloseCommandLineage { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph })
+            },
+            "executionDestinationObserveBoundEffect" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let effect_id = request["effectId"].as_str().ok_or_else(fail)?.to_owned();
+                service(Request::ObserveBoundDestinationEffect { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, effect_id })
+            },
             "executionDestinationClose" if fields.len() == 1 => {
                 service(Request::CloseDestination { executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone() })?;

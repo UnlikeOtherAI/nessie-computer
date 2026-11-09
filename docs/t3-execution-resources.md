@@ -162,9 +162,9 @@ implementation with this service reader, retaining its separate static policy.
 `T3ExecutionPendingEffectObservation` is explicitly unsigned. The original durable
 receipt records command type and result sequence but no parent-command edge;
 accepted status cannot establish this graph's original operation relationship.
-The live original recorder owns that edge. No signer, claim domain, backend
-consumer or positive preclaim owner is added here. Those require concrete
-composition with that original relationship before a row may transition.
+The live original recorder owns that edge. Its protected capture below can now
+bind the unsigned row facts to that relationship. No signer, claim domain,
+backend consumer or positive preclaim owner is added here.
 
 On Maxis/Node 24.19.0, the pending-row checkpoint passed all six source/protocol/
 CLI build tasks, 15 producer, 14 privacy, 40 source, 13 engine and 112 runtime
@@ -186,6 +186,74 @@ The new unsigned helper again refused an actual unprotected resource entry with
 exit 1. These checks exercise no positive SYSTEM graph, native signature, backend
 claim admission, provider or installed source enrollment. Production `open`
 still refuses; startup/recovery and parent-operation authority remain unfinished.
+
+## Protected original command capture
+
+`withOriginalCommandLineage(graph, retentionExpiresAt, signal, use)` retains a
+private sink on the same authenticated resource channel. The original recorder
+reports only the IDs it captures at initial-message creation, accepted initial
+run, prepared-release creation and accepted release. The service requires the
+exact previously accepted Graph, source/custody, destination and selected
+thread/provider. It never derives child IDs from spelling or uses event
+`correlation_id` as parentage; the original persistence layer repeats the child
+command there.
+
+The service keeps one capture per original parent in that resource incarnation.
+Exact open replay retains its original graph digest and deadline; a changed
+graph nonce/cap, invalid phase/edge or retirement cannot reopen it. The canonical
+ACK expiry supplies a retention cap only, not authority. The original receipt's
+five-second freshness is not reused as selection lifetime. Native retention
+also has an elapsed-time bound, and observed expiry is terminal across clock
+rollback. No resource handle or durable row is deleted to retire a capture.
+
+Initial acceptance independently reads the accepted parent (`thread.create` or
+`thread.metadata.update`), accepted `message.dispatch`, and its actual
+`run.created` event from the held destination. Release acceptance rechecks those
+exact digests, then the accepted `prepared-run.release` and its `run.updated`.
+The fixed reader requires the exact 14-column ordinary event table and eight
+receipt columns, strict duplicate-key-free JSON, selected run/message/provider,
+the original child correlation and preparing/starting states. Event sequences
+must follow their predecessor receipts and fall within the corresponding
+accepted result sequence. Missing/pruned, duplicate or substituted records refuse.
+It checks the selected structural fields and hashes entire SQL rows; it does not
+claim an independent implementation of every original event codec.
+
+`inspectBoundPendingEffect(graph, effectId)` is a distinct unsigned read. One
+transaction matches a pending `provider-turn.start` to the captured release/run
+and rechecks all five stored receipt/event digests. Another run/command returns
+no match; changed accepted evidence refuses. The result contains the full raw-row
+digest and original ID/hash metadata, with no raw payload/error, path, signing
+key or claim callback. A parsed result cannot become `T3ExecutionReceipt`.
+
+`withReservedSessionLaunch` supplies the real resource sink to the existing
+original registry after reserve acceptance. Normal original-owner closure,
+substitution, interruption and parent/source loss withdraw the native metadata.
+The sink is unusable after return; pending calls join. Uncertain open/retirement
+invalidates the source, whose existing finalizer joins positive native cleanup.
+Successful provider cleanup may retire the recorder before callback return;
+the enclosing parent and source must still be current.
+
+This is evidence composition only. Current finite backend preclaim admission,
+its native signer/consumer and conditional SQL handoff remain required. Startup/
+recovery, full activation and signed installed enrollment/provider journeys
+remain unfinished; production `open` stays refused and generic stdin stays denied.
+
+On Maxis/Node 24.19.0, the combined six-task build and a final CLI rebuild passed;
+the unchanged source-engine task reused its verified cache. All 117 runtime,
+67 common, 81 service and 78 native unit plus five Job cases passed with zero
+skips/ignored cases. The four new native SQL cases use real Windows files/WAL
+and independently query the receipt/event tables. Five runtime cases invoke the
+actual original recorder with a metadata-only channel double, checking exact
+phase order, retirement, argument capture, cancellation joins and uncertain-close
+invalidation. Four common cases cover accepted predecessors, terminal substitution,
+SQL field/JSON/correlation refusal and monotonic/terminal expiry. Both debug
+binaries built with locked dependencies; focused lint, formatting, line caps and
+whitespace checks passed. No source-family manifest changed.
+
+The newly built unsigned helper's actual resource entry again refused an
+unprotected launch with exit 1. The main protected capture/read path remains
+unverified through a signed installed entry; the component positives do not
+establish SYSTEM creation, enrolled signing or actual provider execution.
 
 ## Finite readonly source snapshots
 

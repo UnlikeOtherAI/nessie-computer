@@ -394,7 +394,10 @@ original SQL opens, under the [destination contract](t3-execution-resources.md#n
 `OwnedCaptureStage` still exposes a reference and held SQL layer only; no pending
 row observation is manufactured from it. The [independent native reader](t3-execution-resources.md#independent-pending-effect-observation)
 now returns actual unsigned destination row/receipt facts. Current backend
-admission and its original-parent binding still need concrete composition.
+admission still needs concrete composition. The [protected original capture](t3-execution-resources.md#protected-original-command-capture)
+now retains the live parent/initial/run/release relationship in the service and
+matches it against independently read original receipts and run events. These
+unsigned facts remain separate from a claim receipt or grant.
 Startup importer/recovery writes also need their own authority before activation.
 Neither captured lineage, reserve, graph nor FRAME authorizes these mutations.
 An uncertain outcome after an actual claim must retain and reconcile its durable
@@ -430,9 +433,11 @@ fixture with the actual original outbox. A changed physical lease expiry now
 invalidates the conditional claim; the upstream internal `EffectRow` had omitted
 that migrated column. No rows or migrations were rewritten.
 
-Durable command receipts contain no parent edge. The observer therefore cannot
-assert the original operation relationship from accepted status, command spelling
-or a stage reference. No claim wire domain or signer exists yet. The current
+Durable command receipts contain no parent edge. The original callback capture
+now supplies that edge; its native owner checks actual SQL acceptance and the
+same pending row without inferring parentage from accepted status, command
+spelling, event correlation or a stage reference. No claim wire domain or signer
+exists yet. The current
 ten-family replay has 298 extraction and 36 privacy operations, combined SHA-256
 `505c6d86bcba8853ad2defb2b2d5cfc8752c2827b86ee83321241f1b789da987`.
 

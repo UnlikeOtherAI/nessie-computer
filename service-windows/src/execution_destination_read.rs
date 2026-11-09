@@ -3,6 +3,7 @@
 use nessie_windows_common::{
     custody::REJECTED,
     execution::now_ms,
+    execution_command_lineage::EVENT_COLUMNS,
     execution_pending_effect::{self as facts, Observation, RECEIPT_COLUMNS, ROW_COLUMNS},
     execution_resource_handles::HeldObject,
     readonly_sqlite::Connection,
@@ -33,13 +34,14 @@ unsafe extern "C" fn authorize(
     let column = string(second);
     let allowed = match action {
         21 | 22 => true, // SELECT and the reader's fixed BEGIN/COMMIT only.
-        31 => column == "pragma_table_info",
-        19 => table == "table_info",
+        31 => column == "pragma_table_xinfo",
+        19 => table == "table_xinfo",
         20 => match table {
             "sqlite_master" | "sqlite_schema" => ["name", "type", "sql"].contains(&column),
-            "pragma_table_info" => ["name", "cid"].contains(&column),
+            "pragma_table_xinfo" => ["name", "cid", "hidden"].contains(&column),
             "orchestration_v2_effect_outbox" => ROW_COLUMNS.contains(&column),
             "orchestration_command_receipts" => RECEIPT_COLUMNS.contains(&column),
+            "orchestration_events" => EVENT_COLUMNS.contains(&column),
             _ => false,
         },
         _ => false,
@@ -50,7 +52,7 @@ unsafe extern "C" fn authorize(
         1
     }
 }
-fn schema(connection: &mut Connection, table: &str, columns: &[&str]) -> Result<(), String> {
+pub(super) fn schema(connection: &mut Connection, table: &str, columns: &[&str]) -> Result<(), String> {
     let value = connection
         .read_one("SELECT type, sql FROM sqlite_schema WHERE name = ?", &[table])?
         .ok_or(REJECTED)?;
@@ -66,18 +68,19 @@ fn schema(connection: &mut Connection, table: &str, columns: &[&str]) -> Result<
     }
     let query = match table {
         "orchestration_v2_effect_outbox" => {
-            "SELECT name FROM pragma_table_info('orchestration_v2_effect_outbox') ORDER BY cid"
+            "SELECT name, hidden FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid"
         }
         "orchestration_command_receipts" => {
-            "SELECT name FROM pragma_table_info('orchestration_command_receipts') ORDER BY cid"
+            "SELECT name, hidden FROM pragma_table_xinfo('orchestration_command_receipts') ORDER BY cid"
         }
+        "orchestration_events" => "SELECT name, hidden FROM pragma_table_xinfo('orchestration_events') ORDER BY cid",
         _ => return Err(REJECTED.into()),
     };
     let statement = connection.prepare(query)?;
     let result = (|| {
         for expected in columns {
             let value = connection.next(statement)?;
-            if value["done"] != false || value["row"]["name"] != *expected {
+            if value["done"] != false || value["row"]["name"] != *expected || value["row"]["hidden"] != 0 {
                 return Err(REJECTED.into());
             }
         }
@@ -89,21 +92,30 @@ fn schema(connection: &mut Connection, table: &str, columns: &[&str]) -> Result<
     connection.finish(statement)?;
     result
 }
-/// Called with the owning resource lock held. SQLite's own transaction provides
-/// one row/receipt view; the VFS handles are checked before any facts escape.
-pub(super) fn observe(
+/// Fixed readers share one transaction owner; each callback selects its exact
+/// ordinary schema before accessing records. No caller SQL reaches this helper.
+pub(super) fn snapshot<T>(
     main: &HeldObject,
     owner: &str,
-    thread: &str,
-    effect: &str,
-) -> Result<Option<Observation>, String> {
-    let observed_at_ms = now_ms()?;
+    use_snapshot: impl FnOnce(&mut Connection) -> Result<T, String>,
+) -> Result<T, String> {
     let files = FileSnapshot::open(main, owner)?;
     let mut connection = Connection::open(files.path(), authorize)?;
     connection.read_one("BEGIN", &[])?;
-    schema(&mut connection, "orchestration_v2_effect_outbox", ROW_COLUMNS)?;
-    schema(&mut connection, "orchestration_command_receipts", RECEIPT_COLUMNS)?;
+    let result = use_snapshot(&mut connection)?;
     files.verify(&connection)?;
+    connection.read_one("COMMIT", &[])?;
+    files.recheck()?;
+    Ok(result)
+}
+pub(super) fn pending(
+    connection: &mut Connection,
+    thread: &str,
+    effect: &str,
+    observed_at_ms: u64,
+) -> Result<Option<(Observation, Value)>, String> {
+    schema(connection, "orchestration_v2_effect_outbox", ROW_COLUMNS)?;
+    schema(connection, "orchestration_command_receipts", RECEIPT_COLUMNS)?;
     let row: Option<Value> = connection.read_one(
         "SELECT * FROM orchestration_v2_effect_outbox
         WHERE effect_id = ? AND thread_id = ? AND status = 'pending'",
@@ -117,13 +129,25 @@ pub(super) fn observe(
             &[command, thread],
         )?;
         receipt
-            .map(|receipt| facts::observe(row, receipt, thread, effect, observed_at_ms))
+            .map(|receipt| {
+                facts::observe(row.clone(), receipt, thread, effect, observed_at_ms).map(|facts| (facts, row))
+            })
             .transpose()?
     } else {
         None
     };
-    files.verify(&connection)?;
-    connection.read_one("COMMIT", &[])?;
-    files.recheck()?;
     Ok(observation)
+}
+/// Called with the owning resource lock held. One actual row/receipt snapshot;
+/// the VFS handles are verified before any facts escape.
+pub(super) fn observe(
+    main: &HeldObject,
+    owner: &str,
+    thread: &str,
+    effect: &str,
+) -> Result<Option<Observation>, String> {
+    let observed_at_ms = now_ms()?;
+    snapshot(main, owner, |connection| {
+        pending(connection, thread, effect, observed_at_ms).map(|row| row.map(|(facts, _)| facts))
+    })
 }

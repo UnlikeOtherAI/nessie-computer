@@ -28,6 +28,7 @@ pub mod execution_json;
 pub mod execution_resource;
 pub mod execution_destination;
 pub mod execution_pending_effect;
+pub mod execution_command_lineage;
 #[cfg(windows)]
 pub mod readonly_sqlite;
 #[cfg(windows)]

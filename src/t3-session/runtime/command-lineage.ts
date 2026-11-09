@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import { CommandLineage, type Outbox } from '@nessie/t3-session-source/engine'
 import type { T3ExecutionBinding } from '@nessie/executor-protocol/t3-session'
+import type { SessionOriginalCommandSink } from '../source/execution-command.js'
 
 type Edge = CommandLineage.InitialMessageCommandEdge
 type RunEdge = CommandLineage.InitialMessageRunEdge
@@ -19,7 +20,8 @@ export interface SessionLaunchCommandLineage {
  * records original creation/acceptance relationships, never effect authority.
  * No child ID is derived from an identifier's spelling. */
 export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding, 'commandId' | 'threadId'>,
-  recheck: () => Promise<void>, signal: AbortSignal): SessionLaunchCommandLineage {
+  recheck: () => Promise<void>, signal: AbortSignal,
+  observe?: SessionOriginalCommandSink): SessionLaunchCommandLineage {
   const parentCommandId = binding.commandId, threadId = binding.threadId
   let live = true
   let initial: Readonly<Edge> | undefined
@@ -28,8 +30,10 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
   let released = false
   const refused = () => new CommandLineage.SessionCommandLineageError()
   const close = () => {
+    if (!live) return
     live = false; initial = undefined; acceptedRun = undefined; release = undefined; released = false
     signal.removeEventListener('abort', close)
+    observe?.retire()
   }
   const current = async () => {
     if (!live || signal.aborted) throw refused()
@@ -57,6 +61,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
         || typeof captured.commandId !== 'string' || !captured.commandId || captured.commandId === parentCommandId
         || typeof captured.messageId !== 'string' || !captured.messageId) throw refused()
       if (initial && !sameInitial(captured)) throw refused()
+      await observe?.record({ ...captured, phase: 'initial-created' })
       initial ??= captured
       await current()
     }),
@@ -66,6 +71,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
       await current()
       if (!sameInitial(captured) || typeof captured.runId !== 'string' || !captured.runId
         || acceptedRun && acceptedRun.runId !== captured.runId) throw refused()
+      await observe?.record({ ...captured, phase: 'initial-accepted' })
       acceptedRun ??= captured
       await current()
     }),
@@ -76,6 +82,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
         || captured.runId !== acceptedRun.runId || typeof captured.commandId !== 'string' || !captured.commandId
         || captured.commandId === parentCommandId || captured.commandId === acceptedRun.commandId
         || release && !sameRelease(captured)) throw refused()
+      await observe?.record({ ...captured, phase: 'release-created' })
       release ??= captured
       await current()
     }),
@@ -83,6 +90,7 @@ export function makeSessionLaunchCommandLineage(binding: Pick<T3ExecutionBinding
       const captured = copyRelease(edge)
       await current()
       if (!sameRelease(captured)) throw refused()
+      await observe?.record({ ...captured, phase: 'release-accepted' })
       released = true
       await current()
     }) }),

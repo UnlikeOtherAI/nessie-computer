@@ -1,0 +1,104 @@
+{
+  "parent": "parent:actual:launch",
+  "thread": "thread:雪:one",
+  "provider": "original-instance",
+  "run": "run:雪:one",
+  "message": "message:雪:one",
+  "edges": [
+    {
+      "parentCommandId": "parent:actual:launch",
+      "commandId": "opaque:message:command",
+      "threadId": "thread:雪:one",
+      "messageId": "message:雪:one",
+      "phase": "initial-created"
+    },
+    {
+      "parentCommandId": "parent:actual:launch",
+      "commandId": "opaque:message:command",
+      "threadId": "thread:雪:one",
+      "messageId": "message:雪:one",
+      "runId": "run:雪:one",
+      "phase": "initial-accepted"
+    },
+    {
+      "parentCommandId": "parent:actual:launch",
+      "commandId": "release:original:one",
+      "threadId": "thread:雪:one",
+      "runId": "run:雪:one",
+      "phase": "release-created"
+    },
+    {
+      "parentCommandId": "parent:actual:launch",
+      "commandId": "release:original:one",
+      "threadId": "thread:雪:one",
+      "runId": "run:雪:one",
+      "phase": "release-accepted"
+    }
+  ],
+  "receipts": [
+    {
+      "command_id": "parent:actual:launch",
+      "aggregate_kind": "thread",
+      "aggregate_id": "thread:雪:one",
+      "accepted_at": "1999-12-31T23:59:30.000Z",
+      "result_sequence": 1,
+      "status": "accepted",
+      "error": null,
+      "command_type": "thread.create"
+    },
+    {
+      "command_id": "opaque:message:command",
+      "aggregate_kind": "thread",
+      "aggregate_id": "thread:雪:one",
+      "accepted_at": "1999-12-31T23:59:30.000Z",
+      "result_sequence": 5,
+      "status": "accepted",
+      "error": null,
+      "command_type": "message.dispatch"
+    },
+    {
+      "command_id": "release:original:one",
+      "aggregate_kind": "thread",
+      "aggregate_id": "thread:雪:one",
+      "accepted_at": "1999-12-31T23:59:30.000Z",
+      "result_sequence": 7,
+      "status": "accepted",
+      "error": null,
+      "command_type": "prepared-run.release"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 3,
+      "event_id": "event-3",
+      "aggregate_kind": "thread",
+      "stream_id": "thread:雪:one",
+      "stream_version": 2,
+      "event_type": "run.created",
+      "occurred_at": "1999-12-31T23:59:30.000Z",
+      "command_id": "opaque:message:command",
+      "causation_event_id": null,
+      "correlation_id": "opaque:message:command",
+      "actor_kind": "server",
+      "payload_json": "{\"id\":\"run:雪:one\",\"threadId\":\"thread:雪:one\",\"userMessageId\":\"message:雪:one\",\"providerInstanceId\":\"original-instance\",\"modelSelection\":{\"instanceId\":\"original-instance\",\"modelId\":\"synthetic-model\"},\"status\":\"preparing\"}",
+      "metadata_json": "{\"runId\":\"run:雪:one\",\"nodeId\":\"synthetic-node\",\"providerInstanceId\":\"original-instance\"}",
+      "application_event_version": 2
+    },
+    {
+      "sequence": 6,
+      "event_id": "event-6",
+      "aggregate_kind": "thread",
+      "stream_id": "thread:雪:one",
+      "stream_version": 5,
+      "event_type": "run.updated",
+      "occurred_at": "1999-12-31T23:59:30.000Z",
+      "command_id": "release:original:one",
+      "causation_event_id": null,
+      "correlation_id": "release:original:one",
+      "actor_kind": "server",
+      "payload_json": "{\"id\":\"run:雪:one\",\"threadId\":\"thread:雪:one\",\"userMessageId\":\"message:雪:one\",\"providerInstanceId\":\"original-instance\",\"modelSelection\":{\"instanceId\":\"original-instance\",\"modelId\":\"synthetic-model\"},\"status\":\"starting\"}",
+      "metadata_json": "{\"runId\":\"run:雪:one\",\"nodeId\":\"synthetic-node\",\"providerInstanceId\":\"original-instance\"}",
+      "application_event_version": 2
+    }
+  ]
+}

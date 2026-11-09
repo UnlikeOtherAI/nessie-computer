@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto'
 import * as Schema from 'effect/Schema'
 import { EnvironmentId } from '@nessie/t3-session-source/contracts'
-import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT, canonicalExecutorJson,
+import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   T3ExecutionPendingEffectObservationSchema, type T3ExecutionPendingEffectObservation,
+  T3ExecutionBoundPendingEffectObservationSchema, type T3ExecutionBoundPendingEffectObservation,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
-import { T3ExecutionGraphPayloadSchema, type T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
+import type { T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import { openNativeT3ExecutionResources } from './native.js'
 import { heldSourceDatabase } from './database.js'
@@ -13,6 +14,7 @@ import type { ProvenT3Source } from '../import/manifest.js'
 import { tablesForLayout } from '../import/layout.js'
 import { checkT3SourceLayout } from './layout-check.js'
 import { withNativeExecutionDestination, type T3ExecutionDestinationScope } from './execution-destination.js'
+import { executionGraphCandidate, withExecutionCommandCapture, type SessionOriginalCommandSink } from './execution-command.js'
 
 export interface T3ExecutionSourceSnapshot {
   readonly source: ProvenT3Source
@@ -35,6 +37,10 @@ export interface T3ExecutionResourceScope {
   withDestination<A>(use: (destination: T3ExecutionDestinationScope) => Promise<A>): Promise<A>
   /** Actual native row/receipt metadata only; no parent-edge proof or claim grant. */
   inspectPendingEffect(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionPendingEffectObservation | null>
+  withOriginalCommandLineage<A>(graph: T3ExecutionGraph, retentionExpiresAt: number, signal: AbortSignal,
+    use: (sink: SessionOriginalCommandSink) => Promise<A>): Promise<A>
+  inspectBoundPendingEffect(graph: T3ExecutionGraph, effectId: string):
+    Promise<T3ExecutionBoundPendingEffectObservation | null>
   recheck(): Promise<void>
 }
 const scopes = new WeakMap<T3ExecutionResourceScope, () => Promise<void>>()
@@ -192,17 +198,30 @@ export async function withT3ExecutionResources<A>(input: {
       },
       inspectPendingEffect: async (graph: T3ExecutionGraph, effectId: string) => {
         await recheck()
-        const { custody, ...candidate } = T3ExecutionGraphPayloadSchema.parse(graph)
-        requireCapture(canonicalExecutorJson(custody) === canonicalExecutorJson(receipt.custody)
-          && candidate.binding.executorId === input.executorId
-          && candidate.binding.environmentId === source.environmentId
-          && candidate.binding.sourceRootKey === source.physicalRootKey, 'execution_destination_graph_mismatch')
+        const candidate = executionGraphCandidate(graph, receipt)
         const answer = native.exchange({ op: 'executionDestinationObserveEffect', graph: candidate, effectId })
         const observed = T3ExecutionPendingEffectObservationSchema.nullable().parse(answer.observation)
         requireCapture(observed === null || observed.effectId === effectId
           && observed.threadId === candidate.binding.threadId, 'execution_destination_effect_mismatch')
         await recheck()
         return observed
+      },
+      withOriginalCommandLineage: <R>(graph: T3ExecutionGraph, retentionExpiresAt: number, parent: AbortSignal,
+        useSink: (sink: SessionOriginalCommandSink) => Promise<R>) => withExecutionCommandCapture(native.exchange,
+        receipt, recheck, stop, graph, retentionExpiresAt, AbortSignal.any([abort.signal, parent]), useSink),
+      inspectBoundPendingEffect: async (graph: T3ExecutionGraph, effectId: string) => {
+        await recheck()
+        const candidate = executionGraphCandidate(graph, receipt)
+        const answer = native.exchange({ op: 'executionDestinationObserveBoundEffect', graph: candidate, effectId })
+        const bound = T3ExecutionBoundPendingEffectObservationSchema.nullable().parse(answer.bound)
+        requireCapture(bound === null || bound.observation.effectId === effectId
+          && bound.observation.threadId === candidate.binding.threadId
+          && bound.original.parentCommandId === candidate.binding.commandId
+          && bound.original.threadId === candidate.binding.threadId
+          && bound.original.providerInstanceId === candidate.binding.providerInstanceId,
+        'execution_destination_effect_mismatch')
+        await recheck()
+        return bound
       },
     })
     scopes.set(scope, recheck)
