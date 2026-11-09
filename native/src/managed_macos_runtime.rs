@@ -151,10 +151,16 @@ pub(crate) fn ended_one_shot(
         Ok(Some(process)) => process.zombie || process.started_at != started,
         Err(_) => false,
     };
+    // XNU, like every BSD, never hands out a pid that is still a process group
+    // or session id. A child pid another process now holds therefore means the
+    // child's group ended, and a live group with that id is the new process's.
+    // On dictator three of 1888 journals met such a group and held the swap.
+    let reused = matches!(macos_processes::information(record.child_pid),
+        Ok(Some(process)) if process.started_at != record.child_started_at);
     Ok(record.activity.is_none()
         && gone(record.supervisor_pid, &record.supervisor_started_at)
         && gone(record.child_pid, &record.child_started_at)
-        && !live_groups.contains(&record.child_pid)
+        && (reused || !live_groups.contains(&record.child_pid))
         && !unresolved_host(root, record)?)
 }
 
@@ -317,6 +323,28 @@ mod tests {
         reconcile(&root.path().join("missing"), &boot).unwrap();
         assert!(macos_processes::live_groups().unwrap().contains(&unsafe { libc::getpgrp() }),
             "the all-account snapshot sees this live group");
+    }
+
+    /// A child pid that a new process now holds, leading its own live group,
+    /// does not keep an ended command's journal; the same live leader recorded
+    /// as the child itself does.
+    #[test]
+    fn a_reused_child_pid_does_not_hold_an_ended_journal() {
+        use std::os::unix::process::CommandExt;
+        let root = tempfile::tempdir().unwrap();
+        let boot = managed_runtime_context::boot_id().unwrap();
+        let mut leader = std::process::Command::new("/bin/sleep").arg("30").process_group(0).spawn().unwrap();
+        let pid = leader.id() as i32;
+        let birth = managed_runtime_context::birth(pid).unwrap();
+        let groups = macos_processes::live_groups().unwrap();
+        assert!(groups.contains(&pid), "the new process leads its own live group");
+        let record = |started: &str| Record { protocol_version: 1, boot_id: boot.clone(), guard_version: 2,
+            supervisor_pid: pid, supervisor_started_at: "1".into(), child_pid: pid, child_started_at: started.into(),
+            release_digest: "a".repeat(64), activity: None };
+        assert!(ended_one_shot(&record("1"), root.path(), &groups).unwrap(), "an earlier holder of this pid");
+        assert!(!ended_one_shot(&record(&birth), root.path(), &groups).unwrap(), "the live child itself");
+        leader.kill().unwrap();
+        leader.wait().unwrap();
     }
     #[test]
     fn unsigned_process_never_creates_a_managed_child() {
