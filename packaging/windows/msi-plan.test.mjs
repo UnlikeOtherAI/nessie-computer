@@ -33,6 +33,7 @@ import {
   UPGRADE_CODE,
   URL_SCHEME,
   hyperVSocketServiceGuid,
+  installSequenceProblems,
   msiFileName,
   msiVersion,
 } from './msi-plan.mjs'
@@ -276,17 +277,40 @@ test('everything running from the install folder is closed before files change, 
   // The new package's own service binary closes them, from the Binary table:
   // an installed older release would not know how.
   assert.ok(authoring.includes('<Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\\nessie-executor-service.exe" />'))
-  assert.ok(/Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\s+Execute="deferred" Impersonate="no" Return="check"/.test(authoring))
-  // Before the previous product's files are removed, and never inside that removal.
-  assert.ok(authoring.includes('<Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />'))
-  // A rollback reopens the apps for the release it restores.
-  assert.ok(/Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"\s+Execute="rollback"/.test(authoring))
-  assert.ok(authoring.includes('<Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall"'))
+  // Immediate, before InstallValidate: ahead of InstallInitialize and so of the
+  // previous product's removal, and never inside that removal.
+  assert.ok(/Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\s+Execute="immediate" Return="check"/.test(authoring))
+  assert.ok(authoring.includes('<Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />'))
+  // No rollback reopen: it would run before the previous release's files are back.
+  assert.ok(!authoring.includes('ReopenAfterFailedInstall'))
   // The installed binary reopens them once the service is back; a failure to reopen never fails the install.
   assert.ok(/Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"\s+Execute="deferred" Impersonate="no" Return="ignore"/.test(authoring))
   assert.ok(authoring.includes('<Custom Action="ReopenAfterInstall" After="StartServices"'))
   // The folder is derived by the binary, never passed in.
   assert.ok(!/--close-for-install [^"]/.test(authoring))
+})
+
+test('the install sequence is one Windows Installer accepts for an upgrade', () => {
+  assert.deepEqual(installSequenceProblems(authoring), [])
+})
+
+test('a script action ahead of RemoveExistingProducts is error 2613, and closing after it is too late', () => {
+  // The 1.0.16 order: every upgrade failed with 1603 before a file changed.
+  const shipped = authoring
+    .replace('<CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\n      Execute="immediate" Return="check" />',
+      '<CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\n      Execute="deferred" Impersonate="no" Return="check" />\n'
+      + '    <CustomAction Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"\n      Execute="rollback" Impersonate="no" Return="ignore" />')
+    .replace('<Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />',
+      '<Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall" Condition="NOT UPGRADINGPRODUCTCODE" />\n'
+      + '      <Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />')
+  assert.notEqual(shipped, authoring)
+  assert.deepEqual(installSequenceProblems(shipped), [
+    'ReopenAfterFailedInstall (rollback) is sequenced before RemoveExistingProducts (error 2613)',
+    'CloseForInstall (deferred) is sequenced before RemoveExistingProducts (error 2613)',
+  ])
+  // Moving it after the removal is accepted by Windows Installer but closes too late.
+  const late = authoring.replace('<Custom Action="CloseForInstall" Before="InstallValidate"', '<Custom Action="CloseForInstall" After="RemoveExistingProducts"')
+  assert.deepEqual(installSequenceProblems(late), ['CloseForInstall runs after the previous product\'s files are removed'])
 })
 
 /**
