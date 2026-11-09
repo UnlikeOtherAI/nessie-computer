@@ -75,7 +75,7 @@ test('separate phase builds share the original selection when owned by one memo 
 test('closed graph cannot construct inspection or activate host services', async () => {
   for (const make of [makeSessionEngineGraph, makeSessionEngineGraphWithAdapters]) {
     const graph = await Effect.runPromise(Effect.scoped(make))
-    for (const phase of [graph.inspection, graph.activate, graph.recovery, graph.continuationConsumer]) {
+    for (const phase of [graph.inspection, graph.legacyShells, graph.activate, graph.recovery, graph.continuationConsumer]) {
       await assert.rejects(Effect.runPromise(phase), SessionEngineGraphClosed)
     }
   }

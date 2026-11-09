@@ -33,6 +33,8 @@ import { extractShutdownOutbox } from './shutdown-outbox.mjs'
 import { extractShutdownPreparation } from './shutdown.mjs'
 import { extractSqlitePaths } from './sqlite-paths.mjs'
 import { extractWorkerClaims } from './worker-claims.mjs'
+import { extractFiniteSql } from './finite-sql.mjs'
+import { extractLegacyShellPlans } from './legacy-shells.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -70,6 +72,8 @@ export const generateExtractionManifest = snapshot => {
   extractShutdownOutbox(author)
   extractSqlitePaths(author)
   extractShutdownPreparation(author, redirects, exports)
+  extractFiniteSql(author)
+  extractLegacyShellPlans(author)
   extractWorkerClaims(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)

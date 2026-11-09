@@ -31,7 +31,7 @@ export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
 export { SessionEngineLifecycle, SessionLifecycleError } from './SessionLifecycle.ts'
 export * as SessionLifecycle from './SessionLifecycle.ts'
 export { SessionLifecycleAuthority, SessionLifecycleActionRefused, withSessionLifecycleAction,
-  withSessionShutdownPreparation }
+  withSessionLegacyShellReconciliation, withSessionShutdownPreparation }
   from './SessionLifecycleAuthority.ts'
 export type { SessionLifecycleAction } from './SessionLifecycleAuthority.ts'
 export * as ProviderHost from 't3-source:packages/provider-core/src/server/ProviderHost.ts'

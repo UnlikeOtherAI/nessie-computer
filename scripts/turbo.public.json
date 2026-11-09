@@ -6,6 +6,8 @@
     "//#test:t3-session-control": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-session-runtime": { "dependsOn": ["//#build"], "cache": false,
       "env": ["T3_RUNTIME_FIXTURE_ROOT"] },
+    "//#test:t3-session-lifecycle": { "dependsOn": ["//#build"], "cache": false,
+      "env": ["T3_RUNTIME_FIXTURE_ROOT", "DATABASE_URL"] },
     "test:executor-private-assignments": { "dependsOn": ["build"], "cache": false },
     "//#test:t3-session-files": { "dependsOn": ["//#build"], "cache": false, "env": ["DATABASE_URL"] },
     "//#test:t3-session-workspace-source": { "dependsOn": [], "cache": false,

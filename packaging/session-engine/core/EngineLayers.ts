@@ -125,6 +125,7 @@ export * as SelectedClaude from 't3-source:apps/server/src/provider/SelectedClau
 export * as OriginalProviderAdapter from 't3-source:packages/provider-core/src/server/ProviderAdapter.ts'
 export * as OriginalMcpProviderSessions from 't3-source:packages/provider-core/src/server/McpProviderSessions.ts'
 export * as OriginalHostProcess from 't3-source:packages/shared/src/HostProcess.ts'
+export * as OriginalSqliteClient from 't3-source:packages/shared/src/nodeSqliteClient.ts'
 export * as RuntimeRequests from 't3-source:apps/server/src/orchestration-v2/RuntimeRequestService.session-port.ts'
 export * as Rollback from 't3-source:apps/server/src/orchestration-v2/CheckpointRollbackService.session-port.ts'
 export * as Titles from 't3-source:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.session-port.ts'

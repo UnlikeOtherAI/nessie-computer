@@ -1,6 +1,7 @@
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Context from 'effect/Context'
+import * as LegacyImporter from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import { createSessionEngineLayers, createSessionEngineLayersWithAdapters, type SessionEngineLayers }
   from './EngineLayers.ts'
 import { createSessionStateLayers } from './StateLayers.ts'
@@ -28,6 +29,7 @@ const makeSessionGraph = <R>(createLayers: (state: ReturnType<typeof createSessi
     open ? Layer.buildWithMemoMap(layer, memo, scope) : Effect.fail(new SessionEngineGraphClosed()))
   return {
     inspection: build(layers.inspection),
+    legacyShells: build(LegacyImporter.layer.pipe(Layer.provide(layers.state.layer))),
     activate: build(runtime.layer),
     launch: build(layers.launch),
     recovery: build(layers.recovery),

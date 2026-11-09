@@ -4,6 +4,7 @@ import * as SqlClient from 'effect/sql/SqlClient'
 import * as FileSystem from 'effect/FileSystem'
 import * as Path from 'effect/Path'
 import { createSessionReadLayers, createSessionEngineLayers, createSessionEngineLayersWithAdapters,
+  makeSessionEngineGraphWithAdapters,
   ProviderSessions, ProviderDirectory, ResourceOwners, Settings, Adapters, SelectedCodex, SelectedClaude,
   Policy, ProviderEvents,
   ProjectionStore, EventSink, ThreadMessageIntake, SecretRequests, ThreadReadService, Sqlite, RequestPrivacy,
@@ -39,6 +40,11 @@ const readProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Re
 const engineProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends Engine ? true : false = false
 const engineDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends Engine ? true : false = true
 type ProtectedEngine = Input<ReturnType<typeof createSessionEngineLayersWithAdapters>['layer']>
+type ColdShellPlan = Services<Effect.Success<typeof makeSessionEngineGraphWithAdapters>['legacyShells']>
+const coldShellSqlRequired: SqlClient.SqlClient extends ColdShellPlan ? true : false = true
+const coldShellProviderRequired: ProviderSessions.ProviderSessionManagerV2 extends ColdShellPlan ? true : false = false
+// @ts-expect-error Metadata cannot mint the scoped original reconciliation candidate.
+const unissuedShellPlan: LegacyImporter.LegacyShellReconciliationCandidate = { observedAtMs: 0, targets: [], planDigest: '' }
 const protectedAdapterRequired: Adapters.ProviderAdapterRegistryV2 extends ProtectedEngine ? true : false = true
 const protectedPolicyRequired: Policy.RuntimePolicyV2 extends ProtectedEngine ? true : false = true
 const protectedFullDirectoryRequired: ProviderDirectory.ProviderInstanceRegistry extends ProtectedEngine ? true : false = false
@@ -105,6 +111,7 @@ void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSetti
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   runtimeDirectoryRequired, engineDirectoryRequired,
   protectedAdapterRequired, protectedPolicyRequired, protectedFullDirectoryRequired, eventsNeedNoProductDirectory,
+  coldShellSqlRequired, coldShellProviderRequired, unissuedShellPlan,
   codexFullProductRequired, claudeFullProductRequired,
   codexGenericSpawnerRequired, claudeSpawnerRequired,
   invalidExecutionRegistry,

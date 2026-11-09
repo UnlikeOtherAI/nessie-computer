@@ -3,6 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Fiber from 'effect/Fiber'
 import * as Scope from 'effect/Scope'
 import type * as Recovery from 't3-source:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts'
+import type * as Legacy from 't3-source:apps/server/src/orchestration-v2/legacy/LegacyV1ThreadImporter.ts'
 import type { OrchestrationEffectClaimDeadline } from 't3-source:apps/server/src/orchestration-v2/EffectOutbox.ts'
 
 export type SessionLifecycleAction = 'legacy-shell-reconcile' | 'runtime-recover' | 'delegated-task-recover'
@@ -16,8 +17,11 @@ export class SessionLifecycleActionRefused extends Error {
  * Graph retention, reserve and a row-preclaim grant do not provide this service.
  * There is no default, native producer or blanket imported-row recovery grant. */
 export class SessionLifecycleAuthority extends Context.Service<SessionLifecycleAuthority, {
-  readonly withAction: <A, E, R>(action: Exclude<SessionLifecycleAction, 'prepare-shutdown'>,
+  readonly withAction: <A, E, R>(action: Exclude<SessionLifecycleAction, 'prepare-shutdown' | 'legacy-shell-reconcile'>,
     original: Effect.Effect<A, E, R>) =>
+    Effect.Effect<A, E | SessionLifecycleActionRefused, R>
+  readonly withLegacyShellReconciliation: <A, E, R>(candidate: Legacy.LegacyShellReconciliationCandidate,
+    original: (deadline: OrchestrationEffectClaimDeadline) => Effect.Effect<A, E, R>) =>
     Effect.Effect<A, E | SessionLifecycleActionRefused, R>
   /** Current native/backend owner admits the complete actual candidate before
    * invoking its writer with the independently consumed deadline. */
@@ -54,10 +58,24 @@ const withFiniteLifecycleAction = <I, A, E, R>(
 )
 
 export const withSessionLifecycleAction = <A, E, R>(authority: SessionLifecycleAuthority['Service'],
-  action: Exclude<SessionLifecycleAction, 'prepare-shutdown'>, original: Effect.Effect<A, E, R>):
+  action: Exclude<SessionLifecycleAction, 'prepare-shutdown' | 'legacy-shell-reconcile'>,
+  original: Effect.Effect<A, E, R>):
   Effect.Effect<A, E | SessionLifecycleActionRefused, Exclude<R, Scope.Scope>> =>
   withFiniteLifecycleAction<undefined, A, E, R>(
     guarded => authority.withAction(action, guarded(undefined)), () => original)
+
+/** Observe the complete actual action in the original graph before its owner
+ * can admit the conditional writer. Neither candidate nor deadline is authority. */
+export const withSessionLegacyShellReconciliation = (authority: SessionLifecycleAuthority['Service'],
+  importer: Legacy.LegacyV1ThreadImporter['Service']):
+  Effect.Effect<Legacy.LegacyV1ImportSummary, Legacy.LegacyV1ThreadImportError | SessionLifecycleActionRefused> =>
+  Effect.scoped(Effect.gen(function* () {
+    const candidate = yield* importer.prepareShellReconciliation
+    return yield* withFiniteLifecycleAction<OrchestrationEffectClaimDeadline, Legacy.LegacyV1ImportSummary,
+      Legacy.LegacyV1ThreadImportError, never>(
+        guarded => authority.withLegacyShellReconciliation(candidate, guarded),
+        deadline => importer.reconcileShellsPrepared({ candidate, ...deadline }))
+  }))
 
 /** Use the whole prepared action. A fresh finite Scope also survives an
  * enclosing graph entering Closed before its shutdown finalizer runs. */

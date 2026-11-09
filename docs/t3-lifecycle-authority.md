@@ -20,6 +20,46 @@ Five concrete original actions are guarded:
 | `prepare-shutdown` | Complete original plan and admitted conditional write. |
 | `runtime-reconcile-shutdown` | `ProviderRuntimeRecoveryService.reconcile('shutdown')`: commits shutdown reconciliation and process-loss transitions. |
 
+## Complete legacy-shell reconciliation
+
+The first action now uses `LegacyV1ThreadImporter.prepareShellReconciliation`
+and `reconcileShellsPrepared`. The original queries, repair, import, event
+conversion and per-row writer are shared with `reconcileShells`; the ordinary
+unprepared method retains its original ordering. The prepared variant encloses
+the complete action in the original event sink's outermost transaction.
+
+Preparation runs only fixed SELECTs on the actual writer connection, so its
+connection-local TEMP schema is observable. It captures all repair/import
+selection, source previews and ordinals, existing projection/import/position
+rows, deterministic event slots and schema. The scoped opaque candidate exposes
+only a digest, observation time and actual thread/project targets. Source text,
+attachments and projection payloads stay private. Invalid stored target identity
+or a conflicting event owned by another thread refuses the action.
+
+The original message-search trigger statements are shared before reuse. Only
+their exact original definitions are accepted; additional, substituted and TEMP
+triggers, unexpected target table kinds and incoming projection/event foreign
+keys refuse. The candidate holds at most 256 targets and 4 MiB of encoded input
+after the original reads, without a claim of a preallocation bound in those reads.
+
+Consumption burns the candidate before waiting, rechecks the complete input on
+the same writer transaction and calls the actual original mutations. A later
+failure rolls back earlier imports, positions and events together. Source or
+schema changes, copied/closed candidates, ambient transactions, deadline expiry
+and escaped writers refuse. No work is truncated or retried.
+
+The original SQLite driver now carries a restrictive statement deadline to each
+actual step, including cached statements and a step delayed by WAL admission.
+COMMIT rechecks the same window; ROLLBACK remains available after expiry. A late
+result remains uncertain. This restriction supplies no mutation permission.
+
+`SessionEngineGraph.legacyShells` builds the planner over the same original
+state, memo and scope before provider construction. Lifecycle passes the complete
+candidate to the required `withLegacyShellReconciliation` owner, then preserves
+the actual prepared writer's result. The generic lifecycle action callback no
+longer accepts this action. No enrolled native observer, backend grant or
+production authority owner is supplied by the conditional writer itself.
+
 The original process-loss transition cancels pending/running process-bound effects
 and requeues running replay-safe effects. Its existing global scope includes
 imported rows outside the current launch. An initial `launchThread` admission

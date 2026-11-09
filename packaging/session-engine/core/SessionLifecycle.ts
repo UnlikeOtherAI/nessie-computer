@@ -15,7 +15,7 @@ import * as Recovery from 't3-source:apps/server/src/orchestration-v2/ProviderRu
 import * as Continuations from 't3-source:apps/server/src/orchestration-v2/ProviderContinuationService.ts'
 import * as Worker from 't3-source:apps/server/src/orchestration-v2/EffectWorker.ts'
 import { SessionLifecycleAuthority, withSessionLifecycleAction,
-  withSessionShutdownPreparation } from './SessionLifecycleAuthority.ts'
+  withSessionLegacyShellReconciliation, withSessionShutdownPreparation } from './SessionLifecycleAuthority.ts'
 
 type Phase = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
 
@@ -69,7 +69,7 @@ const make = Effect.gen(function* () {
   // Retain errors: a failed cleanup is not a successful shutdown receipt.
   yield* Effect.addFinalizer(() => stop.pipe(Effect.orDie))
 
-  yield* withSessionLifecycleAction(authority, 'legacy-shell-reconcile', importer.reconcileShells)
+  yield* withSessionLegacyShellReconciliation(authority, importer)
   yield* withSessionLifecycleAction(authority, 'runtime-recover', recovery.recover)
   yield* withSessionLifecycleAction(authority, 'delegated-task-recover', orchestrator.recoverDelegatedTasks)
   // Build ONLY the consumer here, with the already built original services.

@@ -115,10 +115,13 @@ test('startup refusal still shuts down providers while unadmitted shutdown SQL r
   const services = Layer.mergeAll(
     Layer.succeed(SessionLifecycleAuthority, { withAction: action => {
       actions.push(action); return Effect.fail(new SessionLifecycleActionRefused())
+    }, withLegacyShellReconciliation: () => {
+      actions.push('legacy-shell-reconcile'); return Effect.fail(new SessionLifecycleActionRefused())
     }, withShutdownPreparation: () => {
       actions.push('prepare-shutdown'); return Effect.fail(new SessionLifecycleActionRefused())
     } }),
-    Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { reconcileShells: mutation('legacy') }),
+    Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { prepareShellReconciliation: Effect.succeed(Object.freeze({})),
+      reconcileShellsPrepared: () => mutation('legacy') }),
     Layer.succeed(Recovery.ProviderRuntimeRecoveryService, { recover: mutation('recover'),
       prepareShutdownPlan: Effect.succeed(Object.freeze({})),
       prepareForShutdownPrepared: () => mutation('prepare-shutdown'),

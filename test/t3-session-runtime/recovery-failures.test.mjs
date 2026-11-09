@@ -9,7 +9,7 @@ import * as SqlClient from 'effect/sql/SqlClient'
 import { DEFAULT_SERVER_SETTINGS } from '@nessie/t3-session-source/contracts/settings'
 import { Recovery, Settings, ProjectionStore, EventSink, IdAllocator, Outbox,
   SessionLifecycle, SessionLifecycleAuthority, SessionLifecycleActionRefused,
-  ProviderHost, NativeChildProcesses, LegacyImporter, Orchestrator, ProviderSessions, Worker,
+  LegacyImporter, Orchestrator, ProviderSessions, Worker,
 } from '@nessie/t3-session-source/engine'
 import { withOriginalState } from './outbox-fixture.mjs'
 
@@ -177,11 +177,12 @@ test('lifecycle shutdown retains an actual preparation failure, closes providers
     const actions = [], cleanup = []
     const services = Layer.mergeAll(
       Layer.succeed(SessionLifecycleAuthority, { withAction: (action, original) => {
-        actions.push(action)
-        return action === 'legacy-shell-reconcile' ? Effect.fail(new SessionLifecycleActionRefused()) : original
+        actions.push(action); return original
+      }, withLegacyShellReconciliation: () => {
+        actions.push('legacy-shell-reconcile'); return Effect.fail(new SessionLifecycleActionRefused())
       }, withShutdownPreparation: () => Effect.sync(() => assert.fail('failed planning must precede authority')) }),
-      Layer.succeed(ProviderHost.ProviderHost, {}), Layer.succeed(NativeChildProcesses.ChildProcessSpawner, {}),
-      Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { reconcileShells: Effect.void }),
+      Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { prepareShellReconciliation: Effect.succeed(Object.freeze({})),
+        reconcileShellsPrepared: () => Effect.die('unadmitted legacy writer') }),
       Layer.succeed(Recovery.ProviderRuntimeRecoveryService, recovery),
       Layer.succeed(Orchestrator.OrchestratorV2, { recoverDelegatedTasks: Effect.void }),
       Layer.succeed(ProviderSessions.ProviderSessionManagerV2, { shutdown: Effect.sync(() => cleanup.push('closed')) }),
