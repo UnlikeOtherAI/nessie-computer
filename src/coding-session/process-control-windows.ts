@@ -117,7 +117,7 @@ export const WINDOWS_KILL = [
   '; try { $p = Get-Process -Id ([int]$target) -ErrorAction Stop; try { $null = $p.Handle } catch {}',
   '; if ($p.StartTime.ToFileTimeUtc() -eq [long]$started) {',
   '; if ($until -and [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -ge [long]$until) { $refused = $true }',
-  '; else { $p.Kill() } } } catch {} }',
+  'else { $p.Kill() } } } catch {} }',
   "; if ($refused) { '!' } else { '.' }",
 ].join(' ')
 

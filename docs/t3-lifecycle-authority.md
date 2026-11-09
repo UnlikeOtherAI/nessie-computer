@@ -17,7 +17,7 @@ Five concrete original actions are guarded:
 | `legacy-shell-reconcile` | `LegacyV1ThreadImporter.reconcileShells`: repairs legacy projections and imports missing shells, preview events and turn positions. |
 | `runtime-recover` | `ProviderRuntimeRecoveryService.recover`: reads runtime recovery projections, commits reconciliation events/effects and calls the global process-loss outbox transition. |
 | `delegated-task-recover` | `Orchestrator.recoverDelegatedTasks`: reconciles app-owned subagents and delegated completion delivery through their actual parent/thread locks. |
-| `prepare-shutdown` | `prepareShutdownPlan` then `prepareForShutdownPrepared`: prepares the complete original restart-continuation set before its admitted conditional transaction. |
+| `prepare-shutdown` | Complete original plan and admitted conditional write. |
 | `runtime-reconcile-shutdown` | `ProviderRuntimeRecoveryService.reconcile('shutdown')`: commits shutdown reconciliation and process-loss transitions. |
 
 The original process-loss transition cancels pending/running process-bound effects

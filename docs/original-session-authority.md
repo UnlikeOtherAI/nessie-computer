@@ -173,6 +173,26 @@ replacement birth identity. Missing proof capability refuses before spawn.
 Host recovery and supersession obey the same rule. POSIX group/table sweeps
 still report unknown; they do not become kernel containment proof.
 
+The Windows process exchange keeps the deadline check and its kill branch in
+one PowerShell `if`/`else` statement. A statement separator before `else` caused
+the catch block to swallow a command error and report completion without a
+kill. An expired per-target deadline still refuses termination. The focused
+Windows source gate exercises current and expired deadlines, interrupted warm
+cleanup followed by cold cleanup, identity replacement and actual Job children.
+This process exchange is not positive protected Job clearance by itself.
+
+On 9 November 2026, Maxis/Windows 11 and Node 24.19.0, the six public build
+tasks passed (four cached). The focused Windows source run passed all five
+selected cases: identity replacement, completed and interrupted exchanges,
+warm/cold cleanup, the actual Job child and current/expired deadlines. Node's
+reported 16 includes 11 unmatched-file wrappers; it is not 16 behavioral cases.
+The direct outside-runner probe reproduced a surviving child and a false
+completion before the fix, then observed actual termination after it. Scoped
+lint and whitespace passed. Evidence is under
+`C:\Users\ondre\.local\state\nessie-verification\t3-7a4698a9\termination-20261109`.
+No native source changed or was rebuilt. Full Windows session-start acceptance
+remains unqualified because the original authority binding is absent.
+
 The original T3 adapters must use these low-level contracts directly. This is
 not permission to replace original `makeCodexAdapterV2` or the Claude runner
 with Nessie's managed driver queue. T3 finite-effect authority needs the
