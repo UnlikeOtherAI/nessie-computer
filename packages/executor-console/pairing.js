@@ -107,29 +107,38 @@
     }
   }, 'pairing-error')
 
+  /** Cancel always closes the dialog; a failure is said in the window, never by keeping the person here. */
   const cancel = (button) => run(button, t('shell.cancel'), async () => {
     attemptId += 1
-    render(await invoke('executor_pairing_cancel'))
-    byId('connect-dialog').close()
-    await nc.team.refresh()
-  })
+    try {
+      render(await invoke('executor_pairing_cancel'))
+    } finally {
+      byId('connect-dialog').close()
+      await nc.team.refresh()
+    }
+  }, 'error')
 
-  /** Opens the dialog and asks for a code at once, unless a code is already waiting. */
+  /** Opens the dialog and asks for a code at once, unless a live code is already waiting. */
   const openDialog = async () => {
+    const waiting = view?.status === 'waiting' && !expired(view)
     // The address shows only for a code already waiting on an organisation's own server.
-    const custom = open(view) && ownServer(view.apiBaseUrl)
+    const custom = waiting && ownServer(view.apiBaseUrl)
     byId('pairing-server').value = custom ? view.apiBaseUrl : ''
     byId('connect-advanced').open = custom
     nc.dialogs.open('connect-dialog')
-    if (open(view)) { render(view); return }
+    if (waiting) { render(view); return }
     await start(DEFAULT_SERVER, null)
   }
-  /** An attempt left open when the app last closed reopens its dialog; answers whether it did. */
+  /**
+   * A code still waiting when the app last closed reopens its dialog; answers
+   * whether it did. A code that ran out meanwhile has ended and shows nothing.
+   */
   const restore = async () => {
     const next = await invoke('executor_pairing_status')
     render(next)
-    if (open(next)) nc.dialogs.open('connect-dialog')
-    return open(next)
+    const waiting = next.status === 'waiting' && !expired(next)
+    if (waiting) nc.dialogs.open('connect-dialog')
+    return waiting
   }
 
   byId('connect-title').textContent = t('pairing.title')

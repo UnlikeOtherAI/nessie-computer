@@ -68,6 +68,20 @@ export const verifyConsoleShell = async (browser, ui) => {
     assert.equal(await page.locator('#no-team-connect').textContent(), 'Add another team')
     assert.equal(await page.locator('#no-team p').count(), 0, 'no sentence: one button')
     await assertFits(page, `${host} no team`)
+    // Cancel closes the dialog even when the computer cannot end the attempt; the window says why.
+    await page.locator('#no-team-connect').click()
+    await codeShowing(page)
+    await page.evaluate(() => { window.cancelFailure = 'The pairing folder could not be written.' })
+    await page.locator('#pairing-stop').click()
+    await dialogClosed(page)
+    await page.locator('#error').getByText('The pairing folder could not be written.').waitFor()
+    // That attempt is still on the computer: Add another team shows its code again, and Cancel ends it.
+    await page.evaluate(() => { window.cancelFailure = null })
+    await page.locator('#no-team-connect').click()
+    await codeShowing(page)
+    assert.equal(await page.locator('#error').isHidden(), true)
+    await page.locator('#pairing-stop').click()
+    await dialogClosed(page)
     // A request Nessie refuses says why, with Try again; it never opens the server address.
     await page.evaluate(() => { window.pairingFailure = 'Nessie couldn’t finish this step. Check your connection and try again.' })
     await page.locator('#no-team-connect').click()
@@ -363,6 +377,26 @@ export const verifyConsoleShell = async (browser, ui) => {
     await page.waitForFunction(() => document.querySelector('#team-select option').textContent === 'Revenue · UnlikeOtherAI')
     assert.equal(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_pairing_status'
       && call.args?.executorId).length), 0, 'no per-team name lookups')
+    assert.deepEqual(errors, [])
+    journeys++
+    await context.close()
+  }
+
+  // 9 November, Mac: a code from October reopened Add another team at every
+  // launch, and neither Cancel nor Get a new code could close it. A code that
+  // ran out while the window was closed has ended: the window opens on the team.
+  for (const host of ['windows', 'macos']) {
+    const { context, page, errors } = await open({ host, paired: 1, pairStatus: 'expired' })
+    await page.locator('#access-body:not([hidden])').waitFor()
+    await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_pairing_status'))
+    assert.equal(await page.locator('#connect-dialog').evaluate((dialog) => dialog.open), false)
+    assert.equal(await page.locator('#team-select').inputValue(), 'team-0')
+    // Add another team asks for a fresh code rather than showing the old one.
+    const starts = await callCount(page, 'executor_pairing_start')
+    await addTeam(page)
+    await codeShowing(page)
+    assert.equal(await callCount(page, 'executor_pairing_start'), starts + 1)
+    assert.equal(await page.locator('#pairing-code').evaluate((node) => node.classList.contains('expired')), false)
     assert.deepEqual(errors, [])
     journeys++
     await context.close()

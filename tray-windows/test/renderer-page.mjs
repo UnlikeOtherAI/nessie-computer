@@ -29,9 +29,9 @@ export const serveConsole = (ui) => async (page) => {
  * Page errors and missing translations are collected, never swallowed.
  */
 export const openConsole = async (browser, ui, { host, locale = 'en-GB', dark = false, size = 'desktop', paired = 0, legacy = false,
-  sync = undefined, unnamed = false, unreadable = false, context: given = null } = {}) => {
+  sync = undefined, unnamed = false, unreadable = false, pairStatus = 'idle', context: given = null } = {}) => {
   const context = given ?? await browser.newContext({ viewport: SIZES[size], locale, colorScheme: dark ? 'dark' : 'light' })
-  await installRendererHost(context, host, { paired, legacy, unnamed, unreadable })
+  await installRendererHost(context, host, { paired, legacy, unnamed, unreadable, pairStatus })
   if (sync !== null) await installSyncHost(context, sync ?? syncState(host), syncTrash)
   const page = await context.newPage()
   const errors = []

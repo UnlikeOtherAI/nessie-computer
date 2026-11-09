@@ -195,7 +195,7 @@ final class ExecutorConnections: ObservableObject {
     func refreshTeamNames() {
         guard let runner = controllers.lazy.compactMap(\.runner).first else { return }
         let invocation = ExecutorCLI.teamNames(stateDirectories: controllers.map(\.stateDirectory))
-        let settled = controllers.filter { $0.pairing.state?.isAttemptOpen != true }
+        let settled = controllers.filter { $0.pairing.state?.isPending != true }
         namesWork.async {
             Self.logTeamNames(Result { try runner.run(invocation) })
             Task { @MainActor in settled.forEach { $0.pairing.restore() } }

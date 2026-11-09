@@ -273,7 +273,7 @@ final class ExecutorController: ObservableObject {
     // MARK: - Supervision
 
     private var pairingBlocksStart: Bool {
-        pairing.busy || pairing.state?.isAttemptOpen == true
+        pairing.busy || pairing.state?.isPending == true
             || ExecutorStateDiscovery.pendingAttemptBlocksStart(in: stateDirectory)
     }
 
