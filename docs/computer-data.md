@@ -87,13 +87,11 @@ Provider HTTP reads have an eight-second deadline, a 256 KiB body bound and no
 redirects. Kimi uses the pinned public transport; SysMon admits only its literal
 loopback endpoint. Local credential/metadata reads have explicit size bounds.
 
-The local GitHub CLI reports at most 30 open authored pull requests with failing
-checks, using its existing sign-in. Incomplete/malformed searches never mean all
-checks passed. Account and CI probes run at most once per minute while viewed;
-transient failures retain the last valid values marked unavailable/stale. CI
-summaries are pairing-owner only, just like provider quotas, because private
-repository names and titles must not leak through ordinary computer access.
-Deploy the updated API before collectors that send these additive signed fields.
+GitHub CI is read through the selected team's GitHub app in Nessie. Computer
+monitoring never invokes the GitHub CLI or collects repository names, pull request
+titles or check results. The optional legacy CI wire field remains readable so
+older installed computers can send their otherwise valid monitor snapshots;
+Nessie discards that field and never renders it as CI data.
 
 Remaining percentages come from provider utilization or remaining-percent fields;
 missing, unsupported and signed-out states never become a guessed allowance.

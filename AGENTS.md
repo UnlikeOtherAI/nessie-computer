@@ -58,7 +58,7 @@ never in this repository. Write all user documentation with the
 [Unslop skill](https://github.com/UnlikeOtherAI/nessie-skills/blob/main/skills/unslop/SKILL.md)
 and the vocabulary in [the Nessie Computer contract](docs/plans/2026-11-08-nessie-computer.md#2-vocabulary-user-visible-cli-help-uses-the-same-words).
 
-Computer telemetry, provider quotas, owner-only CI, native history and human input follow
+Computer telemetry, provider quotas, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
 All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
