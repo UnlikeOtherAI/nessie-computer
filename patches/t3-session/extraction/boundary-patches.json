@@ -1905,6 +1905,54 @@
       "afterSha256": "38e3295a1385203a63f05cab2c805d1e60d50d4636779c1aba5ca9fce416c792"
     },
     {
+      "id": "lifecycle-atomic-process-loss-and-committed-notification",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "      reconcileAfterProcessLoss: Effect.gen(function* () {\n        const now = DateTime.formatIso(yield* DateTime.now);\n        const cancelledRows = yield* sql<{ readonly effect_id: string }>`\n          UPDATE orchestration_v2_effect_outbox\n          SET\n            status = 'cancelled',\n            lease_owner = NULL,\n            completed_at = ${now},\n            updated_at = ${now},\n            last_error = 'Cancelled because the server process ended before the effect completed.'\n          WHERE status IN ('pending', 'running')\n            AND effect_type IN ${sql.in(PROCESS_BOUND_EFFECT_TYPES)}\n          RETURNING effect_id\n        `;\n        const requeuedRows = yield* sql<{ readonly effect_id: string }>`\n          UPDATE orchestration_v2_effect_outbox\n          SET\n            status = 'pending',\n            lease_owner = NULL,\n            available_at = ${now},\n            updated_at = ${now},\n            last_error = 'Requeued after the previous server process ended.'\n          WHERE status = 'running'\n            AND effect_type IN ${sql.in(REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS)}\n          RETURNING effect_id\n        `;\n        if (requeuedRows.length > 0) yield* notifyAvailable(requeuedRows.length);\n        return { requeued: requeuedRows.length, cancelled: cancelledRows.length };\n      }).pipe(\n        Effect.mapError(\n          (cause) => new EffectOutboxError({ operation: \"reconcile-process-loss\", cause }),\n        ),\n      ),\n",
+      "to": "      reconcileAfterProcessLoss: sql.withTransaction(Effect.gen(function* () {\n        const now = DateTime.formatIso(yield* DateTime.now);\n        const cancelledRows = yield* sql<{ readonly effect_id: string }>`\n          UPDATE orchestration_v2_effect_outbox\n          SET\n            status = 'cancelled',\n            lease_owner = NULL,\n            completed_at = ${now},\n            updated_at = ${now},\n            last_error = 'Cancelled because the server process ended before the effect completed.'\n          WHERE status IN ('pending', 'running')\n            AND effect_type IN ${sql.in(PROCESS_BOUND_EFFECT_TYPES)}\n          RETURNING effect_id\n        `;\n        const requeuedRows = yield* sql<{ readonly effect_id: string }>`\n          UPDATE orchestration_v2_effect_outbox\n          SET\n            status = 'pending',\n            lease_owner = NULL,\n            available_at = ${now},\n            updated_at = ${now},\n            last_error = 'Requeued after the previous server process ended.'\n          WHERE status = 'running'\n            AND effect_type IN ${sql.in(REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS)}\n          RETURNING effect_id\n        `;\n        if (requeuedRows.length > 0) yield* sql.afterCommit(notifyAvailable(requeuedRows.length));\n        return { requeued: requeuedRows.length, cancelled: cancelledRows.length };\n      })).pipe(\n        Effect.mapError(\n          (cause) => new EffectOutboxError({ operation: \"reconcile-process-loss\", cause }),\n        ),\n      ),\n",
+      "beforeSha256": "38e3295a1385203a63f05cab2c805d1e60d50d4636779c1aba5ca9fce416c792",
+      "afterSha256": "ff56d3ccce78e2f694a357783c68bf350b34631948b96eb2f0770d64ff48b917"
+    },
+    {
+      "id": "lifecycle-sqlite-failed-commit-owner",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "  const semaphore = yield* Semaphore.make(1);\n  const connection = yield* makeConnection;",
+      "to": "  const semaphore = yield* Semaphore.make(1);\n  const connection = yield* makeConnection;\n  // Retain the original routing/ownership locks. The shared Effect SQLite\n  // cleanup owner runs only while that actual connection is held, and refuses\n  // reuse after failed rollback until its next cleanup attempt succeeds.\n  const recoveries = new WeakMap<Connection, ReturnType<typeof Client.makeSqliteAcquirers>>();\n  const recoveryFor = (connection: Connection) => {\n    let recovery = recoveries.get(connection);\n    if (recovery === undefined) {\n      recovery = Client.makeSqliteAcquirers({ connection: Effect.succeed(connection),\n        semaphore: Semaphore.makeUnsafe(1) });\n      recoveries.set(connection, recovery);\n    }\n    return recovery;\n  };",
+      "beforeSha256": "98c5e531e57a5481fe94972bcbd6be8029343884d788c364c595d109ecfb2074",
+      "afterSha256": "578cbf6d05fcbe3ea73e3624ce69bc42367b29d826601bf643ead2a6312b3616"
+    },
+    {
+      "id": "lifecycle-clean-before-sqlite-borrow",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "        return use(target.connection);",
+      "to": "        return recoveryFor(target.connection).borrower(use);",
+      "beforeSha256": "578cbf6d05fcbe3ea73e3624ce69bc42367b29d826601bf643ead2a6312b3616",
+      "afterSha256": "3d1d1adf7f20804b738c4564e6292d337dc5a9d6fa2e1cc72f58cfd02b2f3f74"
+    },
+    {
+      "id": "lifecycle-retain-sqlite-cleanup-failure",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "    use: (connection: Connection) => Effect.Effect<A, E, R>,\n  ): Effect.Effect<A, E, R> =>",
+      "to": "    use: (connection: Connection) => Effect.Effect<A, E, R>,\n  ): Effect.Effect<A, E | SqlError, R> =>",
+      "beforeSha256": "3d1d1adf7f20804b738c4564e6292d337dc5a9d6fa2e1cc72f58cfd02b2f3f74",
+      "afterSha256": "b6f5b6816c637d243fcbf5ca3fcbb46ecc1f60df23c5f41132a0e4f615f1ffed"
+    },
+    {
+      "id": "lifecycle-clean-before-sqlite-transaction",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "        return Effect.as(\n          // A scheduler yield after taking the permit must not precede its release finalizer.\n          Effect.provideService(acquire, Scheduler.PreventSchedulerYield, true),\n          target.connection,\n        );",
+      "to": "        return Effect.andThen(\n          // A scheduler yield after taking the permit must not precede its release finalizer.\n          Effect.provideService(acquire, Scheduler.PreventSchedulerYield, true),\n          recoveryFor(target.connection).borrower(Effect.succeed),\n        );",
+      "beforeSha256": "b6f5b6816c637d243fcbf5ca3fcbb46ecc1f60df23c5f41132a0e4f615f1ffed",
+      "afterSha256": "0e62d7e4791974808a84992a26cbe1b6391daa48c9ae108a970b5a7101c48248"
+    },
+    {
+      "id": "lifecycle-clean-rejected-sqlite-commit",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "    compiler,\n    transactionAcquirer,",
+      "to": "    compiler,\n    transactionAcquirer,\n    onCommitFailure: (connection) => recoveryFor(connection).onCommitFailure(connection),",
+      "beforeSha256": "0e62d7e4791974808a84992a26cbe1b6391daa48c9ae108a970b5a7101c48248",
+      "afterSha256": "e0fef18b9fae6501d89423dd742ba175669dadddc80d16e97808ae0e8c693f65"
+    },
+    {
       "id": "protected-worker-current-claim-owner",
       "file": "apps/server/src/orchestration-v2/SessionEffectClaimAuthority.ts",
       "create": [
