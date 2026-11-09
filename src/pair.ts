@@ -499,7 +499,7 @@ const assertPreparedPairingMatches = (
     })
     storedPublicKey = rawEd25519PublicKey(createPublicKey(privateKey))
   } catch {
-    throw new Error('This team's pairing state contains an invalid private key.')
+    throw new Error('This team’s pairing state contains an invalid private key.')
   }
   if (
     prepared.apiBaseUrl !== input.apiBaseUrl
@@ -510,7 +510,7 @@ const assertPreparedPairingMatches = (
     || !sameWorkspaceFolders(prepared.workspaceFolders, workspaceFolders)
   ) {
     throw new Error(
-      'This team's folder contains a different unfinished pairing. '
+      'This team’s folder contains a different unfinished pairing. '
       + 'Complete that pairing before starting another.',
     )
   }

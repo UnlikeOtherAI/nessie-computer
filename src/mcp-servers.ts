@@ -141,7 +141,7 @@ export const findExecutorLocalMcpServer = (
       'EXECUTOR_MCP_DENIED',
       servers.length === 0
         ? 'This team uses no local app (MCP server) — its reviewed policy names none.'
-        : `This team's reviewed policy names no local app (MCP server) called "${name}".`,
+        : `This team’s reviewed policy names no local app (MCP server) called "${name}".`,
     )
   }
   return found

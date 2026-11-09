@@ -373,7 +373,7 @@ export const withStateMutationLock = async <T>(stateDir: string, mutate: () => P
     handle = await open(lockPath, 'wx', 0o600)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      throw new Error('This team's settings are already being updated. Try again when that update finishes.')
+      throw new Error('This team’s settings are already being updated. Try again when that update finishes.')
     }
     throw error
   }
@@ -634,7 +634,7 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
     || (parsed.codexSandbox !== undefined && !validCodexSandbox(parsed.codexSandbox))
     || !parsed.descriptor
   ) {
-    throw new Error('This team's saved state is malformed.')
+    throw new Error('This team’s saved state is malformed.')
   }
   const descriptor = parsed.descriptor as ExecutorLocalState['descriptor']
   // The descriptor's names and the local launch specs are written together and
@@ -650,9 +650,9 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
         !== canonicalExecutorJson(executorLocalMcpServerNames(mcpServers ?? []))
     ))
   ) {
-    throw new Error('This team's saved state is malformed.')
+    throw new Error('This team’s saved state is malformed.')
   }
-  if (!codingSessionsStateIsConsistent(descriptor.codingSessions, mcpServers)) throw new Error('This team's saved state is malformed.')
+  if (!codingSessionsStateIsConsistent(descriptor.codingSessions, mcpServers)) throw new Error('This team’s saved state is malformed.')
   // The single legacy root becomes one named folder here and nowhere else, and
   // `workspaceRoot` is dropped so no later save can write both spellings.
   const rest = { ...(parsed as ExecutorLocalState) } as ExecutorLocalState & { workspaceRoot?: string }
@@ -694,12 +694,12 @@ export const saveExecutorState = async (
       throw error
     })
     if (expectedState === undefined) {
-      if (currentState !== null) throw new Error('This team's state already exists.')
+      if (currentState !== null) throw new Error('This team’s state already exists.')
     } else if (
       currentState === null
       || canonicalExecutorJson(currentState) !== canonicalExecutorJson(expectedState)
     ) {
-      throw new Error('This team's settings changed before this update could be saved.')
+      throw new Error('This team’s settings changed before this update could be saved.')
     }
     const grantPath = deepTestSourceGrantPath(stateDir)
     if (currentState === null || currentState.executorId !== state.executorId) {
@@ -803,13 +803,13 @@ export const loadExecutorPreparedPairing = async (
   try {
     await assertOwnerOnly(path, 'file')
     const parsed: unknown = JSON.parse(await readFile(path, 'utf8'))
-    if (!validPreparedPairing(parsed)) throw new Error('This team's pairing state is malformed.')
+    if (!validPreparedPairing(parsed)) throw new Error('This team’s pairing state is malformed.')
     // An unfinished pairing from before folders had names carries one root;
     // migrate it the same way the state file is migrated.
     const rest = { ...parsed } as ExecutorPreparedPairing & { workspaceRoot?: string }
     delete rest.workspaceRoot
     const workspaceFolders = migratedWorkspaceFolders(parsed as LegacySingleRootShape)
-    if (workspaceFolders === null) throw new Error('This team's pairing state is malformed.')
+    if (workspaceFolders === null) throw new Error('This team’s pairing state is malformed.')
     return { ...rest, workspaceFolders }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null

@@ -194,7 +194,7 @@ export const assertCodingRootsClear = async (input: {
   const missing = resolved.roots.find((root) => root.canonical === undefined)
   if (missing) throw new CodingSessionConfigError(`The coding root "${missing.name}" must be an existing ordinary directory.`)
   const guarded: { label: string; paths: string[] }[] = [
-    { label: 'the team's state folder', paths: [resolve(input.stateDir), await canonicalOrDeclared(input.stateDir)] },
+    { label: 'the team’s state folder', paths: [resolve(input.stateDir), await canonicalOrDeclared(input.stateDir)] },
     { label: 'the coding-sessions state directory', paths: [bridgeStateDir, await canonicalOrDeclared(bridgeStateDir)] },
     { label: 'the coding-sessions configuration file', paths: [input.configPath, await canonicalOrDeclared(input.configPath)] },
     ...input.workspaceFolders.map((folder) => ({
@@ -338,7 +338,7 @@ export const namedServersWithoutBridge = (
   if (server.name !== EXECUTOR_CODING_SESSIONS_MCP_SERVER_NAME) return true
   if (previous && canonicalExecutorJson(server) === canonicalExecutorJson(previous.server)) return false
   throw new Error(
-    `The MCP server name "${EXECUTOR_CODING_SESSIONS_MCP_SERVER_NAME}" is reserved for Nessie Computer's own bridge; `
+    `The MCP server name "${EXECUTOR_CODING_SESSIONS_MCP_SERVER_NAME}" is reserved for Nessie Computer’s own bridge; `
     + 'configure it through codingSessions instead.',
   )
 })
