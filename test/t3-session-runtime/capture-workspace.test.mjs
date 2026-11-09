@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp } from 'node:fs/promises'
 import { join } from 'node:path'
 import test from 'node:test'
 import * as Effect from 'effect/Effect'
@@ -13,7 +13,11 @@ const fixtureRoot = async () => {
   assert.ok(root, 'T3_RUNTIME_FIXTURE_ROOT must be a dedicated approved private artifact root')
   await assertOutsideCheckout(root)
   await assertOwnerOnlyStatePath(root, 'directory')
-  const directory = await mkdtemp(join(root, 'retained-workspace-'))
+  const fixture = await mkdtemp(join(root, 'retained-workspace-'))
+  // Exercise SQLite's own WAL/journal suffixes beyond Win32 MAX_PATH as well
+  // as Node's opens. Retain both successful and failed generations.
+  const directory = join(fixture, 'long-state-directory-'.repeat(5))
+  await mkdir(directory)
   await ensureOwnerOnlyStateDirectory(directory)
   return directory
 }

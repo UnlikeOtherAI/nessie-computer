@@ -28,6 +28,9 @@ import { extractEffectCommand } from './effect-command.mjs'
 import { extractEffectClaims } from './effect-claims.mjs'
 import { extractLifecycleTransactions, extractRecoveryFailures } from './lifecycle.mjs'
 import { extractProcessLossPlans } from './process-loss.mjs'
+import { extractShutdownOutbox } from './shutdown-outbox.mjs'
+import { extractShutdownPreparation } from './shutdown.mjs'
+import { extractSqlitePaths } from './sqlite-paths.mjs'
 import { extractWorkerClaims } from './worker-claims.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
@@ -63,6 +66,9 @@ export const generateExtractionManifest = snapshot => {
   extractLifecycleTransactions(author)
   extractRecoveryFailures(author)
   extractProcessLossPlans(author)
+  extractShutdownOutbox(author)
+  extractSqlitePaths(author)
+  extractShutdownPreparation(author, redirects, exports)
   extractWorkerClaims(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)

@@ -17,7 +17,7 @@ Five concrete original actions are guarded:
 | `legacy-shell-reconcile` | `LegacyV1ThreadImporter.reconcileShells`: repairs legacy projections and imports missing shells, preview events and turn positions. |
 | `runtime-recover` | `ProviderRuntimeRecoveryService.recover`: reads runtime recovery projections, commits reconciliation events/effects and calls the global process-loss outbox transition. |
 | `delegated-task-recover` | `Orchestrator.recoverDelegatedTasks`: reconciles app-owned subagents and delegated completion delivery through their actual parent/thread locks. |
-| `prepare-shutdown` | `ProviderRuntimeRecoveryService.prepareForShutdown`: may prepare restart continuations for enabled projects. |
+| `prepare-shutdown` | `prepareShutdownPlan` then `prepareForShutdownPrepared`: prepares the complete original restart-continuation set before its admitted conditional transaction. |
 | `runtime-reconcile-shutdown` | `ProviderRuntimeRecoveryService.reconcile('shutdown')`: commits shutdown reconciliation and process-loss transitions. |
 
 The original process-loss transition cancels pending/running process-bound effects
@@ -82,6 +82,95 @@ subsequent reconciliation, retains the failed state and refuses positive stop
 completion. An actual disabled setting or successfully read empty selection can
 still finish without enqueuing work; a failed observation cannot establish that
 result. A positive whole-action authority producer remains required.
+
+## Whole shutdown preparation
+
+`Recovery.prepareShutdownPlan` prepares the entire original selected action in
+one readonly transaction. It uses the original project selection and
+`restartContinuationRun`, shared with `prepareForShutdown`, and the original
+settings/projection codecs. The scoped candidate exposes the selected thread
+IDs, exact restart effect/command/run identities and digests. Settings and
+projection payloads remain private. Existing effect slots use the same complete
+physical-row reader and digest as process-loss plans.
+The candidate's `settingsDigest` hashes original codec output, not physical file
+bytes; it cannot replace the held resource's native settings digest.
+
+`prepareForShutdownPrepared({ candidate, notAfterMs, notAfterMonotonicMs })`
+burns that candidate before async work. The original event sink owns the outer
+writer transaction and its deferred publication. The consumer rechecks the
+complete settings, selected projections, effects and existing slots under that
+writer lock before inserting. It rechecks inputs, existing physical fields and
+the actual inserted slots again before commit. Changed membership, conflicting
+IDs or changed input refuses the whole transaction. Existing original
+continuations stay unchanged; this cannot reset or retry one.
+
+The same original eventless writer and concurrency of two are retained. The
+prepared variant encloses the complete group in one transaction; the ordinary
+unprepared operation retains its original per-iteration commit behavior. A
+prepared second-write failure rolls back the first insert as well and publishes
+no worker wake. The original service, error classes and Context identities are
+shared across the extracted API and implementation.
+
+Preparing and consuming refuse an ambient SQL transaction. This ensures that
+the prepared event-sink batch owns its actual outermost commit, rather than
+publishing after a nested savepoint while its parent is still uncommitted.
+The preparing Scope retains the consuming child and joins writer waits and
+rollback on closure. Copied, closed, consumed and foreign-service candidates
+refuse. Absolute and monotonic deadlines are bounded by observation plus five
+seconds, checked after lock waits and by the actual INSERT, then before commit.
+A late returned outcome stays uncertain and cannot retry that candidate.
+The SQL fence restricts allowed restart IDs and expiry; it grants no permission.
+
+The finite path explicitly restores interruption for the original SQLite
+transaction acquisition, including while the event sink masks publication.
+Commit, rollback and permit-finalizer installation retain their original masks.
+Readonly planning has its own five-second interruptible wait even from a masked
+shutdown finalizer; unavailable inputs cannot strand cleanup before admission.
+The consuming child times out at the remaining wall/monotonic budget and joins
+cleanup. A publication mask must not strand scope closure behind a writer lock.
+
+Plans refuse more than 256 selected threads or more than 4 MiB of encoded
+settings/projection inputs. This bounds retained plan bytes after original reads;
+it does not claim a preallocation limit inside the original projection reader.
+Existing slot reads retain the physical reader's separate 256-row/1-MiB bounds.
+Nothing is truncated. Trigger, hidden-column, non-table and incoming-FK guards
+protect the actual outbox insert as well as its preceding slot read.
+
+`SessionEngineLifecycle.stop` now calls `withSessionShutdownPreparation`, which
+prepares the actual candidate before calling the required owner's
+`withShutdownPreparation(candidate, writer)`. Its finite writer takes the
+owner's consumed deadline and invokes `prepareForShutdownPrepared`; this action
+cannot use the generic `withAction` path. A fresh finite Scope also supports
+the enclosing graph's shutdown finalizer. Denial, skipping the writer, replay,
+escaped callbacks and replacement of an actual failure refuse completion.
+
+This connects the conditional original mutation to the lifecycle. A production
+owner is still absent, and the local observation or supplied deadline is not
+native/backend admission. The independent complete-action observation,
+current permission for every affected target and remaining four lifecycle
+actions are still required before activating production execution.
+
+Qualification on 9 November 2026, Maxis/Windows 11, Node 24.19.0, pnpm 10.22.0
+and TypeScript 5.9.3: all six public build tasks and 190 runtime, 14 engine,
+11 producer and 14 privacy-source tests passed with zero skips. Fifteen new
+runtime cases cover whole-plan preparation and the actual lifecycle connection,
+including the masked planning timeout. The ordinary composite consumer reaches
+77 contract declarations and zero dependency implementations. Source/fixture
+lint, caps and whitespace passed. An outside-runner package-interface probe
+denied work without writing, wrote the original two-thread continuation set,
+refused an escaped writer and preserved existing rows on a fresh plan.
+
+The same run passed actual long-path workspace migration, write, reopen,
+competing-owner and cancellation checks. Direct Win32/SQLite probes reproduced
+ordinary-path failures and successful extended-path opens without changing ACL
+policy. All eight applicable state-security cases passed; two POSIX cases skip
+on Windows. The broader 85-case Windows source gate remains red: 51 pass,
+27 fail and seven skip. It exposes unavailable original session authority and
+four containment failures; these results do not qualify installed execution.
+Failed logs, databases and journals remain retained. Evidence is under
+`C:\Users\ondre\.local\state\nessie-verification\t3-7a4698a9\shutdown-plan-20261109`.
+No new Rust/native build, PostgreSQL or private API/worker compiler, signing,
+installation, browser or production journey ran for this boundary.
 
 Failure-policy qualification on 9 November 2026, Maxis/Windows 11, Node 24.19.0,
 pnpm 10.22.0 and TypeScript 5.9.3: six public build tasks passed, followed by

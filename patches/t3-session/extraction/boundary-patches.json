@@ -2049,6 +2049,221 @@
       "afterSha256": "7bbae832add9805456ed600b1d7cb5fe3ca1d3cf5761b3280d516d0654e44b6f"
     },
     {
+      "id": "shutdown-outbox-physical-selection-type",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "import type * as Scope from \"effect/Scope\";",
+      "to": "import type * as Scope from \"effect/Scope\";\nimport type { Fragment } from \"effect/sql/Statement\";",
+      "beforeSha256": "7bbae832add9805456ed600b1d7cb5fe3ca1d3cf5761b3280d516d0654e44b6f",
+      "afterSha256": "ceb2a7286bd1b770e05f7f0e92d40877db7db59f3daa9e7ae8c368e68cbf7446"
+    },
+    {
+      "id": "shutdown-outbox-share-physical-row-reader",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "    const readProcessLossRows = Effect.gen(function* () {\n      const schema = yield* sql<{ readonly recognized: number }>`SELECT ${claimSchemaPredicate} AS recognized`;\n      if (schema[0]?.recognized !== 1) return yield* new EffectOutboxError({ operation: \"process-loss-plan-schema\" });\n      // Bound allocation before returning raw payload/error strings to JavaScript.\n      const budget = yield* sql<{ readonly count: number; readonly bytes: number | null }>`\n        SELECT count(*) AS count, sum(length(CAST(json_array(effect_id, command_id, thread_id,\n          effect_type, payload_json, status, attempt_count, available_at, lease_owner, lease_expires_at,\n          created_at, updated_at, completed_at, last_error) AS BLOB))) AS bytes\n        FROM orchestration_v2_effect_outbox WHERE ${processLossSelection}\n      `;\n      if (!budget[0] || budget[0].count > 256 || (budget[0].bytes ?? 0) > 2 * 1024 * 1024) {\n        return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      }\n      const rows = yield* sql<EffectRow>`\n        SELECT * FROM orchestration_v2_effect_outbox\n        WHERE ${processLossSelection}\n          AND ${claimSchemaPredicate}\n        ORDER BY effect_id COLLATE BINARY ASC LIMIT 257\n      `;\n      let bytes = 0;\n      const nullable = new Set([\"lease_owner\", \"lease_expires_at\", \"completed_at\", \"last_error\"]);\n      if (rows.length > 256) return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      for (const row of rows) {\n        if (Object.keys(row).length !== claimColumns.length || claimColumns.some(column =>\n          !Object.hasOwn(row, column) || (column === \"attempt_count\"\n            ? !Number.isSafeInteger(row[column]) || row[column] < 0\n            : typeof row[column] !== \"string\" && !(nullable.has(column) && row[column] === null)))) {\n          return yield* new EffectOutboxError({ operation: \"process-loss-plan-row\" });\n        }\n        bytes += Buffer.byteLength(JSON.stringify(claimColumns.map(column => row[column])), \"utf8\");\n        if (bytes > 1024 * 1024) return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      }\n      return rows.map(row => Object.freeze({ ...row }));\n    }).pipe(Effect.withTracerEnabled(false));\n",
+      "to": "    const readPhysicalEffectRows = (selection: Fragment) => Effect.gen(function* () {\n      const schema = yield* sql<{ readonly recognized: number }>`SELECT ${claimSchemaPredicate} AS recognized`;\n      if (schema[0]?.recognized !== 1) return yield* new EffectOutboxError({ operation: \"process-loss-plan-schema\" });\n      // Bound allocation before returning raw payload/error strings to JavaScript.\n      const budget = yield* sql<{ readonly count: number; readonly bytes: number | null }>`\n        SELECT count(*) AS count, sum(length(CAST(json_array(effect_id, command_id, thread_id,\n          effect_type, payload_json, status, attempt_count, available_at, lease_owner, lease_expires_at,\n          created_at, updated_at, completed_at, last_error) AS BLOB))) AS bytes\n        FROM orchestration_v2_effect_outbox WHERE ${selection}\n      `;\n      if (!budget[0] || budget[0].count > 256 || (budget[0].bytes ?? 0) > 2 * 1024 * 1024) {\n        return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      }\n      const rows = yield* sql<EffectRow>`\n        SELECT * FROM orchestration_v2_effect_outbox\n        WHERE ${selection}\n          AND ${claimSchemaPredicate}\n        ORDER BY effect_id COLLATE BINARY ASC LIMIT 257\n      `;\n      let bytes = 0;\n      const nullable = new Set([\"lease_owner\", \"lease_expires_at\", \"completed_at\", \"last_error\"]);\n      if (rows.length > 256) return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      for (const row of rows) {\n        if (Object.keys(row).length !== claimColumns.length || claimColumns.some(column =>\n          !Object.hasOwn(row, column) || (column === \"attempt_count\"\n            ? !Number.isSafeInteger(row[column]) || row[column] < 0\n            : typeof row[column] !== \"string\" && !(nullable.has(column) && row[column] === null)))) {\n          return yield* new EffectOutboxError({ operation: \"process-loss-plan-row\" });\n        }\n        bytes += Buffer.byteLength(JSON.stringify(claimColumns.map(column => row[column])), \"utf8\");\n        if (bytes > 1024 * 1024) return yield* new EffectOutboxError({ operation: \"process-loss-plan-size\" });\n      }\n      return rows.map(row => Object.freeze({ ...row }));\n    }).pipe(Effect.withTracerEnabled(false));\n    const readProcessLossRows = readPhysicalEffectRows(processLossSelection);\n",
+      "beforeSha256": "ceb2a7286bd1b770e05f7f0e92d40877db7db59f3daa9e7ae8c368e68cbf7446",
+      "afterSha256": "eac062ccd07cdc6b7b40f39f73ea0439d27f01ee5c8854ce742dc03442939d40"
+    },
+    {
+      "id": "shutdown-outbox-slot-api-and-restrictive-fence",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "export interface EffectOutboxV2Shape {",
+      "to": "/** A SQL restriction, never admission to insert these effects. */\nexport class RestartContinuationWriteFence extends Context.Reference<\n  OrchestrationEffectClaimDeadline & { readonly effectIds: ReadonlyArray<string> } | undefined\n>(\"nessie/session-engine/RestartContinuationWriteFence\", { defaultValue: () => undefined }) {}\n\nexport interface EffectOutboxV2Shape {\n  /** Readonly exact physical slots for the original shutdown planner. */\n  readonly inspectRestartContinuationSlots: (effects: ReadonlyArray<PendingOrchestrationEffectV2>) =>\n    Effect.Effect<ReadonlyArray<{ readonly effectId: string; readonly rowDigest: string | null }>, EffectOutboxError>;",
+      "beforeSha256": "eac062ccd07cdc6b7b40f39f73ea0439d27f01ee5c8854ce742dc03442939d40",
+      "afterSha256": "5ca71e9f653b23729ed2bd8c2718a2bae1e7b4361b48ab97a8a53cb2d053207c"
+    },
+    {
+      "id": "shutdown-outbox-exact-existing-slots",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "    const service: EffectOutboxV2Shape = {",
+      "to": "    const service: EffectOutboxV2Shape = {\n      inspectRestartContinuationSlots: (effects) => Effect.gen(function* () {\n        const expected = yield* Effect.try({ try: () => {\n          if (effects.length > 256 || new Set(effects.map(effect => effect.id)).size !== effects.length\n            || effects.some(effect => !effect.id || effect.availableAt !== undefined\n              || effect.request.type !== \"provider-runtime.continue\")) throw new Error(\"shutdown-slots-input\");\n          return effects.map(effect => ({ id: effect.id, commandId: effect.commandId, threadId: effect.threadId,\n            payload: encodeRequest(effect.request) }));\n        }, catch: () => new EffectOutboxError({ operation: \"shutdown-slots-input\" }) });\n        const ids = expected.map(effect => effect.id);\n        const rows = yield* readPhysicalEffectRows(ids.length === 0 ? sql`0 = 1` : sql`effect_id IN ${sql.in(ids)}`);\n        const byId = new Map(rows.map(row => [row.effect_id, row]));\n        return yield* Effect.forEach(expected, effect => Effect.gen(function* () {\n          const row = byId.get(effect.id);\n          if (row && (row.command_id !== effect.commandId || row.thread_id !== effect.threadId\n            || row.effect_type !== \"provider-runtime.continue\" || row.payload_json !== effect.payload)) {\n            return yield* new EffectOutboxError({ operation: \"shutdown-slot-conflict\" });\n          }\n          return Object.freeze({ effectId: effect.id, rowDigest: row ? digestEffectRow(row) : null });\n        }));\n      }).pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false),\n        Effect.mapError(cause => new EffectOutboxError({ operation: \"inspect-shutdown-slots\", cause }))),",
+      "beforeSha256": "5ca71e9f653b23729ed2bd8c2718a2bae1e7b4361b48ab97a8a53cb2d053207c",
+      "afterSha256": "d65eec0b1600d107ee9a696064ba51ea60980fffc6dbfca3651ea9f11a5dab60"
+    },
+    {
+      "id": "shutdown-outbox-actual-insert-deadline",
+      "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
+      "from": "      enqueue: Effect.fn(\"EffectOutbox.enqueue\")(\n        function* (effects) {\n          const now = yield* DateTime.now;\n          const nowIso = DateTime.formatIso(now);\n          yield* Effect.forEach(\n            effects,\n            (effect) => sql`\n              INSERT INTO orchestration_v2_effect_outbox (\n                effect_id,\n                command_id,\n                thread_id,\n                effect_type,\n                payload_json,\n                status,\n                attempt_count,\n                available_at,\n                created_at,\n                updated_at\n              )\n              VALUES (\n                ${effect.id},\n                ${effect.commandId},\n                ${effect.threadId},\n                ${effect.request.type},\n                ${encodeRequest(effect.request)},\n                'pending',\n                0,\n                ${DateTime.formatIso(effect.availableAt ?? now)},\n                ${nowIso},\n                ${nowIso}\n              )\n              ON CONFLICT(effect_id) DO NOTHING\n            `,\n            { concurrency: 1, discard: true },\n          );\n          // EventSink owns the corresponding post-commit notification.\n        },\n        Effect.mapError((cause) => new EffectOutboxError({ operation: \"enqueue\", cause })),\n      ),\n",
+      "to": "      enqueue: Effect.fn(\"EffectOutbox.enqueue\")(\n        function* (effects) {\n          const fence = yield* RestartContinuationWriteFence;\n          if (fence && effects.some(effect => effect.request.type !== \"provider-runtime.continue\"\n            || !fence.effectIds.includes(effect.id))) {\n            return yield* new EffectOutboxError({ operation: \"shutdown-enqueue-scope\" });\n          }\n          const now = yield* DateTime.now;\n          const nowIso = DateTime.formatIso(now);\n          yield* Effect.forEach(\n            effects,\n            (effect) => sql`\n              INSERT INTO orchestration_v2_effect_outbox (\n                effect_id,\n                command_id,\n                thread_id,\n                effect_type,\n                payload_json,\n                status,\n                attempt_count,\n                available_at,\n                created_at,\n                updated_at\n              )\n              SELECT\n                ${effect.id},\n                ${effect.commandId},\n                ${effect.threadId},\n                ${effect.request.type},\n                ${encodeRequest(effect.request)},\n                'pending',\n                0,\n                ${DateTime.formatIso(effect.availableAt ?? now)},\n                ${nowIso},\n                ${nowIso}\n              WHERE ${fence === undefined ? sql`1 = 1` : sql`${claimSchemaPredicate}\n                AND CAST(unixepoch('subsec') * 1000 AS INTEGER) < ${fence.notAfterMs}\n                AND nessie_t3_monotonic_now() < ${fence.notAfterMonotonicMs}`}\n              ON CONFLICT(effect_id) DO NOTHING\n            `,\n            { concurrency: 1, discard: true },\n          );\n          // EventSink owns the corresponding post-commit notification.\n        },\n        Effect.mapError((cause) => new EffectOutboxError({ operation: \"enqueue\", cause })),\n      ),\n",
+      "beforeSha256": "d65eec0b1600d107ee9a696064ba51ea60980fffc6dbfca3651ea9f11a5dab60",
+      "afterSha256": "946f2bf12b583426149faa7611a308457da67002c1c8ca01eda56f0335be3ac0"
+    },
+    {
+      "id": "sqlite-windows-file-namespace-import",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "import * as NodeSqlite from \"node:sqlite\";",
+      "to": "import * as NodePath from \"node:path\";\nimport * as NodeSqlite from \"node:sqlite\";",
+      "beforeSha256": "e0fef18b9fae6501d89423dd742ba175669dadddc80d16e97808ae0e8c693f65",
+      "afterSha256": "0e31770420db30ad98dcd2f64bca79587abfe824541bbdb53970f629b47beb5c"
+    },
+    {
+      "id": "sqlite-windows-file-namespace",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "  yield* checkNodeSqliteCompat();",
+      "to": "  yield* checkNodeSqliteCompat();\n  // SQLite appends WAL/journal suffixes itself. Ordinary Win32 paths can open\n  // the database yet fail later when a sidecar exceeds MAX_PATH. Use the same\n  // extended filename for the writer, reader and checkpoint connections.\n  if (options.filename !== \":memory:\" && options.filename !== \"\") {\n    options = { ...options, filename: NodePath.toNamespacedPath(options.filename) };\n  }",
+      "beforeSha256": "0e31770420db30ad98dcd2f64bca79587abfe824541bbdb53970f629b47beb5c",
+      "afterSha256": "484314192b4d4c5429d19bf18f1d15d4a0185fefaa7932eb49d3a064dfc813f5"
+    },
+    {
+      "id": "shutdown-interruptible-writer-wait-owner",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "const TransactionAcquire = Context.Reference<",
+      "to": "const InterruptibleTransactionWait = Context.Reference<boolean>(\n  \"nessie/session-engine/InterruptibleTransactionWait\", { defaultValue: () => false });\n/** Constrain acquisition only, even inside a publication owner's mask. Commit,\n * rollback and lock-finalizer installation keep their original masking. */\nexport const withInterruptibleTransactionWait = Effect.provideService(InterruptibleTransactionWait, true);\n\nconst TransactionAcquire = Context.Reference<",
+      "beforeSha256": "484314192b4d4c5429d19bf18f1d15d4a0185fefaa7932eb49d3a064dfc813f5",
+      "afterSha256": "09fe2383976de3c6183d9d9c8d825418778031904002494445a10f917cc3843f"
+    },
+    {
+      "id": "shutdown-retain-interruptible-acquisition-through-publication-mask",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "          ownerAtWaitStart: undefined,\n          restore,",
+      "to": "          ownerAtWaitStart: undefined,\n          restore: Context.get(Fiber.getCurrent()!.context,\n            InterruptibleTransactionWait) ? Effect.interruptible : restore,",
+      "beforeSha256": "09fe2383976de3c6183d9d9c8d825418778031904002494445a10f917cc3843f",
+      "afterSha256": "2e8fe1d06bff6f06215de62c777ac4c344b4e798410b48f3f9df46d945f3cc6a"
+    },
+    {
+      "id": "shutdown-share-recovery-api",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "create": [
+        {
+          "text": "import { ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+          "start": 1464,
+          "end": 2961,
+          "sha256": "7dada7de1ec8e5dc2cad274f67b162c3ac806821fb7fc47944cf643e15f0568c",
+          "sourceStage": "current",
+          "sourceSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "55e22a9d523fbb6ecdcf2309834806e6667b76bebee599f63299c628e5b6d052"
+    },
+    {
+      "id": "shutdown-share-recovery-error-guard",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "from": "const isProviderRuntimeRecoveryError =",
+      "to": "export const isProviderRuntimeRecoveryError =",
+      "beforeSha256": "55e22a9d523fbb6ecdcf2309834806e6667b76bebee599f63299c628e5b6d052",
+      "afterSha256": "39080f242e7ca47a595cf23dbe039805edb706a3a0af9a9a3b1fb3702e93b8b8"
+    },
+    {
+      "id": "shutdown-recovery-plan-error-stage",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "from": "Schema.Literals([\"read-settings\", \"read-projections\", \"reconcile\", \"drain-outbox\"])",
+      "to": "Schema.Literals([\"read-settings\", \"read-projections\", \"reconcile\", \"drain-outbox\", \"shutdown-plan\"])",
+      "beforeSha256": "39080f242e7ca47a595cf23dbe039805edb706a3a0af9a9a3b1fb3702e93b8b8",
+      "afterSha256": "3797b8c1fa7856adb6a3365453d0d52735a92844dfc55195ccd4cbd7e530b296"
+    },
+    {
+      "id": "shutdown-scoped-plan-contract",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "from": "export class ProviderRuntimeRecoveryService extends",
+      "to": "export declare const shutdownPreparationCandidateBrand: unique symbol;\n/** Scoped original inputs only; no native, backend or lifecycle permission. */\nexport interface ShutdownPreparationCandidate {\n  readonly [shutdownPreparationCandidateBrand]: true;\n  readonly observedAtMs: number;\n  readonly settingsDigest: string;\n  readonly inputDigest: string;\n  readonly planDigest: string;\n  readonly threadIds: ReadonlyArray<ThreadId>;\n  readonly effects: ReadonlyArray<{ readonly effectId: string; readonly commandId: CommandId;\n    readonly threadId: ThreadId; readonly sourceRunId: string; readonly existingRowDigest: string | null }>;\n}\n\nexport class ProviderRuntimeRecoveryService extends",
+      "beforeSha256": "3797b8c1fa7856adb6a3365453d0d52735a92844dfc55195ccd4cbd7e530b296",
+      "afterSha256": "c59bf1e7b2b805e650f7e058bf90595d10275dde3011f8c558d7c846ba841823"
+    },
+    {
+      "id": "shutdown-plan-service-operations",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "from": "    readonly prepareForShutdown: Effect.Effect<void, ProviderRuntimeRecoveryError>;",
+      "to": "    readonly prepareForShutdown: Effect.Effect<void, ProviderRuntimeRecoveryError>;\n    readonly prepareShutdownPlan: Effect.Effect<ShutdownPreparationCandidate, ProviderRuntimeRecoveryError, Scope.Scope>;\n    readonly prepareForShutdownPrepared: (input: { readonly candidate: ShutdownPreparationCandidate }\n      & EffectOutbox.OrchestrationEffectClaimDeadline) => Effect.Effect<void, ProviderRuntimeRecoveryError>;",
+      "beforeSha256": "c59bf1e7b2b805e650f7e058bf90595d10275dde3011f8c558d7c846ba841823",
+      "afterSha256": "3c84a256a03f3faffa88c768e8a6c56ccf4901ce7d5516cde1246b7633bf75d1"
+    },
+    {
+      "id": "shutdown-plan-service-imports",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.session-api.ts",
+      "from": "import { ThreadId } from \"@t3tools/contracts\";",
+      "to": "import type { CommandId } from \"@t3tools/contracts\";\nimport type * as Scope from \"effect/Scope\";\nimport type * as EffectOutbox from \"./EffectOutbox.ts\";\nimport { ThreadId } from \"@t3tools/contracts\";",
+      "beforeSha256": "3c84a256a03f3faffa88c768e8a6c56ccf4901ce7d5516cde1246b7633bf75d1",
+      "afterSha256": "4852f4b9a28e71c89ee21f87e04a1587c8fb0ad09fccb6970e55e314e48e95c3"
+    },
+    {
+      "id": "shutdown-reuse-original-recovery-identities",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "export class ProviderRuntimeRecoveryError extends Schema.TaggedError<ProviderRuntimeRecoveryError>()(\n  \"ProviderRuntimeRecoveryError\",\n  {\n    operation: Schema.Literals([\"read-settings\", \"read-projections\", \"reconcile\", \"drain-outbox\"]),\n    threadId: Schema.optional(ThreadId),\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Provider runtime recovery failed during ${this.operation}.`;\n  }\n}\n\nconst isProviderRuntimeRecoveryError = Schema.is(ProviderRuntimeRecoveryError);\n\nexport interface ProviderRuntimeRecoverySummary {\n  readonly terminalizedRuns: number;\n  readonly stoppedSessions: number;\n  readonly closedRequests: number;\n  readonly retiredEffects: number;\n  readonly requeuedEffects: number;\n}\n\nexport interface ProviderRuntimeReconciliationSummary {\n  readonly terminalizedRuns: number;\n  readonly stoppedSessions: number;\n  readonly closedRequests: number;\n  readonly retiredEffects: number;\n  readonly requeuedEffects: number;\n}\n\nexport class ProviderRuntimeRecoveryService extends Context.Service<\n  ProviderRuntimeRecoveryService,\n  {\n    readonly reconcile: (\n      trigger: \"startup\" | \"shutdown\",\n    ) => Effect.Effect<ProviderRuntimeReconciliationSummary, ProviderRuntimeRecoveryError>;\n    readonly prepareForShutdown: Effect.Effect<void, ProviderRuntimeRecoveryError>;\n    readonly recover: Effect.Effect<ProviderRuntimeRecoverySummary, ProviderRuntimeRecoveryError>;\n  }\n>()(\"t3/orchestration-v2/ProviderRuntimeRecoveryService\") {}\n\n",
+      "to": "import { ProviderRuntimeRecoveryError, type ProviderRuntimeRecoverySummary, type ProviderRuntimeReconciliationSummary, ProviderRuntimeRecoveryService, isProviderRuntimeRecoveryError } from \"./ProviderRuntimeRecoveryService.session-api.ts\";\nexport { ProviderRuntimeRecoveryError, type ProviderRuntimeRecoverySummary, type ProviderRuntimeReconciliationSummary, ProviderRuntimeRecoveryService };\nexport type { ShutdownPreparationCandidate } from \"./ProviderRuntimeRecoveryService.session-api.ts\";\n\n",
+      "beforeSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9",
+      "afterSha256": "7a0586e67cd3473da4c638fe16d8c0f821f993fa2376a4bae5e30e155d539e74"
+    },
+    {
+      "id": "shutdown-original-action-and-scoped-owner",
+      "file": "apps/server/src/orchestration-v2/ShutdownPreparation.ts",
+      "create": [
+        {
+          "text": "import { resolveProjectSettings } from \"@t3tools/shared/projectSettings\";\nimport { CommandId } from \"@t3tools/contracts\";\nimport * as DateTime from \"effect/DateTime\";\nimport * as Effect from \"effect/Effect\";\nimport * as EffectOutbox from \"./EffectOutbox.ts\";\nimport * as EventSink from \"./EventSink.ts\";\nimport * as ProjectionStore from \"./ProjectionStore.ts\";\nimport * as ServerSettings from \"../serverSettings.session-port.ts\";\nimport { restartContinuationRun } from \"./RestartContinuation.ts\";\n"
+        },
+        {
+          "text": "import { createHash } from \"node:crypto\";\nimport { performance } from \"node:perf_hooks\";\nimport { ServerSettings as ServerSettingsCodec, OrchestrationV2ThreadProjection as ProjectionCodec }\n  from \"@t3tools/contracts\";\nimport type { ServerSettings as SettingsValue, ThreadId } from \"@t3tools/contracts\";\nimport * as Schema from \"effect/Schema\";\nimport * as Fiber from \"effect/Fiber\";\nimport * as Scope from \"effect/Scope\";\nimport * as Option from \"effect/Option\";\nimport * as SqlClient from \"effect/sql/SqlClient\";\nimport * as NodeSqliteClient from \"@t3tools/shared/nodeSqliteClient\";\nimport { ProviderRuntimeRecoveryError, isProviderRuntimeRecoveryError } from \"./ProviderRuntimeRecoveryService.session-api.ts\";\nimport type { ProviderRuntimeRecoveryService, ShutdownPreparationCandidate,\n  shutdownPreparationCandidateBrand } from \"./ProviderRuntimeRecoveryService.session-api.ts\";\n\ntype ContinuationEffect = Omit<EffectOutbox.PendingOrchestrationEffectV2, \"request\"> & {\n  readonly request: Extract<EffectOutbox.OrchestrationEffectRequestV2, { readonly type: \"provider-runtime.continue\" }> };\nexport const make = Effect.gen(function* () {\n  const settings = yield* ServerSettings.ServerSettingsService;\n  const projections = yield* ProjectionStore.ProjectionStoreV2;\n  const eventSink = yield* EventSink.EventSinkV2;\n  const outbox = yield* EffectOutbox.EffectOutboxV2;\n  const sql = yield* SqlClient.SqlClient;\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+          "start": 36799,
+          "end": 39212,
+          "sha256": "d0ef67b61e42eaa50a1d0ea9811959ddd44193038b33fd17fde306523a9dee65",
+          "sourceStage": "current",
+          "sourceSha256": "7a0586e67cd3473da4c638fe16d8c0f821f993fa2376a4bae5e30e155d539e74"
+        },
+        {
+          "text": "\n  const projectionFields = ProjectionCodec.fields;\n  const encodeProjection = Schema.encodeSync(Schema.Struct({\n    thread: projectionFields.thread, runs: projectionFields.runs, attempts: projectionFields.attempts,\n    nodes: projectionFields.nodes, subagents: projectionFields.subagents,\n    providerSessions: projectionFields.providerSessions, providerThreads: projectionFields.providerThreads,\n    providerTurns: projectionFields.providerTurns, runtimeRequests: projectionFields.runtimeRequests,\n    messages: projectionFields.messages, turnItems: projectionFields.turnItems,\n  }));\n  const encodeSettings = Schema.encodeSync(ServerSettingsCodec);\n  const decodeSettings = Schema.decodeSync(ServerSettingsCodec);\n  const digest = (domain: string, value: unknown) => \"sha256:\" + createHash(\"sha256\")\n    .update(JSON.stringify([domain, value]), \"utf8\").digest(\"hex\");\n  const refused = (reason: string) => new ProviderRuntimeRecoveryError({\n    operation: \"shutdown-plan\", cause: reason });\n  const withoutAmbientTransaction = Effect.gen(function* () {\n    if (Option.isSome(yield* Effect.serviceOption(sql.transactionService))) {\n      return yield* refused(\"shutdown-plan-ambient-transaction\");\n    }\n  });\n  const readPlan = Effect.gen(function* () {\n    const value = yield* settings.getSettings.pipe(Effect.mapError(cause =>\n      new ProviderRuntimeRecoveryError({ operation: \"read-settings\", cause })));\n    // The original codecs copy settings before any further async read. Neither\n    // their bytes nor projection payloads are exposed by the candidate.\n    const encodedSettings = encodeSettings(value);\n    const selectedSettings = decodeSettings(encodedSettings);\n    const threadIds = yield* readThreadIds(selectedSettings);\n    if (threadIds.length > 256 || new Set(threadIds).size !== threadIds.length) {\n      return yield* refused(\"shutdown-plan-size\");\n    }\n    const inputs: Array<readonly [string, unknown]> = [];\n    const effects: Array<ContinuationEffect> = [];\n    let bytes = Buffer.byteLength(JSON.stringify(encodedSettings), \"utf8\");\n    if (bytes > 4 * 1024 * 1024) return yield* refused(\"shutdown-plan-size\");\n    // One readonly transaction supplies every original projection. The normal\n    // unprepared operation retains its original concurrent read/write policy.\n    for (const threadId of threadIds) {\n      const projection = yield* projections.getRuntimeRecoveryProjection(threadId);\n      if (projection.thread.id !== threadId) return yield* refused(\"shutdown-plan-thread-mismatch\");\n      const now = yield* DateTime.now;\n      const encoded = encodeProjection(projection);\n      bytes += Buffer.byteLength(JSON.stringify(encoded), \"utf8\");\n      if (bytes > 4 * 1024 * 1024) return yield* refused(\"shutdown-plan-size\");\n      inputs.push([threadId, encoded]);\n      const effect = selectContinuation(selectedSettings, projection, now, threadId);\n      if (effect) effects.push(Object.freeze({ ...effect, request: Object.freeze({ ...effect.request }) }));\n    }\n    const slots = yield* outbox.inspectRestartContinuationSlots(effects);\n    const inputDigest = digest(\"nessie.t3.shutdown-inputs.v1\", [encodedSettings, inputs]);\n    const settingsDigest = digest(\"nessie.t3.shutdown-settings.v1\", encodedSettings);\n    const planDigest = digest(\"nessie.t3.shutdown-plan.v1\", [inputDigest, effects, slots]);\n    return { inputDigest, settingsDigest, planDigest, threadIds, effects, slots };\n  }).pipe(Effect.withTracerEnabled(false));\n  type Plan = Effect.Success<typeof readPlan> & { readonly scope: Scope.Scope;\n    readonly observedAtMs: number; readonly observedMonotonicMs: number };\n  const plans = new WeakMap<ShutdownPreparationCandidate, Plan>();\n  const key = Object.freeze({});\n  const get = (candidate: ShutdownPreparationCandidate) => {\n    const plan = plans.get(candidate);\n    if (!plan) throw refused(\"shutdown-plan-closed\");\n    return plan;\n  };\n  class Candidate implements ShutdownPreparationCandidate {\n    declare readonly [shutdownPreparationCandidateBrand]: true;\n    constructor(supplied: object) { if (supplied !== key) throw refused(\"shutdown-plan-closed\"); }\n    get observedAtMs(): number { return get(this).observedAtMs; }\n    get inputDigest(): string { return get(this).inputDigest; }\n    get settingsDigest(): string { return get(this).settingsDigest; }\n    get planDigest(): string { return get(this).planDigest; }\n    get threadIds(): ReadonlyArray<ThreadId> { return [...get(this).threadIds]; }\n    get effects(): ShutdownPreparationCandidate[\"effects\"] {\n      const plan = get(this);\n      return plan.effects.map((effect, index) => Object.freeze({ effectId: effect.id,\n        commandId: effect.commandId, threadId: effect.threadId,\n        sourceRunId: effect.request.sourceRunId,\n        existingRowDigest: plan.slots[index]!.rowDigest }));\n    }\n  }\n  Object.freeze(Candidate.prototype);\n  const mapError = (cause: unknown) => isProviderRuntimeRecoveryError(cause) ? cause\n    : new ProviderRuntimeRecoveryError({ operation: \"shutdown-plan\", cause });\n  const prepareShutdownPlan = Effect.gen(function* () {\n    yield* withoutAmbientTransaction;\n    const scope = yield* Scope.Scope;\n    const observedAtMs = Date.now(), observedMonotonicMs = performance.now();\n    // Shutdown finalizers are masked. This readonly observation still needs a\n    // finite wait; it cannot strand cleanup before an owner even sees a plan.\n    const plan = yield* sql.withTransaction(readPlan).pipe(NodeSqliteClient.readOnly,\n      Effect.interruptible, Effect.timeout(5000));\n    if (Date.now() >= observedAtMs + 5000 || performance.now() >= observedMonotonicMs + 5000) {\n      return yield* refused(\"shutdown-plan-expired\");\n    }\n    const candidate = Object.freeze(new Candidate(key));\n    plans.set(candidate, { ...plan, scope, observedAtMs, observedMonotonicMs });\n    yield* Effect.addFinalizer(() => Effect.sync(() => { plans.delete(candidate); }));\n    return candidate;\n  }).pipe(Effect.mapError(mapError));\n  const prepareForShutdownPrepared = (input: { readonly candidate: ShutdownPreparationCandidate }\n    & EffectOutbox.OrchestrationEffectClaimDeadline) => Effect.suspend(() => {\n      const plan = plans.get(input.candidate);\n      if (!plan) return Effect.fail(refused(\"shutdown-plan-closed\"));\n      plans.delete(input.candidate); // Burn before SQL, including uncertainty and refusal.\n      const { notAfterMs, notAfterMonotonicMs } = input;\n      if (!Number.isSafeInteger(notAfterMs) || !Number.isFinite(notAfterMonotonicMs)\n        || notAfterMs > plan.observedAtMs + 5000 || notAfterMonotonicMs > plan.observedMonotonicMs + 5000) {\n        return Effect.fail(refused(\"shutdown-plan-expired\"));\n      }\n      const deadline = Effect.gen(function* () {\n        const rows = yield* sql<{ readonly current: number }>`SELECT\n          CAST(unixepoch('subsec') * 1000 AS INTEGER) < ${notAfterMs}\n          AND nessie_t3_monotonic_now() < ${notAfterMonotonicMs} AS current`;\n        if (rows[0]?.current !== 1) return yield* refused(\"shutdown-plan-expired\");\n      });\n      const work = Effect.gen(function* () {\n        yield* withoutAmbientTransaction;\n        return yield* eventSink.withProviderBatch(Effect.gen(function* () {\n          yield* deadline;\n          const current = yield* readPlan;\n          if (current.planDigest !== plan.planDigest) return yield* refused(\"shutdown-plan-changed\");\n          yield* Effect.forEach(plan.effects, effect => deadline.pipe(Effect.andThen(writeContinuation(effect))),\n            { concurrency: 2, discard: true });\n          const after = yield* readPlan;\n          if (after.inputDigest !== plan.inputDigest || JSON.stringify(after.effects) !== JSON.stringify(plan.effects)\n            || after.slots.some((slot, index) => slot.rowDigest === null\n              || (plan.slots[index]!.rowDigest !== null && slot.rowDigest !== plan.slots[index]!.rowDigest))) {\n            return yield* refused(\"shutdown-plan-changed\");\n          }\n          yield* deadline;\n        }).pipe(Effect.provideService(EffectOutbox.RestartContinuationWriteFence,\n          { notAfterMs, notAfterMonotonicMs, effectIds: Object.freeze(plan.effects.map(effect => effect.id)) })));\n      }).pipe(Effect.flatMap(() => Date.now() < notAfterMs && performance.now() < notAfterMonotonicMs\n        ? Effect.void : Effect.fail(refused(\"shutdown-plan-outcome-uncertain\"))), Effect.mapError(mapError));\n      const remaining = Math.max(0, Math.min(notAfterMs - Date.now(), notAfterMonotonicMs - performance.now()));\n      return work.pipe(NodeSqliteClient.withInterruptibleTransactionWait, Effect.timeout(remaining),\n        Effect.mapError(mapError), Effect.forkIn(plan.scope), Effect.flatMap(Fiber.join));\n    });\n"
+        },
+        {
+          "text": "  const service: Pick<ProviderRuntimeRecoveryService[\"Service\"],\n    \"prepareForShutdown\" | \"prepareShutdownPlan\" | \"prepareForShutdownPrepared\"> = {\n    prepareForShutdown, prepareShutdownPlan, prepareForShutdownPrepared };\n  return service;\n});\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "f087f24c5de0405d48d0b638b811123cf7bcfc965849c807fe724d6512ef9528"
+    },
+    {
+      "id": "shutdown-share-original-project-selection",
+      "file": "apps/server/src/orchestration-v2/ShutdownPreparation.ts",
+      "from": "    const enabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === true)\n      .map(([id]) => id);\n    if (!enabled.continueThreadsAfterServerUpdate && enabledProjects.length === 0) return;\n    const disabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === false)\n      .map(([id]) => id);\n    const threadIds = yield* projections.getRecoveryThreadIds(\n      \"restart-continuations\",\n      enabled.continueThreadsAfterServerUpdate\n        ? { exclude: disabledProjects }\n        : { include: enabledProjects },\n    );\n",
+      "to": "    const threadIds = yield* readThreadIds(enabled);\n",
+      "beforeSha256": "f087f24c5de0405d48d0b638b811123cf7bcfc965849c807fe724d6512ef9528",
+      "afterSha256": "fe1bc9b75c3ab7b3c952d301aecbad37361aa20f5855444089eb18c0bbe17320"
+    },
+    {
+      "id": "shutdown-share-original-continuation-planner",
+      "file": "apps/server/src/orchestration-v2/ShutdownPreparation.ts",
+      "from": "          if (\n            !resolveProjectSettings(enabled, projection.thread.projectId).settings\n              .continueThreadsAfterServerUpdate\n          )\n            return;\n          const run = restartContinuationRun(projection, yield* DateTime.now);\n          if (!run) return;\n          const commandId = CommandId.make(`command:restart-prepare:${run.id}`);\n          yield* eventSink.writeWithEffects({\n            commandId,\n            events: [],\n            effects: [\n              {\n                id: `effect:restart-continuation:${run.id}`,\n                commandId,\n                threadId,\n                request: { type: \"provider-runtime.continue\", sourceRunId: run.id },\n              },\n            ],\n          });\n",
+      "to": "          const effect = selectContinuation(enabled, projection, yield* DateTime.now, threadId);\n          if (effect) yield* writeContinuation(effect);\n",
+      "beforeSha256": "fe1bc9b75c3ab7b3c952d301aecbad37361aa20f5855444089eb18c0bbe17320",
+      "afterSha256": "747d28cb6d612309ca5ddbe9366e3d33b1dddb83e791787b98d2187e33133914"
+    },
+    {
+      "id": "shutdown-original-plan-shared-helpers",
+      "file": "apps/server/src/orchestration-v2/ShutdownPreparation.ts",
+      "from": "  const prepareForShutdown =",
+      "to": "  const readThreadIds = (enabled: SettingsValue) => Effect.gen(function* () {\n    const enabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === true)\n      .map(([id]) => id);\n    if (!enabled.continueThreadsAfterServerUpdate && enabledProjects.length === 0) return [];\n    const disabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === false)\n      .map(([id]) => id);\n    return yield* projections.getRecoveryThreadIds(\n      \"restart-continuations\",\n      enabled.continueThreadsAfterServerUpdate\n        ? { exclude: disabledProjects }\n        : { include: enabledProjects },\n    );\n  });\n  const selectContinuation = (enabled: SettingsValue,\n    projection: ProjectionStore.ProjectionRuntimeRecoveryState, now: DateTime.Utc,\n    threadId: ThreadId): ContinuationEffect | undefined => {\n          if (\n            !resolveProjectSettings(enabled, projection.thread.projectId).settings\n              .continueThreadsAfterServerUpdate\n          )\n            return;\n          const run = restartContinuationRun(projection, now);\n          if (!run) return;\n          const commandId = CommandId.make(`command:restart-prepare:${run.id}`);\n    return {\n                id: `effect:restart-continuation:${run.id}`,\n                commandId,\n                threadId,\n                request: { type: \"provider-runtime.continue\", sourceRunId: run.id },\n              };\n  };\n  const writeContinuation = (effect: ContinuationEffect) => eventSink.writeWithEffects({\n    commandId: effect.commandId, events: [], effects: [effect] });\n  const prepareForShutdown =",
+      "beforeSha256": "747d28cb6d612309ca5ddbe9366e3d33b1dddb83e791787b98d2187e33133914",
+      "afterSha256": "4044846fd057a17c5627be2bb1b20568b4c3fad748a78dbb493f1c8c7f332c29"
+    },
+    {
+      "id": "shutdown-original-recovery-consumes-shared-action",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "  const prepareForShutdown = Effect.gen(function* () {\n    const enabled = yield* settings.getSettings.pipe(Effect.mapError((cause) =>\n      new ProviderRuntimeRecoveryError({ operation: \"read-settings\", cause })));\n    const enabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === true)\n      .map(([id]) => id);\n    if (!enabled.continueThreadsAfterServerUpdate && enabledProjects.length === 0) return;\n    const disabledProjects = Object.entries(enabled.projectSettingsOverrides)\n      .filter(([, overrides]) => overrides.continueThreadsAfterServerUpdate === false)\n      .map(([id]) => id);\n    const threadIds = yield* projections.getRecoveryThreadIds(\n      \"restart-continuations\",\n      enabled.continueThreadsAfterServerUpdate\n        ? { exclude: disabledProjects }\n        : { include: enabledProjects },\n    );\n    yield* Effect.forEach(\n      threadIds,\n      (threadId) =>\n        Effect.gen(function* () {\n          const projection = yield* projections.getRuntimeRecoveryProjection(threadId);\n          if (\n            !resolveProjectSettings(enabled, projection.thread.projectId).settings\n              .continueThreadsAfterServerUpdate\n          )\n            return;\n          const run = restartContinuationRun(projection, yield* DateTime.now);\n          if (!run) return;\n          const commandId = CommandId.make(`command:restart-prepare:${run.id}`);\n          yield* eventSink.writeWithEffects({\n            commandId,\n            events: [],\n            effects: [\n              {\n                id: `effect:restart-continuation:${run.id}`,\n                commandId,\n                threadId,\n                request: { type: \"provider-runtime.continue\", sourceRunId: run.id },\n              },\n            ],\n          });\n        }).pipe(\n          Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause\n            : new ProviderRuntimeRecoveryError({ operation: \"reconcile\", threadId, cause })),\n        ),\n      // Leave room in the four-reader pool for other shutdown reads.\n      { concurrency: 2, discard: true },\n    );\n  }).pipe(\n    Effect.withSpan(\"ProviderRuntimeRecoveryService.prepareForShutdown\"),\n    Effect.mapError((cause) => isProviderRuntimeRecoveryError(cause) ? cause\n      : new ProviderRuntimeRecoveryError({ operation: \"reconcile\", cause })),\n  );\n\n",
+      "to": "  const { prepareForShutdown, prepareShutdownPlan, prepareForShutdownPrepared } = yield* makeShutdownPreparation;\n\n",
+      "beforeSha256": "7a0586e67cd3473da4c638fe16d8c0f821f993fa2376a4bae5e30e155d539e74",
+      "afterSha256": "fd6483d9a66da53392631a91ee61349b9582b9fb27d66a9cdadc106abbda6fe3"
+    },
+    {
+      "id": "shutdown-recovery-exposes-whole-plan",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "  return ProviderRuntimeRecoveryService.of({ reconcile, prepareForShutdown, recover });",
+      "to": "  return ProviderRuntimeRecoveryService.of({ reconcile, prepareForShutdown, prepareShutdownPlan,\n    prepareForShutdownPrepared, recover });",
+      "beforeSha256": "fd6483d9a66da53392631a91ee61349b9582b9fb27d66a9cdadc106abbda6fe3",
+      "afterSha256": "57cc834ad6024282134b3b402a505cc84a0a019d038c54eaa3e833b1dce33eae"
+    },
+    {
+      "id": "shutdown-original-recovery-import",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "import { runRanAfter } from \"@t3tools/shared/orchestrationV2ThreadError\";",
+      "to": "import { make as makeShutdownPreparation } from \"./ShutdownPreparation.ts\";\nimport { runRanAfter } from \"@t3tools/shared/orchestrationV2ThreadError\";",
+      "beforeSha256": "57cc834ad6024282134b3b402a505cc84a0a019d038c54eaa3e833b1dce33eae",
+      "afterSha256": "fb64e2f0061344179d240a8368872e01949257e32dcccb24804961f297fbac5a"
+    },
+    {
       "id": "protected-worker-current-claim-owner",
       "file": "apps/server/src/orchestration-v2/SessionEffectClaimAuthority.ts",
       "create": [
@@ -3773,14 +3988,6 @@
       "afterSha256": "def93a53c1eaccdd3da865f54978b9e4f0955b6cd3f82d67abe54196b94462a9"
     },
     {
-      "id": "port-import:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9",
-      "afterSha256": "a1d9ae3e29d4a7b08073ee8010a397c0b66cdd7dd8c352e691ef322cab91ba63"
-    },
-    {
       "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/orchestration-v2/RestartContinuation.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
@@ -3795,6 +4002,14 @@
       "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
       "beforeSha256": "b54aa52800754ebbf090d25e6eb125ce260c565a879a4354e7166caab2a37a52",
       "afterSha256": "7d5873322a40f50c89bf9493267f595cf4c0e15a7e26e838047fb3b454958a6c"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "fb64e2f0061344179d240a8368872e01949257e32dcccb24804961f297fbac5a",
+      "afterSha256": "c0cb96b8233cfc365d6008228fe313408cc7fd7fea1022834b639a2db5759dc2"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RunFinalizationService.ts",

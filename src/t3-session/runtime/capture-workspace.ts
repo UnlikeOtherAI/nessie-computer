@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
-import { join } from 'node:path'
+import { join, toNamespacedPath } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import * as Context from 'effect/Context'
 import * as Effect from 'effect/Effect'
@@ -96,7 +96,7 @@ async function withSnapshotWorkspaceAtDirectory<A>(directory: string,
     checks.add(await ownDatabaseFile(journalPath, 'create-or-open'))
     destination?.holdFile('journal')
     assertCurrent()
-    journalDatabase = new DatabaseSync(journalPath, { enableForeignKeyConstraints: true,
+    journalDatabase = new DatabaseSync(toNamespacedPath(journalPath), { enableForeignKeyConstraints: true,
       enableDoubleQuotedStringLiterals: false })
     const journal = new T3CaptureJournal(journalDatabase)
     assertCurrent()

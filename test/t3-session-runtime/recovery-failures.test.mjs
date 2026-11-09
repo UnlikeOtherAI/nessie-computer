@@ -179,7 +179,7 @@ test('lifecycle shutdown retains an actual preparation failure, closes providers
       Layer.succeed(SessionLifecycleAuthority, { withAction: (action, original) => {
         actions.push(action)
         return action === 'legacy-shell-reconcile' ? Effect.fail(new SessionLifecycleActionRefused()) : original
-      } }),
+      }, withShutdownPreparation: () => Effect.sync(() => assert.fail('failed planning must precede authority')) }),
       Layer.succeed(ProviderHost.ProviderHost, {}), Layer.succeed(NativeChildProcesses.ChildProcessSpawner, {}),
       Layer.succeed(LegacyImporter.LegacyV1ThreadImporter, { reconcileShells: Effect.void }),
       Layer.succeed(Recovery.ProviderRuntimeRecoveryService, recovery),
@@ -191,7 +191,7 @@ test('lifecycle shutdown retains an actual preparation failure, closes providers
       Effect.provide(services))))
     assert.equal(Exit.isFailure(result), true)
     assert.match(Cause.pretty(result.cause), /SessionLifecycleError/u)
-    assert.deepEqual(actions, ['legacy-shell-reconcile', 'prepare-shutdown'])
+    assert.deepEqual(actions, ['legacy-shell-reconcile'])
     assert.deepEqual(cleanup, ['closed'])
   }))
 })

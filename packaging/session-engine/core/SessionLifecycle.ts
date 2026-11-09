@@ -16,7 +16,8 @@ import * as Sessions from 't3-source:apps/server/src/orchestration-v2/ProviderSe
 import * as Recovery from 't3-source:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts'
 import * as Continuations from 't3-source:apps/server/src/orchestration-v2/ProviderContinuationService.ts'
 import * as Worker from 't3-source:apps/server/src/orchestration-v2/EffectWorker.ts'
-import { SessionLifecycleAuthority, withSessionLifecycleAction } from './SessionLifecycleAuthority.ts'
+import { SessionLifecycleAuthority, withSessionLifecycleAction,
+  withSessionShutdownPreparation } from './SessionLifecycleAuthority.ts'
 
 type Phase = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
 
@@ -54,8 +55,8 @@ const make = Effect.gen(function* () {
     // Stop continuation intake and the worker before preparing restart intents.
     // Keep SQL, providers and the state writer alive through reconciliation.
     const closed = yield* Effect.exit(Scope.close(consumers, Exit.void))
-    const prepared = Exit.isSuccess(closed) ? yield* Effect.exit(withSessionLifecycleAction(
-      authority, 'prepare-shutdown', recovery.prepareForShutdown)) : closed
+    const prepared = Exit.isSuccess(closed) ? yield* Effect.exit(
+      withSessionShutdownPreparation(authority, recovery)) : closed
     const stopped = yield* Effect.exit(sessions.shutdown)
     // A provider shutdown defect must not be turned into a recorded stop.
     const reconciled = Exit.isSuccess(closed) && Exit.isSuccess(prepared) && Exit.isSuccess(stopped)

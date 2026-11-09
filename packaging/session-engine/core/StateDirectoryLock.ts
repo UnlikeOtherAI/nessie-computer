@@ -2,7 +2,7 @@
 // Copyright (c) 2026 T3 Tools Inc. See THIRD_PARTY_NOTICES.md.
 import { lstatSync } from 'node:fs'
 import type { BigIntStats } from 'node:fs'
-import { join } from 'node:path'
+import { join, toNamespacedPath } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 
 export class SessionWriterError extends Error {
@@ -32,7 +32,7 @@ export class StateDirectoryLock {
       || before.isSymbolicLink() || before.nlink !== 1n) {
       throw new SessionWriterError('session_state_lock_shape_refused')
     }
-    const database = new DatabaseSync(lockPath)
+    const database = new DatabaseSync(toNamespacedPath(lockPath))
     try {
       database.exec('PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE;')
       const writer = new StateDirectoryLock(directory, lockPath, database, root, before)

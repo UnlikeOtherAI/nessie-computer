@@ -4,6 +4,14 @@ Status: authored source, not qualified execution. No provider, native process,
 installed session or user data was opened for this change. Production provider
 and custody bindings remain required. Constructing a layer is not readiness.
 
+SQLite file connections use Windows extended filenames for the original writer,
+reader/checkpoint workers, capture journal, writer lock and native ACL helper.
+This preserves the same actual paths while allowing SQLite to append WAL/journal suffixes beyond
+the ordinary Win32 path limit. In-memory connections retain their original
+special names. The workspace regression uses long private paths and exercises
+actual migration, writes, reopen, competing ownership and cancellation; failed
+captures and journals remain retained.
+
 ## Original encoder and finite native composition
 
 `CodexClient.make` now accepts the internal `serializedOutput` transport. The
