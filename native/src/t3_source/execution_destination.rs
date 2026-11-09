@@ -19,7 +19,8 @@ use windows_sys::Win32::{
     Foundation::{LocalFree, INVALID_HANDLE_VALUE},
     Security::SECURITY_ATTRIBUTES,
     Storage::FileSystem::{
-        CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_OPEN_REPARSE_POINT, OPEN_ALWAYS,
+        CreateFileW, GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION,
+        FILE_FLAG_OPEN_REPARSE_POINT, OPEN_ALWAYS,
     },
 };
 
@@ -41,7 +42,9 @@ fn object(held: &Held, directory: bool) -> Object {
 fn single_file(held: &Held) -> Result<PathBuf, NativeError> {
     held.recheck()?;
     let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
-    if unsafe { GetFileInformationByHandle(held.file.as_raw_handle(), &mut info) } == 0 || info.nNumberOfLinks != 1 {
+    if unsafe { GetFileInformationByHandle(held.file.as_raw_handle(), &mut info) } == 0
+        || info.nNumberOfLinks != 1
+    {
         return Err(fail());
     }
     held.path()
@@ -90,7 +93,10 @@ fn open_objects(path: &Path) -> Result<(Vec<Held>, Held, Vec<Watch>), NativeErro
 impl Destination {
     pub fn open(resource: &ResourceReceipt) -> Result<Self, NativeError> {
         let personal = crate::personal_state_context::protected_root()?;
-        let profile = personal.parent().and_then(|p| p.parent()).ok_or_else(fail)?;
+        let profile = personal
+            .parent()
+            .and_then(|p| p.parent())
+            .ok_or_else(fail)?;
         let path = layout::directory(
             profile,
             &resource.evidence.source.executor_id,
@@ -134,7 +140,11 @@ impl Destination {
         self.recheck()?;
         self.directory.last().ok_or_else(fail)?.path()
     }
-    pub fn hold_file(&mut self, resource: &ResourceReceipt, reference: &str) -> Result<FileReceipt, NativeError> {
+    pub fn hold_file(
+        &mut self,
+        resource: &ResourceReceipt,
+        reference: &str,
+    ) -> Result<FileReceipt, NativeError> {
         self.recheck()?;
         if let Some((_, receipt)) = self.files.get(reference) {
             return Ok(receipt.clone());
@@ -244,8 +254,12 @@ mod tests {
         // this fixture's actual user at creation, before SQLite opens it, rather
         // than weakening strict handle ownership or resetting sticky watches.
         drop(writer(&database).unwrap());
+        held.recheck()
+            .expect("private database creation invalidated destination");
         let sql = Writer::open(&database);
         sql.exec("PRAGMA journal_mode=WAL; CREATE TABLE pending(value TEXT); INSERT INTO pending VALUES ('before')");
+        held.recheck()
+            .expect("SQLite initialization invalidated destination");
         let file = Held::open(
             &held.directory().unwrap().join("capture-journal.sqlite"),
             false,
@@ -280,7 +294,11 @@ mod tests {
         let lock = path.join(layout::WRITER_FILE);
         fs::write(&lock, []).unwrap();
         secure(&lock);
-        let preexisting = fs::OpenOptions::new().read(true).write(true).open(&lock).unwrap();
+        let preexisting = fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock)
+            .unwrap();
         assert!(open_objects(&path).is_err());
         drop(preexisting);
         let database = path.join("capture-journal.sqlite");

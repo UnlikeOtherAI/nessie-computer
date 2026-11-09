@@ -45,14 +45,18 @@ jobs:
           fetch-depth: 0
       - id: scope
         run: node scripts/native-ci-inputs.mjs
-      - if: steps.scope.outputs.helper == '1' || (runner.os == 'Linux' && steps.scope.outputs.linux_helper == '1')
+      - if: runner.os != 'Windows' && (steps.scope.outputs.helper == '1' || (runner.os == 'Linux' && steps.scope.outputs.linux_helper == '1'))
         run: cargo test --locked --manifest-path native/Cargo.toml --jobs 2
+      # Sticky Windows security watches include shared ancestors; another fixture's
+      # ACL edits must not invalidate the graph this fixture is exercising.
+      - if: runner.os == 'Windows' && steps.scope.outputs.helper == '1'
+        run: cargo test --locked --manifest-path native/Cargo.toml --jobs 2 -- --test-threads=1
       - if: steps.scope.outputs.updater == '1'
         run: cargo test --locked --manifest-path updater/Cargo.toml --jobs 2
       - if: runner.os == 'Windows' && steps.scope.outputs.windows == '1'
         run: |
-          cargo test --locked --manifest-path windows-common/Cargo.toml --jobs 2
-          cargo test --locked --manifest-path service-windows/Cargo.toml --jobs 2
+          cargo test --locked --manifest-path windows-common/Cargo.toml --jobs 2 -- --test-threads=1
+          cargo test --locked --manifest-path service-windows/Cargo.toml --jobs 2 -- --test-threads=1
       - if: runner.os == 'Linux' && steps.scope.outputs.guest == '1'
         uses: actions/setup-go@v5
         with:

@@ -561,3 +561,9 @@ disposable SQLite/real ACLs. Symlink permission is required with no silent skip.
 The separate installed lane must prove protected graph/helper creation, same-user
 injection/handle denial, daemon refusal, local+UOA enrollment, inspect without
 provider startup, finite execution, expiry/revocation and drained teardown.
+
+Windows native CI runs kernel/ACL fixtures serially: security notifications
+include shared ancestor directories, so unrelated fixtures changing their ACLs
+can invalidate an otherwise current pin. Concurrency cases within each fixture
+remain active. The complete native-helper unit batch passed 79 tests on Maxis;
+this does not establish signed installed execution or provider readiness.
