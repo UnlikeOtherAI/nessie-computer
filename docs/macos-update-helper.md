@@ -213,6 +213,22 @@ Recovery now works from both ends without weakening a fence:
   can't start — <reason>". **Try again** registers again without limit and,
   if macOS still refuses, opens Login Items. `ComputerUpdateRegistration`
   and `ComputerUpdateRecovery.attention` decide this.
+- **The restart waits for macOS to let go.** 1.0.19 still had no helper on
+  9 November. Its launch registered (accepted), its restart unregistered and
+  called `register()` 12 ms later, and smd logged "Job is not allowed to
+  bootstrap": Login Items still listed the removed job as enabled, so macOS
+  returned "Operation not permitted". The same refusal is in the log at 22:11,
+  01:38 and 02:12; every register made once the record had settled was
+  accepted. The restart now polls the status every 250 ms, for up to ten
+  seconds, until macOS stops reporting the helper enabled, and only then
+  registers. Only refusals count toward the two automatic attempts: an
+  accepted registration resets the count, so the launch's registration no
+  longer uses up the retry a refused restart is owed.
+- **Old entrypoints still hold the swap.** The app's runtime is installed only
+  once clearance passes. A running Nessie Desktop without the
+  `NessieExecutor*` floor keys (0.1.1 has none), or a runtime someone started
+  by hand outside custody, keeps it waiting, and the helper tries again every
+  three seconds while admissions are held. Quitting them lets it finish.
 - **A running team is never "No team connected".** A team whose `describe` is
   refused (here, by the stale installed runtime the missing helper could not
   replace) still counts when its daemon lease is held by a live process, and

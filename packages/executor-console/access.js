@@ -79,7 +79,7 @@ window.accessTab = (() => {
     try {
       await teamDrafts.describe(executorId, { fresh })
     } catch (error) {
-      if (executorId === current()) failed = { executorId, reason: error?.message ?? String(error) }
+      if (executorId === current()) failed = { executorId, reason: nc.failure.sentence(error).text }
     } finally {
       if (loading === executorId) loading = null
       render()

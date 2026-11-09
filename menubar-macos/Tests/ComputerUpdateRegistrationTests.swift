@@ -73,6 +73,45 @@ final class ComputerUpdateRegistrationTests: XCTestCase {
         XCTAssertNil(ComputerUpdateRegistrationRecord(stored: cleared.stored, version: "1.0.19").failure)
     }
 
+    /// 1.0.19's launch registered (accepted), then its restart was refused. The
+    /// accepted one no longer uses up the retry the refusal is owed.
+    func testOnlyRefusalsCountTowardTheAutomaticAttempts() {
+        let launch = ComputerUpdateRegistration.recorded(
+            ComputerUpdateRegistrationRecord(version: "1.0.19"), automatic: true, failure: nil
+        )
+        XCTAssertEqual(launch.attempts, 0)
+        let restart = ComputerUpdateRegistration.recorded(launch, automatic: true, failure: "Operation not permitted")
+        XCTAssertEqual(restart.attempts, 1)
+        XCTAssertTrue(ComputerUpdateRegistration.shouldRegister(
+            status: .notRegistered, requested: false, attempts: restart.attempts
+        ), "the refused restart still has its one automatic retry")
+        let owner = ComputerUpdateRegistration.recorded(restart, automatic: false, failure: "Operation not permitted")
+        XCTAssertEqual(owner.attempts, 1, "Try again is the owner's, never counted")
+        let accepted = ComputerUpdateRegistration.recorded(owner, automatic: false, failure: nil)
+        XCTAssertEqual(accepted, ComputerUpdateRegistrationRecord(version: "1.0.19"))
+    }
+
+    /// The restart registers only once macOS stops reporting the removed helper.
+    func testTheRestartWaitsUntilTheRemovedHelperIsGone() async {
+        var answers: [SMAppService.Status] = [.enabled, .enabled, .enabled, .notRegistered]
+        var pauses = 0
+        let settled = await ComputerUpdateRegistration.settle(
+            status: { answers.removeFirst() }, pause: { pauses += 1 }
+        )
+        XCTAssertTrue(settled)
+        XCTAssertEqual(pauses, 3)
+
+        pauses = 0
+        let immediate = await ComputerUpdateRegistration.settle(status: { .notFound }, pause: { pauses += 1 })
+        XCTAssertTrue(immediate)
+        XCTAssertEqual(pauses, 0, "nothing to wait for")
+
+        pauses = 0
+        let stuck = await ComputerUpdateRegistration.settle(polls: 5, status: { .enabled }, pause: { pauses += 1 })
+        XCTAssertFalse(stuck)
+        XCTAssertEqual(pauses, 5, "bounded: it registers anyway and keeps any refusal")
+    }
+
     /// The live sequence: restart refused, one more automatic attempt, then the
     /// window and menu say why, with Try again.
     func testTheNinthOfNovemberRefusalShowsItsReasonWithTryAgain() {
