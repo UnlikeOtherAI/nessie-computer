@@ -6,7 +6,8 @@ export const extractWorkerClaims = author => {
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
-import type { EffectOutboxError, OrchestrationEffectClaimCandidate, OrchestrationEffectV2 } from "./EffectOutbox.ts";
+import type { EffectOutboxError, OrchestrationEffectClaimCandidate, OrchestrationEffectV2,
+  OrchestrationEffectClaimDeadline } from "./EffectOutbox.ts";
 
 export class SessionEffectClaimRefused extends Error {
   constructor() { super("T3_SESSION_EFFECT_CLAIM_REFUSED"); this.name = "SessionEffectClaimRefused"; }
@@ -19,7 +20,7 @@ export class SessionEffectClaimAuthority extends Context.Service<SessionEffectCl
   readonly commands: Effect.Effect<ReadonlyArray<CommandId>, SessionEffectClaimRefused>;
   readonly awaitChanged: Effect.Effect<void>;
   readonly withClaim: (candidate: OrchestrationEffectClaimCandidate,
-    claim: (notAfterMs: number) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>) =>
+    claim: (deadline: OrchestrationEffectClaimDeadline) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>) =>
     Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError | SessionEffectClaimRefused>;
 }>()("nessie/session-engine/SessionEffectClaimAuthority") {}
 `, 'protected-worker-current-claim-owner')
@@ -43,10 +44,10 @@ export class SessionEffectClaimAuthority extends Context.Service<SessionEffectCl
           if (Option.isNone(prepared)) return Option.none();
           let called = false;
           let actual: Option.Option<EffectOutbox.OrchestrationEffectV2> | undefined;
-          const admitted = yield* admission.withClaim(prepared.value, (notAfterMs) => Effect.gen(function* () {
+          const admitted = yield* admission.withClaim(prepared.value, (deadline) => Effect.gen(function* () {
             if (called) return yield* new EffectOutbox.EffectOutboxError({ operation: "claim-candidate-replayed" });
             called = true;
-            actual = yield* outbox.claimPrepared({ candidate: prepared.value, notAfterMs });
+            actual = yield* outbox.claimPrepared({ candidate: prepared.value, ...deadline });
             return actual;
           }));
           // A required host cannot substitute a fabricated success or a different

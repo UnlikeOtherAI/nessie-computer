@@ -371,8 +371,9 @@ the token. Command IDs are routing metadata, never authority.
 `claimPrepared` consumes that token before asynchronous SQL. Its one conditional
 UPDATE compares every retained row field, the original pending/ordering predicate
 and command scope, then performs the original attempt/lease transition. The SQL
-statement checks the absolute `notAfterMs` against SQLite's current clock, so
-waiting behind a transaction cannot bypass expiry. That low-level bound must be
+statement checks absolute `notAfterMs` and `notAfterMonotonicMs` through the
+actual writer connection's direct-only monotonic function, so waiting behind a
+transaction or wall-clock rollback cannot bypass expiry. Those bounds must be
 positive and at most five seconds ahead; the production owner must supply the
 original verified deadline capped by current parent authorities, without renewal.
 Older unsettled work still blocks later effects on its thread, including older
@@ -380,21 +381,24 @@ commands outside the requested scope. Ordinary `claimNext` shares the original
 selection predicate and keeps its existing behavior.
 
 The protected engine uses `Worker.sessionLayer`, which requires
-`EffectClaims.SessionEffectClaimAuthority`. There is no default or production
-implementation. The worker prepares a scoped candidate, asks that owner for
+`EffectClaims.SessionEffectClaimAuthority`. There is no default implementation.
+The [finite native/backend owner](t3-execution-preclaims.md) now binds the same
+accepted reservation and original release; its installed positive journey
+remains unqualified. The worker prepares a scoped candidate, asks that owner for
 current admission and exposes only a one-use conditional-claim callback. It
 accepts only that callback's actual result; fabricated success or a substituted
 row refuses. Execution, cancellation and settlement still use the original
 worker implementation. Admission changes can wake an idle worker independently
 of SQL notifications, and scheduled deadlines use the same command scope.
 
-This is a consumer boundary, not a positive grant producer. Native destination
+Native destination
 ownership now pins the actual execution directory, writer and stage files before
 original SQL opens, under the [destination contract](t3-execution-resources.md#native-execution-destination-ownership).
 `OwnedCaptureStage` still exposes a reference and held SQL layer only; no pending
 row observation is manufactured from it. The [independent native reader](t3-execution-resources.md#independent-pending-effect-observation)
-now returns actual unsigned destination row/receipt facts. Current backend
-admission still needs concrete composition. The [protected original capture](t3-execution-resources.md#protected-original-command-capture)
+now returns actual unsigned destination row/receipt facts. The separate finite
+preclaim producer signs its independently read evidence and the canonical backend
+consumer persists only the exact bounded permission. The [protected original capture](t3-execution-resources.md#protected-original-command-capture)
 now retains the live parent/initial/run/release relationship in the service and
 matches it against independently read original receipts and run events. These
 unsigned facts remain separate from a claim receipt or grant.
@@ -403,8 +407,9 @@ Neither captured lineage, reserve, graph nor FRAME authorizes these mutations.
 An uncertain outcome after an actual claim must retain and reconcile its durable
 state; it must not be hand-reset or treated as an unattempted row.
 
-The ten-family replay now has 297 extraction and 36 privacy operations, combined
-SHA-256 `2b94d9362ec510c1e8ad32de5a011f3fc941da4998d5222169a860fba1206a4c`.
+The current ten-family replay has 300 extraction and 36 privacy operations, combined
+SHA-256 `2216828f6c4b83c2c13a5ce7a2870566484197d8fe7775b66c3c0e66f953f976`.
+The preceding consumer checkpoint used 297 extraction operations.
 On Maxis/Node 24.19.0, all six source/engine/protocol/CLI build tasks passed;
 15 producer, 14 privacy, 40 source, 13 engine and 105 runtime cases passed with
 zero skips. Eleven new cases use actual original SQLite/outbox/worker code with

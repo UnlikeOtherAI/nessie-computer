@@ -1833,71 +1833,87 @@
       "afterSha256": "68e94934a6ff25f4640eaf4719fd7a2860be7a843323246a642237bc70e799c9"
     },
     {
+      "id": "effect-claim-monotonic-sql-import",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "import * as NodeSqlite from \"node:sqlite\";",
+      "to": "import { performance as nodePerformance } from \"node:perf_hooks\";\nimport * as NodeSqlite from \"node:sqlite\";",
+      "beforeSha256": "847c811357f9342ef2abfb88347cf56e0b913cfcc438cb4367a43ac39e056190",
+      "afterSha256": "9d38b7934fd270bab330a519c086a7cb138cce6509e6e8fa7f6b25f8aa7ed34d"
+    },
+    {
+      "id": "effect-claim-monotonic-sql-function",
+      "file": "packages/shared/src/nodeSqliteClient.ts",
+      "from": "    // Started after the close finalizer, so the worker stops before the writer closes.",
+      "to": "    // Non-deterministic and direct-only: evaluated by the actual claim VDBE,\n    // after connection/write-lock waits, independently of wall-clock rollback.\n    db.function(\"nessie_t3_monotonic_now\", { deterministic: false, directOnly: true }, () => nodePerformance.now());\n    // Started after the close finalizer, so the worker stops before the writer closes.",
+      "beforeSha256": "9d38b7934fd270bab330a519c086a7cb138cce6509e6e8fa7f6b25f8aa7ed34d",
+      "afterSha256": "98c5e531e57a5481fe94972bcbd6be8029343884d788c364c595d109ecfb2074"
+    },
+    {
       "id": "effect-claim-scope-import",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "import {\n  CheckpointId,\n  CheckpointScopeId,\n  CommandId,\n  MessageId,\n  NodeId,\n  ProviderSessionId,\n  RunAttemptId,\n  ProviderApprovalDecision,\n  ProviderUserInputAnswers,\n  ProviderThreadId,\n  ProviderTurnId,\n  RunId,\n  RuntimeRequestId,\n  ThreadId,\n} from \"@t3tools/contracts\";",
-      "to": "import { createHash } from \"node:crypto\";\nimport type * as Scope from \"effect/Scope\";\nimport {\n  CheckpointId,\n  CheckpointScopeId,\n  CommandId,\n  MessageId,\n  NodeId,\n  ProviderSessionId,\n  RunAttemptId,\n  ProviderApprovalDecision,\n  ProviderUserInputAnswers,\n  ProviderThreadId,\n  ProviderTurnId,\n  RunId,\n  RuntimeRequestId,\n  ThreadId,\n} from \"@t3tools/contracts\";",
+      "to": "import { createHash } from \"node:crypto\";\nimport { performance } from \"node:perf_hooks\";\nimport type * as Scope from \"effect/Scope\";\nimport {\n  CheckpointId,\n  CheckpointScopeId,\n  CommandId,\n  MessageId,\n  NodeId,\n  ProviderSessionId,\n  RunAttemptId,\n  ProviderApprovalDecision,\n  ProviderUserInputAnswers,\n  ProviderThreadId,\n  ProviderTurnId,\n  RunId,\n  RuntimeRequestId,\n  ThreadId,\n} from \"@t3tools/contracts\";",
       "beforeSha256": "43c0e9dca2c6339409713ff6b4dfe5aa31821f107e5ad3a0cb2348944910ea66",
-      "afterSha256": "5649ebdf0fc1e91d619e5fa56413a88c410412430248bc01a52d3394d7150204"
+      "afterSha256": "f67635768af40fb73585cb4b06679be303b3fe3f2a01f9313d2b6462b144e58b"
     },
     {
       "id": "effect-claim-retain-physical-lease-expiry",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "  readonly lease_owner: string | null;",
       "to": "  readonly lease_owner: string | null;\n  readonly lease_expires_at: string | null;",
-      "beforeSha256": "5649ebdf0fc1e91d619e5fa56413a88c410412430248bc01a52d3394d7150204",
-      "afterSha256": "680fc3ca217db58bc9b832f16858ecac4d7dd5909dcc00f34cee6f2e54be0c95"
+      "beforeSha256": "f67635768af40fb73585cb4b06679be303b3fe3f2a01f9313d2b6462b144e58b",
+      "afterSha256": "e60a30eac5fe63fad1d7c084c81822bb19062d7aee6118dcd5cf6439e62f8310"
     },
     {
       "id": "effect-claim-candidate-api",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "export interface EffectOutboxV2Shape {",
-      "to": "declare const effectClaimCandidateBrand: unique symbol;\n/** Opaque read snapshot, valid only in its preparing Scope and original outbox.\n * It cannot authorize a SQL transition, provider or native frame. */\nexport interface OrchestrationEffectClaimCandidate {\n  readonly [effectClaimCandidateBrand]: true;\n  readonly effect: OrchestrationEffectV2;\n  /** Hash of all physical SQL fields, including the legacy lease-expiry column.\n   * This reveals no raw payload/error and grants no mutation authority. */\n  readonly rowDigest: string;\n}\n\nexport interface EffectOutboxV2Shape {\n  readonly prepareClaim: (input: {\n    readonly workerId: string;\n    readonly commandIds: ReadonlyArray<CommandId>;\n    readonly excludeRestartContinuations?: boolean;\n  }) => Effect.Effect<Option.Option<OrchestrationEffectClaimCandidate>, EffectOutboxError, Scope.Scope>;\n  /** Low-level conditional SQL only. The protected worker must acquire actual\n   * current admission before supplying its original absolute expiry here. */\n  readonly claimPrepared: (input: {\n    readonly candidate: OrchestrationEffectClaimCandidate;\n    readonly notAfterMs: number;\n  }) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>;\n  readonly nextClaimableAtForCommands: (commandIds: ReadonlyArray<CommandId>) =>\n    Effect.Effect<Option.Option<DateTime.Utc>, EffectOutboxError>;",
-      "beforeSha256": "680fc3ca217db58bc9b832f16858ecac4d7dd5909dcc00f34cee6f2e54be0c95",
-      "afterSha256": "f93f904443d4b7f882efc0d0b7d02073f7bc59018e1ca277df01da6ebb7e0a34"
+      "to": "declare const effectClaimCandidateBrand: unique symbol;\n/** Opaque read snapshot, valid only in its preparing Scope and original outbox.\n * It cannot authorize a SQL transition, provider or native frame. */\nexport interface OrchestrationEffectClaimCandidate {\n  readonly [effectClaimCandidateBrand]: true;\n  readonly effect: OrchestrationEffectV2;\n  /** Hash of all physical SQL fields, including the legacy lease-expiry column.\n   * This reveals no raw payload/error and grants no mutation authority. */\n  readonly rowDigest: string;\n}\n\nexport interface OrchestrationEffectClaimDeadline {\n  readonly notAfterMs: number;\n  readonly notAfterMonotonicMs: number;\n}\nexport interface EffectOutboxV2Shape {\n  readonly prepareClaim: (input: {\n    readonly workerId: string;\n    readonly commandIds: ReadonlyArray<CommandId>;\n    readonly excludeRestartContinuations?: boolean;\n  }) => Effect.Effect<Option.Option<OrchestrationEffectClaimCandidate>, EffectOutboxError, Scope.Scope>;\n  /** Low-level conditional SQL only. The protected worker must acquire actual\n   * current admission before supplying its original absolute expiry here. */\n  readonly claimPrepared: (input: {\n    readonly candidate: OrchestrationEffectClaimCandidate;\n  } & OrchestrationEffectClaimDeadline) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>;\n  readonly nextClaimableAtForCommands: (commandIds: ReadonlyArray<CommandId>) =>\n    Effect.Effect<Option.Option<DateTime.Utc>, EffectOutboxError>;",
+      "beforeSha256": "e60a30eac5fe63fad1d7c084c81822bb19062d7aee6118dcd5cf6439e62f8310",
+      "afterSha256": "833dc30955278231fe231f4c75e8686884f5bc27edc7c52c675b2cbbbd8b7f35"
     },
     {
       "id": "effect-claim-original-selection-and-owner",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "    const cancellationSignal = (effectId: string) => {",
-      "to": "    const selectClaimable = (availableBefore?: string,\n      excludeRestartContinuations = false, commandIds?: ReadonlyArray<CommandId>) => sql`\n        SELECT candidate.effect_id\n        FROM orchestration_v2_effect_outbox AS candidate\n        WHERE ${claimableCandidatePredicate(availableBefore, excludeRestartContinuations)}\n          AND ${excludeRestartContinuations ? sql`candidate.effect_type != 'provider-runtime.continue'` : sql`1 = 1`}\n          AND ${commandIds === undefined ? sql`1 = 1` : sql`candidate.command_id IN ${sql.in(commandIds)}`}\n        ORDER BY candidate.available_at ASC, candidate.created_at ASC, candidate.effect_id ASC\n        LIMIT 1\n      `;\n    const claimColumns = [\"effect_id\", \"command_id\", \"thread_id\", \"effect_type\", \"payload_json\", \"status\",\n      \"attempt_count\", \"available_at\", \"lease_owner\", \"lease_expires_at\", \"created_at\", \"updated_at\",\n      \"completed_at\", \"last_error\"] as const satisfies ReadonlyArray<keyof EffectRow>;\n    // Cached SELECT * column metadata can hide a later ALTER TABLE. Read live\n    // schema rows and repeat this predicate in the actual selection/transition.\n    const claimSchemaPredicate = sql`\n      EXISTS (SELECT 1 FROM sqlite_schema WHERE name = 'orchestration_v2_effect_outbox'\n        AND type = 'table' AND substr(upper(sql), 1, 13) = 'CREATE TABLE ')\n      AND (SELECT json_group_array(name) FROM (\n        SELECT name FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid\n      )) = ${JSON.stringify(claimColumns)}\n      AND NOT EXISTS (SELECT 1 FROM pragma_table_xinfo('orchestration_v2_effect_outbox') WHERE hidden != 0)\n    `;\n    const checkedCommands = (values: ReadonlyArray<CommandId>) => Effect.try({ try: () => {\n      const copied = [...values];\n      if (copied.length > 64 || new Set(copied).size !== copied.length\n        || copied.some((id) => typeof id !== \"string\" || id.length === 0)) throw new Error(\"Invalid claim scope\");\n      return Object.freeze(copied);\n    }, catch: () => new EffectOutboxError({ operation: \"prepare-claim\" }) });\n    type PreparedClaim = {\n      readonly row: Readonly<EffectRow>;\n      readonly effect: OrchestrationEffectV2;\n      readonly workerId: string;\n      readonly commandIds: ReadonlyArray<CommandId>;\n      readonly excludeRestartContinuations: boolean;\n    };\n    const preparedClaims = new WeakMap<OrchestrationEffectClaimCandidate, PreparedClaim>();\n    const claimKey = Object.freeze({});\n    class ClaimCandidate implements OrchestrationEffectClaimCandidate {\n      declare readonly [effectClaimCandidateBrand]: true;\n      constructor(key: object) {\n        if (key !== claimKey) throw new EffectOutboxError({ operation: \"prepare-claim\" });\n      }\n      get effect(): OrchestrationEffectV2 {\n        const prepared = preparedClaims.get(this);\n        if (prepared === undefined) throw new EffectOutboxError({ operation: \"claim-candidate-closed\" });\n        return structuredClone(prepared.effect);\n      }\n      get rowDigest(): string {\n        const prepared = preparedClaims.get(this);\n        if (prepared === undefined) throw new EffectOutboxError({ operation: \"claim-candidate-closed\" });\n        return \"sha256:\" + createHash(\"sha256\").update(JSON.stringify([\n          \"nessie.t3.pending-effect-row.v1\", ...claimColumns.map(column => prepared.row[column]),\n        ]), \"utf8\").digest(\"hex\");\n      }\n    }\n    Object.freeze(ClaimCandidate.prototype);\n\n    const cancellationSignal = (effectId: string) => {",
-      "beforeSha256": "f93f904443d4b7f882efc0d0b7d02073f7bc59018e1ca277df01da6ebb7e0a34",
-      "afterSha256": "4ccb84a5d882f3fb536dba041b21f26febd16db4073346a75e571acd81b4dbe8"
+      "to": "    const selectClaimable = (availableBefore?: string,\n      excludeRestartContinuations = false, commandIds?: ReadonlyArray<CommandId>) => sql`\n        SELECT candidate.effect_id\n        FROM orchestration_v2_effect_outbox AS candidate\n        WHERE ${claimableCandidatePredicate(availableBefore, excludeRestartContinuations)}\n          AND ${excludeRestartContinuations ? sql`candidate.effect_type != 'provider-runtime.continue'` : sql`1 = 1`}\n          AND ${commandIds === undefined ? sql`1 = 1` : sql`candidate.command_id IN ${sql.in(commandIds)}`}\n        ORDER BY candidate.available_at ASC, candidate.created_at ASC, candidate.effect_id ASC\n        LIMIT 1\n      `;\n    const claimColumns = [\"effect_id\", \"command_id\", \"thread_id\", \"effect_type\", \"payload_json\", \"status\",\n      \"attempt_count\", \"available_at\", \"lease_owner\", \"lease_expires_at\", \"created_at\", \"updated_at\",\n      \"completed_at\", \"last_error\"] as const satisfies ReadonlyArray<keyof EffectRow>;\n    // Cached SELECT * column metadata can hide a later ALTER TABLE. Read live\n    // schema rows and repeat this predicate in the actual selection/transition.\n    const claimSchemaPredicate = sql`\n      EXISTS (SELECT 1 FROM sqlite_schema WHERE name = 'orchestration_v2_effect_outbox'\n        AND type = 'table' AND substr(upper(sql), 1, 13) = 'CREATE TABLE ')\n      AND NOT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = 'orchestration_v2_effect_outbox')\n      AND (SELECT json_group_array(name) FROM (\n        SELECT name FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid\n      )) = ${JSON.stringify(claimColumns)}\n      AND NOT EXISTS (SELECT 1 FROM pragma_table_xinfo('orchestration_v2_effect_outbox') WHERE hidden != 0)\n    `;\n    const checkedCommands = (values: ReadonlyArray<CommandId>) => Effect.try({ try: () => {\n      const copied = [...values];\n      if (copied.length > 64 || new Set(copied).size !== copied.length\n        || copied.some((id) => typeof id !== \"string\" || id.length === 0)) throw new Error(\"Invalid claim scope\");\n      return Object.freeze(copied);\n    }, catch: () => new EffectOutboxError({ operation: \"prepare-claim\" }) });\n    type PreparedClaim = {\n      readonly row: Readonly<EffectRow>;\n      readonly effect: OrchestrationEffectV2;\n      readonly workerId: string;\n      readonly commandIds: ReadonlyArray<CommandId>;\n      readonly excludeRestartContinuations: boolean;\n    };\n    const preparedClaims = new WeakMap<OrchestrationEffectClaimCandidate, PreparedClaim>();\n    const claimKey = Object.freeze({});\n    class ClaimCandidate implements OrchestrationEffectClaimCandidate {\n      declare readonly [effectClaimCandidateBrand]: true;\n      constructor(key: object) {\n        if (key !== claimKey) throw new EffectOutboxError({ operation: \"prepare-claim\" });\n      }\n      get effect(): OrchestrationEffectV2 {\n        const prepared = preparedClaims.get(this);\n        if (prepared === undefined) throw new EffectOutboxError({ operation: \"claim-candidate-closed\" });\n        return structuredClone(prepared.effect);\n      }\n      get rowDigest(): string {\n        const prepared = preparedClaims.get(this);\n        if (prepared === undefined) throw new EffectOutboxError({ operation: \"claim-candidate-closed\" });\n        return \"sha256:\" + createHash(\"sha256\").update(JSON.stringify([\n          \"nessie.t3.pending-effect-row.v1\", ...claimColumns.map(column => prepared.row[column]),\n        ]), \"utf8\").digest(\"hex\");\n      }\n    }\n    Object.freeze(ClaimCandidate.prototype);\n\n    const cancellationSignal = (effectId: string) => {",
+      "beforeSha256": "833dc30955278231fe231f4c75e8686884f5bc27edc7c52c675b2cbbbd8b7f35",
+      "afterSha256": "f8f8b03b0a817b99a1c30caae6bfd72449b4a5c964349095643ea4e7d4760ec5"
     },
     {
       "id": "effect-claim-share-original-selection",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "              SELECT candidate.effect_id\n              FROM orchestration_v2_effect_outbox AS candidate\n              WHERE ${claimableCandidatePredicate(nowIso, excludeRestartContinuations)}\n                AND ${excludeRestartContinuations ? sql`candidate.effect_type != 'provider-runtime.continue'` : sql`1 = 1`}\n              ORDER BY candidate.available_at ASC, candidate.created_at ASC, candidate.effect_id ASC\n              LIMIT 1",
       "to": "              ${selectClaimable(nowIso, excludeRestartContinuations)}",
-      "beforeSha256": "4ccb84a5d882f3fb536dba041b21f26febd16db4073346a75e571acd81b4dbe8",
-      "afterSha256": "a42f72252d56029c949b9edf294628fce3b0b44f9d0a587ca538735e2b54c449"
+      "beforeSha256": "f8f8b03b0a817b99a1c30caae6bfd72449b4a5c964349095643ea4e7d4760ec5",
+      "afterSha256": "8cf1e69572cacc23c9c93f856f316236b1bc5691a85c4da89ca2c2c6353e9d5f"
     },
     {
       "id": "effect-claim-scoped-next-deadline",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "      nextClaimableAt: Effect.gen(function* () {\n        const rows = yield* sql<{ readonly available_at: string | null }>`\n          SELECT MIN(candidate.available_at) AS available_at\n          FROM orchestration_v2_effect_outbox AS candidate\n          WHERE ${claimableCandidatePredicate()}\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        const availableAt = rows[0]?.available_at;\n        if (availableAt === undefined || availableAt === null) return Option.none();\n        const parsed = DateTime.make(availableAt);\n        if (Option.isNone(parsed)) {\n          return yield* new EffectOutboxError({\n            operation: \"next-claimable\",\n            cause: `Invalid available_at timestamp: ${availableAt}`,\n          });\n        }\n        return parsed;\n      }).pipe(\n        Effect.mapError((cause) =>\n          isEffectOutboxError(cause)\n            ? cause\n            : new EffectOutboxError({ operation: \"next-claimable\", cause }),\n        ),\n      ),\n",
       "to": "      nextClaimableAt: readNextClaimableAt(),\n      nextClaimableAtForCommands: (commandIds) => Effect.gen(function* () {\n        const commands = yield* checkedCommands(commandIds);\n        return commands.length === 0 ? Option.none() : yield* readNextClaimableAt(commands);\n      }),\n",
-      "beforeSha256": "a42f72252d56029c949b9edf294628fce3b0b44f9d0a587ca538735e2b54c449",
-      "afterSha256": "001d897c2ac7071dcc96a502cd43205ca8be052165a328327968c76445eb54b0"
+      "beforeSha256": "8cf1e69572cacc23c9c93f856f316236b1bc5691a85c4da89ca2c2c6353e9d5f",
+      "afterSha256": "15d91bda657add76600e05c88d05a8e62016e7cffea403e23975ee88cf3ccd54"
     },
     {
       "id": "effect-claim-prepare-and-conditional-transition",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "    const service: EffectOutboxV2Shape = {",
-      "to": "    const readNextClaimableAt = (commandIds?: ReadonlyArray<CommandId>) => Effect.gen(function* () {\n        const rows = yield* sql<{ readonly available_at: string | null }>`\n          SELECT MIN(candidate.available_at) AS available_at\n          FROM orchestration_v2_effect_outbox AS candidate\n          WHERE ${claimableCandidatePredicate()}\n            AND ${commandIds === undefined ? sql`1 = 1` : sql`candidate.command_id IN ${sql.in(commandIds)}`}\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        const availableAt = rows[0]?.available_at;\n        if (availableAt === undefined || availableAt === null) return Option.none();\n        const parsed = DateTime.make(availableAt);\n        if (Option.isNone(parsed)) {\n          return yield* new EffectOutboxError({\n            operation: \"next-claimable\",\n            cause: `Invalid available_at timestamp: ${availableAt}`,\n          });\n        }\n        return parsed;\n      }).pipe(\n        Effect.mapError((cause) =>\n          isEffectOutboxError(cause)\n            ? cause\n            : new EffectOutboxError({ operation: \"next-claimable\", cause }),\n        ),\n      );\n\n    const service: EffectOutboxV2Shape = {\n      prepareClaim: Effect.fn(\"EffectOutbox.prepareClaim\")(function* (input) {\n        const commandIds = yield* checkedCommands(input.commandIds);\n        if (commandIds.length === 0) return Option.none();\n        const excludeRestartContinuations = input.excludeRestartContinuations ?? false;\n        const nowIso = DateTime.formatIso(yield* DateTime.now);\n        const schema = yield* sql<{ readonly recognized: number }>`\n          SELECT ${claimSchemaPredicate} AS recognized\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        if (schema[0]?.recognized !== 1) return yield* new EffectOutboxError({ operation: \"prepare-claim-schema\" });\n        const rows = yield* sql<EffectRow>`\n          SELECT * FROM orchestration_v2_effect_outbox\n          WHERE effect_id = (${selectClaimable(nowIso, excludeRestartContinuations, commandIds)})\n            AND ${claimSchemaPredicate}\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        const row = rows[0];\n        if (row === undefined) return Option.none();\n        if (Object.keys(row).length !== claimColumns.length || claimColumns.some(column => !Object.hasOwn(row, column))) {\n          return yield* new EffectOutboxError({ operation: \"prepare-claim-schema\" });\n        }\n        const effect = yield* rowToEffect(row);\n        const candidate: OrchestrationEffectClaimCandidate = Object.freeze(new ClaimCandidate(claimKey));\n        preparedClaims.set(candidate, { row: Object.freeze({ ...row }), effect, workerId: input.workerId,\n          commandIds, excludeRestartContinuations });\n        yield* Effect.addFinalizer(() => Effect.sync(() => { preparedClaims.delete(candidate); }));\n        return Option.some(candidate);\n      }, Effect.mapError((cause) => new EffectOutboxError({ operation: \"prepare-claim\", cause }))),\n      claimPrepared: Effect.fn(\"EffectOutbox.claimPrepared\")(function* ({ candidate, notAfterMs }) {\n        const prepared = preparedClaims.get(candidate);\n        if (prepared === undefined) return yield* new EffectOutboxError({ operation: \"claim-prepared\" });\n        // Consume before any asynchronous SQL. Scope expiry, uncertainty and a\n        // failed conditional update cannot extend or retry this candidate.\n        preparedClaims.delete(candidate);\n        const observedNow = Date.now();\n        if (!Number.isSafeInteger(notAfterMs) || notAfterMs <= observedNow || notAfterMs > observedNow + 5_000) {\n          return yield* new EffectOutboxError({ operation: \"claim-prepared-expired\" });\n        }\n        const expected = prepared.row;\n        const nowIso = DateTime.formatIso(yield* DateTime.now);\n        const rows = yield* sql<EffectRow>`\n          UPDATE orchestration_v2_effect_outbox\n          SET status = 'running', attempt_count = attempt_count + 1,\n            lease_owner = ${prepared.workerId}, updated_at = ${nowIso}, last_error = NULL\n          WHERE effect_id = ${expected.effect_id}\n            AND ${claimSchemaPredicate}\n            AND effect_id = (${selectClaimable(nowIso, prepared.excludeRestartContinuations, prepared.commandIds)})\n            AND command_id = ${expected.command_id} AND thread_id = ${expected.thread_id}\n            AND effect_type = ${expected.effect_type} AND payload_json = ${expected.payload_json}\n            AND status = 'pending' AND attempt_count = ${expected.attempt_count}\n            AND available_at = ${expected.available_at} AND lease_owner IS ${expected.lease_owner}\n            AND lease_expires_at IS ${expected.lease_expires_at}\n            AND created_at = ${expected.created_at} AND updated_at = ${expected.updated_at}\n            AND completed_at IS ${expected.completed_at} AND last_error IS ${expected.last_error}\n            AND CAST(unixepoch('subsec') * 1000 AS INTEGER) < ${notAfterMs}\n          RETURNING *\n        `.pipe(Effect.withTracerEnabled(false));\n        const row = rows[0];\n        if (row === undefined) return Option.none();\n        cancellationSignals.set(row.effect_id, Deferred.makeUnsafe<void>());\n        return Option.some(yield* rowToEffect(row));\n      }, Effect.mapError((cause) => new EffectOutboxError({ operation: \"claim-prepared\", cause }))),",
-      "beforeSha256": "001d897c2ac7071dcc96a502cd43205ca8be052165a328327968c76445eb54b0",
-      "afterSha256": "54984e93e14adf551b150310b0937ac85c81d71f07be7a30efae99095a71448f"
+      "to": "    const readNextClaimableAt = (commandIds?: ReadonlyArray<CommandId>) => Effect.gen(function* () {\n        const rows = yield* sql<{ readonly available_at: string | null }>`\n          SELECT MIN(candidate.available_at) AS available_at\n          FROM orchestration_v2_effect_outbox AS candidate\n          WHERE ${claimableCandidatePredicate()}\n            AND ${commandIds === undefined ? sql`1 = 1` : sql`candidate.command_id IN ${sql.in(commandIds)}`}\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        const availableAt = rows[0]?.available_at;\n        if (availableAt === undefined || availableAt === null) return Option.none();\n        const parsed = DateTime.make(availableAt);\n        if (Option.isNone(parsed)) {\n          return yield* new EffectOutboxError({\n            operation: \"next-claimable\",\n            cause: `Invalid available_at timestamp: ${availableAt}`,\n          });\n        }\n        return parsed;\n      }).pipe(\n        Effect.mapError((cause) =>\n          isEffectOutboxError(cause)\n            ? cause\n            : new EffectOutboxError({ operation: \"next-claimable\", cause }),\n        ),\n      );\n\n    const service: EffectOutboxV2Shape = {\n      prepareClaim: Effect.fn(\"EffectOutbox.prepareClaim\")(function* (input) {\n        const commandIds = yield* checkedCommands(input.commandIds);\n        if (commandIds.length === 0) return Option.none();\n        const excludeRestartContinuations = input.excludeRestartContinuations ?? false;\n        const nowIso = DateTime.formatIso(yield* DateTime.now);\n        const schema = yield* sql<{ readonly recognized: number }>`\n          SELECT ${claimSchemaPredicate} AS recognized\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        if (schema[0]?.recognized !== 1) return yield* new EffectOutboxError({ operation: \"prepare-claim-schema\" });\n        const rows = yield* sql<EffectRow>`\n          SELECT * FROM orchestration_v2_effect_outbox\n          WHERE effect_id = (${selectClaimable(nowIso, excludeRestartContinuations, commandIds)})\n            AND ${claimSchemaPredicate}\n        `.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));\n        const row = rows[0];\n        if (row === undefined) return Option.none();\n        if (Object.keys(row).length !== claimColumns.length || claimColumns.some(column => !Object.hasOwn(row, column))) {\n          return yield* new EffectOutboxError({ operation: \"prepare-claim-schema\" });\n        }\n        const effect = yield* rowToEffect(row);\n        const candidate: OrchestrationEffectClaimCandidate = Object.freeze(new ClaimCandidate(claimKey));\n        preparedClaims.set(candidate, { row: Object.freeze({ ...row }), effect, workerId: input.workerId,\n          commandIds, excludeRestartContinuations });\n        yield* Effect.addFinalizer(() => Effect.sync(() => { preparedClaims.delete(candidate); }));\n        return Option.some(candidate);\n      }, Effect.mapError((cause) => new EffectOutboxError({ operation: \"prepare-claim\", cause }))),\n      claimPrepared: Effect.fn(\"EffectOutbox.claimPrepared\")(function* ({ candidate, notAfterMs, notAfterMonotonicMs }) {\n        const prepared = preparedClaims.get(candidate);\n        if (prepared === undefined) return yield* new EffectOutboxError({ operation: \"claim-prepared\" });\n        // Consume before any asynchronous SQL. Scope expiry, uncertainty and a\n        // failed conditional update cannot extend or retry this candidate.\n        preparedClaims.delete(candidate);\n        const observedNow = Date.now();\n        const observedMonotonic = performance.now();\n        if (!Number.isSafeInteger(notAfterMs) || notAfterMs <= observedNow || notAfterMs > observedNow + 5_000\n          || !Number.isFinite(notAfterMonotonicMs) || notAfterMonotonicMs <= observedMonotonic\n          || notAfterMonotonicMs > observedMonotonic + 5_000) {\n          return yield* new EffectOutboxError({ operation: \"claim-prepared-expired\" });\n        }\n        const expected = prepared.row;\n        const nowIso = DateTime.formatIso(yield* DateTime.now);\n        const rows = yield* sql<EffectRow>`\n          UPDATE orchestration_v2_effect_outbox\n          SET status = 'running', attempt_count = attempt_count + 1,\n            lease_owner = ${prepared.workerId}, updated_at = ${nowIso}, last_error = NULL\n          WHERE effect_id = ${expected.effect_id}\n            AND ${claimSchemaPredicate}\n            AND effect_id = (${selectClaimable(nowIso, prepared.excludeRestartContinuations, prepared.commandIds)})\n            AND command_id = ${expected.command_id} AND thread_id = ${expected.thread_id}\n            AND effect_type = ${expected.effect_type} AND payload_json = ${expected.payload_json}\n            AND status = 'pending' AND attempt_count = ${expected.attempt_count}\n            AND available_at = ${expected.available_at} AND lease_owner IS ${expected.lease_owner}\n            AND lease_expires_at IS ${expected.lease_expires_at}\n            AND created_at = ${expected.created_at} AND updated_at = ${expected.updated_at}\n            AND completed_at IS ${expected.completed_at} AND last_error IS ${expected.last_error}\n            AND CAST(unixepoch('subsec') * 1000 AS INTEGER) < ${notAfterMs}\n            AND nessie_t3_monotonic_now() < ${notAfterMonotonicMs}\n          RETURNING *\n        `.pipe(Effect.withTracerEnabled(false));\n        const row = rows[0];\n        if (row === undefined) return Option.none();\n        cancellationSignals.set(row.effect_id, Deferred.makeUnsafe<void>());\n        return Option.some(yield* rowToEffect(row));\n      }, Effect.mapError((cause) => new EffectOutboxError({ operation: \"claim-prepared\", cause }))),",
+      "beforeSha256": "15d91bda657add76600e05c88d05a8e62016e7cffea403e23975ee88cf3ccd54",
+      "afterSha256": "38e3295a1385203a63f05cab2c805d1e60d50d4636779c1aba5ca9fce416c792"
     },
     {
       "id": "protected-worker-current-claim-owner",
       "file": "apps/server/src/orchestration-v2/SessionEffectClaimAuthority.ts",
       "create": [
         {
-          "text": "import type { CommandId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type * as Effect from \"effect/Effect\";\nimport type * as Option from \"effect/Option\";\nimport type { EffectOutboxError, OrchestrationEffectClaimCandidate, OrchestrationEffectV2 } from \"./EffectOutbox.ts\";\n\nexport class SessionEffectClaimRefused extends Error {\n  constructor() { super(\"T3_SESSION_EFFECT_CLAIM_REFUSED\"); this.name = \"SessionEffectClaimRefused\"; }\n}\n/** REQUIRED current original-admission/native owner. Command IDs are routing\n * only. The owner must independently admit the exact candidate before invoking\n * claim once with the original finite absolute expiry, preserving its result.\n * No production producer, blanket recovery grant or metadata promotion exists here. */\nexport class SessionEffectClaimAuthority extends Context.Service<SessionEffectClaimAuthority, {\n  readonly commands: Effect.Effect<ReadonlyArray<CommandId>, SessionEffectClaimRefused>;\n  readonly awaitChanged: Effect.Effect<void>;\n  readonly withClaim: (candidate: OrchestrationEffectClaimCandidate,\n    claim: (notAfterMs: number) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>) =>\n    Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError | SessionEffectClaimRefused>;\n}>()(\"nessie/session-engine/SessionEffectClaimAuthority\") {}\n"
+          "text": "import type { CommandId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport type * as Effect from \"effect/Effect\";\nimport type * as Option from \"effect/Option\";\nimport type { EffectOutboxError, OrchestrationEffectClaimCandidate, OrchestrationEffectV2,\n  OrchestrationEffectClaimDeadline } from \"./EffectOutbox.ts\";\n\nexport class SessionEffectClaimRefused extends Error {\n  constructor() { super(\"T3_SESSION_EFFECT_CLAIM_REFUSED\"); this.name = \"SessionEffectClaimRefused\"; }\n}\n/** REQUIRED current original-admission/native owner. Command IDs are routing\n * only. The owner must independently admit the exact candidate before invoking\n * claim once with the original finite absolute expiry, preserving its result.\n * No production producer, blanket recovery grant or metadata promotion exists here. */\nexport class SessionEffectClaimAuthority extends Context.Service<SessionEffectClaimAuthority, {\n  readonly commands: Effect.Effect<ReadonlyArray<CommandId>, SessionEffectClaimRefused>;\n  readonly awaitChanged: Effect.Effect<void>;\n  readonly withClaim: (candidate: OrchestrationEffectClaimCandidate,\n    claim: (deadline: OrchestrationEffectClaimDeadline) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>) =>\n    Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError | SessionEffectClaimRefused>;\n}>()(\"nessie/session-engine/SessionEffectClaimAuthority\") {}\n"
         }
       ],
       "beforeSha256": null,
-      "afterSha256": "3c1108d4503378e16fd5662e4c03b35e7aba4b06d72713c3b4e6481aedf1bceb"
+      "afterSha256": "c2a9848cec39d18ffcb330145bd3aa280689badf958fc9b03062d0d1541a2526"
     },
     {
       "id": "protected-worker-claim-owner-import",
@@ -1919,41 +1935,41 @@
       "id": "protected-worker-admit-before-original-claim",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "      // The worker probes for work repeatedly, including when the outbox is empty.",
-      "to": "      const claimNext = (excludeRestartContinuations: boolean) => {\n        if (admission === undefined) return outbox.claimNext({ workerId, excludeRestartContinuations });\n        return Effect.scoped(Effect.gen(function* () {\n          const commandIds = yield* admission.commands;\n          const prepared = yield* outbox.prepareClaim({ workerId, commandIds, excludeRestartContinuations });\n          if (Option.isNone(prepared)) return Option.none();\n          let called = false;\n          let actual: Option.Option<EffectOutbox.OrchestrationEffectV2> | undefined;\n          const admitted = yield* admission.withClaim(prepared.value, (notAfterMs) => Effect.gen(function* () {\n            if (called) return yield* new EffectOutbox.EffectOutboxError({ operation: \"claim-candidate-replayed\" });\n            called = true;\n            actual = yield* outbox.claimPrepared({ candidate: prepared.value, notAfterMs });\n            return actual;\n          }));\n          // A required host cannot substitute a fabricated success or a different\n          // query result for the actual original conditional transition.\n          if ((!called && Option.isSome(admitted)) || (called && admitted !== actual)) {\n            return yield* Effect.fail(new SessionEffectClaimRefused());\n          }\n          return admitted;\n        }));\n      };\n\n      // The worker probes for work repeatedly, including when the outbox is empty.",
+      "to": "      const claimNext = (excludeRestartContinuations: boolean) => {\n        if (admission === undefined) return outbox.claimNext({ workerId, excludeRestartContinuations });\n        return Effect.scoped(Effect.gen(function* () {\n          const commandIds = yield* admission.commands;\n          const prepared = yield* outbox.prepareClaim({ workerId, commandIds, excludeRestartContinuations });\n          if (Option.isNone(prepared)) return Option.none();\n          let called = false;\n          let actual: Option.Option<EffectOutbox.OrchestrationEffectV2> | undefined;\n          const admitted = yield* admission.withClaim(prepared.value, (deadline) => Effect.gen(function* () {\n            if (called) return yield* new EffectOutbox.EffectOutboxError({ operation: \"claim-candidate-replayed\" });\n            called = true;\n            actual = yield* outbox.claimPrepared({ candidate: prepared.value, ...deadline });\n            return actual;\n          }));\n          // A required host cannot substitute a fabricated success or a different\n          // query result for the actual original conditional transition.\n          if ((!called && Option.isSome(admitted)) || (called && admitted !== actual)) {\n            return yield* Effect.fail(new SessionEffectClaimRefused());\n          }\n          return admitted;\n        }));\n      };\n\n      // The worker probes for work repeatedly, including when the outbox is empty.",
       "beforeSha256": "c7dc08b2717631d7792a5790d45ec11d90b8943c0fdd9d3aaa01dc643135b233",
-      "afterSha256": "98ce40442b485b5469b260d48524af1bf6c458f9f8fe0a3f1e21875bc365bfb2"
+      "afterSha256": "760b00b46a56d7993ae0ab2dc24cc702f20c2e6b4d8b811d8fd244a2134ea1b1"
     },
     {
       "id": "protected-worker-use-admitted-claim",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "            outbox.claimNext({ workerId, excludeRestartContinuations }),",
       "to": "            claimNext(excludeRestartContinuations),",
-      "beforeSha256": "98ce40442b485b5469b260d48524af1bf6c458f9f8fe0a3f1e21875bc365bfb2",
-      "afterSha256": "72bd033023d692a6d6ae32b2161b42cf185dd41f1c0ba32b86021d774db1aeb5"
+      "beforeSha256": "760b00b46a56d7993ae0ab2dc24cc702f20c2e6b4d8b811d8fd244a2134ea1b1",
+      "afterSha256": "6b0243bf1f47ba02a4171b9b202f2cf6ce13ff3ee663c7657a65f783761a4b2f"
     },
     {
       "id": "protected-worker-admission-wakeup",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "        awaitWork: outbox.awaitAvailable,",
       "to": "        awaitWork: admission === undefined ? outbox.awaitAvailable\n          : Effect.raceFirst(outbox.awaitAvailable, admission.awaitChanged),",
-      "beforeSha256": "72bd033023d692a6d6ae32b2161b42cf185dd41f1c0ba32b86021d774db1aeb5",
-      "afterSha256": "f548fefa02fd1c8ca575af5daefb60d2043849a992db0fab6d8e68ead087e09d"
+      "beforeSha256": "6b0243bf1f47ba02a4171b9b202f2cf6ce13ff3ee663c7657a65f783761a4b2f",
+      "afterSha256": "6fc3623242f254ee051d7de2e62c792abb65f5bb5e91493a13e39ee90fc5f3f4"
     },
     {
       "id": "protected-worker-scope-next-deadline",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "        nextClaimableAt: outbox.nextClaimableAt.pipe(",
       "to": "        nextClaimableAt: (admission === undefined ? outbox.nextClaimableAt\n          : admission.commands.pipe(Effect.flatMap(outbox.nextClaimableAtForCommands))).pipe(",
-      "beforeSha256": "f548fefa02fd1c8ca575af5daefb60d2043849a992db0fab6d8e68ead087e09d",
-      "afterSha256": "5430681c033f0be1011440a93e535e707f4aacfd1162aea1e978b7775b892efd"
+      "beforeSha256": "6fc3623242f254ee051d7de2e62c792abb65f5bb5e91493a13e39ee90fc5f3f4",
+      "afterSha256": "2d437c834cd6f8b9c1d254517fdca009af8307a0d1057f62f9a2714f596254b5"
     },
     {
       "id": "protected-worker-required-session-layer",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "export const layer = layerWithOptions();",
       "to": "export const layerWithOptions = (options: OrchestrationEffectWorkerOptions = {}) => makeWorkerLayer(options);\nexport const layer = layerWithOptions();\n/** No default admission owner; source metadata and a reserve receipt cannot supply it. */\nexport const sessionLayerWithOptions = (options: OrchestrationEffectWorkerOptions = {}) =>\n  Layer.unwrap(Effect.map(SessionEffectClaimAuthority, (admission) => makeWorkerLayer(options, admission)));\nexport const sessionLayer = sessionLayerWithOptions();",
-      "beforeSha256": "5430681c033f0be1011440a93e535e707f4aacfd1162aea1e978b7775b892efd",
-      "afterSha256": "0b0da582c89ffacc39f63a459ae6cd5b8f5e756c11d9c5a954f5e74afa3880cc"
+      "beforeSha256": "2d437c834cd6f8b9c1d254517fdca009af8307a0d1057f62f9a2714f596254b5",
+      "afterSha256": "d8f508a50a2f10549dd2409ead75417de27d0d187d7b5fe44c7aa5bf38f2c78c"
     },
     {
       "id": "provider-original-secret-plan",
@@ -3009,80 +3025,80 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as RunFinalizationService from \"./RunFinalizationService.ts\";",
       "to": "import * as RunFinalizationService from \"./RunFinalizationService.session-port.ts\";",
-      "beforeSha256": "0b0da582c89ffacc39f63a459ae6cd5b8f5e756c11d9c5a954f5e74afa3880cc",
-      "afterSha256": "5ed24ed793a605d5ec751c26f311fc89dc5557726c5b6d3501b34b9ac701ee67"
+      "beforeSha256": "d8f508a50a2f10549dd2409ead75417de27d0d187d7b5fe44c7aa5bf38f2c78c",
+      "afterSha256": "cb0a3686a4b5dea436c7c937f245dc42df5bb364e23056242ef6deff13be2742"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ResourceCleanupService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ResourceCleanupService from \"./ResourceCleanupService.ts\";",
       "to": "import * as ResourceCleanupService from \"./ResourceCleanupService.session-port.ts\";",
-      "beforeSha256": "5ed24ed793a605d5ec751c26f311fc89dc5557726c5b6d3501b34b9ac701ee67",
-      "afterSha256": "da501974f12a3665c0b93917a98f1b946f0f83e65023a7078c83b081da5273ba"
+      "beforeSha256": "cb0a3686a4b5dea436c7c937f245dc42df5bb364e23056242ef6deff13be2742",
+      "afterSha256": "5134d8e568b50fcbed732a72044d637dc774310d71ccd1d9374e325a2f3ec79b"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/CheckpointRollbackService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.ts\";",
       "to": "import * as CheckpointRollbackService from \"./CheckpointRollbackService.session-port.ts\";",
-      "beforeSha256": "da501974f12a3665c0b93917a98f1b946f0f83e65023a7078c83b081da5273ba",
-      "afterSha256": "318ca1b6f3a6ae09a8f5b395e8cff02223ae775333130aac6bad6a5e21638b65"
+      "beforeSha256": "5134d8e568b50fcbed732a72044d637dc774310d71ccd1d9374e325a2f3ec79b",
+      "afterSha256": "3a29222a2487811707898a073a7f6927b76523514fce655c007ba3ea66e6e2a8"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderSessionManager from \"./ProviderSessionManager.ts\";",
       "to": "import * as ProviderSessionManager from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "318ca1b6f3a6ae09a8f5b395e8cff02223ae775333130aac6bad6a5e21638b65",
-      "afterSha256": "c1bc75b509cf3b4667b61bbb4207bfd5b96eac1e6f642e9c2ec38765d6039d4c"
+      "beforeSha256": "3a29222a2487811707898a073a7f6927b76523514fce655c007ba3ea66e6e2a8",
+      "afterSha256": "b585ddeae2a3b696237dab725e89212fc071b882f5189743aa09003380287d6b"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnControlService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.ts\";",
       "to": "import * as ProviderTurnControlService from \"./ProviderTurnControlService.session-port.ts\";",
-      "beforeSha256": "c1bc75b509cf3b4667b61bbb4207bfd5b96eac1e6f642e9c2ec38765d6039d4c",
-      "afterSha256": "b550ba7c373b142c7652b04ca84e9ce46efe91a1e2de1ac655a004537cfbf294"
+      "beforeSha256": "b585ddeae2a3b696237dab725e89212fc071b882f5189743aa09003380287d6b",
+      "afterSha256": "f415e777096266b1026d4bb5656c87ca16cdac5004d3d0b6dc2ae9f1e8b5610c"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ProviderTurnStartService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.ts\";",
       "to": "import * as ProviderTurnStartService from \"./ProviderTurnStartService.session-port.ts\";",
-      "beforeSha256": "b550ba7c373b142c7652b04ca84e9ce46efe91a1e2de1ac655a004537cfbf294",
-      "afterSha256": "943db2c0f6144f2305b22e90e7aca012970c40250c8dcc725937a96a5193f38f"
+      "beforeSha256": "f415e777096266b1026d4bb5656c87ca16cdac5004d3d0b6dc2ae9f1e8b5610c",
+      "afterSha256": "46865fc2e09315b9695da548688e202a52fa5b9b6446fd18460f703b214b29f1"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/RuntimeRequestService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as RuntimeRequestService from \"./RuntimeRequestService.ts\";",
       "to": "import * as RuntimeRequestService from \"./RuntimeRequestService.session-port.ts\";",
-      "beforeSha256": "943db2c0f6144f2305b22e90e7aca012970c40250c8dcc725937a96a5193f38f",
-      "afterSha256": "6af85f204c845f8bacc37fa4fdc55f59071fcd86528394433cbba6362dbd1845"
+      "beforeSha256": "46865fc2e09315b9695da548688e202a52fa5b9b6446fd18460f703b214b29f1",
+      "afterSha256": "9af3233bcc9cfb83b4170ceb483d953601db003f6a60cc693698fa7addbb57f3"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadTitleRegenerationService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.ts\";",
       "to": "import * as ThreadTitleRegenerationService from \"./ThreadTitleRegenerationService.session-port.ts\";",
-      "beforeSha256": "6af85f204c845f8bacc37fa4fdc55f59071fcd86528394433cbba6362dbd1845",
-      "afterSha256": "89190693103647ef0002ef8b258a4436fd7de670493ab097c7c22ee4d90a2329"
+      "beforeSha256": "9af3233bcc9cfb83b4170ceb483d953601db003f6a60cc693698fa7addbb57f3",
+      "afterSha256": "53b9a95443b2588a8c4ebd124462719289c903d6a56954f51fe5b03abc703fec"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/orchestration-v2/ThreadManagementService.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ThreadManagementService from \"./ThreadManagementService.ts\";",
       "to": "import * as ThreadManagementService from \"./ThreadManagementLive.ts\";",
-      "beforeSha256": "89190693103647ef0002ef8b258a4436fd7de670493ab097c7c22ee4d90a2329",
-      "afterSha256": "3b0c2146f2a7a73a43fb8dfdc085a599b3a8854964290e8ca3d18eda4767daa1"
+      "beforeSha256": "53b9a95443b2588a8c4ebd124462719289c903d6a56954f51fe5b03abc703fec",
+      "afterSha256": "cc8e74f261d0da16bab662f14acbc418833e924e08e496db9a91caa0149d1999"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/EffectWorker.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "3b0c2146f2a7a73a43fb8dfdc085a599b3a8854964290e8ca3d18eda4767daa1",
-      "afterSha256": "0f585396722221caab1dae038c275194bbbbbb62bf49d885d77c7a435c6d2738"
+      "beforeSha256": "cc8e74f261d0da16bab662f14acbc418833e924e08e496db9a91caa0149d1999",
+      "afterSha256": "6d23e1951b1be39d1ccf05c0b8e30c2f7e36eb44159c8afcd5a7dc7daa5de97a"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/RestartContinuation.ts:apps/server/src/serverSettings.ts",
@@ -3345,8 +3361,8 @@
       "file": "apps/server/src/orchestration-v2/EffectWorker.ts",
       "from": "  | RunFinalizationService.RunFinalizationService\n",
       "to": "  | RunFinalizationService.RunFinalizationService\n  | ResourceCleanupService.ResourceCleanupService\n",
-      "beforeSha256": "0f585396722221caab1dae038c275194bbbbbb62bf49d885d77c7a435c6d2738",
-      "afterSha256": "5b66b29051dc94f5d63986458da543302084f5924ca1f27df0558156aeba7921"
+      "beforeSha256": "6d23e1951b1be39d1ccf05c0b8e30c2f7e36eb44159c8afcd5a7dc7daa5de97a",
+      "afterSha256": "28b577caf95f26c3007117a3fcd953f783891d47f550d09afe8b12f4dff98933"
     }
   ]
 }

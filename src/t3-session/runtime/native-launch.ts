@@ -16,6 +16,7 @@ import { createProtectedCodexSerialization, type ProtectedCodexSerialization } f
 import { protectedRuntimeRefused } from './protected-wire.js'
 import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 import type { SessionLaunchCommandLineage } from './command-lineage.js'
+import { makeSessionPreclaimHost } from './effect-preclaims.js'
 
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type ProviderLaunch = Extract<T3NativeLaunchDescriptor, { processPurpose: 'provider' }>
@@ -90,6 +91,10 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     await recheck()
     return held.original.withCommandLineageCapture(graph, Date.parse(accepted.expiresAt), parent, async sink => {
       const commandLineage = held.original.commandLineage.register(reserve.binding, recheck, signal, sink)
+      const preclaims = makeSessionPreclaimHost(held.original.executionSource, graph, reserve.binding,
+        native.descriptor, transport, commandLineage, signal)
+      try { held.original.commandLineage.bindPreclaims(commandLineage, preclaims) }
+      catch (error) { commandLineage.close(); stop.abort(); await preclaims.close(); throw error }
       const launchProvider = async <T>(providerSessionId: string, launch: ProviderLaunch,
         callback: (provider: HeldNativeSessionProvider) => Promise<T>): Promise<T> => {
         await recheck()
@@ -166,6 +171,7 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
         live = false
         stop.abort()
         commandLineage.close()
+        await preclaims.close()
         while (pending.size) await Promise.allSettled([...pending])
         if (failure) throw failure
       }

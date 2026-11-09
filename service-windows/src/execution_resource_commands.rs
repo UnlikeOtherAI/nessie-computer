@@ -125,13 +125,13 @@ pub(super) fn record(
     }
     result
 }
-pub(super) fn observe(
+pub(super) fn bound(
     held: &mut Held,
     caller: &Process,
     context: &DescriptorContext,
     observed: &Graph,
     effect: &str,
-) -> Result<Value, String> {
+) -> Result<Option<super::destination::BoundObservation>, String> {
     let digest = graph(held, caller, context, observed)?;
     let evidence = capture(held, &digest, observed)?.evidence(now_ms()?)?;
     let result = held
@@ -141,5 +141,14 @@ pub(super) fn observe(
         .observe_bound_effect(observed, evidence, effect)?;
     held.recheck()?;
     capture(held, &digest, observed)?.current(now_ms()?)?;
-    Ok(json!({"bound":result}))
+    Ok(result)
+}
+pub(super) fn observe(
+    held: &mut Held,
+    caller: &Process,
+    context: &DescriptorContext,
+    observed: &Graph,
+    effect: &str,
+) -> Result<Value, String> {
+    Ok(json!({"bound":bound(held, caller, context, observed, effect)?}))
 }

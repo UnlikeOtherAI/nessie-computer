@@ -233,8 +233,10 @@ invalidates the source, whose existing finalizer joins positive native cleanup.
 Successful provider cleanup may retire the recorder before callback return;
 the enclosing parent and source must still be current.
 
-This is evidence composition only. Current finite backend preclaim admission,
-its native signer/consumer and conditional SQL handoff remain required. Startup/
+These original capture operations remain evidence only. The separate
+[finite preclaim boundary](t3-execution-preclaims.md) now supplies the native
+observation/consume, canonical backend admission and original conditional SQL
+handoff; its signed installed positive journey remains unqualified. Startup/
 recovery, full activation and signed installed enrollment/provider journeys
 remain unfinished; production `open` stays refused and generic stdin stays denied.
 

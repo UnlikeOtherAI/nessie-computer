@@ -106,6 +106,7 @@ impl Key {
             ASSOCIATION_DOMAIN,
             HISTORY_RESULT_DOMAIN,
             nessie_windows_common::execution_frame::PREPARATION_DOMAIN,
+            nessie_windows_common::execution_preclaim::PREPARATION_DOMAIN,
         ]
         .contains(&domain)
         {
@@ -134,6 +135,8 @@ impl Key {
                 "frame-consumed",
                 "effect-consumed",
                 "secret-slot-observed",
+                "preclaim-observed",
+                "preclaim-consumed",
             ]
             .contains(&kind)
         {
@@ -161,6 +164,7 @@ impl Key {
                 "associate",
                 "enroll",
                 "graph",
+                "preclaim-observed",
                 "process-cleared",
             ]
             .contains(&kind)

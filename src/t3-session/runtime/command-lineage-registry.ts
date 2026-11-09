@@ -1,14 +1,19 @@
 import * as Effect from 'effect/Effect'
-import { CommandLineage } from '@nessie/t3-session-source/engine'
+import * as Deferred from 'effect/Deferred'
+import { CommandLineage, EffectClaims } from '@nessie/t3-session-source/engine'
+import type { CommandId } from '@nessie/t3-session-source/contracts'
 import type { T3ExecutionBinding } from '@nessie/executor-protocol/t3-session'
 import type { SessionOriginalCommandSink } from '../source/execution-command.js'
+import { recognizeSessionPreclaimHost, type SessionPreclaimHost } from './effect-preclaims.js'
 import { makeSessionLaunchCommandLineage, type SessionLaunchCommandLineage,
   type SessionProviderTurnStartEffect } from './command-lineage.js'
 
 export interface SessionCommandLineageRegistry {
   readonly service: CommandLineage.SessionCommandLineage['Service']
+  readonly effectClaims: EffectClaims.SessionEffectClaimAuthority['Service']
   register(binding: Pick<T3ExecutionBinding, 'commandId' | 'threadId'>, recheck: () => Promise<void>,
     parent: AbortSignal, observe?: SessionOriginalCommandSink): SessionLaunchCommandLineage
+  bindPreclaims(owner: SessionLaunchCommandLineage, host: SessionPreclaimHost): void
   /** Finds the recorded predecessor; returning an owner supplies no claim permission. */
   recognizeProviderTurnStart(effect: SessionProviderTurnStartEffect):
     Effect.Effect<SessionLaunchCommandLineage, CommandLineage.SessionCommandLineageError>
@@ -21,7 +26,15 @@ export interface SessionCommandLineageRegistry {
  * a cancelled reservation. No entry in this registry authorizes an effect. */
 export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionCommandLineageRegistry {
   const entries = new Map<string, SessionLaunchCommandLineage | undefined>()
-  const releaseCommands = new Map<string, { readonly parentCommandId: string; readonly accepted: boolean }>()
+  const releaseCommands = new Map<CommandId, { readonly parentCommandId: string; readonly accepted: boolean }>()
+  const hosts = new Map<SessionLaunchCommandLineage, SessionPreclaimHost>()
+  let changed = Deferred.makeUnsafe<void>(), version = 0, observedVersion = 0
+  const wake = () => {
+    version++
+    const previous = changed
+    changed = Deferred.makeUnsafe<void>()
+    Effect.runSync(Deferred.succeed(previous, undefined))
+  }
   let live = true
   const refused = () => new CommandLineage.SessionCommandLineageError()
   const close = () => {
@@ -29,11 +42,40 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
     for (const owner of entries.values()) owner?.close()
     entries.clear()
     releaseCommands.clear()
+    hosts.clear()
+    wake()
     signal.removeEventListener('abort', close)
   }
   signal.addEventListener('abort', close, { once: true })
   if (signal.aborted) close()
   return Object.freeze<SessionCommandLineageRegistry>({
+    effectClaims: EffectClaims.SessionEffectClaimAuthority.of({
+      commands: Effect.gen(function* () {
+        if (!live || signal.aborted) return yield* Effect.fail(new EffectClaims.SessionEffectClaimRefused())
+        const commands: CommandId[] = []
+        for (const [commandId, release] of releaseCommands) {
+          const owner = entries.get(release.parentCommandId), host = owner && hosts.get(owner)
+          if (release.accepted && owner && host && !host.signal.aborted) commands.push(commandId)
+        }
+        return Object.freeze(commands)
+      }),
+      // Reading commands (including the scheduler's next-deadline read) must
+      // not consume a wake intended for the worker's availability wait.
+      awaitChanged: Effect.suspend(() => {
+        if (version !== observedVersion) { observedVersion = version; return Effect.void }
+        return Deferred.await(changed).pipe(Effect.andThen(Effect.sync(() => { observedVersion = version })))
+      }),
+      withClaim: (candidate, claim) => Effect.gen(function* () {
+        if (!live || signal.aborted) return yield* Effect.fail(new EffectClaims.SessionEffectClaimRefused())
+        const release = releaseCommands.get(candidate.effect.commandId)
+        const owner = release?.accepted ? entries.get(release.parentCommandId) : undefined
+        const host = owner && hosts.get(owner)
+        if (!owner || !host || host.signal.aborted) {
+          return yield* Effect.fail(new EffectClaims.SessionEffectClaimRefused())
+        }
+        return yield* host.withClaim(candidate, claim)
+      }),
+    }),
     service: CommandLineage.SessionCommandLineage.of({ recordInitialMessage: edge => Effect.suspend(() => {
       const owner = live && !signal.aborted ? entries.get(edge.parentCommandId) : undefined
       return owner ? owner.service.recordInitialMessage(edge) : Effect.fail(refused())
@@ -68,6 +110,7 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
       }
       releaseCommands.set(captured.commandId,
         Object.freeze({ parentCommandId: captured.parentCommandId, accepted: true }))
+      if (!existing.accepted) wake()
     }) }),
     recognizeProviderTurnStart: effect => Effect.suspend(() => {
       const observed = releaseCommands.get(effect.commandId)
@@ -83,10 +126,23 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
       const owner = makeSessionLaunchCommandLineage(binding, recheck, AbortSignal.any([signal, parent]), observe)
       const registered = Object.freeze<SessionLaunchCommandLineage>({ ...owner, close: () => {
         owner.close()
-        if (live) entries.set(commandId, undefined)
+        parent.removeEventListener('abort', parentAbort)
+        if (live && entries.get(commandId) === registered) {
+          entries.set(commandId, undefined); hosts.delete(registered); wake()
+        }
       } })
+      const parentAbort = () => registered.close()
       entries.set(commandId, registered)
+      parent.addEventListener('abort', parentAbort, { once: true })
+      if (parent.aborted) parentAbort()
       return registered
+    },
+    bindPreclaims: (owner, host) => {
+      recognizeSessionPreclaimHost(host)
+      if (!live || signal.aborted || host.signal.aborted || hosts.has(owner) || hosts.size >= 64
+        || ![...entries.values()].includes(owner)) throw new EffectClaims.SessionEffectClaimRefused()
+      hosts.set(owner, host)
+      wake()
     },
     close,
   })

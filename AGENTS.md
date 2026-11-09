@@ -69,6 +69,7 @@ The protected launch layer requires the same reservation's [original command rec
 Accepted initial runs and preparation-release predecessors use that same recorder under [preparation lineage](docs/session-runtime.md#accepted-preparation-predecessor); recognition never authorizes an outbox claim.
 The original executor's [persisted effect command context](docs/session-runtime.md#persisted-effect-command-context) preserves outbox identity; it never replaces admission before claim.
 The protected worker requires a separate [current preclaim owner](docs/session-runtime.md#admission-before-the-original-outbox-claim); scoped row candidates and conditional SQL deadlines are not grants.
+Finite native/backend admission for the exact original lease/attempt UPDATE follows [SQL preclaims](docs/t3-execution-preclaims.md); startup/recovery and provider effects require their own authority.
 The Windows tray's bounded inherited-pipe handoff, existing-daemon registry, whole-source capture/publication and drained retirement follow [retained runtime handoff](docs/retained-runtime-handoff.md); no local listener or native execution is added.
 The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
 Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).

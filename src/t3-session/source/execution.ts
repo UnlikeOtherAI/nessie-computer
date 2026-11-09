@@ -5,7 +5,8 @@ import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   T3ExecutionPendingEffectObservationSchema, type T3ExecutionPendingEffectObservation,
   T3ExecutionBoundPendingEffectObservationSchema, type T3ExecutionBoundPendingEffectObservation,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
-import type { T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
+import { T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
+  type T3ExecutionGraph, type T3ExecutionReceipt, type T3ExecutionSignedAdmission } from '@nessie/executor-protocol/t3-session'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import { openNativeT3ExecutionResources } from './native.js'
 import { heldSourceDatabase } from './database.js'
@@ -41,6 +42,10 @@ export interface T3ExecutionResourceScope {
     use: (sink: SessionOriginalCommandSink) => Promise<A>): Promise<A>
   inspectBoundPendingEffect(graph: T3ExecutionGraph, effectId: string):
     Promise<T3ExecutionBoundPendingEffectObservation | null>
+  prepareEffectClaim(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionReceipt>
+  consumeEffectClaim(graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission): Promise<{
+    claimId: string; effectId: string; rowDigest: string; notAfterMs: number; remainingMs: number
+  }>
   recheck(): Promise<void>
 }
 const scopes = new WeakMap<T3ExecutionResourceScope, () => Promise<void>>()
@@ -222,6 +227,30 @@ export async function withT3ExecutionResources<A>(input: {
         'execution_destination_effect_mismatch')
         await recheck()
         return bound
+      },
+      prepareEffectClaim: async (graph: T3ExecutionGraph, effectId: string) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        await recheck()
+        const answer = native.exchange({ op: 'executionEffectClaimPrepare', graph: candidate, effectId })
+        const proof = T3ExecutionReceiptSchema.parse(answer.receipt)
+        await recheck()
+        return proof
+      },
+      consumeEffectClaim: async (graph: T3ExecutionGraph, admission: T3ExecutionSignedAdmission) => {
+        const candidate = executionGraphCandidate(graph, receipt)
+        const signed = T3ExecutionSignedAdmissionSchema.parse(admission)
+        await recheck()
+        const answer = native.exchange({ op: 'executionEffectClaimConsume', graph: candidate, admission: signed })
+        requireCapture(Object.keys(answer).sort().join(',') === 'claimId,effectId,notAfterMs,remainingMs,rowDigest'
+          && typeof answer.claimId === 'string' && /^[a-f0-9]{64}$/u.test(answer.claimId)
+          && typeof answer.effectId === 'string' && typeof answer.rowDigest === 'string'
+          && /^sha256:[a-f0-9]{64}$/u.test(answer.rowDigest)
+          && typeof answer.notAfterMs === 'number' && Number.isSafeInteger(answer.notAfterMs)
+          && typeof answer.remainingMs === 'number' && Number.isSafeInteger(answer.remainingMs)
+          && answer.remainingMs > 0 && answer.remainingMs <= 5000, 'execution_effect_claim_unavailable')
+        await recheck()
+        return { claimId: answer.claimId, effectId: answer.effectId, rowDigest: answer.rowDigest,
+          notAfterMs: answer.notAfterMs, remainingMs: answer.remainingMs }
       },
     })
     scopes.set(scope, recheck)

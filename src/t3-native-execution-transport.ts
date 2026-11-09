@@ -7,10 +7,13 @@ import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, isT3Nativ
   T3ExecutionSecretReadPreparationPayloadSchema, T3ExecutionSecretReadAdmissionSchema,
   T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
   T3_EXECUTION_FRAME_PREPARATION_DOMAIN,
+  T3ExecutionPreclaimPreparationPayloadSchema, T3ExecutionPreclaimAdmissionSchema,
+  T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN,
   type ExecutorT3LaneOperation, type ExecutorT3LaneDelivery, type T3ExecutionBinding,
   type T3ExecutionReceipt, type T3ExecutionSignedAdmission, type T3NativeExecutionPhaseInput,
   type T3NativeExecutionFrameInput, type T3NativeExecutionOperation, type T3NativeExecutionReceiptAccepted,
   type T3NativeExecutionSecretReadInput,
+  type T3NativeExecutionPreclaimInput,
 } from '@nessie/executor-protocol/t3-session'
 import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
@@ -21,6 +24,7 @@ export interface T3NativeExecutionTransport {
   phase(input: T3NativeExecutionPhaseInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   frame(input: T3NativeExecutionFrameInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   secretRead(input: T3NativeExecutionSecretReadInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
+  preclaim(input: T3NativeExecutionPreclaimInput, signal: AbortSignal): Promise<T3ExecutionSignedAdmission>;
   receipt(receipt: T3ExecutionReceipt, signal: AbortSignal): Promise<T3NativeExecutionReceiptAccepted>;
 }
 const refused = () => new Error('T3_NATIVE_TRANSPORT_FENCED')
@@ -66,6 +70,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     const preparedRead = operation.operation === 'execution.secretRead'
       ? T3ExecutionSecretReadPreparationPayloadSchema.parse(JSON.parse(operation.input.preparationReceipt.payload))
       : undefined
+    const preparedClaim = operation.operation === 'execution.preclaim'
+      ? T3ExecutionPreclaimPreparationPayloadSchema.parse(JSON.parse(operation.input.preparationReceipt.payload))
+      : undefined
     let timeoutMs = 5_000
     if (preparedRead && operation.operation === 'execution.secretRead') {
       binding(preparedRead.binding)
@@ -74,6 +81,17 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
       if (operation.input.preparationReceipt.domain !== T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN
         || preparedRead.issuedAtMs > now || timeoutMs <= 0 || preparedRead.acceptedGraphNonce !== graph.nonce
         || canonicalExecutorJson(preparedRead.evidence.custody) !== canonicalExecutorJson(graph.custody)) {
+        throw refused()
+      }
+    }
+    if (preparedClaim && operation.operation === 'execution.preclaim') {
+      binding(preparedClaim.binding)
+      const now = Date.now()
+      timeoutMs = Math.min(timeoutMs, preparedClaim.expiresAtMs - now,
+        preparedClaim.bound.observation.observedAtMs + 5000 - now)
+      if (operation.input.preparationReceipt.domain !== T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN
+        || preparedClaim.issuedAtMs > now || timeoutMs <= 0 || preparedClaim.acceptedGraphNonce !== graph.nonce
+        || canonicalExecutorJson(preparedClaim.evidence.custody) !== canonicalExecutorJson(graph.custody)) {
         throw refused()
       }
     }
@@ -106,6 +124,17 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
         || canonicalExecutorJson({ ...observed, nonce: preparedRead.nonce,
           issuedAtMs: preparedRead.issuedAtMs, expiresAtMs: preparedRead.expiresAtMs })
           !== canonicalExecutorJson(preparedRead)) throw refused()
+    } else if (operation.operation === 'execution.preclaim' && preparedClaim) {
+      const claim = T3ExecutionPreclaimAdmissionSchema.parse(JSON.parse(signed.payload))
+      const { issuerKeyId, preparationReceiptDigest, ...observed } = claim
+      binding(claim.binding)
+      if (issuerKeyId !== operation.input.preparationReceipt.keyId
+        || preparationReceiptDigest !== sha(operation.input.preparationReceipt.payload)
+        || claim.issuedAtMs < preparedClaim.issuedAtMs || claim.issuedAtMs > Date.now()
+        || claim.expiresAtMs <= Date.now() || claim.expiresAtMs > preparedClaim.expiresAtMs
+        || canonicalExecutorJson({ ...observed, nonce: preparedClaim.nonce,
+          issuedAtMs: preparedClaim.issuedAtMs, expiresAtMs: preparedClaim.expiresAtMs })
+          !== canonicalExecutorJson(preparedClaim)) throw refused()
     } else if (operation.operation === 'execution.phase') {
       const phase = T3ExecutionAdmissionSchema.parse(JSON.parse(signed.payload))
       binding(phase.binding)
@@ -137,6 +166,9 @@ export function createT3NativeExecutionTransport(state: () => ExecutorLocalState
     secretRead: async (input: T3NativeExecutionSecretReadInput, signal: AbortSignal) =>
       Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
         await send({ operation: 'execution.secretRead', input }, signal))),
+    preclaim: async (input: T3NativeExecutionPreclaimInput, signal: AbortSignal) =>
+      Object.freeze(T3ExecutionSignedAdmissionSchema.parse(
+        await send({ operation: 'execution.preclaim', input }, signal))),
     receipt: async (receipt: T3ExecutionReceipt, signal: AbortSignal) => T3NativeExecutionReceiptAcceptedSchema.parse(
       await send({ operation: 'execution.receipt', receipt: T3ExecutionReceiptSchema.parse(receipt) }, signal)),
   })

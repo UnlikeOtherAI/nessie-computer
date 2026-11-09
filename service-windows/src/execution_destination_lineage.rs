@@ -5,11 +5,10 @@ use nessie_windows_common::{
     execution::{now_ms, Graph},
     execution_command_lineage::{self as lineage, AcceptedInitial, AcceptedRelease, Evidence, Initial, EVENT_COLUMNS},
     execution_json,
-    execution_pending_effect::{Observation, RECEIPT_COLUMNS},
+    execution_pending_effect::RECEIPT_COLUMNS,
     execution_resource_handles::HeldObject,
     readonly_sqlite::Connection,
 };
-use serde::Serialize;
 use serde_json::Value;
 
 fn receipt(connection: &mut Connection, command: &str, thread: &str) -> Result<Value, String> {
@@ -120,11 +119,7 @@ pub(super) fn accept_release(
         released(connection, graph, first, &accepted.run_id, release)
     })
 }
-#[derive(Serialize)]
-pub(crate) struct BoundObservation {
-    pub observation: Observation,
-    pub original: Evidence,
-}
+pub(crate) use nessie_windows_common::execution_command_lineage::BoundObservation;
 pub(super) fn observe(
     main: &HeldObject,
     owner: &str,

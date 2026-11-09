@@ -59,6 +59,9 @@ pub(super) struct Destination {
     owner: String,
 }
 impl Destination {
+    pub fn stage_identity(&self, generation: &str) -> Result<String, String> {
+        Ok(self.stage(generation)?.description.identity.clone())
+    }
     fn stage(&self, generation: &str) -> Result<&HeldObject, String> {
         self.files.get(&self.stage_reference(generation)?).ok_or_else(|| REJECTED.into())
     }

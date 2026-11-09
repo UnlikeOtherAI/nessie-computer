@@ -59,6 +59,8 @@ export function createProtectedNativeRelay(send: (result: ProtectedNativeResult)
               ? await entry.port.frame(operation.input, entry.signal)
               : operation.operation === 'execution.secretRead'
                 ? await entry.port.secretRead(operation.input, entry.signal)
+                : operation.operation === 'execution.preclaim'
+                  ? await entry.port.preclaim(operation.input, entry.signal)
                 : await entry.port.receipt(operation.receipt, entry.signal)
           entry.signal.throwIfAborted()
           if (!live || entries.get(message.operationId) !== entry) throw protectedRuntimeRefused()
@@ -149,6 +151,8 @@ export function createProtectedNativeClient(send: (request: ProtectedNativeReque
           await tracked({ operation: 'execution.frame', input }, signal)),
         secretRead: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
           await tracked({ operation: 'execution.secretRead', input }, signal)),
+        preclaim: async (input, signal) => T3ExecutionSignedAdmissionSchema.parse(
+          await tracked({ operation: 'execution.preclaim', input }, signal)),
         receipt: async (receipt, signal) => T3NativeExecutionReceiptAcceptedSchema.parse(
           await tracked({ operation: 'execution.receipt', receipt }, signal)),
       })

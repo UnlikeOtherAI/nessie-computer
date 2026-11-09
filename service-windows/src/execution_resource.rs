@@ -17,6 +17,7 @@ struct Held {
     graph_generation: Option<(String, String)>,
     inspections: HashMap<String, String>,
     command_lineages: HashMap<String, nessie_windows_common::execution_command_lineage::Capture>,
+    preclaims: HashMap<String, preclaims::Pending>,
     paired_origin: String,
     service_root: std::path::PathBuf,
     destination: Option<destination::Destination>,
@@ -41,6 +42,8 @@ mod homes;
 mod secret;
 #[path = "execution_resource_commands.rs"]
 mod commands;
+#[path = "execution_resource_preclaims.rs"]
+mod preclaims;
 pub(crate) use secret::observe_secret_slot;
 pub(crate) use homes::{resolve_launch_homes, match_launch_home, ResolvedLaunchHome, ResolvedLaunchHomes, HeldLaunchHome};
 static RESOURCES: OnceLock<Mutex<HashMap<String, Held>>> = OnceLock::new();
@@ -186,7 +189,7 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
             let mut held = Held { receipt: Receipt { version: 1, resource_id: resource_id.clone(),
                 resource_generation: generation, evidence, custody: context.custody }, caller: observed,
                 objects, watches, deadline: Instant::now() + Duration::from_millis(LEASE_MILLIS),
-                config_digest: Vec::new(), graph_generation: None, inspections: HashMap::new(), command_lineages: HashMap::new(),
+                config_digest: Vec::new(), graph_generation: None, inspections: HashMap::new(), command_lineages: HashMap::new(), preclaims: HashMap::new(),
                 paired_origin: context.paired_origin, service_root: root.into(), destination: None, destination_closed: false,
                 runtime_process: Some(runtime_process) };
             let mut config = held.object("configuration")?.bytes(256 * 1024)?;
@@ -250,6 +253,10 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
             commands::close(resources.get_mut(&resource_id).ok_or(REJECTED)?, caller, &context, &graph),
         Request::ObserveBoundDestinationEffect { resource_id, graph, effect_id, .. } =>
             commands::observe(resources.get_mut(&resource_id).ok_or(REJECTED)?, caller, &context, &graph, &effect_id),
+        Request::PrepareEffectClaim { resource_id, graph, effect_id, .. } =>
+            preclaims::prepare(root, resources.get_mut(&resource_id).ok_or(REJECTED)?, caller, &context, &graph, &effect_id),
+        Request::ConsumeEffectClaim { resource_id, graph, admission, .. } =>
+            preclaims::consume(root, resources.get_mut(&resource_id).ok_or(REJECTED)?, caller, &context, &graph, admission),
         Request::CloseDestination { resource_id, .. } => {
             let held = resources.get_mut(&resource_id).ok_or(REJECTED)?;
             held.check_owner(caller, &context)?;

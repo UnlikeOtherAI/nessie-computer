@@ -111,8 +111,8 @@ pub struct AcceptedRelease {
     pub receipt_digest: String,
     pub run_event_digest: String,
 }
-#[derive(Clone, Debug, Serialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Evidence {
     pub parent_command_id: String,
     pub parent_command_type: String,
@@ -127,6 +127,12 @@ pub struct Evidence {
     pub initial_run_event_digest: String,
     pub release_receipt_digest: String,
     pub release_run_event_digest: String,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BoundObservation {
+    pub observation: crate::execution_pending_effect::Observation,
+    pub original: Evidence,
 }
 pub struct Capture {
     pub graph_digest: String,

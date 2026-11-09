@@ -1,10 +1,19 @@
 /** Read a real pending row before admission; consume that same scoped snapshot
  * once with a conditional update. A candidate is data, never permission. */
 export const extractEffectClaims = author => {
+  const sqlite = 'packages/shared/src/nodeSqliteClient.ts'
+  author.replace(sqlite, 'import * as NodeSqlite from "node:sqlite";',
+    'import { performance as nodePerformance } from "node:perf_hooks";\nimport * as NodeSqlite from "node:sqlite";',
+    'effect-claim-monotonic-sql-import')
+  const checkpoint = '    // Started after the close finalizer, so the worker stops before the writer closes.'
+  author.replace(sqlite, checkpoint, `    // Non-deterministic and direct-only: evaluated by the actual claim VDBE,
+    // after connection/write-lock waits, independently of wall-clock rollback.
+    db.function("nessie_t3_monotonic_now", { deterministic: false, directOnly: true }, () => nodePerformance.now());
+${checkpoint}`, 'effect-claim-monotonic-sql-function')
   const file = 'apps/server/src/orchestration-v2/EffectOutbox.ts'
   const first = author.read(file).match(/^import[^;]+;/u)[0]
   author.replace(file, first,
-    `import { createHash } from "node:crypto";\nimport type * as Scope from "effect/Scope";\n${first}`,
+    `import { createHash } from "node:crypto";\nimport { performance } from "node:perf_hooks";\nimport type * as Scope from "effect/Scope";\n${first}`,
     'effect-claim-scope-import')
   author.replace(file, '  readonly lease_owner: string | null;',
     '  readonly lease_owner: string | null;\n  readonly lease_expires_at: string | null;',
@@ -20,6 +29,10 @@ export interface OrchestrationEffectClaimCandidate {
   readonly rowDigest: string;
 }
 
+export interface OrchestrationEffectClaimDeadline {
+  readonly notAfterMs: number;
+  readonly notAfterMonotonicMs: number;
+}
 export interface EffectOutboxV2Shape {
   readonly prepareClaim: (input: {
     readonly workerId: string;
@@ -30,8 +43,7 @@ export interface EffectOutboxV2Shape {
    * current admission before supplying its original absolute expiry here. */
   readonly claimPrepared: (input: {
     readonly candidate: OrchestrationEffectClaimCandidate;
-    readonly notAfterMs: number;
-  }) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>;
+  } & OrchestrationEffectClaimDeadline) => Effect.Effect<Option.Option<OrchestrationEffectV2>, EffectOutboxError>;
   readonly nextClaimableAtForCommands: (commandIds: ReadonlyArray<CommandId>) =>
     Effect.Effect<Option.Option<DateTime.Utc>, EffectOutboxError>;`, 'effect-claim-candidate-api')
 
@@ -54,6 +66,7 @@ export interface EffectOutboxV2Shape {
     const claimSchemaPredicate = sql\`
       EXISTS (SELECT 1 FROM sqlite_schema WHERE name = 'orchestration_v2_effect_outbox'
         AND type = 'table' AND substr(upper(sql), 1, 13) = 'CREATE TABLE ')
+      AND NOT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = 'orchestration_v2_effect_outbox')
       AND (SELECT json_group_array(name) FROM (
         SELECT name FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid
       )) = \${JSON.stringify(claimColumns)}
@@ -148,14 +161,17 @@ ${beforeSignal}`, 'effect-claim-original-selection-and-owner')
         yield* Effect.addFinalizer(() => Effect.sync(() => { preparedClaims.delete(candidate); }));
         return Option.some(candidate);
       }, Effect.mapError((cause) => new EffectOutboxError({ operation: "prepare-claim", cause }))),
-      claimPrepared: Effect.fn("EffectOutbox.claimPrepared")(function* ({ candidate, notAfterMs }) {
+      claimPrepared: Effect.fn("EffectOutbox.claimPrepared")(function* ({ candidate, notAfterMs, notAfterMonotonicMs }) {
         const prepared = preparedClaims.get(candidate);
         if (prepared === undefined) return yield* new EffectOutboxError({ operation: "claim-prepared" });
         // Consume before any asynchronous SQL. Scope expiry, uncertainty and a
         // failed conditional update cannot extend or retry this candidate.
         preparedClaims.delete(candidate);
         const observedNow = Date.now();
-        if (!Number.isSafeInteger(notAfterMs) || notAfterMs <= observedNow || notAfterMs > observedNow + 5_000) {
+        const observedMonotonic = performance.now();
+        if (!Number.isSafeInteger(notAfterMs) || notAfterMs <= observedNow || notAfterMs > observedNow + 5_000
+          || !Number.isFinite(notAfterMonotonicMs) || notAfterMonotonicMs <= observedMonotonic
+          || notAfterMonotonicMs > observedMonotonic + 5_000) {
           return yield* new EffectOutboxError({ operation: "claim-prepared-expired" });
         }
         const expected = prepared.row;
@@ -175,6 +191,7 @@ ${beforeSignal}`, 'effect-claim-original-selection-and-owner')
             AND created_at = \${expected.created_at} AND updated_at = \${expected.updated_at}
             AND completed_at IS \${expected.completed_at} AND last_error IS \${expected.last_error}
             AND CAST(unixepoch('subsec') * 1000 AS INTEGER) < \${notAfterMs}
+            AND nessie_t3_monotonic_now() < \${notAfterMonotonicMs}
           RETURNING *
         \`.pipe(Effect.withTracerEnabled(false));
         const row = rows[0];

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { performance } from 'node:perf_hooks'
 import test from 'node:test'
 import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -33,6 +34,8 @@ const pending = (id, commandId = id, threadId = id) => ({ id, commandId: Command
 const prepare = (outbox, commandIds, workerId = 'original-worker') => outbox.prepareClaim({ workerId,
   commandIds: commandIds.map(CommandId.make) })
 const getCandidate = option => { assert.equal(Option.isSome(option), true); return option.value }
+const deadline = (milliseconds = 4_000) => ({ notAfterMs: Date.now() + milliseconds,
+  notAfterMonotonicMs: performance.now() + milliseconds })
 const failed = effect => effect.pipe(Effect.result, Effect.map(result => assert.equal(result._tag, 'Failure')))
 const rowState = id => Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient
@@ -84,7 +87,7 @@ test('live schema checks refuse changes hidden by cached row metadata and change
     const before = yield* rowState('cached-schema')
     yield* sql`ALTER TABLE orchestration_v2_effect_outbox ADD COLUMN unrecognized_column TEXT`
     yield* failed(prepare(outbox, ['cached-schema']))
-    assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 })), true)
+    assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, ...deadline() })), true)
     const after = yield* rowState('cached-schema')
     for (const [column, value] of Object.entries(before)) assert.equal(after[column], value)
     const physical = yield* sql`SELECT status, attempt_count, lease_owner, unrecognized_column
@@ -112,13 +115,13 @@ test('preparing a candidate is read-only; one conditional transition uses its ex
     escaped.request.runId = 'substituted-run'
     assert.equal(candidate.effect.commandId, 'original-command')
     assert.equal(candidate.effect.request.runId, 'run-one')
-    const claimed = getCandidate(yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 }))
+    const claimed = getCandidate(yield* outbox.claimPrepared({ candidate, ...deadline() }))
     assert.equal(claimed.commandId, 'original-command')
     assert.equal(claimed.request.runId, 'run-one')
     assert.equal(claimed.status, 'running')
     assert.equal(claimed.attemptCount, 1)
     assert.equal(claimed.leaseOwner, 'original-worker')
-    yield* failed(outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 }))
+    yield* failed(outbox.claimPrepared({ candidate, ...deadline() }))
     assert.throws(() => candidate.effect, /claim-candidate-closed/u)
     assert.throws(() => candidate.rowDigest, /claim-candidate-closed/u)
   }))
@@ -130,13 +133,13 @@ test('closed candidates, object copies and candidates from another outbox cannot
     yield* outbox.enqueue([pending('closed')])
     const candidate = getCandidate(yield* Effect.scoped(prepare(outbox, ['closed'])))
     const before = yield* rowState('closed')
-    yield* failed(outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 }))
-    yield* failed(outbox.claimPrepared({ candidate: { effect: pending('closed') }, notAfterMs: Date.now() + 4_000 }))
+    yield* failed(outbox.claimPrepared({ candidate, ...deadline() }))
+    yield* failed(outbox.claimPrepared({ candidate: { effect: pending('closed') }, ...deadline() }))
     const live = getCandidate(yield* prepare(outbox, ['closed']))
     const other = yield* Layer.build(Layer.fresh(Outbox.layer))
     const otherOutbox = yield* Outbox.EffectOutboxV2.pipe(Effect.provide(other))
     assert.notEqual(otherOutbox, outbox)
-    yield* failed(otherOutbox.claimPrepared({ candidate: live, notAfterMs: Date.now() + 4_000 }))
+    yield* failed(otherOutbox.claimPrepared({ candidate: live, ...deadline() }))
     assert.deepEqual(yield* rowState('closed'), before)
   }))
 })
@@ -150,8 +153,8 @@ test('an expired candidate cannot be renewed and a changed or cancelled row is n
       const candidate = getCandidate(yield* prepare(outbox, [mode]))
       if (mode === 'expired') {
         const before = yield* rowState(mode)
-        yield* failed(outbox.claimPrepared({ candidate, notAfterMs: Date.now() - 1 }))
-        yield* failed(outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 }))
+        yield* failed(outbox.claimPrepared({ candidate, ...deadline(-1) }))
+        yield* failed(outbox.claimPrepared({ candidate, ...deadline() }))
         assert.deepEqual(yield* rowState(mode), before)
         continue
       }
@@ -164,7 +167,7 @@ test('an expired candidate cannot be renewed and a changed or cancelled row is n
       if (mode === 'cancelled') yield* outbox.cancelUnsettled({ threadId: ThreadId.make(mode),
         effectTypes: ['provider-turn.start'], reason: 'synthetic cancellation' })
       const before = yield* rowState(mode)
-      assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 })), true)
+      assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, ...deadline() })), true)
       assert.deepEqual(yield* rowState(mode), before)
     }
   }))
@@ -177,7 +180,7 @@ test('competing candidates can transition their shared row only once', async () 
     const first = getCandidate(yield* prepare(outbox, ['race'], 'first-worker'))
     const second = getCandidate(yield* prepare(outbox, ['race'], 'second-worker'))
     const results = yield* Effect.all([first, second].map(candidate =>
-      outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 })), { concurrency: 2 })
+      outbox.claimPrepared({ candidate, ...deadline() })), { concurrency: 2 })
     assert.equal(results.filter(Option.isSome).length, 1)
     assert.equal((yield* rowState('race')).attempt_count, 1)
   }))
@@ -197,7 +200,7 @@ test('the SQL transition refuses expiry that occurs while waiting behind the act
       yield* Deferred.await(release)
     })).pipe(Effect.forkScoped)
     yield* Deferred.await(entered)
-    const claiming = yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 200 }).pipe(Effect.forkScoped)
+    const claiming = yield* outbox.claimPrepared({ candidate, ...deadline(200) }).pipe(Effect.forkScoped)
     yield* Effect.yieldNow
     assert.throws(() => candidate.effect, /claim-candidate-closed/u)
     yield* Effect.sleep('300 millis')
@@ -215,11 +218,50 @@ test('command filtering retains older per-thread blockers and admits independent
       pending('later', 'admitted', 'blocked-thread'), pending('independent', 'other-admitted', 'other-thread')])
     const candidate = getCandidate(yield* prepare(outbox, ['admitted', 'other-admitted']))
     assert.equal(candidate.effect.id, 'independent')
-    yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 })
+    yield* outbox.claimPrepared({ candidate, ...deadline() })
     assert.equal(Option.isNone(yield* prepare(outbox, ['admitted'])), true)
     assert.equal(Option.isNone(yield* outbox.nextClaimableAtForCommands([CommandId.make('admitted')])), true)
     assert.equal((yield* rowState('older')).attempt_count, 0)
     assert.equal((yield* rowState('later')).attempt_count, 0)
+  }))
+})
+
+test('the actual SQL refuses elapsed monotonic budget even while its wall deadline remains current', async () => {
+  await fixture(Effect.gen(function* () {
+    const outbox = yield* Outbox.EffectOutboxV2, sql = yield* SqlClient.SqlClient
+    yield* outbox.enqueue([pending('monotonic-wait')])
+    const before = yield* rowState('monotonic-wait')
+    const candidate = getCandidate(yield* prepare(outbox, ['monotonic-wait']))
+    const entered = yield* Deferred.make(), release = yield* Deferred.make()
+    const holder = yield* sql.withTransaction(Effect.gen(function* () {
+      yield* sql`SELECT 1`
+      yield* Deferred.succeed(entered, undefined)
+      yield* Deferred.await(release)
+    })).pipe(Effect.forkScoped)
+    yield* Deferred.await(entered)
+    const bound = { notAfterMs: Date.now() + 4_000, notAfterMonotonicMs: performance.now() + 150 }
+    const claiming = yield* outbox.claimPrepared({ candidate, ...bound }).pipe(Effect.forkScoped)
+    yield* Effect.sleep('250 millis')
+    assert.ok(Date.now() < bound.notAfterMs)
+    yield* Deferred.succeed(release, undefined)
+    yield* Fiber.join(holder)
+    assert.equal(Option.isNone(yield* Fiber.join(claiming)), true)
+    assert.deepEqual(yield* rowState('monotonic-wait'), before)
+  }))
+})
+
+test('an unrecognized outbox trigger cannot execute inside a conditional claim', async () => {
+  await fixture(Effect.gen(function* () {
+    const outbox = yield* Outbox.EffectOutboxV2, sql = yield* SqlClient.SqlClient
+    yield* outbox.enqueue([pending('trigger')])
+    const candidate = getCandidate(yield* prepare(outbox, ['trigger']))
+    yield* sql`CREATE TABLE trigger_canary (value TEXT)`
+    yield* sql`CREATE TRIGGER unrecognized_outbox_trigger BEFORE UPDATE ON orchestration_v2_effect_outbox
+      BEGIN INSERT INTO trigger_canary VALUES ('must not run'); END`
+    const before = yield* rowState('trigger')
+    assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, ...deadline() })), true)
+    assert.deepEqual(yield* rowState('trigger'), before)
+    assert.equal((yield* sql`SELECT count(*) AS count FROM trigger_canary`)[0].count, 0)
   }))
 })
 
@@ -260,7 +302,7 @@ test('the protected worker preserves original execution/settlement only for the 
       yield* withWorker(authority(['accepted'], (candidate, claim) => Effect.gen(function* () {
         assert.equal(candidate.effect.status, 'pending')
         assert.equal(candidate.effect.attemptCount, 0)
-        return yield* claim(Date.now() + 4_000)
+        return yield* claim(deadline())
       })), effect => Effect.sync(() => { observed.push(effect) }), Effect.gen(function* () {
         const worker = yield* Worker.OrchestrationEffectWorkerV2
         assert.equal(yield* worker.runOnce, true)

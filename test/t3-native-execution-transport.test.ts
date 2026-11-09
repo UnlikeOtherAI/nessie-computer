@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict'
 import { createHash, generateKeyPairSync, verify } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import test from 'node:test'
-import { canonicalExecutorPayload } from '@nessie/executor-protocol'
+import { canonicalExecutorJson, canonicalExecutorPayload } from '@nessie/executor-protocol'
 import { decodeExecutorT3LaneOperation, encodeExecutorT3LaneOperation, T3_SOURCE_COMMIT,
   T3_EXECUTION_GRAPH_DOMAIN, T3_EXECUTION_FRAME_PREPARATION_DOMAIN, T3_EXECUTION_RESERVATION_DOMAIN,
   T3_EXECUTION_SECRET_READ_PREPARATION_DOMAIN,
+  T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN, T3_EXECUTION_PRECLAIM_ID_DOMAIN,
+  T3ExecutionPreclaimPreparationPayloadSchema,
   T3NativeExecutionOperationSchema,
   type T3ExecutionReceipt, type T3NativeExecutionOperationIntake,
 } from '@nessie/executor-protocol/t3-session'
@@ -79,6 +82,55 @@ function secretReadFixture() {
     preparationReceiptDigest: hash(preparationReceipt.payload), nonce: '2'.repeat(64), issuedAtMs: Date.now() }
   return { ...f, observed, preparationReceipt, candidate }
 }
+
+function preclaimFixture() {
+  const f = fixture(), issuedAtMs = Date.now() - 500
+  const raw = T3ExecutionPreclaimPreparationPayloadSchema.parse(JSON.parse(readFileSync(new URL(
+    './t3-session-runtime/fixtures/execution-preclaim.json', import.meta.url), 'utf8')).preparation)
+  const binding = f.admission.binding
+  const claimId = hash(canonicalExecutorJson({ domain: T3_EXECUTION_PRECLAIM_ID_DOMAIN,
+    executorId: binding.executorId, sourceEvidenceDigest: binding.sourceEvidenceDigest,
+    acceptedGraphNonce: '7'.repeat(64), effectId: raw.bound.observation.effectId,
+    attemptCount: raw.bound.observation.attemptCount })).slice(7)
+  const observed = { ...raw, binding, acceptedGraphNonce: '7'.repeat(64), claimId, nonce: claimId,
+    evidence: { ...raw.evidence, custody: f.custody }, issuedAtMs, expiresAtMs: issuedAtMs + 5000,
+    bound: { observation: { ...raw.bound.observation, threadId: binding.threadId, observedAtMs: issuedAtMs },
+      original: { ...raw.bound.original, parentCommandId: binding.commandId, threadId: binding.threadId,
+        providerInstanceId: binding.providerInstanceId, messageId: 'message:one' } } }
+  const preparationReceipt = f.receipt(T3_EXECUTION_PRECLAIM_PREPARATION_DOMAIN, observed)
+  preparationReceipt.payload = JSON.stringify(observed, null, 2)
+  const candidate = { ...observed, issuerKeyId: preparationReceipt.keyId,
+    preparationReceiptDigest: hash(preparationReceipt.payload), nonce: '0'.repeat(64), issuedAtMs: Date.now() }
+  return { ...f, observed, preparationReceipt, candidate }
+}
+
+test('preclaim HTTP preserves exact row/lineage bytes and refuses changed evidence or renewed expiry', async () => {
+  for (const mode of ['exact', 'row', 'lineage', 'receipt', 'expiry', 'epoch', 'abort']) {
+    const f = preclaimFixture(), candidate = structuredClone(f.candidate)
+    if (mode === 'row') candidate.bound.observation.rowDigest = hash('replacement')
+    if (mode === 'lineage') candidate.bound.original.runId = 'replacement'
+    if (mode === 'receipt') candidate.preparationReceiptDigest = hash('replacement')
+    if (mode === 'expiry') candidate.expiresAtMs++
+    const answer = f.signed(candidate)
+    let calls = 0
+    const api = createExecutorApi({ fetchImpl: async (_url, init) => {
+      calls++
+      const body = JSON.parse(String(init?.body)) as T3NativeExecutionOperationIntake
+      assert.equal(body.operation, 'execution.preclaim')
+      if (body.operation !== 'execution.preclaim') assert.fail('wrong operation')
+      assert.equal(body.input.preparationReceipt.payload, f.preparationReceipt.payload)
+      assert.equal(init?.redirect, 'error')
+      if (mode === 'epoch') f.state = { ...f.state, connectionEpoch: '2' }
+      if (mode === 'abort') f.controller.abort()
+      return new Response(JSON.stringify({ data: answer }))
+    } })
+    const port = createT3NativeExecutionTransport(() => f.state, f.request, f.delivery, f.signal, api)
+    const work = port.preclaim({ preparationReceipt: f.preparationReceipt }, f.signal)
+    if (mode === 'exact') assert.deepEqual(await work, answer)
+    else await assert.rejects(work)
+    assert.equal(calls, 1, 'uncertain admission must not retry HTTP')
+  }
+})
 
 test('native client signs only the saved relay selector and preserves exact admission bytes', async () => {
   const f = fixture(), response = f.signed(f.admission)

@@ -3,7 +3,7 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Scope from 'effect/Scope'
 import type * as SqlClient from 'effect/sql/SqlClient'
-import { makeSessionEngineGraph, Settings, CommandLineage } from '@nessie/t3-session-source/engine'
+import { makeSessionEngineGraph, Settings, CommandLineage, EffectClaims } from '@nessie/t3-session-source/engine'
 import type { ServerSettingsError } from '@nessie/t3-session-source/contracts'
 import type { OwnedCaptureSqlError } from '../import/materialize.js'
 import type { ExecutorT3Request, ExecutorT3LaneDelivery, T3ExecutionSignedAdmission }
@@ -23,12 +23,13 @@ type LaunchRequest = Extract<ExecutorT3Request, { readonly method: 'orchestratio
 type EngineOwner = EffectValue<typeof makeSessionEngineGraph>
 type Inspection = EngineOwner['inspection']
 type HostServices = SqlClient.SqlClient | Settings.ServerSettingsReadService | SessionStateOwner
-  | CommandLineage.SessionCommandLineage
+  | CommandLineage.SessionCommandLineage | EffectClaims.SessionEffectClaimAuthority
 type ColdServices = HostServices | ContextServices<EffectValue<Inspection>>
 export interface SessionInspectionContext {
   readonly engine: EngineOwner
   readonly commandLineage: SessionCommandLineageRegistry
   readonly withCommandLineageCapture: T3ExecutionResourceScope['withOriginalCommandLineage']
+  readonly executionSource: T3ExecutionResourceScope
   readonly context: Context.Context<ColdServices>
   readonly recheck: Effect.Effect<void, SessionExecutionGraphRefused>
   inspect(request: LaunchRequest,
@@ -55,7 +56,8 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
     yield* Effect.addFinalizer(() => Effect.sync(commandLineage.close))
     const host = yield* Layer.build(Layer.mergeAll(state.stage.sql,
       sessionExecutionSettingsLayer(source), Layer.succeed(SessionStateOwner, state.owner),
-      Layer.succeed(CommandLineage.SessionCommandLineage, commandLineage.service)))
+      Layer.succeed(CommandLineage.SessionCommandLineage, commandLineage.service),
+      Layer.succeed(EffectClaims.SessionEffectClaimAuthority, commandLineage.effectClaims)))
     const engine = yield* makeSessionEngineGraph
     const cold = yield* engine.inspection.pipe(Effect.provide(host))
     const context = Context.merge(host, cold)
@@ -88,5 +90,6 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
         return target
       })
     return { engine, commandLineage, withCommandLineageCapture: source.withOriginalCommandLineage,
+      executionSource: source,
       context, inspect, recognize, recheck: current }
   })

@@ -67,6 +67,8 @@ pub enum Request {
     RecordCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, edge: crate::execution_command_lineage::Edge },
     CloseCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph },
     ObserveBoundDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
+    PrepareEffectClaim { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
+    ConsumeEffectClaim { executor_id: String, resource_id: String, graph: crate::execution::Graph, admission: crate::execution::SignedAdmission },
     CloseDestination { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
 }
@@ -80,6 +82,7 @@ impl Request {
             | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. }
             | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
             | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
+            Self::PrepareEffectClaim { executor_id, .. } | Self::ConsumeEffectClaim { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -117,8 +120,19 @@ impl Request {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(effect_id)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
+            }
+            Self::PrepareEffectClaim { resource_id, graph, effect_id, .. } => {
+                graph.binding.validate(true)?;
+                if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(effect_id)
+                    || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
                 // Only an already accepted exact Graph may be used. Its 5s
                 // receipt freshness is not a new resource-retention deadline.
+            }
+            Self::ConsumeEffectClaim { resource_id, graph, admission, .. } => {
+                graph.binding.validate(true)?;
+                if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || graph.binding.executor_id != self.executor()
+                    || admission.payload.is_empty() || admission.payload.len() > 32768
+                    || admission.signature.is_empty() || admission.signature.len() > 2048 { return Err(REJECTED.into()); }
             }
             Self::OpenCommandLineage { resource_id, graph, .. } | Self::CloseCommandLineage { resource_id, graph, .. }
             | Self::RecordCommandLineage { resource_id, graph, .. } => {
