@@ -44,8 +44,15 @@ test('the real CLI reports failed commands without reporting ordinary use or cha
     assert.ok(failure.stderr.length > 0, 'The original command failure is still shown')
     assert.ok(bodies.some(body => body.includes('"exception"')),
       'A real exception reached the collector; stderr: ' + failure.stderr)
+    const itemTypes = bodies.flatMap(body => body.split('\n').filter((_, index) => index % 2 === 1)
+      .map(line => (JSON.parse(line) as { type: string }).type))
+    assert.ok(itemTypes.length > 0, 'The collector received at least one envelope item')
+    assert.ok(itemTypes.every(type => ['event', 'client_report'].includes(type)),
+      'CLI telemetry contains only errors and delivery outcomes: ' + itemTypes.join(', '))
   } finally {
-    await new Promise<void>((resolveClosed, reject) => collector.close(error => error ? reject(error) : resolveClosed()))
+    await new Promise<void>((resolveClosed, reject) => {
+      collector.close(error => error ? reject(error) : resolveClosed())
+    })
     assert.equal(dirname(resolve(state)), scratch)
     await rm(state, { recursive: true, force: true })
   }

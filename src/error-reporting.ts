@@ -5,8 +5,6 @@ if (dsn) {
   Sentry.init({
     dsn,
     release: process.env.SENTRY_RELEASE,
-    enableLogs: false,
-    enableMetrics: false,
     initialScope: { tags: { component: 'computer' } },
     integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
   })

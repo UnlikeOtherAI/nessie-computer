@@ -156,7 +156,7 @@ fn main() {
     let dsn = std::env::var("NESSIE_COMPUTER_SENTRY_DSN").ok()
         .or_else(|| option_env!("NESSIE_COMPUTER_SENTRY_DSN").map(str::to_owned));
     let _sentry = dsn.map(|dsn| sentry::init(
-        sentry::ClientOptions::new().dsn(dsn).maybe_release(sentry::release_name!()),
+        sentry::ClientOptions::new().dsn(&dsn).maybe_release(option_env!("GITHUB_SHA")),
     ));
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match parse_mode(&arguments) {
