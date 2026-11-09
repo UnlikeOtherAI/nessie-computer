@@ -11,7 +11,7 @@ import { createSessionReadLayers, createSessionEngineLayers, ProviderSessions, P
 import { ThreadId } from '@nessie/t3-session-source/contracts'
 import { createSessionRuntimeLayers, ProviderHost, NativeChildProcesses,
   ProviderCredentialReferences, SessionResourceTargets, TurnControl, RuntimeRequests,
-  sessionProviderHostLayer } from '@nessie/t3-session-source/engine'
+  sessionProviderHostLayer, SessionLifecycleAuthority, type SessionLifecycleAction } from '@nessie/t3-session-source/engine'
 
 type Input<T> = T extends Layer.Layer<infer _Out, infer _Error, infer Required> ? Required : never
 type Services<T> = T extends Effect.Effect<infer _Out, infer _Error, infer Required> ? Required : never
@@ -42,6 +42,10 @@ const readsNeedNoLineage: CommandLineage.SessionCommandLineage extends Reads ? t
 const workerCleanupRequired: ResourceOwners.ResourceCleanupService extends Worker ? true : false = true
 const workerClaimOwnerRequired: EffectClaims.SessionEffectClaimAuthority extends Worker ? true : false = true
 const runtimeClaimOwnerRequired: EffectClaims.SessionEffectClaimAuthority extends Runtime ? true : false = true
+const runtimeLifecycleOwnerRequired: SessionLifecycleAuthority extends Runtime ? true : false = true
+const readsNeedNoLifecycleOwner: SessionLifecycleAuthority extends Reads ? true : false = false
+// @ts-expect-error A lease/preclaim phase cannot replace a concrete lifecycle action.
+const invalidLifecycleAction: SessionLifecycleAction = 'claim-original-provider-turn-start'
 const readsNeedNoClaimOwner: EffectClaims.SessionEffectClaimAuthority extends Reads ? true : false = false
 declare const decodedPendingEffect: Outbox.OrchestrationEffectV2
 // @ts-expect-error A decoded pending effect is not the scoped original claim candidate.
@@ -74,6 +78,7 @@ type SecretAnswer = Parameters<SecretRequests.SecretRequests['Service']['answer'
 const invalidSecret: SecretAnswer = { value: 'synthetic-only' }
 void [readSqlRequired, readProviderRequired, engineProviderRequired, engineSettingsRequired, workerCleanupRequired,
   workerClaimOwnerRequired, runtimeClaimOwnerRequired, readsNeedNoClaimOwner, unsealedClaim,
+  runtimeLifecycleOwnerRequired, readsNeedNoLifecycleOwner, invalidLifecycleAction,
   engineLineageRequired, readsNeedNoLineage,
   runtimeHostRequired, runtimeNativeRequired, runtimeProviderRequired, runtimeCleanupRequired,
   runtimeDirectoryRequired, engineDirectoryRequired,

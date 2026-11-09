@@ -1,9 +1,11 @@
 import * as Layer from 'effect/Layer'
+import * as Effect from 'effect/Effect'
 import { createSessionStateLayers } from './StateLayers.ts'
 import { createSessionEngineLayers } from './EngineLayers.ts'
 import { sessionLifecycleLayer } from './SessionLifecycle.ts'
 import { sessionProviderHostLayer } from './ProviderHostLayers.ts'
 import { sessionResourceCleanupLayer } from './ResourceLayers.ts'
+import { SessionLifecycleAuthority } from './SessionLifecycleAuthority.ts'
 
 /**
  * Execution composition, never a provider-admission boundary. The caller must
@@ -17,10 +19,17 @@ export const createSessionRuntimeLayers = (state = createSessionStateLayers(),
   const services = Layer.mergeAll(engine.launch, engine.recovery, engine.worker).pipe(
     Layer.provideMerge(Layer.mergeAll(host, engine.finalization)),
   )
-  const layer = sessionLifecycleLayer.pipe(Layer.provideMerge(services))
+  // Resolve the required owner before building the effectful original hosts,
+  // rather than discovering missing startup authority after construction.
+  const layer = Layer.unwrap(Effect.map(SessionLifecycleAuthority,
+    () => sessionLifecycleLayer.pipe(Layer.provideMerge(services))))
   return { state, engine, host, services, layer }
 }
 
 export { SessionEngineLifecycle, SessionLifecycleError } from './SessionLifecycle.ts'
+export * as SessionLifecycle from './SessionLifecycle.ts'
+export { SessionLifecycleAuthority, SessionLifecycleActionRefused, withSessionLifecycleAction }
+  from './SessionLifecycleAuthority.ts'
+export type { SessionLifecycleAction } from './SessionLifecycleAuthority.ts'
 export * as ProviderHost from 't3-source:packages/provider-core/src/server/ProviderHost.ts'
 export * as NativeChildProcesses from 'effect/process/ChildProcessSpawner'

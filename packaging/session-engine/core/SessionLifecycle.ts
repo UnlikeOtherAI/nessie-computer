@@ -16,6 +16,7 @@ import * as Sessions from 't3-source:apps/server/src/orchestration-v2/ProviderSe
 import * as Recovery from 't3-source:apps/server/src/orchestration-v2/ProviderRuntimeRecoveryService.ts'
 import * as Continuations from 't3-source:apps/server/src/orchestration-v2/ProviderContinuationService.ts'
 import * as Worker from 't3-source:apps/server/src/orchestration-v2/EffectWorker.ts'
+import { SessionLifecycleAuthority, withSessionLifecycleAction } from './SessionLifecycleAuthority.ts'
 
 type Phase = 'starting' | 'running' | 'stopping' | 'stopped' | 'failed'
 
@@ -32,6 +33,7 @@ export class SessionEngineLifecycle extends Context.Service<SessionEngineLifecyc
 }>()('nessie/t3-session/SessionEngineLifecycle') {}
 
 const make = Effect.gen(function* () {
+  const authority = yield* SessionLifecycleAuthority
   // Requiring the original tags prevents an accidentally providerless composition.
   // Their production implementations must come from the admitted host, never NodeServices.layer.
   yield* ProviderHost.ProviderHost
@@ -52,11 +54,13 @@ const make = Effect.gen(function* () {
     // Stop continuation intake and the worker before preparing restart intents.
     // Keep SQL, providers and the state writer alive through reconciliation.
     const closed = yield* Effect.exit(Scope.close(consumers, Exit.void))
-    const prepared = Exit.isSuccess(closed) ? yield* Effect.exit(recovery.prepareForShutdown) : closed
+    const prepared = Exit.isSuccess(closed) ? yield* Effect.exit(withSessionLifecycleAction(
+      authority, 'prepare-shutdown', recovery.prepareForShutdown)) : closed
     const stopped = yield* Effect.exit(sessions.shutdown)
     // A provider shutdown defect must not be turned into a recorded stop.
     const reconciled = Exit.isSuccess(closed) && Exit.isSuccess(prepared) && Exit.isSuccess(stopped)
-      ? yield* Effect.exit(recovery.reconcile('shutdown').pipe(Effect.asVoid)) : stopped
+      ? yield* Effect.exit(withSessionLifecycleAction(authority, 'runtime-reconcile-shutdown',
+        recovery.reconcile('shutdown').pipe(Effect.asVoid))) : stopped
     const failed = [closed, prepared, stopped, reconciled].find(Exit.isFailure)
     if (failed && Exit.isFailure(failed)) {
       yield* Ref.set(phase, 'failed')
@@ -67,9 +71,9 @@ const make = Effect.gen(function* () {
   // Retain errors: a failed cleanup is not a successful shutdown receipt.
   yield* Effect.addFinalizer(() => stop.pipe(Effect.orDie))
 
-  yield* importer.reconcileShells
-  yield* recovery.recover
-  yield* orchestrator.recoverDelegatedTasks
+  yield* withSessionLifecycleAction(authority, 'legacy-shell-reconcile', importer.reconcileShells)
+  yield* withSessionLifecycleAction(authority, 'runtime-recover', recovery.recover)
+  yield* withSessionLifecycleAction(authority, 'delegated-task-recover', orchestrator.recoverDelegatedTasks)
   // Build ONLY the consumer here, with the already built original services.
   // Providing engine.continuationConsumer here would rebuild its dependencies
   // in another Layer memo map and create a second outbox/command lock.

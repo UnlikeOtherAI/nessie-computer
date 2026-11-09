@@ -150,6 +150,13 @@ These are concrete runtime composition work, including for an empty secret plan:
 | `ThreadLaunchService` initial-message/preparation dispatch | Initial-message, accepted-run and release capture are implemented below. Use the same source context during activation and consume separate real admission before claim. |
 | `SessionEngineLifecycle` | Bind recovery and worker execution to live original admission before running imported pending effects. Use the existing graph scope/memo, and drain providers before state revocation. |
 
+The lifecycle now requires [separate authority](t3-lifecycle-authority.md) for
+each original startup/shutdown mutation action, before execution host construction.
+Its finite wrapper preserves the actual one-use original result and joins action
+cleanup. Refused shutdown SQL still drains providers and retains lifecycle failure.
+The native/backend positive producer and actual affected-row ownership remain
+unimplemented; preclaim permission cannot supply this service.
+
 These ports remain runtime-owned. The missing native secret channel producer and
 version-specific noninteractive `op` behavior are separate dependencies. Claude
 SDK 0.3.316 immutable serialization is still unbound; the original history worker
