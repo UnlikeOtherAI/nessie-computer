@@ -257,6 +257,13 @@ Recovery now works from both ends without weakening a fence:
   ended, nothing left in the child's process group, no host registration of
   its own. Journals the old rule kept therefore clear on the next launch, not
   only at the next restart; a daemon's journal and anything running stay.
+  Update clearance (`ready_with`) does not wait for such journals either
+  (`ended_one_shot`): the installed older creator keeps adding them until the
+  swap installs the corrected one, so on dictator 1.0.22's helper could not
+  clear for that swap. Clearance only skips them; it deletes nothing. The
+  process-group check uses every account's processes (`live_groups`, from the
+  short process record), not the caller's own, so a Root helper still sees a
+  user's leftover descendant; a process it cannot read counts as running.
 - **A refused team stays in the window.** The console's `executor_view` lists a
   paired team whose `describe` is refused under `unreadable-<folder>`, so the
   window never opens Add another team over a team that exists. It reads as
