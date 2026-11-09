@@ -101,21 +101,22 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
                        ComputerUpdateRestartRecord(version: "1.0.17"))
     }
 
-    /// 9 November: 1.0.27 installed by hand over 1.0.26 kept its teams on the
-    /// old runtime, because the helper only installs the app's runtime while
-    /// no team process runs. Only that restart stops the teams.
-    func testOnlyAnOlderInstalledRuntimeStopsTheTeams() {
-        let adopts = { (installed: String, phase: String) in
+    /// 9 November: 1.0.27 and then 1.0.28 installed by hand over 1.0.26 kept
+    /// their teams on the old runtime, because the helper only installs the
+    /// app's runtime while no team process runs, and right after launch it did
+    /// not answer. The installed runtime's own version decides.
+    func testAnOlderInstalledRuntimeStopsTheTeamsEvenWithoutAnAnswer() {
+        let adopts = { (installed: String?, phase: String?) in
             ComputerUpdateRecovery.adoptsApplicationRuntime(
-                answer: (installedVersion: installed, phase: phase), applicationVersion: "1.0.28")
+                installedVersion: installed, phase: phase, applicationVersion: "1.0.28")
         }
         XCTAssertTrue(adopts("1.0.26", "idle"))
         XCTAssertTrue(adopts("1.0.26", "waiting"))
+        XCTAssertTrue(adopts("1.0.26", nil), "a helper that does not answer still gets a clear machine")
         XCTAssertFalse(adopts("1.0.28", "idle"), "the helper already runs this app's runtime")
-        XCTAssertFalse(adopts("1.0.29", "idle"), "never toward an older app")
+        XCTAssertFalse(adopts("1.0.29", nil), "never toward an older app")
         XCTAssertFalse(adopts("1.0.26", "installing"), "a started replacement owns the machine")
-        XCTAssertFalse(ComputerUpdateRecovery.adoptsApplicationRuntime(answer: nil, applicationVersion: "1.0.28"),
-                       "a helper that does not answer is restarted with the teams running")
+        XCTAssertFalse(adopts(nil, nil), "no installed runtime yet: first setup has its own path")
     }
 
     func testAStartedReplacementIsNeverInterrupted() {

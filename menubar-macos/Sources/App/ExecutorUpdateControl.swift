@@ -175,9 +175,10 @@ final class ExecutorUpdateMonitor {
     }
 
     /// An app update never reaches a helper that keeps running; restart it,
-    /// and again later while it stays stuck or older than this app. For this
-    /// app's newer runtime the teams stop meanwhile, or the helper never finds
-    /// the machine clear and the old runtime keeps serving them.
+    /// and again later while it stays stuck or older than this app. While the
+    /// installed runtime is older than this app's, the teams stop meanwhile, or
+    /// the helper never finds the machine clear and the old runtime keeps
+    /// serving them.
     private func restartHelperIfNeeded(_ status: [String: Any]?, connections: ExecutorConnections?) async {
         // The local stuck and setup states carry no installed version.
         let answer = (status?["installedVersion"] as? String).flatMap { version in
@@ -187,8 +188,9 @@ final class ExecutorUpdateMonitor {
             enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
             answer: answer, restarts: ComputerUpdateService.restartRecord, now: Date()
         ) else { return }
-        if let connections,
-           ComputerUpdateRecovery.adoptsApplicationRuntime(answer: answer, applicationVersion: version) {
+        if let connections, ComputerUpdateRecovery.adoptsApplicationRuntime(
+            installedVersion: ComputerUpdateService.installedVersion, phase: answer?.phase, applicationVersion: version
+        ) {
             await connections.holdTeams(until: version) {
                 await ComputerUpdateService.restartAutomatically(for: version)
             }

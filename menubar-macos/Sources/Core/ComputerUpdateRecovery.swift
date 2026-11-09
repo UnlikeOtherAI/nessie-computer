@@ -110,14 +110,16 @@ public enum ComputerUpdateRecovery {
         return now.timeIntervalSince(last) >= restartDelay(after: restarts.made)
     }
 
-    /// Whether a helper restart is for this app's newer runtime. The helper
+    /// Whether a helper restart can bring this app's newer runtime. The helper
     /// installs it only while no team process runs, so the teams stop for that
-    /// moment; a restart for a helper that does not answer leaves them running.
+    /// moment. `installedVersion` is read from the installed runtime itself, so
+    /// this holds even while the helper does not answer; `phase` is what it last
+    /// said, if anything, and a started replacement is never interrupted.
     public static func adoptsApplicationRuntime(
-        answer: (installedVersion: String, phase: String)?, applicationVersion: String
+        installedVersion: String?, phase: String?, applicationVersion: String
     ) -> Bool {
-        guard let answer, !["installing", "restarting"].contains(answer.phase) else { return false }
-        return isNewer(applicationVersion, than: answer.installedVersion)
+        guard let installedVersion, !["installing", "restarting"].contains(phase ?? "") else { return false }
+        return isNewer(applicationVersion, than: installedVersion)
     }
 
     private static func needsRestart(

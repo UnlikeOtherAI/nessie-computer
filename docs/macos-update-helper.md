@@ -37,8 +37,9 @@ A newer app installed over an older one restarts the helper by itself while
 the installed runtime is older than its own. The helper installs the app's
 runtime only while no team process runs, and tries for about a minute after it
 starts, so the app stops its teams for that restart and starts them again once
-the helper reports the app's version, or after two minutes. A restart for a
-helper that does not answer leaves the teams running.
+the installed runtime is the app's version, or after two minutes. The app reads
+that version from the installed runtime's manifest, so this holds even while the
+helper does not answer.
 
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.

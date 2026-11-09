@@ -21,6 +21,12 @@ enum ComputerUpdateService {
 
     static var factoryReady: Bool { FileManager.default.fileExists(atPath: factory.path) }
 
+    /// The installed runtime's own version, read from its manifest, whether or
+    /// not the helper answers.
+    static var installedVersion: String? {
+        PackagedRuntime(root: factory.deletingLastPathComponent()).executorVersion()
+    }
+
     /// Teams wait while the helper installs this app's newer runtime.
     @MainActor static var holdingTeams = false
 
