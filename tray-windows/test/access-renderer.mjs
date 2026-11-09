@@ -1,9 +1,9 @@
 // The Access tab: folders, programs with Apply, websites, local apps and the
 // developers' section, on both hosts, with failures beside their controls.
 import assert from 'node:assert/strict'
-import { LOCALES, assertFits, callCount, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
+import { LOCALES, assertFits, callCount, checkHelp, helpText, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
 
-const current = (page) => page.locator('#access-programs-current').textContent()
+const current = (page) => page.locator('#access-now').textContent()
 const configured = (page) => page.evaluate(() => window.configured?.length ?? 0)
 const waitConfigured = (page, count) => page.waitForFunction((n) => (window.configured?.length ?? 0) > n, count)
 const openAccess = async (browser, ui, options) => {
@@ -17,36 +17,40 @@ export const verifyAccessTab = async (browser, ui, output) => {
   for (const host of ['windows', 'macos']) {
     const { context, page, errors } = await openAccess(browser, ui, { host })
     const shot = (name) => screenshot(page, output, `${host}-access-${name}`)
-    await page.getByRole('heading', { name: 'Access for Platform · UnlikeOtherAI' }).waitFor()
     assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on Access')
+    assert.equal(await page.locator('#tab-access h2').count(), 0, 'the tab and the dropdown already name it: no heading')
+    // The only visible small lines are the consequence beside the mode and empty-list statuses; explanations sit behind "?".
+    assert.deepEqual(await page.locator('#tab-access .hint:visible').evaluateAll((nodes) => nodes.map((node) => node.id)),
+      ['access-mode-consequence', 'access-websites-empty'])
 
     // Folders: a new team starts with one; the name agents use beside the path; the last folder's Remove waits (the runtime keeps one).
     assert.match(await page.locator('#access-folder-list').textContent(), /Nessie.*Agents call it nessie/)
     assert.equal(await page.locator('#access-folder-list .list-row').count(), 1)
     assert.equal(await page.getByRole('button', { name: /Stop sharing/ }).isDisabled(), true)
-    await page.getByText('Keep at least one folder.').waitFor()
-    assert.equal(await page.locator('#access-several-folders').isHidden(), true)
+    // The section's "?" says what folders are for and why the last Remove waits.
+    assert.match(await checkHelp(page, 'access-folders-help'), /can read these folders.*Keep at least one folder\./s)
+    assert.doesNotMatch(await helpText(page, 'access-folders-help'), /exactly one folder/)
     await shot('folders')
     // A second folder is allowed, and the tab says plainly what then stops working (EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED).
     await page.getByRole('button', { name: 'Add folder…' }).click()
     await waitConfigured(page, 0)
     assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.workspaceFolders.map((folder) => folder.name), ['nessie', 'site'])
     await page.locator('#access-folder-list .list-row').nth(1).waitFor()
-    await page.getByText('Agents’ browser, sandboxed commands and coding sessions here need exactly one folder.').waitFor()
-    assert.equal(await page.locator('#access-last-folder').isHidden(), true)
+    await page.waitForFunction(() => /exactly one folder/.test(document.querySelector('#access-folders-help .help-tip').textContent))
+    assert.doesNotMatch(await helpText(page, 'access-folders-help'), /Keep at least one folder/)
     await shot('two-folders')
     await page.getByRole('button', { name: 'Stop sharing Site with Platform · UnlikeOtherAI' }).click()
     await page.waitForFunction(() => window.teams['team-0'].folders.length === 1)
-    assert.equal(await page.locator('#access-several-folders').isHidden(), true)
+    assert.doesNotMatch(await helpText(page, 'access-folders-help'), /exactly one folder/)
     assert.equal(await page.evaluate(() => window.restarts), 0, 'a save never restarts the team')
 
-    // Programs: "Currently allowed" is the saved state; edits wait for Apply behind a before/after line.
-    assert.equal(await current(page), 'Currently allowed: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code.')
+    // Programs: "Now" is the saved state; edits wait for Apply behind an "After Apply" line.
+    assert.equal(await current(page), 'Now: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code')
     assert.equal(await page.locator('#access-apply').isDisabled(), true)
     assert.equal(await page.locator('#access-after').textContent(), 'No changes to apply.')
     const before = await configured(page)
     await page.getByRole('switch', { name: 'Allow Claude Code' }).click()
-    assert.equal(await current(page), 'Currently allowed: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code.', 'an unsaved edit never looks effective')
+    assert.equal(await current(page), 'Now: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code', 'an unsaved edit never looks effective')
     assert.equal(await page.locator('#access-after').textContent(), 'After Apply: Apps from UnlikeOtherAI, Codex, T3 Code')
     await page.getByRole('button', { name: 'Add program…' }).click()
     await page.locator('#access-program-name').fill('my tool')
@@ -64,23 +68,27 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await waitConfigured(page, before)
     const policy = (await lastCall(page, 'executor_configure')).args.configurationInput.commandPolicy
     assert.deepEqual(policy, { mode: 'allowlist', allowlist: ['git *'], denylist: [], trusted: { unlikeotherai: true, claudeCode: false, codex: true, t3Code: true } })
-    await page.waitForFunction(() => document.getElementById('access-programs-current').textContent === 'Currently allowed: Apps from UnlikeOtherAI, Codex, T3 Code, git.')
+    await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: Apps from UnlikeOtherAI, Codex, T3 Code, git')
     assert.equal(await page.locator('#access-after').textContent(), 'No changes to apply.')
     // No programs is a real state: nothing on, nothing listed, and Apply still applies it.
     for (const name of ['Allow Apps from UnlikeOtherAI', 'Allow Codex', 'Allow T3 Code']) await page.getByRole('switch', { name }).click()
     await page.getByRole('button', { name: 'Remove git' }).click()
     assert.equal(await page.locator('#access-after').textContent(), 'After Apply: no programs')
-    await page.getByText('No programs means agents in Platform · UnlikeOtherAI start nothing on this computer.').waitFor()
+    await page.getByText('Agents start nothing on this computer.').waitFor()
     await shot('programs-none-pending')
     await page.getByRole('button', { name: 'Apply' }).click()
-    await page.waitForFunction(() => document.getElementById('access-programs-current').textContent === 'Currently allowed: no programs.')
+    await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: no programs')
     assert.deepEqual((await lastCall(page, 'executor_configure')).args.configurationInput.commandPolicy,
       { mode: 'allowlist', allowlist: [], denylist: [], trusted: { unlikeotherai: false, claudeCode: false, codex: false, t3Code: false } })
-    // Any program: the list greys out and says why; the consequence sentence sits beside the mode.
+    // Any program: the list greys out; the one consequence line stays beside the mode.
     await page.getByRole('radio', { name: 'Any program' }).check()
-    await page.getByText('Not used while any program is allowed.').waitFor()
+    await page.waitForFunction(() => document.querySelector('#access-program-list .list-row[aria-disabled=true]'))
     assert.equal(await page.locator('#access-after').textContent(), 'After Apply: any program')
-    assert.equal(await page.locator('.access-mode .hint').textContent(), 'Programs run as you and can open any file you can.')
+    assert.equal(await page.locator('.access-mode .hint').textContent(), 'Programs run as you.')
+    // The pattern grammar sits behind "?" by the Advanced lists.
+    await page.locator('#access-advanced summary').click()
+    assert.match(await checkHelp(page, 'access-pattern-help'), /One rule per line/)
+    await page.locator('#access-advanced summary').click()
     // An invalid pattern is said beside Advanced and blocks Apply; a valid one applies.
     await page.locator('#access-advanced summary').click()
     await page.locator('#access-denylist').fill('rm *\ngi*')
@@ -95,19 +103,22 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.getByRole('button', { name: 'Try again' }).waitFor()
     assert.equal(await page.locator('.save-problem > span').textContent(),
       'Programs weren’t saved: Nessie Computer could not write this change. Programs still allowed: no programs.')
-    assert.equal(await current(page), 'Currently allowed: no programs.')
+    assert.equal(await current(page), 'Now: no programs')
     await shot('programs-failed')
     await page.evaluate(() => { window.failConfigure = null })
     await page.getByRole('button', { name: 'Try again' }).click()
-    await page.waitForFunction(() => document.getElementById('access-programs-current').textContent === 'Currently allowed: any program except rm.')
+    await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: any program except rm')
     assert.equal(await page.locator('.save-problem').count(), 0)
     assert.equal(await page.evaluate(() => window.restarts), 0)
     assert.equal(await callCount(page, 'executor_apply_remedy'), 0, 'Try again resends the draft; it never applies a remedy')
 
     // Websites: a plain note while the agent browser is not set up; only https origins are accepted.
-    await page.getByText('The agent browser isn’t set up on this computer yet.', { exact: false }).waitFor()
-    await page.getByText('No websites yet.', { exact: false }).waitFor()
+    await page.getByText('Agent browser not set up here yet.', { exact: true }).waitFor()
+    await page.getByText('No websites yet.', { exact: true }).waitFor()
+    assert.match(await helpText(page, 'access-websites-help'), /may open these websites/)
     await page.getByRole('button', { name: 'Add website…' }).click()
+    // The address form sits behind "?" inside the dialog.
+    assert.match(await checkHelp(page, 'access-website-dialog-help'), /https address/)
     await page.locator('#access-website-dialog-input').fill('http://docs.example.com/path')
     await page.locator('#access-website-dialog-confirm').click()
     await page.getByText('Use an https address such as https://example.com.').waitFor()
@@ -152,8 +163,7 @@ export const verifyAccessTab = async (browser, ui, output) => {
 
     // Another team shows its own rules at once; a team whose access cannot be read says so and offers Try again.
     await selectTeam(page, 'team-1')
-    await page.getByRole('heading', { name: 'Access for Research · UnlikeOtherAI' }).waitFor()
-    await page.waitForFunction(() => document.getElementById('access-programs-current').textContent === 'Currently allowed: any program except rm.')
+    await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: any program except rm')
     assert.equal(await page.locator('#access-browser-note').isHidden(), true, 'no note once the browser is set up')
     assert.equal(await page.locator('#access-existing-sessions').isChecked(), false)
     await page.evaluate(() => { window.failDescribe = 'The local request timed out.' })
@@ -163,11 +173,11 @@ export const verifyAccessTab = async (browser, ui, output) => {
     await page.evaluate(() => { window.failDescribe = null })
     await page.locator('#access-reload').click()
     await page.locator('#access-body').waitFor()
-    // A program request answered on Overview is read back when the team is chosen again (once per selection).
+    // A program request answered in Needs you is read back when the team is chosen again (once per selection).
     await page.evaluate(() => { window.teams['team-0'].policy = { mode: 'allowlist', allowlist: ['npm *'], denylist: [], trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true } } })
     await selectTeam(page, 'team-1')
     await selectTeam(page, 'team-0')
-    await page.waitForFunction(() => document.getElementById('access-programs-current').textContent === 'Currently allowed: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code, npm.')
+    await page.waitForFunction(() => document.getElementById('access-now').textContent === 'Now: Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code, npm')
     await assertFits(page, `${host} access`)
     assert.deepEqual(errors, [])
     await context.close()
@@ -176,7 +186,7 @@ export const verifyAccessTab = async (browser, ui, output) => {
   // A runtime without local apps yet says so rather than showing an empty list.
   {
     const { context, page, errors } = await openAccess(browser, ui, { host: 'macos', legacy: true })
-    await page.getByText('This version of Nessie Computer doesn’t list local apps yet.', { exact: false }).waitFor()
+    await page.getByText('Update Nessie Computer to list local apps.', { exact: true }).waitFor()
     assert.deepEqual(errors, [])
     await context.close()
   }
@@ -185,7 +195,7 @@ export const verifyAccessTab = async (browser, ui, output) => {
     const context = await browser.newContext({ viewport: { width: 640, height: 680 }, locale: 'en-GB' })
     await context.addInitScript(() => { window.uoaSignatureUnavailable = true })
     const opened = await openAccess(browser, ui, { host: 'macos', context })
-    await opened.page.getByText('Not available on this computer.').waitFor()
+    await opened.page.getByText('Not available here', { exact: true }).waitFor()
     assert.equal(await opened.page.getByRole('switch', { name: 'Allow Apps from UnlikeOtherAI' }).isDisabled(), true)
     assert.equal(await opened.page.getByRole('switch', { name: 'Allow Claude Code' }).isDisabled(), false)
     assert.deepEqual(opened.errors, [])

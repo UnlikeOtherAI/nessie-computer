@@ -6,7 +6,7 @@ import { STATUS_WORDS, selectTeams, type LabelledTeam } from './cli-teams.js'
 import type { CliRun } from './cli-user.js'
 import { executorSoftwareVersion } from './updates/version.js'
 
-/** The Overview tab: `status`, `teams`, `who`, and the computer-wide `pause` and `resume`. */
+/** The Overview tab: `status`, `teams`, and the computer-wide `pause` and `resume`. */
 
 const REASON_NOT_RUNNING = 'Nessie Computer isn\'t running this team'
 
@@ -118,27 +118,6 @@ const teams = async (run: CliRun): Promise<void> => {
   if (pending.length) run.context.out(`\n${connectingLines(pending).join('\n')}\n`)
 }
 
-const who = async (run: CliRun): Promise<void> => {
-  acceptOnly(run.options, 'who')
-  operands(run.options, 1, 0, 'who')
-  const team = await run.team()
-  if (team.route === 'local' && !team.state.connectionEpoch) {
-    throw new CliRefusal('EXECUTOR_NOT_CONNECTED', `${team.label} hasn't connected to Nessie yet. Start it, then try again.`)
-  }
-  const audience = await run.ops(team).audience()
-  if (run.options.json) {
-    printJson(run.context, audience)
-    return
-  }
-  const names = (entries: Array<{ name: string }>) => listed(entries.map((entry) => entry.name))
-  const more = audience.peopleCount - audience.people.length
-  run.context.out(`Who can send work here for ${team.label}:\n${columns([
-    ['Agents', names(audience.agents)],
-    ['People', audience.everyoneInTeam ? 'everyone in the team' : `${names(audience.people)}${more > 0 ? ` and ${more} more` : ''}`],
-    ['Projects', names(audience.projects)],
-  ], '  ')}\n`)
-}
-
 const pauseOrResume = (paused: boolean) => async (run: CliRun): Promise<void> => {
   const command = paused ? 'pause' : 'resume'
   acceptOnly(run.options, command)
@@ -163,5 +142,5 @@ const pauseOrResume = (paused: boolean) => async (run: CliRun): Promise<void> =>
 }
 
 export const OVERVIEW: Record<string, (run: CliRun) => Promise<void>> = {
-  status, teams, who, pause: pauseOrResume(true), resume: pauseOrResume(false),
+  status, teams, pause: pauseOrResume(true), resume: pauseOrResume(false),
 }

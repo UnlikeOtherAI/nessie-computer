@@ -139,10 +139,6 @@ impl Control {
                     Err(reason) => Response::error(reason),
                 }
             }
-            Command::Audience { executor_id } => match supervisor.audience(&executor_id) {
-                Ok(audience) => Response::Audience { audience },
-                Err(reason) => Response::error(reason),
-            },
             Command::Remove { executor_id } => match supervisor.remove(&executor_id, client_sid) {
                 Ok(signed_off) => Response::Removed { signed_off },
                 Err(reason) => Response::error(reason),

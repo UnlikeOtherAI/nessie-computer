@@ -6,21 +6,22 @@
   const { invoke, byId, t } = nc
   let executors = []
   let current = null
-  const names = new Map()
-  const lookupFailed = new Set()
-  const ownerConfirmationRequired = new Set()
   const describes = new Map()
   const selectionListeners = new Set()
   const listListeners = new Set()
   let rendered = ''
   let disconnecting = null
 
-  const apiBaseUrl = (executorId) => names.get(executorId)?.apiBaseUrl ?? null
+  // Every row carries its team's saved label (`names`, docs/team-names.md): the
+  // host reads it from the team's folder and keeps a known name while Nessie
+  // can't be reached, so naming a team here asks nobody.
+  const namesOf = (executorId) => executors.find((team) => team.executorId === executorId)?.names ?? null
+  const apiBaseUrl = (executorId) => namesOf(executorId)?.apiBaseUrl ?? null
   const host = (executorId) => {
     try { return apiBaseUrl(executorId) ? new URL(apiBaseUrl(executorId)).host : null } catch { return null }
   }
   const ownLabel = (executorId) => {
-    const name = names.get(executorId)
+    const name = namesOf(executorId)
     return [name?.teamName, name?.organizationName].filter(Boolean).join(' · ') || null
   }
   // On Windows a team's ChatGPT plans live on a second, service-owned connection
@@ -56,31 +57,6 @@
     return ['running', 'starting', 'running elsewhere'].includes(team.daemonStatus) ? 'working' : 'not_connected'
   }
 
-  // A name lookup asks Nessie and can take seconds; one pass runs at a time
-  // and a refused name waits a minute, so the refresh never queues lookups.
-  const NAME_RETRY_MS = 60_000
-  const nameRetryAt = new Map()
-  let namesInFlight = false
-  const lookUpNames = async (list) => {
-    if (namesInFlight) return
-    namesInFlight = true
-    try {
-      for (const { executorId } of list) {
-        if (names.has(executorId) || (nameRetryAt.get(executorId) ?? 0) > Date.now()) continue
-        try {
-          names.set(executorId, await invoke('executor_pairing_status', { executorId }))
-          lookupFailed.delete(executorId)
-          ownerConfirmationRequired.delete(executorId)
-          nameRetryAt.delete(executorId)
-        } catch (error) {
-          if (String(error?.message ?? error).includes('PAIRING_OWNER_CONFIRMATION_REQUIRED')) ownerConfirmationRequired.add(executorId)
-          lookupFailed.add(executorId)
-          nameRetryAt.set(executorId, Date.now() + NAME_RETRY_MS)
-        }
-      }
-    } finally { namesInFlight = false }
-  }
-
   const notifySelection = () => { for (const listener of selectionListeners) listener(current) }
   const apply = (view) => {
     if (view.kind !== 'reachable') throw new Error(view.reason)
@@ -90,8 +66,7 @@
       if (current) describes.delete(current)
       notifySelection()
     }
-    const signature = JSON.stringify([executors,
-      executors.map((team) => [label(team.executorId), ownerConfirmationRequired.has(team.executorId)])])
+    const signature = JSON.stringify([executors, executors.map((team) => label(team.executorId))])
     if (signature === rendered) return
     rendered = signature
     for (const listener of listListeners) listener(executors)
@@ -99,7 +74,6 @@
   const refresh = async () => {
     const view = await invoke('executor_view')
     if (view.kind !== 'reachable') throw new Error(view.reason)
-    await lookUpNames(view.executors)
     apply(view)
   }
 
@@ -116,7 +90,7 @@
    * kept, so the next call asks again.
    */
   const describe = (executorId = current, { fresh = false } = {}) => {
-    if (!executorId) return Promise.reject(new Error(t('shell.noTeam')))
+    if (!executorId) return Promise.reject(new Error('No team is selected.'))
     if (fresh || !describes.has(executorId)) {
       const loading = invoke('executor_describe', { executorId }).catch((error) => {
         if (describes.get(executorId) === loading) describes.delete(executorId)
@@ -131,8 +105,7 @@
   /** Pause or resume one team (`executorId`) or every team (`null`). The daemon enforces it; this only asks. */
   const setPaused = async (executorId, paused) => {
     apply(await invoke('executor_set_paused', { executorId, paused }))
-    if (!paused) { nc.footer.note(t('teams.resumedNote')); return }
-    nc.footer.note(t(executorId ? 'teams.pausedNote' : 'teams.pausedAllNote'))
+    nc.footer.note(t(paused ? 'teams.pausedNote' : 'teams.resumedNote'))
   }
   const applyRemedy = async (executorId, remedy) => { apply(await invoke('executor_apply_remedy', { executorId, remedy })) }
 
@@ -156,12 +129,10 @@
     try {
       const result = await invoke('executor_remove', { executorId })
       byId('disconnect-dialog').close()
-      names.delete(executorId)
       describes.delete(executorId)
       nc.footer.forget(`${executorId}:`)
       await refresh()
-      nc.view.show('overview')
-      byId('tab-overview').querySelector('[data-action=connect]')?.focus()
+      byId('team-select').focus()
       if (result?.signedOff) nc.footer.note(t('teams.disconnected', { team }))
       else nc.reportError(new Error(t('teams.disconnectedUntold', { team })))
     } finally {
@@ -186,8 +157,7 @@
     // A team another app, the command line or a scheduled task runs is working, just not in this app.
     statusWord: (team) => t(status(team) === 'working' && team.daemonStatus === 'running elsewhere' ? 'teams.workingElsewhere'
       : `teams.${{ working: 'working', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),
-    nameUnknown: (executorId) => !names.has(executorId),
-    ownerConfirmationRequired: (executorId) => ownerConfirmationRequired.has(executorId),
+    nameUnknown: (executorId) => !namesOf(executorId),
     describe,
     remember,
     refresh,

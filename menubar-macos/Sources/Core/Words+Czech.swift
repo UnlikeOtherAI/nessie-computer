@@ -44,7 +44,6 @@ enum CzechWords {
         case let .needsYou(team, why): return "Potřebuje vás: \(team) — \(reason(why))"
         case .needsYouReinstall: return "Potřebuje vás: přeinstalujte Nessie Computer"
         case .needsYouUnreadableTeam: return "Potřebuje vás: tým na tomto Macu nelze načíst"
-        case .needsYouConfirmComputer: return "Potřebuje vás: potvrďte tento počítač v Nessie"
         case .needsYouUpdatesStuck: return "Potřebuje vás: aktualizace se zasekly — otevřete Nessie Computer"
         case let .needsYouMany(value):
             return "Potřebuje vás: \(count(value, "věc", "věci", "věcí")) — otevřete Nessie Computer"
@@ -52,7 +51,7 @@ enum CzechWords {
         case .resume: return "Pokračovat"
         case .allTeams: return "Všechny týmy"
         case .openComputer: return "Otevřít Nessie Computer…"
-        case .addThisComputer: return "Přidat tento počítač…"
+        case .addAnotherTeam: return "Přidat další tým…"
         case .openNessie: return "Otevřít Nessie"
         case .quit: return "Ukončit Nessie Computer"
         case .quitWhileWorking: return "Ukončit Nessie Computer — agenti se zastaví, dokud ho znovu neotevřete"

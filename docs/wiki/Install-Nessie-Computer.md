@@ -7,7 +7,7 @@ Downloads are on the [Releases page](https://github.com/UnlikeOtherAI/nessie-exe
 Each release lists its files with checksums in `PACKAGE-SHA256SUMS`.
 
 If you use **Nessie Desktop** on a Mac or PC, Nessie Computer is already
-included. Skip to [Add this computer](Add-this-computer).
+included. Skip to [Add a team](Add-a-team).
 
 ## Mac
 
@@ -17,7 +17,7 @@ are not supported yet.
 1. Download the `.dmg` file and open it.
 2. Drag **Nessie Computer** to **Applications**.
 3. Open it from Applications. Its icon appears in the menu bar, near the clock,
-   and the window opens on **Overview**.
+   and the window opens with a code to add your first team.
 4. If macOS asks to allow Nessie Computer's background helper, choose
    **Open System Settings** and switch it on under **General → Login Items &
    Extensions**. The helper installs updates.
@@ -36,7 +36,7 @@ Needs Windows 10 or 11, 64-bit.
 1. Download the `.msi` file and open it.
 2. Follow the installer. It adds **Nessie Computer** to the Start menu.
 3. Open it from the Start menu. Its icon appears in the notification area by
-   the clock, and the window opens on **Overview**.
+   the clock, and the window opens with a code to add your first team.
 
 New icons often start in the hidden part of the notification area (the **^**
 arrow). To keep it visible, drag it out beside the clock, or turn it on in
@@ -63,4 +63,4 @@ fingerprint is `C2CDA17E5C87A0F3A22D0A511EEA727FD300D4B9`.
 
 ## Next
 
-[Add this computer](Add-this-computer).
+[Add a team](Add-a-team).

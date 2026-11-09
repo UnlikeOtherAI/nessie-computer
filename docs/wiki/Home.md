@@ -7,21 +7,19 @@ installed there. Everything they can use is decided on the computer, by you.
 ## Start here
 
 1. [Install Nessie Computer](Install-Nessie-Computer)
-2. [Add this computer](Add-this-computer)
+2. [Add a team](Add-a-team)
 3. [What agents can use](What-agents-can-use)
 
 ## Guides
 
 | I want to… | Read |
 |---|---|
-| See what agents are doing right now, or stop one | [Pause and resume → Stop one agent's work](Pause-and-resume#stop-one-agents-work) |
 | Stop agents for a while | [Pause and resume](Pause-and-resume) |
 | Use one computer for several teams | [Several teams on one computer](Several-teams-on-one-computer) |
 | Choose which programs agents may start | [Programs](Programs) |
 | Answer an agent that asks to run something | [Programs → Requests](Programs#when-an-agent-asks-to-run-a-program) |
 | Keep my team's documents in a folder | [Documents](Documents) |
 | Use my ChatGPT plan or a local model | [AI: ChatGPT plans and model servers](AI) |
-| See which agents and people can send work here | [Who can send work here](Who-can-send-work-here) |
 | Change start-up, restart and update settings | [Settings and updates](Settings-and-updates) |
 | Stop using it | [Disconnect or uninstall](Disconnect-or-uninstall) |
 | Fix something | [Troubleshooting](Troubleshooting) |

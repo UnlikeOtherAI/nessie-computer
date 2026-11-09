@@ -7,13 +7,13 @@ menu. It always says what is going on.
 |---|---|---|
 | Plain | **Working for 2 teams** | Connected. Agents you allow can use the computer. |
 | Grey | **Paused** | You paused it. Choose **Resume**. |
-| Grey | **No team connected** | Choose **Add this computer**. |
-| Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; Overview says why and offers a fix. |
+| Grey | **No team connected** | Choose **＋ Add another team** in the **Team** list. |
+| Grey | **Not connected — open Nessie Computer** | A team couldn't connect. Open the window; the **Needs you** strip says why and offers a fix. |
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Open Nessie Computer and choose **Restart updates**. |
 | Red (Windows) | **Can't reach the Nessie Computer service** | The background service isn't answering. Restart Windows; if the icon stays red, reinstall Nessie Computer. |
 
-Every problem on **Overview** comes with one button that fixes it. **Details**
+Every problem in the **Needs you** strip comes with one button that fixes it. **Details**
 underneath shows the technical message, which helps if you contact support.
 
 ## Common problems
@@ -28,6 +28,12 @@ underneath shows the technical message, which helps if you contact support.
 Codes work once and last 5 minutes. On the computer choose **Get a new code**.
 Check you're in the right team in Nessie, and on the right Nessie server if your
 organisation runs its own.
+
+### A team shows "Team name not available yet"
+Nessie hasn't named that team on this computer yet. Nessie Computer asks for
+every team's name when it opens and every hour after, and keeps a name once it
+has one, even while Nessie can't be reached. To ask now, quit and reopen Nessie
+Computer, or run `nessie-computer teams`.
 
 ### Nessie says the computer is offline
 - The computer may be asleep. Work waits until it wakes.
@@ -53,7 +59,7 @@ again**. Nothing about what agents can use changes.
 ### "Nessie did not accept this computer's signature"
 The team was connected again from somewhere else, or the computer's files were
 restored. [Disconnect](Disconnect-or-uninstall) the team and
-[connect it](Add-this-computer) again.
+[connect it](Add-a-team) again.
 
 ### ChatGPT says terminals and coding tools are stopped
 That is expected while a ChatGPT plan is signed in. See

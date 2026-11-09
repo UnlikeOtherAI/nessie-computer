@@ -12,6 +12,7 @@ import { allProgramTrust } from '../src/program-trust.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import { saveExecutorState } from '../src/state-store.js'
 import { ServiceUnreachable, type ServiceAnswer, type ServiceRequest } from '../src/windows-service-control.js'
+import { fakeTeamNames } from './support/fake-team-names.js'
 import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 
 /**
@@ -29,19 +30,19 @@ const REQUEST = '7f3a9c21-0000-4000-8000-000000000001'
 type Row = {
   executorId: string; daemonStatus: string; paused: boolean; pendingProgramRequests: number
   failure?: { message: string }
+  names?: { teamName: string; organizationName: string; apiBaseUrl: string }
 }
 
 /** A service with two teams: Sales' ChatGPT plan connection, and Ops, which it runs on its own. */
 const fakeService = () => {
   const asked: ServiceRequest[] = []
+  // Each row carries the label the service read from the team's folder.
   const rows: Row[] = [
-    { executorId: PLANS, daemonStatus: 'running', paused: false, pendingProgramRequests: 0 },
-    { executorId: OPS, daemonStatus: 'running', paused: false, pendingProgramRequests: 1 },
+    { executorId: PLANS, daemonStatus: 'running', paused: false, pendingProgramRequests: 0,
+      names: { teamName: 'Sales', organizationName: 'Acme', apiBaseUrl: SERVER } },
+    { executorId: OPS, daemonStatus: 'running', paused: false, pendingProgramRequests: 1,
+      names: { teamName: 'Ops', organizationName: 'Acme', apiBaseUrl: SERVER } },
   ]
-  const names: Record<string, { teamName: string; organizationName: string; apiBaseUrl: string }> = {
-    [PLANS]: { teamName: 'Sales', organizationName: 'Acme', apiBaseUrl: SERVER },
-    [OPS]: { teamName: 'Ops', organizationName: 'Acme', apiBaseUrl: SERVER },
-  }
   let policy = { mode: 'allowlist', allowlist: [] as string[], denylist: [] as string[], trusted: allProgramTrust() }
   let folders = [{ name: 'work', path: 'C:\\Users\\person\\work' }]
   let requests = [{ id: REQUEST, program: 'docker', args: ['build', '.'], requestedAt: '2026-11-08T10:00:00.000Z',
@@ -54,7 +55,6 @@ const fakeService = () => {
     const id = request.executorId as string
     switch (request.command) {
       case 'status': return { status: 'ok', executors: rows }
-      case 'pairingStatus': return { status: 'pairing', pairing: names[id] ?? {} }
       case 'describe': return { status: 'describe', description: description() }
       case 'configureInput': {
         const input = request.configurationInput as { commandPolicy?: typeof policy; workspaceFolders: typeof folders }
@@ -103,7 +103,7 @@ const runner = (home: string, host: HostRun, platform: NodeJS.Platform = 'win32'
     stdin: Readable.from([]), interactive: false, ask: async () => '', platform, home, now: () => new Date('2026-11-08T10:00:30Z'),
     sleep: async () => undefined, run: host }
   const exit = await runUserCli(args, { context, service,
-    nameLookup: async () => ({ teamName: 'Sales', organizationName: 'Acme', apiBaseUrl: SERVER }) })
+    namesApi: fakeTeamNames({ names: { [SALES]: { teamName: 'Sales', organizationName: 'Acme' } } }).api })
   return { exit, out, err, json: () => JSON.parse(out) as unknown }
 }
 

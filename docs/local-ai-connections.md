@@ -54,11 +54,10 @@ The Windows service verifies the requesting SID owns that pairing.
 
 ## Names and selection
 
-Team names come from the paired service backed by UOA. When the captured owner
-proof needs renewal, Teams directs the owner to Nessie → Computers → Confirm
-owner. This is explicit recovery; reading names never borrows another login.
-The console retries name lookup. Labels are not selectable; text inputs and
-copyable pairing codes remain selectable.
+Team names come from each team's saved, display-only label
+([team names](team-names.md)), which every `executor_view` row carries; reading
+them asks nobody and depends on no person's login. Labels are not selectable;
+text inputs and copyable pairing codes remain selectable.
 
 ## Verification
 

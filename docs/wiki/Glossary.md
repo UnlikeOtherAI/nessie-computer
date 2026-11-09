@@ -7,8 +7,8 @@ The same words are used in the app, in Nessie and on the command line.
 | **Nessie Computer** | This app, and the `nessie-computer` command. Formerly *Nessie Executor*. |
 | **Nessie** | The service where your team, agents and projects live (nessie.works, or your organisation's own server). |
 | **Team** | A Nessie team connected to this computer. Shown as *team · organisation*, e.g. *Sales · Acme*. |
-| **Add this computer** | Link a team to this computer with a pairing code. In Nessie the same step is **Add a computer**. |
-| **Pairing code** | The 8-digit code the computer shows when you add this computer. Works once, for 5 minutes. |
+| **Add another team** | Link a team to this computer with a pairing code, from the last item of the **Team** list. In Nessie the same step is **Add a computer**. |
+| **Pairing code** | The 8-digit code the computer shows when you add a team. Works once, for 5 minutes. |
 | **Disconnect** | End a team's connection to this computer. |
 | **Pause / Resume** | Stop agents starting anything new on this computer, until you resume. |
 | **Turned off** | Nessie's own pause, set on the computer's page in Nessie. |
@@ -22,8 +22,6 @@ The same words are used in the app, in Nessie and on the command line.
 | **Documents** | A copy of a team's Nessie documents in a folder here, kept in sync both ways. |
 | **ChatGPT plan** | A ChatGPT subscription (personal or company) your agents can use from this computer. |
 | **Model server** | An AI model running on this computer or your network that agents can use. |
-| **Who can send work here** | The agents, people and projects Nessie lets use this computer. |
 | **Session** | One agent run's work on this computer. Sessions run side by side, and so do the commands inside one. |
-| **Now working** | The list on Overview of every session and what it is running, with **Stop** on each. |
 | **Needs you** | Something waiting for your answer: a program request, a Documents question, or a problem with a fix. |
 | **Working / Paused / Not connected** | A team's status. **Working in another app** means another app, the command line or a scheduled task on this computer runs that team, so this app leaves it alone. |

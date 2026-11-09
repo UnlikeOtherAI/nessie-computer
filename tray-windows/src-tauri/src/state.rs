@@ -7,7 +7,7 @@
 //! absence — a tray that silently kept its last icon while the service was
 //! down would be the worst outcome available.
 
-use nessie_windows_common::failure::Failure;
+use nessie_windows_common::{failure::Failure, team_label::TeamLabel};
 use serde::{Deserialize, Serialize};
 
 /// Who runs a team's connection on this computer: this app, under the
@@ -42,6 +42,10 @@ pub struct ExecutorStatus {
     /// holds its ChatGPT plans, when there is one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chatgpt_connection_id: Option<String>,
+    /// The team's saved display-only name (`team_names`), or the last one this
+    /// connection had; absent for a team that has never had a name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub names: Option<TeamLabel>,
 }
 
 impl ExecutorStatus {
@@ -120,6 +124,7 @@ pub(crate) mod tests {
             pending_program_requests: 0,
             connection: Connection::User,
             chatgpt_connection_id: None,
+            names: None,
         }
     }
 

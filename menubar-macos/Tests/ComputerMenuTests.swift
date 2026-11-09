@@ -81,17 +81,17 @@ final class ComputerMenuTests: XCTestCase {
         let stuck = team("a", "Sales · Acme", daemon: .stopped, failure: fenced)
         XCTAssertEqual(menu([stuck]).icon, .needsYou)
         XCTAssertEqual(menu([stuck]).needsYou?.title, "Needs you: Sales · Acme — not connected")
-        XCTAssertEqual(menu([stuck]).needsYou?.target, ConsoleTarget(section: .overview, executorId: "a"))
+        XCTAssertEqual(menu([stuck]).needsYou?.target, ConsoleTarget(executorId: "a"))
         let recovered = team("a", "Sales · Acme", failure: fenced)
         XCTAssertNil(menu([recovered]).needsYou, "a running daemon is not stopped by an old failure")
     }
 
     /// A program request is the one thing that must reach the owner quickly.
-    func testAProgramRequestNeedsTheOwnerAndOpensOverview() {
+    func testAProgramRequestNeedsTheOwnerAndOpensTheWindow() {
         let model = menu([team("a", "Sales · Acme", requests: 1), team("b", "Ops · Acme")])
         XCTAssertEqual(model.icon, .needsYou)
         XCTAssertEqual(model.needsYou?.title, "Needs you: Sales · Acme — a program asks to run")
-        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(section: .overview, executorId: "a"))
+        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(executorId: "a"))
         XCTAssertEqual(
             menu([team("a", "Sales · Acme", requests: 3)]).needsYou?.title,
             "Needs you: Sales · Acme — 3 programs ask to run"
@@ -106,28 +106,8 @@ final class ComputerMenuTests: XCTestCase {
         XCTAssertEqual(model.needsYouItems.count, 3)
         XCTAssertEqual(model.needsYouItems.first?.title, "Needs you: reinstall Nessie Computer")
         XCTAssertEqual(model.needsYou?.title, "Needs you: 3 things — open Nessie Computer")
-        XCTAssertEqual(model.needsYou?.target, ConsoleTarget(section: .overview))
+        XCTAssertEqual(model.needsYou?.target, ConsoleTarget())
         XCTAssertEqual(menu([], unreadable: 1).needsYou?.title, "Needs you: a team on this Mac can’t be read")
-    }
-
-    /// Nessie names a team again only after its owner confirms this computer
-    /// there: the line says so and opens that team's computer page. A team
-    /// folder this Mac cannot read keeps its own line.
-    func testAConfirmationOpensThatComputersPageAndAReadFailureKeepsItsOwnLine() {
-        let model = ComputerMenuModel(
-            teams: [team("a", "Team name not available yet")], confirmationTeams: ["a"], language: .britishEnglish
-        )
-        XCTAssertEqual(model.needsYou, NeedsYouItem(
-            title: "Needs you: confirm this computer in Nessie",
-            target: ConsoleTarget(section: .overview, executorId: "a"),
-            confirmExecutorId: "a"
-        ))
-        let both = ComputerMenuModel(
-            teams: [team("a", "A")], unreadableTeams: 1, confirmationTeams: ["a"], language: .britishEnglish
-        )
-        XCTAssertEqual(both.needsYouItems.map(\.title), [
-            "Needs you: a team on this Mac can’t be read", "Needs you: confirm this computer in Nessie"
-        ])
     }
 
     // MARK: - Pause and Resume lines

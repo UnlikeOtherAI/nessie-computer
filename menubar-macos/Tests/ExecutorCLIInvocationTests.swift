@@ -132,14 +132,18 @@ final class ExecutorCLIInvocationTests: XCTestCase {
         XCTAssertNil(ExecutorCLI.pause(stateDirectory: stateDirectory).standardInput)
     }
 
-    func testRequestsAndAudienceAreReadAsJSON() {
+    /// Every team's names in one call: each folder is one `--state-dir`.
+    func testTeamNamesNameEveryFolderInOneCall() {
+        XCTAssertEqual(
+            ExecutorCLI.teamNames(stateDirectories: ["/a", "/b"]).arguments,
+            ["team-names", "--state-dir", "/a", "--state-dir", "/b", "--json"]
+        )
+    }
+
+    func testRequestsAreReadAsJSON() {
         XCTAssertEqual(
             ExecutorCLI.programRequests(stateDirectory: stateDirectory).arguments,
             ["program-requests", "--state-dir", stateDirectory, "--json"]
-        )
-        XCTAssertEqual(
-            ExecutorCLI.audience(stateDirectory: stateDirectory).arguments,
-            ["audience", "--state-dir", stateDirectory, "--json"]
         )
     }
 

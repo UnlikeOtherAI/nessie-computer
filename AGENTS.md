@@ -73,5 +73,8 @@ The shared AI tab, named ChatGPT profiles and local/LAN inference connections fo
 Claude Code and Codex offered as engines (the AI tab's On this computer, `ai local`, `local_cli` hosts) follow
 [Claude Code and Codex as engines](docs/local-cli-engines.md); its focused gate is `test:cli-engines`.
 
+Team names come from a display-only label in each team's folder, refreshed in one signed batch per server; follow
+[team names](docs/team-names.md).
+
 Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 [sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.

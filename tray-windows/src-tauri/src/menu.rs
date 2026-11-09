@@ -7,8 +7,8 @@
 //! Pause | Resume                    with more than one team, a submenu:
 //!                                   All teams, then one line per team (✓ paused)
 //! ──────────
-//! Open Nessie Computer…
-//! Add this computer…                the window, straight onto a new pairing code
+//! Open Nessie Computer…            the window, on the tab last used
+//! Add another team…                 the window, straight onto a new pairing code
 //! Open Nessie
 //! ──────────
 //! Quit Nessie Computer
@@ -30,15 +30,15 @@ use crate::{
 };
 
 pub const OPEN_WINDOW_ID: &str = "open-window";
-pub const ADD_COMPUTER_ID: &str = "add-computer";
+pub const ADD_TEAM_ID: &str = "add-team";
 pub const OPEN_NESSIE_ID: &str = "open-nessie";
 pub const QUIT_ID: &str = "quit";
 const ALL: &str = "all";
 
-/// A console tab. The console listens for one event per tab.
+/// A console tab. The console listens for one event per tab, and for
+/// `tray://open`, which shows the window as it was, on the tab last used.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConsoleSection {
-    Overview,
     Access,
     Documents,
     Ai,
@@ -48,7 +48,6 @@ pub enum ConsoleSection {
 impl ConsoleSection {
     pub fn name(self) -> &'static str {
         match self {
-            Self::Overview => "overview",
             Self::Access => "access",
             Self::Documents => "documents",
             Self::Ai => "ai",
@@ -57,7 +56,7 @@ impl ConsoleSection {
     }
 
     pub fn parse(name: &str) -> Option<Self> {
-        [Self::Overview, Self::Access, Self::Documents, Self::Ai, Self::Settings]
+        [Self::Access, Self::Documents, Self::Ai, Self::Settings]
             .into_iter()
             .find(|section| section.name() == name)
     }
@@ -65,7 +64,15 @@ impl ConsoleSection {
     pub fn event(self) -> String {
         format!("tray://section/{}", self.name())
     }
+
+    /// The event for a section, or for the window as it was when none is named.
+    pub fn event_for(section: Option<Self>) -> String {
+        section.map_or_else(|| "tray://open".to_owned(), Self::event)
+    }
 }
+
+/// The id word for "no section": the window as it was.
+const WINDOW: &str = "window";
 
 /// A section event's payload: the team to show, when the line is about one.
 /// The console ignores a team it does not list.
@@ -84,26 +91,23 @@ impl ConsoleTarget {
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum MenuAction {
-    Open(ConsoleSection, ConsoleTarget),
+    /// A section, or `None` for the window as it was.
+    Open(Option<ConsoleSection>, ConsoleTarget),
     /// `None` is every team.
     SetPaused { executor_id: Option<String>, paused: bool },
-    /// The window, on Add this computer: it asks for a pairing code at once.
-    AddComputer,
+    /// The window, on Add another team: it asks for a pairing code at once.
+    AddTeam,
     OpenNessie,
-    /// The team's computer page in Nessie, where its owner confirms this computer again.
-    ConfirmInNessie(String),
     Quit,
     Unknown,
 }
 
-/// The Needs you line's id: the section it opens, and the team when it names one.
+/// The Needs you line's id: the section it opens (or the window), and the team when it names one.
 pub fn needs_id(needs: &NeedsYou) -> String {
-    if let (true, Some(executor_id)) = (needs.confirm, &needs.executor_id) {
-        return format!("confirm:{executor_id}");
-    }
+    let section = needs.section.map_or(WINDOW, ConsoleSection::name);
     match &needs.executor_id {
-        Some(executor_id) => format!("needs:{}:{executor_id}", needs.section.name()),
-        None => format!("needs:{}", needs.section.name()),
+        Some(executor_id) => format!("needs:{section}:{executor_id}"),
+        None => format!("needs:{section}"),
     }
 }
 
@@ -112,14 +116,13 @@ pub fn pause_id(executor_id: Option<&str>, paused: bool) -> String {
 }
 
 pub fn parse_menu_id(id: &str) -> MenuAction {
-    if let Some(team) = id.strip_prefix("confirm:") {
-        return if team.is_empty() { MenuAction::Unknown } else { MenuAction::ConfirmInNessie(team.to_owned()) };
-    }
     if let Some(rest) = id.strip_prefix("needs:") {
         let (section, team) = rest.split_once(':').map_or((rest, None), |(section, team)| (section, Some(team)));
-        return match ConsoleSection::parse(section) {
-            Some(section) => MenuAction::Open(section, team.map(ConsoleTarget::team).unwrap_or_default()),
-            None => MenuAction::Unknown,
+        let target = team.map(ConsoleTarget::team).unwrap_or_default();
+        return match (section, ConsoleSection::parse(section)) {
+            (WINDOW, _) => MenuAction::Open(None, target),
+            (_, Some(section)) => MenuAction::Open(Some(section), target),
+            (_, None) => MenuAction::Unknown,
         };
     }
     for (prefix, paused) in [("pause:", true), ("resume:", false)] {
@@ -132,8 +135,8 @@ pub fn parse_menu_id(id: &str) -> MenuAction {
         }
     }
     match id {
-        OPEN_WINDOW_ID => MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()),
-        ADD_COMPUTER_ID => MenuAction::AddComputer,
+        OPEN_WINDOW_ID => MenuAction::Open(None, ConsoleTarget::default()),
+        ADD_TEAM_ID => MenuAction::AddTeam,
         OPEN_NESSIE_ID => MenuAction::OpenNessie,
         QUIT_ID => MenuAction::Quit,
         _ => MenuAction::Unknown,
@@ -190,7 +193,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, overview: &Overview, words: &Words)
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, OPEN_WINDOW_ID, words.open_window, true, None::<&str>)?)?;
-    menu.append(&MenuItem::with_id(app, ADD_COMPUTER_ID, words.add_computer, true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(app, ADD_TEAM_ID, words.add_team, true, None::<&str>)?)?;
     menu.append(&MenuItem::with_id(app, OPEN_NESSIE_ID, words.open_nessie, true, None::<&str>)?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(app, QUIT_ID, words.quit, true, None::<&str>)?)?;
@@ -201,7 +204,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, overview: &Overview, words: &Words)
 mod tests {
     use super::{
         needs_id, parse_menu_id, pause_lines, ConsoleSection, ConsoleTarget, MenuAction, PauseLines,
-        ADD_COMPUTER_ID, OPEN_NESSIE_ID, OPEN_WINDOW_ID, QUIT_ID,
+        ADD_TEAM_ID, OPEN_NESSIE_ID, OPEN_WINDOW_ID, QUIT_ID,
     };
     use crate::{
         overview::{NeedsYou, Team},
@@ -215,13 +218,13 @@ mod tests {
     }
 
     #[test]
-    fn the_standing_entries_open_the_window_add_this_computer_nessie_or_quit() {
-        assert_eq!(parse_menu_id(OPEN_WINDOW_ID), MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()));
-        assert_eq!(parse_menu_id(ADD_COMPUTER_ID), MenuAction::AddComputer);
+    fn the_standing_entries_open_the_window_add_another_team_nessie_or_quit() {
+        assert_eq!(parse_menu_id(OPEN_WINDOW_ID), MenuAction::Open(None, ConsoleTarget::default()));
+        assert_eq!(parse_menu_id(ADD_TEAM_ID), MenuAction::AddTeam);
         assert_eq!(parse_menu_id(OPEN_NESSIE_ID), MenuAction::OpenNessie);
         assert_eq!(parse_menu_id(QUIT_ID), MenuAction::Quit);
         // No Start, Stop, Settings, logs or hidden selection remain.
-        for id in ["status", "", "start:x", "stop:x", "settings", "open-logs", "pair", "pause:", "needs:billing"] {
+        for id in ["status", "", "start:x", "stop:x", "settings", "open-logs", "pair", "pause:", "needs:billing", "needs:overview"] {
             assert_eq!(parse_menu_id(id), MenuAction::Unknown, "id {id:?} must be unknown");
         }
     }
@@ -236,17 +239,13 @@ mod tests {
     #[test]
     fn needs_you_opens_its_exact_place() {
         let needs = |section, executor_id: Option<&str>| NeedsYou {
-            text: "Needs you".to_owned(), section, executor_id: executor_id.map(str::to_owned), confirm: false,
+            text: "Needs you".to_owned(), section, executor_id: executor_id.map(str::to_owned),
         };
-        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Overview, None))),
-            MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::default()));
-        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Documents, Some(TEAM)))),
-            MenuAction::Open(ConsoleSection::Documents, ConsoleTarget::team(TEAM)));
-        assert_eq!(parse_menu_id(&needs_id(&needs(ConsoleSection::Overview, Some(TEAM)))),
-            MenuAction::Open(ConsoleSection::Overview, ConsoleTarget::team(TEAM)));
-        let confirm = NeedsYou { confirm: true, ..needs(ConsoleSection::Overview, Some(TEAM)) };
-        assert_eq!(parse_menu_id(&needs_id(&confirm)), MenuAction::ConfirmInNessie(TEAM.to_owned()));
-        assert_eq!(parse_menu_id("confirm:"), MenuAction::Unknown);
+        assert_eq!(parse_menu_id(&needs_id(&needs(None, None))), MenuAction::Open(None, ConsoleTarget::default()));
+        assert_eq!(parse_menu_id(&needs_id(&needs(Some(ConsoleSection::Documents), Some(TEAM)))),
+            MenuAction::Open(Some(ConsoleSection::Documents), ConsoleTarget::team(TEAM)));
+        assert_eq!(parse_menu_id(&needs_id(&needs(None, Some(TEAM)))), MenuAction::Open(None, ConsoleTarget::team(TEAM)));
+        assert_eq!(parse_menu_id("confirm:a"), MenuAction::Unknown, "names never ask for a confirmation");
     }
 
     #[test]
@@ -273,12 +272,14 @@ mod tests {
 
     #[test]
     fn each_section_has_the_event_the_console_listens_for() {
-        for (section, event) in [(ConsoleSection::Overview, "tray://section/overview"),
-            (ConsoleSection::Access, "tray://section/access"), (ConsoleSection::Documents, "tray://section/documents"),
+        for (section, event) in [(ConsoleSection::Access, "tray://section/access"), (ConsoleSection::Documents, "tray://section/documents"),
             (ConsoleSection::Ai, "tray://section/ai"), (ConsoleSection::Settings, "tray://section/settings")] {
             assert_eq!(section.event(), event);
+            assert_eq!(ConsoleSection::event_for(Some(section)), event);
             assert_eq!(ConsoleSection::parse(section.name()), Some(section));
         }
+        assert_eq!(ConsoleSection::event_for(None), "tray://open");
+        assert_eq!(ConsoleSection::parse("overview"), None);
         assert_eq!(serde_json::to_value(ConsoleTarget::team(TEAM)).unwrap(), serde_json::json!({ "executorId": TEAM }));
         assert_eq!(serde_json::to_value(ConsoleTarget::default()).unwrap(), serde_json::json!({}));
     }

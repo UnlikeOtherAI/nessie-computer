@@ -8,19 +8,23 @@ window.aiTab = (() => {
   let plans = []
   let endpoints = []
   tab.innerHTML = `
-    <h2 id="ai-heading"></h2>
-    <div class="section-heading"><h3 id="ai-plans-title"></h3><button type="button" id="ai-add-chatgpt"></button></div>
-    <p class="hint" id="ai-plans-hint"></p>
-    <p class="hint" id="ai-connection-needed" hidden></p>
+    <div class="section-heading"><div class="label-row"><h3 id="ai-plans-title"></h3></div><button type="button" id="ai-add-chatgpt"></button></div>
     <div id="ai-chatgpt-list"></div>
     <hr>
-    <div class="section-heading"><h3 id="ai-endpoints-title"></h3><button type="button" id="ai-add-endpoint"></button></div>
-    <p class="hint" id="ai-endpoints-hint"></p>
+    <div class="section-heading"><div class="label-row"><h3 id="ai-endpoints-title"></h3></div><button type="button" id="ai-add-endpoint"></button></div>
     <div id="ai-endpoint-list"></div>
     <p id="ai-error" class="field-error" role="alert" hidden></p>
     <button type="button" id="ai-refresh"></button>`
   // "On this computer" comes first, above ChatGPT plans (contract §12).
-  nc.byId('ai-heading').after(window.aiLocal.section, document.createElement('hr'))
+  tab.prepend(window.aiLocal.section, document.createElement('hr'))
+  // What a plan or a server is sits behind "?" beside each heading; on Windows the
+  // plans' "?" also says how the first plan connects.
+  const plansHelp = nc.help('')
+  plansHelp.id = 'ai-plans-hint'
+  nc.byId('ai-plans-title').after(plansHelp)
+  const serversHelp = nc.help('')
+  serversHelp.id = 'ai-endpoints-hint'
+  nc.byId('ai-endpoints-title').after(serversHelp)
   const row = (name, detail, id, manage) => {
     const node = document.createElement('div')
     node.className = 'list-row'
@@ -42,10 +46,10 @@ window.aiTab = (() => {
   const renderWords = () => {
     const executorId = nc.team.current()
     const team = executorId ? nc.team.label(executorId) : ''
-    nc.byId('ai-heading').textContent = t('heading', { team })
-    nc.byId('ai-plans-hint').textContent = t('plansHint', { team })
+    plansHelp.set([t('plansHint', { team }), executorId && !planConnection() ? t('connection.needed', { team }) : null].filter(Boolean).join(' '))
+    serversHelp.set(t('serversHint'))
     for (const [id, key] of [['ai-plans-title', 'plans'], ['ai-add-chatgpt', 'addPlan'], ['ai-endpoints-title', 'servers'],
-      ['ai-add-endpoint', 'addServer'], ['ai-endpoints-hint', 'serversHint'], ['ai-refresh', 'refresh']]) nc.byId(id).textContent = t(key)
+      ['ai-add-endpoint', 'addServer'], ['ai-refresh', 'refresh']]) nc.byId(id).textContent = t(key)
     tab.lang = document.documentElement.lang
   }
   /** The name a plan shows: its own, or "ChatGPT plan N" by its place in the list. */
@@ -68,8 +72,6 @@ window.aiTab = (() => {
     if (!executorId) return
     void window.aiLocal.load()
     const plansOn = planConnection()
-    nc.byId('ai-connection-needed').hidden = Boolean(plansOn)
-    nc.byId('ai-connection-needed').textContent = t('connection.needed', { team: nc.team.label(executorId) })
     const results = await Promise.allSettled([
       plansOn ? nc.invoke('executor_personal_chatgpt', { executorId: plansOn, operation: { operation: 'status' } })
         : Promise.resolve({ profiles: [], reason: null }),

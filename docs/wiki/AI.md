@@ -32,8 +32,8 @@ other apps to use Claude plan sign-ins, so the sign-in is always Claude Code's
 own.
 
 On Windows, a team the Nessie Computer background service runs can't use your
-Claude Code or Codex sign-in. Add this computer to that team under your own
-account to use them.
+Claude Code or Codex sign-in. Add the team again under your own account
+(**＋ Add another team**) to use them.
 
 ## ChatGPT plans
 

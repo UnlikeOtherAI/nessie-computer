@@ -14,12 +14,14 @@ window.aiLocal = (() => {
   const section = document.createElement('div')
   section.id = 'ai-local'
   section.innerHTML = `
-    <div class="section-heading"><h3 id="ai-local-title"></h3></div>
-    <p class="hint" id="ai-local-hint"></p>
+    <div class="section-heading"><div class="label-row"><h3 id="ai-local-title"></h3></div></div>
     <p class="hint" id="ai-local-service" hidden></p>
     <div id="ai-local-list"></div>
     <div class="actions" id="ai-local-add"></div>
     <p id="ai-local-error" class="field-error" role="alert" hidden></p>`
+  const help = nc.help('')
+  help.id = 'ai-local-hint'
+  section.querySelector('#ai-local-title').after(help)
   const dialog = document.createElement('dialog')
   dialog.id = 'ai-local-dialog'
   dialog.setAttribute('aria-labelledby', 'ai-local-dialog-title')
@@ -107,7 +109,7 @@ window.aiLocal = (() => {
     const asked = ++request
     const executorId = nc.team.current()
     for (const [id, key] of [['ai-local-title', 'title'], ['ai-local-service', 'service']]) byId(id).textContent = t(key)
-    byId('ai-local-hint').textContent = t('hint', { team: executorId ? nc.team.label(executorId) : '' })
+    help.set(t('hint', { team: executorId ? nc.team.label(executorId) : '' }))
     byId('ai-local-error').hidden = true
     if (!executorId) return
     byId('ai-local-list').textContent = t('loading')

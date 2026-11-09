@@ -14,9 +14,6 @@ Access has five parts:
 | [Local apps](#local-apps) | Apps on this computer agents can talk to (MCP servers) | All of them |
 | [Coding assistants](#coding-assistants) | Your existing Claude Code and Codex conversations | As set when you connected |
 
-**Overview** sums this up on each team's card, for example *"1 folder · Apps
-from UnlikeOtherAI, Claude Code, Codex, T3 Code · all local apps · no websites"*.
-
 Changes take effect straight away. Agents already working keep going under the
 new rules; nothing restarts.
 
@@ -90,4 +87,4 @@ Under **For developers**:
 | Pause and resume | Turning the computer off in Nessie, sharing it |
 
 Nessie can't widen what you allow here. See
-[Who can send work here](Who-can-send-work-here).
+the computer's page in Nessie.

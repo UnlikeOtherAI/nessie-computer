@@ -51,14 +51,13 @@ public enum Word: Equatable, Sendable {
     case needsYou(team: String, reason: NeedsYouReason)
     case needsYouReinstall
     case needsYouUnreadableTeam
-    case needsYouConfirmComputer
     case needsYouUpdatesStuck
     case needsYouMany(Int)
     case pause
     case resume
     case allTeams
     case openComputer
-    case addThisComputer
+    case addAnotherTeam
     case openNessie
     case quit
     case quitWhileWorking

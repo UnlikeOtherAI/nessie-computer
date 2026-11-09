@@ -59,16 +59,14 @@
   }
 
   tab.innerHTML = `
-    <div class="section-heading"><h2 id="documents-heading"></h2><span id="documents-saved" class="saved-note" role="status"></span></div>
+    <div class="saved-row"><span id="documents-saved" class="saved-note" role="status"></span></div>
     <div class="documents-heading">
       <label class="switch" id="documents-switch"><span id="documents-switch-label"></span>
-        <input type="checkbox" id="documents-enabled" role="switch" aria-labelledby="documents-switch-label" aria-describedby="documents-intro">
+        <input type="checkbox" id="documents-enabled" role="switch" aria-labelledby="documents-switch-label">
         <span class="track" aria-hidden="true"></span></label>
     </div>
-    <p id="documents-intro" class="hint"></p>
     <div id="documents-status" class="documents-status" role="status">
       <p class="documents-state"><span id="documents-dot" class="documents-dot" aria-hidden="true"></span><span id="documents-state-text"></span></p>
-      <p id="documents-detail" class="hint" hidden></p>
     </div>
     <p id="documents-load-error" class="field-error" hidden><span id="documents-load-error-text"></span> <button id="documents-reload" type="button"></button></p>
     <div id="documents-body">
@@ -91,7 +89,7 @@
   for (const [id, body] of [
     ['documents-existing-dialog', '<h2 id="documents-existing-title" tabindex="-1"></h2><p id="documents-existing-body"></p><p id="documents-existing-path" class="path"></p>'
       + '<p class="dialog-error" role="alert" hidden></p><div class="actions"><button type="button" id="documents-existing-cancel"></button><button type="button" id="documents-existing-accept" class="primary"></button></div>'],
-    ['documents-deleted-dialog', '<h2 id="documents-deleted-title" tabindex="-1"></h2><p id="documents-deleted-hint" class="hint"></p><div id="documents-deleted-list" aria-live="polite"></div>'
+    ['documents-deleted-dialog', '<div class="label-row"><h2 id="documents-deleted-title" tabindex="-1"></h2></div><div id="documents-deleted-list" aria-live="polite"></div>'
       + '<p class="dialog-error" role="alert" hidden></p><div class="actions"><button type="button" id="documents-deleted-open"></button><button type="button" id="documents-deleted-close"></button></div>'],
   ]) {
     const dialog = document.createElement('dialog')
@@ -100,6 +98,14 @@
     dialog.innerHTML = body
     document.body.append(dialog)
   }
+
+  // What the switch does sits behind "?" beside it; so does the deleted-files rule in its dialog.
+  const intro = nc.help('', { describes: byId('documents-enabled') })
+  intro.id = 'documents-intro'
+  byId('documents-switch').after(intro)
+  const deletedHelp = nc.help('')
+  deletedHelp.id = 'documents-deleted-hint'
+  byId('documents-deleted-title').after(deletedHelp)
 
   const button = (label, onclick, { key, className, describedBy } = {}) => {
     const node = document.createElement('button')
@@ -178,14 +184,14 @@
   }
 
   const renderWords = (team) => {
-    byId('documents-heading').textContent = t('heading', { team })
     byId('documents-switch-label').textContent = t('switchLabel', { team })
-    byId('documents-intro').textContent = t('intro', { team })
+    intro.set(t('intro', { team }))
+    deletedHelp.set(t('deleted.hint'))
     for (const [id, key] of [['documents-folder-label', 'folder'], ['documents-choose', 'choose'], ['documents-open-nessie', 'openNessie'],
       ['documents-open-folder', 'openFolder'], ['documents-deleted', 'deletedFiles'], ['documents-reload', 'retry'],
       ['documents-held-title', 'held.heading'], ['documents-held-confirm', 'held.confirm'], ['documents-held-restore', 'held.restore'],
       ['documents-conflicts-title', 'conflicts'], ['documents-existing-title', 'existing.title'], ['documents-existing-accept', 'existing.accept'],
-      ['documents-existing-cancel', 'existing.cancel'], ['documents-deleted-title', 'deleted.title'], ['documents-deleted-hint', 'deleted.hint'],
+      ['documents-existing-cancel', 'existing.cancel'], ['documents-deleted-title', 'deleted.title'],
       ['documents-deleted-open', 'deleted.open'], ['documents-deleted-close', 'deleted.close']]) byId(id).textContent = t(key)
     for (const id of ['tab-documents', 'documents-existing-dialog', 'documents-deleted-dialog']) byId(id).lang = document.documentElement.lang
   }
@@ -210,9 +216,6 @@
     byId('documents-state-text').textContent = !state ? t('checking')
       : key === 'syncing' ? (pending(state) ? words.count('syncing', pending(state)) : t('syncingNone')) : t(`state.${key}`)
     byId('documents-dot').dataset.tone = TONES[key] ?? 'idle'
-    const detail = key ? words.maybe(`detail.${key}`) : undefined
-    byId('documents-detail').hidden = !detail
-    byId('documents-detail').textContent = detail ?? ''
     byId('documents-load-error').hidden = !failure
     byId('documents-load-error-text').textContent = failure ? `${t('statusFailed')} ${failure}` : ''
     byId('documents-body').hidden = !state || key === 'not_private'

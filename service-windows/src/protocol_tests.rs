@@ -167,6 +167,7 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
             paused: true,
             failure: None,
             pending_program_requests: 2,
+            names: None,
         }],
     }
     .encode();
@@ -185,11 +186,20 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
             paused: false,
             failure: Some(nessie_windows_common::failure::classify("Executor connection is fenced.")),
             pending_program_requests: 0,
+            names: Some(nessie_windows_common::team_label::TeamLabel {
+                organization_name: "Acme".to_owned(),
+                team_name: Some("Sales".to_owned()),
+                api_base_url: "https://api.nessie.works".to_owned(),
+            }),
         }],
     }
     .encode();
     assert!(stopped.contains(
         r#""failure":{"code":"EXECUTOR_CONNECTION_FENCED","message":"Executor connection is fenced."}"#
+    ));
+    // The team's saved name travels with its row; a path never does.
+    assert!(stopped.contains(
+        r#""names":{"organizationName":"Acme","teamName":"Sales","apiBaseUrl":"https://api.nessie.works"}"#
     ));
     let refusal = Response::error("This team is not connected on this computer.").encode();
     assert_eq!(
@@ -277,17 +287,13 @@ fn the_owner_controls_name_one_validated_team_and_one_known_answer() {
             answer: nessie_windows_common::owner_controls::Answer::Always,
         },
     );
-    assert_eq!(
-        parse_request(&format!(r#"{{"command":"audience","executorId":"{EXECUTOR}"}}"#)).unwrap(),
-        Command::Audience { executor_id: EXECUTOR.to_owned() },
-    );
     for line in [
         format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}"}}"#),
         format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}","paused":"yes"}}"#),
         format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"../x","answer":"once"}}"#),
         format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"r-1","answer":"approve"}}"#),
         format!(r#"{{"command":"programRequests","executorId":"{EXECUTOR}","stateDir":"C:\\x"}}"#),
-        r#"{"command":"audience","executorId":"../x"}"#.to_owned(),
+        format!(r#"{{"command":"audience","executorId":"{EXECUTOR}"}}"#),
     ] {
         assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
     }

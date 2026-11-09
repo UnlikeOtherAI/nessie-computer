@@ -1,6 +1,6 @@
 // The AI tab's words: ChatGPT plans and model servers, in every console locale.
 const aiEnglish = {
-  heading: 'AI for {team}', plans: 'ChatGPT plans', addPlan: 'Add a ChatGPT plan', planName: 'ChatGPT plan {n}',
+  plans: 'ChatGPT plans', addPlan: 'Add a ChatGPT plan', planName: 'ChatGPT plan {n}',
   plansHint: 'A plan can be yours or your company’s. Each one funds your own agents in {team}; team agents use separate funding.',
   connection: { needed: 'ChatGPT plans on Windows sign in through Nessie Computer’s background service. Adding the first plan connects it to {team}: one Windows prompt, then a pairing code.', title: 'Connect ChatGPT plans for {team}',
     starting: 'Asking Windows and getting a code…', paired: 'Connected. Name the plan and sign in with ChatGPT.' },
@@ -17,7 +17,7 @@ const aiByLocale = {
   'en-GB': aiEnglish,
   'en-US': aiEnglish,
   cs: {
-    heading: 'AI pro {team}', plans: 'Tarify ChatGPT', addPlan: 'Přidat tarif ChatGPT', planName: 'Tarif ChatGPT {n}',
+    plans: 'Tarify ChatGPT', addPlan: 'Přidat tarif ChatGPT', planName: 'Tarif ChatGPT {n}',
     plansHint: 'Tarif může být váš nebo firemní. Každý financuje vaše vlastní agenty v týmu {team}; týmoví agenti mají samostatné financování.',
     connection: { needed: 'Plány ChatGPT se ve Windows přihlašují přes službu Nessie Computer na pozadí. Přidání prvního plánu ji připojí k týmu {team}: jedna výzva Windows a párovací kód.', title: 'Připojit plány ChatGPT pro {team}',
       starting: 'Čeká se na Windows a získává se kód…', paired: 'Připojeno. Pojmenujte plán a přihlaste se přes ChatGPT.' },
@@ -31,7 +31,7 @@ const aiByLocale = {
     noModels: 'Server nehlásí žádné modely', changeFailed: 'Server se nepodařilo uložit. Vaše změny zůstaly ve formuláři. Zkuste to znovu.',
   },
   de: {
-    heading: 'KI für {team}', plans: 'ChatGPT-Tarife', addPlan: 'ChatGPT-Tarif hinzufügen', planName: 'ChatGPT-Tarif {n}',
+    plans: 'ChatGPT-Tarife', addPlan: 'ChatGPT-Tarif hinzufügen', planName: 'ChatGPT-Tarif {n}',
     plansHint: 'Ein Tarif kann Ihrer oder der Ihrer Firma sein. Jeder finanziert Ihre eigenen Agenten in {team}; Team-Agenten werden separat finanziert.',
     connection: { needed: 'ChatGPT-Pläne melden sich unter Windows über den Hintergrunddienst von Nessie Computer an. Der erste Plan verbindet ihn mit {team}: eine Windows-Abfrage, dann ein Kopplungscode.', title: 'ChatGPT-Pläne für {team} verbinden',
       starting: 'Windows wird gefragt und ein Code geholt…', paired: 'Verbunden. Benennen Sie den Plan und melden Sie sich mit ChatGPT an.' },
@@ -45,7 +45,7 @@ const aiByLocale = {
     noModels: 'Keine Modelle gemeldet', changeFailed: 'Der Server konnte nicht gespeichert werden. Ihre Änderungen bleiben im Formular. Versuchen Sie es erneut.',
   },
   es: {
-    heading: 'IA para {team}', plans: 'Planes de ChatGPT', addPlan: 'Añadir un plan de ChatGPT', planName: 'Plan de ChatGPT {n}',
+    plans: 'Planes de ChatGPT', addPlan: 'Añadir un plan de ChatGPT', planName: 'Plan de ChatGPT {n}',
     plansHint: 'Un plan puede ser tuyo o de tu empresa. Cada uno financia tus propios agentes en {team}; los agentes del equipo tienen financiación aparte.',
     connection: { needed: 'En Windows, los planes de ChatGPT inician sesión a través del servicio en segundo plano de Nessie Computer. Añadir el primer plan lo conecta a {team}: un aviso de Windows y un código de emparejamiento.', title: 'Conectar planes de ChatGPT para {team}',
       starting: 'Pidiendo permiso a Windows y obteniendo un código…', paired: 'Conectado. Ponle nombre al plan e inicia sesión con ChatGPT.' },
@@ -59,7 +59,7 @@ const aiByLocale = {
     noModels: 'No se han informado modelos', changeFailed: 'No se pudo guardar el servidor. Tus cambios siguen aquí. Inténtalo de nuevo.',
   },
   fr: {
-    heading: 'IA pour {team}', plans: 'Forfaits ChatGPT', addPlan: 'Ajouter un forfait ChatGPT', planName: 'Forfait ChatGPT {n}',
+    plans: 'Forfaits ChatGPT', addPlan: 'Ajouter un forfait ChatGPT', planName: 'Forfait ChatGPT {n}',
     plansHint: 'Un forfait peut être le vôtre ou celui de votre entreprise. Chacun finance vos propres agents dans {team} ; les agents d’équipe ont un financement distinct.',
     connection: { needed: 'Sous Windows, les forfaits ChatGPT se connectent via le service d’arrière-plan de Nessie Computer. Ajouter le premier forfait le relie à {team} : une invite Windows, puis un code d’appairage.', title: 'Connecter des forfaits ChatGPT pour {team}',
       starting: 'Demande à Windows et obtention d’un code…', paired: 'Connecté. Nommez le forfait et connectez-vous avec ChatGPT.' },
@@ -73,7 +73,7 @@ const aiByLocale = {
     noModels: 'Aucun modèle signalé', changeFailed: 'Impossible d’enregistrer ce serveur. Vos changements sont conservés. Réessayez.',
   },
   it: {
-    heading: 'IA per {team}', plans: 'Piani ChatGPT', addPlan: 'Aggiungi un piano ChatGPT', planName: 'Piano ChatGPT {n}',
+    plans: 'Piani ChatGPT', addPlan: 'Aggiungi un piano ChatGPT', planName: 'Piano ChatGPT {n}',
     plansHint: 'Un piano può essere tuo o della tua azienda. Ognuno finanzia i tuoi agenti in {team}; gli agenti del team hanno un finanziamento separato.',
     connection: { needed: 'Su Windows i piani ChatGPT accedono tramite il servizio in background di Nessie Computer. Aggiungere il primo piano lo collega a {team}: una richiesta di Windows, poi un codice di abbinamento.', title: 'Collega i piani ChatGPT per {team}',
       starting: 'Richiesta a Windows e recupero del codice…', paired: 'Collegato. Dai un nome al piano e accedi con ChatGPT.' },

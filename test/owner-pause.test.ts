@@ -74,7 +74,7 @@ test('an older Nessie that refuses the field hears no pause for the rest of that
   }
 })
 
-test('the pause, request, answer and audience verbs take exactly their own options', () => {
+test('the pause, request and answer verbs take exactly their own options', () => {
   assert.deepEqual(parseCommand(['pause', '--state-dir', '/s']), { json: false, kind: 'pause', stateDir: '/s' })
   assert.deepEqual(parseCommand(['resume', '--state-dir', '/s', '--json']), { json: true, kind: 'resume', stateDir: '/s' })
   assert.deepEqual(parseCommand(['program-requests', '--state-dir', '/s', '--json']),
@@ -85,6 +85,6 @@ test('the pause, request, answer and audience verbs take exactly their own optio
     /Usage/u)
   assert.throws(() => parseCommand(['program-request', 'list', '--state-dir', '/s', '--id', 'x', '--answer', 'once']),
     /Usage/u)
-  assert.deepEqual(parseCommand(['audience', '--state-dir', '/s', '--json']), { json: true, kind: 'audience', stateDir: '/s' })
+  assert.throws(() => parseCommand(['audience', '--state-dir', '/s', '--json']), /Unknown|Usage/u)
   assert.throws(() => parseCommand(['pause', '--state-dir', '/s', '--all']), /Usage/u)
 })

@@ -31,19 +31,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // opened with. Opening the window is what a person can actually see happen.
         self.secondLaunchObserver = MenuBarSingleInstance.observeSecondLaunches { [weak self] links in
             guard let self else { return }
-            if links.isEmpty { self.console?.show(ConsoleTarget(section: .overview)) }
+            if links.isEmpty { self.console?.show(ConsoleTarget()) }
             links.forEach(self.follow)
         }
         try? ComputerUpdateService.prepare()
         ComputerUpdateHealth.shared.onChange = { [weak controller] stuck in controller?.updatesStuck = stuck }
-        // The first launch with no team says what this app is for, on
-        // Overview, rather than leaving a person to find an icon.
+        // The first launch with no team opens the window, which opens straight
+        // on a pairing code, rather than leaving a person to find an icon.
         let hasTeam = controller.controllers.contains { ExecutorPaths.hasPairingFile($0.stateDirectory) }
         if !pendingLinks.isEmpty {
             pendingLinks.forEach(follow)
             pendingLinks = []
         } else if !hasTeam {
-            console.show(ConsoleTarget(section: .overview))
+            console.show(ConsoleTarget())
         } else if ComputerUpdateService.unavailableStatus() != nil {
             console.show(ConsoleTarget(section: .settings))
         }
@@ -71,7 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Opening the app again — from Finder, Spotlight or Launchpad — opens its window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        console?.show(ConsoleTarget(section: .overview))
+        console?.show(ConsoleTarget())
         return false
     }
 

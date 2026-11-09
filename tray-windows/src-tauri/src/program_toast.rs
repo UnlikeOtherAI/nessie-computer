@@ -4,7 +4,7 @@
 //! A request waits on the daemon for up to two minutes, so the toast is shown
 //! as soon as a poll sees it. The answer goes back through the same path the
 //! window uses, to whichever supervisor runs the team; only this person, on
-//! this computer, can give it. Clicking the toast itself opens Overview on its
+//! this computer, can give it. Clicking the toast itself opens the window on its
 //! team, where the request is listed too. Each request is shown once.
 
 use std::{
@@ -143,7 +143,7 @@ fn show(app: &AppHandle, request: &TeamRequest, team_label: &str, words: &'stati
             }
             _ => {
                 crate::commands::show_status(&handle);
-                let _ = handle.emit_to("status", &ConsoleSection::Overview.event(), ConsoleTarget::team(&executor_id));
+                let _ = handle.emit_to("status", &ConsoleSection::event_for(None), ConsoleTarget::team(&executor_id));
             }
         });
         Ok(())

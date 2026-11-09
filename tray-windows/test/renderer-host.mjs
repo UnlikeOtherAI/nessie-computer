@@ -9,9 +9,10 @@ export const OLD_POLICY = { mode: 'all', allowlist: [], denylist: ['rm *'] }
  * `paired` is how many teams start connected (true = 1). `legacy` describes
  * them as an older runtime would, without `localApps` or `mcpPolicy`.
  */
-export const installRendererHost = async (context, host, { paired = 0, legacy = false, ownerConfirmationRequired = false } = {}) => {
-await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, NEW_POLICY, OLD_POLICY }) => {
-  window.ownerConfirmationRequired = ownerConfirmationRequired
+export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false } = {}) => {
+await context.addInitScript(({ host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY }) => {
+  // A team that has never had a name: its row carries no `names` (docs/team-names.md).
+  window.unnamed = unnamed
   window.calls = []
   window.pairStatus = 'idle'
   window.paired = []
@@ -19,9 +20,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
   window.requests = []
   window.remedies = []
   window.syncStates = {}
-  window.audiences = {}
-  window.sessions = [] // §11.5: [{ executorId, sessionId, agentName?, startedAt, commands: [{ id, kind, status, … }] }]
-  window.stopped = []
   window.enabled = false
   window.autoRestart = true
   window.restarts = 0
@@ -37,13 +35,16 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     { name: 'figma', source: 'codex', command: ['figma-mcp'], installed: false }]
   const row = (executorId, extra = {}) => ({ executorId, daemonStatus: 'running', paused: false, pendingProgramRequests: 0, workspaceConfigured: true,
     ...(host === 'windows' ? { connection: 'user' } : {}), ...extra })
+  // Every row carries its team's saved label, as both hosts send it.
+  const namesFor = (index) => ({ organizationName: 'UnlikeOtherAI', teamName: teamNames[index] ?? `Team ${index}`,
+    apiBaseUrl: window.pairServer ?? 'https://api.nessie.works' })
   // The person enters the code in Nessie: the claim alone pairs, and the host starts the daemon.
   // The first team is a new pairing (one folder, the defaults); the second is an older team with its own rules, for contrast.
   window.claimInNessie = () => {
     window.pairStatus = 'paired'
     const executorId = `team-${window.paired.length}`
     const second = window.paired.length === 1
-    window.paired.push(row(executorId))
+    window.paired.push(row(executorId, window.unnamed ? {} : { names: namesFor(window.paired.length) }))
     window.teams[executorId] = second ? {
       folders: [{ name: 'notes', path: `${home}${sep}Notes` }], policy: JSON.parse(JSON.stringify(OLD_POLICY)), existingSessions: false,
       allowedOrigins: ['https://docs.example.com'], browserConfigured: true,
@@ -55,15 +56,14 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       mcpServers: [{ name: 'my-tool', command: ['node', 'my-tool.js'] }],
       ...(legacy ? {} : { mcpPolicy: { mode: 'installed', disabled: [] }, discovered: discovered.map((app) => ({ ...app })) }),
     }
-    window.audiences[executorId] = { agents: [{ id: 'a1', name: 'Jev' }], everyoneInTeam: false,
-      people: [{ name: 'Ondrej', isOwner: true }], peopleCount: 1, projects: [], observedAt: new Date().toISOString() }
     return executorId
   }
   // On Windows the team's ChatGPT plans live on a second, service-owned connection to the same team.
   window.claimPlanInNessie = (executorId) => {
     const planId = `${executorId}-plans`
     window.planPairStatus = 'paired'
-    window.paired.push(row(planId, { connection: 'service' }))
+    const team = window.paired.find((entry) => entry.executorId === executorId)
+    window.paired.push(row(planId, { connection: 'service', ...(team.names ? { names: { ...team.names } } : {}) }))
     window.teams[planId] = { ...window.teams[executorId], folders: [{ name: 'nessie', path: `${home}${sep}Nessie` }] }
     window.paired.find((entry) => entry.executorId === executorId).chatgptConnectionId = planId
     return planId
@@ -229,21 +229,7 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       row.daemonStatus = 'running'
       return view()
     }
-    if (command === 'executor_audience') {
-      if (window.audienceOffline) throw new Error('offline')
-      return window.audiences[id]
-    }
     if (command === 'executor_program_requests') return window.requests.filter((request) => !id || request.executorId === id)
-    if (command === 'executor_sessions') {
-      if (window.sessionsOffline) throw new Error('offline')
-      return window.sessions.filter((session) => !id || session.executorId === id).map((session) => ({ ...session, commands: session.commands.map((c) => ({ ...c })) }))
-    }
-    if (command === 'executor_stop_session') {
-      if (window.failStop) throw new Error(window.failStop)
-      window.stopped.push({ executorId: id, sessionId: args.sessionId })
-      window.sessions = window.sessions.filter((session) => session.sessionId !== args.sessionId)
-      return window.sessions.map((session) => ({ ...session }))
-    }
     if (command === 'executor_answer_program_request') {
       const request = window.requests.find((entry) => entry.id === args.id)
       window.answers = (window.answers ?? []).concat([{ id: args.id, answer: args.answer }])
@@ -271,9 +257,6 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
       }
     }
     if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
-    if (command === 'executor_pairing_status' && id && window.ownerConfirmationRequired) {
-      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
-    }
     if (command.startsWith('executor_pairing_')) {
       const executorId = id ?? `team-${window.paired.length - 1}`
       const index = Number(executorId.split('-')[1])
@@ -307,8 +290,9 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     }
     if (command === 'executor_auto_restart') return { enabled: window.autoRestart }
     if (command === 'executor_set_auto_restart') window.autoRestart = args.enabled
-    // Removed by contract §5.1: a call to one of these is a defect the journeys catch.
-    if (['executor_set_running', 'executor_reconnect', 'executor_notify', 'executor_hide_status'].includes(command)) {
+    // Removed by contract §5.1 and §13: a call to one of these is a defect the journeys catch.
+    if (['executor_set_running', 'executor_reconnect', 'executor_notify', 'executor_hide_status', 'executor_audience', 'executor_sessions',
+      'executor_stop_session'].includes(command)) {
       window.restarts += 1
       throw new Error(`${command} no longer exists`)
     }
@@ -328,14 +312,13 @@ await context.addInitScript(({ host, paired, legacy, ownerConfirmationRequired, 
     window.emitTray = (event, payload) => window.dispatchEvent(new CustomEvent(event, { detail: payload }))
   }
   for (let count = Number(paired); count > 0; count -= 1) window.claimInNessie()
-}, { host, paired, legacy, ownerConfirmationRequired, NEW_POLICY, OLD_POLICY })
+}, { host, paired, legacy, unnamed, NEW_POLICY, OLD_POLICY })
 }
 
 /** Every file `index.html` loads, shell and team tabs alike, in load order. */
 export const consoleFiles = {
-  shell: ['index.html', 'style.css', 'native.js', 'i18n.js', 'main.js', 'errors-words.js', 'errors.js', 'teams-words.js', 'teams.js',
-    'overview-words.js', 'overview-summary.js', 'overview.js', 'overview-working-words.js', 'overview-working.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'updates.js',
-    'settings-words.js', 'settings.js'],
+  shell: ['index.html', 'style.css', 'native.js', 'i18n.js', 'help.js', 'main.js', 'errors-words.js', 'errors.js', 'teams-words.js', 'teams.js',
+    'needs-words.js', 'needs.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'updates.js', 'settings-words.js', 'settings.js'],
   teamTabs: ['autosave.js', 'team-drafts.js', 'access-words.js', 'access.js', 'access-sections.js', 'access-programs.js',
     'documents-reasons-words.js', 'documents-words.js', 'documents.js', 'ai-local-words.js', 'ai-local.js', 'ai-words.js', 'ai.js', 'chatgpt-words.js', 'chatgpt.js',
     'ai-connection.js', 'inference-endpoints.js'],

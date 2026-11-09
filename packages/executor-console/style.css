@@ -12,24 +12,28 @@
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; }
-/* The window is a column: header, tabs and team row on top, the page scrolls, the footer stays in view. */
+/* The window is a column: team row, Needs you and tabs on top, the page scrolls, the footer stays in view. */
 body { margin: 0; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); color: var(--text); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
 [hidden] { display: none !important; }
-header { padding: 16px 24px 10px; flex-shrink: 0; }
-.title-row { display: flex; align-items: flex-start; gap: 12px; }
-.title-block { flex: 1; min-width: 0; }
-h1 { font-size: 20px; margin: 0; letter-spacing: -.4px; }
-.status-sentence { margin: 2px 0 0; color: var(--muted); overflow-wrap: anywhere; }
 h2 { font-size: 16px; margin: 0 0 8px; }
 h2:focus, h3:focus { outline: none; }
 h3 { font-size: 15px; margin: 0; }
 p { margin: 6px 0 14px; }
-.tabs { display: flex; flex-shrink: 0; margin: 0 24px; gap: 2px; padding: 2px; border-radius: 7px; background: var(--soft); }
+.tabs { display: flex; flex-shrink: 0; margin: 10px 24px 0; gap: 2px; padding: 2px; border-radius: 7px; background: var(--soft); }
 .tabs button { flex: 1; padding: 3px 4px; font-size: 13px; background: transparent; border-color: transparent; border-radius: 5px; }
 .tabs button[aria-selected=true] { background: var(--bg); box-shadow: 0 1px 2px var(--shadow); }
-.team-row { display: flex; align-items: center; gap: 12px; margin: 10px 24px 0; }
+.team-row { display: flex; align-items: center; gap: 12px; margin: 16px 24px 0; flex-shrink: 0; }
 .team-row label { margin: 0; font-weight: 600; white-space: nowrap; }
-.team-row select { flex: 1; width: auto; padding: 5px 8px; }
+.team-row select { flex: 1; width: auto; padding: 6px 8px; min-height: 34px; }
+/* Needs you: a slim strip between the dropdown and the tabs, only while something waits. */
+.needs { list-style: none; margin: 10px 24px 0; padding: 0; flex-shrink: 0; max-height: 40vh; overflow-y: auto; }
+.need { border-left: 3px solid var(--wait); padding: 6px 12px; margin-bottom: 6px; background: var(--soft); border-radius: 0 8px 8px 0; }
+.need p { margin: 0; }
+.need small { color: var(--muted); }
+.need-failure { border-left-color: var(--error); }
+.need .actions { margin-top: 6px; }
+.need .actions button { padding: 4px 10px; font-size: 13px; }
+.need .failure-explanation { margin: 4px 0 6px; }
 main { flex: 1; overflow-y: auto; padding: 18px 24px; }
 button, input, select, textarea { font: inherit; }
 button { padding: 6px 12px; border: 1px solid var(--control); border-radius: 6px; background: var(--bg); color: var(--text); cursor: pointer; }
@@ -59,7 +63,17 @@ code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; backgrou
 .label { margin-bottom: 2px; }
 .field-error { color: var(--error); font-size: 12px; margin: 4px 0 0; overflow-wrap: anywhere; }
 .path { overflow-wrap: anywhere; min-width: 0; font-size: 12px; color: var(--muted); margin-top: 0; }
-#no-team { color: var(--muted); }
+#no-team { display: flex; justify-content: center; padding: 24px 0; }
+/* "?" — one explanation per control, shown on hover and focus, pinned by a click. */
+.label-row { display: flex; align-items: center; gap: 6px; }
+.label-row label, .label-row h2, .label-row h3 { margin: 0; }
+.label-row:has(label) { margin: 12px 0 5px; }
+.help { position: relative; display: inline-flex; vertical-align: middle; margin-left: 6px; }
+.help-button { width: 20px; height: 20px; padding: 0; border-radius: 50%; border: 1px solid var(--control); background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1; display: inline-flex; align-items: center; justify-content: center; -webkit-user-select: none; user-select: none; }
+.help-button:hover, .help-button[aria-expanded=true] { color: var(--text); background: var(--soft); }
+.help-tip { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: max-content; max-width: min(300px, calc(100vw - 32px)); padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 12px; font-weight: 400; line-height: 1.45; box-shadow: 0 6px 20px var(--shadow); white-space: normal; text-align: left; -webkit-user-select: text; user-select: text; }
+.toggle .help, .switch .help { margin-left: 2px; }
+.saved-row { min-height: 18px; text-align: right; }
 .toggle { display: flex; align-items: center; gap: 8px; }
 .switch { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; font-size: 13px; cursor: pointer; position: relative; }
 .switch input { position: absolute; opacity: 0; width: 38px; height: 22px; right: 0; margin: 0; cursor: pointer; }
@@ -82,59 +96,31 @@ details > summary { cursor: pointer; color: var(--accent); margin: 12px 0 4px; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 20px 0; }
 footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-/* Overview */
-.welcome { max-width: 420px; margin: 24px auto; text-align: center; }
-.welcome p { font-size: 15px; }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 18px; }
-.card .actions { margin-top: 8px; }
-.card .hint { margin: 10px 0 0; }
-.needs { list-style: none; margin: 0 0 20px; padding: 0; }
-.need { border-left: 3px solid var(--wait); padding: 8px 12px; margin-bottom: 10px; background: var(--soft); border-radius: 0 8px 8px 0; }
-.need p { margin: 0; }
-.need small { color: var(--muted); display: block; }
-.need-failure { border-left-color: var(--error); }
-.need .actions { margin-top: 8px; }
-/* Now working: one row per session, its commands beneath, Stop on the right. */
-#overview-working { margin-bottom: 20px; }
-#overview-working .hint { margin: 0; }
-.sessions { list-style: none; margin: 0; padding: 0; }
-.session { padding: 10px 0; border-top: 1px solid var(--line); }
-.session:last-child { border-bottom: 1px solid var(--line); }
-.session-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.session-title { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 14px; }
-.session-stop { flex-shrink: 0; padding: 4px 10px; font-size: 13px; }
-.commands { list-style: none; margin: 4px 0 0; padding: 0 0 0 14px; color: var(--muted); font-size: 13px; }
-.command { overflow-wrap: anywhere; padding: 1px 0; }
-.command::before { content: ""; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin: 0 8px 2px -14px; background: var(--on); }
-.command-queued::before { background: var(--control); }
-.command-waiting_for_owner::before { background: var(--wait); }
-.command code { color: var(--text); }
-.team-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
-.team-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.team-card h3 { overflow-wrap: anywhere; min-width: 0; }
-.team-summary, .team-plan, .team-audience { margin: 6px 0 0; color: var(--muted); overflow-wrap: anywhere; }
-.team-audience .label-inline { color: var(--text); }
+/* Failures in the Needs you strip */
+.failure-details summary { font-size: 12px; margin: 6px 0 2px; }
+.failure-details p { font-size: 12px; color: var(--muted); margin: 0; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
 .status-word { font-weight: 600; white-space: nowrap; }
 .status-word::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--control); vertical-align: 0; }
 .status-word[data-tone=working]::before { background: var(--on); }
 .status-word[data-tone=needs_you]::before { background: var(--wait); }
 .status-word[data-tone=not_connected]::before { background: var(--error); }
-.failure-explanation { margin: 6px 0 8px; }
-.failure-details summary { font-size: 12px; margin: 6px 0 2px; }
-.failure-details p { font-size: 12px; color: var(--muted); margin: 0; font-family: ui-monospace, Consolas, monospace; overflow-wrap: anywhere; }
-/* Add this computer */
+/* Add another team */
 #code-row, .code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }
 #pairing-code, #ai-connection-code { font: 600 clamp(28px, 7vw, 44px)/1.2 ui-monospace, "SF Mono", Consolas, monospace; letter-spacing: .1em; white-space: nowrap; }
 #pairing-code.expired, #ai-connection-code.expired { color: var(--muted); text-decoration: line-through; }
 #copy-code { padding: 5px 9px; font-size: 12px; }
 #pairing-getting { color: var(--muted); }
-/* Settings */
+/* Settings: the selected team first, then the computer. */
+.settings-team { padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--line); }
+.settings-team .row { margin: 0; flex-wrap: wrap; }
+.settings-team .status-word { flex: 1; min-width: 0; }
 #software-updates, .settings-block { border-top: 1px solid var(--line); margin-top: 24px; padding-top: 12px; }
 #software-updates h2, .settings-block h2 { font-size: 15px; }
 .update-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .update-actions button, #update-dialog button, #update-policy .toggle { min-height: 44px; }
 #update-dialog .actions { flex-wrap: wrap; }
 /* Team tabs share one list row: a name, a detail line under it, one control on the right. */
+.switch-caption { font-weight: 400; font-size: 12px; color: var(--muted); }
 .list-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); }
 .list-row:last-child { border-bottom: 0; }
 .list-row .list-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -146,7 +132,6 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .access-section { padding: 14px 0 18px; border-bottom: 1px solid var(--line); }
 .access-section:last-of-type { border-bottom: 0; }
 .access-section .section-heading { margin-bottom: 4px; }
-.access-section .intro { margin: 4px 0 10px; }
 .access-section textarea { min-height: 64px; }
 .access-mode { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin: 6px 0 2px; }
 .access-mode .toggle { margin: 0; font-weight: 400; white-space: nowrap; align-items: center; }
@@ -155,7 +140,6 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .access-apply { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 10px 12px; background: var(--soft); border-radius: 8px; }
 .access-apply .access-lines { flex: 1 1 220px; min-width: 0; }
 .access-apply p { margin: 0; overflow-wrap: anywhere; }
-.access-current { font-weight: 600; margin: 0 0 6px; overflow-wrap: anywhere; }
 .access-note { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 details.access-developers { margin-top: 8px; }
 details.access-developers summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
@@ -193,12 +177,12 @@ details.access-developers summary { cursor: pointer; font-weight: 600; padding: 
 .ai-name-row input { flex: 1; min-width: 0; }
 /* The 440 px minimum window: tighter gutters, rows that wrap, controls a finger can hit. */
 @media (max-width: 470px) {
-  main, header { padding-left: 16px; padding-right: 16px; }
-  .tabs, .team-row, #error { margin-left: 16px; margin-right: 16px; }
-  .team-card .actions button, .session-stop, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
+  main { padding-left: 16px; padding-right: 16px; }
+  .tabs, .team-row, .needs, #error { margin-left: 16px; margin-right: 16px; }
+  .settings-team .row button, .list-row button, .access-mode .toggle, .documents-actions button, #documents-choose, #documents-deleted-dialog button { min-height: 44px; }
   .list-row { flex-wrap: wrap; }
 }
 
 /* Content text is selectable; controls are not. */
 button, [role=tab], select, summary, .switch, .toggle, .tabs, label, footer { -webkit-user-select: none; user-select: none; }
-input, textarea, output, pre, code, p, h1, h2, h3, li, .team-summary, .team-audience, .command { -webkit-user-select: text; user-select: text; }
+input, textarea, output, pre, code, p, h2, h3, li, .help-tip { -webkit-user-select: text; user-select: text; }

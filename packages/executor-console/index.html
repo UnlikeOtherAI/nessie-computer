@@ -8,60 +8,21 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <div class="title-row">
-      <div class="title-block">
-        <h1 id="app-title">Nessie Computer</h1>
-        <p id="status-sentence" class="status-sentence" role="status"></p>
-      </div>
-      <button id="pause-all" hidden></button>
-    </div>
-  </header>
+  <!-- One dropdown above the tabs picks the team every tab shows; its last entry starts pairing. -->
+  <div class="team-row" id="team-row">
+    <label for="team-select" id="team-select-label"></label>
+    <select id="team-select"></select>
+  </div>
+  <ul id="needs-you-list" class="needs" aria-labelledby="team-select-label" hidden></ul>
   <div class="tabs" id="tablist" role="tablist">
-    <button role="tab" id="tab-button-overview" data-tab="overview" aria-controls="tab-overview" aria-selected="true"></button>
-    <button role="tab" id="tab-button-access" data-tab="access" aria-controls="tab-access" aria-selected="false" tabindex="-1"></button>
+    <button role="tab" id="tab-button-access" data-tab="access" aria-controls="tab-access" aria-selected="true"></button>
     <button role="tab" id="tab-button-documents" data-tab="documents" aria-controls="tab-documents" aria-selected="false" tabindex="-1"></button>
     <button role="tab" id="tab-button-ai" data-tab="ai" aria-controls="tab-ai" aria-selected="false" tabindex="-1"></button>
     <button role="tab" id="tab-button-settings" data-tab="settings" aria-controls="tab-settings" aria-selected="false" tabindex="-1"></button>
   </div>
-  <div class="team-row" id="team-row" hidden>
-    <label for="team-select" id="team-select-label"></label>
-    <select id="team-select"></select>
-  </div>
   <p id="error" class="tab-error" role="alert" hidden></p>
   <main>
-    <section id="tab-overview" role="tabpanel" aria-labelledby="tab-button-overview">
-      <p class="tab-error" role="alert" hidden></p>
-      <div id="overview-welcome" class="welcome" hidden>
-        <p id="overview-welcome-text"></p>
-        <button id="overview-welcome-connect" class="primary" data-action="connect"></button>
-      </div>
-      <section id="overview-connected" class="card connected" aria-labelledby="connected-title" hidden>
-        <h2 id="connected-title" tabindex="-1"></h2>
-        <p id="connected-body"></p>
-        <div class="actions start">
-          <button id="connected-access" class="primary"></button>
-          <button id="connected-done"></button>
-        </div>
-        <p class="hint"><span id="connected-unexpected"></span> <button id="connected-disconnect" class="link"></button></p>
-      </section>
-      <section id="overview-needs" aria-labelledby="overview-needs-title" hidden>
-        <h2 id="overview-needs-title"></h2>
-        <ul id="needs-you-list" class="needs"></ul>
-      </section>
-      <section id="overview-working" aria-labelledby="overview-working-title" hidden>
-        <h2 id="overview-working-title" tabindex="-1"></h2>
-        <p id="working-error" class="field-error" role="alert" hidden></p>
-        <p id="working-empty" class="hint"></p>
-        <ul id="working-list" class="sessions" hidden></ul>
-      </section>
-      <section id="overview-teams" aria-labelledby="overview-teams-title" hidden>
-        <div class="section-heading"><h2 id="overview-teams-title"></h2><button id="overview-connect" class="primary" data-action="connect"></button></div>
-        <div id="team-cards"></div>
-      </section>
-    </section>
     <div id="no-team" hidden>
-      <p id="no-team-text"></p>
       <button id="no-team-connect" class="primary"></button>
     </div>
     <section id="tab-access" role="tabpanel" aria-labelledby="tab-button-access" hidden></section>
@@ -69,29 +30,27 @@
     <section id="tab-ai" role="tabpanel" aria-labelledby="tab-button-ai" hidden></section>
     <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
       <p class="tab-error" role="alert" hidden></p>
+      <section id="settings-team" class="settings-team" aria-labelledby="settings-team-title" hidden>
+        <div class="row">
+          <span id="settings-team-title" class="status-word"></span>
+          <button id="settings-pause"></button>
+          <button id="settings-disconnect"></button>
+        </div>
+      </section>
       <label class="toggle"><input type="checkbox" id="autostart"><span id="autostart-label"></span></label>
-      <label class="toggle"><input type="checkbox" id="auto-restart" aria-describedby="auto-restart-hint"><span id="auto-restart-label"></span></label>
-      <p id="auto-restart-hint" class="hint"></p>
+      <label class="toggle"><input type="checkbox" id="auto-restart"><span id="auto-restart-label"></span></label>
       <section id="software-updates" aria-labelledby="update-title">
         <h2 id="update-title"></h2>
         <p><span id="update-version-label"></span>: <strong id="update-version"></strong></p>
         <div id="update-policy" hidden>
-          <label class="toggle"><input type="checkbox" id="update-automatic" aria-describedby="update-hint"><span id="update-automatic-label"></span></label>
-          <p id="update-hint" class="hint"></p>
+          <label class="toggle"><input type="checkbox" id="update-automatic"><span id="update-automatic-label"></span></label>
         </div>
         <p id="update-status" role="status"></p>
         <div class="update-actions"><button id="update-setup" class="primary" hidden></button><button id="update-check"></button><button id="update-install" class="primary" hidden></button></div>
         <p id="update-error" class="update-error" role="alert" hidden></p>
       </section>
-      <section id="notifications" class="settings-block" aria-labelledby="notifications-title">
-        <h2 id="notifications-title"></h2>
-        <p id="notifications-body" class="hint"></p>
-      </section>
-      <section id="help" class="settings-block" aria-labelledby="help-title">
-        <h2 id="help-title"></h2>
-        <p id="help-version"></p>
+      <section id="help" class="settings-block">
         <div class="actions start"><button id="open-logs"></button></div>
-        <p class="hint"><span id="help-cli"></span> <code>nessie-computer --help</code></p>
       </section>
     </section>
   </main>
@@ -100,10 +59,9 @@
     <div id="save-status" role="status"></div>
   </footer>
 
-  <dialog id="update-dialog" aria-labelledby="update-prompt-title" aria-describedby="update-prompt-body update-prompt-hint">
+  <dialog id="update-dialog" aria-labelledby="update-prompt-title" aria-describedby="update-prompt-body">
     <h2 id="update-prompt-title"></h2>
     <p id="update-prompt-body"></p>
-    <p id="update-prompt-hint" class="hint"></p>
     <p id="update-prompt-error" class="update-error" role="alert" hidden></p>
     <div class="actions"><button id="update-prompt-remind"></button><button id="update-prompt-install" class="primary"></button></div>
   </dialog>
@@ -118,9 +76,8 @@
     </section>
     <details id="connect-advanced">
       <summary id="connect-advanced-summary"></summary>
-      <label for="pairing-server" id="pairing-server-label"></label>
-      <input id="pairing-server" type="url" required aria-describedby="pairing-server-hint" aria-errormessage="pairing-server-error">
-      <p id="pairing-server-hint" class="hint"></p>
+      <div class="label-row"><label for="pairing-server" id="pairing-server-label"></label></div>
+      <input id="pairing-server" type="url" required aria-errormessage="pairing-server-error">
       <p id="pairing-server-error" class="field-error" role="alert" hidden></p>
       <div class="actions start"><button id="pairing-server-use"></button></div>
     </details>
@@ -133,13 +90,6 @@
     <p id="pairing-announce" class="visually-hidden" role="status"></p>
   </dialog>
 
-  <dialog id="stop-session-dialog" aria-labelledby="stop-session-title">
-    <h2 id="stop-session-title" tabindex="-1"></h2>
-    <p id="stop-session-body"></p>
-    <p class="dialog-error" role="alert" hidden></p>
-    <div class="actions"><button type="button" id="stop-session-cancel" class="dialog-close"></button><button id="stop-session-confirm" class="danger"></button></div>
-  </dialog>
-
   <dialog id="disconnect-dialog" aria-labelledby="disconnect-title">
     <h2 id="disconnect-title" tabindex="-1"></h2>
     <p id="disconnect-body"></p>
@@ -149,16 +99,14 @@
 
   <script src="native.js"></script>
   <script src="i18n.js"></script>
+  <script src="help.js"></script>
   <script src="main.js"></script>
   <script src="errors-words.js"></script>
   <script src="errors.js"></script>
   <script src="teams-words.js"></script>
   <script src="teams.js"></script>
-  <script src="overview-words.js"></script>
-  <script src="overview-summary.js"></script>
-  <script src="overview.js"></script>
-  <script src="overview-working-words.js"></script>
-  <script src="overview-working.js"></script>
+  <script src="needs-words.js"></script>
+  <script src="needs.js"></script>
   <script src="pairing-words.js"></script>
   <script src="pairing.js"></script>
   <script src="updates-words.js"></script>

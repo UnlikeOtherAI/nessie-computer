@@ -23,6 +23,7 @@ use nessie_windows_common::{
     failure::{classify, retriable, Failure, StderrTail},
     owner_controls::{read_paused, RequestCache},
     owner_sessions::SessionsCache,
+    team_label::read_team_label,
 };
 
 use crate::{
@@ -212,6 +213,7 @@ impl Supervisor {
                     .flatten();
                 Some(ExecutorStatus {
                     paused: read_paused(&state_dir),
+                    names: read_team_label(&state_dir),
                     pending_program_requests: self.pending_program_requests(&executor_id, &state_dir),
                     failure,
                     daemon_status,

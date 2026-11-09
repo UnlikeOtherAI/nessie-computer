@@ -34,7 +34,8 @@ shows what changes, for example *"Adds `npm` · Removes Codex"*.
 ## When an agent asks to run a program
 
 If an agent wants a program that isn't allowed, Nessie Computer asks you. You
-see a notification, and the request appears under **Needs you** on Overview:
+see a notification, and the request appears in the **Needs you** strip at the
+top of the window:
 
 > **Sales agent** wants to run `npm`
 > in Sales · Acme · test

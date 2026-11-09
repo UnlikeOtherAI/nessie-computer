@@ -114,12 +114,12 @@ final class ProgramRequestNotifier: NSObject, UNUserNotificationCenterDelegate {
         posted.remove(ProgramRequestNotice.identifier(executorId: executorId, requestId: requestId))
         guard let answer, let controller = connections.team(executorId) else {
             if action != UNNotificationDismissActionIdentifier {
-                console.show(ConsoleTarget(section: .overview, executorId: executorId))
+                console.show(ConsoleTarget(executorId: executorId))
             }
             return
         }
         do { try await controller.answer(requestId, answer) } catch {
-            console.show(ConsoleTarget(section: .overview, executorId: executorId))
+            console.show(ConsoleTarget(executorId: executorId))
         }
     }
 

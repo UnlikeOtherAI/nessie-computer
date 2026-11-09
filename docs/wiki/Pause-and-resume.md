@@ -8,7 +8,6 @@ installing an update doesn't undo it.
 
 - **Menu bar / notification area:** choose **Pause**. With more than one team,
   choose **Pause → All teams**.
-- **Window:** choose **Pause all** at the top right.
 
 The icon turns grey and the menu says *"Paused"*. Choose **Resume** the same
 way to let agents back in.
@@ -16,23 +15,17 @@ way to let agents back in.
 ## Pause one team
 
 - **Menu:** **Pause → Sales · Acme**.
-- **Window:** on **Overview**, choose **Pause** on that team's card.
+- **Window:** pick the team in the **Team** list, open **Settings**, choose **Pause**.
 
 Other teams carry on.
 
 ## What happens to work in progress
 
 Work an agent already started finishes; nothing new starts. To stop it now,
-choose **Stop** on its row under **Overview → Now working**.
+quit Nessie Computer, or stop it in Nessie from the agent's conversation.
 
 In Nessie, a paused computer shows **Paused on the computer**, and agents are
 told it's paused instead of trying to use it.
-
-## Stop one agent's work
-
-**Overview → Now working** lists each agent working on this computer and what
-it is running. Choose **Stop** on a row to cancel everything that agent is
-doing here. Other agents carry on, and the agent can start again unless you pause.
 
 ## Pause, Turn off and Quit
 
@@ -41,7 +34,7 @@ doing here. Other agents carry on, and the agent can start again unless you paus
 | **Pause** | on this computer | Agents start nothing new here. The computer stays connected. | **Resume** on this computer |
 | **Turn off for now** | in Nessie, on the computer's page | Nessie sends no work to the computer | **Turn on** in Nessie |
 | **Quit** | on this computer | Closes Nessie Computer. On a Mac this stops all work here; on Windows, teams run by the background service keep running. | Open Nessie Computer |
-| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Add-this-computer) again |
+| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Add-a-team) again |
 
 ## On the command line
 

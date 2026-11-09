@@ -26,7 +26,7 @@ Settings shows the **Installed version** and whether a newer one is available.
 On a Mac, updates need Nessie Computer's background helper. If Settings shows
 **Set up updates**, choose it and switch the helper on in System Settings.
 
-If Overview or Settings says **Updates are stuck — teams can't start**, the
+If the window or Settings says **Updates are stuck — teams can't start**, the
 helper isn't answering. Choose **Restart updates**. Your teams, access and
 sign-ins stay on the computer. When you install a newer Nessie Computer on a
 Mac, it restarts the helper once by itself, so the helper picks up the new

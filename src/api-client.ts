@@ -1,15 +1,16 @@
 import type {
   ExecutorCommandAttachment,
-  ExecutorDaemonAudienceRequest,
   ExecutorDaemonCommandPollRequest,
   ExecutorDaemonCommandPollResponse,
   ExecutorCommandReceipt,
   ExecutorDaemonCommandAttachmentResponse,
+  ExecutorDaemonTeamsRequest,
   ExecutorSessionViewExchange,
   ExecutorSessionViewRequest,
   ExecutorSoftwareStatus,
   ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
+import { EXECUTOR_DAEMON_TEAMS_PATH } from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
 
 type ApiError = { error?: { code?: string; details?: unknown; message?: string } }
@@ -42,8 +43,6 @@ export type ExecutorSyncRequestOptions = { signal?: AbortSignal; timeoutMs?: num
 export type ExecutorSyncBytes = { body: ReadableStream<Uint8Array> | null; headers: Headers; status: number }
 
 export type ExecutorApiClient = {
-  /** "Who can send work here": the signed read of this computer's audience (`audience.ts`). */
-  audience: (baseUrl: string, input: ExecutorDaemonAudienceRequest) => Promise<unknown>
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
@@ -117,6 +116,8 @@ export type ExecutorApiClient = {
     baseUrl: string,
     input: { connectionEpoch: string; descriptor: unknown; executorId: string },
   ) => Promise<{ reviewStatus: string; revision: number }>
+  /** The names of this computer's teams on one server, each entry signed by its team (`team-names.ts`). */
+  teams: (baseUrl: string, input: ExecutorDaemonTeamsRequest) => Promise<unknown>
   submitEnrollment: (
     baseUrl: string,
     input: unknown,
@@ -213,7 +214,6 @@ export const createExecutorApi = (options: {
   }, timeoutMs, readData<T>, signal)
 
   return {
-    audience: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/audience', input),
     exchangeSessionViews: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/session-views', input),
     pairing: (baseUrl, action, input) => post(baseUrl, `/api/executor-pairing/${action}`, input),
     personalChatgpt: (baseUrl, action, input) => post(baseUrl,
@@ -253,6 +253,7 @@ export const createExecutorApi = (options: {
     }, options.timeoutMs ?? requestTimeoutMs, readData<T>, options.signal),
     submitDescriptor: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/descriptor', input),
     submitEnrollment: (baseUrl, input) => post(baseUrl, '/api/executor-enrollments/submit', input),
+    teams: (baseUrl, input) => post(baseUrl, EXECUTOR_DAEMON_TEAMS_PATH, input),
     uploadBrowserCookieImport: (baseUrl, input) =>
       post(baseUrl, '/api/executor-daemon/browser-cookie-imports/upload', input),
   }

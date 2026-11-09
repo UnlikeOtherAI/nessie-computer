@@ -163,12 +163,39 @@ mod imp {
                 std::thread::sleep(Duration::from_secs(1));
             }
         });
+        let names = team_names_thread(Arc::clone(&shutdown), Arc::clone(&control), root.clone());
         pipe::serve(root.clone(), Arc::clone(&control), Arc::clone(&shutdown));
         shutdown.store(true, Ordering::SeqCst);
         let _ = recovery.join();
+        let _ = names.join();
         stop_supervising(&root, &handle, &control);
         report(&handle, ServiceState::Stopped, ServiceControlAccept::empty(), 0, Duration::default());
         Ok(())
+    }
+
+    /// Team names (`docs/team-names.md`): one `team-names` call for every team
+    /// this service holds when it starts and every hour after. The command is
+    /// built under the supervisor's lock and run outside it.
+    fn team_names_thread(
+        shutdown: Arc<AtomicBool>,
+        control: Arc<Control>,
+        root: std::path::PathBuf,
+    ) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            let every = Duration::from_secs(nessie_windows_common::team_label::TEAM_NAMES_REFRESH_SECONDS);
+            let mut next = Instant::now();
+            while !shutdown.load(Ordering::SeqCst) {
+                if Instant::now() >= next {
+                    next = Instant::now() + every;
+                    let command = control.supervisor().and_then(|supervisor| supervisor.lock().ok()
+                        .and_then(|supervisor| supervisor.team_names_command()));
+                    if let Some(Err(reason)) = command.map(crate::supervisor_names::run_team_names) {
+                        log_line(&root, &reason);
+                    }
+                }
+                std::thread::sleep(Duration::from_secs(1));
+            }
+        })
     }
 
     /// Provenance, then the packaged runtime, then the state root — in that

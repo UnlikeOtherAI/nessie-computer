@@ -3,8 +3,8 @@
 //! The tray is a stateless client of the CLI, so the protocol exposes the
 //! commands it needs: `status`, `pair`, `start`, `stop`, `describe`,
 //! `configureInput`, `remove`, and the owner's own controls — `setPaused`,
-//! `programRequests`, `answerProgramRequest`, `sessions`, `stopSession` and
-//! `audience`. `describe`
+//! `programRequests`, `answerProgramRequest`, `sessions` and `stopSession`.
+//! `describe`
 //! returns the same credential-free JSON the CLI prints; `configureInput` carries the whole stdin payload for
 //! `configure --configuration-input-stdin`; `remove` runs the CLI's `unpair`
 //! and answers only whether Nessie heard the sign-off. This keeps the tray from
@@ -14,7 +14,7 @@
 //! Everything here is a pure function of the request text, so both halves of the
 //! contract are tested on any host.
 
-use nessie_windows_common::{failure::Failure, owner_controls::Answer};
+use nessie_windows_common::{failure::Failure, owner_controls::Answer, team_label::TeamLabel};
 use serde::{Deserialize, Serialize};
 
 pub use crate::protocol_values::MAX_REQUEST_BYTES;
@@ -85,9 +85,6 @@ pub enum Command {
     StopSession {
         executor_id: String,
         session_id: String,
-    },
-    Audience {
-        executor_id: String,
     },
     Start {
         executor_id: String,
@@ -185,9 +182,6 @@ enum Request {
         executor_id: String,
         session_id: String,
     },
-    Audience {
-        executor_id: String,
-    },
     Start {
         executor_id: String,
     },
@@ -199,7 +193,8 @@ enum Request {
 
 /// One paired executor, as the tray is allowed to see it: its daemon state,
 /// whether its owner paused it, why it last stopped when it is not running,
-/// and how many program requests wait for an answer. Never a path or a key.
+/// how many program requests wait for an answer, and the team's saved
+/// display-only name (`team_label`). Never a path or a key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecutorStatus {
@@ -210,6 +205,8 @@ pub struct ExecutorStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failure: Option<Failure>,
     pub pending_program_requests: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub names: Option<TeamLabel>,
 }
 
 /// The answer. Each variant carries only what the tray asked for: an executor
@@ -259,9 +256,6 @@ pub enum Response {
     /// `sessions --json` as the CLI printed it, checked by `owner_sessions::parse_sessions`.
     Sessions {
         sessions: Vec<serde_json::Value>,
-    },
-    Audience {
-        audience: serde_json::Value,
     },
 }
 
@@ -412,9 +406,6 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
             }
             Ok(Command::StopSession { executor_id: identifier(executor_id, "team id")?, session_id })
         }
-        Request::Audience { executor_id } => Ok(Command::Audience {
-            executor_id: identifier(executor_id, "team id")?,
-        }),
         Request::Start { executor_id } => Ok(Command::Start {
             executor_id: identifier(executor_id, "team id")?,
         }),

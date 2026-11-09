@@ -48,6 +48,9 @@ const open = async (browser, ui, { host, locale = 'en-GB', dark = false, size = 
   return opened
 }
 
+/** The tab shows the chosen team's switch; the tab and the dropdown name the team, so there is no heading. */
+const documentsFor = (page, team) => page.waitForFunction((expected) => document.getElementById('documents-switch-label')?.textContent === expected,
+  `Keep a copy of ${team}’s documents on this computer`)
 const destinationIs = (page, text) => page.waitForFunction((expected) => {
   const line = document.getElementById('documents-destination')
   return !line.hidden && line.textContent === expected
@@ -59,14 +62,14 @@ export const verifyDocumentsTeams = async (browser, ui, output) => {
   for (const host of ['windows', 'macos']) {
     const { context, page, errors } = await open(browser, ui, { host })
     const shot = (name) => screenshot(page, output, `${host}-documents-teams-${name}`)
-    await page.getByRole('heading', { name: 'Documents for Platform · UnlikeOtherAI' }).waitFor()
+    await documentsFor(page, 'Platform · UnlikeOtherAI')
     await destinationIs(page, `Platform · UnlikeOtherAI’s documents go in ${shown(host, 'UnlikeOtherAI', 'Platform')}`)
     assert.equal(await page.locator('#documents-folder').textContent(), mainFolder(host))
     await shot('platform-on')
 
     // The second team is offered the same main folder and told where its own folder will be.
     await selectTeam(page, 'team-1')
-    await page.getByRole('heading', { name: 'Documents for Research · UnlikeOtherAI' }).waitFor()
+    await documentsFor(page, 'Research · UnlikeOtherAI')
     await destinationIs(page, `Research · UnlikeOtherAI’s documents will go in ${shown(host, 'UnlikeOtherAI', 'Research')}`)
     assert.equal(await page.locator('#documents-enabled').isChecked(), false)
     assert.equal(await page.locator('#documents-folder').textContent(), `${mainFolder(host)} (suggested)`)
@@ -87,7 +90,7 @@ export const verifyDocumentsTeams = async (browser, ui, output) => {
     assert.deepEqual((await callArgs(page, 'executor_sync_configure')).map((call) => [call.executorId, call.command.enabled]),
       [['team-1', true], ['team-1', false]])
     await selectTeam(page, 'team-0')
-    await page.getByRole('heading', { name: 'Documents for Platform · UnlikeOtherAI' }).waitFor()
+    await documentsFor(page, 'Platform · UnlikeOtherAI')
     assert.equal(await page.locator('#documents-enabled').isChecked(), true)
     await destinationIs(page, `Platform · UnlikeOtherAI’s documents go in ${shown(host, 'UnlikeOtherAI', 'Platform')}`)
 
@@ -150,7 +153,7 @@ export const captureDocumentsTeamsBefore = async (browser, root, revision, outpu
     })
     await page.goto('http://localhost:5875/')
     await showTab(page, 'documents')
-    await page.locator('#tab-documents h2').waitFor()
+    await page.locator('#documents-switch-label').waitFor()
     await page.waitForTimeout(600)
     const name = `${host}-documents-teams-${locale}-${dark ? 'dark' : 'light'}`
     await page.screenshot({ path: join(output, `${name}-platform-on.png`) })

@@ -1,7 +1,7 @@
 import Foundation
 
-/// The shared runtime's JSON pairing boundary. Names are read live from Nessie,
-/// retained only for display, and never written to another identity store.
+/// The shared runtime's JSON pairing boundary. A connected team's names are its
+/// saved display-only label (`docs/team-names.md`), never another identity store.
 public struct ExecutorPairing: Decodable, Equatable, Sendable {
     public enum Status: String, Decodable, Sendable {
         case waiting, paired, alreadyPaired, expired, cancelled, idle

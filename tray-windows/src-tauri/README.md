@@ -20,8 +20,8 @@ original identifiers so upgrades and installed scripts keep working.
   ──────────
   Pause | Resume                    several teams: All teams, then one line per team (✓ paused)
   ──────────
-  Open Nessie Computer…
-  Add this computer…                the window, straight onto a new pairing code
+  Open Nessie Computer…            the window, on the tab last used
+  Add another team…                 the window, straight onto a new pairing code
   Open Nessie                       the paired server's Computers page
   ──────────
   Quit Nessie Computer
@@ -29,16 +29,19 @@ original identifiers so upgrades and installed scripts keep working.
 
   Teams read `{teamName} · {organizationName}`, with ` ({serverHost})` when
   two teams on different servers would read the same. Names come from each
-  connection's pairing status and are kept in memory only; an unknown name
-  reads "Team name not available yet". Pause and Resume ask nothing. The
+  team's saved label ([team names](../../docs/team-names.md)), which every row
+  carries; this app asks Nessie for its own teams' names in one `team-names`
+  call at start and every hour, and the service does the same for its teams.
+  A team keeps its name while Nessie can't be reached; only a team that has
+  never had one reads "Team name not available yet". Pause and Resume ask nothing. The
   sentences, the Needs you rules and their translations are the macOS menu
   bar's, so both platforms say the same thing.
 - **Icon:** grey when nothing is working (nothing connected, or all paused),
   green when a team is working, amber only when the owner has something to
   do, red when the service cannot be reached.
 - **Program requests** arrive as a toast with **Allow once**, **Always allow
-  {program}** and **Don't allow**. Clicking the toast opens Overview on its
-  team. Saves never post toasts.
+  {program}** and **Don't allow**. Clicking the toast opens the window on its
+  team; the request waits in the Needs you strip. Saves never post toasts.
 - The menu, toasts and dialog titles are in en-GB, en-US, cs, de, es, fr and
   it, chosen from the Windows display language (`src/words*.rs`).
 - The installer adds a **Nessie Computer** Start menu shortcut. Its
@@ -73,7 +76,6 @@ service's ChatGPT plan connection to the same team pause together.
 | `executor_view` | — | `{ kind: 'reachable', executors: [Row] }` or `{ kind: 'unreachable', reason }` |
 | `executor_set_paused` | `{ executorId: string \| null, paused }` | the new view; a team id pauses every connection of that team |
 | `executor_apply_remedy` | `{ executorId, remedy: 'reProposePolicy' \| 'restartExecutor' \| 'openNessie' }` | the new view |
-| `executor_audience` | `{ executorId }` | the CLI's `audience --json` answer |
 | `executor_program_requests` | `{ executorId? }` | `[{ executorId, id, program, args, agentName?, requestedAt, expiresAt }]` |
 | `executor_answer_program_request` | `{ executorId, id, answer: 'once' \| 'always' \| 'deny' }` | every team's remaining requests |
 | `executor_sessions` | `{ executorId? }` | every team's (or one team's) `sessions --json` with `executorId` on each session ([sessions](../../docs/sessions-and-concurrency.md#local-shapes-the-apps-read)) |
@@ -88,7 +90,8 @@ service's ChatGPT plan connection to the same team pause together.
 
 `Row` is `{ executorId, daemonStatus, paused, failure?: { code?, message },
 pendingProgramRequests, workspaceConfigured, connection: 'user' | 'service',
-chatgptConnectionId? }`. `failure` is present while the connection is not
+chatgptConnectionId?, names?: { organizationName, teamName, apiBaseUrl } }`;
+`names` is the team's saved label, absent for a team that has never had one. `failure` is present while the connection is not
 running and is the last line the daemon or `connect` wrote; `code` names the
 API's error code when the line is one of its fixed refusals
 (`windows-common/src/failure.rs`). Removed: `executor_start`, `executor_stop`,
@@ -103,8 +106,9 @@ Windows account that connected it (the service's `programRequests`,
 team out. Sessions are read through the CLI only when the daemon rewrote its
 `sessions.json`, or every 30 seconds while it names work.
 
-Section events are `tray://section/<overview|access|documents|ai|settings>`
-with an optional `{ executorId }`, and `tray://connect`.
+Section events are `tray://section/<access|documents|ai|settings>` and
+`tray://open` (the window as it was) with an optional `{ executorId }`, and
+`tray://connect`.
 
 ## ChatGPT plans on Windows
 

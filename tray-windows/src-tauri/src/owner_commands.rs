@@ -22,7 +22,6 @@ use crate::{
     overview::group,
     pipe_client::{call, ServiceResponse},
     state::{ExecutorStatus, ServiceView},
-    team_names,
 };
 
 const UNREADABLE: &str = "Nessie Computer couldn’t understand its service’s reply. Try again.";
@@ -38,8 +37,7 @@ fn listed() -> Result<Vec<ExecutorStatus>, String> {
 /// the named connection belongs to.
 pub fn pause_targets(executors: &[ExecutorStatus], executor_id: Option<&str>) -> Result<Vec<String>, String> {
     let ids = |team: &[&ExecutorStatus]| team.iter().map(|executor| executor.executor_id.clone()).collect::<Vec<_>>();
-    let names = team_names::snapshot();
-    let teams = group(executors, &names);
+    let teams = group(executors);
     match executor_id {
         None => Ok(teams.iter().flat_map(|team| ids(team)).collect()),
         Some(executor_id) => teams.iter()
@@ -172,14 +170,6 @@ pub async fn executor_set_paused(executor_id: Option<String>, paused: bool) -> R
 #[tauri::command]
 pub async fn executor_apply_remedy(app: AppHandle, executor_id: String, remedy: String) -> Result<ServiceView, String> {
     blocking(move || apply_remedy(&app, &executor_id, Remedy::parse(&remedy)?)).await
-}
-
-#[tauri::command]
-pub async fn executor_audience(executor_id: String) -> Result<serde_json::Value, String> {
-    blocking(move || match call(&serde_json::json!({ "command": "audience", "executorId": executor_id }))? {
-        ServiceResponse::Audience(audience) => Ok(audience),
-        _ => Err(UNREADABLE.to_owned()),
-    }).await
 }
 
 #[tauri::command]

@@ -9,6 +9,10 @@
   let announced = null
   const active = new Set(['downloading', 'waiting', 'installing', 'restarting'])
   const listeners = new Set()
+  // What automatic updates do sits behind "?" beside the switch; its words follow the switch.
+  const automaticHelp = nc.help(text('automaticHint'), { describes: node('automatic') })
+  automaticHelp.id = 'update-hint'
+  node('automatic-label').after(automaticHelp)
 
   const render = () => {
     node('version').textContent = status?.installedVersion || text('unknown')
@@ -26,7 +30,7 @@
     node('install').hidden = !canUpdate
     node('install').disabled = busy
     node('install').textContent = text('install', status?.availableVersion)
-    node('hint').textContent = status?.automatic === false ? text('offHint') : text('automaticHint')
+    automaticHelp.set(status?.automatic === false ? text('offHint') : text('automaticHint'))
     const phase = status?.phase ?? 'checking'
     const known = ['idle', 'checking', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported', 'available']
     node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : stuck ? text('helperStuck')
@@ -80,7 +84,6 @@
   node('check').textContent = text('check')
   node('prompt-title').textContent = text('promptTitle')
   node('prompt-remind').textContent = text('remind')
-  node('prompt-hint').textContent = text('automaticHint')
   node('check').onclick = () => load({ operation: 'check' })
   node('setup').onclick = () => load({ operation: 'setup' })
   node('install').onclick = node('prompt-install').onclick = () => load({ operation: 'install' })

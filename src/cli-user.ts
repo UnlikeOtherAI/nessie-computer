@@ -5,10 +5,10 @@ import { CliUsageError, EXIT, processContext, reportFailure, type CliContext } f
 import { teamOps, type TeamOps } from './cli-team-ops.js'
 import { runsCliServices, teamRunner, type TeamRunner } from './cli-team-runner.js'
 import {
-  describeTeams, findLocalTeams, localNameLookup, selectTeam, type CliTeam, type LabelledTeam, type LocalTeam,
-  type NameLookup, type NameView,
+  describeTeams, findLocalTeams, refreshStaleTeamNames, selectTeam, type CliTeam, type LabelledTeam,
 } from './cli-teams.js'
-import { findServiceTeams, serviceNameLookup } from './cli-teams-service.js'
+import { findServiceTeams } from './cli-teams-service.js'
+import type { TeamNamesApi } from './team-names.js'
 import { unpairExecutor, type UnpairResult } from './unpair.js'
 import { executorSoftwareVersion } from './updates/version.js'
 import { windowsServiceRelay, type ServiceCall } from './windows-service-control.js'
@@ -43,7 +43,7 @@ export type CliRun = {
 
 type Handler = (run: CliRun) => Promise<void>
 
-const USER_COMMANDS = new Set(['help', 'status', 'teams', 'who', 'add', 'connect', 'disconnect', 'pause', 'resume',
+const USER_COMMANDS = new Set(['help', 'status', 'teams', 'add', 'connect', 'disconnect', 'pause', 'resume',
   'access', 'requests', 'sessions', 'documents', 'ai', 'settings'])
 
 /** A team's state folder on the command line marks a plumbing verb, which the apps call. */
@@ -74,7 +74,7 @@ const commandOf = (words: readonly string[]): string => {
 
 const handlers = async (command: string): Promise<Handler | undefined> => {
   const group = command.split(' ')[0]
-  if (['status', 'teams', 'who', 'pause', 'resume'].includes(command)) return (await import('./cli-overview.js')).OVERVIEW[command]
+  if (['status', 'teams', 'pause', 'resume'].includes(command)) return (await import('./cli-overview.js')).OVERVIEW[command]
   if (command === 'add' || command === 'disconnect') return (await import('./cli-connect.js')).CONNECTING[command]
   if (command === 'access programs') return (await import('./cli-access-programs.js')).runAccessPrograms
   if (command === 'access local-apps') return (await import('./cli-access-local-apps.js')).runAccessLocalApps
@@ -91,25 +91,25 @@ const handlers = async (command: string): Promise<Handler | undefined> => {
 
 export type UserCliOptions = {
   context?: CliContext
-  /** Nessie's names for a team in a state folder; its pairing status outside tests. */
-  nameLookup?: (team: LocalTeam) => Promise<NameView>
+  /** Where stale team names are read from; Nessie's batched route outside tests (`team-names.ts`). */
+  namesApi?: TeamNamesApi
   unpair?: (stateDir: string) => Promise<UnpairResult>
   /** The Windows service's control channel; the installed relay outside tests. */
   service?: ServiceCall
 }
 
 /** The run's view of this computer's teams, found once and shared by every step of one command. */
-const teamFinder = (context: CliContext, service: ServiceCall, nameLookup: UserCliOptions['nameLookup']) => {
+const teamFinder = (context: CliContext, service: ServiceCall, namesApi: TeamNamesApi | undefined) => {
   let runner: Promise<TeamRunner> | undefined
   let found: Promise<{ teams: LabelledTeam[]; note?: string }> | undefined
-  const lookup: NameLookup = (team) => (team.route === 'local'
-    ? (nameLookup ?? localNameLookup)(team) : serviceNameLookup(service)(team))
   const runnerOf = () => { runner ??= teamRunner(context); return runner }
   const find = () => {
     found ??= (async () => {
       const local = await findLocalTeams(context, runsCliServices(await runnerOf()))
+      // The labels this account's teams are shown by, asked again once an hour old (`team-label.ts`).
+      await refreshStaleTeamNames(local, namesApi, context.now)
       const services = context.platform === 'win32' ? await findServiceTeams(service) : { teams: [] }
-      return { teams: await describeTeams([...local, ...services.teams], lookup),
+      return { teams: await describeTeams([...local, ...services.teams]),
         ...('note' in services && services.note ? { note: services.note } : {}) }
     })()
     return found
@@ -150,7 +150,7 @@ export const runUserCli = async (args: readonly string[], dependencies: UserCliO
     }
     const service = dependencies.service ?? windowsServiceRelay(context.run, context.platform)
     const unpair = dependencies.unpair ?? unpairExecutor
-    const finder = teamFinder(context, service, dependencies.nameLookup)
+    const finder = teamFinder(context, service, dependencies.namesApi)
     const teams = async () => (await finder.find()).teams.filter((team) => !team.planConnectionOf)
     await handler({
       context, options, command, teams, service, unpair,

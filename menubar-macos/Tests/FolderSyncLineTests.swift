@@ -109,16 +109,16 @@ final class ConsoleTargetTests: XCTestCase {
                 + "{ detail: {\"executorId\":\"32b7de69-e303-46d6-b864-8a99a80d25e6\"} }))"
         )
         XCTAssertEqual(
-            ConsoleTarget(section: .overview).script,
-            "window.dispatchEvent(new CustomEvent('tray://section/overview', { detail: null }))"
+            ConsoleTarget().script,
+            "window.dispatchEvent(new CustomEvent('tray://open', { detail: null }))"
         )
         let hostile = ConsoleTarget(section: .access, executorId: "'}))</script>\"").script
         XCTAssertFalse(hostile.contains("'}))</script>\""), "the id is escaped inside the JSON payload")
     }
 
-    /// The five tabs of the contract, in its order, and the Add this computer event.
+    /// The four tabs of the contract, in its order, and the Add another team event.
     func testTheSectionsAreTheWindowsTabs() {
-        XCTAssertEqual(ConsoleSection.allCases.map(\.rawValue), ["overview", "access", "documents", "ai", "settings"])
+        XCTAssertEqual(ConsoleSection.allCases.map(\.rawValue), ["access", "documents", "ai", "settings"])
         XCTAssertEqual(
             ConsoleTarget.connectScript, "window.dispatchEvent(new CustomEvent('tray://connect', { detail: null }))"
         )

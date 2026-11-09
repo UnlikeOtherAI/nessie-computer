@@ -481,3 +481,28 @@ Nessie's setting, not the computer's.
   local-model binding and sharing rules; inference routes to the computer;
   funded by the owner's subscription, never Ledger credits; plain errors when
   the computer is offline, paused, or the CLI signs out.
+
+## 13. Team names, layout and less text (rulings, 8 Nov — supersede earlier sections)
+
+**Team names never depend on a person.** A team ID → name is not a secret.
+- **UOA:** public, unauthenticated batch lookup by team ID, display fields
+  only (tranche U1; route recorded here when final).
+- **Nessie:** `POST /api/executor-daemon/teams`, entries each signed with that
+  team's key → per executor `{ executorId, organizationName, teamName }`.
+  Nessie calls UOA's public lookup in one call; stores nothing; unbound
+  installs answer local names. The person-gated path is removed.
+- **Computer:** one batched call when the app starts and hourly; display-only
+  label in each team's folder; every surface reads it; never blank a known name.
+
+**Layout:** no Overview. One team dropdown above the tabs controls Access ·
+Documents · AI · Settings; its last item **＋ Add another team** shows a code
+at once (no team yet → the window opens on the code). A slim **Needs you**
+strip under the dropdown only when something waits. Settings: the team (Pause/
+Resume, Disconnect…), then the computer (open at login, restart, updates,
+logs). Menus: "Add another team…". Web keeps **Add a computer**.
+
+**Dropped (over-engineering):** "Who can send work here" (audience endpoint,
+`who`, bridge, UI) and "Now working" in the app (CLI `sessions` stays).
+
+**Less text:** controls, short labels and status only; explanations go behind
+a **?** tooltip; only one-line consequences that change a decision stay visible.

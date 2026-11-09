@@ -4,6 +4,9 @@ import assert from 'node:assert/strict'
 import { syncCases, syncIds, syncState } from './sync-fixtures.mjs'
 import { LOCALES, assertFits, callArgs, callCount, lastCall, openConsole, screenshot, selectTeam, showTab } from './renderer-page.mjs'
 
+/** The tab shows the chosen team's switch; the tab and the dropdown name the team, so there is no heading. */
+const documentsFor = (page, team) => page.waitForFunction((expected) => document.getElementById('documents-switch-label')?.textContent === expected,
+  `Keep a copy of ${team}’s documents on this computer`)
 const statusIs = (page, text) => page.waitForFunction((expected) => document.getElementById('documents-state-text').textContent === expected, text)
 const expected = (page, key, count) => page.evaluate(([name, n]) => (name === 'syncing'
   ? window.documentsWords.count('syncing', n) : window.nc.t(`documents.state.${name}`)), [key, count])
@@ -52,7 +55,7 @@ export const verifyDocumentsTab = async (browser, ui, output) => {
     const fixture = syncCases(host)[0].state
     const { context, page, errors } = await open(browser, ui, { host, sync: fixture })
     const shot = (name) => screenshot(page, output, `${host}-documents-${name}`)
-    await page.getByRole('heading', { name: 'Documents for Platform · UnlikeOtherAI' }).waitFor()
+    await documentsFor(page, 'Platform · UnlikeOtherAI')
     assert.equal(await page.locator('#team-row').isVisible(), true, 'the team row shows on Documents')
     assert.equal(await page.locator('#documents-switch-label').textContent(), 'Keep a copy of Platform · UnlikeOtherAI’s documents on this computer')
     await statusIs(page, 'Off')
@@ -131,7 +134,7 @@ export const verifyDocumentsTab = async (browser, ui, output) => {
     await page.locator('#documents-reload').click()
     await page.locator('#documents-load-error').waitFor({ state: 'hidden' })
     await selectTeam(page, 'team-1')
-    await page.getByRole('heading', { name: 'Documents for Research · UnlikeOtherAI' }).waitFor()
+    await documentsFor(page, 'Research · UnlikeOtherAI')
     await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_sync_status' && call.args.executorId === 'team-1'))
     assert.equal(await callCount(page, 'executor_apply_remedy'), 0, 'Documents never applies a team remedy')
     await assertFits(page, `${host} documents`)

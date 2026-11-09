@@ -2,11 +2,13 @@ import { lstat, readdir, readFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 import { CliRefusal, CliUsageError, listed, type CliContext } from './cli-output.js'
+import { createExecutorApi } from './api-client.js'
 import { readOwnerPause } from './owner-pause.js'
-import { pairingCodeStatus, type PairingCodeView } from './pairing-code.js'
 import { listProgramRequests } from './program-requests.js'
 import { executorServiceStateRoot } from './service-environment.js'
 import { loadExecutorState, type ExecutorLocalState } from './state-store.js'
+import { readTeamLabel, teamLabelStale } from './team-label.js'
+import { refreshTeamNames, type TeamNamesApi } from './team-names.js'
 import type { ServiceTeamStatus } from './windows-service-control.js'
 
 /**
@@ -161,32 +163,41 @@ export const daemonRunning = async (stateDir: string): Promise<boolean> => {
   }
 }
 
-export type NameView = Pick<PairingCodeView, 'teamName' | 'organizationName' | 'apiBaseUrl'>
-/** A team's names as the labels use them, and the server Nessie named. */
+/** A team's names as the labels use them, and the server they came from. */
 export type ReadNames = TeamNames & { apiBaseUrl?: string }
-/** What Nessie calls a team; the pairing status of its connection, as the apps read it. */
-export type NameLookup = (team: CliTeam) => Promise<NameView>
 
+/** How long the command line waits for Nessie's names before it shows the saved ones. */
 const NAME_TIMEOUT_MS = 4_000
 
-export const localNameLookup = (team: LocalTeam): Promise<NameView> => pairingCodeStatus(team.stateDir)
-
-/** The team and organisation names, read from Nessie as the apps read them; null when Nessie can't say. */
-export const readTeamNames = async (team: CliTeam, lookup: NameLookup): Promise<ReadNames | null> => {
-  let timer: NodeJS.Timeout | undefined
-  try {
-    const view = await Promise.race([lookup(team), new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(new Error('timed out')), NAME_TIMEOUT_MS)
-      timer.unref()
-    })])
-    if (!view.teamName && !view.organizationName) return null
-    return { teamName: view.teamName ?? null, organizationName: view.organizationName ?? null,
-      ...(view.apiBaseUrl ? { apiBaseUrl: view.apiBaseUrl } : {}) }
-  } catch {
-    return null
-  } finally {
-    if (timer) clearTimeout(timer)
+/**
+ * Asks Nessie again for the names of the teams in this account's folders whose
+ * label is missing or an hour old, in one batch per server (`team-names.ts`).
+ * A slow or unreachable Nessie leaves the saved labels as they are.
+ */
+export const refreshStaleTeamNames = async (
+  teams: readonly LocalTeam[], api: TeamNamesApi = createExecutorApi({ requestTimeoutMs: NAME_TIMEOUT_MS }),
+  now: () => Date = () => new Date(),
+): Promise<void> => {
+  const stale: LocalTeam[] = []
+  for (const team of teams) {
+    if (teamLabelStale(await readTeamLabel(team.stateDir), team.state.apiBaseUrl, now())) stale.push(team)
   }
+  if (stale.length) await refreshTeamNames(stale, { api, now }).catch(() => undefined)
+}
+
+/**
+ * The names a team is shown by: its saved label (`team-label.ts`), or what
+ * the Windows service read from the label in the folder it holds. Null for a
+ * team that has never had a name. Nothing here asks anyone.
+ */
+export const readTeamNames = async (team: CliTeam): Promise<ReadNames | null> => {
+  if (team.route === 'service') {
+    const names = team.service.names
+    return names ? { teamName: names.teamName, organizationName: names.organizationName,
+      apiBaseUrl: names.apiBaseUrl } : null
+  }
+  const label = await readTeamLabel(team.stateDir)
+  return label ? { teamName: label.teamName, organizationName: label.organizationName } : null
 }
 
 export const hostOf = (apiBaseUrl: string): string => {
@@ -240,8 +251,8 @@ const sameTeam = (
     && left.organizationName === right.organizationName && left.teamName === right.teamName))
 
 /** Every team with its label and status; a Windows plan connection is linked to its team. */
-export const describeTeams = async (teams: readonly CliTeam[], lookup: NameLookup): Promise<LabelledTeam[]> => {
-  const names = await Promise.all(teams.map((team) => readTeamNames(team, lookup)))
+export const describeTeams = async (teams: readonly CliTeam[]): Promise<LabelledTeam[]> => {
+  const names = await Promise.all(teams.map(readTeamNames))
   const servers = teams.map((team, index) => (team.route === 'local' ? team.state.apiBaseUrl : names[index]?.apiBaseUrl ?? ''))
   const planOwner = teams.map((team, index) => (team.route !== 'service' ? undefined
     : teams.find((other, at) => other.route === 'local'
