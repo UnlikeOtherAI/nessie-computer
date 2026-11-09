@@ -16,6 +16,7 @@ name = "nessie-executor-service"
 path = "src/main.rs"
 
 [dependencies]
+sentry = "=0.49.5"
 nessie-windows-common = { path = "../windows-common" }
 nessie-windows-provenance = { path = "../windows-provenance" }
 serde = { version = "1.0.228", features = ["derive"] }

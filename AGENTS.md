@@ -78,3 +78,5 @@ Team names come from a display-only label in each team's folder, refreshed in on
 
 Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 [sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.
+
+Standard crash/error SDKs, release configuration and verification limits follow [error reporting](docs/error-reporting.md).

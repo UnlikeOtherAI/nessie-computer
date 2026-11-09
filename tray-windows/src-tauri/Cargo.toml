@@ -14,6 +14,7 @@ path = "src/main.rs"
 tauri-build = { version = "2.6.2", features = [] }
 
 [dependencies]
+sentry = "=0.49.5"
 # The service name, its virtual account, and the SID rendering the service
 # reads back — one statement, shared with nessie-executor-service.
 nessie-windows-common = { path = "../../windows-common" }
