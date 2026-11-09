@@ -17,7 +17,7 @@ export interface SessionCommandLineageRegistry {
   /** Finds the recorded predecessor; returning an owner supplies no claim permission. */
   recognizeProviderTurnStart(effect: SessionProviderTurnStartEffect):
     Effect.Effect<SessionLaunchCommandLineage, CommandLineage.SessionCommandLineageError>
-  close(): void
+  close(): Promise<void>
 }
 
 /** The original launch layer is memoized across commands in the same source
@@ -28,6 +28,20 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
   const entries = new Map<string, SessionLaunchCommandLineage | undefined>()
   const releaseCommands = new Map<CommandId, { readonly parentCommandId: string; readonly accepted: boolean }>()
   const hosts = new Map<SessionLaunchCommandLineage, SessionPreclaimHost>()
+  const closingHosts = new Set<Promise<void>>()
+  let cleanupFailure: { readonly cause: unknown } | undefined
+  const retireHost = (owner: SessionLaunchCommandLineage) => {
+    const host = hosts.get(owner)
+    if (!host) return
+    hosts.delete(owner)
+    // close aborts synchronously; keep its actual join until the registry's
+    // owning Scope finalizes, including an owner retired before source loss.
+    const closing = host.close()
+    closingHosts.add(closing)
+    void closing.then(() => closingHosts.delete(closing), error => {
+      cleanupFailure ??= { cause: error }; closingHosts.delete(closing)
+    })
+  }
   let changed = Deferred.makeUnsafe<void>(), version = 0, observedVersion = 0
   const wake = () => {
     version++
@@ -37,17 +51,18 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
   }
   let live = true
   const refused = () => new CommandLineage.SessionCommandLineageError()
-  const close = () => {
+  const stop = () => {
+    if (!live) return
     live = false
     for (const owner of entries.values()) owner?.close()
     entries.clear()
     releaseCommands.clear()
     hosts.clear()
     wake()
-    signal.removeEventListener('abort', close)
+    signal.removeEventListener('abort', stop)
   }
-  signal.addEventListener('abort', close, { once: true })
-  if (signal.aborted) close()
+  signal.addEventListener('abort', stop, { once: true })
+  if (signal.aborted) stop()
   return Object.freeze<SessionCommandLineageRegistry>({
     effectClaims: EffectClaims.SessionEffectClaimAuthority.of({
       commands: Effect.gen(function* () {
@@ -127,8 +142,9 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
       const registered = Object.freeze<SessionLaunchCommandLineage>({ ...owner, close: () => {
         owner.close()
         parent.removeEventListener('abort', parentAbort)
+        retireHost(registered)
         if (live && entries.get(commandId) === registered) {
-          entries.set(commandId, undefined); hosts.delete(registered); wake()
+          entries.set(commandId, undefined); wake()
         }
       } })
       const parentAbort = () => registered.close()
@@ -144,6 +160,10 @@ export function makeSessionCommandLineageRegistry(signal: AbortSignal): SessionC
       hosts.set(owner, host)
       wake()
     },
-    close,
+    close: async () => {
+      stop()
+      while (closingHosts.size) await Promise.allSettled([...closingHosts])
+      if (cleanupFailure !== undefined) throw cleanupFailure.cause
+    },
   })
 }

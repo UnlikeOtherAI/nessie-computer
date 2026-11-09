@@ -53,7 +53,7 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
     const current = Effect.tryPromise({ try: () => state.recheck(), catch: () => new SessionExecutionGraphRefused() })
     yield* current
     const commandLineage = makeSessionCommandLineageRegistry(AbortSignal.any([source.signal, state.signal]))
-    yield* Effect.addFinalizer(() => Effect.sync(commandLineage.close))
+    yield* Effect.addFinalizer(() => Effect.promise(commandLineage.close))
     const host = yield* Layer.build(Layer.mergeAll(state.stage.sql,
       sessionExecutionSettingsLayer(source), Layer.succeed(SessionStateOwner, state.owner),
       Layer.succeed(CommandLineage.SessionCommandLineage, commandLineage.service),

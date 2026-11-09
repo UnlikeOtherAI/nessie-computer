@@ -21,7 +21,7 @@ test('one source service routes interleaved original commands to distinct reserv
   await Effect.runPromise(second.assertInitialMessage('other-thread'))
   await refused(registry.service.recordInitialMessage(edge('first')))
   assert.deepEqual(checks, ['second', 'second', 'first', 'first', 'first', 'first', 'second', 'second'])
-  registry.close()
+  await registry.close()
 })
 
 test('unknown commands cannot populate a recorder and retired original parents cannot register again', async () => {
@@ -33,7 +33,7 @@ test('unknown commands cannot populate a recorder and retired original parents c
   first.close()
   assert.throws(() => registry.register(binding, async () => {}, new AbortController().signal),
     /T3_SESSION_COMMAND_LINEAGE_REFUSED/u)
-  registry.close()
+  await registry.close()
 })
 
 test('reservation abort retires only its recorder while source abort revokes every escaped owner', async () => {
@@ -77,7 +77,7 @@ test('release recognition waits for original dispatch success without closing a 
   assert.equal(await Effect.runPromise(registry.recognizeProviderTurnStart(effect)), owner)
   owner.close()
   await refused(registry.recognizeProviderTurnStart(effect))
-  registry.close()
+  await registry.close()
 })
 
 test('the same actual release command cannot be retargeted to a different accepted parent or run', async () => {
@@ -92,5 +92,5 @@ test('the same actual release command cannot be retargeted to a different accept
   await Effect.runPromise(registry.service.recordPreparedRunReleased(release))
   assert.equal(await Effect.runPromise(registry.recognizeProviderTurnStart({ commandId: release.commandId,
     threadId: 'thread', request: { type: 'provider-turn.start', runId: release.runId } })), first)
-  registry.close()
+  await registry.close()
 })

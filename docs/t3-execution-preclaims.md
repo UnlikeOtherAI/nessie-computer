@@ -45,6 +45,9 @@ Only the original callback's actual conditional SQL result may reach the worker.
 Closing the owner interrupts and joins lineage, HTTP/native work and the SQL
 Effect before releasing resources. Reading command scopes cannot consume an
 availability wake. Older unsettled effects still block their thread.
+Retiring an individual command recorder synchronously aborts its claim host;
+registry Scope closure joins that host even if the recorder retired earlier.
+The first cleanup rejection remains visible on repeated registry closure.
 
 Preclaim permission grants no provider process, frame, workspace mutation,
 secret hydration, startup/import recovery or post-association effect. Expired or
@@ -75,3 +78,7 @@ transition and refused replay. Its synthetic databases/evidence remain under
 `D:\BuildArtifacts\nessie\t3-7a4698a9-verification\manual-probes`; no native
 admission was supplied. The actual unsigned `t3-execution-resource` entry refused
 with exit 1. No signed installation, provider or positive installed preclaim ran.
+
+The recorder-retirement follow-up passed the CLI build/typecheck, focused lint
+and all 126 runtime cases with zero skips. Its new case holds interrupted cleanup
+open and verifies that registry closure waits for that exact retired host.

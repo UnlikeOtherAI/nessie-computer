@@ -48,5 +48,30 @@ test('registry rejects a raw claim host and command reads cannot consume a retir
   assert.deepEqual(await Effect.runPromise(registry.effectClaims.commands), [])
   // Deadline makes a lost wake fail rather than hanging the test process.
   await Effect.runPromise(registry.effectClaims.awaitChanged.pipe(Effect.timeout('1 second')))
-  registry.close()
+  await registry.close()
+})
+
+test('recorder retirement aborts its host and source finalization joins that retired host cleanup', async () => {
+  const entered = Deferred.makeUnsafe(), cleaning = Promise.withResolvers(), finish = Promise.withResolvers()
+  const registry = makeSessionCommandLineageRegistry(new AbortController().signal)
+  const owner = registry.register({ commandId: 'parent', threadId: 'thread' }, async () => {},
+    new AbortController().signal)
+  const host = makeSessionPreclaimHost(fabricatedSource, graph, binding, descriptor, {},
+    { assertProviderTurnStart: () => Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never),
+      Effect.ensuring(Effect.promise(async () => { cleaning.resolve(); await finish.promise }))) },
+    new AbortController().signal)
+  registry.bindPreclaims(owner, host)
+  const work = Effect.runPromise(Effect.result(host.withClaim({ effect: { id: 'synthetic' } },
+    () => Effect.die('must not write'))))
+  await Effect.runPromise(Deferred.await(entered))
+  owner.close()
+  await cleaning.promise
+  let drained = false
+  const closing = registry.close().then(() => { drained = true })
+  await Promise.resolve()
+  assert.equal(drained, false)
+  finish.resolve()
+  await closing
+  assert.equal((await work)._tag, 'Failure')
+  assert.equal(drained, true)
 })
