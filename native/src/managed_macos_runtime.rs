@@ -220,6 +220,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
         // dictator a helper another app started and ended many times a second
         // did that to the team's daemon seconds after every start.
         let snapshot = macos_processes::all();
+        settling.looked(snapshot.is_ok());
         if let Ok(processes) = &snapshot { observe(processes, pid, &mut observed); }
         if exited.is_none() {
             let mut status = 0;
@@ -237,6 +238,11 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                     // Group absence alone is not escaped-host tree proof. Its
                     // unresolved admission lease keeps this journal permanently.
                     if unresolved_host(&directory.parent().ok_or_else(refused)?, &record)? { return Err(refused()); }
+                    // A look it could not take lost the tree's ancestry for
+                    // that moment, so the journal stays: the one-shot rule
+                    // (`ended_one_shot`) clears it once the group is gone, and
+                    // a daemon's is kept until restart.
+                    if !settling.followed() { return Ok(exit); }
                     drop_journal(&directory, &journal, &socket_name).map(|()| true)
                 }
                 Err(error) => Err(NativeError::new(error.code)),
@@ -290,8 +296,13 @@ fn drop_journal(directory: &Path, journal: &Path, socket_name: &str) -> Result<(
 const SETTLE_LIMIT: Duration = Duration::from_secs(60);
 
 #[derive(Default)]
-struct Settling { failing_since: Option<std::time::Instant> }
+struct Settling { failing_since: Option<std::time::Instant>, unfollowed: bool }
 impl Settling {
+    /// Records one snapshot. A descendant that left the child's group while
+    /// a snapshot failed is never observed, and no later one recovers it.
+    fn looked(&mut self, verified: bool) { self.unfollowed |= !verified; }
+    /// Whether every snapshot so far was verified, so tree closure holds.
+    fn followed(&self) -> bool { !self.unfollowed }
     fn progressed(&mut self) { self.failing_since = None; }
     fn exhausted(&mut self, now: std::time::Instant) -> bool {
         now.duration_since(*self.failing_since.get_or_insert(now)) >= SETTLE_LIMIT
@@ -421,6 +432,18 @@ mod tests {
         settling.progressed();
         assert!(!settling.exhausted(start + SETTLE_LIMIT));
         assert!(settling.exhausted(start + SETTLE_LIMIT * 2));
+    }
+
+    /// One failed snapshot keeps the journal for good; later ones that
+    /// succeed cannot recover the ancestry it missed.
+    #[test]
+    fn a_failed_snapshot_keeps_the_journal() {
+        let mut settling = Settling::default();
+        settling.looked(true);
+        assert!(settling.followed());
+        settling.looked(false);
+        settling.looked(true);
+        assert!(!settling.followed());
     }
     #[test]
     fn unsigned_process_never_creates_a_managed_child() {

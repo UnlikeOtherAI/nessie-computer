@@ -152,10 +152,15 @@ with `EXECUTOR_MACOS_PROCESS_UNVERIFIED`, and one-shot commands with
 A runtime's supervisor no longer ends on a snapshot it cannot verify. It goes
 on supervising and takes the next snapshot 25 ms later. Ending left the runtime
 unsupervised and its journal held, and the app then started a second daemon
-beside the first, which Nessie refused as a concurrent command poll. Once the
-runtime has exited, a minute of failing to verify its tree or to take the
-barrier ends supervision with the journal kept. A tree that is still running is
-waited for as long as it runs.
+beside the first, which Nessie refused as a concurrent command poll. A
+descendant that left the child's group while a snapshot failed was never
+followed, and no later snapshot recovers that ancestry. So a supervisor that
+missed any snapshot keeps its journal when the tree it can see has ended, and
+still returns the command's exit code. The one-shot rule (`ended_one_shot`)
+clears such a journal once its group is gone; a daemon's stays until restart.
+Once the runtime has exited, a minute of failing to verify its tree or to take
+the barrier ends supervision with the journal kept. A tree that is still
+running is waited for as long as it runs.
 
 Creations wait up to 10 seconds for the machine barrier and the per-account
 admission lock, polling every 10 ms, instead of refusing with
