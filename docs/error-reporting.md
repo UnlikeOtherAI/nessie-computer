@@ -1,6 +1,6 @@
 # Error reporting
 
-Nessie Computer uses the standard Sentry Node Core SDK for CLI and daemon errors,
+Nessie Computer uses the standard Sentry Node SDK for CLI and daemon errors,
 the Sentry Rust SDK for Windows tray/service panics, and Sentry Apple for the
 macOS menu bar app. The CLI has no product analytics.
 

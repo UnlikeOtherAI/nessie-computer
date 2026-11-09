@@ -50,8 +50,7 @@
     "zod": "^3.25.76",
     "@nessie/executor-protocol": "workspace:*",
     "@nessie/executor-support": "workspace:*",
-    "@sentry/node-core": "10.75.2",
-    "@opentelemetry/api": "1.9.0"
+    "@sentry/node": "11.11.0"
   },
   "devDependencies": {
     "@types/node": "^20.19.24",
