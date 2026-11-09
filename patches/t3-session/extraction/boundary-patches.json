@@ -2495,6 +2495,380 @@
       "afterSha256": "c78eabd27ed90b03fc178d24e829c7b58602622761376d366e6eb4dd0e8372f4"
     },
     {
+      "id": "claude-original-query-port",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-port.ts",
+      "create": [
+        {
+          "text": "import { type ForkSessionOptions, type ForkSessionResult, type McpServerStatus as ClaudeMcpServerStatus, query, type Options as ClaudeQueryOptions, type PermissionMode, type Query as ClaudeQuery, type SDKMessage, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport { type OrchestrationV2ProviderSession, type ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 19048,
+          "end": 21851,
+          "sha256": "0b44a653ac3b86a274d5406108abe14e94c5015632cf99b93cf49d3892c0420d"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 24348,
+          "end": 25770,
+          "sha256": "122a859004487015929620eaf58da4d61ed574b85a29bb9904a5f84cb85ec614"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 27266,
+          "end": 27800,
+          "sha256": "6ac581436395a34ae56d6cd187eee199dbc5510d90a12fc2e068774f9953ae0c"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 63525,
+          "end": 63600,
+          "sha256": "5ff0f1023a93585e9761501cb5c17a5bb32991394ccea69365d25112c285b03b"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 25770,
+          "end": 25854,
+          "sha256": "f8d55914e066e7fec9bcd6f3359c6290dcdfb1fda8d175c08515fb4d81f98e8e"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 26187,
+          "end": 26404,
+          "sha256": "cbbd666c966cc4713493b9c073ee7d3dd25a1a06d1d30e56c64fe2a885c8da8d"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 22139,
+          "end": 22470,
+          "sha256": "6e86f91b3a08b269879d360504f9c4df156df49842b1b6faf206c61e9176da3e"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "790caef0e8eb437b15f96956a4c7d931ea336fa070b5922d18b110b370c0027b"
+    },
+    {
+      "id": "claude-share-query-internals",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-port.ts",
+      "from": "import { type ForkSessionOptions, type ForkSessionResult, type McpServerStatus as ClaudeMcpServerStatus, query, type Options as ClaudeQueryOptions, type PermissionMode, type Query as ClaudeQuery, type SDKMessage, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport { type OrchestrationV2ProviderSession, type ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\ntype ClaudeAgentSdkThreadIdentity =\n  | {\n      readonly sessionId: string;\n      readonly resume?: never;\n    }\n  | {\n      readonly sessionId?: never;\n      readonly resume: string;\n    };\n\nexport type ClaudeAgentSdkQueryOptions = Omit<\n  ClaudeQueryOptions,\n  \"maxTurns\" | \"model\" | \"permissionMode\" | \"resume\" | \"sessionId\" | \"tools\"\n> & {\n  readonly model: string;\n  readonly tools: NonNullable<ClaudeQueryOptions[\"tools\"]>;\n  readonly permissionMode: NonNullable<ClaudeQueryOptions[\"permissionMode\"]>;\n} & ClaudeAgentSdkThreadIdentity;\n\nexport interface ClaudeAgentSdkQueryOpenInput {\n  readonly options: ClaudeAgentSdkQueryOptions;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkQuerySession {\n  readonly messages: Stream.Stream<SDKMessage, ClaudeAgentSdkQueryRunnerError>;\n  readonly offer: (\n    message: SDKUserMessage,\n    onQueued?: () => void,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setModel: (model: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly applyFlagSettings: (\n    settings: ClaudeFlagSettings,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setPermissionMode: (\n    mode: PermissionMode,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly stopTask: (taskId: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly backgroundTasks: (\n    toolUseId: string,\n  ) => Effect.Effect<boolean, ClaudeAgentSdkQueryRunnerError>;\n  readonly mcpServerStatus: Effect.Effect<\n    ReadonlyArray<ClaudeMcpServerStatus>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly readMcpResource: (input: {\n    readonly server: string;\n    readonly uri: string;\n  }) => Effect.Effect<\n    { readonly contents: ReadonlyArray<unknown> },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  /** Runs an MCP tool without a model turn and returns the server's raw `CallToolResult`. */\n  readonly callMcpTool: (input: {\n    readonly tool: string;\n    readonly arguments: Record<string, unknown>;\n  }) => Effect.Effect<unknown, ClaudeAgentSdkQueryRunnerError>;\n  readonly listPermissionRules: Effect.Effect<\n    ReadonlyArray<ClaudePermissionRule>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly interrupt: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly close: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\ntype ClaudeQueryStreamExit = Exit.Exit<void, ClaudeAgentSdkQueryRunnerError>;\n\nexport class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedError<ClaudeAgentSdkQueryRunnerError>()(\n  \"ClaudeAgentSdkQueryRunnerError\",\n  {\n    method: Schema.String,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return \"Claude Agent SDK query failed.\";\n  }\n}\n\nexport interface ClaudeAgentSdkQueryRunnerShape {\n  readonly allocateSessionId: Effect.Effect<string, ClaudeAgentSdkQueryRunnerError>;\n  readonly open: (\n    input: ClaudeAgentSdkQueryOpenInput,\n  ) => Effect.Effect<ClaudeAgentSdkQuerySession, ClaudeAgentSdkQueryRunnerError>;\n  readonly forkSession: (\n    input: ClaudeAgentSdkSessionForkInput,\n  ) => Effect.Effect<\n    ForkSessionResult & { readonly headMessageId?: string },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly subagentLaunchToolUseId: (\n    input: ClaudeAgentSdkSubagentLookupInput,\n  ) => Effect.Effect<string | null, ClaudeAgentSdkQueryRunnerError>;\n  readonly assertComplete: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\nexport class ClaudeAgentSdkQueryRunner extends Context.Service<\n  ClaudeAgentSdkQueryRunner,\n  ClaudeAgentSdkQueryRunnerShape\n>()(\"t3/orchestration-v2/Adapters/ClaudeAdapterV2/ClaudeAgentSdkQueryRunner\") {}\n\nexport interface ClaudeAgentSdkSessionForkInput {\n  readonly sessionId: string;\n  readonly options: ForkSessionOptions;\n  readonly environment: NodeJS.ProcessEnv;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkSubagentLookupInput {\n  readonly sessionId: string;\n  readonly agentId: string;\n  readonly dir: string | null;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nconst ClaudePermissionRules = Schema.Struct({\n  state: Schema.Struct({\n    rules: Schema.Array(\n      Schema.Struct({\n        behavior: Schema.Literals([\"allow\", \"deny\", \"ask\"]),\n        rule: Schema.String,\n        notInEffect: Schema.optional(Schema.Boolean),\n      }),\n    ),\n    errors: Schema.optional(Schema.Array(Schema.Unknown)),\n  }),\n});\nexport type ClaudePermissionRule = (typeof ClaudePermissionRules.Type)[\"state\"][\"rules\"][number];\nconst decodeClaudePermissionRules = Schema.decodeUnknownEffect(ClaudePermissionRules);\n\ntype ClaudeFlagSettings = Parameters<ClaudeQuery[\"applyFlagSettings\"]>[0];\nconst isClaudeAgentSdkQueryRunnerError = Schema.is(ClaudeAgentSdkQueryRunnerError);\nfunction queryRunnerError(cause: unknown, method: string): ClaudeAgentSdkQueryRunnerError {\n  return isClaudeAgentSdkQueryRunnerError(cause)\n    ? cause\n    : new ClaudeAgentSdkQueryRunnerError({ cause, method });\n}\n\nclass ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegistrationTimeoutError>()(\n  \"ClaudeMcpRegistrationTimeoutError\",\n  {},\n) {\n  override get message(): string {\n    return \"Claude timed out while registering its MCP tools. Retry the turn; if it keeps failing, check Claude and the server logs.\";\n  }\n}\n\n",
+      "to": "import { type ForkSessionOptions, type ForkSessionResult, type McpServerStatus as ClaudeMcpServerStatus, query, type Options as ClaudeQueryOptions, type PermissionMode, type Query as ClaudeQuery, type SDKMessage, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport { type OrchestrationV2ProviderSession, type ThreadId } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Exit from \"effect/Exit\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\nexport type ClaudeAgentSdkThreadIdentity =\n  | {\n      readonly sessionId: string;\n      readonly resume?: never;\n    }\n  | {\n      readonly sessionId?: never;\n      readonly resume: string;\n    };\n\nexport type ClaudeAgentSdkQueryOptions = Omit<\n  ClaudeQueryOptions,\n  \"maxTurns\" | \"model\" | \"permissionMode\" | \"resume\" | \"sessionId\" | \"tools\"\n> & {\n  readonly model: string;\n  readonly tools: NonNullable<ClaudeQueryOptions[\"tools\"]>;\n  readonly permissionMode: NonNullable<ClaudeQueryOptions[\"permissionMode\"]>;\n} & ClaudeAgentSdkThreadIdentity;\n\nexport interface ClaudeAgentSdkQueryOpenInput {\n  readonly options: ClaudeAgentSdkQueryOptions;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkQuerySession {\n  readonly messages: Stream.Stream<SDKMessage, ClaudeAgentSdkQueryRunnerError>;\n  readonly offer: (\n    message: SDKUserMessage,\n    onQueued?: () => void,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setModel: (model: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly applyFlagSettings: (\n    settings: ClaudeFlagSettings,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setPermissionMode: (\n    mode: PermissionMode,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly stopTask: (taskId: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly backgroundTasks: (\n    toolUseId: string,\n  ) => Effect.Effect<boolean, ClaudeAgentSdkQueryRunnerError>;\n  readonly mcpServerStatus: Effect.Effect<\n    ReadonlyArray<ClaudeMcpServerStatus>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly readMcpResource: (input: {\n    readonly server: string;\n    readonly uri: string;\n  }) => Effect.Effect<\n    { readonly contents: ReadonlyArray<unknown> },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  /** Runs an MCP tool without a model turn and returns the server's raw `CallToolResult`. */\n  readonly callMcpTool: (input: {\n    readonly tool: string;\n    readonly arguments: Record<string, unknown>;\n  }) => Effect.Effect<unknown, ClaudeAgentSdkQueryRunnerError>;\n  readonly listPermissionRules: Effect.Effect<\n    ReadonlyArray<ClaudePermissionRule>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly interrupt: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly close: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\nexport type ClaudeQueryStreamExit = Exit.Exit<void, ClaudeAgentSdkQueryRunnerError>;\n\nexport class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedError<ClaudeAgentSdkQueryRunnerError>()(\n  \"ClaudeAgentSdkQueryRunnerError\",\n  {\n    method: Schema.String,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return \"Claude Agent SDK query failed.\";\n  }\n}\n\nexport interface ClaudeAgentSdkQueryRunnerShape {\n  readonly allocateSessionId: Effect.Effect<string, ClaudeAgentSdkQueryRunnerError>;\n  readonly open: (\n    input: ClaudeAgentSdkQueryOpenInput,\n  ) => Effect.Effect<ClaudeAgentSdkQuerySession, ClaudeAgentSdkQueryRunnerError>;\n  readonly forkSession: (\n    input: ClaudeAgentSdkSessionForkInput,\n  ) => Effect.Effect<\n    ForkSessionResult & { readonly headMessageId?: string },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly subagentLaunchToolUseId: (\n    input: ClaudeAgentSdkSubagentLookupInput,\n  ) => Effect.Effect<string | null, ClaudeAgentSdkQueryRunnerError>;\n  readonly assertComplete: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\nexport class ClaudeAgentSdkQueryRunner extends Context.Service<\n  ClaudeAgentSdkQueryRunner,\n  ClaudeAgentSdkQueryRunnerShape\n>()(\"t3/orchestration-v2/Adapters/ClaudeAdapterV2/ClaudeAgentSdkQueryRunner\") {}\n\nexport interface ClaudeAgentSdkSessionForkInput {\n  readonly sessionId: string;\n  readonly options: ForkSessionOptions;\n  readonly environment: NodeJS.ProcessEnv;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkSubagentLookupInput {\n  readonly sessionId: string;\n  readonly agentId: string;\n  readonly dir: string | null;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nconst ClaudePermissionRules = Schema.Struct({\n  state: Schema.Struct({\n    rules: Schema.Array(\n      Schema.Struct({\n        behavior: Schema.Literals([\"allow\", \"deny\", \"ask\"]),\n        rule: Schema.String,\n        notInEffect: Schema.optional(Schema.Boolean),\n      }),\n    ),\n    errors: Schema.optional(Schema.Array(Schema.Unknown)),\n  }),\n});\nexport type ClaudePermissionRule = (typeof ClaudePermissionRules.Type)[\"state\"][\"rules\"][number];\nexport const decodeClaudePermissionRules = Schema.decodeUnknownEffect(ClaudePermissionRules);\n\nexport type ClaudeFlagSettings = Parameters<ClaudeQuery[\"applyFlagSettings\"]>[0];\nexport const isClaudeAgentSdkQueryRunnerError = Schema.is(ClaudeAgentSdkQueryRunnerError);\nexport function queryRunnerError(cause: unknown, method: string): ClaudeAgentSdkQueryRunnerError {\n  return isClaudeAgentSdkQueryRunnerError(cause)\n    ? cause\n    : new ClaudeAgentSdkQueryRunnerError({ cause, method });\n}\n\nexport class ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegistrationTimeoutError>()(\n  \"ClaudeMcpRegistrationTimeoutError\",\n  {},\n) {\n  override get message(): string {\n    return \"Claude timed out while registering its MCP tools. Retry the turn; if it keeps failing, check Claude and the server logs.\";\n  }\n}\n\n",
+      "beforeSha256": "790caef0e8eb437b15f96956a4c7d931ea336fa070b5922d18b110b370c0027b",
+      "afterSha256": "7c91dc86e291a1ddf089058ea254229d41c610f614f67a40a027219fdd0b65b0"
+    },
+    {
+      "id": "claude-share-query-tag",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "type ClaudeAgentSdkThreadIdentity =\n  | {\n      readonly sessionId: string;\n      readonly resume?: never;\n    }\n  | {\n      readonly sessionId?: never;\n      readonly resume: string;\n    };\n\nexport type ClaudeAgentSdkQueryOptions = Omit<\n  ClaudeQueryOptions,\n  \"maxTurns\" | \"model\" | \"permissionMode\" | \"resume\" | \"sessionId\" | \"tools\"\n> & {\n  readonly model: string;\n  readonly tools: NonNullable<ClaudeQueryOptions[\"tools\"]>;\n  readonly permissionMode: NonNullable<ClaudeQueryOptions[\"permissionMode\"]>;\n} & ClaudeAgentSdkThreadIdentity;\n\nexport interface ClaudeAgentSdkQueryOpenInput {\n  readonly options: ClaudeAgentSdkQueryOptions;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkQuerySession {\n  readonly messages: Stream.Stream<SDKMessage, ClaudeAgentSdkQueryRunnerError>;\n  readonly offer: (\n    message: SDKUserMessage,\n    onQueued?: () => void,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setModel: (model: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly applyFlagSettings: (\n    settings: ClaudeFlagSettings,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly setPermissionMode: (\n    mode: PermissionMode,\n  ) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly stopTask: (taskId: string) => Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly backgroundTasks: (\n    toolUseId: string,\n  ) => Effect.Effect<boolean, ClaudeAgentSdkQueryRunnerError>;\n  readonly mcpServerStatus: Effect.Effect<\n    ReadonlyArray<ClaudeMcpServerStatus>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly readMcpResource: (input: {\n    readonly server: string;\n    readonly uri: string;\n  }) => Effect.Effect<\n    { readonly contents: ReadonlyArray<unknown> },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  /** Runs an MCP tool without a model turn and returns the server's raw `CallToolResult`. */\n  readonly callMcpTool: (input: {\n    readonly tool: string;\n    readonly arguments: Record<string, unknown>;\n  }) => Effect.Effect<unknown, ClaudeAgentSdkQueryRunnerError>;\n  readonly listPermissionRules: Effect.Effect<\n    ReadonlyArray<ClaudePermissionRule>,\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly interrupt: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n  readonly close: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\ntype ClaudeQueryStreamExit = Exit.Exit<void, ClaudeAgentSdkQueryRunnerError>;\n\nexport class ClaudeAgentSdkQueryRunnerError extends Schema.TaggedError<ClaudeAgentSdkQueryRunnerError>()(\n  \"ClaudeAgentSdkQueryRunnerError\",\n  {\n    method: Schema.String,\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return \"Claude Agent SDK query failed.\";\n  }\n}\n\n",
+      "to": "import { type ClaudeAgentSdkThreadIdentity, type ClaudeAgentSdkQueryOptions, type ClaudeAgentSdkQueryOpenInput, type ClaudeAgentSdkQuerySession, type ClaudeQueryStreamExit, ClaudeAgentSdkQueryRunnerError, type ClaudeAgentSdkQueryRunnerShape, ClaudeAgentSdkQueryRunner, type ClaudeAgentSdkSessionForkInput, type ClaudeAgentSdkSubagentLookupInput, type ClaudePermissionRule, decodeClaudePermissionRules, type ClaudeFlagSettings, isClaudeAgentSdkQueryRunnerError, queryRunnerError, ClaudeMcpRegistrationTimeoutError } from \"./ClaudeAdapterV2.session-port.ts\";\nexport { type ClaudeAgentSdkThreadIdentity, type ClaudeAgentSdkQueryOptions, type ClaudeAgentSdkQueryOpenInput, type ClaudeAgentSdkQuerySession, type ClaudeQueryStreamExit, ClaudeAgentSdkQueryRunnerError, type ClaudeAgentSdkQueryRunnerShape, ClaudeAgentSdkQueryRunner, type ClaudeAgentSdkSessionForkInput, type ClaudeAgentSdkSubagentLookupInput, type ClaudePermissionRule, decodeClaudePermissionRules, type ClaudeFlagSettings, isClaudeAgentSdkQueryRunnerError, queryRunnerError, ClaudeMcpRegistrationTimeoutError };\n\n",
+      "beforeSha256": "7e212d616f62538bc0297973fd272ae20cf306abb46a56519f7959e2b7e1f86b",
+      "afterSha256": "6d40a6ebf214cd35a199d8200b5ac9ed911c910068ea48cf55f3f290ce34f414"
+    },
+    {
+      "id": "claude-share-runner",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "export interface ClaudeAgentSdkQueryRunnerShape {\n  readonly allocateSessionId: Effect.Effect<string, ClaudeAgentSdkQueryRunnerError>;\n  readonly open: (\n    input: ClaudeAgentSdkQueryOpenInput,\n  ) => Effect.Effect<ClaudeAgentSdkQuerySession, ClaudeAgentSdkQueryRunnerError>;\n  readonly forkSession: (\n    input: ClaudeAgentSdkSessionForkInput,\n  ) => Effect.Effect<\n    ForkSessionResult & { readonly headMessageId?: string },\n    ClaudeAgentSdkQueryRunnerError\n  >;\n  readonly subagentLaunchToolUseId: (\n    input: ClaudeAgentSdkSubagentLookupInput,\n  ) => Effect.Effect<string | null, ClaudeAgentSdkQueryRunnerError>;\n  readonly assertComplete: Effect.Effect<void, ClaudeAgentSdkQueryRunnerError>;\n}\n\nexport class ClaudeAgentSdkQueryRunner extends Context.Service<\n  ClaudeAgentSdkQueryRunner,\n  ClaudeAgentSdkQueryRunnerShape\n>()(\"t3/orchestration-v2/Adapters/ClaudeAdapterV2/ClaudeAgentSdkQueryRunner\") {}\n\nexport interface ClaudeAgentSdkSessionForkInput {\n  readonly sessionId: string;\n  readonly options: ForkSessionOptions;\n  readonly environment: NodeJS.ProcessEnv;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\nexport interface ClaudeAgentSdkSubagentLookupInput {\n  readonly sessionId: string;\n  readonly agentId: string;\n  readonly dir: string | null;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}\n\n",
+      "to": "",
+      "beforeSha256": "6d40a6ebf214cd35a199d8200b5ac9ed911c910068ea48cf55f3f290ce34f414",
+      "afterSha256": "b3268037e88e7cdd92fc198c469074fff3cfef513bab05d104c7c880e586190f"
+    },
+    {
+      "id": "claude-share-rules",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const ClaudePermissionRules = Schema.Struct({\n  state: Schema.Struct({\n    rules: Schema.Array(\n      Schema.Struct({\n        behavior: Schema.Literals([\"allow\", \"deny\", \"ask\"]),\n        rule: Schema.String,\n        notInEffect: Schema.optional(Schema.Boolean),\n      }),\n    ),\n    errors: Schema.optional(Schema.Array(Schema.Unknown)),\n  }),\n});\nexport type ClaudePermissionRule = (typeof ClaudePermissionRules.Type)[\"state\"][\"rules\"][number];\nconst decodeClaudePermissionRules = Schema.decodeUnknownEffect(ClaudePermissionRules);\n\n",
+      "to": "",
+      "beforeSha256": "b3268037e88e7cdd92fc198c469074fff3cfef513bab05d104c7c880e586190f",
+      "afterSha256": "fc8429adea78c9bdaab0c6bfc46336167dbe1c55cf58c48c963e1492cb75ff7a"
+    },
+    {
+      "id": "claude-share-flags",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "type ClaudeFlagSettings = Parameters<ClaudeQuery[\"applyFlagSettings\"]>[0];\n",
+      "to": "",
+      "beforeSha256": "fc8429adea78c9bdaab0c6bfc46336167dbe1c55cf58c48c963e1492cb75ff7a",
+      "afterSha256": "e20d110dafe92ccb009c8735344f1396ee355d859bc791aa7008d35ad8d1601e"
+    },
+    {
+      "id": "claude-share-error-guard",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const isClaudeAgentSdkQueryRunnerError = Schema.is(ClaudeAgentSdkQueryRunnerError);\n",
+      "to": "",
+      "beforeSha256": "e20d110dafe92ccb009c8735344f1396ee355d859bc791aa7008d35ad8d1601e",
+      "afterSha256": "597ac1d6f8f054187617e4f8911fabaecd9ab1cf09b78f9510a1c45ed5aed3ac"
+    },
+    {
+      "id": "claude-share-error",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "function queryRunnerError(cause: unknown, method: string): ClaudeAgentSdkQueryRunnerError {\n  return isClaudeAgentSdkQueryRunnerError(cause)\n    ? cause\n    : new ClaudeAgentSdkQueryRunnerError({ cause, method });\n}\n\n",
+      "to": "",
+      "beforeSha256": "597ac1d6f8f054187617e4f8911fabaecd9ab1cf09b78f9510a1c45ed5aed3ac",
+      "afterSha256": "42d738781963793318978c9df5b2530ba8582375e2e80808321ce75f09089e9f"
+    },
+    {
+      "id": "claude-share-mcp-error",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "class ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegistrationTimeoutError>()(\n  \"ClaudeMcpRegistrationTimeoutError\",\n  {},\n) {\n  override get message(): string {\n    return \"Claude timed out while registering its MCP tools. Retry the turn; if it keeps failing, check Claude and the server logs.\";\n  }\n}\n\n",
+      "to": "",
+      "beforeSha256": "42d738781963793318978c9df5b2530ba8582375e2e80808321ce75f09089e9f",
+      "afterSha256": "e8f8daf39527b876d18677bf716ad1911898c8c189a3a922015de4c807fcb7fa"
+    },
+    {
+      "id": "claude-original-query-protocol",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-protocol.ts",
+      "create": [
+        {
+          "text": "import { type ForkSessionOptions, query, type PermissionMode, type Query as ClaudeQuery, type SDKMessage, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport * as Effect from \"effect/Effect\";\n"
+        },
+        {
+          "text": "import type { ClaudeAgentSdkQueryOptions, ClaudeFlagSettings } from \"./ClaudeAdapterV2.session-port.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 32862,
+          "end": 38721,
+          "sha256": "b81c708e80b686f0d91c118573ba5fa3a5671335a39f8385e7ca729f4b9611bd"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 123600,
+          "end": 123735,
+          "sha256": "fe7578d55d9a16ad9b2ed2c0961b62d2d5620a618363c171f49c26a08e564a9b"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "1cf63fddd0b200e6b8a1cad5f4463e91633ebd83c536a3854d47d0a777a2906f"
+    },
+    {
+      "id": "claude-share-original-turn-start",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-protocol.ts",
+      "from": "function isClaudeTurnStartMessage(",
+      "to": "export function isClaudeTurnStartMessage(",
+      "beforeSha256": "1cf63fddd0b200e6b8a1cad5f4463e91633ebd83c536a3854d47d0a777a2906f",
+      "afterSha256": "119f8e40502f4a9f93191a885412b6f2012ed178677740efe9ba10b680e4f1c6"
+    },
+    {
+      "id": "claude-share-query-protocol",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "// Iterate Query itself: the raw generator's return() queues behind a pending CLI read and deadlocks interruption.\nexport function claudeQueryMessages(queryRuntime: ClaudeQuery): AsyncIterable<SDKMessage, void> {\n  return { [Symbol.asyncIterator]: () => queryRuntime };\n}\n\nexport interface ClaudeAgentSdkLoggedQueryOptions {\n  readonly model: ClaudeAgentSdkQueryOptions[\"model\"];\n  readonly tools: ClaudeAgentSdkQueryOptions[\"tools\"];\n  readonly permissionMode: ClaudeAgentSdkQueryOptions[\"permissionMode\"];\n  readonly sessionId?: string;\n  readonly resume?: string;\n  readonly resumeSessionAt?: ClaudeAgentSdkQueryOptions[\"resumeSessionAt\"];\n  readonly cwd?: ClaudeAgentSdkQueryOptions[\"cwd\"];\n  readonly allowedTools?: ClaudeAgentSdkQueryOptions[\"allowedTools\"];\n  readonly disallowedTools?: ClaudeAgentSdkQueryOptions[\"disallowedTools\"];\n  readonly settingKeys?: ReadonlyArray<string>;\n  readonly effort?: ClaudeAgentSdkQueryOptions[\"effort\"];\n  readonly includePartialMessages?: true;\n  readonly pathToClaudeCodeExecutable?: ClaudeAgentSdkQueryOptions[\"pathToClaudeCodeExecutable\"];\n  readonly hasExtraArgs?: true;\n  readonly allowDangerouslySkipPermissions?: true;\n  readonly hasCanUseTool?: true;\n  readonly hasEnvironment?: true;\n  readonly hasMcpServers?: true;\n}\n\nexport type ClaudeAgentSdkProtocolLogEvent =\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.open\";\n        readonly options: ClaudeAgentSdkLoggedQueryOptions;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"prompt.offer\";\n        readonly message: SDKUserMessage;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.set_model\";\n        readonly model: string;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.apply_flag_settings\";\n        readonly settings: ClaudeFlagSettings;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.set_permission_mode\";\n        readonly mode: PermissionMode;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.stop_task\";\n        readonly taskId: string;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.background_tasks\";\n        readonly toolUseId: string;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.interrupt\";\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"query.close\";\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"session.fork\";\n        readonly sessionId: string;\n        readonly options: ForkSessionOptions;\n      };\n    }\n  | {\n      readonly direction: \"incoming\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"session.forked\";\n        readonly sessionId: string;\n      };\n    }\n  | {\n      readonly direction: \"outgoing\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"subagent.lookup\";\n        readonly sessionId: string;\n        readonly agentId: string;\n      };\n    }\n  | {\n      readonly direction: \"incoming\";\n      readonly stage: \"decoded\";\n      readonly payload: {\n        readonly type: \"subagent.found\";\n        readonly toolUseId: string | null;\n      };\n    }\n  | {\n      readonly direction: \"incoming\";\n      readonly stage: \"decoded\";\n      readonly payload: SDKMessage;\n    };\n\nexport type ClaudeAgentSdkProtocolLogger = (\n  event: ClaudeAgentSdkProtocolLogEvent,\n) => Effect.Effect<void>;\n\nexport function loggedClaudeQueryOptions(\n  options: ClaudeAgentSdkQueryOptions,\n): ClaudeAgentSdkLoggedQueryOptions {\n  return {\n    model: options.model,\n    tools: options.tools,\n    permissionMode: options.permissionMode,\n    ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),\n    ...(options.resume === undefined ? {} : { resume: options.resume }),\n    ...(options.resumeSessionAt === undefined ? {} : { resumeSessionAt: options.resumeSessionAt }),\n    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),\n    ...(options.allowedTools === undefined ? {} : { allowedTools: options.allowedTools }),\n    ...(options.disallowedTools === undefined ? {} : { disallowedTools: options.disallowedTools }),\n    // Settings can carry the user's --settings values, such as an env block with credentials.\n    ...(typeof options.settings === \"object\" && options.settings !== null\n      ? { settingKeys: Object.keys(options.settings) }\n      : {}),\n    ...(options.effort === undefined ? {} : { effort: options.effort }),\n    ...(options.includePartialMessages === true ? { includePartialMessages: true } : {}),\n    ...(options.pathToClaudeCodeExecutable === undefined\n      ? {}\n      : { pathToClaudeCodeExecutable: options.pathToClaudeCodeExecutable }),\n    ...(options.extraArgs === undefined ? {} : { hasExtraArgs: true }),\n    ...(options.allowDangerouslySkipPermissions === true\n      ? { allowDangerouslySkipPermissions: true }\n      : {}),\n    ...(options.canUseTool === undefined ? {} : { hasCanUseTool: true }),\n    ...(options.env === undefined ? {} : { hasEnvironment: true }),\n    ...(options.mcpServers === undefined ? {} : { hasMcpServers: true }),\n  };\n}\n\n",
+      "to": "import { claudeQueryMessages, type ClaudeAgentSdkLoggedQueryOptions, type ClaudeAgentSdkProtocolLogEvent, type ClaudeAgentSdkProtocolLogger, loggedClaudeQueryOptions, isClaudeTurnStartMessage } from \"./ClaudeAdapterV2.session-protocol.ts\";\nexport { claudeQueryMessages, type ClaudeAgentSdkLoggedQueryOptions, type ClaudeAgentSdkProtocolLogEvent, type ClaudeAgentSdkProtocolLogger, loggedClaudeQueryOptions, isClaudeTurnStartMessage };\n\n",
+      "beforeSha256": "e8f8daf39527b876d18677bf716ad1911898c8c189a3a922015de4c807fcb7fa",
+      "afterSha256": "871c2ebb406ee9d48acc9a442f7a4a4acc3533b2d09f92737f0ff429328e4ddd"
+    },
+    {
+      "id": "claude-application-shared-turn-start",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "function isClaudeTurnStartMessage(message: SDKMessage): boolean {\n  return message.type === \"system\" && message.subtype === \"init\";\n}\n\n",
+      "to": "",
+      "beforeSha256": "871c2ebb406ee9d48acc9a442f7a4a4acc3533b2d09f92737f0ff429328e4ddd",
+      "afterSha256": "ce019b8b7ad47e835ae4bf246dffe5afd00c167c8a451adc35dd1c1b85ba0516"
+    },
+    {
+      "id": "claude-original-query-session",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-query.ts",
+      "create": [
+        {
+          "text": "import { query, type Options as ClaudeQueryOptions, type Query as ClaudeQuery, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport * as Cause from \"effect/Cause\";\nimport * as Predicate from \"effect/Predicate\";\nimport * as Duration from \"effect/Duration\";\nimport * as Effect from \"effect/Effect\";\nimport * as Queue from \"effect/Queue\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\n"
+        },
+        {
+          "text": "import { queryRunnerError, decodeClaudePermissionRules, ClaudeMcpRegistrationTimeoutError, type ClaudeAgentSdkQuerySession, type ClaudeAgentSdkQueryOpenInput } from \"./ClaudeAdapterV2.session-port.ts\";\n"
+        },
+        {
+          "text": "import { claudeQueryMessages, loggedClaudeQueryOptions, type ClaudeAgentSdkProtocolLogEvent } from \"./ClaudeAdapterV2.session-protocol.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 13678,
+          "end": 13719,
+          "sha256": "9b82c975f236f9d30e6d476ab9d55d581233f0198f6cde731034e6deb340143c"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 13790,
+          "end": 13847,
+          "sha256": "97a3c56a722d6ca79651b56a585f0ffd509a34b707f4d1e6dea06a977bc34c10"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 13936,
+          "end": 14062,
+          "sha256": "af2df9999362b5ab0c66329412819157748eee8a61c97d76f19d7f0ecc20d795"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 12781,
+          "end": 12835,
+          "sha256": "9427a591bc52a7228d0ebe3e477634ce55f13c05b04c2947a994287c7e3a3a76"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 21851,
+          "end": 22139,
+          "sha256": "6f50018b6af2ae569889805eb310639b59f33054ddc17a4aeed2b9edb67baf0c"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 26583,
+          "end": 27266,
+          "sha256": "955cf09dabdc3638795baec350ff85b137139fb51f570166eaa0473edb4d9ddd"
+        },
+        {
+          "text": "export const initializeClaudeQuery = (queryRuntime: ClaudeQuery, input: ClaudeAgentSdkQueryOpenInput,\n  mcpServers: ClaudeQueryOptions[\"mcpServers\"], logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) =>\n  Effect.gen(function* () {\n    const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 48210,
+          "end": 50376,
+          "sha256": "93712e3384b1c510215dbd43a1676fbfebde20a2cfa199563bf49d3c7d5ac436"
+        },
+        {
+          "text": "  });\n"
+        },
+        {
+          "text": "export function makeClaudeQueryControls(queryRuntime: ClaudeQuery,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 53515,
+          "end": 58476,
+          "sha256": "f9b86f944d6d425d0aec2e75e69df481e383c2bd2858021cd22dc43542a63d73"
+        },
+        {
+          "text": "  } satisfies Omit<ClaudeAgentSdkQuerySession, \"messages\" | \"offer\" | \"close\">;\n}\nexport interface ClaudeQueryDiagnostics {\n  answered: boolean;\n  stderrTail: string;\n  stderrClosed: Promise<void>;\n}\nexport function makeClaudeQueryDiagnostics(): ClaudeQueryDiagnostics {\n  return { answered: false, stderrTail: \"\", stderrClosed: Promise.resolve() };\n}\nexport function appendClaudeQueryStderr(diagnostics: ClaudeQueryDiagnostics, text: string) {\n  if (diagnostics.answered) return;\n  diagnostics.stderrTail = (diagnostics.stderrTail + text).slice(-CLAUDE_STDERR_TAIL_LENGTH);\n}\nexport function makeClaudeQueryMessages(queryRuntime: ClaudeQuery, diagnostics: ClaudeQueryDiagnostics,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>): ClaudeAgentSdkQuerySession[\"messages\"] {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 51645,
+          "end": 52875,
+          "sha256": "6297092fe34bdbf52744b5ddd033a4da913a1ed0ef809adebc5abe4ff1ce866d"
+        },
+        {
+          "text": "  }.messages;\n}\nexport const makeClaudePromptQueue = <Message>() => Effect.gen(function* () {\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+          "start": 43380,
+          "end": 43705,
+          "sha256": "67e355db7e04f9e9e9124c68c6232b28b924fa687786501fe6fdf205cbee2ebf"
+        },
+        {
+          "text": "  return { promptQueue, prompt };\n});\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "11c968e63898786b37d9e2172b3568c98092ad303ed7560667c614dab4d4f6a0"
+    },
+    {
+      "id": "claude-shared-query-state",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-query.ts",
+      "from": "import { query, type Options as ClaudeQueryOptions, type Query as ClaudeQuery, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport * as Cause from \"effect/Cause\";\nimport * as Predicate from \"effect/Predicate\";\nimport * as Duration from \"effect/Duration\";\nimport * as Effect from \"effect/Effect\";\nimport * as Queue from \"effect/Queue\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\nimport { queryRunnerError, decodeClaudePermissionRules, ClaudeMcpRegistrationTimeoutError, type ClaudeAgentSdkQuerySession, type ClaudeAgentSdkQueryOpenInput } from \"./ClaudeAdapterV2.session-port.ts\";\nimport { claudeQueryMessages, loggedClaudeQueryOptions, type ClaudeAgentSdkProtocolLogEvent } from \"./ClaudeAdapterV2.session-protocol.ts\";\nconst CLAUDE_STDERR_TAIL_LENGTH = 2_048;\nconst CLAUDE_STDERR_DRAIN_TIMEOUT = Duration.seconds(1);\nconst CLAUDE_ROOT_REFUSAL =\n  \"--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons\";\nconst CLAUDE_MCP_REGISTRATION_TIMEOUT = \"90 seconds\";\nexport class ClaudeCodeRootRefusalError extends Schema.TaggedError<ClaudeCodeRootRefusalError>()(\n  \"ClaudeCodeRootRefusalError\",\n  {\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Claude Code exited before it started: ${CLAUDE_ROOT_REFUSAL}`;\n  }\n}\n\n// SDK 0.3.316 types `mcp_call` and `list_permission_rules` but has no Query method for them; its own readMcpResource sends control requests this way.\nasync function sendClaudeControlRequest(\n  queryRuntime: ClaudeQuery,\n  request: {\n    readonly subtype: \"mcp_call\" | \"list_permission_rules\";\n    readonly [key: string]: unknown;\n  },\n): Promise<unknown> {\n  const send: unknown = Reflect.get(queryRuntime, \"request\");\n  if (typeof send !== \"function\") {\n    throw new Error(`This Claude Agent SDK cannot send ${request.subtype}.`);\n  }\n  const reply: unknown = await Reflect.apply(send, queryRuntime, [request]);\n  return Predicate.isObject(reply) ? reply.response : undefined;\n}\n\nexport const initializeClaudeQuery = (queryRuntime: ClaudeQuery, input: ClaudeAgentSdkQueryOpenInput,\n  mcpServers: ClaudeQueryOptions[\"mcpServers\"], logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) =>\n  Effect.gen(function* () {\n    const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n                    if (mcpServers !== undefined) {\n                      // Errors and mcp_status can echo headers; log only server names.\n                      const failed = yield* Effect.tryPromise({\n                        try: () => queryRuntime.setMcpServers(mcpServers),\n                        catch: (cause) => queryRunnerError(cause, \"setMcpServers\"),\n                      }).pipe(\n                        Effect.map((result) => Object.keys(result.errors)),\n                        Effect.orElseSucceed(() => Object.keys(mcpServers)),\n                        Effect.timeoutOrElse({\n                          duration: CLAUDE_MCP_REGISTRATION_TIMEOUT,\n                          orElse: () =>\n                            Effect.logWarning(\"orchestration-v2.claude-mcp-registration-timeout\", {\n                              threadId: input.threadId,\n                              providerSessionId: input.providerSessionId,\n                            }).pipe(\n                              Effect.andThen(\n                                Effect.fail(\n                                  queryRunnerError(\n                                    new ClaudeMcpRegistrationTimeoutError(),\n                                    \"setMcpServers\",\n                                  ),\n                                ),\n                              ),\n                            ),\n                        }),\n                      );\n                      if (failed.length > 0) {\n                        yield* Effect.logWarning(\n                          \"orchestration-v2.claude-mcp-servers-unavailable\",\n                          {\n                            threadId: input.threadId,\n                            servers: failed,\n                          },\n                        );\n                      }\n                    }\n                    yield* logProtocolEvent({\n                      direction: \"outgoing\",\n                      stage: \"decoded\",\n                      payload: {\n                        type: \"query.open\",\n                        options: loggedClaudeQueryOptions(input.options),\n                      },\n                    });\n  });\nexport function makeClaudeQueryControls(queryRuntime: ClaudeQuery,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n            setModel: (model) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setModel(model),\n                catch: (cause) => queryRunnerError(cause, \"setModel\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_model\",\n                      model,\n                    },\n                  }),\n                ),\n              ),\n            applyFlagSettings: (settings) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.applyFlagSettings(settings),\n                catch: (cause) => queryRunnerError(cause, \"applyFlagSettings\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.apply_flag_settings\",\n                      settings,\n                    },\n                  }),\n                ),\n              ),\n            setPermissionMode: (mode) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setPermissionMode(mode),\n                catch: (cause) => queryRunnerError(cause, \"setPermissionMode\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_permission_mode\",\n                      mode,\n                    },\n                  }),\n                ),\n              ),\n            stopTask: (taskId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.stopTask(taskId),\n                catch: (cause) => queryRunnerError(cause, \"stopTask\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.stop_task\", taskId },\n                  }),\n                ),\n              ),\n            backgroundTasks: (toolUseId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.backgroundTasks(toolUseId),\n                catch: (cause) => queryRunnerError(cause, \"backgroundTasks\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.background_tasks\", toolUseId },\n                  }),\n                ),\n              ),\n            mcpServerStatus: Effect.tryPromise({\n              try: () => queryRuntime.mcpServerStatus(),\n              catch: (cause) => queryRunnerError(cause, \"mcpServerStatus\"),\n            }),\n            readMcpResource: ({ server, uri }) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.readMcpResource(server, uri),\n                catch: (cause) => queryRunnerError(cause, \"readMcpResource\"),\n              }),\n            callMcpTool: (call) =>\n              Effect.tryPromise({\n                try: () =>\n                  sendClaudeControlRequest(queryRuntime, {\n                    subtype: \"mcp_call\",\n                    tool: call.tool,\n                    arguments: call.arguments,\n                    result_not_for_model: true,\n                  }),\n                catch: (cause) => queryRunnerError(cause, \"callMcpTool\"),\n              }),\n            listPermissionRules: Effect.tryPromise({\n              try: () =>\n                sendClaudeControlRequest(queryRuntime, { subtype: \"list_permission_rules\" }),\n              catch: (cause) => queryRunnerError(cause, \"listPermissionRules\"),\n            }).pipe(\n              Effect.flatMap(decodeClaudePermissionRules),\n              // A settings file Claude couldn't parse was skipped, so its rules are missing from the list.\n              Effect.filterOrFail(\n                ({ state }) => (state.errors ?? []).length === 0,\n                ({ state }) => new Error(`Claude skipped ${state.errors?.length} settings file(s)`),\n              ),\n              Effect.map(({ state }) => state.rules),\n              Effect.mapError((cause) => queryRunnerError(cause, \"listPermissionRules\")),\n            ),\n            interrupt: Effect.tryPromise({\n              try: () => queryRuntime.interrupt(),\n              catch: (cause) => queryRunnerError(cause, \"interrupt\"),\n            }).pipe(\n              Effect.tap(() =>\n                logProtocolEvent({\n                  direction: \"outgoing\",\n                  stage: \"decoded\",\n                  payload: {\n                    type: \"query.interrupt\",\n                  },\n                }),\n              ),\n            ),\n  } satisfies Omit<ClaudeAgentSdkQuerySession, \"messages\" | \"offer\" | \"close\">;\n}\nexport interface ClaudeQueryDiagnostics {\n  answered: boolean;\n  stderrTail: string;\n  stderrClosed: Promise<void>;\n}\nexport function makeClaudeQueryDiagnostics(): ClaudeQueryDiagnostics {\n  return { answered: false, stderrTail: \"\", stderrClosed: Promise.resolve() };\n}\nexport function appendClaudeQueryStderr(diagnostics: ClaudeQueryDiagnostics, text: string) {\n  if (diagnostics.answered) return;\n  diagnostics.stderrTail = (diagnostics.stderrTail + text).slice(-CLAUDE_STDERR_TAIL_LENGTH);\n}\nexport function makeClaudeQueryMessages(queryRuntime: ClaudeQuery, diagnostics: ClaudeQueryDiagnostics,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>): ClaudeAgentSdkQuerySession[\"messages\"] {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n            messages: Stream.fromAsyncIterable(\n              claudeQueryMessages(queryRuntime),\n              (cause) => cause,\n            ).pipe(\n              Stream.catch((cause) =>\n                Stream.fromEffect(\n                  Effect.gen(function* () {\n                    if (!answered) {\n                      yield* Effect.promise(() => stderrClosed).pipe(\n                        Effect.timeoutOption(CLAUDE_STDERR_DRAIN_TIMEOUT),\n                      );\n                    }\n                    const refusedRoot = !answered && stderrTail.includes(CLAUDE_ROOT_REFUSAL);\n                    return yield* queryRunnerError(\n                      refusedRoot ? new ClaudeCodeRootRefusalError({ cause }) : cause,\n                      \"fromAsyncIterable\",\n                    );\n                  }),\n                ),\n              ),\n              Stream.tap(() =>\n                Effect.sync(() => {\n                  answered = true;\n                }),\n              ),\n              Stream.tap((message) =>\n                logProtocolEvent({\n                  direction: \"incoming\",\n                  stage: \"decoded\",\n                  payload: message,\n                }),\n              ),\n            ),\n  }.messages;\n}\nexport const makeClaudePromptQueue = <Message>() => Effect.gen(function* () {\n          const promptQueue = yield* Queue.unbounded<SDKUserMessage>();\n          const prompt = Stream.fromQueue(promptQueue).pipe(\n            Stream.catchCause((cause) =>\n              Cause.hasInterruptsOnly(cause) ? Stream.empty : Stream.failCause(cause),\n            ),\n            Stream.toAsyncIterable,\n          );\n  return { promptQueue, prompt };\n});\n",
+      "to": "import { query, type Options as ClaudeQueryOptions, type Query as ClaudeQuery, type SDKUserMessage } from \"@anthropic-ai/claude-agent-sdk\";\nimport * as Cause from \"effect/Cause\";\nimport * as Predicate from \"effect/Predicate\";\nimport * as Duration from \"effect/Duration\";\nimport * as Effect from \"effect/Effect\";\nimport * as Queue from \"effect/Queue\";\nimport * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\nimport { queryRunnerError, decodeClaudePermissionRules, ClaudeMcpRegistrationTimeoutError, type ClaudeAgentSdkQuerySession, type ClaudeAgentSdkQueryOpenInput } from \"./ClaudeAdapterV2.session-port.ts\";\nimport { claudeQueryMessages, loggedClaudeQueryOptions, type ClaudeAgentSdkProtocolLogEvent } from \"./ClaudeAdapterV2.session-protocol.ts\";\nconst CLAUDE_STDERR_TAIL_LENGTH = 2_048;\nconst CLAUDE_STDERR_DRAIN_TIMEOUT = Duration.seconds(1);\nconst CLAUDE_ROOT_REFUSAL =\n  \"--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons\";\nconst CLAUDE_MCP_REGISTRATION_TIMEOUT = \"90 seconds\";\nexport class ClaudeCodeRootRefusalError extends Schema.TaggedError<ClaudeCodeRootRefusalError>()(\n  \"ClaudeCodeRootRefusalError\",\n  {\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Claude Code exited before it started: ${CLAUDE_ROOT_REFUSAL}`;\n  }\n}\n\n// SDK 0.3.316 types `mcp_call` and `list_permission_rules` but has no Query method for them; its own readMcpResource sends control requests this way.\nasync function sendClaudeControlRequest(\n  queryRuntime: ClaudeQuery,\n  request: {\n    readonly subtype: \"mcp_call\" | \"list_permission_rules\";\n    readonly [key: string]: unknown;\n  },\n): Promise<unknown> {\n  const send: unknown = Reflect.get(queryRuntime, \"request\");\n  if (typeof send !== \"function\") {\n    throw new Error(`This Claude Agent SDK cannot send ${request.subtype}.`);\n  }\n  const reply: unknown = await Reflect.apply(send, queryRuntime, [request]);\n  return Predicate.isObject(reply) ? reply.response : undefined;\n}\n\nexport const initializeClaudeQuery = (queryRuntime: ClaudeQuery, input: ClaudeAgentSdkQueryOpenInput,\n  mcpServers: ClaudeQueryOptions[\"mcpServers\"], logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) =>\n  Effect.gen(function* () {\n    const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n                    if (mcpServers !== undefined) {\n                      // Errors and mcp_status can echo headers; log only server names.\n                      const failed = yield* Effect.tryPromise({\n                        try: () => queryRuntime.setMcpServers(mcpServers),\n                        catch: (cause) => queryRunnerError(cause, \"setMcpServers\"),\n                      }).pipe(\n                        Effect.map((result) => Object.keys(result.errors)),\n                        Effect.orElseSucceed(() => Object.keys(mcpServers)),\n                        Effect.timeoutOrElse({\n                          duration: CLAUDE_MCP_REGISTRATION_TIMEOUT,\n                          orElse: () =>\n                            Effect.logWarning(\"orchestration-v2.claude-mcp-registration-timeout\", {\n                              threadId: input.threadId,\n                              providerSessionId: input.providerSessionId,\n                            }).pipe(\n                              Effect.andThen(\n                                Effect.fail(\n                                  queryRunnerError(\n                                    new ClaudeMcpRegistrationTimeoutError(),\n                                    \"setMcpServers\",\n                                  ),\n                                ),\n                              ),\n                            ),\n                        }),\n                      );\n                      if (failed.length > 0) {\n                        yield* Effect.logWarning(\n                          \"orchestration-v2.claude-mcp-servers-unavailable\",\n                          {\n                            threadId: input.threadId,\n                            servers: failed,\n                          },\n                        );\n                      }\n                    }\n                    yield* logProtocolEvent({\n                      direction: \"outgoing\",\n                      stage: \"decoded\",\n                      payload: {\n                        type: \"query.open\",\n                        options: loggedClaudeQueryOptions(input.options),\n                      },\n                    });\n  });\nexport function makeClaudeQueryControls(queryRuntime: ClaudeQuery,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>) {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n            setModel: (model) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setModel(model),\n                catch: (cause) => queryRunnerError(cause, \"setModel\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_model\",\n                      model,\n                    },\n                  }),\n                ),\n              ),\n            applyFlagSettings: (settings) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.applyFlagSettings(settings),\n                catch: (cause) => queryRunnerError(cause, \"applyFlagSettings\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.apply_flag_settings\",\n                      settings,\n                    },\n                  }),\n                ),\n              ),\n            setPermissionMode: (mode) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setPermissionMode(mode),\n                catch: (cause) => queryRunnerError(cause, \"setPermissionMode\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_permission_mode\",\n                      mode,\n                    },\n                  }),\n                ),\n              ),\n            stopTask: (taskId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.stopTask(taskId),\n                catch: (cause) => queryRunnerError(cause, \"stopTask\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.stop_task\", taskId },\n                  }),\n                ),\n              ),\n            backgroundTasks: (toolUseId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.backgroundTasks(toolUseId),\n                catch: (cause) => queryRunnerError(cause, \"backgroundTasks\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.background_tasks\", toolUseId },\n                  }),\n                ),\n              ),\n            mcpServerStatus: Effect.tryPromise({\n              try: () => queryRuntime.mcpServerStatus(),\n              catch: (cause) => queryRunnerError(cause, \"mcpServerStatus\"),\n            }),\n            readMcpResource: ({ server, uri }) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.readMcpResource(server, uri),\n                catch: (cause) => queryRunnerError(cause, \"readMcpResource\"),\n              }),\n            callMcpTool: (call) =>\n              Effect.tryPromise({\n                try: () =>\n                  sendClaudeControlRequest(queryRuntime, {\n                    subtype: \"mcp_call\",\n                    tool: call.tool,\n                    arguments: call.arguments,\n                    result_not_for_model: true,\n                  }),\n                catch: (cause) => queryRunnerError(cause, \"callMcpTool\"),\n              }),\n            listPermissionRules: Effect.tryPromise({\n              try: () =>\n                sendClaudeControlRequest(queryRuntime, { subtype: \"list_permission_rules\" }),\n              catch: (cause) => queryRunnerError(cause, \"listPermissionRules\"),\n            }).pipe(\n              Effect.flatMap(decodeClaudePermissionRules),\n              // A settings file Claude couldn't parse was skipped, so its rules are missing from the list.\n              Effect.filterOrFail(\n                ({ state }) => (state.errors ?? []).length === 0,\n                ({ state }) => new Error(`Claude skipped ${state.errors?.length} settings file(s)`),\n              ),\n              Effect.map(({ state }) => state.rules),\n              Effect.mapError((cause) => queryRunnerError(cause, \"listPermissionRules\")),\n            ),\n            interrupt: Effect.tryPromise({\n              try: () => queryRuntime.interrupt(),\n              catch: (cause) => queryRunnerError(cause, \"interrupt\"),\n            }).pipe(\n              Effect.tap(() =>\n                logProtocolEvent({\n                  direction: \"outgoing\",\n                  stage: \"decoded\",\n                  payload: {\n                    type: \"query.interrupt\",\n                  },\n                }),\n              ),\n            ),\n  } satisfies Omit<ClaudeAgentSdkQuerySession, \"messages\" | \"offer\" | \"close\">;\n}\nexport interface ClaudeQueryDiagnostics {\n  answered: boolean;\n  stderrTail: string;\n  stderrClosed: Promise<void>;\n}\nexport function makeClaudeQueryDiagnostics(): ClaudeQueryDiagnostics {\n  return { answered: false, stderrTail: \"\", stderrClosed: Promise.resolve() };\n}\nexport function appendClaudeQueryStderr(diagnostics: ClaudeQueryDiagnostics, text: string) {\n  if (diagnostics.answered) return;\n  diagnostics.stderrTail = (diagnostics.stderrTail + text).slice(-CLAUDE_STDERR_TAIL_LENGTH);\n}\nexport function makeClaudeQueryMessages(queryRuntime: ClaudeQuery, diagnostics: ClaudeQueryDiagnostics,\n  logger?: (event: ClaudeAgentSdkProtocolLogEvent) => Effect.Effect<void>): ClaudeAgentSdkQuerySession[\"messages\"] {\n  const logProtocolEvent = (event: ClaudeAgentSdkProtocolLogEvent) => logger?.(event) ?? Effect.void;\n  return {\n            messages: Stream.fromAsyncIterable(\n              claudeQueryMessages(queryRuntime),\n              (cause) => cause,\n            ).pipe(\n              Stream.catch((cause) =>\n                Stream.fromEffect(\n                  Effect.gen(function* () {\n                    if (!diagnostics.answered) {\n                      yield* Effect.promise(() => diagnostics.stderrClosed).pipe(\n                        Effect.timeoutOption(CLAUDE_STDERR_DRAIN_TIMEOUT),\n                      );\n                    }\n                    const refusedRoot = !diagnostics.answered && diagnostics.stderrTail.includes(CLAUDE_ROOT_REFUSAL);\n                    return yield* queryRunnerError(\n                      refusedRoot ? new ClaudeCodeRootRefusalError({ cause }) : cause,\n                      \"fromAsyncIterable\",\n                    );\n                  }),\n                ),\n              ),\n              Stream.tap(() =>\n                Effect.sync(() => {\n                  diagnostics.answered = true;\n                }),\n              ),\n              Stream.tap((message) =>\n                logProtocolEvent({\n                  direction: \"incoming\",\n                  stage: \"decoded\",\n                  payload: message,\n                }),\n              ),\n            ),\n  }.messages;\n}\nexport const makeClaudePromptQueue = <Message>() => Effect.gen(function* () {\n          const promptQueue = yield* Queue.unbounded<Message>();\n          const prompt = Stream.fromQueue(promptQueue).pipe(\n            Stream.catchCause((cause) =>\n              Cause.hasInterruptsOnly(cause) ? Stream.empty : Stream.failCause(cause),\n            ),\n            Stream.toAsyncIterable,\n          );\n  return { promptQueue, prompt };\n});\n",
+      "beforeSha256": "11c968e63898786b37d9e2172b3568c98092ad303ed7560667c614dab4d4f6a0",
+      "afterSha256": "308b00de1f90e6edd81bda79ed36b53bf34163d37200373448677562533f2c4e"
+    },
+    {
+      "id": "claude-application-shared-prompt-queue",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "          const promptQueue = yield* Queue.unbounded<SDKUserMessage>();\n          const prompt = Stream.fromQueue(promptQueue).pipe(\n            Stream.catchCause((cause) =>\n              Cause.hasInterruptsOnly(cause) ? Stream.empty : Stream.failCause(cause),\n            ),\n            Stream.toAsyncIterable,\n          );\n",
+      "to": "          const { promptQueue, prompt } = yield* makeClaudePromptQueue<SDKUserMessage>();\n",
+      "beforeSha256": "ce019b8b7ad47e835ae4bf246dffe5afd00c167c8a451adc35dd1c1b85ba0516",
+      "afterSha256": "ece100348c3ca6478c9d64c23564c4c2437ea461350e763fd5b65042684010eb"
+    },
+    {
+      "id": "claude-application-shared-query-messages",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "            messages: Stream.fromAsyncIterable(\n              claudeQueryMessages(queryRuntime),\n              (cause) => cause,\n            ).pipe(\n              Stream.catch((cause) =>\n                Stream.fromEffect(\n                  Effect.gen(function* () {\n                    if (!answered) {\n                      yield* Effect.promise(() => stderrClosed).pipe(\n                        Effect.timeoutOption(CLAUDE_STDERR_DRAIN_TIMEOUT),\n                      );\n                    }\n                    const refusedRoot = !answered && stderrTail.includes(CLAUDE_ROOT_REFUSAL);\n                    return yield* queryRunnerError(\n                      refusedRoot ? new ClaudeCodeRootRefusalError({ cause }) : cause,\n                      \"fromAsyncIterable\",\n                    );\n                  }),\n                ),\n              ),\n              Stream.tap(() =>\n                Effect.sync(() => {\n                  answered = true;\n                }),\n              ),\n              Stream.tap((message) =>\n                logProtocolEvent({\n                  direction: \"incoming\",\n                  stage: \"decoded\",\n                  payload: message,\n                }),\n              ),\n            ),\n",
+      "to": "            messages: makeClaudeQueryMessages(queryRuntime, diagnostics, logProtocolEvent),\n",
+      "beforeSha256": "ece100348c3ca6478c9d64c23564c4c2437ea461350e763fd5b65042684010eb",
+      "afterSha256": "0581c164bae7338abe9bb0bef3fb162ff4b4f66756e72e6649412784566d6792"
+    },
+    {
+      "id": "claude-application-shared-query-controls",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "            setModel: (model) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setModel(model),\n                catch: (cause) => queryRunnerError(cause, \"setModel\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_model\",\n                      model,\n                    },\n                  }),\n                ),\n              ),\n            applyFlagSettings: (settings) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.applyFlagSettings(settings),\n                catch: (cause) => queryRunnerError(cause, \"applyFlagSettings\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.apply_flag_settings\",\n                      settings,\n                    },\n                  }),\n                ),\n              ),\n            setPermissionMode: (mode) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.setPermissionMode(mode),\n                catch: (cause) => queryRunnerError(cause, \"setPermissionMode\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: {\n                      type: \"query.set_permission_mode\",\n                      mode,\n                    },\n                  }),\n                ),\n              ),\n            stopTask: (taskId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.stopTask(taskId),\n                catch: (cause) => queryRunnerError(cause, \"stopTask\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.stop_task\", taskId },\n                  }),\n                ),\n              ),\n            backgroundTasks: (toolUseId) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.backgroundTasks(toolUseId),\n                catch: (cause) => queryRunnerError(cause, \"backgroundTasks\"),\n              }).pipe(\n                Effect.tap(() =>\n                  logProtocolEvent({\n                    direction: \"outgoing\",\n                    stage: \"decoded\",\n                    payload: { type: \"query.background_tasks\", toolUseId },\n                  }),\n                ),\n              ),\n            mcpServerStatus: Effect.tryPromise({\n              try: () => queryRuntime.mcpServerStatus(),\n              catch: (cause) => queryRunnerError(cause, \"mcpServerStatus\"),\n            }),\n            readMcpResource: ({ server, uri }) =>\n              Effect.tryPromise({\n                try: () => queryRuntime.readMcpResource(server, uri),\n                catch: (cause) => queryRunnerError(cause, \"readMcpResource\"),\n              }),\n            callMcpTool: (call) =>\n              Effect.tryPromise({\n                try: () =>\n                  sendClaudeControlRequest(queryRuntime, {\n                    subtype: \"mcp_call\",\n                    tool: call.tool,\n                    arguments: call.arguments,\n                    result_not_for_model: true,\n                  }),\n                catch: (cause) => queryRunnerError(cause, \"callMcpTool\"),\n              }),\n            listPermissionRules: Effect.tryPromise({\n              try: () =>\n                sendClaudeControlRequest(queryRuntime, { subtype: \"list_permission_rules\" }),\n              catch: (cause) => queryRunnerError(cause, \"listPermissionRules\"),\n            }).pipe(\n              Effect.flatMap(decodeClaudePermissionRules),\n              // A settings file Claude couldn't parse was skipped, so its rules are missing from the list.\n              Effect.filterOrFail(\n                ({ state }) => (state.errors ?? []).length === 0,\n                ({ state }) => new Error(`Claude skipped ${state.errors?.length} settings file(s)`),\n              ),\n              Effect.map(({ state }) => state.rules),\n              Effect.mapError((cause) => queryRunnerError(cause, \"listPermissionRules\")),\n            ),\n            interrupt: Effect.tryPromise({\n              try: () => queryRuntime.interrupt(),\n              catch: (cause) => queryRunnerError(cause, \"interrupt\"),\n            }).pipe(\n              Effect.tap(() =>\n                logProtocolEvent({\n                  direction: \"outgoing\",\n                  stage: \"decoded\",\n                  payload: {\n                    type: \"query.interrupt\",\n                  },\n                }),\n              ),\n            ),\n",
+      "to": "            ...makeClaudeQueryControls(queryRuntime, logProtocolEvent),\n",
+      "beforeSha256": "0581c164bae7338abe9bb0bef3fb162ff4b4f66756e72e6649412784566d6792",
+      "afterSha256": "ea37a61d785c63ed9d186f6d3f4e6ce5c7cf6100a8079457e3281f825f898b2d"
+    },
+    {
+      "id": "claude-application-shared-query-initialize",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "                    if (mcpServers !== undefined) {\n                      // Errors and mcp_status can echo headers; log only server names.\n                      const failed = yield* Effect.tryPromise({\n                        try: () => queryRuntime.setMcpServers(mcpServers),\n                        catch: (cause) => queryRunnerError(cause, \"setMcpServers\"),\n                      }).pipe(\n                        Effect.map((result) => Object.keys(result.errors)),\n                        Effect.orElseSucceed(() => Object.keys(mcpServers)),\n                        Effect.timeoutOrElse({\n                          duration: CLAUDE_MCP_REGISTRATION_TIMEOUT,\n                          orElse: () =>\n                            Effect.logWarning(\"orchestration-v2.claude-mcp-registration-timeout\", {\n                              threadId: input.threadId,\n                              providerSessionId: input.providerSessionId,\n                            }).pipe(\n                              Effect.andThen(\n                                Effect.fail(\n                                  queryRunnerError(\n                                    new ClaudeMcpRegistrationTimeoutError(),\n                                    \"setMcpServers\",\n                                  ),\n                                ),\n                              ),\n                            ),\n                        }),\n                      );\n                      if (failed.length > 0) {\n                        yield* Effect.logWarning(\n                          \"orchestration-v2.claude-mcp-servers-unavailable\",\n                          {\n                            threadId: input.threadId,\n                            servers: failed,\n                          },\n                        );\n                      }\n                    }\n                    yield* logProtocolEvent({\n                      direction: \"outgoing\",\n                      stage: \"decoded\",\n                      payload: {\n                        type: \"query.open\",\n                        options: loggedClaudeQueryOptions(input.options),\n                      },\n                    });\n",
+      "to": "                    yield* initializeClaudeQuery(queryRuntime, input, mcpServers, logProtocolEvent);\n",
+      "beforeSha256": "ea37a61d785c63ed9d186f6d3f4e6ce5c7cf6100a8079457e3281f825f898b2d",
+      "afterSha256": "f0d54ad470e2aa2f540967c8544ed3cac5afc9e0d09d2789fa9997fdcb4bfd10"
+    },
+    {
+      "id": "claude-application-shared-query-diagnostics",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "          let stderrTail = \"\";\n          let stderrClosed: Promise<void> = Promise.resolve();\n          let answered = false;\n          const appendStderr = (text: string) => {\n            if (answered) return;\n            stderrTail = (stderrTail + text).slice(-CLAUDE_STDERR_TAIL_LENGTH);\n          };\n",
+      "to": "          const diagnostics = makeClaudeQueryDiagnostics();\n          const appendStderr = (text: string) => appendClaudeQueryStderr(diagnostics, text);\n",
+      "beforeSha256": "f0d54ad470e2aa2f540967c8544ed3cac5afc9e0d09d2789fa9997fdcb4bfd10",
+      "afterSha256": "3e06ace24481f0fc5b7faf73dd84768f67e2acbeb8d9de2d72688e73b7a5224d"
+    },
+    {
+      "id": "claude-application-shared-stderr-drain",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "                stderrClosed = new Promise((resolve) => (stderrDone = resolve));",
+      "to": "                diagnostics.stderrClosed = new Promise((resolve) => (stderrDone = resolve));",
+      "beforeSha256": "3e06ace24481f0fc5b7faf73dd84768f67e2acbeb8d9de2d72688e73b7a5224d",
+      "afterSha256": "fb56ac9237c4891a1ca62f1e09a4dedc9358e4174b68c05a03773ef698753182"
+    },
+    {
+      "id": "claude-application-shared-control-helper",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "// SDK 0.3.316 types `mcp_call` and `list_permission_rules` but has no Query method for them; its own readMcpResource sends control requests this way.\nasync function sendClaudeControlRequest(\n  queryRuntime: ClaudeQuery,\n  request: {\n    readonly subtype: \"mcp_call\" | \"list_permission_rules\";\n    readonly [key: string]: unknown;\n  },\n): Promise<unknown> {\n  const send: unknown = Reflect.get(queryRuntime, \"request\");\n  if (typeof send !== \"function\") {\n    throw new Error(`This Claude Agent SDK cannot send ${request.subtype}.`);\n  }\n  const reply: unknown = await Reflect.apply(send, queryRuntime, [request]);\n  return Predicate.isObject(reply) ? reply.response : undefined;\n}\n\n",
+      "to": "",
+      "beforeSha256": "fb56ac9237c4891a1ca62f1e09a4dedc9358e4174b68c05a03773ef698753182",
+      "afterSha256": "628325769c1b7919811ae35f66fa5a2d94ece4af2af6e164ac84670e0464d834"
+    },
+    {
+      "id": "claude-application-shared-root-refusal",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "export class ClaudeCodeRootRefusalError extends Schema.TaggedError<ClaudeCodeRootRefusalError>()(\n  \"ClaudeCodeRootRefusalError\",\n  {\n    cause: Schema.Defect(),\n  },\n) {\n  override get message(): string {\n    return `Claude Code exited before it started: ${CLAUDE_ROOT_REFUSAL}`;\n  }\n}\n\n",
+      "to": "",
+      "beforeSha256": "628325769c1b7919811ae35f66fa5a2d94ece4af2af6e164ac84670e0464d834",
+      "afterSha256": "e5a739cb6c3c4f87a84428fabf41b0b5cde31f5781c843cada7f6b48de4c4086"
+    },
+    {
+      "id": "claude-shared-constant:0",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const CLAUDE_STDERR_TAIL_LENGTH = 2_048;\n",
+      "to": "",
+      "beforeSha256": "e5a739cb6c3c4f87a84428fabf41b0b5cde31f5781c843cada7f6b48de4c4086",
+      "afterSha256": "06f9e5a26a75ac9b0292b24675a740c502aa49591bc07b5eba09d3d8e58a10c8"
+    },
+    {
+      "id": "claude-shared-constant:1",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const CLAUDE_STDERR_DRAIN_TIMEOUT = Duration.seconds(1);\n",
+      "to": "",
+      "beforeSha256": "06f9e5a26a75ac9b0292b24675a740c502aa49591bc07b5eba09d3d8e58a10c8",
+      "afterSha256": "698c0853b820af67a0c5490c428e7c8baf295867ac0c1d498a76fb41083bcb06"
+    },
+    {
+      "id": "claude-shared-constant:2",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const CLAUDE_ROOT_REFUSAL =\n  \"--dangerously-skip-permissions cannot be used with root/sudo privileges for security reasons\";\n",
+      "to": "",
+      "beforeSha256": "698c0853b820af67a0c5490c428e7c8baf295867ac0c1d498a76fb41083bcb06",
+      "afterSha256": "3c3047b37df0a85d0eb2796ee503e5767cbfac7ed197d00aef77c3055df65920"
+    },
+    {
+      "id": "claude-shared-constant:3",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "const CLAUDE_MCP_REGISTRATION_TIMEOUT = \"90 seconds\";\n",
+      "to": "",
+      "beforeSha256": "3c3047b37df0a85d0eb2796ee503e5767cbfac7ed197d00aef77c3055df65920",
+      "afterSha256": "262c06dd37237acf57bb5418d4522533b8dc7fae60e5f72c077a7b1c2e2aa9c7"
+    },
+    {
+      "id": "claude-application-shared-query-imports",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "import * as DocumentText from \"../../provider/DocumentText.ts\";",
+      "to": "import { makeClaudePromptQueue, makeClaudeQueryControls, makeClaudeQueryMessages,\n  makeClaudeQueryDiagnostics, appendClaudeQueryStderr, ClaudeCodeRootRefusalError, initializeClaudeQuery\n} from \"./ClaudeAdapterV2.session-query.ts\";\nexport { ClaudeCodeRootRefusalError };\nimport * as DocumentText from \"../../provider/DocumentText.ts\";",
+      "beforeSha256": "262c06dd37237acf57bb5418d4522533b8dc7fae60e5f72c077a7b1c2e2aa9c7",
+      "afterSha256": "590cace49a54e27dc6bc9b990b9f42faf87eb16ef5dc057c762dd652dbe3aa54"
+    },
+    {
       "id": "session-manager-exclude-metric-decorator",
       "file": "apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "from": "        const turnMetrics = (operation: string, model?: string) =>\n          withMetrics({\n            counter: providerTurnsTotal,\n            ...(operation === \"send\" ? { timer: providerTurnDuration } : {}),\n            attributes: {\n              provider: runtime.driver,\n              operation,\n              modelFamily: normalizeModelMetricLabel(model),\n            },\n          });\n",
@@ -2901,6 +3275,38 @@
       "afterSha256": "33d2ee75a84945034122e367034d22d61b48cc49a5ae4cc0d562719a671dde03"
     },
     {
+      "id": "port-import:apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "import * as ServerConfig from \"../../config.ts\";",
+      "to": "import * as ServerConfig from \"../../config.session-port.ts\";",
+      "beforeSha256": "590cace49a54e27dc6bc9b990b9f42faf87eb16ef5dc057c762dd652dbe3aa54",
+      "afterSha256": "4b17c7a79929c850504834f6422833e04673866a36859deedc2dbb577b59a134"
+    },
+    {
+      "id": "port-import:apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "from": "import * as ServerSettings from \"../../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../../serverSettings.session-port.ts\";",
+      "beforeSha256": "4b17c7a79929c850504834f6422833e04673866a36859deedc2dbb577b59a134",
+      "afterSha256": "f9bf0e7183a2b8e4f2f6d26b55ce716b6b900cf42ece07864d859c71010e4a63"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/config.ts",
+      "file": "apps/server/src/provider/ModelManifest.ts",
+      "from": "import { ServerConfig } from \"../config.ts\";",
+      "to": "import { ServerConfig } from \"../config.session-port.ts\";",
+      "beforeSha256": "ebc928bbe30b07ff65ffc956ca5cd2f3f933a8a966fd61e62033ac36798f02cb",
+      "afterSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931"
+    },
+    {
+      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/serverSettings.ts",
+      "file": "apps/server/src/provider/ModelManifest.ts",
+      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
+      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
+      "beforeSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931",
+      "afterSha256": "ced37e56e941734143db305575d10c363678eaff4dd794828cab09c9cc7b9981"
+    },
+    {
       "id": "port-import:apps/server/src/provider/Drivers/CodexDriver.ts:apps/server/src/config.ts",
       "file": "apps/server/src/provider/Drivers/CodexDriver.ts",
       "from": "import * as ServerConfig from \"../../config.ts\";",
@@ -2971,22 +3377,6 @@
       "to": "import * as ServerConfig from \"../config.session-port.ts\";",
       "beforeSha256": "c87d9bc716355082f3b5f30b6c6581cc329e1d221a14fe0708e5873d73f59245",
       "afterSha256": "e3e4eca9d4004194063512404c7213722955394f93f6c701f4fdfceaa8f0519d"
-    },
-    {
-      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/config.ts",
-      "file": "apps/server/src/provider/ModelManifest.ts",
-      "from": "import { ServerConfig } from \"../config.ts\";",
-      "to": "import { ServerConfig } from \"../config.session-port.ts\";",
-      "beforeSha256": "ebc928bbe30b07ff65ffc956ca5cd2f3f933a8a966fd61e62033ac36798f02cb",
-      "afterSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931"
-    },
-    {
-      "id": "port-import:apps/server/src/provider/ModelManifest.ts:apps/server/src/serverSettings.ts",
-      "file": "apps/server/src/provider/ModelManifest.ts",
-      "from": "import * as ServerSettings from \"../serverSettings.ts\";",
-      "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "a0d23c17de67ca555d0be0bea8e24cf2c4f05d93facad5e1ee861f8c7ea0f931",
-      "afterSha256": "ced37e56e941734143db305575d10c363678eaff4dd794828cab09c9cc7b9981"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts:apps/server/src/config.ts",

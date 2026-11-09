@@ -7,7 +7,7 @@ import { OriginalCodexFactory, OriginalCodexIdentity, OriginalCodexLaunch, Origi
 import { ProviderDriverKind } from '@nessie/t3-session-source/contracts'
 import type { ReservedSessionLaunch } from './native-launch.js'
 import { makeProtectedOriginalCodexClient } from './codex-client.js'
-import { joinedNativeEffect } from './native-effect.js'
+import { isSessionScopeOpen, joinedNativeEffect } from './native-effect.js'
 import type { EffectValue } from './effect-types.js'
 
 type Factory = OriginalCodexFactory.CodexAppServerClientFactoryShape
@@ -26,10 +26,12 @@ const refused = (input: OpenInput) => new OriginalProviderAdapter.ProviderAdapte
 export const makeSessionCodexClientFactory = (launch: ReservedSessionLaunch):
   Effect.Effect<Factory, never, Scope.Scope> => Effect.gen(function* () {
   let opened = false, live = true
+  const scope = yield* Scope.Scope
   yield* Effect.addFinalizer(() => Effect.sync(() => { live = false }))
   return OriginalCodexFactory.CodexAppServerClientFactory.of({
     open: input => Effect.gen(function* () {
-      if (!live || opened || launch.signal.aborted || input.instanceId !== launch.target.providerInstanceId
+      if (!live || !isSessionScopeOpen(scope) || opened || launch.signal.aborted
+        || input.instanceId !== launch.target.providerInstanceId
         || input.threadId !== launch.target.threadId || input.settings.setupMode === 'managed'
         || input.settings.shadowHomePath.trim() || !input.settings.homePath.trim()
         || !win32.isAbsolute(input.settings.binaryPath)
@@ -58,9 +60,10 @@ export const makeSessionCodexClientFactory = (launch: ReservedSessionLaunch):
         const signal = AbortSignal.any([launch.signal, interrupted])
         signal.addEventListener('abort', stop, { once: true })
         const work = launch.withProvider(input.providerSessionId, descriptor, async provider => {
-          const parserScope = await Effect.runPromise(Scope.make())
+          const parserScope = await Effect.runPromise(Scope.fork(scope, 'sequential'))
           try {
             signal.throwIfAborted()
+            if (!isSessionScopeOpen(scope)) throw refused(input)
             const client = await Effect.runPromise(makeProtectedOriginalCodexClient(provider).pipe(
               Effect.provideService(Scope.Scope, parserScope)), { signal })
             signal.throwIfAborted()

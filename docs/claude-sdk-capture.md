@@ -2,8 +2,9 @@
 
 `@nessie/t3-session-source/claude-sdk` contains the pinned original Claude Agent
 SDK `0.3.316` query, encoder and parser behind a private native transport. It is
-a machine-only consumer boundary. Production `open` remains refused; the original
-T3 Claude runner and an admitted native launch/frame owner are not connected yet.
+a machine-only consumer boundary. The [original T3 runner](claude-original-runner.md)
+now shares its queue and controls with the protected path. Production `open`
+remains refused while full host activation and effect ownership are unfinished.
 
 The SDK package identifies Claude Code as `2.1.316`. Those are distinct versions.
 The producer verifies the complete original `sdk.mjs` SHA-256 before applying
@@ -66,7 +67,7 @@ immutable capture, delayed acknowledgment/order, token rejection and cancelled
 startup clearance. The fixture is not Claude, native custody or a provider
 success claim. No browser/native UI changes are part of this boundary.
 
-Original T3 query-runner queue integration, original command context, provider
-session association timing, post-association effect writes and separately
-admitted history read/fork remain required. Full host activation, startup/recovery
-authority and installed signed qualification are also unfinished.
+The original runner uses the reserved command owner, actual SDK descriptor and
+shared turn-start edge for native association. Post-association effect writes,
+separately admitted history read/fork, full host activation, startup/recovery
+authority and installed signed qualification remain required.

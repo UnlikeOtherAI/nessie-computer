@@ -13,6 +13,7 @@ import type { T3NativeExecutionTransport } from '../../t3-native-execution-trans
 import type { HeldSessionInspectionRuntime } from './inspection-runtime.js'
 import type { PreparedSessionLaunchTarget } from './launch-target.js'
 import { createProtectedCodexSerialization, type ProtectedCodexSerialization } from './codex-serialization.js'
+import { createProtectedProviderSerialization, type ProtectedProviderSerialization } from './provider-serialization.js'
 import { protectedRuntimeRefused } from './protected-wire.js'
 import type { ScopedSessionSecretReadAttempts } from './secret-read-attempts.js'
 import type { SessionLaunchCommandLineage } from './command-lineage.js'
@@ -21,15 +22,18 @@ import { makeSessionPreclaimHost } from './effect-preclaims.js'
 type Request = Extract<ExecutorT3Request, { readonly method: 'orchestration.launchThread' }>
 type ProviderLaunch = Extract<T3NativeLaunchDescriptor, { processPurpose: 'provider' }>
 const sha = (value: string) => 'sha256:' + createHash('sha256').update(value, 'utf8').digest('hex')
-export interface HeldNativeSessionProvider {
+interface HeldNativeSessionProviderBase {
   readonly process: ProtectedT3Provider
   readonly signal: AbortSignal
   readonly preparation: Readonly<T3ExecutionPreparation>
-  readonly serialization: ProtectedCodexSerialization
   /** Call after original protocol bootstrap observes its provider session.
    * Native associates ONLY its own held stdout observation, never an argument. */
   associate(): Promise<T3ExecutionReceipt>
 }
+export type HeldNativeSessionProvider = HeldNativeSessionProviderBase & (
+  | { readonly driver: 'codex'; readonly serialization: ProtectedCodexSerialization }
+  | { readonly driver: 'claude'; readonly serialization: ProtectedProviderSerialization }
+)
 export interface ReservedSessionLaunch {
   readonly target: PreparedSessionLaunchTarget
   readonly signal: AbortSignal
@@ -49,12 +53,12 @@ export interface ReservedSessionLaunch {
  * phases. This transport is not a workspace/secret preparation grant. The
  * original activated adapter must supply its own actual allocated session ID
  * and process descriptor AFTER those preparation effects are admitted.
- * Currently Codex only; Claude SDK/history remain explicitly unbound. */
+ * Codex and Claude retain their original encoders. History is separately admitted. */
 export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRuntime,
   request: Request, delivery: ExecutorT3LaneDelivery, transport: T3NativeExecutionTransport,
   caller: AbortSignal, use: (launch: ReservedSessionLaunch) => Promise<A>): Promise<A> {
   return held.withRecognized(request, delivery, caller, async (target, parent, accepted, secretReadAttempts) => {
-    if (target.driver !== 'codex' || !delivery.executionGraph) throw protectedRuntimeRefused()
+    if (!delivery.executionGraph) throw protectedRuntimeRefused()
     const stop = new AbortController(), signal = AbortSignal.any([parent, stop.signal])
     const graph = T3ExecutionGraphPayloadSchema.parse(JSON.parse(delivery.executionGraph.payload))
     let live = true, launched = false
@@ -73,7 +77,8 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
     }
     const signed = await transport.phase({ phase: 'reserve', graphId: accepted.graphId }, signal)
     const reserve = T3ExecutionAdmissionSchema.parse(JSON.parse(signed.payload))
-    if (reserve.phase !== 'reserve' || reserve.issuerKeyId !== native.descriptor.keyId
+    if (reserve.phase !== 'reserve' || reserve.binding.driver !== target.driver
+      || reserve.issuerKeyId !== native.descriptor.keyId
       || reserve.releaseDigest !== graph.custody.releaseDigest
       || Object.entries(graph.binding).some(([key, value]) =>
         reserve.binding[key as keyof T3ExecutionBinding] !== value)) {
@@ -119,11 +124,14 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
         }
         await recheck()
         const process = await startProtectedT3Provider(admitted, signal)
-        let serialization: ProtectedCodexSerialization | undefined
+        let serialization: ProtectedCodexSerialization | ProtectedProviderSerialization | undefined
         let association: Promise<T3ExecutionReceipt> | undefined
         try {
           await recheck()
-          serialization = createProtectedCodexSerialization(process, transport, native.descriptor, preparation, signal)
+          const driver = preparation.binding.driver
+          serialization = driver === 'codex'
+            ? createProtectedCodexSerialization(process, transport, native.descriptor, preparation, signal)
+            : createProtectedProviderSerialization(process, transport, native.descriptor, preparation, signal)
           const originalSerialization = serialization
           const associate = () => {
             if (association) return association
@@ -146,8 +154,10 @@ export async function withReservedSessionLaunch<A>(held: HeldSessionInspectionRu
             void association.catch(error => { failure ??= error; stop.abort() })
             return association
           }
-          return await callback(Object.freeze({ process, signal, preparation: Object.freeze(preparation),
-            serialization, associate }))
+          const common = { process, signal, preparation: Object.freeze(preparation), associate }
+          return await callback(driver === 'codex'
+            ? Object.freeze({ ...common, driver, serialization: serialization as ProtectedCodexSerialization })
+            : Object.freeze({ ...common, driver, serialization: serialization as ProtectedProviderSerialization }))
         } finally {
           // Callback return withdraws this finite launch. Writes and association
           // must finish before service-positive provider Job clearance, then SQL.

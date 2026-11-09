@@ -42,6 +42,8 @@ export interface SessionClaudeInput {
 export interface SessionClaudeQuery {
   readonly query: Query
   readonly ready: Promise<void>
+  /** Pipe drainage only, never native process/Job clearance. */
+  readonly stderrDrained: Promise<void>
   capturePrompt(message: SDKUserMessage): SessionClaudePrompt
   streamInput(input: SessionClaudeInput): Promise<void>
   close(): Promise<void>
@@ -67,6 +69,8 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
     || options.spawnClaudeCodeProcess || options.sessionStore || 'getOAuthToken' in options
     || 'getHostAuthToken' in options || 'onProcessSpawned' in options) throw refused()
   const abort = new AbortController()
+  const stderrDone = Promise.withResolvers<void>()
+  void stderrDone.promise.catch(() => undefined)
   const sources = [parentSignal, ...(options.abortController ? [options.abortController.signal] : [])]
   for (const source of sources) source.throwIfAborted()
   const tokens = new WeakMap<object, Frame>()
@@ -199,7 +203,7 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
           }
           const remaining = decoder.end()
           if (remaining) options.stderr?.(remaining)
-        })()).catch(error => { remember(error); stop() })
+        })()).then(stderrDone.resolve, error => { stderrDone.reject(error); remember(error); stop() })
         if (abort.signal.aborted) {
           // No parser starts on a cancelled launch, but the sole output reader
           // still drains while native termination/clearance is joined.
@@ -209,7 +213,7 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
           throw refused()
         }
         resolveOpened()
-      })).catch(error => { rejectOpened(error); remember(error); stop() })
+      })).catch(error => { stderrDone.reject(error); rejectOpened(error); remember(error); stop() })
       const waitForExit = async () => {
         await opened
         await process!.closed
@@ -232,8 +236,12 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
           } finally { drained.resolve() }
         },
         endInput() {
-          track(tail.then(async () => { await opened; current(); await process!.endInput() })).catch(error => {
-            remember(error); stop()
+          if (!accepting || abort.signal.aborted) return
+          track(tail.then(async () => {
+            await opened
+            if (accepting && !abort.signal.aborted) await process!.endInput()
+          })).catch(error => {
+            if (!abort.signal.aborted) { remember(error); stop() }
           })
         },
         waitForExit,
@@ -247,7 +255,8 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
     query = result.query
     encodePrompt = result.encodePrompt
     if (sources.some(signal => signal.aborted)) cancel()
-  } catch (error) { rejectOpened(error); stop(); for (const source of sources) source.removeEventListener('abort', cancel)
+  } catch (error) { stderrDone.reject(error); rejectOpened(error); stop()
+    for (const source of sources) source.removeEventListener('abort', cancel)
     throw error }
   const actual = query
   const close = (): Promise<void> => closing ??= (async () => {
@@ -264,6 +273,7 @@ export function createSessionClaudeQuery(options: Options, owner: SessionClaudeO
   return Object.freeze({
     query: actual,
     ready: opened,
+    stderrDrained: stderrDone.promise,
     capturePrompt(message: SDKUserMessage): SessionClaudePrompt {
       return capture(encodePrompt(message)) as SessionClaudePrompt
     },

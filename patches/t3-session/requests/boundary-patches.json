@@ -37,24 +37,24 @@
     {
       "id": "claude-request-privacy-import",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "7e212d616f62538bc0297973fd272ae20cf306abb46a56519f7959e2b7e1f86b",
-      "afterSha256": "95c9924c0d30495ee39e67b86ad9bb2501bf8d2e3a6215b16899a350215dc938",
-      "from": "import * as DocumentText from \"../../provider/DocumentText.ts\";",
-      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestInput, projectSecretRequestOutput, projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport * as DocumentText from \"../../provider/DocumentText.ts\";"
+      "beforeSha256": "f9bf0e7183a2b8e4f2f6d26b55ce716b6b900cf42ece07864d859c71010e4a63",
+      "afterSha256": "ad29911968f7c2bb4fd36a3f77efe6226864fee44c5a2ab7c69a2844c5786577",
+      "from": "import { makeClaudePromptQueue, makeClaudeQueryControls, makeClaudeQueryMessages,",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestInput, projectSecretRequestOutput, projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { makeClaudePromptQueue, makeClaudeQueryControls, makeClaudeQueryMessages,"
     },
     {
       "id": "claude-private-protocol-projector",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "95c9924c0d30495ee39e67b86ad9bb2501bf8d2e3a6215b16899a350215dc938",
-      "afterSha256": "b5dadfd01f260b1068d6d1eac328cd23029db324017a483bc43f183b7e8fe00e",
+      "beforeSha256": "ad29911968f7c2bb4fd36a3f77efe6226864fee44c5a2ab7c69a2844c5786577",
+      "afterSha256": "6ab1a0ceea7e40401c720a1f5ee27fcf23f93036d18688959e6561fee79fd05a",
       "from": "function makeClaudeAgentSdkProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): ClaudeAgentSdkProtocolLogger | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  return (event) => {",
       "to": "function makeClaudeAgentSdkProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): ClaudeAgentSdkProtocolLogger | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  const projectRequestPrivacy = createRequestPrivacyProjector();\n\n  return (event) => {"
     },
     {
       "id": "claude-private-protocol-before-bounds",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "b5dadfd01f260b1068d6d1eac328cd23029db324017a483bc43f183b7e8fe00e",
-      "afterSha256": "b0d50eefd2645af7be5dea0d12a51f1eb0fa5eb1bb2d9f4887260c9d54ac8a03",
+      "beforeSha256": "6ab1a0ceea7e40401c720a1f5ee27fcf23f93036d18688959e6561fee79fd05a",
+      "afterSha256": "0b14e6f83f9c8e79883b97025704d7b691a8ac29d3294b5d1eeb1826d837cf17",
       "from": "event: boundProviderEventForLogging(event),",
       "to": "event: boundProviderEventForLogging(projectRequestPrivacy(event)),"
     },
@@ -85,72 +85,72 @@
     {
       "id": "claude-private-tool-title-input",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "b0d50eefd2645af7be5dea0d12a51f1eb0fa5eb1bb2d9f4887260c9d54ac8a03",
-      "afterSha256": "e6141d447b60a4dddda3bf4ad0136e2d398f905b8380b1d6d6c99922ec76fef8",
+      "beforeSha256": "0b14e6f83f9c8e79883b97025704d7b691a8ac29d3294b5d1eeb1826d837cf17",
+      "afterSha256": "4a5ebd499535879b667f521c32ae227e213e7711b33409ac682b5e3a2a286fdc",
       "from": "const nativeToolInput = claudeNativeToolInputValue(input.toolInput);",
       "to": "const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );"
     },
     {
       "id": "claude-private-tool-output",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "e6141d447b60a4dddda3bf4ad0136e2d398f905b8380b1d6d6c99922ec76fef8",
-      "afterSha256": "e9f837d2681794cecbab850f04862026054e423af222bf2d0b6337e8575b6231",
+      "beforeSha256": "4a5ebd499535879b667f521c32ae227e213e7711b33409ac682b5e3a2a286fdc",
+      "afterSha256": "75439ae0d2c114ccb7b98e3fca7caa7207e96c54c582425a4fdc2d4c5855604d",
       "from": "const outputValue = claudeNativeToolOutputValue(input.output);",
       "to": "const outputValue = projectSecretRequestOutput(\n            input.toolName, claudeNativeToolOutputValue(input.output),\n          );"
     },
     {
       "id": "claude-private-tool-input",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "e9f837d2681794cecbab850f04862026054e423af222bf2d0b6337e8575b6231",
-      "afterSha256": "d824ddbc3f9f11928d8533c086fab2b1872f041b079d3304d3975ee797c1557e",
+      "beforeSha256": "75439ae0d2c114ccb7b98e3fca7caa7207e96c54c582425a4fdc2d4c5855604d",
+      "afterSha256": "9c25d493eed99757e571d67f6668b30a9bb6c05c7b6ee19658a6011bb8b6a864",
       "from": "input: claudeNativeToolInputValue(input.toolInput),",
       "to": "input: nativeToolInput,"
     },
     {
       "id": "claude-private-tool-factory-final",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "d824ddbc3f9f11928d8533c086fab2b1872f041b079d3304d3975ee797c1557e",
-      "afterSha256": "a898ac5f7e988cd2f0b9293829964b23ffc2af537ffb4a5bc56b274ab92ef473",
+      "beforeSha256": "9c25d493eed99757e571d67f6668b30a9bb6c05c7b6ee19658a6011bb8b6a864",
+      "afterSha256": "25da27343c8b37f6c3e6c81bb776b35d7c4d092599c74fc7aa63a40387772669",
       "from": "          return { node, turnItem };\n        };\n\n        const emitToolCallArtifacts",
       "to": "          return { node, turnItem: turnItem.type === \"dynamic_tool\"\n            ? projectSecretRequestItem(turnItem) : turnItem };\n        };\n\n        const emitToolCallArtifacts"
     },
     {
       "id": "claude-masked-question-before-tool-event",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "a898ac5f7e988cd2f0b9293829964b23ffc2af537ffb4a5bc56b274ab92ef473",
-      "afterSha256": "e6152bcc2cc239a00dde78153edf5ae9ff1b17bd1107d8117359fe46e7573eed",
+      "beforeSha256": "25da27343c8b37f6c3e6c81bb776b35d7c4d092599c74fc7aa63a40387772669",
+      "afterSha256": "bc8e0574ba1e0b959a2f8eb9b5fb9bd6750dc69818d0a57553236b3a2ff19441",
       "from": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );",
       "to": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );\n          if (input.toolName === \"AskUserQuestion\") {\n            assertPublicUserInputQuestions(inputRecordValue(input.toolInput, \"questions\"));\n          }"
     },
     {
       "id": "claude-private-tool-summary",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "e6152bcc2cc239a00dde78153edf5ae9ff1b17bd1107d8117359fe46e7573eed",
-      "afterSha256": "64032ab958c7c51d081e40c38e7abe4eeb5fa17efc51d6b01d670a071464c7d9",
+      "beforeSha256": "bc8e0574ba1e0b959a2f8eb9b5fb9bd6750dc69818d0a57553236b3a2ff19441",
+      "afterSha256": "5b37902697f5d460c05e6188f15263b6cf49d99529d03032d6102c5785ce7fda",
       "from": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {",
       "to": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {\n  if (isSecretRequestTool(toolName)) return \"Request a secret\";"
     },
     {
       "id": "claude-private-approval-prompt",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "64032ab958c7c51d081e40c38e7abe4eeb5fa17efc51d6b01d670a071464c7d9",
-      "afterSha256": "212f76dae2f23daffa902faa0859da7ab25b0ed59130509cc0cda477af94074c",
+      "beforeSha256": "5b37902697f5d460c05e6188f15263b6cf49d99529d03032d6102c5785ce7fda",
+      "afterSha256": "a91bb27e93670e135f43e63f31cdf365021d2e61001daf8c89b689c1d0b64b74",
       "from": "          const prompt =\n            (typeof command",
       "to": "          const prompt = isSecretRequestTool(toolName) ? \"Request a secret\" :\n            (typeof command"
     },
     {
       "id": "claude-private-approval-reason",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "212f76dae2f23daffa902faa0859da7ab25b0ed59130509cc0cda477af94074c",
-      "afterSha256": "0846be329170e4d9192ef6eabb8f0f0878f20926cf6c130d7fb90820d853b784",
+      "beforeSha256": "a91bb27e93670e135f43e63f31cdf365021d2e61001daf8c89b689c1d0b64b74",
+      "afterSha256": "775565c3581246ef62a9c5fe8d1de49b5b7b82522446ba355670287cc6bf740a",
       "from": "              prompt,\n              callbackOptions,\n            }),",
       "to": "              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n                ...(callbackOptions.matchedAskRule === undefined ? {}\n                  : { matchedAskRule: callbackOptions.matchedAskRule }),\n                ...(callbackOptions.suppressAlwaysAllowRule === undefined ? {}\n                  : { suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule }),\n              } : callbackOptions,\n            }),"
     },
     {
       "id": "claude-private-preview-refusal",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "0846be329170e4d9192ef6eabb8f0f0878f20926cf6c130d7fb90820d853b784",
-      "afterSha256": "79e71d179d17f31a3f60b21018b29c575ad9656d1a42f73500ecc3cfaad7b696",
+      "beforeSha256": "775565c3581246ef62a9c5fe8d1de49b5b7b82522446ba355670287cc6bf740a",
+      "afterSha256": "376fcbb09954d2aedffd5156ae940a7e2e02bbd587d40707f4b363ab68c6d919",
       "from": "              !toolCall.toolName.startsWith(\"mcp__\") ||",
       "to": "              isSecretRequestTool(toolCall.toolName) ||\n              !toolCall.toolName.startsWith(\"mcp__\") ||"
     },
@@ -165,8 +165,8 @@
     {
       "id": "claude-masked-question-admission",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "79e71d179d17f31a3f60b21018b29c575ad9656d1a42f73500ecc3cfaad7b696",
-      "afterSha256": "ae88a140d1bb8ad7139972ec66c311b4e3df2bf0820fba996a36b073d85dca2d",
+      "beforeSha256": "376fcbb09954d2aedffd5156ae940a7e2e02bbd587d40707f4b363ab68c6d919",
+      "afterSha256": "91afb99d4681098c3ab25ba0f2d36f3df0c0d90945c6da59b534dbc203abb89e",
       "from": "  if (!Array.isArray(questions)) return [];\n  return questions.flatMap",
       "to": "  if (!Array.isArray(questions)) return [];\n  assertPublicUserInputQuestions(questions);\n  return questions.flatMap"
     },
@@ -197,8 +197,8 @@
     {
       "id": "claude-private-tool-before-publication",
       "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
-      "beforeSha256": "ae88a140d1bb8ad7139972ec66c311b4e3df2bf0820fba996a36b073d85dca2d",
-      "afterSha256": "dbfc6774cc6759ede13fa1a83ea5cf33a9d4e6140da01d97c8698750e4136b9d",
+      "beforeSha256": "91afb99d4681098c3ab25ba0f2d36f3df0c0d90945c6da59b534dbc203abb89e",
+      "afterSha256": "9f82af64dd1f33fa96bf88e3f7ab80f455216cc679f8cec7e4a25c6b2e6f4d1d",
       "from": "          return Queue.offer(events, event).pipe(Effect.asVoid);",
       "to": "          return Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
     },

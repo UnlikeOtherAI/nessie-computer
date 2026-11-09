@@ -32,14 +32,15 @@ const extractionBytes = readFileSync(new URL(`../../${extractionPath}`, import.m
 const legacyExtraction = committed(producerCommit, extractionPath)
 assert.equal(hash(legacyExtraction), '7af46ac8bf7d67cd59bb986150db5324e709856d94755d29e029858177a9a4ac')
 assert.equal(JSON.parse(legacyExtraction).patches.length, 150)
-assert.equal(hash(extractionBytes), '9fabb6112fb6fe5ace4abf7b9894258195f2b8107c6c316f862bec669cba9a2b')
+assert.equal(hash(extractionBytes), 'b15a6b57e1dd1d99ef6edc07697ecef07eea4243dc22e53086439fa023d1549b')
 const extraction = JSON.parse(extractionBytes)
-assert.equal(extraction.patches.length, 300)
+assert.equal(extraction.patches.length, 330)
 const privacyFiles = new Set(JSON.parse(requestPrivacyManifestBytes).patches.map(patch => patch.file))
 assert.equal(privacyFiles.size, 7)
 const overlapping = [...new Set(extraction.patches.filter(patch => privacyFiles.has(patch.file))
   .map(patch => patch.file))].sort()
-assert.deepEqual(overlapping, ['apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts',
+assert.deepEqual(overlapping, ['apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts',
+  'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts',
   'apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts'])
 
 const { original, prefix, snapshot, manifestBytes } = await readRequestSource()

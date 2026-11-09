@@ -20,6 +20,7 @@ import { extractInspectionHosts } from './inspection-hosts.mjs'
 import { extractProviderSecretPlan } from './secret-plan.mjs'
 import { extractSelectedProvider } from './selected-provider.mjs'
 import { extractCodexHost } from './codex-host.mjs'
+import { extractClaudeQuery } from './claude-query.mjs'
 import { extractCodexSerialization } from './serialization.mjs'
 import { extractCommandLineage } from './command-lineage.mjs'
 import { extractEffectCommand } from './effect-command.mjs'
@@ -60,6 +61,7 @@ export const generateExtractionManifest = snapshot => {
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)
   extractCodexHost(author, redirects)
+  extractClaudeQuery(author, redirects)
   extractProviderLive(author, redirects)
   extractProviderEvents(author)
   extractCodexSerialization(author)

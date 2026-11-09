@@ -3,13 +3,10 @@ import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 import { createSessionClaudeQuery } from '@nessie/t3-session-source/claude-sdk'
 
-export function fixture({ beforeWrite, beforeStart, afterClearance, stderrBytes = 0, ...options } = {}) {
+export function echoOwner({ beforeWrite, beforeStart, afterClearance, stderrBytes = 0, ...options } = {}) {
   const captures = [], writes = [], descriptors = [], children = [], parent = new AbortController()
   let terminationCount = 0
-  const handle = createSessionClaudeQuery({
-    cwd: process.cwd(), env: { FIXTURE_ENV: 'original' },
-    pathToClaudeCodeExecutable: process.execPath, ...options,
-  }, {
+  const owner = {
     async start(descriptor, signal) {
       descriptors.push(descriptor)
       await beforeStart?.(signal)
@@ -53,8 +50,17 @@ export function fixture({ beforeWrite, beforeStart, afterClearance, stderrBytes 
         async discard() { bytes.fill(0) },
       }
     },
-  }, parent.signal)
-  return { handle, captures, writes, descriptors, parent, children, terminations: () => terminationCount }
+  }
+  return { owner, options, captures, writes, descriptors, parent, children, terminations: () => terminationCount }
+}
+
+export function fixture(configuration) {
+  const state = echoOwner(configuration)
+  const handle = createSessionClaudeQuery({
+    cwd: process.cwd(), env: { FIXTURE_ENV: 'original' },
+    pathToClaudeCodeExecutable: process.execPath, ...state.options,
+  }, state.owner, state.parent.signal)
+  return { ...state, handle }
 }
 
 export const user = text => ({ type: 'user', session_id: '',

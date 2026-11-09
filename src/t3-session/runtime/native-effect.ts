@@ -1,4 +1,14 @@
 import * as Effect from 'effect/Effect'
+import type * as Scope from 'effect/Scope'
+
+/** Scope enters Closed before its finalizers drain. Check the actual parent
+ * chain so escaped factories cannot acquire work during that cleanup window. */
+export const isSessionScopeOpen = (scope: Scope.Scope): boolean => {
+  for (let current: Scope.Scope | undefined = scope; current; current = current.parent) {
+    if (current.state._tag === 'Closed') return false
+  }
+  return true
+}
 
 /** An interrupted Effect must not detach a native companion's Promise while
  * its protected positive-clearance finally block is still running. This joins

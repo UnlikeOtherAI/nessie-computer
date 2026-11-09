@@ -12,13 +12,14 @@ for await (const line of input) {
   const frame = JSON.parse(line)
   if (frame.type === 'control_request') {
     process.stdout.write(JSON.stringify({ type: 'control_response', response: {
-      subtype: 'success', request_id: frame.request_id, response: {
+      subtype: 'success', request_id: frame.request_id, response: frame.request.subtype === 'mcp_set_servers'
+        ? { added: Object.keys(frame.request.servers ?? {}), removed: [], errors: {} } : {
         commands: [], models: [], agents: [], account: {},
       },
     } }) + '\n')
   } else if (frame.type === 'user') {
     process.stdout.write(JSON.stringify({ type: 'system', subtype: 'init',
-      session_id: 'fixture-session', echo: frame }) + '\n')
+      session_id: 'fixture-session', uuid: '00000000-0000-4000-8000-000000000001', echo: frame }) + '\n')
     process.stdout.write(JSON.stringify({ type: 'result', subtype: 'success',
       is_error: false, result: 'fixture', num_turns: 1, session_id: 'fixture-session' }) + '\n')
   }

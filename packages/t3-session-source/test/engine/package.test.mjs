@@ -9,6 +9,10 @@ import { build } from 'esbuild'
 import { preparePackageHistoryFixture } from './history-fixture.mjs'
 import { assertLibraryAuthoredInputs } from '../../../../packaging/session-engine/library.mjs'
 import { typecheckSessionState } from '../../../../packaging/session-engine/typecheck.mjs'
+import { readSessionEngineSnapshot } from '../../../../packaging/session-engine/snapshot.mjs'
+import { T3_SESSION_ENGINE_SOURCE } from '../../../../packaging/session-engine/source.mjs'
+import { applySessionEngineBoundaryPatches } from '../../../../packaging/session-engine/patches.mjs'
+import { generateExtractionManifest } from '../../../../patches/t3-session/extraction/generate.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const executor = resolve(root, '../..')
@@ -20,6 +24,13 @@ const run = (args, cwd = root) => {
   if (result.stderr) process.stderr.write(result.stderr)
   if (result.stdout) process.stdout.write(result.stdout)
 }
+
+test('reviewed extraction reproduces from the pinned source, including shared original Claude session behavior', async () => {
+  const archive = resolve(root, '.artifacts/source', T3_SESSION_ENGINE_SOURCE.archiveSha256, 'source.tar')
+  const source = applySessionEngineBoundaryPatches(await readSessionEngineSnapshot(archive))
+  const reproduced = Buffer.from(JSON.stringify(generateExtractionManifest(source), null, 2) + '\n')
+  assert.deepEqual(reproduced, await readFile(resolve(executor, 'patches/t3-session/extraction/boundary-patches.json')))
+})
 
 test('normal library import shares original codecs, Context tags and the consumer Effect root without starting work', () => {
   run([resolve(import.meta.dirname, 'runtime.mjs')])
@@ -108,7 +119,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '2216828f6c4b83c2c13a5ce7a2870566484197d8fe7775b66c3c0e66f953f976')
+    'd119f1166b95792fd9f7e8a69892f3310630bebcb58c8519ab231dc6478474c5')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   for (const file of provenance.modules) {
     const bytes = await readFile(resolve(dist, file.path))

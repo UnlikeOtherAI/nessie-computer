@@ -131,10 +131,10 @@ registry construction therefore remains unsuitable for this protected path.
 Other original preparation effects remain unbound: pending attachment copies
 in `AttachmentClaims`, workspace fetch/worktree/setup/rollback in
 `ThreadLaunchService`, and Codex shadow-home materialization. Reserve, graph,
-launch and FRAME admissions do not authorize those effects. Claude SDK 0.3.316
-serialization, separate history authority, full original host activation and
-daemon `open` registration remain required. No new tests, compiler or native
-qualification were run for this source checkpoint; regression fixtures are authored.
+launch and FRAME admissions do not authorize those effects. The original Claude
+queue and SDK serializer now share the protected runner composition below.
+Separate history authority, full original host activation and daemon `open`
+registration remain required; installed/native qualification is unfinished.
 
 ## Remaining original activation bindings
 
@@ -145,6 +145,7 @@ These are concrete runtime composition work, including for an empty secret plan:
 | `ThreadLaunchService.make` / `schedulePreparation` | Actual project, managed-folder, git and setup-script owners. Fetch/worktree/attachment/overlay mutations still lack preparation-effect authority. |
 | `ProviderInstanceRegistry.buildEntry` / `registryView` | Shared single-entry construction is authored below. Bind it inside the same recognized engine owner; global reconciliation remains excluded. Nonempty plans still require the safe native read producer. |
 | `CodexDriver.create` / `makeCodexAdapterV2` | Selected construction and the protected client factory are authored below. Real `ManagedServerProvider`, `ProviderTextGeneration`, installation compatibility, environment and original FileSystem/config/MCP services remain required. No synthetic snapshot, text generator or ambient executable lookup is supplied. |
+| `ClaudeDriver.create` / `ClaudeAgentSdkQueryRunner` | The shared original queue and protected runner are composed in source. Selected instance construction, real snapshot/text-generation services, admitted history and pre-effect callback owners remain required. |
 | `ProviderSessionManager.layer` / `prepareMcpSession` | Actual `McpSessionRegistry.issue/resolve/revokeThread` and `McpProviderSessions.read/set/clear`, preserving credential lifetime and provider-session identity. Reserve/FRAME grants do not authorize these effects. |
 | `ProviderTurnStartService.layer` | Actual workspace lease, `ProviderAuthService.tryHandlePromptCommand`, checkpoint/run execution and handoff services. The original executor supplies persisted effect identity in fiber context; bind it to admitted TurnStart and the writer. |
 | `ThreadLaunchService` initial-message/preparation dispatch | Initial-message, accepted-run and release capture are implemented below. Use the same source context during activation and consume separate real admission before claim. |
@@ -159,7 +160,7 @@ unimplemented; preclaim permission cannot supply this service.
 
 These ports remain runtime-owned. The missing native secret channel producer and
 version-specific noninteractive `op` behavior are separate dependencies. Claude
-SDK 0.3.316 immutable serialization is still unbound; the original history worker
+SDK 0.3.316 immutable serialization is connected in source; the original history worker
 `runClaudeHistoryWorker(method, sessionId, rawOptions)` requires separately
 admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
 
@@ -167,6 +168,10 @@ admitted read/fork purpose. `launchThread.reuseExistingThread` supplies neither.
 
 The private native query/encoder/parser capsule and its remaining integration
 work follow [Claude SDK capture](claude-sdk-capture.md).
+The original T3 queue, controls and diagnostics now share their implementation
+with the [protected runner](claude-original-runner.md). Its actual SDK descriptor
+uses the reserved native creator; full activation and post-association owners
+remain unfinished.
 
 The original source lock resolves `@anthropic-ai/claude-agent-sdk` to `0.3.316`
 with integrity `sha512-mCMr0que5kIy80JslJub6WFDB2+GYRGWNeVgSZaBpkBwXrr4wnRMnnGHitkA2BEJ5QP5xWyc6YH/6do/edxCWg==`.
@@ -193,8 +198,8 @@ must wait for actual native commit. Existing SDK queueing does not supply it.
 The public custom-spawn callback is synchronous and returns `SpawnedProcess`
 with generic stdin. The real protected launch is asynchronous and exposes no
 such stdin capability. A fake ChildProcess or generic Writable facade cannot
-bridge this difference. The source integration still needs an actual immutable
-SDK spawn/transport refactor and the same original invocation context. SDK
+bridge this difference. The private capsule now supplies that asynchronous
+transport and immutable capture, bound to the original reserved operation. SDK
 process exit and its bounded `waitForExit` are not positive native Job clearance.
 Native session-ID timing remains an installed-interface qualification item;
 an allocated SDK/session ID or command argument cannot substitute for it.
@@ -1184,8 +1189,9 @@ may be recreated after a bounded delay; unknown startup/clearance is retained as
 unavailable rather than retried as if no process existed.
 
 This is inspection only. The command `open` path still refuses: original admitted
-activation, per-operation SDK serialization and immutable history composition
-remain unfinished. It does not advertise retained readiness or claim a provider
+activation, post-association effect writes and immutable history composition
+remain unfinished. The original SDK bootstrap serializer is composed above.
+The entry does not advertise retained readiness or claim a provider
 launch. The protected finite native phase transport will attach to the exact
 open operation's closure, never to a caller-selected operation or daemon key DTO.
 Four control-channel fixtures cover bounded framing, UTF8, field injection and
