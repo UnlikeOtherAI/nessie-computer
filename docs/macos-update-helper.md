@@ -41,7 +41,11 @@ only once that attempt is over, and launchd can take minutes to start a helper
 that was just registered again, so the teams start again once the installed
 runtime is the app's version, the helper answers again, or ten minutes pass.
 The app reads the installed version from the runtime's manifest, so this holds
-even while the helper does not answer.
+even while the helper does not answer. Replacing the app unloads the helper,
+whose program lives inside it, so a newer app installed by hand makes this held
+restart at launch, before any team starts, instead of a plain registration. A
+helper waiting for the owner's approval cannot run, so the teams start then
+too. Relaunching soon after a try follows the same retry schedule.
 
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.

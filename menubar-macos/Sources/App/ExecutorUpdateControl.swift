@@ -139,8 +139,13 @@ final class ExecutorUpdateMonitor {
     private var announced: String?
     private let restart = ExecutorApplicationRestart()
 
-    func start(console: ConsoleWindowController, connections: ExecutorConnections) {
+    func start(console: ConsoleWindowController, connections: ExecutorConnections, bringingRuntime: Bool) {
         task = Task { [weak self, weak console, weak connections] in
+            if bringingRuntime, let version = ComputerUpdateService.applicationVersion {
+                await connections?.holdTeams(until: version) {
+                    await ComputerUpdateService.restartAutomatically(for: version)
+                }
+            }
             while !Task.isCancelled {
                 let status = try? await ExecutorUpdateControl.run(["operation": "status"])
                 await self?.restartHelperIfNeeded(status, connections: connections)

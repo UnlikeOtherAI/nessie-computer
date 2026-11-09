@@ -106,6 +106,12 @@ public enum ComputerUpdateRecovery {
                                                   applicationVersion: restarts.version) else {
             return false
         }
+        return restartDue(restarts, now: now)
+    }
+
+    /// The first automatic restart for a version is due at once; each further
+    /// one after `restartDelay`.
+    public static func restartDue(_ restarts: ComputerUpdateRestartRecord, now: Date) -> Bool {
         guard restarts.made > 0, let last = restarts.last else { return true }
         return now.timeIntervalSince(last) >= restartDelay(after: restarts.made)
     }

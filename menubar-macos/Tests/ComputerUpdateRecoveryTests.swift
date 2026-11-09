@@ -119,6 +119,15 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         XCTAssertFalse(adopts(nil, nil), "no installed runtime yet: first setup has its own path")
     }
 
+    func testALaunchBringsTheRuntimeOnlyWhenARestartIsDue() {
+        let fresh = ComputerUpdateRestartRecord(version: "1.0.30")
+        XCTAssertTrue(ComputerUpdateRecovery.restartDue(fresh, now: start), "the first one for a version is at once")
+        let tried = fresh.restarted(at: start)
+        XCTAssertFalse(ComputerUpdateRecovery.restartDue(tried, now: start.addingTimeInterval(899)),
+                       "relaunching right after a try does not hold the teams again")
+        XCTAssertTrue(ComputerUpdateRecovery.restartDue(tried, now: start.addingTimeInterval(900)))
+    }
+
     func testAStartedReplacementIsNeverInterrupted() {
         XCTAssertFalse(restart(phase: "installing"))
         XCTAssertFalse(restart(phase: "restarting"))
