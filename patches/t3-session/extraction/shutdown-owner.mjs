@@ -32,27 +32,31 @@ export const shutdownPreparationOwner = `
       return yield* refused("shutdown-plan-size");
     }
     const inputs: Array<readonly [string, unknown]> = [];
+    const projectionInputs: Array<{ readonly threadId: ThreadId; readonly projectId: string;
+      readonly inputDigest: string }> = [];
     const effects: Array<ContinuationEffect> = [];
     let bytes = Buffer.byteLength(JSON.stringify(encodedSettings), "utf8");
     if (bytes > 4 * 1024 * 1024) return yield* refused("shutdown-plan-size");
     // One readonly transaction supplies every original projection. The normal
     // unprepared operation retains its original concurrent read/write policy.
     for (const threadId of threadIds) {
-      const projection = yield* projections.getRuntimeRecoveryProjection(threadId);
+      const captured = yield* projections.getRuntimeRecoveryProjectionWithInputs(threadId);
+      const projection = captured.projection;
       if (projection.thread.id !== threadId) return yield* refused("shutdown-plan-thread-mismatch");
       const now = yield* DateTime.now;
       const encoded = encodeProjection(projection);
       bytes += Buffer.byteLength(JSON.stringify(encoded), "utf8");
       if (bytes > 4 * 1024 * 1024) return yield* refused("shutdown-plan-size");
       inputs.push([threadId, encoded]);
+      projectionInputs.push({ threadId, projectId: projection.thread.projectId, inputDigest: captured.inputDigest });
       const effect = selectContinuation(selectedSettings, projection, now, threadId);
       if (effect) effects.push(Object.freeze({ ...effect, request: Object.freeze({ ...effect.request }) }));
     }
     const slots = yield* outbox.inspectRestartContinuationSlots(effects);
-    const inputDigest = digest("nessie.t3.shutdown-inputs.v1", [encodedSettings, inputs]);
+    const inputDigest = digest("nessie.t3.shutdown-inputs.v2", [encodedSettings, inputs, projectionInputs]);
     const settingsDigest = digest("nessie.t3.shutdown-settings.v1", encodedSettings);
     const planDigest = digest("nessie.t3.shutdown-plan.v1", [inputDigest, effects, slots]);
-    return { inputDigest, settingsDigest, planDigest, threadIds, effects, slots };
+    return { inputDigest, settingsDigest, planDigest, threadIds, effects, slots, projectionInputs };
   }).pipe(Effect.withTracerEnabled(false));
   type Plan = Effect.Success<typeof readPlan> & { readonly scope: Scope.Scope;
     readonly observedAtMs: number; readonly observedMonotonicMs: number };
@@ -67,10 +71,14 @@ export const shutdownPreparationOwner = `
     declare readonly [shutdownPreparationCandidateBrand]: true;
     constructor(supplied: object) { if (supplied !== key) throw refused("shutdown-plan-closed"); }
     get observedAtMs(): number { return get(this).observedAtMs; }
+    get notAfterMonotonicMs(): number { return get(this).observedMonotonicMs + 5000; }
     get inputDigest(): string { return get(this).inputDigest; }
     get settingsDigest(): string { return get(this).settingsDigest; }
     get planDigest(): string { return get(this).planDigest; }
     get threadIds(): ReadonlyArray<ThreadId> { return [...get(this).threadIds]; }
+    get projectionInputs(): ShutdownPreparationCandidate["projectionInputs"] {
+      return get(this).projectionInputs.map(value => Object.freeze({ ...value }));
+    }
     get effects(): ShutdownPreparationCandidate["effects"] {
       const plan = get(this);
       return plan.effects.map((effect, index) => Object.freeze({ effectId: effect.id,

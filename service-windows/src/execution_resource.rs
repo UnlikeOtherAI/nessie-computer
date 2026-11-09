@@ -270,6 +270,17 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
             held.recheck()?;
             Ok(json!({"observation":observation}))
         }
+        Request::ObserveDestinationRecoveryInputs { resource_id, graph, thread_id, .. } => {
+            let held = resources.get(&resource_id).ok_or(REJECTED)?;
+            held.check_owner(caller, &context)?;
+            held.check_binding(caller, &context, &graph.binding)?;
+            let digest = nessie_windows_common::execution::value_digest(&serde_json::to_value(&graph).map_err(|_| REJECTED)?)?;
+            if held.inspections.get(&graph.nonce) != Some(&digest) { return Err(REJECTED.into()); }
+            let observation = held.destination.as_ref().ok_or(REJECTED)?
+                .observe_recovery_inputs(&graph.binding.source_generation, &thread_id)?;
+            held.recheck()?;
+            Ok(json!({"observation":observation}))
+        }
         Request::OpenCommandLineage { resource_id, graph, retention_expires_at, .. } =>
             commands::open(resources.get_mut(&resource_id).ok_or(REJECTED)?, caller, &context, &graph, retention_expires_at),
         Request::RecordCommandLineage { resource_id, graph, edge, .. } =>

@@ -72,6 +72,14 @@ export const T3ExecutionLegacyShellObservationSchema = z.object({
 }).strict()
 export type T3ExecutionLegacyShellObservation = z.infer<typeof T3ExecutionLegacyShellObservationSchema>
 
+/** Exact physical input facts for one original recovery projection; no raw
+ * records, complete-action selection assertion or mutation permission. */
+export const T3ExecutionRecoveryInputsObservationSchema = z.object({
+  version: z.literal(1), observedAtMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  threadId: id, inputDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+}).strict()
+export type T3ExecutionRecoveryInputsObservation = z.infer<typeof T3ExecutionRecoveryInputsObservationSchema>
+
 export const T3ExecutionDestinationEvidenceSchema = z.object({
   resourceId: hex, resourceGeneration: z.string().regex(/^sha256:[a-f0-9]{64}$/u), sourceDatabaseIdentity: id,
   destinationDatabaseIdentity: id, settingsIdentity: id, settingsDigest: hex, custody: T3ExecutionCustodySchema,

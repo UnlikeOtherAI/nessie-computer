@@ -167,6 +167,23 @@ inspection context. Its [row-plan contract](t3-process-loss-plans.md) describes
 the exact conditional transaction, writer-local TEMP-trigger guard and remaining
 lifecycle authority. This read never starts recovery or a provider.
 
+`inspectRecoveryInputs(graph, threadId)` reads the original recovery projection's
+thread and ten section queries from that same held destination. The query
+descriptor is generated from the pinned original SELECTs; callers provide no
+SQL, path, section list or digest. The original projection reader shares those
+SELECTs and can return their input digest alongside its normal decoded result.
+The digest retains exact logical SQLite TEXT and original section/row order,
+including whitespace that the original codecs normalize. Ordinary reads keep
+their existing decoding behavior and do not compute this digest.
+
+The native observation requires twelve ordinary projection tables and one
+read-only transaction. It returns only thread ID, digest and observation time.
+Its five-second wall and monotonic budget starts before opening the snapshot;
+a SQLite progress callback bounds VM work, and a final check includes file
+verification and commit. More than 16,384 selected rows or 4 MiB of encoded
+inputs refuses without truncation. This is unsigned input evidence; it does not
+independently select the complete shutdown action or authorize any mutation.
+
 `T3ExecutionPendingEffectObservation` is explicitly unsigned. The original durable
 receipt records command type and result sequence but no parent-command edge;
 accepted status cannot establish this graph's original operation relationship.

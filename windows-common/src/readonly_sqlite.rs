@@ -15,13 +15,20 @@ use api::{api, Api};
 fn fail() -> String {
     REJECTED.into()
 }
-pub type Authorizer =
-    unsafe extern "C" fn(*mut c_void, c_int, *const c_char, *const c_char, *const c_char, *const c_char) -> c_int;
+pub type Authorizer = unsafe extern "C" fn(
+    *mut c_void,
+    c_int,
+    *const c_char,
+    *const c_char,
+    *const c_char,
+    *const c_char,
+) -> c_int;
 pub struct Connection {
     api: &'static Api,
     raw: *mut c_void,
     statements: HashMap<u64, *mut c_void>,
     next: u64,
+    deadline: Option<Box<std::time::Instant>>,
 }
 impl Connection {
     pub fn open(path: &Path, authorizer: Authorizer) -> Result<Self, String> {
@@ -29,7 +36,9 @@ impl Connection {
         let path = CString::new(path.to_str().ok_or_else(fail)?).map_err(|_| fail())?;
         let mut raw = std::ptr::null_mut();
         // READONLY | FULLMUTEX; no URI interpretation, CREATE or immutable mode.
-        let code = unsafe { (api.sqlite3_open_v2)(path.as_ptr(), &mut raw, 1 | 0x10000, std::ptr::null()) };
+        let code = unsafe {
+            (api.sqlite3_open_v2)(path.as_ptr(), &mut raw, 1 | 0x10000, std::ptr::null())
+        };
         if code != 0 {
             if !raw.is_null() {
                 unsafe {
@@ -43,6 +52,7 @@ impl Connection {
             raw,
             statements: HashMap::new(),
             next: 0,
+            deadline: None,
         };
         if unsafe { (api.sqlite3_db_readonly)(raw, c"main".as_ptr()) } != 1 {
             return Err(fail());
@@ -51,7 +61,8 @@ impl Connection {
             (api.sqlite3_busy_timeout)(raw, 250);
             (api.sqlite3_limit)(raw, 0, 8 * 1024 * 1024);
         }
-        if unsafe { (api.sqlite3_set_authorizer)(raw, Some(authorizer), std::ptr::null_mut()) } != 0 {
+        if unsafe { (api.sqlite3_set_authorizer)(raw, Some(authorizer), std::ptr::null_mut()) } != 0
+        {
             return Err(fail());
         }
         Ok(db)
@@ -62,7 +73,16 @@ impl Connection {
         }
         let sql = CString::new(sql).map_err(|_| fail())?;
         let mut stmt = std::ptr::null_mut();
-        if unsafe { (self.api.sqlite3_prepare_v2)(self.raw, sql.as_ptr(), -1, &mut stmt, std::ptr::null_mut()) } != 0 {
+        if unsafe {
+            (self.api.sqlite3_prepare_v2)(
+                self.raw,
+                sql.as_ptr(),
+                -1,
+                &mut stmt,
+                std::ptr::null_mut(),
+            )
+        } != 0
+        {
             if !stmt.is_null() {
                 unsafe {
                     (self.api.sqlite3_finalize)(stmt);
@@ -74,27 +94,60 @@ impl Connection {
         self.statements.insert(self.next, stmt);
         Ok(self.next)
     }
+    /// Restrict actual SQLite VM work as well as waits between returned rows.
+    pub fn set_deadline(&mut self, until: std::time::Instant) {
+        unsafe extern "C" fn expired(data: *mut c_void) -> c_int {
+            if std::time::Instant::now() >= *(data as *const std::time::Instant) {
+                1
+            } else {
+                0
+            }
+        }
+        let mut deadline = Box::new(until);
+        unsafe {
+            (self.api.sqlite3_progress_handler)(
+                self.raw,
+                1000,
+                Some(expired),
+                (&mut *deadline as *mut std::time::Instant).cast(),
+            )
+        };
+        self.deadline = Some(deadline);
+    }
+    /// Fixed native callers only. Values are bound, never interpolated as SQL.
+    pub fn bind_texts(&mut self, id: u64, values: &[&str]) -> Result<(), String> {
+        let stmt = *self.statements.get(&id).ok_or_else(fail)?;
+        if unsafe { (self.api.sqlite3_bind_parameter_count)(stmt) } != values.len() as c_int {
+            return Err(fail());
+        }
+        for (index, value) in values.iter().enumerate() {
+            let text = CString::new(*value).map_err(|_| fail())?;
+            let length: c_int = text.as_bytes().len().try_into().map_err(|_| fail())?;
+            // SQLITE_TRANSIENT copies UTF-8 before this temporary CString drops.
+            let transient = unsafe {
+                std::mem::transmute::<isize, Option<unsafe extern "C" fn(*mut c_void)>>(-1)
+            };
+            if unsafe {
+                (self.api.sqlite3_bind_text)(
+                    stmt,
+                    (index + 1) as c_int,
+                    text.as_ptr(),
+                    length,
+                    transient,
+                )
+            } != 0
+            {
+                return Err(fail());
+            }
+        }
+        Ok(())
+    }
     /// Fixed native callers only. Values are bound, never interpolated as SQL.
     /// Refuses an ambiguous multi-row result and always finalizes the statement.
     pub fn read_one(&mut self, sql: &str, values: &[&str]) -> Result<Option<Value>, String> {
         let id = self.prepare(sql)?;
         let result = (|| {
-            let stmt = *self.statements.get(&id).ok_or_else(fail)?;
-            if unsafe { (self.api.sqlite3_bind_parameter_count)(stmt) } != values.len() as c_int {
-                return Err(fail());
-            }
-            for (index, value) in values.iter().enumerate() {
-                let text = CString::new(*value).map_err(|_| fail())?;
-                let length: c_int = text.as_bytes().len().try_into().map_err(|_| fail())?;
-                // SQLite's documented SQLITE_TRANSIENT sentinel copies the
-                // exact UTF-8 bytes before the temporary CString is dropped.
-                let transient = unsafe { std::mem::transmute::<isize, Option<unsafe extern "C" fn(*mut c_void)>>(-1) };
-                if unsafe { (self.api.sqlite3_bind_text)(stmt, (index + 1) as c_int, text.as_ptr(), length, transient) }
-                    != 0
-                {
-                    return Err(fail());
-                }
-            }
+            self.bind_texts(id, values)?;
             let first = self.next(id)?;
             if first["done"] == true {
                 return Ok(None);
@@ -128,7 +181,9 @@ impl Connection {
             if name.is_null() {
                 return Err(fail());
             }
-            let name = unsafe { CStr::from_ptr(name) }.to_str().map_err(|_| fail())?;
+            let name = unsafe { CStr::from_ptr(name) }
+                .to_str()
+                .map_err(|_| fail())?;
             let value = match unsafe { (self.api.sqlite3_column_type)(stmt, index) } {
                 1 => {
                     let value = unsafe { (self.api.sqlite3_column_int64)(stmt, index) };

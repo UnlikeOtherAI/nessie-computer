@@ -256,6 +256,24 @@ shutdown finalizer; unavailable inputs cannot strand cleanup before admission.
 The consuming child times out at the remaining wall/monotonic budget and joins
 cleanup. A publication mask must not strand scope closure behind a writer lock.
 
+Each prepared shutdown plan also binds the exact physical TEXT inputs of every
+selected original recovery projection, alongside its decoded projection and
+settings. A raw payload change invalidates the conditional write even when the
+original codecs decode the same value. Candidates expose only per-thread/project
+input digests and the original monotonic deadline; raw records remain private.
+The independent held-file [input reader](t3-execution-resources.md#independent-pending-effect-observation)
+does not itself select the complete action or grant permission.
+
+Recovery-input qualification on Maxis/Windows 11, Node 24.19.0, TypeScript 5.9.3
+and pnpm 10.22.0 passed one combined 15-task build, 229 runtime, 14 engine and
+14 combined-source cases. Locked Windows checks passed 38 common, 18 service
+destination-reader and 11 native source-reader cases, with no ignored cases,
+plus native production checking. The ordinary package-interface probe observed
+raw TEXT changes, preserved decoded projections and refused stale shutdown with
+zero outbox writes. Fixture-only lint corrections reran lint; passing builds and
+behavioral suites were not repeated. These synthetic SQLite/held-file checks
+establish no installed graph, enrolled lifecycle permission or provider journey.
+
 Plans refuse more than 256 selected threads or more than 4 MiB of encoded
 settings/projection inputs. This bounds retained plan bytes after original reads;
 it does not claim a preallocation limit inside the original projection reader.

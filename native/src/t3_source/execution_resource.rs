@@ -89,6 +89,14 @@ impl Session for ExecutionResource {
                     executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone(), graph })
             },
+            "executionDestinationObserveRecoveryInputs" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let thread_id = request["threadId"].as_str().ok_or_else(fail)?.to_owned();
+                service(Request::ObserveDestinationRecoveryInputs {
+                    executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, thread_id })
+            },
             "executionLegacyShellPrepare" if fields.len() == 3 => {
                 self.destination.as_ref().ok_or_else(fail)?.recheck()?;
                 let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;

@@ -36,6 +36,7 @@ import { extractWorkerClaims } from './worker-claims.mjs'
 import { extractFiniteSql } from './finite-sql.mjs'
 import { extractLegacyShellPlans } from './legacy-shells.mjs'
 import { extractDelegatedRecovery } from './delegated-recovery.mjs'
+import { extractRecoveryInputs, recoveryInputQueries } from './recovery-inputs.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -74,6 +75,7 @@ export const generateExtractionManifest = snapshot => {
   extractShutdownOutbox(author)
   extractSqlitePaths(author)
   extractShutdownPreparation(author, redirects, exports)
+  extractRecoveryInputs(author, redirects)
   extractFiniteSql(author)
   extractLegacyShellPlans(author)
   extractWorkerClaims(author)
@@ -138,6 +140,9 @@ const main = async () => {
   const snapshot = applySessionEngineBoundaryPatches(await readSessionEngineSnapshot(process.argv[2]))
   const manifest = generateExtractionManifest(snapshot)
   await writeFile(new URL('./boundary-patches.json', import.meta.url), `${JSON.stringify(manifest, null, 2)}\n`)
+  const queries = recoveryInputQueries(snapshot.read('apps/server/src/orchestration-v2/ProjectionStore.ts').toString('utf8'))
+  await writeFile(new URL('../../../windows-common/src/execution_recovery_queries.json', import.meta.url),
+    `${JSON.stringify(queries, null, 2)}\n`)
   process.stdout.write(`${manifest.patches.length} exact extraction operations\n`)
 }
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) await main()

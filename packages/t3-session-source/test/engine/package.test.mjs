@@ -13,6 +13,7 @@ import { readSessionEngineSnapshot } from '../../../../packaging/session-engine/
 import { T3_SESSION_ENGINE_SOURCE } from '../../../../packaging/session-engine/source.mjs'
 import { applySessionEngineBoundaryPatches } from '../../../../packaging/session-engine/patches.mjs'
 import { generateExtractionManifest } from '../../../../patches/t3-session/extraction/generate.mjs'
+import { recoveryInputQueries } from '../../../../patches/t3-session/extraction/recovery-inputs.mjs'
 
 const root = resolve(import.meta.dirname, '../..')
 const executor = resolve(root, '../..')
@@ -30,6 +31,9 @@ test('reviewed extraction reproduces from the pinned source, including shared or
   const source = applySessionEngineBoundaryPatches(await readSessionEngineSnapshot(archive))
   const reproduced = Buffer.from(JSON.stringify(generateExtractionManifest(source), null, 2) + '\n')
   assert.deepEqual(reproduced, await readFile(resolve(executor, 'patches/t3-session/extraction/boundary-patches.json')))
+  const queries = recoveryInputQueries(source.read('apps/server/src/orchestration-v2/ProjectionStore.ts').toString('utf8'))
+  assert.deepEqual(Buffer.from(JSON.stringify(queries, null, 2) + '\n'),
+    await readFile(resolve(executor, 'windows-common/src/execution_recovery_queries.json')))
 })
 
 test('normal library import shares original codecs, Context tags and the consumer Effect root without starting work', () => {
@@ -119,7 +123,7 @@ test('runtime/type/notices provenance binds generated package files and excludes
   assert.equal(provenance.qualification.syntheticProofs, false)
   assert.equal(provenance.typecheck.libraryChecks, true)
   assert.equal(provenance.sourceIdentity.orderedPatchesSha256,
-    '3efb8cff1a8b2e81671cc481f9ed7e95d965be85818f1a785ce5a6ea5bb65abc')
+    '47e5698ee59cc09526ebacf5ea4cd59603a771b958df715a467284b7bb06ceea')
   assert.equal(Object.keys(provenance.dependencyInputs).some(path => path.includes('/effect/')), false)
   assert.equal(provenance.sourceInputs['apps/server/package.json'],
     provenance.originalSourceInputs['apps/server/package.json'])

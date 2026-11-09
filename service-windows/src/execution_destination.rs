@@ -17,6 +17,8 @@ mod read;
 mod legacy_shell;
 #[path = "execution_destination_lineage.rs"]
 mod lineage;
+#[path = "execution_destination_recovery_inputs.rs"]
+mod recovery_inputs;
 pub(super) use lineage::BoundObservation;
 
 static RETIRED: OnceLock<Mutex<Vec<(Process, Destination)>>> = OnceLock::new();
@@ -61,6 +63,11 @@ pub(super) struct Destination {
     owner: String,
 }
 impl Destination {
+    pub fn observe_recovery_inputs(&self, generation: &str, thread: &str)
+        -> Result<nessie_windows_common::execution_recovery_inputs::Observation, String> {
+        let value = recovery_inputs::read(self.stage(generation)?, &self.owner, thread)?;
+        self.recheck()?; Ok(value)
+    }
     pub fn stage_identity(&self, generation: &str) -> Result<String, String> {
         Ok(self.stage(generation)?.description.identity.clone())
     }

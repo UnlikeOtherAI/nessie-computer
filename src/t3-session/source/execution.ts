@@ -5,6 +5,7 @@ import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   T3ExecutionPendingEffectObservationSchema, type T3ExecutionPendingEffectObservation,
   T3ExecutionProcessLossObservationSchema, type T3ExecutionProcessLossObservation,
   T3ExecutionLegacyShellObservationSchema, type T3ExecutionLegacyShellObservation,
+  T3ExecutionRecoveryInputsObservationSchema, type T3ExecutionRecoveryInputsObservation,
   T3ExecutionBoundPendingEffectObservationSchema, type T3ExecutionBoundPendingEffectObservation,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
 import { T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
@@ -42,6 +43,7 @@ export interface T3ExecutionResourceScope {
   inspectPendingEffect(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionPendingEffectObservation | null>
   inspectProcessLoss(graph: T3ExecutionGraph): Promise<T3ExecutionProcessLossObservation>
   inspectLegacyShells(graph: T3ExecutionGraph): Promise<T3ExecutionLegacyShellObservation>
+  inspectRecoveryInputs(graph: T3ExecutionGraph, threadId: string): Promise<T3ExecutionRecoveryInputsObservation>
   withOriginalCommandLineage<A>(graph: T3ExecutionGraph, retentionExpiresAt: number, signal: AbortSignal,
     use: (sink: SessionOriginalCommandSink) => Promise<A>): Promise<A>
   inspectBoundPendingEffect(graph: T3ExecutionGraph, effectId: string):
@@ -232,6 +234,17 @@ export async function withT3ExecutionResources<A>(input: {
         const candidate = executionGraphCandidate(graph, receipt)
         const answer = native.exchange({ op: 'executionDestinationObserveLegacyShells', graph: candidate })
         const observation = T3ExecutionLegacyShellObservationSchema.parse(answer.observation)
+        await recheck()
+        return observation
+      },
+      inspectRecoveryInputs: async (graph: T3ExecutionGraph, threadId: string) => {
+        await recheck()
+        const candidate = executionGraphCandidate(graph, receipt)
+        const target = T3ExecutionRecoveryInputsObservationSchema.shape.threadId.parse(threadId)
+        const answer = native.exchange({ op: 'executionDestinationObserveRecoveryInputs', graph: candidate,
+          threadId: target })
+        const observation = T3ExecutionRecoveryInputsObservationSchema.parse(answer.observation)
+        requireCapture(observation.threadId === target, 't3_execution_recovery_input_mismatch')
         await recheck()
         return observation
       },

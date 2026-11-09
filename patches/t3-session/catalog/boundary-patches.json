@@ -7,48 +7,48 @@
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "  readonly listActiveShellIndex: () => Effect.Effect<",
       "to": "  readonly listActiveShellIndex: (threadIds?: ReadonlyArray<ThreadId>) => Effect.Effect<",
-      "beforeSha256": "a5295e7d9f0aa9db402d4992e852eb4f75fde1c44a048eb3ca90c142d2af07dd",
-      "afterSha256": "e145071796af06b49b984fa3598e069949e73b5845f16dd8e30a72dbb371ab6a"
+      "beforeSha256": "ce0591cf91da667ad96f18b2257631ebd4cc90e4022b443efce9d23f5c07fec5",
+      "afterSha256": "487ff23749bbb5b45908820200913a07f670c78000df9a4f2818f1cbc2aaf64f"
     },
     {
       "id": "catalog-entitled-active-index-input",
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "    const listActiveShellIndex = Effect.fn(\"ProjectionStore.listActiveShellIndex\")(function* () {",
       "to": "    const listActiveShellIndex = Effect.fn(\"ProjectionStore.listActiveShellIndex\")(function* (threadIds?: ReadonlyArray<ThreadId>) {",
-      "beforeSha256": "e145071796af06b49b984fa3598e069949e73b5845f16dd8e30a72dbb371ab6a",
-      "afterSha256": "8d5fc827558d1f26392ee51c73d65e1262787a9945dfc29a858170148d899e9c"
+      "beforeSha256": "487ff23749bbb5b45908820200913a07f670c78000df9a4f2818f1cbc2aaf64f",
+      "afterSha256": "9c3480057421c2f9a8214427991953ab808ce12ca2e3220d56bf4cedb7f7fccb"
     },
     {
       "id": "catalog-entitled-active-index-predicate",
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "          AND json_extract(t.payload_json, '$.archivedAt') IS NULL\n        ORDER BY t.updated_at ASC, t.thread_id ASC",
       "to": "          AND json_extract(t.payload_json, '$.archivedAt') IS NULL${\n            threadIds === undefined ? sql``\n              : sql` AND t.thread_id IN (SELECT value FROM json_each(${encodeIdList(threadIds)}))`\n          }\n        ORDER BY t.updated_at ASC, t.thread_id ASC",
-      "beforeSha256": "8d5fc827558d1f26392ee51c73d65e1262787a9945dfc29a858170148d899e9c",
-      "afterSha256": "0bfeaed6e658909cbdb6086a30c8f0aed0395840c098c902318f37cebb5d54eb"
+      "beforeSha256": "9c3480057421c2f9a8214427991953ab808ce12ca2e3220d56bf4cedb7f7fccb",
+      "afterSha256": "41018a9d32ce6aeeefe35dbfd8f1220ed08e326123bb556b42b880ae7e6b555f"
     },
     {
       "id": "catalog-entitled-thread-query",
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "export interface OlderSettledThreadsQuery {",
       "to": "export const RETAINED_CATALOG_THREAD_FILTER_VERSION = 1;\n\nexport interface OlderSettledThreadsQuery {\n  readonly threadIds?: ReadonlyArray<ThreadId> | undefined;",
-      "beforeSha256": "0bfeaed6e658909cbdb6086a30c8f0aed0395840c098c902318f37cebb5d54eb",
-      "afterSha256": "7fed3a4a1cd7b936266fc6ee12c0938a70c7f30271a3ad1f664f1a8b4b74a2c6"
+      "beforeSha256": "41018a9d32ce6aeeefe35dbfd8f1220ed08e326123bb556b42b880ae7e6b555f",
+      "afterSha256": "7e0310ce0d5897296122214c42e9f1ec541bc7193f1cc1d4143596308ae29ec2"
     },
     {
       "id": "catalog-entitled-thread-input",
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "    )(function* ({ before, projectIds, limit }) {",
       "to": "    )(function* ({ before, projectIds, threadIds, limit }) {",
-      "beforeSha256": "7fed3a4a1cd7b936266fc6ee12c0938a70c7f30271a3ad1f664f1a8b4b74a2c6",
-      "afterSha256": "6887e4438409928fc43e9e7a751dfb24eb3477f06528bd5aebfb873100cc5029"
+      "beforeSha256": "7e0310ce0d5897296122214c42e9f1ec541bc7193f1cc1d4143596308ae29ec2",
+      "afterSha256": "a119c52416044a4e072804badbe93385b0bcc23e9a76de40a12a3acdad11368c"
     },
     {
       "id": "catalog-entitled-thread-predicate-before-cursor-count-limit",
       "file": "apps/server/src/orchestration-v2/ProjectionStore.ts",
       "from": "          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL${",
       "to": "          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL${\n            threadIds === undefined ? sql``\n              : sql` AND t.thread_id IN (SELECT value FROM json_each(${encodeIdList(threadIds)}))`\n          }${",
-      "beforeSha256": "6887e4438409928fc43e9e7a751dfb24eb3477f06528bd5aebfb873100cc5029",
-      "afterSha256": "8ba0b62967a4ba6a177c1e186d680e52f73f72bd3fa39e99d72c682deeadea50"
+      "beforeSha256": "a119c52416044a4e072804badbe93385b0bcc23e9a76de40a12a3acdad11368c",
+      "afterSha256": "7ecf05604cb009dc14f4db4d211f5ffc9bfeba7668ea12cf9ca29f3857e00ef2"
     }
   ]
 }

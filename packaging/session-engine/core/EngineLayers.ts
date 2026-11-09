@@ -4,6 +4,7 @@ import * as ContinuationRequests from 't3-source:packages/provider-core/src/serv
 import * as ThreadCommandExecutor from 't3-source:apps/server/src/orchestration-v2/ThreadCommandExecutor.ts'
 import * as Orchestrator from 't3-source:apps/server/src/orchestration-v2/Orchestrator.ts'
 export * as DelegatedRecovery from 't3-source:apps/server/src/orchestration-v2/DelegatedTaskRecovery.ts'
+export * as RecoveryInputs from 't3-source:apps/server/src/orchestration-v2/RecoveryProjectionInputs.ts'
 import * as Threads from 't3-source:apps/server/src/orchestration-v2/ThreadManagementLive.ts'
 import * as Launch from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchService.ts'
 import * as LaunchSelection from 't3-source:apps/server/src/orchestration-v2/ThreadLaunchSelection.ts'

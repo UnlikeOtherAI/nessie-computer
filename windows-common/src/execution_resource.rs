@@ -78,6 +78,8 @@ pub enum Request {
     ObserveDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
     ObserveDestinationProcessLoss { executor_id: String, resource_id: String, graph: crate::execution::Graph },
     ObserveDestinationLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph },
+    ObserveDestinationRecoveryInputs { executor_id: String, resource_id: String,
+        graph: crate::execution::Graph, thread_id: String },
     PrepareLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, not_after_ms: u64 },
     ConsumeLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph, admission: crate::execution::SignedAdmission },
     OpenCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, retention_expires_at: u64 },
@@ -99,6 +101,7 @@ impl Request {
             | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. }
             | Self::ObserveDestinationProcessLoss { executor_id, .. }
             | Self::ObserveDestinationLegacyShells { executor_id, .. }
+            | Self::ObserveDestinationRecoveryInputs { executor_id, .. }
             | Self::PrepareLegacyShells { executor_id, .. } | Self::ConsumeLegacyShells { executor_id, .. }
             | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
             | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
@@ -149,6 +152,11 @@ impl Request {
             | Self::ObserveBoundDestinationEffect { resource_id, graph, effect_id, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(effect_id)
+                    || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
+            }
+            Self::ObserveDestinationRecoveryInputs { resource_id, graph, thread_id, .. } => {
+                graph.binding.validate(true)?;
+                if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(thread_id)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
             }
             Self::PrepareEffectClaim { resource_id, graph, effect_id, .. } => {
@@ -299,6 +307,25 @@ mod tests {
             assert!(serde_json::from_value::<Request>(changed).is_err());
         }
         let mut missing = raw; missing.as_object_mut().unwrap().remove("notAfterMs");
+        assert!(serde_json::from_value::<Request>(missing).is_err());
+    }
+    #[test]
+    fn recovery_input_wire_cannot_supply_sql_a_path_a_digest_or_a_partial_section_set() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../../test/t3-session-runtime/fixtures/execution-legacy-shell.json")).unwrap();
+        let p = &fixture["preparation"];
+        let mut binding = p["binding"].clone();
+        binding.as_object_mut().unwrap().remove("sourceEvidenceDigest");
+        let raw = json!({"operation":"observeDestinationRecoveryInputs","executorId":p["binding"]["executorId"],
+            "resourceId":"a".repeat(64),"threadId":"thread:雪","graph":{"version":1,"binding":binding,
+                "nonce":p["acceptedGraphNonce"],"sourceRevision":"25bf84ab07f53f141c20239c63e383823a9d5ea0",
+                "targets":[],"issuedAtMs":p["issuedAtMs"],"expiresAtMs":p["expiresAtMs"]}});
+        serde_json::from_value::<Request>(raw.clone()).unwrap().validate().unwrap(); // Shape only.
+        for field in ["sql", "path", "inputDigest", "sections", "admitted"] {
+            let mut changed = raw.clone(); changed[field] = json!("caller assertion");
+            assert!(serde_json::from_value::<Request>(changed).is_err());
+        }
+        let mut missing = raw; missing.as_object_mut().unwrap().remove("threadId");
         assert!(serde_json::from_value::<Request>(missing).is_err());
     }
 }

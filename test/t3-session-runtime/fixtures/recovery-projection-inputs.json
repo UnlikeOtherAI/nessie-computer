@@ -1,0 +1,265 @@
+{
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "schema": [
+    "CREATE TABLE orchestration_v2_projection_messages (\n      message_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      run_id TEXT,\n      node_id TEXT,\n      role TEXT NOT NULL,\n      streaming INTEGER NOT NULL,\n      created_at TEXT NOT NULL,\n      updated_at TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    )",
+    "CREATE TABLE orchestration_v2_projection_nodes (\n      node_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      run_id TEXT,\n      parent_node_id TEXT,\n      root_node_id TEXT NOT NULL,\n      kind TEXT NOT NULL,\n      status TEXT NOT NULL,\n      provider_thread_id TEXT,\n      provider_turn_id TEXT,\n      runtime_request_id TEXT,\n      checkpoint_scope_id TEXT,\n      started_at TEXT,\n      completed_at TEXT,\n      payload_json TEXT NOT NULL\n    )",
+    "CREATE TABLE orchestration_v2_projection_provider_session_bindings (\n      provider_session_id TEXT NOT NULL,\n      thread_id TEXT NOT NULL,\n      PRIMARY KEY (provider_session_id, thread_id)\n    )",
+    "CREATE TABLE orchestration_v2_projection_provider_sessions (\n      provider_session_id TEXT PRIMARY KEY,\n      thread_id TEXT,\n      provider TEXT NOT NULL,\n      status TEXT NOT NULL,\n      model TEXT,\n      updated_at TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    , driver TEXT, provider_instance_id TEXT)",
+    "CREATE TABLE orchestration_v2_projection_provider_threads (\n      provider_thread_id TEXT PRIMARY KEY,\n      thread_id TEXT,\n      owner_node_id TEXT,\n      provider TEXT NOT NULL,\n      provider_session_id TEXT,\n      status TEXT NOT NULL,\n      first_run_ordinal INTEGER,\n      last_run_ordinal INTEGER,\n      updated_at TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    , driver TEXT, provider_instance_id TEXT)",
+    "CREATE TABLE orchestration_v2_projection_provider_turns (\n      provider_turn_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      provider_thread_id TEXT NOT NULL,\n      node_id TEXT NOT NULL,\n      run_attempt_id TEXT,\n      ordinal INTEGER NOT NULL,\n      status TEXT NOT NULL,\n      started_at TEXT,\n      completed_at TEXT,\n      payload_json TEXT NOT NULL\n    )",
+    "CREATE TABLE orchestration_v2_projection_run_attempts (\n      attempt_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      run_id TEXT NOT NULL,\n      attempt_ordinal INTEGER NOT NULL,\n      root_node_id TEXT NOT NULL,\n      provider TEXT NOT NULL,\n      provider_thread_id TEXT NOT NULL,\n      provider_turn_id TEXT,\n      status TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    , provider_instance_id TEXT)",
+    "CREATE TABLE orchestration_v2_projection_runs (\n      run_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      ordinal INTEGER NOT NULL,\n      provider TEXT NOT NULL,\n      provider_thread_id TEXT,\n      status TEXT NOT NULL,\n      requested_at TEXT NOT NULL,\n      completed_at TEXT,\n      payload_json TEXT NOT NULL\n    , provider_instance_id TEXT)",
+    "CREATE TABLE orchestration_v2_projection_runtime_requests (\n      runtime_request_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      node_id TEXT NOT NULL,\n      provider_turn_id TEXT,\n      kind TEXT NOT NULL,\n      status TEXT NOT NULL,\n      created_at TEXT NOT NULL,\n      resolved_at TEXT,\n      payload_json TEXT NOT NULL\n    )",
+    "CREATE TABLE orchestration_v2_projection_subagents (\n      subagent_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      run_id TEXT,\n      parent_node_id TEXT NOT NULL,\n      provider TEXT NOT NULL,\n      provider_thread_id TEXT,\n      child_thread_id TEXT,\n      origin TEXT NOT NULL,\n      status TEXT NOT NULL,\n      started_at TEXT,\n      completed_at TEXT,\n      updated_at TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    , driver TEXT, provider_instance_id TEXT, completion_delivery_state TEXT)",
+    "CREATE TABLE orchestration_v2_projection_threads (\n      thread_id TEXT PRIMARY KEY,\n      project_id TEXT NOT NULL,\n      title TEXT NOT NULL,\n      default_provider TEXT NOT NULL,\n      runtime_mode TEXT NOT NULL,\n      interaction_mode TEXT NOT NULL,\n      active_provider_thread_id TEXT,\n      created_at TEXT NOT NULL,\n      updated_at TEXT NOT NULL,\n      archived_at TEXT,\n      deleted_at TEXT,\n      payload_json TEXT NOT NULL\n    , provider_instance_id TEXT)",
+    "CREATE TABLE orchestration_v2_projection_turn_items (\n      turn_item_id TEXT PRIMARY KEY,\n      thread_id TEXT NOT NULL,\n      run_id TEXT,\n      node_id TEXT,\n      provider_thread_id TEXT,\n      provider_turn_id TEXT,\n      parent_item_id TEXT,\n      ordinal INTEGER NOT NULL,\n      type TEXT NOT NULL,\n      status TEXT NOT NULL,\n      updated_at TEXT NOT NULL,\n      payload_json TEXT NOT NULL\n    )",
+    "CREATE INDEX orchestration_v2_projection_messages_latest_user_idx\n    ON orchestration_v2_projection_messages(thread_id, updated_at DESC, message_id DESC)\n    WHERE role = 'user'\n  ",
+    "CREATE INDEX orchestration_v2_projection_messages_node_idx ON orchestration_v2_projection_messages(node_id)",
+    "CREATE INDEX orchestration_v2_projection_messages_run_idx ON orchestration_v2_projection_messages(run_id)",
+    "CREATE INDEX orchestration_v2_projection_messages_thread_created_idx ON orchestration_v2_projection_messages(thread_id, created_at, message_id)",
+    "CREATE INDEX orchestration_v2_projection_nodes_live_idx\n    ON orchestration_v2_projection_nodes(thread_id)\n    WHERE status IN ('pending', 'starting', 'running', 'waiting')\n  ",
+    "CREATE INDEX orchestration_v2_projection_nodes_parent_idx ON orchestration_v2_projection_nodes(parent_node_id)",
+    "CREATE INDEX orchestration_v2_projection_nodes_provider_turn_idx ON orchestration_v2_projection_nodes(provider_turn_id)",
+    "CREATE INDEX orchestration_v2_projection_nodes_thread_run_idx ON orchestration_v2_projection_nodes(thread_id, run_id)",
+    "CREATE INDEX orchestration_v2_projection_provider_session_bindings_thread_idx\n    ON orchestration_v2_projection_provider_session_bindings(thread_id)\n  ",
+    "CREATE INDEX orchestration_v2_projection_provider_sessions_instance_status_idx ON orchestration_v2_projection_provider_sessions(provider_instance_id, status)",
+    "CREATE INDEX orchestration_v2_projection_provider_sessions_provider_status_idx ON orchestration_v2_projection_provider_sessions(provider, status)",
+    "CREATE INDEX orchestration_v2_projection_provider_sessions_thread_idx ON orchestration_v2_projection_provider_sessions(thread_id)",
+    "CREATE INDEX orchestration_v2_projection_provider_threads_instance_status_idx ON orchestration_v2_projection_provider_threads(provider_instance_id, status)",
+    "CREATE INDEX orchestration_v2_projection_provider_threads_owner_idx ON orchestration_v2_projection_provider_threads(owner_node_id)",
+    "CREATE INDEX orchestration_v2_projection_provider_threads_session_idx ON orchestration_v2_projection_provider_threads(provider_session_id)",
+    "CREATE INDEX orchestration_v2_projection_provider_threads_thread_idx ON orchestration_v2_projection_provider_threads(thread_id)",
+    "CREATE INDEX orchestration_v2_projection_provider_turns_thread_idx ON orchestration_v2_projection_provider_turns(thread_id)",
+    "CREATE UNIQUE INDEX orchestration_v2_projection_provider_turns_thread_ordinal_idx ON orchestration_v2_projection_provider_turns(provider_thread_id, ordinal)",
+    "CREATE INDEX orchestration_v2_projection_requests_recovery_idx\n    ON orchestration_v2_projection_runtime_requests(thread_id)\n    WHERE status = 'pending'\n  ",
+    "CREATE UNIQUE INDEX orchestration_v2_projection_run_attempts_run_ordinal_idx ON orchestration_v2_projection_run_attempts(run_id, attempt_ordinal)",
+    "CREATE INDEX orchestration_v2_projection_run_attempts_thread_idx ON orchestration_v2_projection_run_attempts(thread_id, run_id)",
+    "CREATE INDEX orchestration_v2_projection_runs_delegated_delivery_idx\n    ON orchestration_v2_projection_runs(thread_id)\n    WHERE CASE WHEN json_valid(payload_json)\n      THEN json_type(payload_json, '$.delegatedCompletion.delivery') = 'object'\n      ELSE 0 END\n  ",
+    "CREATE INDEX orchestration_v2_projection_runs_provider_thread_idx ON orchestration_v2_projection_runs(provider_thread_id)",
+    "CREATE INDEX orchestration_v2_projection_runs_recovery_idx\n    ON orchestration_v2_projection_runs(status, thread_id)\n    WHERE status IN ('queued', 'preparing', 'starting', 'running', 'waiting')\n  ",
+    "CREATE UNIQUE INDEX orchestration_v2_projection_runs_thread_ordinal_idx ON orchestration_v2_projection_runs(thread_id, ordinal)",
+    "CREATE INDEX orchestration_v2_projection_runs_thread_status_idx ON orchestration_v2_projection_runs(thread_id, status)",
+    "CREATE INDEX orchestration_v2_projection_runtime_requests_provider_turn_idx ON orchestration_v2_projection_runtime_requests(provider_turn_id)",
+    "CREATE INDEX orchestration_v2_projection_runtime_requests_thread_status_idx ON orchestration_v2_projection_runtime_requests(thread_id, status)",
+    "CREATE INDEX orchestration_v2_projection_subagents_child_thread_idx ON orchestration_v2_projection_subagents(child_thread_id)",
+    "CREATE INDEX orchestration_v2_projection_subagents_parent_node_idx ON orchestration_v2_projection_subagents(parent_node_id)",
+    "CREATE INDEX orchestration_v2_projection_subagents_provider_thread_idx ON orchestration_v2_projection_subagents(provider_thread_id)",
+    "CREATE INDEX orchestration_v2_projection_subagents_settled_idx\n    ON orchestration_v2_projection_subagents(thread_id, status, completion_delivery_state, run_id)\n  ",
+    "CREATE INDEX orchestration_v2_projection_subagents_thread_idx ON orchestration_v2_projection_subagents(thread_id, started_at, subagent_id)",
+    "CREATE INDEX orchestration_v2_projection_threads_project_updated_idx ON orchestration_v2_projection_threads(project_id, updated_at)",
+    "CREATE INDEX orchestration_v2_projection_threads_subagent_result_idx\n    ON orchestration_v2_projection_threads(\n      thread_id, json_extract(payload_json, '$.lineage.parentThreadId')\n    )\n    WHERE CASE WHEN json_valid(payload_json) THEN\n      json_extract(payload_json, '$.lineage.relationshipToParent') = 'subagent'\n      AND json_extract(payload_json, '$.lineage.parentThreadId') IS NOT NULL\n      AND json_extract(payload_json, '$.forkedFrom.type') = 'node'\n      ELSE 0 END\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_active_ordinal_idx\n    ON orchestration_v2_projection_turn_items(thread_id, ordinal, turn_item_id)\n    WHERE status IN ('pending', 'running', 'waiting')\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_active_run_idx\n    ON orchestration_v2_projection_turn_items(thread_id, run_id)\n    WHERE status IN ('pending', 'running', 'waiting')\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_failed_error_idx\n    ON orchestration_v2_projection_turn_items(\n      thread_id, run_id, node_id, updated_at DESC, ordinal DESC, turn_item_id DESC\n    )\n    WHERE type = 'error' AND status = 'failed'\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_node_ordinal_idx ON orchestration_v2_projection_turn_items(node_id, ordinal)",
+    "CREATE INDEX orchestration_v2_projection_turn_items_provider_turn_idx ON orchestration_v2_projection_turn_items(provider_turn_id)",
+    "CREATE INDEX orchestration_v2_projection_turn_items_recovery_idx\n    ON orchestration_v2_projection_turn_items(thread_id)\n    WHERE type IN ('command_execution', 'dynamic_tool', 'subagent')\n      AND status IN ('pending', 'running', 'waiting')\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_run_ordinal_idx ON orchestration_v2_projection_turn_items(run_id, ordinal)",
+    "CREATE INDEX orchestration_v2_projection_turn_items_shell_pending_idx\n    ON orchestration_v2_projection_turn_items(thread_id, run_id)\n    WHERE type IN ('command_execution', 'dynamic_tool', 'subagent')\n      AND status NOT IN ('completed', 'interrupted', 'failed', 'cancelled')\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_stop_request_idx\n    ON orchestration_v2_projection_turn_items(thread_id, run_id)\n    WHERE type = 'run_interrupt_request'\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_thread_ordinal_idx ON orchestration_v2_projection_turn_items(thread_id, ordinal, turn_item_id)",
+    "CREATE INDEX orchestration_v2_projection_turn_items_thread_run_idx\n    ON orchestration_v2_projection_turn_items(thread_id, run_id)\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_user_message_idx\n    ON orchestration_v2_projection_turn_items(thread_id, ordinal, turn_item_id)\n    WHERE type = 'user_message'\n  ",
+    "CREATE INDEX orchestration_v2_projection_turn_items_waiting_link_idx\n    ON orchestration_v2_projection_turn_items(thread_id, updated_at DESC, turn_item_id DESC)\n    WHERE type = 'link_request' AND status = 'waiting'\n  ",
+    "CREATE INDEX orchestration_v2_provider_turns_codex_native_id_idx\n    ON orchestration_v2_projection_provider_turns (\n      json_extract(payload_json, '$.nativeTurnRef.nativeId')\n    )\n    WHERE json_extract(payload_json, '$.nativeTurnRef.driver') = 'codex'\n  "
+  ],
+  "tables": {
+    "orchestration_v2_projection_messages": [],
+    "orchestration_v2_projection_nodes": [],
+    "orchestration_v2_projection_provider_session_bindings": [],
+    "orchestration_v2_projection_provider_sessions": [
+      {
+        "provider_session_id": "session:recovery:雪",
+        "thread_id": "recovery:雪",
+        "provider": "codex",
+        "status": "ready",
+        "model": null,
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "payload_json": "{\"id\":\"session:recovery:雪\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"status\":\"ready\",\"cwd\":\"C:/synthetic/never-executed\",\"model\":\"synthetic\",\"capabilities\":{\"sessions\":{\"supportsMultipleProviderThreadsPerSession\":true,\"supportsModelSwitchInSession\":true,\"supportsProviderSwitchingViaHandoff\":true,\"supportsRuntimeModeSwitchInSession\":true,\"pendingRequestsSurviveRestart\":false},\"threads\":{\"canCreateEmptyThread\":true,\"canReadThreadSnapshot\":true,\"canRollbackThread\":true,\"canForkThread\":true,\"canForkFromTurn\":true,\"canForkFromSubagentThread\":true,\"exposesNativeThreadId\":true},\"turns\":{\"exposesNativeTurnId\":true,\"emitsTurnStarted\":true,\"emitsTurnCompleted\":true,\"supportsInterrupt\":true,\"supportsActiveSteering\":true,\"supportsSteeringByInterruptRestart\":true,\"supportsQueuedMessages\":true,\"terminalStatusQuality\":\"strong\"},\"streaming\":{\"streamsAssistantText\":true,\"streamsReasoning\":true,\"streamsToolOutput\":true,\"streamsPlanText\":true,\"emitsMessageCompleted\":true},\"tools\":{\"exposesToolItemIds\":true,\"emitsToolStarted\":true,\"emitsToolCompleted\":true,\"emitsToolOutput\":true,\"supportsMcpTools\":true,\"supportsDynamicToolCallbacks\":true},\"approvals\":{\"supportsCommandApproval\":true,\"supportsFileReadApproval\":true,\"supportsFileChangeApproval\":true,\"supportsApplyPatchApproval\":true,\"approvalsHaveNativeRequestIds\":true,\"approvalCallbacksAreLiveOnly\":true,\"approvalsCanOriginateFromSubagents\":true},\"planning\":{\"emitsPlanUpdated\":true,\"emitsTodoList\":true,\"emitsProposedPlan\":true,\"supportsStructuredQuestions\":true,\"planDeltasHaveItemIds\":true},\"subagents\":{\"supportsSubagents\":true,\"exposesSubagentThreadIds\":true,\"emitsSubagentLifecycle\":true,\"canWaitForSubagents\":true,\"canCloseSubagents\":true,\"canForkSubagentThread\":true},\"context\":{\"acceptsSystemContext\":true,\"acceptsDeveloperContext\":true,\"acceptsSyntheticUserContext\":true,\"canGenerateSummaries\":true,\"canConsumeHandoffSummaries\":true,\"supportsDeltaHandoff\":true,\"supportsFullThreadHandoff\":true,\"maxRecommendedHandoffChars\":null},\"checkpointing\":{\"appCanCheckpointFilesystem\":true,\"supportsNestedCheckpointScopes\":true,\"providerCanRollbackConversation\":true,\"providerRollbackReturnsSnapshot\":true,\"providerCanReadConversationSnapshot\":true},\"identity\":{\"nativeThreadIds\":\"strong\",\"nativeTurnIds\":\"strong\",\"nativeItemIds\":\"strong\",\"nativeRequestIds\":\"strong\"},\"runtimePolicy\":{\"enforcement\":\"native\"}},\"extensionStatuses\":[],\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"lastError\":null}",
+        "driver": "codex",
+        "provider_instance_id": "codex"
+      },
+      {
+        "provider_session_id": "session:unselected",
+        "thread_id": "unselected",
+        "provider": "codex",
+        "status": "ready",
+        "model": null,
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "payload_json": "{\"id\":\"session:unselected\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"status\":\"ready\",\"cwd\":\"C:/synthetic/never-executed\",\"model\":\"synthetic\",\"capabilities\":{\"sessions\":{\"supportsMultipleProviderThreadsPerSession\":true,\"supportsModelSwitchInSession\":true,\"supportsProviderSwitchingViaHandoff\":true,\"supportsRuntimeModeSwitchInSession\":true,\"pendingRequestsSurviveRestart\":false},\"threads\":{\"canCreateEmptyThread\":true,\"canReadThreadSnapshot\":true,\"canRollbackThread\":true,\"canForkThread\":true,\"canForkFromTurn\":true,\"canForkFromSubagentThread\":true,\"exposesNativeThreadId\":true},\"turns\":{\"exposesNativeTurnId\":true,\"emitsTurnStarted\":true,\"emitsTurnCompleted\":true,\"supportsInterrupt\":true,\"supportsActiveSteering\":true,\"supportsSteeringByInterruptRestart\":true,\"supportsQueuedMessages\":true,\"terminalStatusQuality\":\"strong\"},\"streaming\":{\"streamsAssistantText\":true,\"streamsReasoning\":true,\"streamsToolOutput\":true,\"streamsPlanText\":true,\"emitsMessageCompleted\":true},\"tools\":{\"exposesToolItemIds\":true,\"emitsToolStarted\":true,\"emitsToolCompleted\":true,\"emitsToolOutput\":true,\"supportsMcpTools\":true,\"supportsDynamicToolCallbacks\":true},\"approvals\":{\"supportsCommandApproval\":true,\"supportsFileReadApproval\":true,\"supportsFileChangeApproval\":true,\"supportsApplyPatchApproval\":true,\"approvalsHaveNativeRequestIds\":true,\"approvalCallbacksAreLiveOnly\":true,\"approvalsCanOriginateFromSubagents\":true},\"planning\":{\"emitsPlanUpdated\":true,\"emitsTodoList\":true,\"emitsProposedPlan\":true,\"supportsStructuredQuestions\":true,\"planDeltasHaveItemIds\":true},\"subagents\":{\"supportsSubagents\":true,\"exposesSubagentThreadIds\":true,\"emitsSubagentLifecycle\":true,\"canWaitForSubagents\":true,\"canCloseSubagents\":true,\"canForkSubagentThread\":true},\"context\":{\"acceptsSystemContext\":true,\"acceptsDeveloperContext\":true,\"acceptsSyntheticUserContext\":true,\"canGenerateSummaries\":true,\"canConsumeHandoffSummaries\":true,\"supportsDeltaHandoff\":true,\"supportsFullThreadHandoff\":true,\"maxRecommendedHandoffChars\":null},\"checkpointing\":{\"appCanCheckpointFilesystem\":true,\"supportsNestedCheckpointScopes\":true,\"providerCanRollbackConversation\":true,\"providerRollbackReturnsSnapshot\":true,\"providerCanReadConversationSnapshot\":true},\"identity\":{\"nativeThreadIds\":\"strong\",\"nativeTurnIds\":\"strong\",\"nativeItemIds\":\"strong\",\"nativeRequestIds\":\"strong\"},\"runtimePolicy\":{\"enforcement\":\"native\"}},\"extensionStatuses\":[],\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"lastError\":null}",
+        "driver": "codex",
+        "provider_instance_id": "codex"
+      }
+    ],
+    "orchestration_v2_projection_provider_threads": [
+      {
+        "provider_thread_id": "provider:recovery:雪",
+        "thread_id": "recovery:雪",
+        "owner_node_id": null,
+        "provider": "codex",
+        "provider_session_id": "session:recovery:雪",
+        "status": "active",
+        "first_run_ordinal": 1,
+        "last_run_ordinal": 1,
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "payload_json": "{\"id\":\"provider:recovery:雪\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"providerSessionId\":\"session:recovery:雪\",\"appThreadId\":\"recovery:雪\",\"ownerNodeId\":null,\"nativeThreadRef\":{\"driver\":\"codex\",\"nativeId\":\"native:recovery:雪\",\"strength\":\"strong\"},\"nativeConversationHeadRef\":null,\"status\":\"active\",\"firstRunOrdinal\":1,\"lastRunOrdinal\":1,\"handoffIds\":[],\"forkedFrom\":null,\"pendingBackgroundTasks\":[],\"contextUsage\":null,\"nativeMetadata\":null,\"goal\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\"}",
+        "driver": "codex",
+        "provider_instance_id": "codex"
+      },
+      {
+        "provider_thread_id": "provider:unselected",
+        "thread_id": "unselected",
+        "owner_node_id": null,
+        "provider": "codex",
+        "provider_session_id": "session:unselected",
+        "status": "active",
+        "first_run_ordinal": 1,
+        "last_run_ordinal": 1,
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "payload_json": "{\"id\":\"provider:unselected\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"providerSessionId\":\"session:unselected\",\"appThreadId\":\"unselected\",\"ownerNodeId\":null,\"nativeThreadRef\":{\"driver\":\"codex\",\"nativeId\":\"native:unselected\",\"strength\":\"strong\"},\"nativeConversationHeadRef\":null,\"status\":\"active\",\"firstRunOrdinal\":1,\"lastRunOrdinal\":1,\"handoffIds\":[],\"forkedFrom\":null,\"pendingBackgroundTasks\":[],\"contextUsage\":null,\"nativeMetadata\":null,\"goal\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\"}",
+        "driver": "codex",
+        "provider_instance_id": "codex"
+      }
+    ],
+    "orchestration_v2_projection_provider_turns": [
+      {
+        "provider_turn_id": "turn:recovery:雪",
+        "thread_id": "recovery:雪",
+        "provider_thread_id": "provider:recovery:雪",
+        "node_id": "node:recovery:雪",
+        "run_attempt_id": "attempt:recovery:雪",
+        "ordinal": 1,
+        "status": "running",
+        "started_at": "2026-11-01T00:00:00.000Z",
+        "completed_at": null,
+        "payload_json": "{\"id\":\"turn:recovery:雪\",\"providerThreadId\":\"provider:recovery:雪\",\"nodeId\":\"node:recovery:雪\",\"runAttemptId\":\"attempt:recovery:雪\",\"nativeTurnRef\":null,\"ordinal\":1,\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}"
+      },
+      {
+        "provider_turn_id": "turn:unselected",
+        "thread_id": "unselected",
+        "provider_thread_id": "provider:unselected",
+        "node_id": "node:unselected",
+        "run_attempt_id": "attempt:unselected",
+        "ordinal": 1,
+        "status": "running",
+        "started_at": "2026-11-01T00:00:00.000Z",
+        "completed_at": null,
+        "payload_json": "{\"id\":\"turn:unselected\",\"providerThreadId\":\"provider:unselected\",\"nodeId\":\"node:unselected\",\"runAttemptId\":\"attempt:unselected\",\"nativeTurnRef\":null,\"ordinal\":1,\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}"
+      }
+    ],
+    "orchestration_v2_projection_run_attempts": [
+      {
+        "attempt_id": "attempt:recovery:雪",
+        "thread_id": "recovery:雪",
+        "run_id": "run:recovery:雪",
+        "attempt_ordinal": 1,
+        "root_node_id": "node:recovery:雪",
+        "provider": "codex",
+        "provider_thread_id": "provider:recovery:雪",
+        "provider_turn_id": "turn:recovery:雪",
+        "status": "running",
+        "payload_json": "{\"id\":\"attempt:recovery:雪\",\"runId\":\"run:recovery:雪\",\"attemptOrdinal\":1,\"rootNodeId\":\"node:recovery:雪\",\"providerInstanceId\":\"codex\",\"providerThreadId\":\"provider:recovery:雪\",\"providerTurnId\":\"turn:recovery:雪\",\"reason\":\"initial\",\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}",
+        "provider_instance_id": "codex"
+      },
+      {
+        "attempt_id": "attempt:unselected",
+        "thread_id": "unselected",
+        "run_id": "run:unselected",
+        "attempt_ordinal": 1,
+        "root_node_id": "node:unselected",
+        "provider": "codex",
+        "provider_thread_id": "provider:unselected",
+        "provider_turn_id": "turn:unselected",
+        "status": "running",
+        "payload_json": "{\"id\":\"attempt:unselected\",\"runId\":\"run:unselected\",\"attemptOrdinal\":1,\"rootNodeId\":\"node:unselected\",\"providerInstanceId\":\"codex\",\"providerThreadId\":\"provider:unselected\",\"providerTurnId\":\"turn:unselected\",\"reason\":\"initial\",\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}",
+        "provider_instance_id": "codex"
+      }
+    ],
+    "orchestration_v2_projection_runs": [
+      {
+        "run_id": "run:recovery:雪",
+        "thread_id": "recovery:雪",
+        "ordinal": 1,
+        "provider": "codex",
+        "provider_thread_id": "provider:recovery:雪",
+        "status": "running",
+        "requested_at": "2026-11-01T00:00:00.000Z",
+        "completed_at": null,
+        "payload_json": "{\"id\":\"run:recovery:雪\",\"threadId\":\"recovery:雪\",\"ordinal\":1,\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"providerThreadId\":\"provider:recovery:雪\",\"userMessageId\":\"message:recovery:雪\",\"rootNodeId\":\"node:recovery:雪\",\"activeAttemptId\":\"attempt:recovery:雪\",\"status\":\"running\",\"queuePosition\":null,\"requestedAt\":\"2026-11-01T00:00:00.000Z\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null,\"checkpointId\":null,\"contextHandoffId\":null}",
+        "provider_instance_id": "codex"
+      },
+      {
+        "run_id": "run:unselected",
+        "thread_id": "unselected",
+        "ordinal": 1,
+        "provider": "codex",
+        "provider_thread_id": "provider:unselected",
+        "status": "running",
+        "requested_at": "2026-11-01T00:00:00.000Z",
+        "completed_at": null,
+        "payload_json": "{\"id\":\"run:unselected\",\"threadId\":\"unselected\",\"ordinal\":1,\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"providerThreadId\":\"provider:unselected\",\"userMessageId\":\"message:unselected\",\"rootNodeId\":\"node:unselected\",\"activeAttemptId\":\"attempt:unselected\",\"status\":\"running\",\"queuePosition\":null,\"requestedAt\":\"2026-11-01T00:00:00.000Z\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null,\"checkpointId\":null,\"contextHandoffId\":null}",
+        "provider_instance_id": "codex"
+      }
+    ],
+    "orchestration_v2_projection_runtime_requests": [],
+    "orchestration_v2_projection_subagents": [],
+    "orchestration_v2_projection_threads": [
+      {
+        "thread_id": "recovery:雪",
+        "project_id": "project:recovery:雪",
+        "title": "Synthetic recovery:雪",
+        "default_provider": "codex",
+        "runtime_mode": "full-access",
+        "interaction_mode": "default",
+        "active_provider_thread_id": "provider:recovery:雪",
+        "created_at": "2026-11-01T00:00:00.000Z",
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "archived_at": null,
+        "deleted_at": null,
+        "payload_json": "{\"createdBy\":\"user\",\"creationSource\":\"web\",\"id\":\"recovery:雪\",\"projectId\":\"project:recovery:雪\",\"title\":\"Synthetic recovery:雪\",\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"runtimeMode\":\"full-access\",\"interactionMode\":\"default\",\"branch\":null,\"worktreePath\":null,\"activeProviderThreadId\":\"provider:recovery:雪\",\"lineage\":{\"parentThreadId\":null,\"relationshipToParent\":null,\"rootThreadId\":\"recovery:雪\"},\"forkedFrom\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"archivedAt\":null,\"settledOverride\":null,\"settledAt\":null,\"lastVisitedAt\":null,\"deletedAt\":null}",
+        "provider_instance_id": "codex"
+      },
+      {
+        "thread_id": "unselected",
+        "project_id": "project:unselected",
+        "title": "Synthetic unselected",
+        "default_provider": "codex",
+        "runtime_mode": "full-access",
+        "interaction_mode": "default",
+        "active_provider_thread_id": "provider:unselected",
+        "created_at": "2026-11-01T00:00:00.000Z",
+        "updated_at": "2026-11-01T00:00:00.000Z",
+        "archived_at": null,
+        "deleted_at": null,
+        "payload_json": "{\"createdBy\":\"user\",\"creationSource\":\"web\",\"id\":\"unselected\",\"projectId\":\"project:unselected\",\"title\":\"Synthetic unselected\",\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"runtimeMode\":\"full-access\",\"interactionMode\":\"default\",\"branch\":null,\"worktreePath\":null,\"activeProviderThreadId\":\"provider:unselected\",\"lineage\":{\"parentThreadId\":null,\"relationshipToParent\":null,\"rootThreadId\":\"unselected\"},\"forkedFrom\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"archivedAt\":null,\"settledOverride\":null,\"settledAt\":null,\"lastVisitedAt\":null,\"deletedAt\":null}",
+        "provider_instance_id": "codex"
+      }
+    ],
+    "orchestration_v2_projection_turn_items": []
+  },
+  "threadId": "recovery:雪",
+  "inputDigest": "sha256:ea1a58666918bbe9e52b487bb4f905da54070ad892b96c831145dcdac5c5bded",
+  "rawThread": "{\"createdBy\":\"user\",\"creationSource\":\"web\",\"id\":\"recovery:雪\",\"projectId\":\"project:recovery:雪\",\"title\":\"Synthetic recovery:雪\",\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"runtimeMode\":\"full-access\",\"interactionMode\":\"default\",\"branch\":null,\"worktreePath\":null,\"activeProviderThreadId\":\"provider:recovery:雪\",\"lineage\":{\"parentThreadId\":null,\"relationshipToParent\":null,\"rootThreadId\":\"recovery:雪\"},\"forkedFrom\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"archivedAt\":null,\"settledOverride\":null,\"settledAt\":null,\"lastVisitedAt\":null,\"deletedAt\":null}",
+  "rawSections": [
+    [
+      "attempts",
+      "{\"id\":\"attempt:recovery:雪\",\"runId\":\"run:recovery:雪\",\"attemptOrdinal\":1,\"rootNodeId\":\"node:recovery:雪\",\"providerInstanceId\":\"codex\",\"providerThreadId\":\"provider:recovery:雪\",\"providerTurnId\":\"turn:recovery:雪\",\"reason\":\"initial\",\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}"
+    ],
+    [
+      "providerSessions",
+      "{\"id\":\"session:recovery:雪\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"status\":\"ready\",\"cwd\":\"C:/synthetic/never-executed\",\"model\":\"synthetic\",\"capabilities\":{\"sessions\":{\"supportsMultipleProviderThreadsPerSession\":true,\"supportsModelSwitchInSession\":true,\"supportsProviderSwitchingViaHandoff\":true,\"supportsRuntimeModeSwitchInSession\":true,\"pendingRequestsSurviveRestart\":false},\"threads\":{\"canCreateEmptyThread\":true,\"canReadThreadSnapshot\":true,\"canRollbackThread\":true,\"canForkThread\":true,\"canForkFromTurn\":true,\"canForkFromSubagentThread\":true,\"exposesNativeThreadId\":true},\"turns\":{\"exposesNativeTurnId\":true,\"emitsTurnStarted\":true,\"emitsTurnCompleted\":true,\"supportsInterrupt\":true,\"supportsActiveSteering\":true,\"supportsSteeringByInterruptRestart\":true,\"supportsQueuedMessages\":true,\"terminalStatusQuality\":\"strong\"},\"streaming\":{\"streamsAssistantText\":true,\"streamsReasoning\":true,\"streamsToolOutput\":true,\"streamsPlanText\":true,\"emitsMessageCompleted\":true},\"tools\":{\"exposesToolItemIds\":true,\"emitsToolStarted\":true,\"emitsToolCompleted\":true,\"emitsToolOutput\":true,\"supportsMcpTools\":true,\"supportsDynamicToolCallbacks\":true},\"approvals\":{\"supportsCommandApproval\":true,\"supportsFileReadApproval\":true,\"supportsFileChangeApproval\":true,\"supportsApplyPatchApproval\":true,\"approvalsHaveNativeRequestIds\":true,\"approvalCallbacksAreLiveOnly\":true,\"approvalsCanOriginateFromSubagents\":true},\"planning\":{\"emitsPlanUpdated\":true,\"emitsTodoList\":true,\"emitsProposedPlan\":true,\"supportsStructuredQuestions\":true,\"planDeltasHaveItemIds\":true},\"subagents\":{\"supportsSubagents\":true,\"exposesSubagentThreadIds\":true,\"emitsSubagentLifecycle\":true,\"canWaitForSubagents\":true,\"canCloseSubagents\":true,\"canForkSubagentThread\":true},\"context\":{\"acceptsSystemContext\":true,\"acceptsDeveloperContext\":true,\"acceptsSyntheticUserContext\":true,\"canGenerateSummaries\":true,\"canConsumeHandoffSummaries\":true,\"supportsDeltaHandoff\":true,\"supportsFullThreadHandoff\":true,\"maxRecommendedHandoffChars\":null},\"checkpointing\":{\"appCanCheckpointFilesystem\":true,\"supportsNestedCheckpointScopes\":true,\"providerCanRollbackConversation\":true,\"providerRollbackReturnsSnapshot\":true,\"providerCanReadConversationSnapshot\":true},\"identity\":{\"nativeThreadIds\":\"strong\",\"nativeTurnIds\":\"strong\",\"nativeItemIds\":\"strong\",\"nativeRequestIds\":\"strong\"},\"runtimePolicy\":{\"enforcement\":\"native\"}},\"extensionStatuses\":[],\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\",\"lastError\":null}"
+    ],
+    [
+      "providerThreads",
+      "{\"id\":\"provider:recovery:雪\",\"driver\":\"codex\",\"providerInstanceId\":\"codex\",\"providerSessionId\":\"session:recovery:雪\",\"appThreadId\":\"recovery:雪\",\"ownerNodeId\":null,\"nativeThreadRef\":{\"driver\":\"codex\",\"nativeId\":\"native:recovery:雪\",\"strength\":\"strong\"},\"nativeConversationHeadRef\":null,\"status\":\"active\",\"firstRunOrdinal\":1,\"lastRunOrdinal\":1,\"handoffIds\":[],\"forkedFrom\":null,\"pendingBackgroundTasks\":[],\"contextUsage\":null,\"nativeMetadata\":null,\"goal\":null,\"createdAt\":\"2026-11-01T00:00:00.000Z\",\"updatedAt\":\"2026-11-01T00:00:00.000Z\"}"
+    ],
+    [
+      "providerTurns",
+      "{\"id\":\"turn:recovery:雪\",\"providerThreadId\":\"provider:recovery:雪\",\"nodeId\":\"node:recovery:雪\",\"runAttemptId\":\"attempt:recovery:雪\",\"nativeTurnRef\":null,\"ordinal\":1,\"status\":\"running\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null}"
+    ],
+    [
+      "runs",
+      "{\"id\":\"run:recovery:雪\",\"threadId\":\"recovery:雪\",\"ordinal\":1,\"providerInstanceId\":\"codex\",\"modelSelection\":{\"instanceId\":\"codex\",\"model\":\"synthetic\"},\"providerThreadId\":\"provider:recovery:雪\",\"userMessageId\":\"message:recovery:雪\",\"rootNodeId\":\"node:recovery:雪\",\"activeAttemptId\":\"attempt:recovery:雪\",\"status\":\"running\",\"queuePosition\":null,\"requestedAt\":\"2026-11-01T00:00:00.000Z\",\"startedAt\":\"2026-11-01T00:00:00.000Z\",\"completedAt\":null,\"checkpointId\":null,\"contextHandoffId\":null}"
+    ]
+  ]
+}

@@ -33,10 +33,13 @@ const TransactionAcquire = Context.Reference<`, 'shutdown-interruptible-writer-w
 export interface ShutdownPreparationCandidate {
   readonly [shutdownPreparationCandidateBrand]: true;
   readonly observedAtMs: number;
+  readonly notAfterMonotonicMs: number;
   readonly settingsDigest: string;
   readonly inputDigest: string;
   readonly planDigest: string;
   readonly threadIds: ReadonlyArray<ThreadId>;
+  readonly projectionInputs: ReadonlyArray<{ readonly threadId: ThreadId; readonly projectId: string;
+    readonly inputDigest: string }>;
   readonly effects: ReadonlyArray<{ readonly effectId: string; readonly commandId: CommandId;
     readonly threadId: ThreadId; readonly sourceRunId: string; readonly existingRowDigest: string | null }>;
 }

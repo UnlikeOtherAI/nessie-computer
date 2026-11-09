@@ -64,6 +64,8 @@ sqlite_api! {
     fn sqlite3_close_v2(db: *mut c_void) -> c_int;
     fn sqlite3_prepare_v2(db: *mut c_void, sql: *const c_char, size: c_int, stmt: *mut *mut c_void, tail: *mut *const c_char) -> c_int;
     fn sqlite3_step(stmt: *mut c_void) -> c_int;
+    fn sqlite3_progress_handler(db: *mut c_void, instructions: c_int,
+        callback: Option<unsafe extern "C" fn(*mut c_void) -> c_int>, data: *mut c_void) -> ();
     fn sqlite3_finalize(stmt: *mut c_void) -> c_int;
     fn sqlite3_bind_parameter_count(stmt: *mut c_void) -> c_int;
     fn sqlite3_bind_text(stmt: *mut c_void, index: c_int, text: *const c_char, length: c_int,
