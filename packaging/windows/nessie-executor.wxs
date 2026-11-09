@@ -330,20 +330,28 @@
          with 1603 and left reboot-time file swaps that undid the next one.
          Closing runs the package's own copy of the service binary from the
          Binary table, so it is the new code even while an older release is
-         installed; it derives the folder itself. A rollback reopens the apps
-         for the release it restores. Neither runs inside an upgrade's removal
-         of the previous product. -->
+         installed; it derives the folder itself. Neither runs inside an
+         upgrade's removal of the previous product.
+
+         Closing is an immediate action before InstallValidate, not a deferred
+         one: the upgrade removes the previous product at RemoveExistingProducts,
+         straight after InstallInitialize, and Windows Installer refuses any
+         script action ahead of it (error 2613, every upgrade failed with 1603).
+         Running first also leaves Restart Manager nothing in use to report. As
+         an immediate action it runs as the installing account: SYSTEM for an
+         automatic update. An account that cannot write the service's note of
+         the closed apps (a manual install) still closes them; the app then opens
+         at the next sign-in instead of straight after the install. There is no
+         rollback reopen: a rollback action would run before the previous
+         release's files are restored. -->
     <Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\nessie-executor-service.exe" />
     <CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"
-      Execute="deferred" Impersonate="no" Return="check" />
-    <CustomAction Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"
-      Execute="rollback" Impersonate="no" Return="ignore" />
+      Execute="immediate" Return="check" />
     <CustomAction Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"
       Execute="deferred" Impersonate="no" Return="ignore" />
 
     <InstallExecuteSequence>
-      <Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall" Condition="NOT UPGRADINGPRODUCTCODE" />
-      <Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="ReopenAfterInstall" After="StartServices" Condition="NOT UPGRADINGPRODUCTCODE AND NOT (REMOVE=&quot;ALL&quot;)" />
       <?if $(var.EnableUpdater) = 1 ?>
       <Custom Action="RestoreUpdaterAfterFailedRemoval" Before="DisableUpdaterForRemoval" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />

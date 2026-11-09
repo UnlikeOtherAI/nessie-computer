@@ -145,3 +145,66 @@ export const msiVersion = (declared) => {
 }
 
 export const msiFileName = (version) => `NessieExecutor_${msiVersion(version)}_x64.msi`
+
+/**
+ * Where the standard actions an authoring anchors on sit in Windows Installer's
+ * own InstallExecuteSequence. `RemoveExistingProducts` is where
+ * `MajorUpgrade Schedule="afterInstallInitialize"` puts it: straight after
+ * `InstallInitialize`, which is where the previous product's files go.
+ */
+const STANDARD_SEQUENCE = {
+  CostFinalize: 1000,
+  InstallValidate: 1400,
+  InstallInitialize: 1500,
+  RemoveExistingProducts: 1501,
+  StopServices: 1900,
+  DeleteServices: 2000,
+  RemoveFiles: 3500,
+  InstallFiles: 4000,
+  InstallServices: 5800,
+  StartServices: 5900,
+  InstallFinalize: 6600,
+}
+
+/** Custom actions that write to the installation script rather than run at once. */
+const SCRIPT_EXECUTION = new Set(['deferred', 'rollback', 'commit'])
+
+/**
+ * What Windows Installer would refuse, or what would close the apps too late, in
+ * an authoring's InstallExecuteSequence. Windows Installer accepts
+ * `RemoveExistingProducts` after `InstallInitialize` only ahead of every action
+ * that writes to the script, and fails the whole install with error 2613
+ * otherwise; and closing what runs from the install folder has to finish before
+ * the previous product's files are removed. Positions follow each `Before` or
+ * `After` back to a standard action; conditions do not move an action.
+ */
+export const installSequenceProblems = (authoring) => {
+  const upgrade = /<MajorUpgrade\s+Schedule="([^"]+)"/.exec(authoring)?.[1]
+  if (upgrade !== 'afterInstallInitialize') return [`MajorUpgrade is scheduled ${upgrade ?? 'nowhere'}, not afterInstallInitialize`]
+  const execution = new Map([...authoring.matchAll(/<CustomAction\s+Id="([^"]+)"[^>]*?Execute="([^"]+)"/g)]
+    .map(([, id, mode]) => [id, mode]))
+  const sequence = /<InstallExecuteSequence>([\s\S]*?)<\/InstallExecuteSequence>/.exec(authoring)?.[1] ?? ''
+  const anchors = new Map([...sequence.matchAll(/<Custom\s+Action="([^"]+)"\s+(Before|After)="([^"]+)"/g)]
+    .map(([, action, relation, anchor]) => [action, { relation, anchor }]))
+  const position = (action, seen = new Set()) => {
+    if (action in STANDARD_SEQUENCE) return STANDARD_SEQUENCE[action]
+    const placed = anchors.get(action)
+    if (!placed || seen.has(action)) throw new Error(`${action} is sequenced against nothing this check knows`)
+    seen.add(action)
+    // Each step of a chain lands a little nearer its anchor than the one before.
+    const step = 0.5 / 2 ** seen.size
+    return position(placed.anchor, seen) + (placed.relation === 'Before' ? -step : step)
+  }
+  const problems = []
+  for (const action of anchors.keys()) {
+    const at = position(action)
+    const mode = execution.get(action) ?? 'immediate'
+    if (SCRIPT_EXECUTION.has(mode) && at < STANDARD_SEQUENCE.RemoveExistingProducts) {
+      problems.push(`${action} (${mode}) is sequenced before RemoveExistingProducts (error 2613)`)
+    }
+  }
+  if (anchors.has('CloseForInstall') && position('CloseForInstall') >= STANDARD_SEQUENCE.RemoveExistingProducts) {
+    problems.push('CloseForInstall runs after the previous product\'s files are removed')
+  }
+  return problems
+}

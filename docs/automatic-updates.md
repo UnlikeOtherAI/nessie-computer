@@ -515,14 +515,25 @@ and team daemons a scheduled task or a terminal started. Files replaced under
 running processes failed the install with 1603, and the rollback queued
 reboot-time file swaps that undid the next install. `--close-for-install` runs
 from the package's own Binary-table copy of the service, so the new code runs
-while an older release is installed. A Windows app from this release quits when
+while an older release is installed. It is an immediate action before
+`InstallValidate`: the upgrade removes the previous product at
+`RemoveExistingProducts`, straight after `InstallInitialize`, and Windows
+Installer fails an upgrade with error 2613 (1603) when any script action comes
+ahead of it. `installSequenceProblems` in `packaging/windows/msi-plan.mjs` checks
+that rule against the authoring. As an immediate action it runs as the
+installing account, SYSTEM for an automatic update. An account that cannot
+write the service's note of the closed apps (a manual install) still closes
+them, and the app opens at the next sign-in instead of straight after the
+install. A Windows app from this release quits when
 the install event is set, and its daemons stop as their liveness pipes close.
 Other daemons get Ctrl+Break on their own console, which this release's daemon
 treats as a graceful stop. Whatever still runs after 30 seconds is terminated
 (the app after six). The action refuses with `install_handover.still_running`
 before any file changes if something survives that. `--reopen-after-install`
 reopens each closed app in its own session, for the person signed in there,
-after the service starts again. A rollback runs it as well.
+after the service starts again. A failed install does not reopen them: a
+rollback action would run before the previous release's files are restored. The
+restored service starts again, and the app at the next sign-in.
 
 The setup custom actions (`--secure-state-root`, `--secure-updater-root`,
 `--disable-updater-for-removal`) keep only an exit code in the MSI log, so a
