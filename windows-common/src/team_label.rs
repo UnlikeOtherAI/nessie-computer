@@ -7,7 +7,10 @@
 //! status reads it directly, the way it reads `owner-pause.json`, and costs no
 //! process per poll. It labels a line; it never grants anything.
 
-use std::path::{Path, PathBuf};
+use std::{
+    io::Read,
+    path::{Path, PathBuf},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -68,9 +71,55 @@ pub fn team_names_arguments(state_dirs: &[PathBuf]) -> Option<Vec<String>> {
     Some(arguments)
 }
 
+/// What every line a refresh's failures print starts with (`src/team-names.ts`).
+const FAILURE_PREFIX: &str = "[nessie-executor] team names:";
+const FAILURE_LINES: usize = 64;
+const FAILURE_LINE_CHARS: usize = 400;
+
+/// The failures a `team-names` call printed on standard error, one line each,
+/// for the supervisor's own log. They name a server, a team id and Nessie's
+/// status and code only; anything else on the stream is not carried over.
+pub fn team_names_failures(standard_error: &[u8]) -> Vec<String> {
+    String::from_utf8_lossy(standard_error)
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with(FAILURE_PREFIX))
+        .take(FAILURE_LINES)
+        .map(|line| line["[nessie-executor] ".len()..].chars().take(FAILURE_LINE_CHARS).collect())
+        .collect()
+}
+
+/// Reads a `team-names` call's standard error to its end on a thread of its
+/// own, so the child never blocks on a full pipe, and answers its failures.
+pub fn collect_team_names_failures(mut stream: impl Read + Send + 'static) -> std::thread::JoinHandle<Vec<String>> {
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = (&mut stream).take(1 << 20).read_to_end(&mut bytes);
+        let _ = std::io::copy(&mut stream, &mut std::io::sink());
+        team_names_failures(&bytes)
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{read_team_label, team_names_arguments, TeamLabel, TEAM_LABEL_FILE};
+    use super::{read_team_label, team_names_arguments, team_names_failures, TeamLabel, TEAM_LABEL_FILE};
+
+    #[test]
+    fn a_refresh_failure_line_is_kept_and_nothing_else_on_the_stream() {
+        let printed = b"[nessie-executor] team names: api.nessie.works did not answer the batched read (HTTP 401 AUTH_REQUIRED); asking each team.\r\n\
+            (node:1) Warning: something else\n\
+            [nessie-executor] heartbeat failed: x\n\
+            [nessie-executor] team names: api.nessie.works did not name team 48d72fea (HTTP 401 UOA_SESSION_REQUIRED).\n";
+        assert_eq!(team_names_failures(printed), [
+            "team names: api.nessie.works did not answer the batched read (HTTP 401 AUTH_REQUIRED); asking each team.",
+            "team names: api.nessie.works did not name team 48d72fea (HTTP 401 UOA_SESSION_REQUIRED).",
+        ]);
+        assert!(team_names_failures(b"").is_empty());
+        let long = format!("[nessie-executor] team names: {}\n", "x".repeat(1000)).repeat(100);
+        let kept = team_names_failures(long.as_bytes());
+        assert_eq!(kept.len(), 64);
+        assert!(kept.iter().all(|line| line.chars().count() == 400));
+    }
 
     #[test]
     fn a_saved_label_reads_back_and_anything_else_is_no_name() {

@@ -1,3 +1,5 @@
+import { ZodError } from 'zod'
+
 import {
   EXECUTOR_DAEMON_TEAMS_MAXIMUM, ExecutorDaemonTeamsRequestSchema, ExecutorDaemonTeamsResponseSchema,
   ExecutorPairingClaimSchema,
@@ -17,13 +19,17 @@ import { saveTeamLabel, teamDisplayNames, type TeamDisplayNames, type TeamLabel 
  * machine key: no person, session or daemon connection is involved, so a
  * stopped team is named as readily as a running one.
  *
- * A Nessie from before that route answers 404. Then, and only then, each of
- * its teams is read through the older signed `POST /api/executor-pairing/connection`,
- * which some servers still refuse without a person's session; such a refusal
- * leaves the saved label as it was.
+ * The batched read is always asked first. When it gives no well-formed answer
+ * — the route is missing (404), refused (401 `AUTH_REQUIRED` is how a Nessie
+ * from before it answers an unknown route; 403, 405), failed (5xx),
+ * unreachable, or answered with something that is not well formed — each of
+ * that batch's teams is read through the older signed
+ * `POST /api/executor-pairing/connection`. Whichever read names a team, its
+ * label is written.
  *
- * Nothing here ever clears or blanks a label: a server that can't be reached,
- * refuses, or leaves a team out of its answer changes nothing on disk.
+ * Nothing here ever clears or blanks a label: a team no read names keeps
+ * whatever it had. Every failure is logged once per refresh, by its HTTP
+ * status and error code only: never a body, a signature or a key.
  */
 
 export type TeamNameSource = {
@@ -33,7 +39,12 @@ export type TeamNameSource = {
 
 export type TeamNamesApi = Pick<ExecutorApiClient, 'teams' | 'pairing'>
 
-type Dependencies = { api?: TeamNamesApi; now?: () => Date }
+type Log = (message: string) => void
+
+/** `log` hears each failure of a refresh once; the daemon's, tray's and service's logs by default (standard error). */
+type Dependencies = { api?: TeamNamesApi; now?: () => Date; log?: Log }
+
+const standardError: Log = (message) => { console.error(`[nessie-executor] ${message}`) }
 
 const batches = <T>(items: readonly T[], size: number): T[][] => {
   const result: T[][] = []
@@ -41,8 +52,19 @@ const batches = <T>(items: readonly T[], size: number): T[][] => {
   return result
 }
 
-/** A Nessie that has no batched route at all, rather than one that refused this request. */
-const routeMissing = (error: unknown): boolean => error instanceof ExecutorApiError && error.status === 404
+/** Why a read named nobody, for a log: Nessie's status and error code, never its body. */
+export const teamNamesFailure = (error: unknown): string => {
+  if (error instanceof ExecutorApiError) {
+    const said = [error.status === undefined ? undefined : `HTTP ${error.status}`, error.code].filter(Boolean)
+    return said.length ? said.join(' ') : 'no answer'
+  }
+  if (error instanceof ZodError || error instanceof SyntaxError) return 'an answer that is not well formed'
+  return error instanceof Error ? error.name : 'an unknown failure'
+}
+
+const hostOf = (apiBaseUrl: string): string => {
+  try { return new URL(apiBaseUrl).host } catch { return apiBaseUrl }
+}
 
 const entryFor = (source: TeamNameSource, now: Date) => {
   const payload = { executorId: source.state.executorId, observedAt: now.toISOString() }
@@ -64,7 +86,7 @@ const askBatch = async (
   return names
 }
 
-/** A team's names from an older Nessie, through the connection read it already answers. */
+/** A team's names through the connection read every Nessie answers for a signed team. */
 const askConnection = async (
   api: TeamNamesApi, source: TeamNameSource, now: Date,
 ): Promise<TeamDisplayNames | null> => {
@@ -76,23 +98,36 @@ const askConnection = async (
   return teamDisplayNames({ organizationName: claim.organization.name, teamName: claim.team?.name ?? null })
 }
 
-/** Every batch for one server: the batched route, or each team's connection read on a Nessie without it. */
+/**
+ * Every team's names on one server: each batch through the batched route, and
+ * the teams of every batch it did not answer well formed through their own
+ * connection reads, all at once, so a slow Nessie costs two request deadlines
+ * rather than one a team. A team a well-formed answer left out is not asked
+ * again: that Nessie has the route and did not verify it.
+ */
 const askServer = async (
-  api: TeamNamesApi, apiBaseUrl: string, sources: readonly TeamNameSource[], now: Date,
+  api: TeamNamesApi, apiBaseUrl: string, sources: readonly TeamNameSource[], now: Date, log: Log,
 ): Promise<Map<string, TeamDisplayNames>> => {
+  const host = hostOf(apiBaseUrl)
   const names = new Map<string, TeamDisplayNames>()
+  const unanswered: TeamNameSource[] = []
   for (const batch of batches(sources, EXECUTOR_DAEMON_TEAMS_MAXIMUM)) {
     try {
       for (const [executorId, found] of await askBatch(api, apiBaseUrl, batch, now)) names.set(executorId, found)
     } catch (error) {
-      if (!routeMissing(error)) return names
-      for (const source of sources) {
-        const found = await askConnection(api, source, now).catch(() => null)
-        if (found) names.set(source.state.executorId, found)
-      }
-      return names
+      log(`team names: ${host} did not answer the batched read (${teamNamesFailure(error)}); asking each team.`)
+      unanswered.push(...batch)
     }
   }
+  await Promise.all(unanswered.map(async (source) => {
+    try {
+      const found = await askConnection(api, source, now)
+      if (found) names.set(source.state.executorId, found)
+      else log(`team names: ${host} answered for another team than ${source.state.executorId}.`)
+    } catch (error) {
+      log(`team names: ${host} did not name team ${source.state.executorId} (${teamNamesFailure(error)}).`)
+    }
+  }))
   return names
 }
 
@@ -106,6 +141,7 @@ export const refreshTeamNames = async (
 ): Promise<Map<string, TeamLabel>> => {
   const api = dependencies.api ?? executorApi
   const now = dependencies.now ?? (() => new Date())
+  const log = dependencies.log ?? standardError
   const servers = new Map<string, TeamNameSource[]>()
   for (const source of sources) {
     const listed = servers.get(source.state.apiBaseUrl) ?? []
@@ -114,12 +150,16 @@ export const refreshTeamNames = async (
   }
   const saved = new Map<string, TeamLabel>()
   await Promise.all([...servers].map(async ([apiBaseUrl, listed]) => {
-    const names = await askServer(api, apiBaseUrl, listed, now()).catch(() => new Map<string, TeamDisplayNames>())
+    const names = await askServer(api, apiBaseUrl, listed, now(), log)
     for (const source of listed) {
       const found = names.get(source.state.executorId)
       if (!found) continue
-      const label = await saveTeamLabel(source.stateDir, found, apiBaseUrl, now).catch(() => null)
-      if (label) saved.set(source.state.executorId, label)
+      try {
+        saved.set(source.state.executorId, await saveTeamLabel(source.stateDir, found, apiBaseUrl, now))
+      } catch (error) {
+        log(`team names: the label for team ${source.state.executorId} was not saved (${
+          (error as NodeJS.ErrnoException).code ?? teamNamesFailure(error)}).`)
+      }
     }
   }))
   return saved

@@ -10,7 +10,7 @@ import { saveExecutorState } from '../src/state-store.js'
 import { readTeamLabel, saveTeamLabel, teamLabelPath, teamLabelStale } from '../src/team-label.js'
 import { runTeamNamesCli } from '../src/team-names-cli.js'
 import { refreshTeamNames, type TeamNameSource } from '../src/team-names.js'
-import { fakeTeamNames } from './support/fake-team-names.js'
+import { fakeTeamNames, type FakeBatchFailure } from './support/fake-team-names.js'
 import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 
 /**
@@ -81,13 +81,14 @@ test('teams on two servers are asked once per server', { skip }, async () => {
 
 test('offline, refused or left out, a known name stays as it was', { skip }, async () => {
   await withTeams([{ executorId: SALES, apiBaseUrl: HOSTED }], async (sources) => {
+    const log = () => undefined
     const known = await saveTeamLabel(sources[0]!.stateDir, { organizationName: 'Acme', teamName: 'Sales' }, HOSTED,
       () => new Date('2026-11-01T00:00:00.000Z'))
-    await refreshTeamNames(sources, { api: fakeTeamNames({ unreachable: true, names: {} }).api, now })
+    await refreshTeamNames(sources, { api: fakeTeamNames({ unreachable: true, names: {} }).api, now, log })
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
-    await refreshTeamNames(sources, { api: fakeTeamNames({ names: {} }).api, now })
+    await refreshTeamNames(sources, { api: fakeTeamNames({ names: {} }).api, now, log })
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
-    await refreshTeamNames(sources, { api: fakeTeamNames({ old: true, refuseConnection: true, names: {} }).api, now })
+    await refreshTeamNames(sources, { api: fakeTeamNames({ old: true, refuseConnection: true, names: {} }).api, now, log })
     assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
   })
 })
@@ -111,6 +112,53 @@ test('a Nessie without the batched route names each team through its connection 
       assert.equal((await readTeamLabel(sources[0]!.stateDir))?.teamName, 'Sales')
       assert.equal(await readTeamLabel(sources[1]!.stateDir), null)
     })
+})
+
+test('whatever keeps the batched read from answering, the connection read names the team and is logged once', { skip },
+  async () => {
+    const expected: Record<FakeBatchFailure, RegExp> = {
+      missing: /HTTP 404/u,
+      auth_required: /HTTP 401 AUTH_REQUIRED/u,
+      server_error: /HTTP 500 INTERNAL/u,
+      malformed: /not well formed/u,
+    }
+    for (const batch of Object.keys(expected) as FakeBatchFailure[]) {
+      await withTeams([{ executorId: SALES, apiBaseUrl: HOSTED }, { executorId: RESEARCH, apiBaseUrl: HOSTED }],
+        async (sources, keys) => {
+          const nessie = fakeTeamNames({ batch, keys, names: {
+            [SALES]: { organizationName: 'Acme', teamName: 'Sales' },
+            [RESEARCH]: { organizationName: 'Acme', teamName: null },
+          } })
+          const logged: string[] = []
+          const saved = await refreshTeamNames(sources, { api: nessie.api, now, log: (line) => logged.push(line) })
+          assert.deepEqual(nessie.calls.map((call) => call.route), ['teams', 'connection', 'connection'], batch)
+          assert.equal(saved.size, 2, batch)
+          assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), {
+            organizationName: 'Acme', teamName: 'Sales', apiBaseUrl: HOSTED, checkedAt: now().toISOString() }, batch)
+          assert.equal((await readTeamLabel(sources[1]!.stateDir))?.organizationName, 'Acme', batch)
+          assert.equal(logged.length, 1, `${batch}: one line for the batched read, none for the reads that worked`)
+          assert.match(logged[0]!, expected[batch])
+          assert.match(logged[0]!, /api\.example\.test/u)
+          for (const key of keys.values()) assert.ok(!logged[0]!.includes(key), 'no machine key is logged')
+        })
+    }
+  })
+
+test('a refresh that names nobody says why for every team, and keeps the saved label', { skip }, async () => {
+  await withTeams([{ executorId: SALES, apiBaseUrl: HOSTED }], async (sources) => {
+    const known = await saveTeamLabel(sources[0]!.stateDir, { organizationName: 'Acme', teamName: 'Sales' }, HOSTED,
+      () => new Date('2026-11-01T00:00:00.000Z'))
+    const logged: string[] = []
+    await refreshTeamNames(sources, { now, log: (line) => logged.push(line),
+      api: fakeTeamNames({ batch: 'auth_required', refuseConnection: true, names: {} }).api })
+    assert.deepEqual(await readTeamLabel(sources[0]!.stateDir), known)
+    assert.equal(logged.length, 2)
+    assert.match(logged[1]!, new RegExp(`team ${SALES} \\(HTTP 401 UOA_SESSION_REQUIRED\\)`, 'u'))
+    const quiet: string[] = []
+    await refreshTeamNames(sources, { now, log: (line) => quiet.push(line),
+      api: fakeTeamNames({ names: { [SALES]: { organizationName: 'Acme', teamName: 'Sales' } } }).api })
+    assert.deepEqual(quiet, [], 'a refresh that works logs nothing')
+  })
 })
 
 test('a damaged label reads as no name, and the command line asks again once a label is an hour old', { skip },

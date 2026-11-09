@@ -10,9 +10,11 @@
 //! same for the teams it holds. A name never grants anything; it only labels
 //! a line.
 
-use std::{collections::BTreeMap, sync::Mutex, time::Duration};
+use std::{collections::BTreeMap, process::Stdio, sync::Mutex, time::Duration};
 
-use nessie_windows_common::team_label::{team_names_arguments, TeamLabel, TEAM_NAMES_REFRESH_SECONDS};
+use nessie_windows_common::team_label::{
+    collect_team_names_failures, team_names_arguments, TeamLabel, TEAM_NAMES_REFRESH_SECONDS,
+};
 
 use crate::state::ExecutorStatus;
 
@@ -41,14 +43,36 @@ pub fn snapshot() -> BTreeMap<String, TeamIdentity> {
 
 /// Asks Nessie for the names of the teams this app runs under the person's
 /// account, now and every hour, on a thread of its own: Nessie can take
-/// seconds, and a failure changes nothing on disk.
+/// seconds, and a failure changes nothing on disk. What went wrong is written
+/// to this app's log, one line each, as its other diagnostics are.
 pub fn refresh_hourly() {
     std::thread::spawn(|| loop {
         if let Some(arguments) = team_names_arguments(&crate::user_connections::state_dirs()) {
-            let _ = crate::user_runtime::run(&arguments, None);
+            match run_team_names(&arguments) {
+                Ok(failures) => failures.iter().for_each(|failure| eprintln!("Nessie Computer: {failure}")),
+                Err(reason) => eprintln!("Nessie Computer: team names were not refreshed. {reason}"),
+            }
         }
         std::thread::sleep(Duration::from_secs(TEAM_NAMES_REFRESH_SECONDS));
     });
+}
+
+/// One `team-names` call, answering the failures it printed on standard error.
+fn run_team_names(arguments: &[String]) -> Result<Vec<String>, String> {
+    let mut command = crate::user_runtime::command()?;
+    let mut child = command.args(arguments).stderr(Stdio::piped()).spawn()
+        .map_err(|_| "Could not start Nessie Computer’s command-line tool.".to_owned())?;
+    let errors = child.stderr.take().map(collect_team_names_failures);
+    match crate::user_runtime::wait(&mut child, Duration::from_secs(120)) {
+        Ok(true) => {}
+        Ok(false) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err("The command-line tool did not answer in time.".to_owned());
+        }
+        Err(reason) => return Err(reason),
+    }
+    Ok(errors.and_then(|reader| reader.join().ok()).unwrap_or_default())
 }
 
 /// Several connections can serve one team on this computer — the one this app

@@ -46,3 +46,18 @@ public enum TeamLabel {
         return parts.isEmpty ? Word.teamNameUnavailable.text(in: language) : parts.joined(separator: " · ")
     }
 }
+
+/// What a `team-names` call says went wrong (`src/team-names.ts`): one line per
+/// server that did not answer and per team it did not name, by status and code
+/// only. The app writes each to its log rather than dropping it.
+public enum TeamNamesFailures {
+    private static let prefix = "[nessie-executor] team names:"
+
+    public static func lines(in standardError: String) -> [String] {
+        standardError.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { $0.hasPrefix(prefix) }
+            .prefix(64)
+            .map { String($0.dropFirst("[nessie-executor] ".count).prefix(400)) }
+    }
+}
