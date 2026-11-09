@@ -120,7 +120,7 @@ test('enable names the pairing failure instead of leaking a bare filesystem erro
 test('an unverifiable packaged runtime stops enable before any systemd call', async () => {
   const { commands, environment } = harness({
     verifyPackagedRuntime: async () => {
-      throw new Error('The Nessie Executor runtime failed verification: nessie-executor-runtime is not owned by root.')
+      throw new Error('The Nessie Computer runtime failed verification: nessie-executor-runtime is not owned by root.')
     },
   })
   const message = await rejects(enableExecutorService({ assumeYes: true, executorId: 'executor-one' }, environment))

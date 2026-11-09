@@ -1,3 +1,4 @@
+import ServiceManagement
 import XCTest
 
 /// The helper registered by an older app keeps running until it restarts.
@@ -14,10 +15,31 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         )
     }
 
+    private func attention(
+        _ registration: SMAppService.Status?, failures: Int = 0, reregistered: Bool = false, factoryReady: Bool = true
+    ) -> ComputerUpdateAttention? {
+        ComputerUpdateRecovery.attention(
+            registration: registration, factoryReady: factoryReady, failures: failures, reregistered: reregistered
+        )
+    }
+
     func testAnUnansweredHelperIsStuckOnlyAfterTwoProbesInARow() {
-        XCTAssertFalse(ComputerUpdateRecovery.stuck(enabled: true, failures: 1))
-        XCTAssertTrue(ComputerUpdateRecovery.stuck(enabled: true, failures: 2))
-        XCTAssertFalse(ComputerUpdateRecovery.stuck(enabled: false, failures: 5), "setup has its own state")
+        XCTAssertNil(attention(.enabled, failures: 1))
+        XCTAssertEqual(attention(.enabled, failures: 2), .stuck)
+        XCTAssertNil(attention(.enabled, failures: 5, factoryReady: false), "first setup has its own state")
+        XCTAssertNil(attention(.notRegistered, failures: 5), "setup has its own state")
+        XCTAssertNil(attention(nil, failures: 5), "a development build manages no helper")
+    }
+
+    /// 8 November, 1.0.16: the app re-registered its helper and no helper ran for
+    /// ten minutes while the app said only that updates were stuck.
+    func testAHelperWaitingForApprovalAsksForItInsteadOfARestart() {
+        XCTAssertEqual(attention(.requiresApproval), .needsApproval, "no probe has to fail first")
+        XCTAssertEqual(attention(.requiresApproval, failures: 3, reregistered: true), .needsApproval)
+        XCTAssertNil(attention(.enabled, failures: 1, reregistered: true), "it gets a moment to start")
+        XCTAssertEqual(attention(.enabled, failures: 2, reregistered: true), .needsApproval,
+                       "silent since this app re-registered it")
+        XCTAssertEqual(attention(.enabled, failures: 2, reregistered: true, factoryReady: false), .needsApproval)
     }
 
     func testANewerAppRestartsAnOlderOrStuckHelperOncePerVersion() {
@@ -52,6 +74,26 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         XCTAssertEqual(runtime.executorVersion { _ in Data(#"{"executorVersion":"1.0.16"}"#.utf8) }, "1.0.16")
         XCTAssertNil(runtime.executorVersion { _ in nil })
         XCTAssertNil(runtime.executorVersion { _ in Data("not json".utf8) })
+    }
+
+    func testMenuAsksForApprovalAndItsLineOpensLoginItems() {
+        for language in NativeLanguage.allCases {
+            let waiting = ComputerMenuModel(teams: [], updatesNeedApproval: true, language: language)
+            XCTAssertEqual(waiting.needsYou?.title, Word.needsYouUpdatesApproval.text(in: language))
+            XCTAssertEqual(waiting.needsYou?.opensLoginItems, true)
+            XCTAssertEqual(waiting.icon, .needsYou)
+            XCTAssertNotEqual(waiting.status, Word.statusUpdatesStuck.text(in: language), "approval is not stuck")
+        }
+        let english = ComputerMenuModel(teams: [], updatesNeedApproval: true, language: .britishEnglish)
+        XCTAssertEqual(english.needsYou?.title,
+                       "Needs you: allow Nessie Computer in System Settings to finish updating")
+        // With another thing waiting, the one line opens the window, whose Overview has the button.
+        let two = ComputerMenuModel(
+            teams: [], runtimeMissing: true, updatesNeedApproval: true, language: .britishEnglish
+        )
+        XCTAssertEqual(two.needsYouItems.first?.opensLoginItems, true)
+        XCTAssertEqual(two.needsYou?.opensLoginItems, false)
+        XCTAssertEqual(ComputerMenuModel(teams: [], updatesStuck: true).needsYou?.opensLoginItems, false)
     }
 
     func testMenuSaysUpdatesAreStuckInsteadOfNoTeam() {

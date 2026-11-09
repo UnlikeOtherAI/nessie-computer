@@ -60,8 +60,8 @@ used once it is.
 
 Local apps are programs on this computer that agents can talk to directly, such
 as Kelpie. (Developers call them MCP servers.) Nessie Computer finds the ones
-that are installed, including those set up for Claude Code, Codex and T3 Code
-on this computer, and lets agents use all of them.
+that are installed, including those set up for Claude Code and Codex on this
+computer, and lets agents use all of them.
 
 Each app has a switch. Switch one off and agents stop using it; install a new
 one and it appears, switched on. The details of how an app starts stay on this

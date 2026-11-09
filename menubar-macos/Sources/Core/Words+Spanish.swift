@@ -37,6 +37,9 @@ enum SpanishWords {
         case .needsYouReinstall: return "Te necesita: reinstala Nessie Computer"
         case .needsYouUnreadableTeam: return "Te necesita: no se puede leer un equipo de este Mac"
         case .needsYouUpdatesStuck: return "Te necesita: las actualizaciones están atascadas — abre Nessie Computer"
+        case .needsYouUpdatesApproval:
+            return "Te necesita: permite Nessie Computer en Ajustes "
+                + "del Sistema para terminar la actualización"
         case let .needsYouMany(value): return "Te necesita: \(value) cosas — abre Nessie Computer"
         case .pause: return "Pausar"
         case .resume: return "Reanudar"

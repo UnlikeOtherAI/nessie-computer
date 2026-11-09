@@ -40,17 +40,17 @@ export const readPinnedScriptDigests = async (
 ): Promise<PinnedScriptDigests> => {
   const raw = await readFile(join(resourcesDirectory, 'manifest.json'), 'utf8').catch(() => undefined)
   if (raw === undefined) {
-    throw new WorkspacePathError('The executor guest VM resources are not installed on this computer.')
+    throw new WorkspacePathError('The guest VM resources are not installed on this computer.')
   }
   let parsed: unknown
   try {
     parsed = JSON.parse(raw)
   } catch {
-    throw new WorkspacePathError('The executor guest VM resource manifest is unreadable.')
+    throw new WorkspacePathError('The guest VM resource manifest is unreadable.')
   }
   const files = (parsed as { files?: unknown }).files
   if (!Array.isArray(files)) {
-    throw new WorkspacePathError('The executor guest VM resource manifest is unreadable.')
+    throw new WorkspacePathError('The guest VM resource manifest is unreadable.')
   }
   const digests: Record<string, string> = {}
   for (const entry of files) {
@@ -79,15 +79,15 @@ export const verifyPinnedResource = async (input: {
   const candidate = resolve(input.path)
   const resourcePath = relative(resourcesRoot, candidate).split(sep).join('/')
   if (isAbsolute(resourcePath) || resourcePath === '' || resourcePath === '..' || resourcePath.startsWith('../')) {
-    throw new WorkspacePathError('The executor VM artifact is not a packaged resource.')
+    throw new WorkspacePathError('The VM artifact is not a packaged resource.')
   }
   const expected = input.digests[resourcePath]
   if (expected === undefined) {
-    throw new WorkspacePathError('The executor VM artifact is not pinned by the installed package.')
+    throw new WorkspacePathError('The VM artifact is not pinned by the installed package.')
   }
   const bytes = await readFile(candidate).catch(() => undefined)
   if (bytes === undefined || createHash('sha256').update(bytes).digest('hex') !== expected) {
-    throw new WorkspacePathError('The executor VM artifact does not match the installed package.')
+    throw new WorkspacePathError('The VM artifact does not match the installed package.')
   }
   return candidate
 }
@@ -105,17 +105,17 @@ export const createPinnedScriptStore = (input: {
     const relative = `${HYPERV_SCRIPT_DIRECTORY}/${name}`
     const expected = input.digests[relative]
     if (expected === undefined) {
-      throw new WorkspacePathError(`The executor guest VM script ${name} is not a pinned resource.`)
+      throw new WorkspacePathError(`The guest VM script ${name} is not a pinned resource.`)
     }
     const path = join(input.resourcesDirectory, HYPERV_SCRIPT_DIRECTORY, name)
     const bytes = await readFile(path).catch(() => undefined)
     if (bytes === undefined) {
-      throw new WorkspacePathError(`The executor guest VM script ${name} is not installed.`)
+      throw new WorkspacePathError(`The guest VM script ${name} is not installed.`)
     }
     if (createHash('sha256').update(bytes).digest('hex') !== expected) {
       throw new WorkspacePathError(
-        `The executor guest VM script ${name} does not match the signed package. `
-        + 'Reinstall Nessie Executor.',
+        `The guest VM script ${name} does not match the signed package. `
+        + 'Reinstall Nessie Computer.',
       )
     }
     return path
@@ -140,10 +140,10 @@ export const powerShellArgv = (
   const argv = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath]
   for (const [name, value] of parameters) {
     if (!PARAMETER_NAME.test(name)) {
-      throw new WorkspacePathError('An executor guest VM script parameter name is invalid.')
+      throw new WorkspacePathError('A guest VM script parameter name is invalid.')
     }
     if (value.includes('\0') || value.includes('\n') || value.includes('\r')) {
-      throw new WorkspacePathError('An executor guest VM script parameter value is invalid.')
+      throw new WorkspacePathError('A guest VM script parameter value is invalid.')
     }
     argv.push(`-${name}`, value)
   }

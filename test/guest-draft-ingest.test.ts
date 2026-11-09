@@ -131,7 +131,7 @@ test('a guest cannot name a path outside the run overlay', async () => {
           guestSaying([{ kind: 'file', mode: 0o600, path, size: 1 }], { [path]: 'x' }),
           workspace,
         ),
-        /Workspace path|may not access executor journal|relative/,
+        /Workspace path|may not access Nessie Computer’s journal|relative/,
         path,
       )
     }

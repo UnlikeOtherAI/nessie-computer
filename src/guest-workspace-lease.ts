@@ -72,16 +72,16 @@ const parseLease = (value: unknown): GuestLeaseRecord => {
     || typeof (value as Record<string, unknown>).runId !== 'string'
     || (value as Record<string, unknown>).version !== 1
   ) {
-    throw new WorkspacePathError('The executor guest lease is malformed.')
+    throw new WorkspacePathError('The guest lease is malformed.')
   }
   const record = value as GuestLeaseRecord
   RunIdSchema.parse(record.runId)
   assertExecutorWorkspaceFolderName(record.folderName)
   if (!/^[1-9][0-9]*$/.test(record.bindingFence) || !UUID_PATTERN.test(record.commandId)) {
-    throw new WorkspacePathError('The executor guest lease is malformed.')
+    throw new WorkspacePathError('The guest lease is malformed.')
   }
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(record.leaseId)) {
-    throw new WorkspacePathError('The executor guest lease is malformed.')
+    throw new WorkspacePathError('The guest lease is malformed.')
   }
   return record
 }
@@ -110,13 +110,13 @@ const writeLease = async (path: string, record: GuestLeaseRecord): Promise<void>
 const readLease = async (path: string): Promise<GuestLeaseRecord> => {
   const info = await lstat(path)
   if (info.isSymbolicLink() || !info.isFile()) {
-    throw new WorkspacePathError('The executor guest lease is unavailable.')
+    throw new WorkspacePathError('The guest lease is unavailable.')
   }
   try {
     return parseLease(JSON.parse(await readFile(path, 'utf8')))
   } catch (error) {
     if (error instanceof WorkspacePathError) throw error
-    throw new WorkspacePathError('The executor guest lease is malformed.')
+    throw new WorkspacePathError('The guest lease is malformed.')
   }
 }
 
@@ -135,11 +135,11 @@ export const createGuestWorkspaceLease = async (
 ): Promise<GuestWorkspaceLease> => {
   const parsedRunId = RunIdSchema.parse(input.runId)
   if (!/^[1-9][0-9]*$/.test(input.bindingFence) || !UUID_PATTERN.test(input.commandId)) {
-    throw new WorkspacePathError('The executor guest lease identity is invalid.')
+    throw new WorkspacePathError('The guest lease identity is invalid.')
   }
   const workspace = await ensureSandboxWorkspace(stateDir, folder, parsedRunId)
   const paths = await sandboxFolderPaths(stateDir, parsedRunId, folder.name)
-  await configureOrdinaryDirectory(paths.root, 'The executor sandbox')
+  await configureOrdinaryDirectory(paths.root, 'The sandbox')
   const record: GuestLeaseRecord = {
     bindingFence: input.bindingFence,
     commandId: input.commandId,
@@ -152,7 +152,7 @@ export const createGuestWorkspaceLease = async (
     await writeLease(paths.guestLease, record)
   } catch (error) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'EEXIST') {
-      throw new WorkspacePathError('The executor sandbox already has an active guest lease.')
+      throw new WorkspacePathError('The sandbox already has an active guest lease.')
     }
     throw error
   }
@@ -174,7 +174,7 @@ export const releaseGuestWorkspaceLease = async (stateDir: string, lease: GuestW
   try {
     stored = await readLease(paths.guestLease)
   } catch (error) {
-    if (missing(error)) throw new WorkspacePathError('The executor guest lease is unavailable.')
+    if (missing(error)) throw new WorkspacePathError('The guest lease is unavailable.')
     throw error
   }
   if (
@@ -184,7 +184,7 @@ export const releaseGuestWorkspaceLease = async (stateDir: string, lease: GuestW
     || stored.commandId !== lease.commandId
     || stored.bindingFence !== lease.bindingFence
   ) {
-    throw new WorkspacePathError('The executor guest lease does not match this sandbox.')
+    throw new WorkspacePathError('The guest lease does not match this sandbox.')
   }
   await unlink(paths.guestLease)
 }
@@ -223,10 +223,10 @@ export const assertGuestWorkspaceLeaseCurrent = async (
     || stored.commandId !== lease.commandId
     || stored.bindingFence !== lease.bindingFence
   ) {
-    throw new WorkspacePathError('The executor guest lease does not match this sandbox.')
+    throw new WorkspacePathError('The guest lease does not match this sandbox.')
   }
-  const workspace = await configureOrdinaryDirectory(paths.workspace, 'The executor sandbox workspace')
+  const workspace = await configureOrdinaryDirectory(paths.workspace, 'The sandbox workspace')
   if (workspace !== lease.workspace) {
-    throw new WorkspacePathError('The executor guest workspace has changed.')
+    throw new WorkspacePathError('The guest workspace has changed.')
   }
 }

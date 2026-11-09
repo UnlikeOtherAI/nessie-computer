@@ -82,10 +82,10 @@ export const parseInspection = (payload: Buffer): GuestRuntimeInspection => {
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the runtime inspection request.')
+    throw guestPayloadUnavailable('The guest rejected the runtime inspection request.')
   }
   if (!isGuestRecord(value) || Object.keys(value).some((key) => !['inspection', 'version'].includes(key)) || value.version !== 1 || !isGuestRecord(value.inspection)) {
-    throw guestPayloadUnavailable('The executor guest rejected the runtime inspection request.')
+    throw guestPayloadUnavailable('The guest rejected the runtime inspection request.')
   }
   const inspection = value.inspection
   if (
@@ -95,7 +95,7 @@ export const parseInspection = (payload: Buffer): GuestRuntimeInspection => {
     || typeof inspection.codex !== 'boolean'
     || typeof inspection.tmux !== 'boolean'
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the runtime inspection request.')
+    throw guestPayloadUnavailable('The guest rejected the runtime inspection request.')
   }
   return {
     browser: inspection.browser,
@@ -110,7 +110,7 @@ export const parseBrowserOpen = (payload: Buffer): void => {
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the browser launch request.')
+    throw guestPayloadUnavailable('The guest rejected the browser launch request.')
   }
   if (
     !isGuestRecord(value)
@@ -118,7 +118,7 @@ export const parseBrowserOpen = (payload: Buffer): void => {
     || value.status !== 'started'
     || value.version !== 1
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the browser launch request.')
+    throw guestPayloadUnavailable('The guest rejected the browser launch request.')
   }
 }
 
@@ -127,7 +127,7 @@ export const parseBrowserObservation = (payload: Buffer): GuestBrowserObservatio
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+    throw guestPayloadUnavailable('The guest rejected the browser observation request.')
   }
   if (
     !isGuestRecord(value)
@@ -141,7 +141,7 @@ export const parseBrowserObservation = (payload: Buffer): GuestBrowserObservatio
     || !Array.isArray(value.observation.accessibilityTree)
     || value.observation.accessibilityTree.length > 200
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+    throw guestPayloadUnavailable('The guest rejected the browser observation request.')
   }
   const targets = value.observation.targets.map((target): GuestBrowserObservation['targets'][number] => {
     if (
@@ -153,7 +153,7 @@ export const parseBrowserObservation = (payload: Buffer): GuestBrowserObservatio
       || typeof target.url !== 'string'
       || target.url.length > 4_096
     ) {
-      throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+      throw guestPayloadUnavailable('The guest rejected the browser observation request.')
     }
     return { title: target.title, type: target.type, url: target.url }
   })
@@ -173,7 +173,7 @@ export const parseBrowserObservation = (payload: Buffer): GuestBrowserObservatio
       || Buffer.byteLength(node.name, 'utf8') > 256
       || (node.value !== undefined && (typeof node.value !== 'string' || Buffer.byteLength(node.value, 'utf8') > 256))
     ) {
-      throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+      throw guestPayloadUnavailable('The guest rejected the browser observation request.')
     }
     return {
       ...(node.snapshotExcluded === undefined ? {} : { snapshotExcluded: node.snapshotExcluded }),
@@ -196,12 +196,12 @@ export const parseBrowserObservation = (payload: Buffer): GuestBrowserObservatio
       || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(dataBase64)
       || Buffer.from(dataBase64, 'base64').byteLength > 8_192
     ) {
-      throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+      throw guestPayloadUnavailable('The guest rejected the browser observation request.')
     }
     parsedScreenshot = { dataBase64, mime: 'image/webp' }
   }
   if (payload.byteLength > 24_576) {
-    throw guestPayloadUnavailable('The executor guest rejected the browser observation request.')
+    throw guestPayloadUnavailable('The guest rejected the browser observation request.')
   }
   return {
     ...(value.observation.snapshotVersion === 1 ? { snapshotVersion: 1 as const } : {}),
@@ -216,10 +216,10 @@ export const parseBrowserAction = (payload: Buffer): GuestBrowserActionResult =>
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the browser action request.')
+    throw guestPayloadUnavailable('The guest rejected the browser action request.')
   }
   if (!isGuestRecord(value) || Object.keys(value).some((key) => !['action', 'version'].includes(key)) || value.version !== 1 || !isGuestRecord(value.action)) {
-    throw guestPayloadUnavailable('The executor guest rejected the browser action request.')
+    throw guestPayloadUnavailable('The guest rejected the browser action request.')
   }
   const action = value.action
   if (
@@ -227,7 +227,7 @@ export const parseBrowserAction = (payload: Buffer): GuestBrowserActionResult =>
     || action.status !== 'acted'
     || (action.settledUrl !== undefined && (typeof action.settledUrl !== 'string' || action.settledUrl.length > 4_096))
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the browser action request.')
+    throw guestPayloadUnavailable('The guest rejected the browser action request.')
   }
   return { status: 'acted', ...(action.settledUrl === undefined ? {} : { settledUrl: action.settledUrl }) }
 }
@@ -237,10 +237,10 @@ export const parseCommandResult = (payload: Buffer): GuestCommandResult => {
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the command request.')
+    throw guestPayloadUnavailable('The guest rejected the command request.')
   }
   if (!isGuestRecord(value) || Object.keys(value).some((key) => !['result', 'version'].includes(key)) || value.version !== 1 || !isGuestRecord(value.result)) {
-    throw guestPayloadUnavailable('The executor guest rejected the command request.')
+    throw guestPayloadUnavailable('The guest rejected the command request.')
   }
   const result = value.result
   if (
@@ -254,7 +254,7 @@ export const parseCommandResult = (payload: Buffer): GuestCommandResult => {
     || typeof result.success !== 'boolean'
     || result.success !== (result.exitCode === 0)
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the command request.')
+    throw guestPayloadUnavailable('The guest rejected the command request.')
   }
   return { exitCode: result.exitCode, output: result.output, success: result.success }
 }
@@ -266,7 +266,7 @@ export const parseCodingLaunch = (payload: Buffer, agent: GuestCodingAgent): voi
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session launch request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session launch request.')
   }
   if (
     !isGuestRecord(value)
@@ -275,7 +275,7 @@ export const parseCodingLaunch = (payload: Buffer, agent: GuestCodingAgent): voi
     || value.status !== 'started'
     || value.version !== 1
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session launch request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session launch request.')
   }
 }
 
@@ -284,10 +284,10 @@ export const parseCodingObservation = (payload: Buffer): GuestCodingObservation 
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session observation request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session observation request.')
   }
   if (!isGuestRecord(value) || Object.keys(value).some((key) => !['observation', 'version'].includes(key)) || value.version !== 1 || !isGuestRecord(value.observation)) {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session observation request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session observation request.')
   }
   const observation = value.observation
   const agent = observation.agent
@@ -301,7 +301,7 @@ export const parseCodingObservation = (payload: Buffer): GuestCodingObservation 
     || (lifecycle === 'running' && exitStatus !== undefined)
     || (lifecycle === 'exited' && exitStatus === undefined)
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session observation request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session observation request.')
   }
   return {
     agent,
@@ -315,7 +315,7 @@ export const parseCodingClose = (payload: Buffer): void => {
   try {
     value = JSON.parse(payload.toString('utf8'))
   } catch {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session close request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session close request.')
   }
   if (
     !isGuestRecord(value)
@@ -323,7 +323,7 @@ export const parseCodingClose = (payload: Buffer): void => {
     || value.status !== 'closed'
     || value.version !== 1
   ) {
-    throw guestPayloadUnavailable('The executor guest rejected the coding-session close request.')
+    throw guestPayloadUnavailable('The guest rejected the coding-session close request.')
   }
 }
 
@@ -365,7 +365,7 @@ export const GUEST_DRAFT_PATH_MAX_BYTES = 1_024
 const isDraftKind = (value: unknown): value is GuestDraftEntryKind =>
   value === 'dir' || value === 'file' || value === 'whiteout'
 
-const draftRefusal = 'The executor guest rejected the workspace draft request.'
+const draftRefusal = 'The guest rejected the workspace draft request.'
 
 const parseDraftEntry = (value: unknown): GuestDraftEntry => {
   if (

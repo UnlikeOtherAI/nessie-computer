@@ -46,7 +46,7 @@ const sandboxDirectory = async (stateDir: string): Promise<string> => {
   const runtimeDir = await ensureExecutorRuntimeDirectory(stateDir)
   const sandboxes = resolve(runtimeDir, 'sandboxes')
   await mkdir(sandboxes, { mode: 0o700, recursive: true })
-  await assertOrdinaryDirectory(sandboxes, 'The executor sandbox directory is unavailable.')
+  await assertOrdinaryDirectory(sandboxes, 'The sandbox directory is unavailable.')
   return sandboxes
 }
 
@@ -105,7 +105,7 @@ export const sandboxDraftFolderNames = async (stateDir: string, runId: string): 
   return entries
     .map((entry) => {
       if (entry.isSymbolicLink() || !entry.isDirectory()) {
-        throw new WorkspacePathError('The executor sandbox contains an unexpected entry.')
+        throw new WorkspacePathError('The sandbox contains an unexpected entry.')
       }
       return assertExecutorWorkspaceFolderName(entry.name)
     })

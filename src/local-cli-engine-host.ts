@@ -36,7 +36,7 @@ export const registerLocalCliHost = async (
     = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl }),
   now: () => Date = () => new Date(),
 ): Promise<LocalCliRegistration> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const payload = {
     available: offer === true, connectionEpoch: state.connectionEpoch, engine, executorId: state.executorId,
     observedAt: now().toISOString(), profileId, ...(offer === true ? {} : { reason: offer }),
@@ -70,7 +70,7 @@ export const connectLocalCliHost = async (input: {
   backend: LocalInferenceBackend; isPaused: () => boolean
 }): Promise<LocalInferenceHostSession> => {
   const { state } = input
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const root = await ensureOwnerOnlyStateDirectory(join(input.stateDir, FOLDER))
   const pool = await ensureOwnerOnlyStateDirectory(join(root, `${input.engine}-${input.profileId ?? 'default'}`))
   const connectionEpoch = await claimLocalHost(state, input.host)

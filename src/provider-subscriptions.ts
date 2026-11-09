@@ -3,7 +3,7 @@ import type { ExecutorSubscription } from '@nessie/executor-protocol'
 import { buildAgentEnvironment } from './coding-session/agent-env.js'
 import { findProviderProgram } from './existing-session/programs.js'
 import { probeClaudeAccount } from './provider-process/claude-account.js'
-import { CodexRpc } from './provider-process/codex-rpc.js'
+import { readCodexSubscription } from './provider-process/codex-account.js'
 import { readClaudeOrganization } from './provider-account-identity.js'
 import { readKimiQuota } from './provider-process/kimi-quota.js'
 import { readGrokQuota } from './provider-process/grok-quota.js'
@@ -14,7 +14,7 @@ import { readAntigravityQuotas } from './provider-process/antigravity-quota.js'
 import { readCliProxyQuotas } from './provider-process/cliproxy-quota.js'
 import { readClaudeResetCredits } from './provider-process/reset-credit-quota.js'
 import { quotaBase, quotaKey, type QuotaAccounts } from './provider-process/quota-values.js'
-import { claudeSubscription, codexSubscription } from './provider-process/cli-quota-projection.js'
+import { claudeSubscription } from './provider-process/cli-quota-projection.js'
 import { collectQuotaSources } from './provider-process/quota-source-collection.js'
 
 const base = (provider: ExecutorSubscription['provider'], checkedAt: string) => quotaBase(provider, Date.parse(checkedAt), 'cli')
@@ -36,12 +36,7 @@ export const readProviderSubscriptions = async (): Promise<QuotaAccounts> => {
         const resetCredits = subscription.status === 'ready' ? await readClaudeResetCredits(env, program.version) : undefined
         return { ...subscription, sourceKey, ...(resetCredits ? { resetCredits } : {}) }
       }
-      const rpc = new CodexRpc(program.path, env)
-      try {
-        const account = await rpc.call('account/read', {})
-        const limits = await rpc.call('account/rateLimits/read', null).catch(() => null)
-        return { ...codexSubscription(account, limits, checkedAt), sourceKey }
-      } finally { rpc.close() }
+      return { ...await readCodexSubscription(program.path, env, checkedAt), sourceKey }
     } catch { return { ...base(provider, checkedAt), sourceKey } }
   }))
   const single = (read: Promise<ExecutorSubscription | null>): Promise<QuotaAccounts> =>

@@ -217,7 +217,7 @@ export const startGuestVmSession = async (
       observeCodingSession: () => process!.observeCodingSession(),
       observeBrowser: (includeScreenshot) => process!.observeBrowser(includeScreenshot),
       openBrowser: async (url: string) => {
-        if (!egressSettings) throw new WorkspacePathError('This executor session has no browser egress.')
+        if (!egressSettings) throw new WorkspacePathError('This session has no browser egress.')
         assertExecutorEgressOrigin(url, egressSettings)
         await process!.openBrowser(url)
       },

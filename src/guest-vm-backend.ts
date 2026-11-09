@@ -138,7 +138,7 @@ export const guestVmSessionProcess = (
 
 const launchGuestVmHelper: GuestVmSessionLauncher = async ({ argv, input, path, readyTimeoutMs }) => {
   const child = spawn(path, argv, { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
-  if (!child.stdin || !child.stdout) throw new WorkspacePathError('The executor VM helper is unavailable.')
+  if (!child.stdin || !child.stdout) throw new WorkspacePathError('The VM helper is unavailable.')
   const control = new GuestVmControlClient(child.stdin, child.stdout)
   const closed = waitForChildExit(child).finally(() => control.close())
   try {
@@ -207,11 +207,11 @@ export const selectGuestVmBackend = (
     return createVirtualizationFrameworkBackend(dependencies)
   }
   if (host.sandboxBackend === 'firecracker') {
-    if (!createFirecracker) throw new WorkspacePathError('The executor Firecracker backend is unavailable.')
+    if (!createFirecracker) throw new WorkspacePathError('The Firecracker backend is unavailable.')
     return createFirecracker()
   }
   if (host.sandboxBackend === 'hyperv') {
-    if (!createHyperV) throw new WorkspacePathError('The executor Hyper-V backend is unavailable.')
+    if (!createHyperV) throw new WorkspacePathError('The Hyper-V backend is unavailable.')
     return createHyperV()
   }
   throw new WorkspacePathError(

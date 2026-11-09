@@ -61,27 +61,27 @@ const verifyOwnerPrivateFile = async (
     singleLink?: boolean
   },
 ): Promise<string> => {
-  if (!isAbsolute(value)) throw new WorkspacePathError(`The executor ${options.label} path must be absolute.`)
+  if (!isAbsolute(value)) throw new WorkspacePathError(`The ${options.label} path must be absolute.`)
   const declared = resolve(value)
   const initial = await lstat(declared)
   if (initial.isSymbolicLink() || !initial.isFile()) {
-    throw new WorkspacePathError(`The executor ${options.label} must be an ordinary file.`)
+    throw new WorkspacePathError(`The ${options.label} must be an ordinary file.`)
   }
   const canonical = await realpath(declared)
   const info = await lstat(canonical)
   if (isWindows()) {
     if (info.isSymbolicLink() || !info.isFile()) {
-      throw new WorkspacePathError(`The executor ${options.label} must be an ordinary file.`)
+      throw new WorkspacePathError(`The ${options.label} must be an ordinary file.`)
     }
     if (options.maxBytes !== undefined && info.size > options.maxBytes) {
-      throw new WorkspacePathError(`The executor ${options.label} must be owner-private and non-symbolic.`)
+      throw new WorkspacePathError(`The ${options.label} must be owner-private and non-symbolic.`)
     }
     if ((options.requireNonEmpty && info.size === 0) || (options.singleLink && info.nlink !== 1)) {
-      throw new WorkspacePathError(`The executor ${options.label} must be owner-private and non-symbolic.`)
+      throw new WorkspacePathError(`The ${options.label} must be owner-private and non-symbolic.`)
     }
     if (options.allowPackagedRoot) return verifyWindowsPackagedArtifact(canonical)
     await assertOwnerOnlyStatePath(canonical, 'file').catch(() => {
-      throw new WorkspacePathError(`The executor ${options.label} must be owner-private and non-symbolic.`)
+      throw new WorkspacePathError(`The ${options.label} must be owner-private and non-symbolic.`)
     })
     return canonical
   }
@@ -105,7 +105,7 @@ const verifyOwnerPrivateFile = async (
     || (options.requireNonEmpty && info.size === 0)
     || (options.singleLink && info.nlink !== 1)
   ) {
-    throw new WorkspacePathError(`The executor ${options.label} must be owner-private and non-symbolic.`)
+    throw new WorkspacePathError(`The ${options.label} must be owner-private and non-symbolic.`)
   }
   return canonical
 }
@@ -129,16 +129,16 @@ export const runGuestVmProcess: GuestVmProcessRunner = async ({ argv, input, pat
     const child = spawn(path, argv, { stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true })
     const timeout = setTimeout(() => {
       child.kill('SIGKILL')
-      reject(new WorkspacePathError('The executor VM helper timed out.'))
+      reject(new WorkspacePathError('The VM helper timed out.'))
     }, timeoutMs)
     child.once('error', () => {
       clearTimeout(timeout)
-      reject(new WorkspacePathError('The executor VM helper is unavailable.'))
+      reject(new WorkspacePathError('The VM helper is unavailable.'))
     })
     child.once('exit', (code) => {
       clearTimeout(timeout)
       if (code === 0) resolvePromise()
-      else reject(new WorkspacePathError('The executor VM helper rejected the guest.'))
+      else reject(new WorkspacePathError('The VM helper rejected the guest.'))
     })
     child.stdin?.end(input)
   })
@@ -158,7 +158,7 @@ export const secureGuestVmSessionDirectory = async (
     || !info.isDirectory()
     || (!isWindows() && ((ownerId() !== undefined && info.uid !== ownerId()) || (info.mode & 0o077) !== 0))
   ) {
-    throw new WorkspacePathError('The executor VM runtime directory is unavailable.')
+    throw new WorkspacePathError('The VM runtime directory is unavailable.')
   }
   const directory = await mkdtemp(join(parent, `${basename(lease.leaseId)}-`))
   if (isWindows()) await ensureOwnerOnlyStateDirectory(directory)
@@ -191,7 +191,7 @@ const secureShortSocketDirectory = async (
       || (info.mode & 0o077) !== 0
       || join(directory, longestChild).length > 96
     ) {
-      throw new WorkspacePathError(`The executor ${label} directory is unavailable.`)
+      throw new WorkspacePathError(`The ${label} directory is unavailable.`)
     }
     return directory
   } catch (error) {

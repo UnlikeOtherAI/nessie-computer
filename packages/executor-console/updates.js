@@ -20,11 +20,13 @@
     node('automatic').disabled = busy || !status?.canInstall
     node('policy').hidden = !status?.canInstall
     node('check').disabled = busy || status?.canInstall === false || active.has(status?.phase)
-    // One action for both: approve the helper, or restart one that is stuck.
+    // One action for each: set the helper up, open Login Items for one macOS
+    // holds back, or restart one that is stuck.
     const stuck = status?.code === 'update.helper_unavailable'
-    node('setup').hidden = status?.code !== 'update.setup_required' && !stuck
+    const approval = status?.code === 'update.approval_required'
+    node('setup').hidden = status?.code !== 'update.setup_required' && !stuck && !approval
     node('setup').disabled = busy
-    node('setup').textContent = text(stuck ? 'restart' : 'setup')
+    node('setup').textContent = text(approval ? 'openLoginItems' : stuck ? 'restart' : 'setup')
     const version = status?.targetVersion ?? status?.availableVersion
     const canUpdate = status?.canInstall && status?.availableVersion && !active.has(status.phase)
     node('install').hidden = !canUpdate
@@ -34,6 +36,7 @@
     const phase = status?.phase ?? 'checking'
     const known = ['idle', 'checking', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported', 'available']
     node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : stuck ? text('helperStuck')
+      : approval ? text('approval')
       : status?.code === 'update.bootstrap_required' ? text('bootstrap') : text(known.includes(phase) ? phase : 'unavailable', version)
     if (phase === 'failed' && status?.availableVersion) node('status').textContent += ` ${text('available', status.availableVersion)}`
     if (!status?.notify || status.automatic || !canUpdate) announced = null
@@ -101,6 +104,9 @@
     status: () => status,
     /** The helper can't be reached or refuses, so no team can start. */
     stuck: () => status?.code === 'update.helper_unavailable',
+    /** macOS won't run the helper until the owner allows it in Login Items. */
+    approval: () => status?.code === 'update.approval_required',
     restart: () => load({ operation: 'setup' }),
+    approve: () => load({ operation: 'setup' }),
   }
 })()

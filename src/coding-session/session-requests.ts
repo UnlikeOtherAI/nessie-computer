@@ -35,7 +35,7 @@ export type CommandRecord = {
 
 /** `undefined` when this is the first time; otherwise the outcome recorded the first time. */
 export const claimCommand = async (stateDir: string, record: CommandRecord): Promise<CommandRecord | undefined> => {
-  if (!COMMAND_ID_PATTERN.test(record.commandId)) throw new Error('An executor command id is 1 to 128 letters, digits, - or _.')
+  if (!COMMAND_ID_PATTERN.test(record.commandId)) throw new Error('A command id is 1 to 128 letters, digits, - or _.')
   const path = join(codingCommandsDir(stateDir), `${record.commandId}.json`)
   if (await createJsonExclusive(path, record)) return undefined
   return await readJson<CommandRecord>(path) ?? record

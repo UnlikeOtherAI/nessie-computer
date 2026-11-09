@@ -36,7 +36,7 @@ Commands follow the window:
 
 ```sh
 $ nessie-computer status
-Nessie Computer 1.1.0 — working for 2 teams
+Nessie Computer 1.1.0 — working for 1 team, 1 paused
 
   Sales · Acme        Working
   Research · Acme     Paused

@@ -133,12 +133,12 @@ test('a folder set refuses duplicate names and folders that contain each other',
     ]),
     /one file would have two names/,
   )
-  assert.throws(() => assertExecutorWorkspaceFolders([]), /at least one workspace folder/)
+  assert.throws(() => assertExecutorWorkspaceFolders([]), /A team needs at least one folder/)
   assert.throws(
     () => assertExecutorWorkspaceFolders(
       Array.from({ length: 17 }, (_value, index) => ({ name: `f${index}`, path: `/tmp/f${index}` })),
     ),
-    /at most 16 workspace folders/,
+    /A team may use at most 16 folders/,
   )
 })
 
@@ -349,7 +349,7 @@ test('a guest session refuses to start while more than one folder is configured'
           code: 'EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED',
           folders: ['alpha', 'beta'],
           message:
-            'A guest session mounts one workspace folder, and this executor exposes 2. '
+            'A guest session mounts one folder, and this team uses 2. '
             + 'The workspace file operations reach every folder.',
           success: false,
         },

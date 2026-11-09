@@ -144,7 +144,7 @@ export const createExecutorApi = (options: {
   const fetchImpl = options.fetchImpl ?? fetch
   const requestTimeoutMs = options.requestTimeoutMs ?? EXECUTOR_API_REQUEST_TIMEOUT_MS
   if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) {
-    throw new Error('Executor API request timeout must be positive and finite.')
+    throw new Error('A Nessie request timeout must be positive and finite.')
   }
   const pending = new Set<AbortController>()
 
@@ -171,7 +171,7 @@ export const createExecutorApi = (options: {
       if (controller.signal.aborted) {
         const timedOut = controller.signal.reason === 'deadline'
         throw new ExecutorApiError(
-          timedOut ? 'Executor API request timed out.' : 'Executor API request was cancelled.',
+          timedOut ? 'Executor API request timed out.' : 'The Nessie request was cancelled.',
           { code: timedOut ? 'EXECUTOR_API_TIMEOUT' : 'EXECUTOR_API_CANCELLED' },
         )
       }
@@ -188,13 +188,13 @@ export const createExecutorApi = (options: {
     try {
       payload = await response.json() as { data?: T } & ApiError
     } catch {
-      throw new ExecutorApiError(`Executor API returned an invalid response (${response.status}).`, {
+      throw new ExecutorApiError(`Nessie returned an invalid response (${response.status}).`, {
         status: response.status,
       })
     }
     if (!response.ok || payload.data === undefined) {
       throw new ExecutorApiError(
-        payload.error?.message ?? `Executor API request failed (${response.status}).`,
+        payload.error?.message ?? `The Nessie request failed (${response.status}).`,
         { code: payload.error?.code, details: payload.error?.details, status: response.status },
       )
     }

@@ -315,7 +315,7 @@ test('a refused upload is terminal: the reference becomes a placeholder, journal
 const TIMEOUT = () => new ExecutorApiError('Executor API request timed out.', { code: 'EXECUTOR_API_TIMEOUT' })
 
 for (const [name, error, stopsSessions] of [
-  ['a 5xx', () => new ExecutorApiError('Executor API request failed (503).', { status: 503 }), false],
+  ['a 5xx', () => new ExecutorApiError('The Nessie request failed (503).', { status: 503 }), false],
   ['a timeout', TIMEOUT, false],
   ['a lost connection', () => new TypeError('fetch failed'), false],
   ['a fenced connection', () => new ExecutorApiError('Connection fenced.', { code: 'EXECUTOR_CONNECTION_FENCED', status: 409 }), true],

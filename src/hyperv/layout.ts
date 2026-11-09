@@ -42,7 +42,7 @@ export const GUEST_BOOT_CONTROLLER_LOCATION = 0
 
 export const assertHyperVSessionId = (sessionId: string): string => {
   if (!SESSION_ID.test(sessionId)) {
-    throw new WorkspacePathError('The executor guest VM session id is invalid.')
+    throw new WorkspacePathError('The guest VM session id is invalid.')
   }
   return sessionId
 }
@@ -66,7 +66,7 @@ export type HyperVLayout = {
  */
 export const hyperVPipePath = (pipePrefix: string, port: number): string => {
   if (!Number.isInteger(port) || port < 1 || port > 0xffff_ffff) {
-    throw new WorkspacePathError('The executor guest VM channel port is invalid.')
+    throw new WorkspacePathError('The guest VM channel port is invalid.')
   }
   return `${pipePrefix}-${port}`
 }

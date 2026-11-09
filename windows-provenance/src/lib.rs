@@ -22,15 +22,15 @@ mod verify;
 pub use verify::collect_signature_facts;
 
 pub const UNPINNED_REASON: &str =
-    "Executor controls require a release build with a pinned Windows publisher.";
+    "Nessie Computer’s controls need a release build with a pinned Windows publisher.";
 
 pub const UNSIGNED_REASON: &str =
-    "Executor controls require a signed, intact Nessie release.";
+    "Nessie Computer’s controls need a signed, intact release.";
 
 pub const WRONG_PUBLISHER_REASON: &str =
-    "Executor controls require the pinned Windows publisher signature.";
+    "Nessie Computer’s controls need the pinned Windows publisher signature.";
 
-pub const UNVERIFIABLE_REASON: &str = "Nessie could not verify its release signature.";
+pub const UNVERIFIABLE_REASON: &str = "Nessie Computer couldn’t verify its release signature.";
 
 /// What the Win32 verification saw. `trusted` is `WinVerifyTrust`'s verdict;
 /// `signer_enhanced_key_usages` are the leaf certificate's EKUs, read only from

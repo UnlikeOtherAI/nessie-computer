@@ -110,7 +110,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     @objc private func openTarget(_ sender: NSMenuItem) {
         guard let needsYou = sender.representedObject as? NeedsYouItem else { return }
-        console.show(needsYou.target)
+        if needsYou.opensLoginItems { ComputerUpdateService.openLoginItems() } else { console.show(needsYou.target) }
     }
 
     /// Pause and Resume take effect at once, with no question first. A pause

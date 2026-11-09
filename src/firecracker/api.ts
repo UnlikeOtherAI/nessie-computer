@@ -47,16 +47,16 @@ export const firecrackerApiPut = async (
         }
         const detail = Buffer.concat(chunks).toString('utf8').replace(/\s+/g, ' ').trim()
         fail(
-          `The executor micro-VM refused ${path} with HTTP ${response.statusCode ?? 0}`
+          `The micro-VM refused ${path} with HTTP ${response.statusCode ?? 0}`
           + `${detail ? `: ${detail}` : '.'}`,
         )
       })
     })
     call.once('timeout', () => {
       call.destroy()
-      fail(`The executor micro-VM did not answer ${path}.`)
+      fail(`The micro-VM did not answer ${path}.`)
     })
-    call.once('error', () => fail(`The executor micro-VM control socket is unavailable (${path}).`))
+    call.once('error', () => fail(`The micro-VM control socket is unavailable (${path}).`))
     call.end(payload)
   })
 }

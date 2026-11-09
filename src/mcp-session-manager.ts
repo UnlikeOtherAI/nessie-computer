@@ -330,7 +330,7 @@ export const createExecutorMcpSessionManager = (
     // A cached process is no exception: every call and passive catalogue read
     // must still name eligible private authority once protection is active.
     if (!isTrustedCodingControlBridge(spec)) await personalGuard.assertExecutionAuthority(options.authority)
-    if (stopping > 0) return unavailable(`The MCP server "${server}" is not started: the executor is stopping.`, 'not_probed')
+    if (stopping > 0) return unavailable(`The MCP server "${server}" is not started: this team is stopping.`, 'not_probed')
     options.signal?.throwIfAborted()
     let teardown: Promise<void> | undefined
     const cancel = (): void => {

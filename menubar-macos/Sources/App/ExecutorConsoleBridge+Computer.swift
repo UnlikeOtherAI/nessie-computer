@@ -19,10 +19,15 @@ extension ExecutorConsoleBridge {
         case "executor_open_nessie": try await openNessie(args)
         case "executor_update_setup":
             guard args.isEmpty else { throw ExecutorRefusal("update.coordinator_unavailable") }
-            // One button: set the helper up, or restart one that is stuck.
+            // One button: open Login Items for a helper macOS holds back, set
+            // the helper up, or restart one that is stuck.
+            if ComputerUpdateHealth.shared.attention == .needsApproval {
+                ComputerUpdateService.openLoginItems()
+                return ComputerUpdateService.approvalStatus()
+            }
             if ComputerUpdateHealth.shared.stuck {
                 try await ComputerUpdateService.restart(requested: true)
-                ComputerUpdateHealth.shared.reset()
+                ComputerUpdateHealth.shared.restarted()
                 return ComputerUpdateService.unavailableStatus() ?? ComputerUpdateService.restartingStatus()
             }
             try ComputerUpdateService.prepare(requested: true)

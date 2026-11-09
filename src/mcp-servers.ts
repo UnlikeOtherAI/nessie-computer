@@ -63,7 +63,7 @@ export const assertExecutorLocalMcpServers = (
   if (servers.length > EXECUTOR_MCP_SERVER_MAXIMUM) {
     throw new ExecutorMcpServerError(
       'EXECUTOR_MCP_POLICY_INVALID',
-      `An executor may front at most ${EXECUTOR_MCP_SERVER_MAXIMUM} local MCP servers.`,
+      `A team may use at most ${EXECUTOR_MCP_SERVER_MAXIMUM} local apps (MCP servers).`,
     )
   }
   for (const server of servers) {
@@ -140,8 +140,8 @@ export const findExecutorLocalMcpServer = (
     throw new ExecutorMcpServerError(
       'EXECUTOR_MCP_DENIED',
       servers.length === 0
-        ? 'This executor fronts no local MCP server — its reviewed policy names none.'
-        : `This executor's reviewed policy names no MCP server called "${name}".`,
+        ? 'This team uses no local app (MCP server) — its reviewed policy names none.'
+        : `This team’s reviewed policy names no local app (MCP server) called "${name}".`,
     )
   }
   return found

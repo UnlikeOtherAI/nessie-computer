@@ -17,6 +17,7 @@
       offHint: 'Automatic updates are off. Nessie will ask you when a new version is available.',
       stuck: 'Updates are stuck — teams can’t start', restart: 'Restart updates',
       stuckNeed: 'Nessie’s background helper isn’t responding, so no team can start.',
+      approval: 'Allow Nessie Computer in System Settings to finish updating.', openLoginItems: 'Open Login Items',
       helperStuck: 'Nessie’s background helper isn’t responding, so no team can start.',
   }
   window.nc.words.register('updates', {
@@ -39,6 +40,7 @@
       offHint: 'Automatické aktualizace jsou vypnuté. Nessie vás upozorní na novou verzi.',
       stuck: 'Aktualizace se zasekly — týmy nejde spustit', restart: 'Restartovat aktualizace',
       stuckNeed: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit.',
+      approval: 'Povolte Nessie Computer v Nastavení systému, ať se dokončí aktualizace.', openLoginItems: 'Otevřít Položky po přihlášení',
       helperStuck: 'Pomocná služba Nessie neodpovídá, takže žádný tým nejde spustit.',
     },
     de: {
@@ -58,6 +60,7 @@
       offHint: 'Automatische Updates sind aus. Nessie meldet sich, wenn eine neue Version verfügbar ist.',
       stuck: 'Updates hängen – Teams können nicht starten', restart: 'Updates neu starten',
       stuckNeed: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten.',
+      approval: 'Erlauben Sie Nessie Computer in den Systemeinstellungen, damit das Update fertig wird.', openLoginItems: 'Anmeldeobjekte öffnen',
       helperStuck: 'Der Hintergrunddienst von Nessie antwortet nicht, daher kann kein Team starten.',
     },
     fr: {
@@ -77,6 +80,7 @@
       offHint: 'Les mises à jour automatiques sont désactivées. Nessie vous avertira lorsqu’une nouvelle version sera disponible.',
       stuck: 'Les mises à jour sont bloquées — les équipes ne peuvent pas démarrer', restart: 'Redémarrer les mises à jour',
       stuckNeed: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer.',
+      approval: 'Autorisez Nessie Computer dans Réglages Système pour terminer la mise à jour.', openLoginItems: 'Ouvrir les éléments d’ouverture',
       helperStuck: 'Le service d’arrière-plan de Nessie ne répond pas, aucune équipe ne peut donc démarrer.',
     },
     it: {
@@ -96,6 +100,7 @@
       offHint: 'Gli aggiornamenti automatici sono disattivati. Nessie ti avviserà quando sarà disponibile una nuova versione.',
       stuck: 'Gli aggiornamenti sono bloccati — i team non possono avviarsi', restart: 'Riavvia gli aggiornamenti',
       stuckNeed: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi.',
+      approval: 'Consenti Nessie Computer in Impostazioni di Sistema per completare l’aggiornamento.', openLoginItems: 'Apri Elementi login',
       helperStuck: 'Il servizio in background di Nessie non risponde, quindi nessun team può avviarsi.',
     },
     es: {
@@ -115,6 +120,7 @@
       offHint: 'Las actualizaciones automáticas están desactivadas. Nessie te avisará cuando haya una nueva versión.',
       stuck: 'Las actualizaciones están atascadas — los equipos no pueden iniciarse', restart: 'Reiniciar actualizaciones',
       stuckNeed: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse.',
+      approval: 'Permite Nessie Computer en Ajustes del Sistema para terminar la actualización.', openLoginItems: 'Abrir Ítems de inicio de sesión',
       helperStuck: 'El servicio en segundo plano de Nessie no responde, así que ningún equipo puede iniciarse.',
     },
   })

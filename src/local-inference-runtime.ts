@@ -51,7 +51,7 @@ const localHostRegistration = async (state: ExecutorLocalState): Promise<{
   hostId: string
   organizationId: string
 }> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const observedAt = new Date().toISOString()
   const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt }
   return executorApi.localInferenceHost(state.apiBaseUrl, {
@@ -65,7 +65,7 @@ export const claimLocalHost = async (
   state: ExecutorLocalState,
   local: { connectionEpoch: string; hostId: string; organizationId: string },
 ): Promise<string> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const api = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl })
   const issued = await api.issueChallenge({ hostId: local.hostId })
   const challenge = { challenge: issued.challenge }

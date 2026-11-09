@@ -11,7 +11,7 @@ use crate::{
     state::{ExecutorStatus, ServiceView},
     sync_status::{SyncLine, SyncOverview},
     team_names::{label, same_team, TeamIdentity},
-    words::{fill, Locale, Words},
+    words::{fill, Locale, Words, APP_NAME},
 };
 
 /// One team on this computer and every connection that serves it.
@@ -60,15 +60,49 @@ pub struct Overview {
     pub teams: Vec<Team>,
 }
 
+/// The longest tooltip Windows keeps: 128 UTF-16 units with the terminator.
+const TOOLTIP_UNITS: usize = 127;
+
 impl Overview {
-    /// The icon's tooltip: the status sentence the menu opens with, and the one
-    /// thing that needs the owner. It changes whenever the status does.
-    pub fn tooltip(&self) -> String {
-        match &self.needs_you {
-            Some(needs) => format!("{}\n{}", self.status, needs.text),
-            None => self.status.clone(),
-        }
+    /// What the menu says before the first read of the teams: the product's
+    /// name, claiming nothing about them.
+    pub fn unread() -> Self {
+        Overview { status: APP_NAME.to_owned(), needs_you: None, teams: Vec::new() }
     }
+
+    /// The icon's tooltip: the product's name, the status sentence the menu
+    /// opens with, and the one thing that needs the owner. Windows names the
+    /// icon in its settings and to screen readers by the tooltip it was first
+    /// registered with, so the name comes first in every one of them.
+    pub fn tooltip(&self) -> String {
+        let mut lines = vec![APP_NAME];
+        if self.status != APP_NAME {
+            lines.push(&self.status);
+        }
+        if let Some(needs) = &self.needs_you {
+            lines.push(&needs.text);
+        }
+        within_units(&lines.join("\n"), TOOLTIP_UNITS)
+    }
+}
+
+/// `text` cut at a character boundary so it fits in `units` UTF-16 units,
+/// ending in an ellipsis when anything was cut.
+fn within_units(text: &str, units: usize) -> String {
+    if text.encode_utf16().count() <= units {
+        return text.to_owned();
+    }
+    let mut kept = String::new();
+    let mut used = 1; // the ellipsis
+    for character in text.chars() {
+        used += character.len_utf16();
+        if used > units {
+            break;
+        }
+        kept.push(character);
+    }
+    kept.push('…');
+    kept
 }
 
 /// Connections grouped by the team their saved names say, in list order. A
@@ -211,7 +245,7 @@ pub fn build(
 mod tests {
     use nessie_windows_common::failure::classify;
 
-    use super::{build, NeedsYou};
+    use super::{build, NeedsYou, Overview};
     use crate::{
         menu::ConsoleSection,
         state::{tests::executor, Connection, ExecutorStatus, ServiceView},
@@ -241,17 +275,31 @@ mod tests {
     }
 
     #[test]
-    fn the_tooltip_follows_the_status_from_no_team_to_working() {
+    fn the_tooltip_names_the_app_then_follows_the_status_from_no_team_to_working() {
+        // Before the first read the icon claims nothing, and Windows records this name for it.
+        assert_eq!(Overview::unread().tooltip(), "Nessie Computer");
+        assert_eq!(Overview::unread().status, "Nessie Computer");
         let none = english(&reachable(Vec::new()), None);
-        assert_eq!(none.tooltip(), "No team connected");
+        assert_eq!(none.tooltip(), "Nessie Computer\nNo team connected");
         let view = reachable(named(vec![executor("sales", "running", false), executor("ops", "running elsewhere", false)],
             &[("sales", "Sales"), ("ops", "Ops")]));
-        assert_eq!(english(&view, None).tooltip(), "Working for 2 teams");
+        assert_eq!(english(&view, None).tooltip(), "Nessie Computer\nWorking for 2 teams");
         let mut asking = executor("sales", "running", false);
         asking.pending_program_requests = 1;
         let needs = english(&reachable(named(vec![asking], &[("sales", "Sales")])), None);
-        assert!(needs.tooltip().starts_with("Working for 1 team\n"), "{}", needs.tooltip());
+        assert!(needs.tooltip().starts_with("Nessie Computer\nWorking for 1 team\n"), "{}", needs.tooltip());
         assert!(needs.tooltip().ends_with(&needs.needs_you.as_ref().unwrap().text));
+    }
+
+    #[test]
+    fn a_long_tooltip_is_cut_to_what_windows_keeps() {
+        let long = Overview { status: "Working for 1 team".to_owned(), teams: Vec::new(), needs_you: Some(NeedsYou {
+            text: format!("Needs you: {} — a program asks to run", "Žluťoučký kůň ".repeat(10)),
+            section: None, executor_id: None }) };
+        let tooltip = long.tooltip();
+        assert_eq!(tooltip.encode_utf16().count(), 127, "{tooltip}");
+        assert!(tooltip.starts_with("Nessie Computer\nWorking for 1 team\nNeeds you: Žluťoučký"));
+        assert!(tooltip.ends_with('…'));
     }
 
     #[test]

@@ -13,10 +13,13 @@ public enum MenuIcon: Equatable, Sendable {
 public struct NeedsYouItem: Equatable, Sendable {
     public let title: String
     public let target: ConsoleTarget
+    /// The line opens System Settings → Login Items instead of the window.
+    public let opensLoginItems: Bool
 
-    public init(title: String, target: ConsoleTarget) {
+    public init(title: String, target: ConsoleTarget, opensLoginItems: Bool = false) {
         self.title = title
         self.target = target
+        self.opensLoginItems = opensLoginItems
     }
 }
 
@@ -46,6 +49,8 @@ public struct ComputerMenuModel: Equatable, Sendable {
     public let runtimeMissing: Bool
     /// The update helper can't be reached or refuses, so no team can start.
     public let updatesStuck: Bool
+    /// macOS won't run the update helper until the owner allows it in Login Items.
+    public let updatesNeedApproval: Bool
     public let language: NativeLanguage
 
     public init(
@@ -53,12 +58,14 @@ public struct ComputerMenuModel: Equatable, Sendable {
         unreadableTeams: Int = 0,
         runtimeMissing: Bool = false,
         updatesStuck: Bool = false,
+        updatesNeedApproval: Bool = false,
         language: NativeLanguage = .current
     ) {
         self.teams = teams
         self.unreadableTeams = unreadableTeams
         self.runtimeMissing = runtimeMissing
         self.updatesStuck = updatesStuck
+        self.updatesNeedApproval = updatesNeedApproval
         self.language = language
     }
 
@@ -83,6 +90,11 @@ public struct ComputerMenuModel: Equatable, Sendable {
     /// Everything that needs the owner, most urgent first.
     public var needsYouItems: [NeedsYouItem] {
         var items: [NeedsYouItem] = []
+        if updatesNeedApproval {
+            items.append(NeedsYouItem(
+                title: say(.needsYouUpdatesApproval), target: ConsoleTarget(), opensLoginItems: true
+            ))
+        }
         if updatesStuck {
             items.append(NeedsYouItem(title: say(.needsYouUpdatesStuck), target: ConsoleTarget()))
         }

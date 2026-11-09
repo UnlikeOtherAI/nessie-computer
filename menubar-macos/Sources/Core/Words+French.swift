@@ -38,6 +38,9 @@ enum FrenchWords {
         case .needsYouReinstall: return "Action requise : réinstallez Nessie Computer"
         case .needsYouUnreadableTeam: return "Action requise : une équipe de ce Mac est illisible"
         case .needsYouUpdatesStuck: return "Action requise : les mises à jour sont bloquées — ouvrez Nessie Computer"
+        case .needsYouUpdatesApproval:
+            return "Action requise : autorisez Nessie Computer dans "
+                + "Réglages Système pour terminer la mise à jour"
         case let .needsYouMany(value): return "Action requise : \(value) éléments — ouvrez Nessie Computer"
         case .pause: return "Mettre en pause"
         case .resume: return "Reprendre"
