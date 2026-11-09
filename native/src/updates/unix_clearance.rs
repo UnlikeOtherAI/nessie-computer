@@ -124,8 +124,21 @@ pub(super) fn ready() -> UpdateResult<bool> {
 }
 
 pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResult<bool> {
+    // A macOS one-shot command's journal whose command ended with nothing of
+    // its own left is not a runtime that must leave: the corrected creator
+    // drops these itself. Earlier creators kept them whenever any team held a
+    // host registration, and an installed one still does, so without this
+    // the swap that brings the corrected creator could never clear. Nothing
+    // is pruned here; the new creator removes them on its first launch.
+    #[cfg(target_os = "macos")]
+    let processes = crate::macos_processes::all().map_err(|_| ERROR)?;
     for (uid, root) in roots()? {
-        if !records(uid, &root)?.is_empty() { return Ok(false); }
+        for record in records(uid, &root)? {
+            #[cfg(target_os = "macos")]
+            if matches!(crate::managed_runtime::ended_one_shot(&record, &root, &processes), Ok(true)) { continue; }
+            let _ = record;
+            return Ok(false);
+        }
     }
     let mut initial = unix_process::products()?;
     initial.sort_by_key(|process| process.pid);

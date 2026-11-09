@@ -124,23 +124,33 @@ fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError> {
         Err(_) => return Err(refused()),
     };
     let processes = macos_processes::all()?;
-    let gone = |pid: i32, started: &str| !processes.iter().any(|process|
-        process.pid == pid && process.started_at == started && !process.zombie);
     for entry in entries {
         let path = entry.map_err(|_| refused())?.path();
         if path.extension().and_then(|extension| extension.to_str()) != Some("json") { continue; }
         let Ok(file) = OpenOptions::new().read(true).custom_flags(libc::O_NOFOLLOW).open(&path) else { continue };
         let Ok(record) = serde_json::from_reader::<_, Record>(file) else { continue };
-        if record.boot_id != boot || record.activity.is_some()
-            || !gone(record.supervisor_pid, &record.supervisor_started_at)
-            || !gone(record.child_pid, &record.child_started_at)
-            || processes.iter().any(|process| process.group == record.child_pid && !process.zombie)
-            || unresolved_host(root, &record)? { continue; }
+        if record.boot_id != boot || !ended_one_shot(&record, root, &processes)? { continue; }
         fs::remove_file(&path).map_err(|_| refused())?;
         let socket = path.with_extension("sock");
         if fs::symlink_metadata(&socket).is_ok() { fs::remove_file(&socket).map_err(|_| refused())?; }
     }
     File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())
+}
+
+/// A one-shot command's journal its command would have dropped itself under
+/// `unresolved_host`: no long-lived activity, supervisor and child ended,
+/// nothing left in the child's process group, and no host registration of its
+/// own under `root`. Update clearance does not wait for these either.
+pub(crate) fn ended_one_shot(
+    record: &Record, root: &Path, processes: &[macos_processes::Process],
+) -> Result<bool, NativeError> {
+    let gone = |pid: i32, started: &str| !processes.iter().any(|process|
+        process.pid == pid && process.started_at == started && !process.zombie);
+    Ok(record.activity.is_none()
+        && gone(record.supervisor_pid, &record.supervisor_started_at)
+        && gone(record.child_pid, &record.child_started_at)
+        && !processes.iter().any(|process| process.group == record.child_pid && !process.zombie)
+        && !unresolved_host(root, record)?)
 }
 
 fn own_host(item: &serde_json::Value, record: &Record) -> bool {
