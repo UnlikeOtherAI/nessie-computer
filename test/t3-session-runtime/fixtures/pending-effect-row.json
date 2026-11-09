@@ -1,0 +1,29 @@
+{
+  "row": {
+    "effect_id": "effect:雪:one",
+    "command_id": "release:original:one",
+    "thread_id": "thread:雪:one",
+    "effect_type": "provider-turn.start",
+    "payload_json": "{ \"type\":\"provider-turn.start\", \"runId\":\"run:雪:one\" }",
+    "status": "pending",
+    "attempt_count": 2,
+    "available_at": "2000-01-01T00:00:00.000Z",
+    "lease_owner": null,
+    "lease_expires_at": "2000-01-01T00:00:01.000Z",
+    "created_at": "1999-12-31T23:59:00.000Z",
+    "updated_at": "1999-12-31T23:59:30.000Z",
+    "completed_at": null,
+    "last_error": "PRIVATE_ROW_CANARY_雪\nquoted:\"value\"\\path"
+  },
+  "receipt": {
+    "command_id": "release:original:one",
+    "aggregate_kind": "thread",
+    "aggregate_id": "thread:雪:one",
+    "accepted_at": "1999-12-31T23:59:30.000Z",
+    "result_sequence": 7,
+    "status": "accepted",
+    "error": null,
+    "command_type": "prepared-run.release"
+  },
+  "rowDigest": "sha256:6ba9af5c6c1f495c17cc63183ed94d5d2ef62a9fb52819fbb96635a16b326b14"
+}

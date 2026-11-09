@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
 import * as Schema from 'effect/Schema'
 import { EnvironmentId } from '@nessie/t3-session-source/contracts'
-import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
+import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT, canonicalExecutorJson,
+  T3ExecutionPendingEffectObservationSchema, type T3ExecutionPendingEffectObservation,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
+import { T3ExecutionGraphPayloadSchema, type T3ExecutionGraph } from '@nessie/executor-protocol/t3-session'
 import { CaptureFailure, requireCapture } from '../state/sqlite.js'
 import { openNativeT3ExecutionResources } from './native.js'
 import { heldSourceDatabase } from './database.js'
@@ -31,6 +33,8 @@ export interface T3ExecutionResourceScope {
   readonly signal: AbortSignal
   withReadonlySourceSnapshot<A>(use: (snapshot: T3ExecutionSourceSnapshot) => Promise<A>): Promise<A>
   withDestination<A>(use: (destination: T3ExecutionDestinationScope) => Promise<A>): Promise<A>
+  /** Actual native row/receipt metadata only; no parent-edge proof or claim grant. */
+  inspectPendingEffect(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionPendingEffectObservation | null>
   recheck(): Promise<void>
 }
 const scopes = new WeakMap<T3ExecutionResourceScope, () => Promise<void>>()
@@ -185,6 +189,20 @@ export async function withT3ExecutionResources<A>(input: {
         const result = await withNativeExecutionDestination(native.exchange, receipt, abort.signal, useDestination)
         await recheck()
         return result
+      },
+      inspectPendingEffect: async (graph: T3ExecutionGraph, effectId: string) => {
+        await recheck()
+        const { custody, ...candidate } = T3ExecutionGraphPayloadSchema.parse(graph)
+        requireCapture(canonicalExecutorJson(custody) === canonicalExecutorJson(receipt.custody)
+          && candidate.binding.executorId === input.executorId
+          && candidate.binding.environmentId === source.environmentId
+          && candidate.binding.sourceRootKey === source.physicalRootKey, 'execution_destination_graph_mismatch')
+        const answer = native.exchange({ op: 'executionDestinationObserveEffect', graph: candidate, effectId })
+        const observed = T3ExecutionPendingEffectObservationSchema.nullable().parse(answer.observation)
+        requireCapture(observed === null || observed.effectId === effectId
+          && observed.threadId === candidate.binding.threadId, 'execution_destination_effect_mismatch')
+        await recheck()
+        return observed
       },
     })
     scopes.set(scope, recheck)

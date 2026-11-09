@@ -228,6 +228,17 @@ pub fn handle(root: &Path, caller: &Process, release: &Release, state: &State, r
             held.recheck()?;
             serde_json::to_value(receipt).map_err(|_| REJECTED.into())
         }
+        Request::ObserveDestinationEffect { resource_id, graph, effect_id, .. } => {
+            let held = resources.get(&resource_id).ok_or(REJECTED)?;
+            held.check_owner(caller, &context)?;
+            held.check_binding(caller, &context, &graph.binding)?;
+            let digest = nessie_windows_common::execution::value_digest(&serde_json::to_value(&graph).map_err(|_| REJECTED)?)?;
+            if held.inspections.get(&graph.nonce) != Some(&digest) { return Err(REJECTED.into()); }
+            let observation = held.destination.as_ref().ok_or(REJECTED)?.observe_pending_effect(
+                &graph.binding.source_generation, &graph.binding.thread_id, &effect_id)?;
+            held.recheck()?;
+            Ok(json!({"observation":observation}))
+        }
         Request::CloseDestination { resource_id, .. } => {
             let held = resources.get_mut(&resource_id).ok_or(REJECTED)?;
             held.check_owner(caller, &context)?;

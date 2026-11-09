@@ -359,6 +359,13 @@ Preparation is read-only: it retains the exact raw SQL row, decoded original
 effect, worker and explicit command scope in a private per-outbox WeakMap. The
 opaque candidate is valid only in its preparing Effect Scope. Its getter returns
 a clone; decoded effects, object copies and another outbox cannot create or use
+the token. Its separate `rowDigest` getter hashes all 14 physical values in the
+fixed `nessie.t3.pending-effect-row.v1` array encoding, retaining raw JSON text
+and `lease_expires_at`; it exposes no payload/error text. Unknown or missing
+physical columns refuse before creating a candidate. A live schema predicate
+also runs inside selection and the conditional UPDATE: cached `SELECT *` column
+metadata cannot hide a later ALTER TABLE or authorize a stale-schema transition.
+Both getters close with
 the token. Command IDs are routing metadata, never authority.
 
 `claimPrepared` consumes that token before asynchronous SQL. Its one conditional
@@ -385,8 +392,9 @@ This is a consumer boundary, not a positive grant producer. Native destination
 ownership now pins the actual execution directory, writer and stage files before
 original SQL opens, under the [destination contract](t3-execution-resources.md#native-execution-destination-ownership).
 `OwnedCaptureStage` still exposes a reference and held SQL layer only; no pending
-row observation is manufactured from it. Independent native row observation,
-current backend admission and their transport still need concrete composition.
+row observation is manufactured from it. The [independent native reader](t3-execution-resources.md#independent-pending-effect-observation)
+now returns actual unsigned destination row/receipt facts. Current backend
+admission and its original-parent binding still need concrete composition.
 Startup importer/recovery writes also need their own authority before activation.
 Neither captured lineage, reserve, graph nor FRAME authorizes these mutations.
 An uncertain outcome after an actual claim must retain and reconcile its durable
@@ -416,10 +424,17 @@ The destination-owner audit led to the native directory/writer/file producer.
 `capture-workspace` now consumes its recognized volume namespace and service-issued
 writer generation. Native's source SQLite connection remains separate and
 read-only; it cannot attest a destination row merely because its graph shares
-source custody. The next observer must use the held destination file and verify
-the main/WAL objects of its own SQLite connection. It must compare the full
-retained row and original command relationship; a stage reference or caller
-digest cannot supply that evidence. No claim wire domain or signer exists yet.
+source custody. The service observer now reads that held destination and verifies
+its own SQLite main/WAL objects. Its full raw-row digest shares a Unicode/raw-JSON
+fixture with the actual original outbox. A changed physical lease expiry now
+invalidates the conditional claim; the upstream internal `EffectRow` had omitted
+that migrated column. No rows or migrations were rewritten.
+
+Durable command receipts contain no parent edge. The observer therefore cannot
+assert the original operation relationship from accepted status, command spelling
+or a stage reference. No claim wire domain or signer exists yet. The current
+ten-family replay has 298 extraction and 36 privacy operations, combined SHA-256
+`505c6d86bcba8853ad2defb2b2d5cfc8752c2827b86ee83321241f1b789da987`.
 
 ## Composition and ownership
 

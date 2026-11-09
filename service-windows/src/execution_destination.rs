@@ -11,6 +11,8 @@ use std::{
     collections::HashMap,
     sync::{Mutex, OnceLock},
 };
+#[path = "execution_destination_read.rs"]
+mod read;
 
 static RETIRED: OnceLock<Mutex<Vec<(Process, Destination)>>> = OnceLock::new();
 /// Source loss is not SQL teardown proof. Retain namespace/writer pins until
@@ -181,5 +183,12 @@ impl Destination {
             return Err(REJECTED.into());
         }
         Ok(reference)
+    }
+    pub fn observe_pending_effect(&self, generation: &str, thread: &str, effect: &str)
+        -> Result<Option<nessie_windows_common::execution_pending_effect::Observation>, String> {
+        let reference = self.stage_reference(generation)?;
+        let result = read::observe(self.files.get(&reference).ok_or(REJECTED)?, &self.owner, thread, effect)?;
+        self.recheck()?;
+        Ok(result)
     }
 }

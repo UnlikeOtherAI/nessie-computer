@@ -106,10 +106,10 @@ process handle until the process ends. Creator and custody reconciliation releas
 those handles before recording positive graph clearance, after their existing
 process/Job checks. Cleanup never deletes a journal, stage or writer artifact.
 
-This ownership producer does not inspect pending row contents, sign a claim
-receipt, grant startup/recovery writes or launch a provider. Independent native
-destination SQLite observation and current finite backend admission remain
-required. Existing reserve, graph and FRAME authority do not authorize a claim.
+Destination ownership grants no startup/recovery write, row claim or provider
+launch. The independent reader below returns unsigned facts only; a current
+finite backend admission remains required. Existing reserve, graph and FRAME
+authority do not authorize a claim.
 
 On Maxis, 9 November 2026, the strict source/protocol/CLI build and all 109 runtime
 cases passed. The Windows common suite passed 61 cases, service 71, and native
@@ -131,6 +131,61 @@ SQL files and logs remain under
 This probe supplied no native grant or provider. The newly built unsigned helper's
 actual `t3-execution-resource` entry separately refused an unprotected launch with
 exit 1 and `t3_source_resource_changed_or_unavailable`. No installed source was opened.
+
+## Independent pending-effect observation
+
+`T3ExecutionResourceScope.inspectPendingEffect(graph, effectId)` uses the existing
+authenticated resource companion. The service requires the exact previously
+accepted Graph payload and nonce, current source/custody and its held destination
+stage for that capture generation. Callers supply no path, SQL or clock. The
+initial Graph receipt's five-second freshness is not reapplied as resource lifetime.
+
+The service opens its own read-only system SQLite connection to that actual
+held stage. Before opening SQLite it checks the main header's journal mode and
+holds the required WAL/SHM files without DELETE sharing. Missing WAL-mode
+sidecars refuse without creating files or using an immutable/rollback fallback.
+Sticky namespace/security witnesses and independently held file identities are
+rechecked; public SQLite file-control calls verify the actual VFS main/WAL handles.
+One transaction reads the row and matching accepted command receipt. The fixed
+authorizer permits only those ordinary tables, exact schema inspection and the
+read transaction; writes, private tables, extensions, ATTACH and mode changes refuse.
+
+The exact physical schemas are required: 14 outbox columns, including
+`lease_expires_at`, and eight command-receipt columns. Unknown/missing columns,
+views, duplicate-key payload JSON and mismatched file witnesses refuse. A missing,
+foreign or nonpending row, or absent matching accepted receipt, returns `null`.
+The response contains identifiers, observation time and full row/payload/receipt
+hashes, never raw payload/error text. Observation time starts before reader I/O.
+The native source reader now shares its existing system DLL/readonly connection
+implementation with this service reader, retaining its separate static policy.
+
+`T3ExecutionPendingEffectObservation` is explicitly unsigned. The original durable
+receipt records command type and result sequence but no parent-command edge;
+accepted status cannot establish this graph's original operation relationship.
+The live original recorder owns that edge. No signer, claim domain, backend
+consumer or positive preclaim owner is added here. Those require concrete
+composition with that original relationship before a row may transition.
+
+On Maxis/Node 24.19.0, the pending-row checkpoint passed all six source/protocol/
+CLI build tasks, 15 producer, 14 privacy, 40 source, 13 engine and 112 runtime
+cases, with zero skips. Common passed 63 cases, service 77 (including six actual
+destination-reader cases), and native 78 plus five Job cases, with zero ignored.
+Both locked Windows debug binaries built; producer/TypeScript lint, changed-code
+line caps and whitespace checks passed. The shared native reader's full source
+regression remained green after the refactor.
+
+A direct package-interface probe outside the test runner verified the shared
+14-field digest, stale physical lease-expiry refusal, one low-level conditional
+transition, consumed-token refusal and unknown-column refusal. It exposed a
+cached `SELECT *` metadata gap; the outbox now checks live `table_xinfo` rows
+during preparation and inside the actual conditional UPDATE. The regression
+also changes the schema after preparing a candidate. Evidence and the retained
+synthetic SQLite database are under
+`D:/BuildArtifacts/nessie/t3-7a4698a9-verification/pending-row-interface-lxEaJw`.
+The new unsigned helper again refused an actual unprotected resource entry with
+exit 1. These checks exercise no positive SYSTEM graph, native signature, backend
+claim admission, provider or installed source enrollment. Production `open`
+still refuses; startup/recovery and parent-operation authority remain unfinished.
 
 ## Finite readonly source snapshots
 

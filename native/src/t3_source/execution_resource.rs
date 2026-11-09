@@ -68,6 +68,13 @@ impl Session for ExecutionResource {
                 let destination = self.destination.as_mut().ok_or_else(fail)?;
                 Ok(json!({"receipt":destination.hold_file(&self.receipt, reference)?}))
             },
+            "executionDestinationObserveEffect" if fields.len() == 3 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                let effect_id = request["effectId"].as_str().ok_or_else(fail)?.to_owned();
+                service(Request::ObserveDestinationEffect { executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph, effect_id })
+            },
             "executionDestinationClose" if fields.len() == 1 => {
                 service(Request::CloseDestination { executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone() })?;

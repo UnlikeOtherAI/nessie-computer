@@ -62,6 +62,7 @@ pub enum Request {
     Recheck { executor_id: String, resource_id: String },
     OpenDestination { executor_id: String, resource_id: String, nonce: String, directory: Object, writer: Object, watches: Vec<u64> },
     HoldDestinationFile { executor_id: String, resource_id: String, reference: String, file: Object },
+    ObserveDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
     CloseDestination { executor_id: String, resource_id: String },
     Close { executor_id: String, resource_id: String },
 }
@@ -72,7 +73,7 @@ impl Request {
             | Self::Recheck { executor_id, .. } | Self::Close { executor_id, .. }
             | Self::ReviewRegistration { executor_id, .. } | Self::LinkRegistration { executor_id, .. }
             | Self::OpenDestination { executor_id, .. } | Self::HoldDestinationFile { executor_id, .. }
-            | Self::CloseDestination { executor_id, .. } => executor_id,
+            | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. } => executor_id,
         }
     }
     pub fn validate(&self) -> Result<(), String> {
@@ -104,6 +105,13 @@ impl Request {
                 if !valid_nonce(resource_id) || !crate::execution_destination::valid_object(file, false) {
                     return Err(REJECTED.into());
                 }
+            }
+            Self::ObserveDestinationEffect { resource_id, graph, effect_id, .. } => {
+                graph.binding.validate(true)?;
+                if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce) || !id(effect_id)
+                    || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }
+                // Only an already accepted exact Graph may be used. Its 5s
+                // receipt freshness is not a new resource-retention deadline.
             }
             Self::Register { resource_id, evidence: e, objects, watches, .. } => {
                 if !valid_nonce(resource_id) || e.source.executor_id != self.executor()

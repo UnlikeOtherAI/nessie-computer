@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import test from 'node:test'
-import { mkdir, mkdtemp } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import * as NodeFileSystem from '@effect/platform-node/NodeFileSystem'
@@ -48,6 +49,51 @@ const withWorker = (authority, execute, program) => Effect.gen(function* () {
 const authority = (commands, withClaim) => ({ commands: Effect.succeed(commands.map(CommandId.make)),
   awaitChanged: Effect.never, withClaim })
 
+test('the actual original candidate hashes the shared native fixture including its physical lease expiry', async () => {
+  const data = JSON.parse(await readFile(new URL('./fixtures/pending-effect-row.json', import.meta.url), 'utf8'))
+  await fixture(Effect.gen(function* () {
+    const sql = yield* SqlClient.SqlClient
+    const columns = Object.keys(data.row)
+    yield* sql.unsafe(`INSERT INTO orchestration_v2_effect_outbox (${columns.join(', ')})
+      VALUES (${columns.map(() => '?').join(', ')})`, columns.map(column => data.row[column]))
+    const outbox = yield* Outbox.EffectOutboxV2
+    const candidate = getCandidate(yield* prepare(outbox, [data.row.command_id]))
+    assert.equal(candidate.rowDigest, data.rowDigest)
+    assert.deepEqual({ ...yield* rowState(data.row.effect_id) }, data.row)
+  }))
+})
+
+test('a destination with an unrecognized physical outbox column cannot prepare a claim snapshot', async () => {
+  await fixture(Effect.gen(function* () {
+    const outbox = yield* Outbox.EffectOutboxV2
+    const sql = yield* SqlClient.SqlClient
+    yield* outbox.enqueue([pending('altered-schema')])
+    yield* sql`ALTER TABLE orchestration_v2_effect_outbox ADD COLUMN unrecognized_column TEXT`
+    const before = yield* rowState('altered-schema')
+    yield* failed(prepare(outbox, ['altered-schema']))
+    assert.deepEqual(yield* rowState('altered-schema'), before)
+  }))
+})
+
+test('live schema checks refuse changes hidden by cached row metadata and changes after preparation', async () => {
+  await fixture(Effect.gen(function* () {
+    const outbox = yield* Outbox.EffectOutboxV2
+    const sql = yield* SqlClient.SqlClient
+    yield* outbox.enqueue([pending('cached-schema')])
+    const candidate = getCandidate(yield* prepare(outbox, ['cached-schema']))
+    const before = yield* rowState('cached-schema')
+    yield* sql`ALTER TABLE orchestration_v2_effect_outbox ADD COLUMN unrecognized_column TEXT`
+    yield* failed(prepare(outbox, ['cached-schema']))
+    assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 })), true)
+    const after = yield* rowState('cached-schema')
+    for (const [column, value] of Object.entries(before)) assert.equal(after[column], value)
+    const physical = yield* sql`SELECT status, attempt_count, lease_owner, unrecognized_column
+      FROM orchestration_v2_effect_outbox WHERE effect_id = 'cached-schema'`
+    assert.deepEqual({ ...physical[0] }, { status: 'pending', attempt_count: 0,
+      lease_owner: null, unrecognized_column: null })
+  }))
+})
+
 test('preparing a candidate is read-only; one conditional transition uses its exact retained row and worker', async () => {
   await fixture(Effect.gen(function* () {
     const outbox = yield* Outbox.EffectOutboxV2
@@ -55,6 +101,12 @@ test('preparing a candidate is read-only; one conditional transition uses its ex
     const before = yield* rowState('one')
     const candidate = getCandidate(yield* prepare(outbox, ['original-command']))
     assert.deepEqual(yield* rowState('one'), before)
+    assert.equal(candidate.rowDigest, 'sha256:' + createHash('sha256').update(JSON.stringify([
+      'nessie.t3.pending-effect-row.v1', before.effect_id, before.command_id, before.thread_id,
+      before.effect_type, before.payload_json, before.status, before.attempt_count, before.available_at,
+      before.lease_owner, before.lease_expires_at, before.created_at, before.updated_at, before.completed_at,
+      before.last_error,
+    ])).digest('hex'))
     const escaped = candidate.effect
     escaped.commandId = 'substituted-command'
     escaped.request.runId = 'substituted-run'
@@ -68,6 +120,7 @@ test('preparing a candidate is read-only; one conditional transition uses its ex
     assert.equal(claimed.leaseOwner, 'original-worker')
     yield* failed(outbox.claimPrepared({ candidate, notAfterMs: Date.now() + 4_000 }))
     assert.throws(() => candidate.effect, /claim-candidate-closed/u)
+    assert.throws(() => candidate.rowDigest, /claim-candidate-closed/u)
   }))
 })
 
@@ -92,7 +145,7 @@ test('an expired candidate cannot be renewed and a changed or cancelled row is n
   await fixture(Effect.gen(function* () {
     const outbox = yield* Outbox.EffectOutboxV2
     const sql = yield* SqlClient.SqlClient
-    for (const mode of ['expired', 'payload', 'cancelled', 'attempt']) {
+    for (const mode of ['expired', 'payload', 'cancelled', 'attempt', 'physical-lease-expiry']) {
       yield* outbox.enqueue([pending(mode)])
       const candidate = getCandidate(yield* prepare(outbox, [mode]))
       if (mode === 'expired') {
@@ -106,6 +159,8 @@ test('an expired candidate cannot be renewed and a changed or cancelled row is n
         SET payload_json = '{"type":"provider-turn.start","runId":"replacement"}' WHERE effect_id = ${mode}`
       if (mode === 'attempt') yield* sql`UPDATE orchestration_v2_effect_outbox
         SET attempt_count = attempt_count + 1 WHERE effect_id = ${mode}`
+      if (mode === 'physical-lease-expiry') yield* sql`UPDATE orchestration_v2_effect_outbox
+        SET lease_expires_at = '2099-01-01T00:00:00.000Z' WHERE effect_id = ${mode}`
       if (mode === 'cancelled') yield* outbox.cancelUnsettled({ threadId: ThreadId.make(mode),
         effectTypes: ['provider-turn.start'], reason: 'synthetic cancellation' })
       const before = yield* rowState(mode)

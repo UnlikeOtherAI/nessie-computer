@@ -47,13 +47,16 @@ impl Duplicator {
     }
 }
 pub struct HeldObject { pub file: File, pub description: Object }
+pub fn file_identity(handle: HANDLE) -> Result<String, String> {
+    let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
+    if unsafe { GetFileInformationByHandleEx(handle, FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
+        std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0 { return Err(REJECTED.into()); }
+    Ok(format!("{:016x}:{}", id.VolumeSerialNumber,
+        id.FileId.Identifier.iter().map(|byte| format!("{byte:02x}")).collect::<String>()))
+}
 impl HeldObject {
     pub(super) fn directory(file: File, private: bool, owner: &str) -> Result<Self, String> {
-        let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
-        if unsafe { GetFileInformationByHandleEx(file.as_raw_handle(), FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
-            std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0 { return Err(REJECTED.into()); }
-        let identity = format!("{:016x}:{}", id.VolumeSerialNumber,
-            id.FileId.Identifier.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let identity = file_identity(file.as_raw_handle())?;
         let held = Self { file, description: Object { handle: 0, identity,
             kind: if private { "provider-home" } else { "directory" }.into(), private } };
         held.recheck(owner)?;
@@ -89,22 +92,7 @@ impl HeldObject {
         Ok(path.into())
     }
     pub fn recheck(&self, owner: &str) -> Result<(), String> {
-        let handle = self.file.as_raw_handle();
-        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
-        let mut id: FILE_ID_INFO = unsafe { std::mem::zeroed() };
-        let directory = ["directory", "source-root", "provider-home"].contains(&self.description.kind.as_str());
-        if unsafe { GetFileInformationByHandle(handle, &mut info) } == 0
-            || unsafe { GetFileInformationByHandleEx(handle, FileIdInfo, (&mut id as *mut FILE_ID_INFO).cast(),
-                std::mem::size_of::<FILE_ID_INFO>() as u32) } == 0
-            || info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
-            || (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0) != directory {
-            return Err(REJECTED.into());
-        }
-        let identity = format!("{:016x}:{}", id.VolumeSerialNumber,
-            id.FileId.Identifier.iter().map(|b| format!("{b:02x}")).collect::<String>());
-        if identity != self.description.identity { return Err(REJECTED.into()); }
-        if self.description.private { owner_only(handle, owner)?; }
-        Ok(())
+        check_object(self.file.as_raw_handle(), &self.description, owner)
     }
     pub fn bytes(&self, limit: usize) -> Result<Vec<u8>, String> {
         if limit > SETTINGS_LIMIT { return Err(REJECTED.into()); }
@@ -119,6 +107,24 @@ impl HeldObject {
         bytes.truncate(offset);
         Ok(bytes)
     }
+}
+fn check_object(handle: HANDLE, object: &Object, owner: &str) -> Result<(), String> {
+        let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+        let directory = ["directory", "source-root", "provider-home"].contains(&object.kind.as_str());
+        if unsafe { GetFileInformationByHandle(handle, &mut info) } == 0
+            || info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0
+            || (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY != 0) != directory {
+            return Err(REJECTED.into());
+        }
+        let identity = file_identity(handle)?;
+        if identity != object.identity { return Err(REJECTED.into()); }
+        if object.private { owner_only(handle, owner)?; }
+        Ok(())
+}
+/// Validate the actual SQLite VFS handle against independently held identity.
+pub fn verify_file_handle(handle: HANDLE, expected: &str, owner: &str) -> Result<(), String> {
+    if unsafe { GetFileType(handle) } != FILE_TYPE_DISK { return Err(REJECTED.into()); }
+    check_object(handle, &Object { handle: 0, identity: expected.into(), kind: "database".into(), private: true }, owner)
 }
 pub fn check_watches(watches: &[Owned]) -> Result<(), String> {
     if watches.iter().any(|w| unsafe { WaitForSingleObject(w.0, 0) } != WAIT_TIMEOUT) {

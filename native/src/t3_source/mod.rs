@@ -8,8 +8,6 @@
 #[cfg(all(windows, test))] mod execution_settings_tests;
 #[cfg(windows)] mod resource;
 #[cfg(windows)] mod sqlite;
-#[cfg(windows)] mod sqlite_api;
-#[cfg(windows)] mod sqlite_handles;
 #[cfg(windows)] mod pipe;
 #[cfg(windows)] mod lease;
 #[cfg(windows)] mod consent;

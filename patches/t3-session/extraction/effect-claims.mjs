@@ -3,13 +3,21 @@
 export const extractEffectClaims = author => {
   const file = 'apps/server/src/orchestration-v2/EffectOutbox.ts'
   const first = author.read(file).match(/^import[^;]+;/u)[0]
-  author.replace(file, first, `import type * as Scope from "effect/Scope";\n${first}`, 'effect-claim-scope-import')
+  author.replace(file, first,
+    `import { createHash } from "node:crypto";\nimport type * as Scope from "effect/Scope";\n${first}`,
+    'effect-claim-scope-import')
+  author.replace(file, '  readonly lease_owner: string | null;',
+    '  readonly lease_owner: string | null;\n  readonly lease_expires_at: string | null;',
+    'effect-claim-retain-physical-lease-expiry')
   author.replace(file, 'export interface EffectOutboxV2Shape {', `declare const effectClaimCandidateBrand: unique symbol;
 /** Opaque read snapshot, valid only in its preparing Scope and original outbox.
  * It cannot authorize a SQL transition, provider or native frame. */
 export interface OrchestrationEffectClaimCandidate {
   readonly [effectClaimCandidateBrand]: true;
   readonly effect: OrchestrationEffectV2;
+  /** Hash of all physical SQL fields, including the legacy lease-expiry column.
+   * This reveals no raw payload/error and grants no mutation authority. */
+  readonly rowDigest: string;
 }
 
 export interface EffectOutboxV2Shape {
@@ -38,6 +46,19 @@ export interface EffectOutboxV2Shape {
         ORDER BY candidate.available_at ASC, candidate.created_at ASC, candidate.effect_id ASC
         LIMIT 1
       \`;
+    const claimColumns = ["effect_id", "command_id", "thread_id", "effect_type", "payload_json", "status",
+      "attempt_count", "available_at", "lease_owner", "lease_expires_at", "created_at", "updated_at",
+      "completed_at", "last_error"] as const satisfies ReadonlyArray<keyof EffectRow>;
+    // Cached SELECT * column metadata can hide a later ALTER TABLE. Read live
+    // schema rows and repeat this predicate in the actual selection/transition.
+    const claimSchemaPredicate = sql\`
+      EXISTS (SELECT 1 FROM sqlite_schema WHERE name = 'orchestration_v2_effect_outbox'
+        AND type = 'table' AND substr(upper(sql), 1, 13) = 'CREATE TABLE ')
+      AND (SELECT json_group_array(name) FROM (
+        SELECT name FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid
+      )) = \${JSON.stringify(claimColumns)}
+      AND NOT EXISTS (SELECT 1 FROM pragma_table_xinfo('orchestration_v2_effect_outbox') WHERE hidden != 0)
+    \`;
     const checkedCommands = (values: ReadonlyArray<CommandId>) => Effect.try({ try: () => {
       const copied = [...values];
       if (copied.length > 64 || new Set(copied).size !== copied.length
@@ -62,6 +83,13 @@ export interface EffectOutboxV2Shape {
         const prepared = preparedClaims.get(this);
         if (prepared === undefined) throw new EffectOutboxError({ operation: "claim-candidate-closed" });
         return structuredClone(prepared.effect);
+      }
+      get rowDigest(): string {
+        const prepared = preparedClaims.get(this);
+        if (prepared === undefined) throw new EffectOutboxError({ operation: "claim-candidate-closed" });
+        return "sha256:" + createHash("sha256").update(JSON.stringify([
+          "nessie.t3.pending-effect-row.v1", ...claimColumns.map(column => prepared.row[column]),
+        ]), "utf8").digest("hex");
       }
     }
     Object.freeze(ClaimCandidate.prototype);
@@ -99,12 +127,20 @@ ${beforeSignal}`, 'effect-claim-original-selection-and-owner')
         if (commandIds.length === 0) return Option.none();
         const excludeRestartContinuations = input.excludeRestartContinuations ?? false;
         const nowIso = DateTime.formatIso(yield* DateTime.now);
+        const schema = yield* sql<{ readonly recognized: number }>\`
+          SELECT \${claimSchemaPredicate} AS recognized
+        \`.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));
+        if (schema[0]?.recognized !== 1) return yield* new EffectOutboxError({ operation: "prepare-claim-schema" });
         const rows = yield* sql<EffectRow>\`
           SELECT * FROM orchestration_v2_effect_outbox
           WHERE effect_id = (\${selectClaimable(nowIso, excludeRestartContinuations, commandIds)})
+            AND \${claimSchemaPredicate}
         \`.pipe(NodeSqliteClient.readOnly, Effect.withTracerEnabled(false));
         const row = rows[0];
         if (row === undefined) return Option.none();
+        if (Object.keys(row).length !== claimColumns.length || claimColumns.some(column => !Object.hasOwn(row, column))) {
+          return yield* new EffectOutboxError({ operation: "prepare-claim-schema" });
+        }
         const effect = yield* rowToEffect(row);
         const candidate: OrchestrationEffectClaimCandidate = Object.freeze(new ClaimCandidate(claimKey));
         preparedClaims.set(candidate, { row: Object.freeze({ ...row }), effect, workerId: input.workerId,
@@ -129,11 +165,13 @@ ${beforeSignal}`, 'effect-claim-original-selection-and-owner')
           SET status = 'running', attempt_count = attempt_count + 1,
             lease_owner = \${prepared.workerId}, updated_at = \${nowIso}, last_error = NULL
           WHERE effect_id = \${expected.effect_id}
+            AND \${claimSchemaPredicate}
             AND effect_id = (\${selectClaimable(nowIso, prepared.excludeRestartContinuations, prepared.commandIds)})
             AND command_id = \${expected.command_id} AND thread_id = \${expected.thread_id}
             AND effect_type = \${expected.effect_type} AND payload_json = \${expected.payload_json}
             AND status = 'pending' AND attempt_count = \${expected.attempt_count}
             AND available_at = \${expected.available_at} AND lease_owner IS \${expected.lease_owner}
+            AND lease_expires_at IS \${expected.lease_expires_at}
             AND created_at = \${expected.created_at} AND updated_at = \${expected.updated_at}
             AND completed_at IS \${expected.completed_at} AND last_error IS \${expected.last_error}
             AND CAST(unixepoch('subsec') * 1000 AS INTEGER) < \${notAfterMs}

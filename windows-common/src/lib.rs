@@ -27,6 +27,11 @@ pub mod execution_frame_bytes;
 pub mod execution_json;
 pub mod execution_resource;
 pub mod execution_destination;
+pub mod execution_pending_effect;
+#[cfg(windows)]
+pub mod readonly_sqlite;
+#[cfg(windows)]
+pub mod readonly_sqlite_files;
 #[cfg(windows)]
 pub mod execution_resource_handles;
 #[cfg(windows)]
