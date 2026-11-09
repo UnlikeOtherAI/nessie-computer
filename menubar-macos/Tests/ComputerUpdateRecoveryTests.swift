@@ -12,9 +12,11 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
         app: String? = "1.0.16", restarts: ComputerUpdateRestartRecord? = nil, now: Date? = nil
     ) -> Bool {
         let answer = installed.flatMap { version in phase.map { (installedVersion: version, phase: $0) } }
+        let record = app.map { version in
+            restarts.flatMap { $0.version == version ? $0 : nil } ?? ComputerUpdateRestartRecord(version: version)
+        }
         return ComputerUpdateRecovery.shouldRestart(
-            enabled: enabled, failures: failures, answer: answer, applicationVersion: app, restarts: restarts,
-            now: now ?? start
+            enabled: enabled, failures: failures, answer: answer, restarts: record, now: now ?? start
         )
     }
 
@@ -79,10 +81,10 @@ final class ComputerUpdateRecoveryTests: XCTestCase {
     func testARestartThatDidNotHelpIsRetriedLaterEachTime() {
         var record = ComputerUpdateRestartRecord(version: "1.0.16")
         var now = start
-        for count in 1...8 {
-            XCTAssertTrue(restart(failures: 2, restarts: record, now: now), "restart \(count) comes by itself")
+        for made in 1...8 {
+            XCTAssertTrue(restart(failures: 2, restarts: record, now: now), "restart \(made) comes by itself")
             record = record.restarted(at: now)
-            let delay = ComputerUpdateRecovery.restartDelay(after: count)
+            let delay = ComputerUpdateRecovery.restartDelay(after: made)
             XCTAssertFalse(restart(failures: 2, restarts: record, now: now.addingTimeInterval(delay - 1)))
             XCTAssertFalse(restart(installed: "0.9.0", restarts: record, now: now.addingTimeInterval(delay - 1)))
             now = now.addingTimeInterval(delay)

@@ -16,12 +16,12 @@ public enum ComputerUpdateAttention: Equatable, Sendable {
 /// it made the last one.
 public struct ComputerUpdateRestartRecord: Equatable, Sendable {
     public let version: String
-    public var count: Int
+    public var made: Int
     public var last: Date?
 
-    public init(version: String, count: Int = 0, last: Date? = nil) {
+    public init(version: String, made: Int = 0, last: Date? = nil) {
         self.version = version
-        self.count = count
+        self.made = made
         self.last = last
     }
 
@@ -31,19 +31,19 @@ public struct ComputerUpdateRestartRecord: Equatable, Sendable {
             self.init(version: version)
             return
         }
-        self.init(version: version, count: stored["count"] as? Int ?? 0,
+        self.init(version: version, made: stored["made"] as? Int ?? 0,
                   last: (stored["last"] as? Double).map(Date.init(timeIntervalSince1970:)))
     }
 
     public var stored: [String: Any] {
-        var stored: [String: Any] = ["version": version, "count": count]
+        var stored: [String: Any] = ["version": version, "made": made]
         if let last { stored["last"] = last.timeIntervalSince1970 }
         return stored
     }
 
     /// The record after one more automatic restart at `now`.
     public func restarted(at now: Date) -> ComputerUpdateRestartRecord {
-        ComputerUpdateRestartRecord(version: version, count: count + 1, last: now)
+        ComputerUpdateRestartRecord(version: version, made: made + 1, last: now)
     }
 }
 
@@ -85,29 +85,29 @@ public enum ComputerUpdateRecovery {
         return factoryReady ? .stuck : nil
     }
 
-    /// How long after `count` automatic restarts for this version the next one
+    /// How long after `made` automatic restarts for this version the next one
     /// may come: 15 minutes, doubling, at most 4 hours.
-    public static func restartDelay(after count: Int) -> TimeInterval {
-        guard count > 0 else { return 0 }
-        return min(900 * pow(2, Double(min(count, 6) - 1)), 14_400)
+    public static func restartDelay(after made: Int) -> TimeInterval {
+        guard made > 0 else { return 0 }
+        return min(900 * pow(2, Double(min(made, 6) - 1)), 14_400)
     }
 
-    /// Whether the helper needs restarting now. The first restart for an app
-    /// version comes at once; each further one waits out `restartDelay`, so a
-    /// restart that did not help is retried, never in a tight loop. The
+    /// Whether the helper needs restarting now. `restarts` belongs to this
+    /// app's version, `nil` where the version is unknown. The first restart
+    /// for a version comes at once; each further one waits out `restartDelay`,
+    /// so a restart that did not help is retried, never in a tight loop. The
     /// person's own Restart updates is never limited. `answer` is what the
     /// helper last said: its installed runtime and phase.
     public static func shouldRestart(
         enabled: Bool, failures: Int, answer: (installedVersion: String, phase: String)?,
-        applicationVersion: String?, restarts: ComputerUpdateRestartRecord?, now: Date
+        restarts: ComputerUpdateRestartRecord?, now: Date
     ) -> Bool {
-        guard enabled, let applicationVersion, needsRestart(failures: failures, answer: answer,
-                                                            applicationVersion: applicationVersion) else {
+        guard enabled, let restarts, needsRestart(failures: failures, answer: answer,
+                                                  applicationVersion: restarts.version) else {
             return false
         }
-        guard let restarts, restarts.version == applicationVersion, restarts.count > 0,
-              let last = restarts.last else { return true }
-        return now.timeIntervalSince(last) >= restartDelay(after: restarts.count)
+        guard restarts.made > 0, let last = restarts.last else { return true }
+        return now.timeIntervalSince(last) >= restartDelay(after: restarts.made)
     }
 
     private static func needsRestart(

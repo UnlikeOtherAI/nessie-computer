@@ -183,7 +183,7 @@ final class ExecutorUpdateMonitor {
         }
         guard let version = ComputerUpdateService.applicationVersion, ComputerUpdateRecovery.shouldRestart(
             enabled: ComputerUpdateService.installed, failures: ComputerUpdateHealth.shared.failures,
-            answer: answer, applicationVersion: version, restarts: ComputerUpdateService.restartRecord, now: Date()
+            answer: answer, restarts: ComputerUpdateService.restartRecord, now: Date()
         ) else { return }
         await ComputerUpdateService.restartAutomatically(for: version)
         ComputerUpdateHealth.shared.restarted()
