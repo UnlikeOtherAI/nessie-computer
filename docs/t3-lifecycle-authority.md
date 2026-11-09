@@ -30,6 +30,10 @@ before those writes. An inspection descriptor or empty returned summary is not
 such evidence. No positive schema/domain or replacement recovery policy is
 invented by this consumer boundary.
 
+The [original process-loss row plan](t3-process-loss-plans.md) now exposes exact
+scoped inputs and independently matched held native facts. Its low-level
+conditional transaction is separate from the still-missing lifecycle permission.
+
 The original `EffectOutbox.reconcileAfterProcessLoss` now encloses both global
 UPDATEs in one SQLite transaction. Cancellation, requeueing and trigger effects
 roll back together if a statement fails or SQLite rejects COMMIT with the
@@ -84,7 +88,8 @@ actions, rollback/cleanup joins and provider cleanup after startup refusal.
 These tests grant no enrolled production recovery authority. Source-engine and
 ordinary composite consumer gates verify the new required service and exports.
 
-Initial boundary qualification on Maxis/Windows 11, Node 24.19.0: six public build tasks and 13 backend
+Initial boundary qualification on Maxis/Windows 11, Node 24.19.0: six public
+build tasks and 13 backend
 prerequisite tasks passed, followed by worker/API compilation against the new
 declarations. All 133 runtime and 13 engine tests passed with zero skips. The
 strict NodeNext/Bundler fixture requires this owner only for executing composition;
@@ -113,8 +118,10 @@ Transaction qualification on 9 November 2026, Maxis/Windows 11, Node 24.19.0,
 pnpm 10.22.0 and TypeScript 5.9.3: six public build tasks passed. All 155 runtime,
 14 engine, 11 source-producer and 14 privacy-source tests passed with zero skips.
 The ordinary composite consumed 470 inputs and 77 shared contract declarations,
-with zero dependency implementations. Scoped lint, Markdown and whitespace
-checks passed. Compilers stayed serial at 5120 MiB or less; runners used at most
+with zero dependency implementations. Scoped lint and whitespace checks passed.
+The reported Markdown command loaded the library rather than its CLI; actual
+style results and existing findings are recorded in [row-plan qualification](t3-process-loss-plans.md#qualification-on-9-november-2026).
+Compilers stayed serial at 5120 MiB or less; runners used at most
 512 MiB.
 
 Separate ordinary package-interface probes exercised successful cancellation/

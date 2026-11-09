@@ -2,6 +2,8 @@
 //! graph authentication, a native signature or current operation admission.
 #[path = "execution_destination_lineage_tests.rs"]
 mod lineage_tests;
+#[path = "execution_destination_process_loss_tests.rs"]
+mod process_loss_tests;
 use super::*;
 use nessie_windows_common::{
     execution_resource::Object,

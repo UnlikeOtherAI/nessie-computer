@@ -39,7 +39,10 @@ the native consume round trip against the returned remaining budget. The actual
 original SQLite connection registers a non-deterministic, direct-only
 `nessie_t3_monotonic_now()` function; the conditional UPDATE checks both that
 clock and wall time after connection/transaction waits. A wall-clock rollback
-cannot refresh the finite transition. Unknown outbox triggers refuse too.
+cannot refresh the finite transition. The shared live schema guard also refuses
+persisted and writer-local TEMP triggers, plus foreign-key references into the
+outbox, before a conditional claim can affect another table. The native reader
+rejects the persisted trigger/FK cases too; see [process-loss plans](t3-process-loss-plans.md).
 
 Only the original callback's actual conditional SQL result may reach the worker.
 Closing the owner interrupts and joins lineage, HTTP/native work and the SQL

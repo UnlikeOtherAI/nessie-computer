@@ -5,25 +5,11 @@ use crate::{
     execution_json,
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-pub const ROW_COLUMNS: &[&str] = &[
-    "effect_id",
-    "command_id",
-    "thread_id",
-    "effect_type",
-    "payload_json",
-    "status",
-    "attempt_count",
-    "available_at",
-    "lease_owner",
-    "lease_expires_at",
-    "created_at",
-    "updated_at",
-    "completed_at",
-    "last_error",
-];
+use crate::execution_outbox_row::Row;
+pub use crate::execution_outbox_row::ROW_COLUMNS;
 pub const RECEIPT_COLUMNS: &[&str] = &[
     "command_id",
     "aggregate_kind",
@@ -38,47 +24,6 @@ fn metadata(value: &str) -> bool {
     identifier(value) && value.len() <= 256 && !value.chars().any(char::is_control)
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Row {
-    effect_id: String,
-    command_id: String,
-    thread_id: String,
-    effect_type: String,
-    payload_json: String,
-    status: String,
-    attempt_count: i64,
-    available_at: String,
-    lease_owner: Option<String>,
-    lease_expires_at: Option<String>,
-    created_at: String,
-    updated_at: String,
-    completed_at: Option<String>,
-    last_error: Option<String>,
-}
-impl Row {
-    fn digest(&self) -> Result<String, String> {
-        let bytes = serde_json::to_vec(&json!([
-            "nessie.t3.pending-effect-row.v1",
-            self.effect_id,
-            self.command_id,
-            self.thread_id,
-            self.effect_type,
-            self.payload_json,
-            self.status,
-            self.attempt_count,
-            self.available_at,
-            self.lease_owner,
-            self.lease_expires_at,
-            self.created_at,
-            self.updated_at,
-            self.completed_at,
-            self.last_error
-        ]))
-        .map_err(|_| REJECTED)?;
-        Ok(format!("sha256:{:x}", Sha256::digest(bytes)))
-    }
-}
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CommandReceipt {
@@ -119,15 +64,13 @@ pub fn observe(
     observed_at_ms: u64,
 ) -> Result<Observation, String> {
     if row.as_object().is_none_or(|row| row.len() != ROW_COLUMNS.len())
-        || receipt
-            .as_object()
-            .is_none_or(|receipt| receipt.len() != RECEIPT_COLUMNS.len())
+        || receipt.as_object().is_none_or(|receipt| receipt.len() != RECEIPT_COLUMNS.len())
     {
         return Err(REJECTED.into());
     }
     let receipt_digest = value_digest(&receipt)?;
     let command: CommandReceipt = serde_json::from_value(receipt).map_err(|_| REJECTED)?;
-    let row: Row = serde_json::from_value(row).map_err(|_| REJECTED)?;
+    let row = Row::decode(row)?;
     if row.effect_id != expected_effect
         || row.thread_id != expected_thread
         || row.status != "pending"
@@ -173,11 +116,9 @@ pub fn observe(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     fn fixture() -> Value {
-        serde_json::from_str(include_str!(
-            "../../test/t3-session-runtime/fixtures/pending-effect-row.json"
-        ))
-        .unwrap()
+        serde_json::from_str(include_str!("../../test/t3-session-runtime/fixtures/pending-effect-row.json")).unwrap()
     }
     fn observed(fixture: &Value) -> Result<Observation, String> {
         observe(

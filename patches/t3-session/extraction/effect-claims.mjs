@@ -67,6 +67,12 @@ export interface EffectOutboxV2Shape {
       EXISTS (SELECT 1 FROM sqlite_schema WHERE name = 'orchestration_v2_effect_outbox'
         AND type = 'table' AND substr(upper(sql), 1, 13) = 'CREATE TABLE ')
       AND NOT EXISTS (SELECT 1 FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = 'orchestration_v2_effect_outbox')
+      AND NOT EXISTS (SELECT 1 FROM sqlite_temp_schema WHERE type = 'trigger'
+        AND tbl_name = 'orchestration_v2_effect_outbox' COLLATE NOCASE)
+      AND NOT EXISTS (SELECT 1 FROM sqlite_schema AS own_schema
+        JOIN pragma_foreign_key_list(own_schema.name) AS own_reference
+        WHERE own_schema.type = 'table'
+          AND own_reference."table" = 'orchestration_v2_effect_outbox' COLLATE NOCASE)
       AND (SELECT json_group_array(name) FROM (
         SELECT name FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid
       )) = \${JSON.stringify(claimColumns)}

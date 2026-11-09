@@ -219,4 +219,10 @@ impl Destination {
         self.recheck()?;
         Ok(result)
     }
+    pub fn observe_process_loss(&self, generation: &str)
+        -> Result<nessie_windows_common::execution_process_loss::Observation, String> {
+        let result = read::process_loss(self.stage(generation)?, &self.owner)?;
+        self.recheck()?;
+        Ok(result)
+    }
 }

@@ -27,6 +27,7 @@ import { extractCommandLineage } from './command-lineage.mjs'
 import { extractEffectCommand } from './effect-command.mjs'
 import { extractEffectClaims } from './effect-claims.mjs'
 import { extractLifecycleTransactions } from './lifecycle.mjs'
+import { extractProcessLossPlans } from './process-loss.mjs'
 import { extractWorkerClaims } from './worker-claims.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
@@ -60,6 +61,7 @@ export const generateExtractionManifest = snapshot => {
   extractEffectCommand(author)
   extractEffectClaims(author)
   extractLifecycleTransactions(author)
+  extractProcessLossPlans(author)
   extractWorkerClaims(author)
   extractProviderSecretPlan(author)
   extractSelectedProvider(author, redirects)

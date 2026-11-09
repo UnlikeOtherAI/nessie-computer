@@ -152,12 +152,20 @@ read transaction; writes, private tables, extensions, ATTACH and mode changes re
 
 The exact physical schemas are required: 14 outbox columns, including
 `lease_expires_at`, and eight command-receipt columns. Unknown/missing columns,
-views, duplicate-key payload JSON and mismatched file witnesses refuse. A missing,
+views, persisted triggers, incoming foreign-key references, duplicate-key payload
+JSON and mismatched file witnesses refuse. A missing,
 foreign or nonpending row, or absent matching accepted receipt, returns `null`.
 The response contains identifiers, observation time and full row/payload/receipt
 hashes, never raw payload/error text. Observation time starts before reader I/O.
 The native source reader now shares its existing system DLL/readonly connection
 implementation with this service reader, retaining its separate static policy.
+
+The same resource's `inspectProcessLoss(graph)` now reads the entire original
+global recovery set from that held stage. It returns unsigned digest/count
+facts, matched against the scoped original outbox plan in the existing
+inspection context. Its [row-plan contract](t3-process-loss-plans.md) describes
+the exact conditional transaction, writer-local TEMP-trigger guard and remaining
+lifecycle authority. This read never starts recovery or a provider.
 
 `T3ExecutionPendingEffectObservation` is explicitly unsigned. The original durable
 receipt records command type and result sequence but no parent-command edge;

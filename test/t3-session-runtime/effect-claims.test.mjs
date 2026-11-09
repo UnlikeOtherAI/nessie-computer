@@ -253,6 +253,30 @@ test('an unrecognized outbox trigger cannot execute inside a conditional claim',
   }))
 })
 
+test('conditional claims also refuse foreign-key cascades and writer-local TEMP triggers', async () => {
+  for (const mode of ['foreign-key', 'temporary-trigger']) await fixture(Effect.gen(function* () {
+    const outbox = yield* Outbox.EffectOutboxV2, sql = yield* SqlClient.SqlClient
+    yield* outbox.enqueue([pending(mode)])
+    const candidate = getCandidate(yield* prepare(outbox, [mode]))
+    if (mode === 'foreign-key') {
+      yield* sql`CREATE UNIQUE INDEX claim_status_reference ON orchestration_v2_effect_outbox(status)`
+      yield* sql`CREATE TABLE claim_child (status TEXT REFERENCES orchestration_v2_effect_outbox(status)
+        ON UPDATE CASCADE)`
+      yield* sql`INSERT INTO claim_child VALUES ('pending')`
+      yield* failed(prepare(outbox, [mode]))
+    } else {
+      yield* sql`CREATE TABLE claim_temp_canary (value TEXT)`
+      yield* sql`CREATE TEMP TRIGGER claim_temp_trigger AFTER UPDATE ON main.orchestration_v2_effect_outbox
+        BEGIN INSERT INTO claim_temp_canary VALUES ('unexpected'); END`
+    }
+    const before = yield* rowState(mode)
+    assert.equal(Option.isNone(yield* outbox.claimPrepared({ candidate, ...deadline() })), true)
+    assert.deepEqual(yield* rowState(mode), before)
+    if (mode === 'foreign-key') assert.equal((yield* sql`SELECT status FROM claim_child`)[0].status, 'pending')
+    else assert.deepEqual(yield* sql`SELECT * FROM claim_temp_canary`, [])
+  }))
+})
+
 test('protected admission refusal leaves every durable row field unchanged and never reaches the executor', async () => {
   await fixture(Effect.gen(function* () {
     const outbox = yield* Outbox.EffectOutboxV2

@@ -80,6 +80,9 @@ Explicit T3 root configuration, the Windows held SQLite reader and its unrun nat
 Execution-only held settings, opaque provider homes and the protected graph/service duplication contract follow [execution resources](docs/t3-execution-resources.md); retained read consent grants no execution authority.
 Execution SQL uses the native [destination owner](docs/t3-execution-resources.md#native-execution-destination-ownership); writer/file pins grant no pending-row claim or recovery authority.
 Its independent [pending-effect reader](docs/t3-execution-resources.md#independent-pending-effect-observation) returns unsigned full-row facts; accepted receipts contain no original parent-command edge.
+Unsigned global recovery plans, exact conditional consumption and the independent
+held reader follow [process-loss plans](docs/t3-process-loss-plans.md).
+A match supplies no lifecycle permission.
 The same resource's [original command capture](docs/t3-execution-resources.md#protected-original-command-capture) retains live callback edges and verifies SQL acceptance; its bound observations grant no claim authority.
 The fixed `t3-execution secret-observe` companion records terminal environment-slot attempts; secret reads remain unavailable under [prelaunch secret reads](docs/prelaunch-secret-read.md).
 Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.

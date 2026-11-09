@@ -34,11 +34,12 @@ unsafe extern "C" fn authorize(
     let column = string(second);
     let allowed = match action {
         21 | 22 => true, // SELECT and the reader's fixed BEGIN/COMMIT only.
-        31 => column == "pragma_table_xinfo",
-        19 => table == "table_xinfo",
+        31 => ["pragma_table_xinfo", "pragma_foreign_key_list"].contains(&column),
+        19 => ["table_xinfo", "foreign_key_list"].contains(&table),
         20 => match table {
-            "sqlite_master" | "sqlite_schema" => ["name", "type", "sql"].contains(&column),
+            "sqlite_master" | "sqlite_schema" => ["name", "type", "sql", "tbl_name"].contains(&column),
             "pragma_table_xinfo" => ["name", "cid", "hidden"].contains(&column),
+            "pragma_foreign_key_list" => ["table", "arg"].contains(&column),
             "orchestration_v2_effect_outbox" => ROW_COLUMNS.contains(&column),
             "orchestration_command_receipts" => RECEIPT_COLUMNS.contains(&column),
             "orchestration_events" => EVENT_COLUMNS.contains(&column),
@@ -66,6 +67,13 @@ pub(super) fn schema(connection: &mut Connection, table: &str, columns: &[&str])
     {
         return Err(REJECTED.into());
     }
+    if connection.read_one("SELECT 1 AS present FROM sqlite_schema WHERE type = 'trigger' AND tbl_name = ? LIMIT 1",
+        &[table])?.is_some() { return Err(REJECTED.into()); }
+    if table == "orchestration_v2_effect_outbox" && connection.read_one(
+        "SELECT 1 AS present FROM sqlite_schema AS own_schema
+        JOIN pragma_foreign_key_list(own_schema.name) AS own_reference
+        WHERE own_schema.type = 'table' AND own_reference.\"table\" = ? COLLATE NOCASE LIMIT 1",
+        &[table])?.is_some() { return Err(REJECTED.into()); }
     let query = match table {
         "orchestration_v2_effect_outbox" => {
             "SELECT name, hidden FROM pragma_table_xinfo('orchestration_v2_effect_outbox') ORDER BY cid"
@@ -149,5 +157,39 @@ pub(super) fn observe(
     let observed_at_ms = now_ms()?;
     snapshot(main, owner, |connection| {
         pending(connection, thread, effect, observed_at_ms).map(|row| row.map(|(facts, _)| facts))
+    })
+}
+
+pub(super) fn process_loss(main: &HeldObject, owner: &str)
+    -> Result<nessie_windows_common::execution_process_loss::Observation, String> {
+    use nessie_windows_common::execution_process_loss as loss;
+    let observed_at_ms = now_ms()?;
+    snapshot(main, owner, |connection| {
+        schema(connection, "orchestration_v2_effect_outbox", ROW_COLUMNS)?;
+        // Only the pinned policy constants form this query; no caller SQL,
+        // selector or thread list reaches the global observation.
+        let names = |values: &[&str]| values.iter().map(|v| format!("'{}'", v.replace('\'', "''")))
+            .collect::<Vec<_>>().join(",");
+        let query = format!("SELECT * FROM orchestration_v2_effect_outbox WHERE
+            (status IN ('pending', 'running') AND effect_type IN ({}))
+            OR (status = 'running' AND effect_type IN ({}))
+            ORDER BY effect_id COLLATE BINARY ASC LIMIT {}",
+            names(loss::PROCESS_BOUND), names(loss::REPLAY_SAFE), loss::MAX_ROWS + 1);
+        let statement = connection.prepare(&query)?;
+        let result = (|| {
+            let mut rows = Vec::new();
+            let mut bytes = 0;
+            loop {
+                let value = connection.next(statement)?;
+                if value["done"] == true { break; }
+                if rows.len() >= loss::MAX_ROWS { return Err(REJECTED.into()); }
+                bytes += loss::encoded_row_size(&value["row"])?;
+                if bytes > loss::MAX_ROW_BYTES { return Err(REJECTED.into()); }
+                rows.push(value["row"].clone());
+            }
+            loss::observe(rows, observed_at_ms)
+        })();
+        connection.finish(statement)?;
+        result
     })
 }

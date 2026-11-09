@@ -3,6 +3,7 @@ import * as Schema from 'effect/Schema'
 import { EnvironmentId } from '@nessie/t3-session-source/contracts'
 import { T3ExecutionResourceReceiptSchema, T3_EXECUTION_SETTINGS_LIMIT,
   T3ExecutionPendingEffectObservationSchema, type T3ExecutionPendingEffectObservation,
+  T3ExecutionProcessLossObservationSchema, type T3ExecutionProcessLossObservation,
   T3ExecutionBoundPendingEffectObservationSchema, type T3ExecutionBoundPendingEffectObservation,
   type T3ExecutionResourceReceipt, type T3ExecutionProviderResource } from '@nessie/executor-protocol'
 import { T3ExecutionReceiptSchema, T3ExecutionSignedAdmissionSchema,
@@ -38,6 +39,7 @@ export interface T3ExecutionResourceScope {
   withDestination<A>(use: (destination: T3ExecutionDestinationScope) => Promise<A>): Promise<A>
   /** Actual native row/receipt metadata only; no parent-edge proof or claim grant. */
   inspectPendingEffect(graph: T3ExecutionGraph, effectId: string): Promise<T3ExecutionPendingEffectObservation | null>
+  inspectProcessLoss(graph: T3ExecutionGraph): Promise<T3ExecutionProcessLossObservation>
   withOriginalCommandLineage<A>(graph: T3ExecutionGraph, retentionExpiresAt: number, signal: AbortSignal,
     use: (sink: SessionOriginalCommandSink) => Promise<A>): Promise<A>
   inspectBoundPendingEffect(graph: T3ExecutionGraph, effectId: string):
@@ -210,6 +212,14 @@ export async function withT3ExecutionResources<A>(input: {
           && observed.threadId === candidate.binding.threadId, 'execution_destination_effect_mismatch')
         await recheck()
         return observed
+      },
+      inspectProcessLoss: async (graph: T3ExecutionGraph) => {
+        await recheck()
+        const candidate = executionGraphCandidate(graph, receipt)
+        const answer = native.exchange({ op: 'executionDestinationObserveProcessLoss', graph: candidate })
+        const observation = T3ExecutionProcessLossObservationSchema.parse(answer.observation)
+        await recheck()
+        return observation
       },
       withOriginalCommandLineage: <R>(graph: T3ExecutionGraph, retentionExpiresAt: number, parent: AbortSignal,
         useSink: (sink: SessionOriginalCommandSink) => Promise<R>) => withExecutionCommandCapture(native.exchange,

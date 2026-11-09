@@ -75,6 +75,13 @@ impl Session for ExecutionResource {
                 service(Request::ObserveDestinationEffect { executor_id: self.receipt.evidence.source.executor_id.clone(),
                     resource_id: self.receipt.resource_id.clone(), graph, effect_id })
             },
+            "executionDestinationObserveProcessLoss" if fields.len() == 2 => {
+                self.destination.as_ref().ok_or_else(fail)?.recheck()?;
+                let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
+                service(Request::ObserveDestinationProcessLoss {
+                    executor_id: self.receipt.evidence.source.executor_id.clone(),
+                    resource_id: self.receipt.resource_id.clone(), graph })
+            },
             "executionCommandOpen" if fields.len() == 3 => {
                 self.destination.as_ref().ok_or_else(fail)?.recheck()?;
                 let graph = serde_json::from_value(request["graph"].clone()).map_err(|_| fail())?;
