@@ -36,7 +36,9 @@ copying the same app on each restart.
 A newer app installed over an older one restarts the helper by itself while
 the installed runtime is older than its own. The helper installs the app's
 runtime only while no team process runs, and tries for about a minute after it
-starts, so the app stops its teams for that restart. The helper answers status
+starts, so the app stops its teams for that restart, and restarts the helper
+only once every team process has gone, including one the previous copy of the
+app started, which can outlive it for a minute or two. The helper answers status
 only once that attempt is over, and launchd can take minutes to start a helper
 that was just registered again, so the teams start again once the installed
 runtime is the app's version, the helper answers again at least ninety seconds

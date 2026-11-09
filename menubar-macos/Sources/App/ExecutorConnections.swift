@@ -244,6 +244,12 @@ final class ExecutorConnections: ObservableObject {
     func holdTeams(until version: String, restartingHelper restart: () async -> Void) async {
         ComputerUpdateService.holdingTeams = true
         for controller in controllers { _ = await controller.stopDaemonWithoutBlocking() }
+        // A team process the previous copy of this app started can outlive it
+        // for a minute or two; the helper's minute starts once it has gone.
+        let settling = Date().addingTimeInterval(240)
+        while Date() < settling, controllers.contains(where: \.daemonLeaseHeld) {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
         await restart()
         let restarted = Date()
         while Date() < restarted.addingTimeInterval(600), ComputerUpdateService.installedVersion != version,

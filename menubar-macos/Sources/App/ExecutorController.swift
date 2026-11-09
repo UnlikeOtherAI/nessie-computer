@@ -272,6 +272,12 @@ final class ExecutorController: ObservableObject {
 
     // MARK: - Supervision
 
+    /// A team process still holds this team's lease: this app's own, or one an
+    /// earlier copy of the app started, which can outlive it for a while.
+    var daemonLeaseHeld: Bool {
+        leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 })
+    }
+
     private var pairingBlocksStart: Bool {
         pairing.busy || pairing.state?.isPending == true
             || ExecutorStateDiscovery.pendingAttemptBlocksStart(in: stateDirectory)
