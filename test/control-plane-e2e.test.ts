@@ -186,6 +186,12 @@ test('pairing, signed control traffic, and selected-folder enforcement work end 
       }
       if (path === '/api/executor-daemon/commands/poll') {
         assert.equal(body.connectionEpoch, connectionEpoch)
+        if (body.concurrency !== undefined) {
+          // An older Nessie parses the poll strictly and refuses the concurrent fields by name;
+          // the daemon then polls one command at a time for the rest of the connection.
+          send(response, { code: 'VALIDATION_ERROR', message: "Unrecognized key(s) in object: 'concurrency'" }, 400)
+          return
+        }
         if (body.activeCommand) {
           const { signature, ...payload } = body
           assertSignature(publicKey, 'nessie.executor.daemon.cancel.v1', payload, signature)
