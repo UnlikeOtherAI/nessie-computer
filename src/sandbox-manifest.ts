@@ -84,11 +84,11 @@ export const relativeManifestPath = (workspace: string, path: string): string =>
 
 const parseBaseManifest = (value: unknown): BaseManifest => {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+    throw new WorkspacePathError('The sandbox base manifest is invalid.')
   }
   const manifest = value as { files?: unknown; version?: unknown }
   if (manifest.version !== 1 || !manifest.files || typeof manifest.files !== 'object' || Array.isArray(manifest.files)) {
-    throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+    throw new WorkspacePathError('The sandbox base manifest is invalid.')
   }
   const files: Record<string, ManifestEntry> = {}
   for (const [path, entry] of Object.entries(manifest.files)) {
@@ -103,11 +103,11 @@ const parseBaseManifest = (value: unknown): BaseManifest => {
       || (entry as ManifestEntry).byteCount < 0
       || !/^sha256:[a-f0-9]{64}$/.test((entry as ManifestEntry).digest)
     ) {
-      throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+      throw new WorkspacePathError('The sandbox base manifest is invalid.')
     }
     files[path] = entry as ManifestEntry
     if (Object.keys(files).length > MAX_SOURCE_FILES) {
-      throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+      throw new WorkspacePathError('The sandbox base manifest is invalid.')
     }
   }
   return { files, version: 1 }
@@ -118,7 +118,7 @@ const readBaseManifest = async (path: string): Promise<BaseManifest> => {
   try {
     const info = await handle.stat()
     if (!info.isFile() || info.nlink > 1 || info.size > 4 * 1024 * 1024) {
-      throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+      throw new WorkspacePathError('The sandbox base manifest is invalid.')
     }
     const bytes = Buffer.allocUnsafe(info.size)
     let offset = 0
@@ -127,12 +127,12 @@ const readBaseManifest = async (path: string): Promise<BaseManifest> => {
       if (bytesRead === 0) break
       offset += bytesRead
     }
-    if (offset !== bytes.byteLength) throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+    if (offset !== bytes.byteLength) throw new WorkspacePathError('The sandbox base manifest is invalid.')
     try {
       return parseBaseManifest(JSON.parse(bytes.toString('utf8')))
     } catch (error) {
       if (error instanceof WorkspacePathError) throw error
-      throw new WorkspacePathError('The executor sandbox base manifest is invalid.')
+      throw new WorkspacePathError('The sandbox base manifest is invalid.')
     }
   } finally {
     await handle.close()
@@ -213,7 +213,7 @@ export const promotionManifestForSandbox = async (
 ): Promise<SandboxPromotionManifest> => {
   const parsedRunId = RunIdSchema.parse(runId)
   const paths = await sandboxPaths(stateDir, runId)
-  await assertOrdinaryDirectory(paths.root, 'The executor sandbox is unavailable.')
+  await assertOrdinaryDirectory(paths.root, 'The sandbox is unavailable.')
   // A guest whose shares are block devices holds its edits in a draft image
   // until they are streamed back. Reviewing before that flush would report a
   // change set the person has already made and cannot see.
@@ -223,7 +223,7 @@ export const promotionManifestForSandbox = async (
     const folderPaths = await sandboxFolderPaths(stateDir, runId, name)
     const workspace = await configureOrdinaryDirectory(
       folderPaths.workspace,
-      'The executor sandbox workspace',
+      'The sandbox workspace',
     )
     const [base, current] = await Promise.all([
       readBaseManifest(folderPaths.baseManifest),
@@ -246,7 +246,7 @@ export const promotionManifestForSandbox = async (
     path: executorWorkspacePath(folder.name, change.path),
   })))
   if (changes.length > MAX_REVIEW_CHANGES) {
-    throw new WorkspacePathError('The executor sandbox change set exceeds the review limit.')
+    throw new WorkspacePathError('The sandbox change set exceeds the review limit.')
   }
   const unsigned = { changes, protocolVersion: 1 as const, runId: parsedRunId }
   return {

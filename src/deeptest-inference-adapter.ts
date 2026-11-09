@@ -7,7 +7,7 @@ import { parseDeepTestInferenceRequest, type DeepTestInferenceResponse } from '.
 const MAX_FRAME = 1024 * 1024
 const failure = (requestId: string, code: string): DeepTestInferenceResponse => ({
   protocol_version: 1, request_id: requestId, status: 'error',
-  error: { code, message: 'Executor inference could not complete this request.', retryable: code === 'INFERENCE_UNAVAILABLE' },
+  error: { code, message: 'This computer could not complete this inference request.', retryable: code === 'INFERENCE_UNAVAILABLE' },
 })
 const safeCodes = new Set(['REQUEST_INVALID', 'BINDING_MISMATCH', 'HELLO_REQUIRED', 'GRANT_REVOKED', 'CANCELLED',
   'MODEL_CHANGED', 'UNSUPPORTED_CAPABILITY', 'OUTPUT_BYTES_LIMIT', 'INFERENCE_INCOMPLETE', 'FRAME_TOO_LARGE'])

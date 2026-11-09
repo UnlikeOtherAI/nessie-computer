@@ -5,6 +5,11 @@ use nessie_executor_updater::catalog::UpdateResult;
 use std::{ffi::CStr, fs::{self, OpenOptions}, os::unix::fs::{MetadataExt, OpenOptionsExt}, path::{Path, PathBuf}};
 
 const ERROR: &str = "update.custody_unverified";
+#[cfg(target_os = "macos")]
+const DESKTOP_EXECUTABLES: [&str; 2] = [
+    "/Applications/Nessie.app/Contents/MacOS/nessie-desktop",
+    "/Applications/Nessie Desktop.app/Contents/MacOS/nessie-desktop",
+];
 pub(crate) fn activity(arguments: &[String]) -> Option<String> {
     arguments.first().filter(|argument| matches!(argument.as_str(),
         "serve" | "serve-direct-local-inference" | "personal-chatgpt-credential")).cloned()
@@ -98,12 +103,15 @@ fn allowed(process: &Process, menu_apps: bool) -> UpdateResult<bool> {
     }
     #[cfg(target_os = "macos")]
     if super::macos_applications::allowed(process, menu_apps)? { return Ok(true); }
+    // Nessie Desktop stays only when its sealed floor says it launches the
+    // installed runtime and never its own. Any other build (an older one, a
+    // development-signed one) must exit first; that is a wait, not a failure,
+    // so recovery keeps trying instead of giving up. The bundle's executable
+    // is `nessie-desktop`; the earlier `Nessie` path never matched.
     #[cfg(target_os = "macos")]
-    if ["/Applications/Nessie.app/Contents/MacOS/Nessie", "/Applications/Nessie Desktop.app/Contents/MacOS/Nessie"]
-        .iter().any(|path| process.executable == Path::new(path)) {
+    if DESKTOP_EXECUTABLES.iter().any(|path| process.executable == Path::new(path)) {
         let app = process.executable.parent().and_then(Path::parent).and_then(Path::parent).ok_or(ERROR)?;
-        crate::macos_provenance::require_independent_app(app).map_err(|_| ERROR)?;
-        return Ok(true);
+        return Ok(crate::macos_provenance::require_independent_app(app).is_ok());
     }
     // All runtimes, credential actors, native parents and sandbox processes
     // must leave naturally. The menu app also exits before its package changes.
@@ -116,8 +124,23 @@ pub(super) fn ready() -> UpdateResult<bool> {
 }
 
 pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResult<bool> {
+    // A macOS journal whose creation ended with nothing of its own left is not
+    // a runtime that must leave: the corrected creator drops these itself.
+    // Earlier creators kept them whenever any team held a host registration,
+    // and their supervisors ended on a refused snapshot with the journal and
+    // host leases of a daemon in place; an installed one still does, so
+    // without this the swap that brings the corrected creator could never
+    // clear. Nothing is pruned here; the new creator removes them on its first
+    // launch. Product processes are still waited for below.
+    #[cfg(target_os = "macos")]
+    let groups = crate::macos_processes::live_groups().map_err(|_| ERROR)?;
     for (uid, root) in roots()? {
-        if !records(uid, &root)?.is_empty() { return Ok(false); }
+        for record in records(uid, &root)? {
+            #[cfg(target_os = "macos")]
+            if matches!(crate::managed_macos_closure::ended_creation(&record, &root, &groups), Ok(true)) { continue; }
+            let _ = record;
+            return Ok(false);
+        }
     }
     let mut initial = unix_process::products()?;
     initial.sort_by_key(|process| process.pid);

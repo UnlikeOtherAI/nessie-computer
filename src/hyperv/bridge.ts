@@ -36,7 +36,7 @@ export const bridgeArgv = (input: {
   vmId: string
 }): string[] => {
   if (!VM_ID.test(input.vmId)) {
-    throw new WorkspacePathError('The executor guest VM identity is invalid.')
+    throw new WorkspacePathError('The guest VM identity is invalid.')
   }
   return [
     '--vm-id', input.vmId,

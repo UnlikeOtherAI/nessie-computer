@@ -52,7 +52,9 @@ export const uploadSessionFile: (token: string, body: Uint8Array | HttpServerReq
 })
 
 export const createSessionAsset: (input: unknown, admittedWorkspaceRoot?: string) =>
-  Effect.Effect<Effect.Success<AssetIssue>, Schema.SchemaError | Effect.Error<AssetIssue>, Effect.Services<AssetIssue>> =
+  Effect.Effect<
+    Effect.Success<AssetIssue>, Schema.SchemaError | Effect.Error<AssetIssue>, Effect.Services<AssetIssue>
+  > =
   Effect.fn('SessionFiles.createAsset')(function* (
   input: unknown, admittedWorkspaceRoot?: string,
 ) {
@@ -90,7 +92,9 @@ export const readSessionAsset: (input: AssetInput) => AssetResponse =
   )
 })
 
-const readAssetBody: (input: AssetInput, recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>) => AssetResponse =
+const readAssetBody: (
+  input: AssetInput, recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>,
+) => AssetResponse =
   Effect.fn('SessionFiles.readAssetBody')(function* (input: AssetInput,
     recheck: () => Effect.Effect<void, FilePorts.FileBoundaryError>) {
   const access = yield* FilePorts.FileAccess

@@ -32,9 +32,9 @@ const NODE_EXECUTABLES: [&str; 2] = ["nessie-executor-runtime", "nessie-executor
 /// The only two names the packaged native helper may have.
 const NATIVE_HELPERS: [&str; 2] = ["nessie-executor-native", "nessie-executor-native.exe"];
 
-const INVALID: &str = "The Nessie Executor packaged runtime is invalid.";
-const UNAVAILABLE: &str = "The Nessie Executor packaged runtime is unavailable.";
-const TAMPERED: &str = "The Nessie Executor packaged runtime did not pass integrity verification.";
+const INVALID: &str = "The Nessie Computer packaged runtime is invalid.";
+const UNAVAILABLE: &str = "The Nessie Computer packaged runtime is unavailable.";
+const TAMPERED: &str = "The Nessie Computer packaged runtime did not pass integrity verification.";
 
 /// Serde ignores keys it does not know, which is why `nodeExecutable` could be
 /// added without moving off `format: 1`: an older reader still verifies

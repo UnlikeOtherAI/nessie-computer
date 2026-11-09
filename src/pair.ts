@@ -11,25 +11,28 @@ import { parseT3Homes } from './t3-session/source/configuration.js'
 import {
   canonicalExecutorJson,
   canonicalExecutorPayload,
-  EXECUTOR_COMMAND_ALLOWLIST_MAXIMUM,
   EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
-  ExecutorCommandAllowlistSchema,
   ExecutorEnrollmentRequestSchema,
-  formatExecutorCommandPattern,
-  parseExecutorCommandPattern,
   ImplementedExecutorOperationKeySchema,
   type ExecutorEnrollmentRequest,
   type ExecutorSignedDescriptor,
 } from '@nessie/executor-protocol'
 
 import { executorApi } from './api-client.js'
-import { localCommandPolicyOf, parseLocalCommandPolicy, type LocalCommandPolicy } from './command-policy.js'
+import {
+  configuredCommandAllowlist, localCommandPolicyOf, pairedLocalCommandPolicy, parseLocalCommandPolicy,
+  type LocalCommandPolicy,
+} from './command-policy.js'
+import { websitesFor, type ExecutorConfigurationSettings } from './configuration-input.js'
 import { planCodingSessions, type CodingSessionsRequest } from './coding-sessions-policy.js'
 import { assertHostSupportsOperations, buildSignedDescriptor } from './descriptor.js'
 import { compileExecutorEgressPolicy } from './egress-policy.js'
 import { verifyPrivateCodexAuthProfile, verifyPrivateGuestVmFile } from './guest-vm-artifacts.js'
 import { verifyGuestRuntimeBundle } from './guest-runtime-bundle.js'
 import { detectExecutorHost, type ExecutorHost } from './host-platform.js'
+import { discoverLocalApps } from './local-app-discovery.js'
+import { composeLocalMcpServers, managedMcpOperations } from './local-mcp-apps.js'
+import { localMcpPolicyOf, MCP_OPERATION_KEYS, pairedLocalMcpPolicy } from './mcp-policy.js'
 import { executorLocalMcpServerNames, type ExecutorLocalMcpServer } from './mcp-servers.js'
 import { verifyNativeHelperPath } from './native-helper.js'
 import {
@@ -104,7 +107,6 @@ const CONNECTED_BROWSER_OPERATION_KEYS = [
 ] as const
 export const CODING_OPERATION_KEYS = ['coding.launch', 'coding.observe'] as const
 export const COMMAND_OPERATION_KEY = 'command.run' as const
-export const MCP_OPERATION_KEYS = ['mcp.tools', 'mcp.call'] as const
 
 type GuestVmArtifactInput = {
   guestInitrdBuilderPath: string
@@ -144,46 +146,16 @@ const initialLocalPolicy = {
   revision: 1,
 }
 
-/**
- * The permitted commands, normalised and in one canonical order so that
- * re-stating the same policy — or typing two spaces — is not a new revision
- * for a person to review. Unparseable entries are refused rather than quietly
- * dropped: a list that does not say what its author wrote is worse than none.
- */
-const configuredCommandAllowlist = (requested: readonly string[]): string[] => {
-  const parsed = ExecutorCommandAllowlistSchema.safeParse([...requested])
-  if (!parsed.success) {
-    throw new Error(
-      'A permitted command is a program the guest resolves through its fixed PATH, '
-      + 'optionally followed by arguments and a trailing "*" — for example "git *" or '
-      + `"npm run *". Paths, shells and a leading "*" are refused, at most ${
-        EXECUTOR_COMMAND_ALLOWLIST_MAXIMUM
-      } entries.`,
-    )
-  }
-  const normalised = parsed.data.map((entry) => {
-    const pattern = parseExecutorCommandPattern(entry)
-    // The schema just proved every entry parses; this keeps the compiler honest
-    // without inventing a second refusal for a state that cannot happen.
-    return pattern === undefined ? entry : formatExecutorCommandPattern(pattern)
-  })
-  if (new Set(normalised).size !== normalised.length) {
-    throw new Error('Each permitted command is listed once.')
-  }
-  return normalised.sort()
-}
-
 const configuredOperationKeys = (
   requestedOperationKeys: string[],
   browserConfigured: boolean,
   codexConfigured: boolean,
   host: ExecutorHost,
-  commandPolicy: LocalCommandPolicy,
   mcpServerCount: number,
 ): string[] => {
   const requested = new Set(requestedOperationKeys)
   if (requested.size === 0 || requested.size !== requestedOperationKeys.length) {
-    throw new Error('Specify one or more distinct implemented executor operations.')
+    throw new Error('Name one or more distinct operations this computer implements.')
   }
   if ([...requested].some((operationKey) => (
     !ImplementedExecutorOperationKeySchema.safeParse(operationKey).success
@@ -222,12 +194,6 @@ const configuredOperationKeys = (
     !requested.has('workspace.review') || !requested.has('sandbox.stop')
   )) {
     throw new Error('command.run requires workspace.review and sandbox.stop.')
-  }
-  // An enabled operation that can never succeed is a misconfiguration, not a
-  // policy: with no permitted program, every command.run would be refused at
-  // dispatch while the executor advertised the capability.
-  if (requested.has(COMMAND_OPERATION_KEY) && commandPolicy.mode === 'allowlist' && commandPolicy.allowlist.length === 0) {
-    throw new Error('Name at least one permitted program before enabling command.run.')
   }
   const requestedMcpOperations = MCP_OPERATION_KEYS.filter((operationKey) => requested.has(operationKey))
   if (requestedMcpOperations.length > 0 && requestedMcpOperations.length !== MCP_OPERATION_KEYS.length) {
@@ -268,7 +234,9 @@ const profilesForOperationKeys = (operationKeys: string[]): string[] =>
  *
  * An omitted `commandAllowlist` keeps the permitted programs the policy already
  * names — a caller changing operations does not silently disarm the list — and
- * an empty one clears them, which `command.run` then refuses.
+ * an empty one clears them, which `command.run` then refuses. `settings` carry
+ * the local-apps policy and the websites; under the `installed` local-apps
+ * policy discovery runs and the MCP operation pair follows the servers found.
  */
 export const configureExecutorLocalPolicy = async (
   stateDir: string,
@@ -280,13 +248,15 @@ export const configureExecutorLocalPolicy = async (
   commandAllowlist?: readonly string[],
   // An omitted list keeps the named servers; an empty one removes them all,
   // which the operation check below then refuses while mcp.* stays enabled.
+  // Discovered servers are never the owner's: discovery supplies them below.
   mcpServers: readonly ExecutorLocalMcpServer[] = state.mcpServers ?? [],
   // The built-in coding-sessions bridge is never a named server: the executor
   // generates its entry from this, and its power facts join the descriptor.
   codingSessions: CodingSessionsRequest = {},
   commandPolicy?: LocalCommandPolicy,
-  t3SourceHomes?: ExecutorLocalState['t3SourceHomes'],
+  settings: ExecutorConfigurationSettings = {},
 ): Promise<ExecutorLocalState> => {
+  const mcpPolicy = settings.mcpPolicy ?? localMcpPolicyOf(state)
   const permittedPrograms = configuredCommandAllowlist(commandAllowlist ?? state.descriptor.commandAllowlist ?? [])
   const localRules = commandPolicy !== undefined ? parseLocalCommandPolicy(commandPolicy)
     : commandAllowlist !== undefined
@@ -305,13 +275,13 @@ export const configureExecutorLocalPolicy = async (
     stateDir,
     workspaceFolders: canonicalWorkspaceFolders,
   })
-  const namedMcpServers = bridge.servers
+  const discovered = mcpPolicy.mode === 'installed' ? await (settings.discover ?? discoverLocalApps)() : []
+  const namedMcpServers = composeLocalMcpServers(bridge.servers, discovered, mcpPolicy)
   const operationKeys = configuredOperationKeys(
-    requestedOperationKeys,
+    managedMcpOperations(requestedOperationKeys, mcpPolicy, namedMcpServers.length),
     Boolean(state.browserSandbox),
     Boolean(state.codexSandbox),
     host,
-    localRules,
     namedMcpServers.length,
   )
   const helper = nativeHelperPath
@@ -323,8 +293,10 @@ export const configureExecutorLocalPolicy = async (
   await bridge.persist(operationKeys)
   const next: ExecutorLocalState = {
     ...state,
-    ...(t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(t3SourceHomes) }),
+    ...(settings.t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(settings.t3SourceHomes) }),
+    ...(settings.allowedOrigins === undefined ? {} : websitesFor(state, settings.allowedOrigins)),
     commandPolicy: localRules,
+    ...(settings.mcpPolicy || state.mcpPolicy ? { mcpPolicy } : {}),
     // Local edits migrate legacy command rules out of the public descriptor.
     // The server receives capability facts, never the machine's launch rules.
     descriptor: {
@@ -388,7 +360,7 @@ export const configureExecutorBrowserSandbox = async (
     ...currentNonBrowserOperations,
     'sandbox.stop',
     ...BROWSER_OPERATION_KEYS,
-  ])], true, Boolean(state.codexSandbox), host, localCommandPolicyOf(state), state.mcpServers?.length ?? 0)
+  ])], true, Boolean(state.codexSandbox), host, state.mcpServers?.length ?? 0)
   const next: ExecutorLocalState = {
     ...state,
     browserSandbox,
@@ -399,6 +371,8 @@ export const configureExecutorBrowserSandbox = async (
       revision: state.descriptor.revision + 1,
     },
   }
+  // The browser's own list now holds the websites; one chosen before it existed is replaced by it.
+  delete next.allowedOrigins
   await saveExecutorState(stateDir, next, state)
   return next
 }
@@ -438,7 +412,7 @@ export const configureExecutorCodexSandbox = async (
     'workspace.review',
     'sandbox.stop',
     ...CODING_OPERATION_KEYS,
-  ])], Boolean(state.browserSandbox), true, host, localCommandPolicyOf(state), state.mcpServers?.length ?? 0)
+  ])], Boolean(state.browserSandbox), true, host, state.mcpServers?.length ?? 0)
   const next: ExecutorLocalState = {
     ...state,
     codexSandbox,
@@ -527,7 +501,7 @@ const assertPreparedPairingMatches = (
     })
     storedPublicKey = rawEd25519PublicKey(createPublicKey(privateKey))
   } catch {
-    throw new Error('Executor pairing state contains an invalid private key.')
+    throw new Error('This team’s pairing state contains an invalid private key.')
   }
   if (
     prepared.apiBaseUrl !== input.apiBaseUrl
@@ -538,7 +512,7 @@ const assertPreparedPairingMatches = (
     || !sameWorkspaceFolders(prepared.workspaceFolders, workspaceFolders)
   ) {
     throw new Error(
-      'This executor state directory contains a different unfinished pairing. '
+      'This team’s folder contains a different unfinished pairing. '
       + 'Complete that pairing before starting another.',
     )
   }
@@ -561,6 +535,8 @@ export const pairExecutor = async (
   const pending = await dependencies.submitEnrollment(prepared.apiBaseUrl, prepared.request)
   const state: ExecutorLocalState = {
     apiBaseUrl: prepared.apiBaseUrl,
+    commandPolicy: pairedLocalCommandPolicy(),
+    mcpPolicy: pairedLocalMcpPolicy(),
     descriptor: {
       ...initialLocalPolicy,
       workspaceFolders: executorWorkspaceFolderNames(prepared.workspaceFolders),

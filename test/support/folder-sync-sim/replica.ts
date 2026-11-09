@@ -71,9 +71,9 @@ export class SimReplica {
     return this.clock() + this.skewMs
   }
 
-  /** The team folder: the root plus the team label (each computer has its own root). */
+  /** The team folder: `<Organisation>/<Team>` under the root (each computer has its own root). */
   teamDir(): string {
-    return this.engine.teamDir() ?? join(this.root, this.view.teamLabel)
+    return this.engine.teamDir() ?? join(this.root, this.view.organizationName, this.view.teamLabel)
   }
 
   private newEngine(): FolderSyncEngine {

@@ -126,7 +126,8 @@ function createRetainedImportAuthority(stateDirectory: string, raw: RetainedImpo
     : Object.freeze({ basis: 'prospective-import-grant', revision: lease.selectionKey, scope: 'threads',
         threadIds: Object.freeze(lease.selection.threadIds.map(id => SourceContracts.ThreadId.make(id))),
         projectIds: Object.freeze(lease.selection.projectIds.map(id => SourceContracts.ProjectId.make(id))) })
-  const authority: RetainedImportAuthorityPort & RetainedCatalogAuthorityPort & RetainedCatalogPublicationAuthorityPort = {
+  const authority: RetainedImportAuthorityPort & RetainedCatalogAuthorityPort
+    & RetainedCatalogPublicationAuthorityPort = {
     basis: 'prospective-import-grant', captureGeneration: lease.captureGeneration,
     withReadScope: async (input, use) => {
       requireCapture(input.purpose === 'retained-import-read' && (lease.purpose === 'capture' || lease.purpose === 'read'),
@@ -169,11 +170,14 @@ export async function withRetainedImportLocally<A>(stateDirectory: string,
       const verification = RetainedImportVerificationSchema.parse(await retainedImportPost(stateDirectory, {
         operation: 'verification.issue', grantId: challenge.challengeId, purpose: 'consume',
       }))
-      const consent = await owner.consumeRetainedImportApproval({ challenge, receipt, physicalSourceRecheck, verification })
+      const consent = await owner.consumeRetainedImportApproval({
+        challenge, receipt, physicalSourceRecheck, verification,
+      })
       let committed = false
       try {
         await consent.recheck()
-        const { bootstrapLeases, ...grant } = RetainedImportActivationSchema.parse(await retainedImportPost(stateDirectory, {
+        const { bootstrapLeases, ...grant } = RetainedImportActivationSchema.parse(
+          await retainedImportPost(stateDirectory, {
           operation: 'consent.commit', challenge, receipt,
           liveProof: RetainedImportLiveProofSchema.parse(consent.initialProof) }))
         requireCapture(grant.status === 'active' && grant.grantId === challenge.challengeId

@@ -63,7 +63,8 @@ export function createT3EffectAuthorityClient(state: () => ExecutorLocalState) {
     const before = state()
     const origin = new URL(before.apiBaseUrl)
     if (origin.protocol !== 'https:' || origin.username || origin.password
-      || before.executorId !== selection.executorId || before.connectionEpoch !== selection.connectionEpoch) throw refused()
+      || before.executorId !== selection.executorId
+      || before.connectionEpoch !== selection.connectionEpoch) throw refused()
     const started = Date.now()
     const payload = { executorId: before.executorId, connectionEpoch: selection.connectionEpoch,
       selection, observedAt: new Date(started).toISOString(), requestNonce: randomUUID() }

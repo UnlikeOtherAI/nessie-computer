@@ -1,24 +1,13 @@
 //! Restart only an authenticated native tray in its original interactive account.
-use super::runtime::{runtime, system, wide, PIN};
+use super::runtime::{runtime, system, PIN};
 use crate::updates::host::root;
 use nessie_executor_updater::{catalog::UpdateResult, storage::Store};
 use nessie_windows_common::{
-    custody::Generation, custody_observation::absent, process::{self, Owned, Process},
+    custody::Generation, custody_observation::absent, process::{self, Process},
     update_admission::Admission,
 };
 use serde::{Deserialize, Serialize};
-use std::{ffi::OsStr, mem::size_of};
-use windows_sys::Win32::{
-    Foundation::{CloseHandle, HANDLE},
-    Security::{GetTokenInformation, TokenUser, TOKEN_USER},
-    System::{
-        Environment::{CreateEnvironmentBlock, DestroyEnvironmentBlock},
-        Pipes::GetNamedPipeClientProcessId,
-        RemoteDesktop::WTSQueryUserToken,
-        Threading::{CreateProcessAsUserW, TerminateProcess, CREATE_UNICODE_ENVIRONMENT,
-            PROCESS_INFORMATION, STARTUPINFOW},
-    },
-};
+use windows_sys::Win32::{Foundation::HANDLE, System::Pipes::GetNamedPipeClientProcessId};
 
 const ERROR: &str = "update.application_restart_unavailable";
 #[derive(Deserialize, Serialize)]
@@ -70,74 +59,9 @@ pub(in crate::updates) fn prepare_exit(pipe: HANDLE, allowed: bool) -> UpdateRes
     Ok(true)
 }
 
-fn token_sid(token: HANDLE) -> UpdateResult<String> {
-    let mut length = 0;
-    unsafe { GetTokenInformation(token, TokenUser, std::ptr::null_mut(), 0, &mut length) };
-    if length == 0 || length > 65_536 { return Err(ERROR); }
-    let mut buffer = vec![0_usize; (length as usize).div_ceil(size_of::<usize>())];
-    if unsafe { GetTokenInformation(token, TokenUser, buffer.as_mut_ptr().cast(), length, &mut length) } == 0 {
-        return Err(ERROR);
-    }
-    let user = unsafe { &*buffer.as_ptr().cast::<TOKEN_USER>() };
-    nessie_windows_common::sid_to_string(user.User.Sid).ok_or(ERROR)
-}
-
-fn environment(token: HANDLE) -> UpdateResult<Vec<u16>> {
-    let mut pointer = std::ptr::null_mut();
-    if unsafe { CreateEnvironmentBlock(&mut pointer, token, 0) } == 0 { return Err(ERROR); }
-    let result = (|| {
-        let mut offset = 0;
-        let mut filtered = Vec::new();
-        while offset < 131_072 {
-            let start = offset;
-            while offset < 131_072 && unsafe { *pointer.cast::<u16>().add(offset) } != 0 { offset += 1; }
-            if offset >= 131_072 { return Err(ERROR); }
-            if start == offset { filtered.push(0); return Ok(filtered); }
-            let entry = unsafe { std::slice::from_raw_parts(pointer.cast::<u16>().add(start), offset - start) };
-            let text = String::from_utf16(entry).map_err(|_| ERROR)?;
-            let key = text.split_once('=').map(|value| value.0.to_ascii_uppercase());
-            if key.as_deref().is_some_and(|key| matches!(key, "USERPROFILE" | "APPDATA" | "LOCALAPPDATA"
-                | "TEMP" | "TMP" | "HOMEDRIVE" | "HOMEPATH" | "USERNAME" | "USERDOMAIN"
-                | "PATH" | "SYSTEMROOT" | "WINDIR")) {
-                filtered.extend_from_slice(entry);
-                filtered.push(0);
-            }
-            offset += 1;
-        }
-        Err(ERROR)
-    })();
-    unsafe { DestroyEnvironmentBlock(pointer) };
-    result
-}
-
 fn launch(application: &Application, executable: &std::path::Path) -> UpdateResult<Generation> {
-    if process::session_owner(application.session).map_err(|_| ERROR)? != application.owner_sid { return Err(ERROR); }
-    let mut token = std::ptr::null_mut();
-    if unsafe { WTSQueryUserToken(application.session, &mut token) } == 0 { return Err(ERROR); }
-    let token = Owned(token);
-    if token_sid(token.0)? != application.owner_sid { return Err(ERROR); }
-    let mut environment = environment(token.0)?;
-    let image = wide(executable.as_os_str());
-    let mut arguments = wide(OsStr::new(&format!("\"{}\"", executable.display())));
-    let mut desktop = wide(OsStr::new("winsta0\\default"));
-    let directory = wide(executable.parent().ok_or(ERROR)?.as_os_str());
-    let mut startup: STARTUPINFOW = unsafe { std::mem::zeroed() };
-    startup.cb = size_of::<STARTUPINFOW>() as u32;
-    startup.lpDesktop = desktop.as_mut_ptr();
-    let mut created: PROCESS_INFORMATION = unsafe { std::mem::zeroed() };
-    if unsafe { CreateProcessAsUserW(token.0, image.as_ptr(), arguments.as_mut_ptr(), std::ptr::null(),
-        std::ptr::null(), 0, CREATE_UNICODE_ENVIRONMENT, environment.as_mut_ptr().cast(),
-        directory.as_ptr(), &startup, &mut created) } == 0 { return Err(ERROR); }
-    let handle = Owned(created.hProcess);
-    unsafe { CloseHandle(created.hThread) };
-    let process = Process::open(created.dwProcessId).map_err(|_| ERROR)?;
-    if !process.alive() || process.sid != application.owner_sid || process.session != application.session
-        || process.elevated || process.image != executable {
-        unsafe { TerminateProcess(handle.0, 1) };
-        return Err(ERROR);
-    }
-    process.signed(PIN).map_err(|_| ERROR)?;
-    Ok(process.generation)
+    nessie_windows_common::session_launch::launch_app(&application.owner_sid, application.session, executable, PIN)
+        .map_err(|_| ERROR)
 }
 
 /// Invoked after replacement admits the new release, or after a local opt-out.

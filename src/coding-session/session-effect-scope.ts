@@ -36,8 +36,11 @@ export const sameT3EffectOperation = (first: T3EffectGrantReference, next: T3Eff
 )
 
 /** Managed launch can acquire its actual session evidence once; T3's exact target is fixed from admission. */
-export const retainEffectSession = (first: SessionEffectScope | undefined, next: SessionEffectScope): SessionEffectScope => {
+export const retainEffectSession = (
+  first: SessionEffectScope | undefined, next: SessionEffectScope,
+): SessionEffectScope => {
   if (!first) return next
-  if (!isT3EffectScope(first) && !isT3EffectScope(next) && !first.admissions.length && next.admissions.length) return next
+  if (!isT3EffectScope(first) && !isT3EffectScope(next)
+    && !first.admissions.length && next.admissions.length) return next
   return first
 }

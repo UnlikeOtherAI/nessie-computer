@@ -117,7 +117,7 @@ export const createDeepTestSourceAdapter = (
         return failure(
           request.request_id,
           'CAPABILITY_UNAVAILABLE',
-          'Allow file.list and file.read in this Nessie executor before using it for DeepTest.',
+          'Allow file.list and file.read for this team on this computer before using it for DeepTest.',
         )
       }
       binding = requestedBinding
@@ -162,7 +162,7 @@ export const createDeepTestSourceAdapter = (
         return failure(
           request.request_id,
           'SOURCE_UNAVAILABLE',
-          'The review source does not match a folder this Nessie executor is paired against.',
+          'The review source does not match a folder this team uses on this computer.',
         )
       }
       try {

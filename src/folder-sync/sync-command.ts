@@ -82,7 +82,7 @@ const configure = async (
     syncId = marker.syncId
     teamFolder = marker.teamFolder
   } else {
-    const fileCount = await countExistingFiles(root)
+    const fileCount = await countExistingFiles(root, context.executorId)
     if (fileCount > 0 && !command.acceptExistingFiles) {
       return FolderSyncConsoleCommandResultSchema.parse({ outcome: 'confirm_existing_files', fileCount })
     }

@@ -4,7 +4,9 @@ import type { CaptureTable } from '../import/layout.js'
 import migrationManifest from '../import/migration-manifest.json' with { type: 'json' }
 
 /** Shared physical schema check. No retained-human or execution authority is issued. */
-export function checkT3SourceLayout(database: CaptureDatabase, source: ProvenT3Source, tables: readonly CaptureTable[]): void {
+export function checkT3SourceLayout(
+  database: CaptureDatabase, source: ProvenT3Source, tables: readonly CaptureTable[],
+): void {
   requireCapture(source.layout === 'v2-80' || source.layout === 'legacy-54', 'unsupported_source_layout')
   const head = source.layout === 'v2-80' ? 80 : 54
   requireCapture(source.databaseRole === (head === 80 ? 'authoritative-v2' : 'sole-legacy'), 'source_role_mismatch')

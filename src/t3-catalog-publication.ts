@@ -15,7 +15,8 @@ export function createT3CatalogPublicationTransport(state: () => ExecutorLocalSt
   const publication = T3CatalogPublicationSchema.parse(value)
   const initial = state()
   const identity = (current: ExecutorLocalState) => canonicalExecutorJson({ executorId: current.executorId,
-    connectionEpoch: current.connectionEpoch, apiBaseUrl: current.apiBaseUrl, machinePublicKey: current.machinePublicKey })
+    connectionEpoch: current.connectionEpoch, apiBaseUrl: current.apiBaseUrl,
+    machinePublicKey: current.machinePublicKey })
   const identityKey = identity(initial)
   const send = async (page: T3CatalogMetadataPage | undefined, signal?: AbortSignal) => {
     signal?.throwIfAborted()

@@ -39,7 +39,7 @@ export type CommandRecord = {
 export const claimCommand = async (
   stateDir: string, record: CommandRecord, effect?: SessionEffectAuthority,
 ): Promise<CommandRecord | undefined> => {
-  if (!COMMAND_ID_PATTERN.test(record.commandId)) throw new Error('An executor command id is 1 to 128 letters, digits, - or _.')
+  if (!COMMAND_ID_PATTERN.test(record.commandId)) throw new Error('A command id is 1 to 128 letters, digits, - or _.')
   const path = join(codingCommandsDir(stateDir), `${record.commandId}.json`)
   if (await createJsonExclusive(path, record, effect)) return undefined
   return await readJson<CommandRecord>(path) ?? record

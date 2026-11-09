@@ -153,6 +153,12 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:cli-engines": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

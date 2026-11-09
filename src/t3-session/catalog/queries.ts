@@ -34,7 +34,8 @@ export const shellSnapshot = (reads: Reads, options: {
   const projection = yield* ProjectionStore.ProjectionStoreV2
   const scoped = selection.scope === 'threads' ? selection : undefined
   const listShellIndex: Effect.Effect<Effect.Success<ReturnType<Reads['listActiveShellIndex']>>,
-    RetainedCatalogReadError> = scoped ? projection.listActiveShellIndex(scoped.threadIds) : reads.listActiveShellIndex()
+    RetainedCatalogReadError> = scoped
+      ? projection.listActiveShellIndex(scoped.threadIds) : reads.listActiveShellIndex()
   // Keep the original subscriber's single shared trim-facts calculation. Both
   // the index and subsequent shell query see only the entitled source subset.
   const { snapshot } = yield* ShellStream.loadSubscriberShellSnapshot({ sql,

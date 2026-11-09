@@ -41,6 +41,18 @@ pub(in crate::updates) fn system() -> UpdateResult<()> {
 fn installation_system() -> UpdateResult<()> {
     system_identity().map(|_| ())
 }
+/// The installer's log of a refused setup carries this code: the installed
+/// service or Windows app is not the one this release's manifest names. A
+/// Windows app still running from the previous install keeps its file in use,
+/// so Windows Installer leaves the old one in place until the next restart.
+fn launch_consumer_code(reason: &str) -> &'static str {
+    match reason {
+        release::TRAY_UNVERIFIED => "update.installed_tray_unverified",
+        release::SERVICE_UNVERIFIED => "update.installed_service_unverified",
+        _ => ERROR,
+    }
+}
+
 pub(in crate::updates) fn runtime() -> UpdateResult<release::Release> {
     let program_files =
         update_admission::known_folder(&windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)
@@ -50,7 +62,7 @@ pub(in crate::updates) fn runtime() -> UpdateResult<release::Release> {
         PIN,
     )
     .map_err(|_| ERROR)?;
-    release.verify_launch_consumers(PIN).map_err(|_| ERROR)?;
+    release.verify_launch_consumers(PIN).map_err(|reason| launch_consumer_code(&reason))?;
     Ok(release)
 }
 pub(in crate::updates) fn service_root() -> UpdateResult<PathBuf> {
@@ -247,4 +259,17 @@ fn verify_worker_at(path: &Path) -> UpdateResult<()> {
 pub(in crate::updates) fn verify_worker() -> UpdateResult<()> {
     system()?;
     verify_worker_at(&std::env::current_exe().map_err(|_| ERROR)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{launch_consumer_code, ERROR};
+    use nessie_windows_common::release;
+
+    #[test]
+    fn a_stale_windows_app_has_its_own_setup_refusal_code() {
+        assert_eq!(launch_consumer_code(release::TRAY_UNVERIFIED), "update.installed_tray_unverified");
+        assert_eq!(launch_consumer_code(release::SERVICE_UNVERIFIED), "update.installed_service_unverified");
+        assert_eq!(launch_consumer_code("anything else"), ERROR);
+    }
 }

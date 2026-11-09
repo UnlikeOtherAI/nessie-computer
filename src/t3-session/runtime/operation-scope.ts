@@ -31,7 +31,8 @@ export const sessionOperationScope = <R>() => Effect.gen(function* () {
     // Wait for operation finalizers before providers, SQLite and the writer close.
     yield* Scope.close(operations, Exit.void)
   }))
-  return <A, E>(operation: Effect.Effect<A, E, R | Scope.Scope>): Effect.Effect<A, E> => Effect.uninterruptibleMask(restore =>
+  return <A, E>(operation: Effect.Effect<A, E, R | Scope.Scope>): Effect.Effect<A, E> =>
+    Effect.uninterruptibleMask(restore =>
     Effect.gen(function* () {
       if (!open) return yield* Effect.die(new SessionOperationScopeClosed())
       // Scope attachment fences closure races. Mask only the attach/join handoff

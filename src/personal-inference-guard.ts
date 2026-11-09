@@ -39,6 +39,12 @@ export type PersonalHostExecutionLease = {
   bindExecution: (identity: CodingProcessIdentity, descendants?: CodingProcessIdentity[]) => Promise<void>
   /** Only after the admitted process tree is proven stopped, not on transport abort. */
   release: () => Promise<void>
+  /**
+   * When a stop could not be proved: the admission stays (custody), but
+   * whatever process holds it open is ended, so a retried start never
+   * accumulates them. Absent where nothing does.
+   */
+  abandon?: () => Promise<void>
 }
 
 export type PersonalInferenceGuardOptions = {
@@ -195,6 +201,14 @@ export class PersonalInferenceGuard {
     await this.mutate(async (state) => {
       if (kind === 'host_execution' && state.protection) {
         protectionError('personal_inference_host_isolation_required')
+      }
+      // A restart ended every process an earlier boot registered. Host and
+      // runtime registrations from another boot go; credential runtimes keep
+      // their own reconciliation. On dictator 405 had piled up toward the
+      // 4096 this guard loads, and the native creator fenced on them.
+      if (identity.bootId) {
+        state.registrations = state.registrations.filter((item) => item.kind === 'credential_runtime'
+          || item.bootId === undefined || item.bootId === identity.bootId)
       }
       const parsed = PersonalInferenceAuthoritySchema.safeParse(authority)
       state.registrations.push({ id, ...identity, label: label.slice(0, 200), kind,

@@ -12,6 +12,11 @@ their original special names. The workspace regression uses long private paths.
 It exercises migration, writes, reopen, competing ownership and cancellation;
 failed captures and journals remain retained.
 
+The existing daemon toolbox reads current pairing authority and connection epoch
+from its live state view. Retained inspection and execution share that daemon
+and its session lane; pause, configuration updates and shutdown retain their
+existing owners. A parent pipe whose EOF was already consumed still closes it.
+
 ## Execution-only provider composition
 
 The protected graph uses `makeSessionEngineGraphWithAdapters`. It keeps the same

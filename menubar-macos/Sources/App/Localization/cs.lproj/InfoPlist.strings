@@ -1,0 +1,10 @@
+/* The name a person sees. The bundle itself stays "Nessie Executor.app"; see Info.plist. */
+"CFBundleDisplayName" = "Nessie Computer";
+"CFBundleName" = "Nessie Computer";
+
+"NSDocumentsFolderUsageDescription" = "Nessie Computer tuto složku používá jen tehdy, když ji sdílíte s týmem nebo v ní máte své dokumenty.";
+"NSDesktopFolderUsageDescription" = "Nessie Computer tuto složku používá jen tehdy, když ji sdílíte s týmem nebo v ní máte své dokumenty.";
+"NSDownloadsFolderUsageDescription" = "Nessie Computer tuto složku používá jen tehdy, když ji sdílíte s týmem nebo v ní máte své dokumenty.";
+"NSRemovableVolumesUsageDescription" = "Nessie Computer tento disk používá jen tehdy, když na něm sdílíte složku s týmem.";
+"NSNetworkVolumesUsageDescription" = "Nessie Computer tento síťový disk používá jen tehdy, když na něm sdílíte složku s týmem.";
+"NSLocalNetworkUsageDescription" = "Nessie Computer se připojuje k modelovým serverům a počítačům ve vaší síti, které nastavíte pro tým.";

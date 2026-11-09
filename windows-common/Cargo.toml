@@ -3,7 +3,7 @@ name = "nessie-windows-common"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "The names and SID conversion the Nessie Executor service and tray both depend on."
+description = "The names and SID conversion the Nessie Computer service and tray both depend on."
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
@@ -24,7 +24,9 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",
+  "Win32_System_Console",
   "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Environment",
   "Win32_System_JobObjects",
   "Win32_System_IO",
   "Win32_System_Pipes",

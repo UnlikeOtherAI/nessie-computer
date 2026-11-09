@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { sealWindowsLaunchConsumers } from './launch-consumers.mjs'
 
 import {
+  APP_USER_MODEL_ID,
   BUILT_BINARIES,
   GUEST_CONSOLE_PORT,
   GUEST_CONTROL_PORT,
@@ -25,10 +26,14 @@ import {
   HYPERV_SOCKET_ELEMENT_NAME,
   HYPERV_SOCKET_REGISTRY_KEY,
   INSTALLED_FILES,
+  PRODUCT_NAME,
   SERVICE_ACCOUNT,
   SERVICE_DISPLAY_NAME,
   SERVICE_NAME,
+  UPGRADE_CODE,
+  URL_SCHEME,
   hyperVSocketServiceGuid,
+  installSequenceProblems,
   msiFileName,
   msiVersion,
 } from './msi-plan.mjs'
@@ -36,6 +41,7 @@ import {
 const packaging = dirname(fileURLToPath(import.meta.url))
 const authoring = await readFile(join(packaging, 'nessie-executor.wxs'), 'utf8')
 const buildScript = await readFile(join(packaging, 'build-msi.mjs'), 'utf8')
+const trayConfig = JSON.parse(await readFile(join(packaging, '../../tray-windows/src-tauri/tauri.conf.json'), 'utf8'))
 const script = async (name) => readFile(join(packaging, 'scripts', name), 'utf8')
 
 test('the personal installed floor binds the final signed service and tray, refusing incomplete producers', async () => {
@@ -267,6 +273,46 @@ test('the state root is created and never removed', () => {
   }
 })
 
+test('everything running from the install folder is closed before files change, and the app reopened after', () => {
+  // The new package's own service binary closes them, from the Binary table:
+  // an installed older release would not know how.
+  assert.ok(authoring.includes('<Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\\nessie-executor-service.exe" />'))
+  // Immediate, before InstallValidate: ahead of InstallInitialize and so of the
+  // previous product's removal, and never inside that removal.
+  assert.ok(/Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\s+Execute="immediate" Return="check"/.test(authoring))
+  assert.ok(authoring.includes('<Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />'))
+  // No rollback reopen: it would run before the previous release's files are back.
+  assert.ok(!authoring.includes('ReopenAfterFailedInstall'))
+  // The installed binary reopens them once the service is back; a failure to reopen never fails the install.
+  assert.ok(/Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"\s+Execute="deferred" Impersonate="no" Return="ignore"/.test(authoring))
+  assert.ok(authoring.includes('<Custom Action="ReopenAfterInstall" After="StartServices"'))
+  // The folder is derived by the binary, never passed in.
+  assert.ok(!/--close-for-install [^"]/.test(authoring))
+})
+
+test('the install sequence is one Windows Installer accepts for an upgrade', () => {
+  assert.deepEqual(installSequenceProblems(authoring), [])
+})
+
+test('a script action ahead of RemoveExistingProducts is error 2613, and closing after it is too late', () => {
+  // The 1.0.16 order: every upgrade failed with 1603 before a file changed.
+  const shipped = authoring
+    .replace('<CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\n      Execute="immediate" Return="check" />',
+      '<CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"\n      Execute="deferred" Impersonate="no" Return="check" />\n'
+      + '    <CustomAction Id="ReopenAfterFailedInstall" BinaryRef="ServiceSetup" ExeCommand="--reopen-after-install"\n      Execute="rollback" Impersonate="no" Return="ignore" />')
+    .replace('<Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />',
+      '<Custom Action="ReopenAfterFailedInstall" Before="CloseForInstall" Condition="NOT UPGRADINGPRODUCTCODE" />\n'
+      + '      <Custom Action="CloseForInstall" Before="RemoveExistingProducts" Condition="NOT UPGRADINGPRODUCTCODE" />')
+  assert.notEqual(shipped, authoring)
+  assert.deepEqual(installSequenceProblems(shipped), [
+    'ReopenAfterFailedInstall (rollback) is sequenced before RemoveExistingProducts (error 2613)',
+    'CloseForInstall (deferred) is sequenced before RemoveExistingProducts (error 2613)',
+  ])
+  // Moving it after the removal is accepted by Windows Installer but closes too late.
+  const late = authoring.replace('<Custom Action="CloseForInstall" Before="InstallValidate"', '<Custom Action="CloseForInstall" After="RemoveExistingProducts"')
+  assert.deepEqual(installSequenceProblems(late), ['CloseForInstall runs after the previous product\'s files are removed'])
+})
+
 /**
  * The anti-flash guarantee, as a property rather than a spelling: no custom
  * action may run the packaged native helper. It is a console program by design
@@ -293,4 +339,51 @@ test('the authoring declares one WiX package and its preprocessor variables', ()
   assert.ok(authoring.includes('$(var.StagingDir)'))
   assert.ok(authoring.includes('Id="NessieAutomaticUpdateProtocol" Value="$(var.EnableUpdater)"'))
   assert.ok(authoring.includes('xmlns="http://wixtoolset.org/schemas/v4/wxs"'))
+})
+
+test('the product is Nessie Computer and every installed identifier is kept', () => {
+  assert.equal(PRODUCT_NAME, 'Nessie Computer')
+  assert.ok(authoring.includes(`Name="${PRODUCT_NAME}"\n    Manufacturer="UnlikeOtherAI"`))
+  assert.ok(authoring.includes(`<Feature Id="Main" Title="${PRODUCT_NAME}"`))
+  assert.ok(authoring.includes('DowngradeErrorMessage="A newer Nessie Computer is already installed."'))
+  // Upgrades find the installed product, its service, its folders and its
+  // pipes by these, so the rename leaves every one of them as it was.
+  assert.equal(UPGRADE_CODE, '9a1c6d2e-4f3b-4a7d-9c1e-2b8f5d6a4e10')
+  assert.ok(authoring.includes(`UpgradeCode="${UPGRADE_CODE}"`))
+  assert.equal(SERVICE_NAME, 'NessieExecutor')
+  assert.ok(authoring.includes('<Directory Id="INSTALLFOLDER" Name="Nessie Executor">'))
+  assert.ok(authoring.includes('<Directory Id="STATEFOLDER" Name="Nessie Executor">'))
+  assert.equal(msiFileName('1.2.3'), 'NessieExecutor_1.2.3_x64.msi')
+  assert.equal(trayConfig.productName, PRODUCT_NAME)
+  assert.equal(trayConfig.app.windows[0].title, PRODUCT_NAME)
+  assert.equal(trayConfig.mainBinaryName, 'nessie-executor-tray')
+  // Names, titles and messages say Nessie Computer; the folders keep theirs.
+  const visible = [...authoring.matchAll(/(?:DisplayName|Description|Message|Title|Name)="([^"]*)"/g)]
+    .map((match) => match[1])
+    .filter((value) => value.includes('Nessie Executor'))
+  assert.deepEqual(visible, ['Nessie Executor', 'Nessie Executor'], 'only the two folder names keep the old identifier')
+})
+
+test('the Start menu shortcut opens the app and carries its toast identity', () => {
+  const shortcut = authoring.match(/<Component Id="StartMenuShortcut"[\s\S]*?<\/Component>/)?.[0]
+  assert.ok(shortcut, 'the authoring must install a Start menu shortcut')
+  assert.ok(shortcut.includes('Directory="ProgramMenuFolder"'))
+  assert.ok(shortcut.includes(`Name="${PRODUCT_NAME}"`))
+  assert.ok(shortcut.includes('Target="[INSTALLFOLDER]nessie-executor-tray.exe"'))
+  assert.equal(APP_USER_MODEL_ID, trayConfig.identifier, 'toasts are shown under the app identifier')
+  assert.ok(shortcut.includes(`<ShortcutProperty Key="System.AppUserModel.ID" Value="${APP_USER_MODEL_ID}" />`))
+  assert.ok(/Root="HKCU"[\s\S]*?KeyPath="yes"/.test(shortcut))
+  assert.ok(authoring.includes('<StandardDirectory Id="ProgramMenuFolder" />'))
+})
+
+test('nessie-computer links are registered for the installing person and open the app', () => {
+  assert.equal(URL_SCHEME, 'nessie-computer')
+  const key = authoring.match(/<RegistryKey Root="HKCU" Key="Software\\Classes\\nessie-computer"[^>]*>[\s\S]*?<\/RegistryKey>/)?.[0]
+  assert.ok(key, 'the authoring must register the link scheme under HKCU')
+  // Uninstalling removes the scheme; a link must not open a program that is gone.
+  assert.ok(key.includes('ForceDeleteOnUninstall="yes"'))
+  assert.ok(key.includes('Value="URL:Nessie Computer" KeyPath="yes"'))
+  assert.ok(key.includes('Name="URL Protocol" Value=""'))
+  assert.ok(key.includes('Key="shell\\open\\command"'))
+  assert.ok(key.includes('Value="&quot;[INSTALLFOLDER]nessie-executor-tray.exe&quot; &quot;%1&quot;"'))
 })

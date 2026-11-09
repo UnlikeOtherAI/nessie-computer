@@ -38,10 +38,17 @@ public struct PackagedRuntime: Equatable, Sendable {
         return helper
     }
 
+    /// The runtime version this app carries, read from its manifest. It only
+    /// decides whether to restart the helper; the helper verifies the seal.
+    public func executorVersion(read: (URL) -> Data? = { try? Data(contentsOf: $0) }) -> String? {
+        guard let data = read(manifestURL), data.count <= 65_536,
+              let manifest = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return manifest["executorVersion"] as? String
+    }
+
     /// The refusal a person sees when the app was assembled without its runtime.
     /// It names the remedy, because a missing runtime is not transient.
-    public static let missingRefusal =
-        "the packaged executor runtime is missing — reinstall Nessie Executor"
+    public static var missingRefusal: String { Word.runtimeMissing.text }
 
     public static func locate(
         in resourceDirectory: URL?,

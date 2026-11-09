@@ -15,6 +15,7 @@ import {
   FolderSyncRootLabelSchema,
   FolderSyncSkipReasonSchema,
   FolderSyncSpaceIdSchema,
+  FolderSyncTeamFolderSchema,
 } from './executor-folder-sync.js'
 import {
   ConflictReportSchema,
@@ -199,11 +200,24 @@ export const FOLDER_SYNC_CONSOLE_LIST_LIMIT = 100
 export const FolderSyncConsoleStateSchema = z
   .object({
     executorId: ExecutorIdSchema,
-    teamLabel: z.string().min(1).max(255).nullable(),
+    /**
+     * The team folder the engine named under `root` (a file is at
+     * `root/teamLabel/relPath`); null until it has. Despite the name, a path.
+     */
+    teamLabel: FolderSyncTeamFolderSchema.nullable(),
+    /**
+     * Where this team's files go under the chosen or suggested main folder:
+     * the folder the engine named or, before it has, the one it will name.
+     * Null while the team's names are not known yet; absent from an older CLI.
+     */
+    teamFolder: FolderSyncTeamFolderSchema.nullable().optional(),
     enabled: z.boolean(),
     paused: z.boolean(),
     root: LocalPathSchema.nullable(),
-    /** `~/Documents/Nessie`, resolved for this account. */
+    /**
+     * The main folder offered to a team with none chosen: the folder another
+     * team on this computer already syncs into, else `~/Documents/Nessie`.
+     */
     defaultRoot: LocalPathSchema,
     /** What Deleted files… opens. */
     trashPath: LocalPathSchema,

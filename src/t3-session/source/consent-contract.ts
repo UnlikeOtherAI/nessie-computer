@@ -102,7 +102,9 @@ export function retainedImportChallengeDigest(c: RetainedImportChallengeV1): str
     c.issuerEnrollmentId, c.issuerKeyId])).digest('hex')
 }
 
-export function parseRetainedImportReceipt(value: unknown, c: RetainedImportChallengeV1): RetainedImportApprovalReceiptV1 {
+export function parseRetainedImportReceipt(
+  value: unknown, c: RetainedImportChallengeV1,
+): RetainedImportApprovalReceiptV1 {
   const r = keys(value, ['version', 'kind', 'challengeId', 'challengeDigest', 'receiptId', 'issuerInstance',
     'expiresAtMs', 'issuerKeyId', 'nativeSignature'])
   valid(r.version === 1 && r.kind === 'native-source-owner-consent' && r.challengeId === c.challengeId

@@ -14,9 +14,11 @@ fn jitter() -> u64 {
 }
 
 impl Coordinator<'_> {
-    fn publish_admission(&self, journal: &crate::storage::Journal) -> UpdateResult<()> {
+    fn publish_admission(&self, journal: &crate::storage::Journal, now: u64) -> UpdateResult<()> {
+        let preferences = self.store.preferences()?;
+        self.store.begin_drain(&preferences, journal, now)?;
         self.installer.set_draining(
-            crate::policy::draining(&self.store.preferences()?, journal),
+            self.store.draining(&preferences, journal, now)?,
             journal
                 .pending
                 .as_ref()
@@ -28,7 +30,7 @@ impl Coordinator<'_> {
         let _worker = self.store.worker()?;
         if !self.store.installation_enabled()? { return Ok(()); }
         let journal = self.store.journal()?;
-        self.publish_admission(&journal)?;
+        self.publish_admission(&journal, now)?;
         let check_due = journal.next_check_at <= now
             || journal
                 .check_requested_at
@@ -68,6 +70,11 @@ impl Coordinator<'_> {
                 Ok(()) => {
                     current.install_failures = 0;
                     current.next_install_attempt_at = now.saturating_add(1_000);
+                    // A failure belongs to its transaction. Once none is
+                    // accepted, a stale code must not keep status failed.
+                    if current.pending.is_none() {
+                        current.code = None;
+                    }
                 }
                 Err(code) => {
                     current.install_failures = current.install_failures.saturating_add(1);
@@ -78,7 +85,7 @@ impl Coordinator<'_> {
             }
             Ok(())
         })?;
-        self.publish_admission(&current)?;
+        self.publish_admission(&current, now)?;
         Ok(())
     }
 }

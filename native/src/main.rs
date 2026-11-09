@@ -37,6 +37,8 @@ mod macos_provenance;
 mod unix_account_state;
 #[cfg(target_os = "linux")]
 mod managed_installed;
+#[cfg(target_os = "macos")]
+mod managed_macos_closure;
 #[cfg(target_os = "linux")]
 mod managed_inventory;
 #[cfg(target_os = "macos")]

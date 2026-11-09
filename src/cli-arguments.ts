@@ -2,6 +2,8 @@ import { parseExecutorMcpServerArguments } from './mcp-server-arguments.js'
 import type { ExecutorLocalMcpServer } from './mcp-servers.js'
 import { parseSyncArguments, type SyncCliCommand } from './folder-sync/sync-cli.js'
 import { secureApiUrl } from './pairing-origin.js'
+import { PROGRAM_REQUEST_ANSWERS, type ProgramRequestAnswer } from './program-requests.js'
+import { parseSessionsArguments, SESSIONS_USAGE, type SessionsCliCommand } from './session-cli.js'
 import { parseExecutorWorkspaceFolderArguments, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 
 /**
@@ -51,6 +53,10 @@ export type ParsedCommand =
     vmHelperPath: string
   }
   | { kind: 'connect'; stateDir: string }
+  | { json: boolean; kind: 'pause'; stateDir: string }
+  | { json: boolean; kind: 'resume'; stateDir: string }
+  | { json: boolean; kind: 'program-requests'; stateDir: string }
+  | { answer: ProgramRequestAnswer; id: string; json: boolean; kind: 'program-request-answer'; stateDir: string }
   | { kind: 'serve-direct-local-inference' }
   | { kind: 'describe'; stateDir: string }
   | { kind: 'deeptest-source'; sourceGrantFile: string }
@@ -75,8 +81,19 @@ export type ParsedCommand =
   | { executorId?: string; kind: 'status'; stateRoot?: string }
   | SyncCliCommand
 
-const usage = (): never => {
-  throw new Error(
+/**
+ * A command line whose first word is no command at all, as opposed to a known
+ * command given the wrong options. It carries the same usage text; `cli.ts`
+ * hands it to the commands people type, which say so and exit 2.
+ */
+export class UnknownCommandError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'UnknownCommandError'
+  }
+}
+
+const usageText = (): string => (
     'Usage: nessie-executor login --api <nessie|deeptest|https://your-nessie.example> [--workspace <folder>] '
     + '[--operations file.list,file.read]\n'
     + '       nessie-executor teams [--json] [--state-root <path>]\n'
@@ -112,6 +129,11 @@ const usage = (): never => {
     + '--kernel <absolute-owner-only-file> --vm-helper <absolute-owner-only-file> '
     + '--runtime-bundle <absolute-owner-only-directory>\n'
     + '       nessie-executor connect|heartbeat|serve --state-dir <owner-only-path>\n'
+    + '       nessie-executor pause|resume --state-dir <owner-only-path> [--json]\n'
+    + '       nessie-executor program-requests --state-dir <owner-only-path> [--json]\n'
+    + '       nessie-executor program-request answer --state-dir <owner-only-path> --id <request-id> '
+    + '--answer once|always|deny [--json]\n'
+    + SESSIONS_USAGE
     + '       nessie-executor serve-ollama-search-mcp\n'
     + '       nessie-executor serve-coding-session-mcp --config <absolute-owner-only-file>\n'
     + '       nessie-executor serve-session-secrets --session-dir <absolute-session-directory>\n'
@@ -136,8 +158,11 @@ const usage = (): never => {
     + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) [--root <absolute-folder>] '
     + '[on|off|pause|resume|status|verify|trash|resolve|confirm-held|restore-held] [--json] [--accept-existing-files] '
     + '[--conflict <id> --resolution keep_mine|keep_nessie|dismiss] [--batch <id>]\n'
-    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) --input-stdin',
-  )
+    + '       nessie-executor sync (--executor <uuid>|--state-dir <owner-only-path>) --input-stdin'
+)
+
+const usage = (): never => {
+  throw new Error(usageText())
 }
 
 const positional = (args: string[]): string => {
@@ -159,6 +184,10 @@ const pairingChallenge = (args: string[]): Pick<Extract<ParsedCommand, { kind: '
   if (standardInput === commandLine) return usage()
   return standardInput ? { challengeFromStandardInput: true } : { challenge: option(args, '--challenge') }
 }
+
+/** The apps' `sessions` and `session stop` (`session-cli.ts`), or `undefined` for any other line. */
+export const parseSessionsCommand = (args: string[]): SessionsCliCommand | undefined =>
+  parseSessionsArguments(args, usage)
 
 export const parseCommand = (args: string[]): ParsedCommand => {
   const [command] = args
@@ -253,6 +282,21 @@ export const parseCommand = (args: string[]): ParsedCommand => {
   if (command === 'connect' || command === 'heartbeat') {
     return { kind: command, stateDir: option(args, '--state-dir') }
   }
+  if (command === 'pause' || command === 'resume' || command === 'program-requests') {
+    const json = args.includes('--json')
+    if (args.length !== (json ? 4 : 3)) return usage()
+    return { json, kind: command, stateDir: option(args, '--state-dir') }
+  }
+  if (command === 'program-request') {
+    const json = args.includes('--json')
+    const answer = option(args, '--answer')
+    if (args[1] !== 'answer' || args.length !== (json ? 9 : 8)
+      || !PROGRAM_REQUEST_ANSWERS.includes(answer as ProgramRequestAnswer)) return usage()
+    return {
+      answer: answer as ProgramRequestAnswer, id: option(args, '--id'), json,
+      kind: 'program-request-answer', stateDir: option(args, '--state-dir'),
+    }
+  }
   if (command === 'serve-direct-local-inference') {
     if (!args.includes('--config-stdin') || args.length !== 2) return usage()
     return { kind: command }
@@ -329,5 +373,5 @@ export const parseCommand = (args: string[]): ParsedCommand => {
       stateDir: option(args, '--state-dir'),
     }
   }
-  return usage()
+  throw new UnknownCommandError(usageText())
 }

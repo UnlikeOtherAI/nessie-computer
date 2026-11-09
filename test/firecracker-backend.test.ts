@@ -230,7 +230,7 @@ test('a guest that never presents its control hello fails the session closed and
       spawnProcess,
     })
     const started = { ...staged.input(bootstrapToken), readyTimeoutMs: 250 }
-    await assert.rejects(backend.start(started), /executor/i)
+    await assert.rejects(backend.start(started), /did not open its control channel in time/)
     await assert.rejects(stat(fake.socketDirectory), /ENOENT/)
     await assert.rejects(stat(join(started.sessionDirectory, 'images')), /ENOENT/)
   } finally {

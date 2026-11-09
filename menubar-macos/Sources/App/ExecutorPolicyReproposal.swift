@@ -12,7 +12,7 @@ struct ExecutorPolicyReproposal {
 
     func run() -> Result<Void, ExecutorRefusal> {
         var attempts = 0
-        var lastRefusal = "Nessie Executor could not propose these settings again."
+        var lastRefusal = Word.settingsNotProposed.text
         while attempts < Self.attemptCeiling {
             attempts += 1
             guard let invocation = try? ExecutorCLI.configure(
@@ -28,11 +28,10 @@ struct ExecutorPolicyReproposal {
             lastRefusal = ExecutorProcessRunner.refusal(from: connected, fallback: lastRefusal).message
             // Only a rollback is worth another revision. Other refusals need
             // their own remedy, rather than repeated configuration writes.
-            guard ExecutorFailureTranslator.translate(lastRefusal).remedy == .reProposePolicy else { break }
+            guard FailureClassifier.isStaleRevision(lastRefusal) else { break }
         }
-        let message = ExecutorFailureTranslator.translate(lastRefusal).code == "EXECUTOR_DESCRIPTOR_ROLLBACK"
-            ? "Nessie still considers this Mac's settings older than the ones it has "
-                + "recorded after \(attempts) attempts. Pair this Mac again from Settings."
+        let message = FailureClassifier.code(for: lastRefusal) == "EXECUTOR_DESCRIPTOR_ROLLBACK"
+            ? Word.settingsStillOlder(attempts: attempts).text
             : lastRefusal
         return .failure(ExecutorRefusal(message))
     }

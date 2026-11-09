@@ -36,7 +36,7 @@ use crate::{
     security::{connected_client_identity, current_user_sid_string, PipeSecurity, CLIENT_ACCESS},
 };
 
-pub const PIPE_NAME: &str = r"\\.\pipe\NessieExecutor";
+pub const PIPE_NAME: &str = nessie_windows_common::CONTROL_PIPE_NAME;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Scope {
@@ -81,7 +81,7 @@ fn admitted_sids(root: &Path) -> Vec<String> {
 
 fn create_instance(root: &Path, scope: Scope) -> Result<HANDLE, String> {
     let own = current_user_sid_string()
-        .map_err(|_| "Windows would not report the Nessie Executor account.".to_owned())?;
+        .map_err(|_| "Windows would not report the Nessie Computer account.".to_owned())?;
     let mut security = match scope {
         Scope::Control => PipeSecurity::new(&admitted_sids(root), &own)?,
         Scope::Custody => PipeSecurity::custody(&own)?,
@@ -102,7 +102,7 @@ fn create_instance(root: &Path, scope: Scope) -> Result<HANDLE, String> {
         )
     };
     if handle == INVALID_HANDLE_VALUE || handle.is_null() {
-        return Err("Nessie Executor could not open its control channel.".to_owned());
+        return Err("Nessie Computer could not open its control channel.".to_owned());
     }
     Ok(handle)
 }
@@ -231,7 +231,7 @@ fn enroll_control_client(
         .and_then(|()| std::fs::write(directory.join(&sid), b""))
     {
         Ok(()) => control.handle(Command::Status, Some(sid)),
-        Err(_) => Response::error("Nessie Executor could not record this account."),
+        Err(_) => Response::error("Nessie Computer could not record this account."),
     }
 }
 

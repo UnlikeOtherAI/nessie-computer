@@ -65,7 +65,7 @@ const parseJson = (data: string): unknown => { try { return JSON.parse(data) } c
 export const doorbellConnect = (
   state: DoorbellState, observedAt = new Date().toISOString(),
 ): ExecutorDaemonSocketConnect => {
-  if (!state.connectionEpoch) throw new Error('The executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt }
   return { type: 'connect', ...payload, signature: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload) }
 }

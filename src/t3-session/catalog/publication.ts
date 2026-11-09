@@ -91,7 +91,8 @@ export function createRetainedCatalogPublicationPort(ports: RetainedCapturePorts
             const publication = T3CatalogPublicationSchema.parse({ environmentId: held.source.environmentId,
               physicalRootKey: held.source.physicalRootKey, captureGeneration: input.captureGeneration,
               selectionKey: held.selectionKey, sourceHighWater: String(input.sourceHighWater),
-              snapshotDigest: snapshot.snapshotDigest, totalPages: snapshot.totalPages, totalEntries: snapshot.totalEntries,
+              snapshotDigest: snapshot.snapshotDigest, totalPages: snapshot.totalPages,
+              totalEntries: snapshot.totalEntries,
               scope: held.selection.scope === 'environment-owner' ? 'source' : 'selection' })
             yield* Effect.promise(() => held.recheck())
             const transport = createT3CatalogPublicationTransport(state, held.publicationGrantId, publication)

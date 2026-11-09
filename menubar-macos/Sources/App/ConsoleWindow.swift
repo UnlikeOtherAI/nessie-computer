@@ -9,9 +9,8 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
     private var webView: WKWebView?
     private var bridge: ExecutorConsoleBridge?
     private var entryURL: URL?
-    private var target = ConsoleTarget(section: .settings)
-    private var teams = false
-    private var pair = false
+    private var target = ConsoleTarget()
+    private var connect = false
     private var update = false
 
     init(connections: ExecutorConnections) { self.connections = connections }
@@ -22,18 +21,17 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
         selectSection()
     }
 
-    func showTeams(pair: Bool = false) {
-        show(ConsoleTarget(section: .settings))
-        teams = true
-        self.pair = pair
+    /// Add another team, over the tab last used: the page asks for a code at once.
+    func showConnect() {
+        show(ConsoleTarget())
+        connect = true
         selectSection()
     }
 
     func show(_ target: ConsoleTarget) {
         self.target = target
         update = false
-        teams = false
-        pair = false
+        connect = false
         if let window {
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
@@ -53,13 +51,13 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
             contentRect: webView.frame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false
         )
-        window.title = "Nessie Executor"
+        // The product's name in every language.
+        window.title = "Nessie Computer"
         window.minSize = NSSize(width: 440, height: 500)
         window.contentView = webView
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
-        bridge.close = { [weak self] in self?.hide() }
         self.bridge = bridge
         self.webView = webView
         self.window = window
@@ -73,12 +71,8 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
         if update {
             webView?.evaluateJavaScript("window.dispatchEvent(new Event('executor://update-available'))")
         }
-        guard teams else {
-            webView?.evaluateJavaScript(target.script)
-            return
-        }
-        let event = pair ? "tray://pair" : "tray://section/teams"
-        webView?.evaluateJavaScript("window.dispatchEvent(new Event('\(event)'))")
+        webView?.evaluateJavaScript(target.script)
+        if connect { webView?.evaluateJavaScript(ConsoleTarget.connectScript) }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation?) { selectSection() }
@@ -92,6 +86,7 @@ final class ConsoleWindowController: NSObject, NSWindowDelegate, WKNavigationDel
 
     /// Closing hides the window rather than tearing the page down, as on
     /// Windows, so a setting still saving finishes and the page keeps its state.
+    /// The window's own close button is the only way to close it.
     func hide() {
         window?.orderOut(nil)
         connections.controllers.forEach { $0.pairing.restore() }

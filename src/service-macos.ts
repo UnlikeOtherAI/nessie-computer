@@ -27,15 +27,26 @@ const xml = (value: string): string => value.replace(/[<>&"']/g, (character) => 
   '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;',
 })[character]!)
 
-export const macServicePlan = (options: ServiceOptions, environment: MacServiceEnvironment) => {
+/** Finding or removing a launch agent needs no installed runtime, so any install of the command line can. */
+type LaunchAgentEnvironment = Pick<MacServiceEnvironment, 'platform' | 'home' | 'uid' | 'run'>
+
+/** One team's launch agent: its launchd label, and where its plist and log live. */
+export const macLaunchAgent = (executorId: string, environment: LaunchAgentEnvironment) => {
   if (environment.platform !== 'darwin' || environment.uid < 0) throw new Error('launchd services require macOS.')
-  const id = assertExecutorIdentifier(options.executorId)
+  const id = assertExecutorIdentifier(executorId)
+  const label = `works.nessie.executor.${id}`
+  return {
+    domain: `gui/${environment.uid}`, id, label,
+    path: join(environment.home, 'Library/LaunchAgents', `${label}.plist`),
+    log: join(environment.home, 'Library/Logs/NessieExecutor', `${id}.log`),
+  }
+}
+
+export const macServicePlan = (options: ServiceOptions, environment: MacServiceEnvironment) => {
+  const { domain, id, label, path, log } = macLaunchAgent(options.executorId, environment)
   const runtime = macServiceRuntimePaths(environment.launcher)
   const stateDir = join(executorServiceStateRoot(environment.home), id)
   if (options.stateDir && resolve(options.stateDir) !== stateDir) throw new Error('The service must use this team’s default state directory.')
-  const label = `works.nessie.executor.${id}`
-  const path = join(environment.home, 'Library/LaunchAgents', `${label}.plist`)
-  const log = join(environment.home, 'Library/Logs/NessieExecutor', `${id}.log`)
   const strings = [runtime.node, runtime.bundle, 'serve', '--state-dir', stateDir]
     .map((argument) => `<string>${xml(argument)}</string>`).join('')
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
@@ -54,22 +65,24 @@ export const macServicePlan = (options: ServiceOptions, environment: MacServiceE
 <key>StandardErrorPath</key><string>${xml(log)}</string>
 </dict></plist>
 `
-  return { domain: `gui/${environment.uid}`, label, log, path, plist, stateDir }
+  return { domain, label, log, path, plist, stateDir }
 }
 
-const launchctl = async (environment: MacServiceEnvironment, args: string[]): Promise<void> => {
+const launchctl = async (environment: Pick<MacServiceEnvironment, 'run'>, args: string[]): Promise<void> => {
   const result = await environment.run('/bin/launchctl', args)
   if (result.code !== 0) throw new Error(`launchctl ${args[0]} failed (${result.code}). Run this in your logged-in macOS account.`)
 }
 
-const checkPlist = async (path: string, uid: number): Promise<void> => {
+/** Whether the plist is there; one that is not an ordinary file of this account is never touched. */
+const checkPlist = async (path: string, uid: number): Promise<boolean> => {
   const entry = await lstat(path).catch((error: unknown) => {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
     throw error
   })
   if (entry && (!entry.isFile() || entry.isSymbolicLink() || entry.uid !== uid)) {
-    throw new Error('The existing launch agent is not an ordinary file owned by this account.')
+    throw new Error('The team\'s launch agent is not an ordinary file of this account, so it was left alone.')
   }
+  return entry !== null
 }
 
 export const enableMacExecutorService = async (
@@ -94,19 +107,25 @@ export const enableMacExecutorService = async (
   environment.write(`Enabled ${plan.label}. It starts when you log in. Logs: ${plan.log}`)
 }
 
-/** Stops and removes one executor's login agent; nothing to do when it was never enabled. */
+/**
+ * Stops and removes one team's launch agent, however the command line was
+ * installed; true when there was one to remove. Only the agent goes: the team,
+ * its access and its pause stay on this computer.
+ */
 export const disableMacExecutorService = async (
-  options: { executorId: string }, environment: MacServiceEnvironment,
-): Promise<void> => {
-  const plan = macServicePlan(options, environment)
-  await checkPlist(plan.path, environment.uid)
-  const target = `${plan.domain}/${plan.label}`
-  if ((await environment.run('/bin/launchctl', ['print', target])).code === 0) {
-    await launchctl(environment, ['bootout', target])
+  options: { executorId: string }, environment: LaunchAgentEnvironment = createMacServiceEnvironment(),
+): Promise<boolean> => {
+  const agent = macLaunchAgent(options.executorId, environment)
+  const file = await checkPlist(agent.path, environment.uid)
+  const target = `${agent.domain}/${agent.label}`
+  const loaded = (await environment.run('/bin/launchctl', ['print', target])).code === 0
+  if (loaded) await launchctl(environment, ['bootout', target])
+  if (file) {
+    await unlink(agent.path).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    })
   }
-  await unlink(plan.path).catch((error: unknown) => {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-  })
+  return file || loaded
 }
 
 export const runMacServiceCli = async (args: string[]): Promise<boolean> => {
@@ -123,20 +142,20 @@ export const runMacServiceCli = async (args: string[]): Promise<boolean> => {
   if (args[0] === 'status') {
     const root = option('--state-root') ?? executorServiceStateRoot(environment.home)
     const paired = await environment.listStateDirectories(root)
-    if (id && !paired.includes(id)) throw new Error('That executor has no paired state.')
-    if (!paired.length) environment.write('no paired executors')
+    if (id && !paired.includes(id)) throw new Error('No team with that id is on this computer.')
+    if (!paired.length) environment.write('No teams on this computer.')
     for (const executorId of id ? [id] : paired) {
       const label = `works.nessie.executor.${executorId}`
       const status = await environment.run('/bin/launchctl', ['print', `gui/${environment.uid}/${label}`])
       const restart = await serviceAutoRestartEnabled(join(root, executorId)) ? 'on' : 'off'
-      environment.write(`executor ${executorId}: ${status.code === 0 ? 'loaded' : 'stopped'} autorestart=${restart}`)
+      environment.write(`team ${executorId}: ${status.code === 0 ? 'loaded' : 'stopped'} autorestart=${restart}`)
     }
   } else {
-    if (!id) throw new Error('Choose an executor id from nessie-executor teams.')
+    if (!id) throw new Error('Choose a team id: nessie-computer teams shows them.')
     if (args[0] === 'enable') await enableMacExecutorService({ executorId: id, stateDir: option('--state-dir') }, environment)
     else {
       await disableMacExecutorService({ executorId: id }, environment)
-      environment.write(`Disabled works.nessie.executor.${id}. Pairing and local permissions remain on this computer.`)
+      environment.write(`Disabled works.nessie.executor.${id}. The team and its access settings stay on this computer.`)
     }
   }
   return true

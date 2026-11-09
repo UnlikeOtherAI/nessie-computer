@@ -34,15 +34,28 @@ const pathOf = (env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string => (
   Object.entries(env).find(([name]) => (platform === 'win32' ? name.toUpperCase() === 'PATH' : name === 'PATH'))?.[1] ?? ''
 )
 
-/** `program` as an absolute path, or `undefined` when no absolute `PATH` entry holds it. */
+/** The extensions a Windows shell tries, in order, for a name without one: `PATHEXT`, or its default. */
+export const windowsPathExtensions = (env: NodeJS.ProcessEnv): string[] => {
+  const declared = Object.entries(env).find(([name]) => name.toUpperCase() === 'PATHEXT')?.[1]
+  const listed = (declared ?? '.COM;.EXE;.BAT;.CMD').split(';').map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => /^\.[a-z0-9]+$/u.test(entry))
+  return listed.length ? listed : ['.com', '.exe', '.bat', '.cmd']
+}
+
+/**
+ * `program` as an absolute path, or `undefined` when no absolute `PATH` entry
+ * holds it. A Windows name without an extension is tried with what libuv
+ * appends (`.com`, `.exe`) unless `windowsExtensions` names others.
+ */
 export const resolveProgramPath = async (
   program: string, env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform,
+  windowsExtensions: readonly string[] = ['.com', '.exe'],
 ): Promise<string | undefined> => {
   const path = platform === 'win32' ? win32 : posix
   if (absoluteDirectory(program, platform)) return program
   if (!program || /[\\/]/u.test(program) || platform === 'win32' && program.includes(':')) return undefined
-  // What libuv appends to a name without an extension; one that has one is tried as it is.
-  const extensions = platform === 'win32' && !path.extname(program) ? ['.com', '.exe'] : ['']
+  // A name that has an extension is tried as it is.
+  const extensions = platform === 'win32' && !path.extname(program) ? windowsExtensions : ['']
   for (const directory of pathOf(env, platform).split(platform === 'win32' ? ';' : ':')) {
     if (!absoluteDirectory(directory, platform)) continue
     for (const extension of extensions) {

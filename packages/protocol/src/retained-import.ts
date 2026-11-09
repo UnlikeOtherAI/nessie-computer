@@ -18,7 +18,8 @@ export const RetainedImportChallengeInputSchema = z.object({
   acceptedBaseline: z.literal('not_attested_by_original_source'),
   grantExpiresAtMs: z.number().int().nonnegative().safe(),
 }).strict()
-export const RetainedImportChallengeSchema = RetainedImportSourceSchema.merge(RetainedImportChallengeInputSchema).extend({
+export const RetainedImportChallengeSchema = RetainedImportSourceSchema
+  .merge(RetainedImportChallengeInputSchema).extend({
   version: z.literal(1), challengeId: z.string().uuid(), nonce: z.string().regex(/^[A-Za-z0-9_-]{43}$/u),
   grantGeneration: z.string().uuid(), organizationId: z.string().uuid(), teamId: z.string().uuid(),
   recipient: z.object({ subject: ref, organizationId: ref, teamId: ref }).strict(),

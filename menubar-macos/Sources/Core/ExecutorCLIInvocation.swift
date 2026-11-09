@@ -64,6 +64,12 @@ public enum ExecutorCLI {
         ExecutorCLIInvocation(arguments: ["pairing-status", "--json", "--state-dir", stateDirectory])
     }
 
+    /// Every team's names in one request per Nessie server, saved as each
+    /// team's label (`docs/team-names.md`); folders without a team are skipped.
+    public static func teamNames(stateDirectories: [String]) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["team-names"] + stateDirectories.flatMap { ["--state-dir", $0] } + ["--json"])
+    }
+
     public static func pairingCancel(stateDirectory: String) -> ExecutorCLIInvocation {
         ExecutorCLIInvocation(arguments: ["pairing-cancel", "--json", "--state-dir", stateDirectory])
     }
@@ -94,6 +100,49 @@ public enum ExecutorCLI {
         )
     }
 
+    /// Pause and Resume persist the owner's choice in the team's state
+    /// directory and tell its running daemon; neither stops the daemon.
+    public static func pause(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["pause", "--state-dir", stateDirectory])
+    }
+
+    public static func resume(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["resume", "--state-dir", stateDirectory])
+    }
+
+    /// The open program requests: `[{ id, program, args, agentName?, requestedAt, expiresAt }]`.
+    public static func programRequests(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["program-requests", "--state-dir", stateDirectory, "--json"])
+    }
+
+    /// The owner's answer to one request. The id is checked before it reaches
+    /// `argv`, because it names a file in the state directory.
+    public static func answerProgramRequest(
+        id: String,
+        answer: ProgramRequestAnswer,
+        stateDirectory: String
+    ) throws -> ExecutorCLIInvocation {
+        guard ProgramRequestID.isValid(id) else { throw ExecutorRefusal(.invalidRequest) }
+        return ExecutorCLIInvocation(arguments: [
+            "program-request", "answer", "--state-dir", stateDirectory, "--id", id, "--answer", answer.rawValue
+        ])
+    }
+
+    /// What agents are doing on this computer for the team: its sessions and
+    /// their commands, in the shape the console's Now working reads.
+    public static func sessions(stateDirectory: String) -> ExecutorCLIInvocation {
+        ExecutorCLIInvocation(arguments: ["sessions", "--state-dir", stateDirectory, "--json"])
+    }
+
+    /// The owner's Stop for one session. The id is a UUID, checked before it
+    /// reaches `argv`, because it names a file in the state directory.
+    public static func stopSession(id: String, stateDirectory: String) throws -> ExecutorCLIInvocation {
+        guard WorkingSessions.isSessionID(id) else { throw ExecutorRefusal(.invalidRequest) }
+        return ExecutorCLIInvocation(arguments: [
+            "session", "stop", "--state-dir", stateDirectory, "--id", id, "--json"
+        ])
+    }
+
     private static func canonicalJSON(_ value: [String: Any]) throws -> Data {
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
     }
@@ -103,7 +152,7 @@ public enum ExecutorCLI {
 /// every change reaches `sync --input-stdin` as JSON the CLI validates again,
 /// so a folder path never appears in `argv`.
 extension ExecutorCLI {
-    static let invalidSyncAction = "Invalid folder sync action."
+    static var invalidSyncAction: String { Word.invalidRequest.text }
 
     private static func sync(_ stateDirectory: String, _ tail: [String]) -> [String] {
         ["sync", "--state-dir", stateDirectory] + tail
@@ -182,9 +231,13 @@ extension ExecutorCLI {
     }
 
     /// The steps from the sync root to a listed conflict's file: the team
-    /// folder, then the relative path's segments. None may climb or hide a separator.
+    /// folder — its organisation folder and its own (`Org/Team`), or one folder
+    /// for a sync named before teams shared a main folder — then the relative
+    /// path's segments. Each is checked for a link; none may climb or hide a separator.
     public static func syncSegments(teamLabel: String, relPath: String) throws -> [String] {
-        let segments = [teamLabel] + relPath.components(separatedBy: "/")
+        let team = teamLabel.components(separatedBy: "/")
+        if team.count > 2 { throw ExecutorRefusal(invalidSyncAction) }
+        let segments = team + relPath.components(separatedBy: "/")
         let unsafe = segments.contains { segment in
             segment.isEmpty || segment == "." || segment == ".." || segment.contains("\\") || segment.contains("\0")
         }
@@ -195,7 +248,7 @@ extension ExecutorCLI {
     /// The handshake's address for this computer's Sync tab: HTTPS only, and
     /// a local address only in a development build.
     public static func syncManageURL(_ address: String, isDevelopmentBuild: Bool) throws -> URL {
-        let refusal = ExecutorRefusal("Nessie gave an address this app does not open.")
+        let refusal = ExecutorRefusal(.addressNotOpened)
         guard let components = URLComponents(string: address), let url = components.url,
               let host = components.host, !host.isEmpty, components.user == nil, components.password == nil else {
             throw refusal

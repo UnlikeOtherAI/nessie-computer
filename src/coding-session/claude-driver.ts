@@ -76,7 +76,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     interruptReason = undefined
   }
 
-  const handle = async (signals: ClaudeSignals, ready: { resolve: () => void; reject: (error: Error) => void }): Promise<void> => {
+  const handle = async (
+    signals: ClaudeSignals, ready: { resolve: () => void; reject: (error: Error) => void },
+  ): Promise<void> => {
     for (const event of signals.events) context.emit(event)
     if (signals.ready) ready.resolve()
     if (signals.initializeFailed) ready.reject(new AgentStartError('agent_exited'))
@@ -86,7 +88,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       context.update({ agentSessionId: sessionId, agentSessionStarted: true })
     }
     if (signals.active) beginTurn()
-    if (signals.unsupportedControlRequest) await agent?.writeProtocol(claudeUnsupportedLine(signals.unsupportedControlRequest))
+    if (signals.unsupportedControlRequest) {
+      await agent?.writeProtocol(claudeUnsupportedLine(signals.unsupportedControlRequest))
+    }
     if (signals.prompt) await ask(signals.prompt)
     if (signals.cancelledControlRequest) {
       const id = asked.get(signals.cancelledControlRequest)

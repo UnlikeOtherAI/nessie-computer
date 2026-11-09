@@ -8,7 +8,8 @@ import { assertVerifiedT3EffectGrant, createT3EffectAuthorityClient,
 import { exactHttpsOrigin, isT3EffectScope, parseSessionEffectScope, sameT3EffectOperation,
   type SessionEffectScope } from './session-effect-scope.js'
 
-/** Only the inherited-reference parser can construct this deferred selection; consumption still requires the signed route. */
+/** Only the inherited-reference parser constructs this deferred selection.
+ * Consumption still requires the signed route. */
 class InheritedT3Selection {
   constructor(readonly scope: SessionEffectScope, readonly issuerOrigin: string) {}
 }

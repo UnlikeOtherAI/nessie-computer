@@ -48,6 +48,16 @@ intent belongs to a model; deterministic code acts on structural protocol facts.
 Keep documentation synchronized with implemented behaviour and state concrete
 verification limits.
 
+User documentation is part of every change, never a follow-up. The consumer
+`README.md`, the guides in `docs/wiki/` (published to the GitHub wiki) and the
+command reference must describe the current app and CLI; a change to a screen,
+a setting, a word or a command updates them in the same pull request, and the
+PR republishes the wiki. Screenshots in the README and wiki are retaken whenever
+the screen they show changes; they live in the wiki repository's `images/`,
+never in this repository. Write all user documentation with the
+[Unslop skill](https://github.com/UnlikeOtherAI/nessie-skills/blob/main/skills/unslop/SKILL.md)
+and the vocabulary in [the Nessie Computer contract](docs/plans/2026-11-08-nessie-computer.md#2-vocabulary-user-visible-cli-help-uses-the-same-words).
+
 Computer telemetry, provider quotas, owner-only CI, native history and human input follow
 [computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
 All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
@@ -94,4 +104,12 @@ Windows runtime admission uses its own fixed local pipe; keep pairing-control AC
 
 The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
 [local AI connections](docs/local-ai-connections.md); use the public Turbo
-`test:ai-connections` gate and local `renderer-harness.mjs --ai-only` journey.
+`test:ai-connections` gate and the local `tray-windows/test/renderer-harness.mjs --only=ai` journey.
+Claude Code and Codex offered as engines (the AI tab's On this computer, `ai local`, `local_cli` hosts) follow
+[Claude Code and Codex as engines](docs/local-cli-engines.md); its focused gate is `test:cli-engines`.
+
+Team names come from a display-only label in each team's folder, refreshed in one signed batch per server; follow
+[team names](docs/team-names.md).
+
+Sessions, concurrent commands, per-command recovery and the opt-in poll follow
+[sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.

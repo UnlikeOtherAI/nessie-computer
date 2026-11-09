@@ -11,6 +11,7 @@ import {
   normalizeCodingSessionsConfig,
 } from '../src/coding-session/config.js'
 import { createCodingSessionsDaemon } from '../src/coding-sessions-daemon.js'
+import { newLocalCommandPolicy } from '../src/command-policy.js'
 import { codingSessionsFacts } from '../src/coding-sessions-policy.js'
 import { createCodingHarness, type CodingHarness } from './coding-session-harness.js'
 
@@ -29,6 +30,7 @@ const daemonFor = async (harness: CodingHarness) => {
   const digest = codingSessionsConfigDigest(config)
   return createCodingSessionsDaemon({
     executorId: '00000000-0000-4000-8000-000000000901',
+    commandRules: newLocalCommandPolicy,
     facts: codingSessionsFacts(config, digest),
     // The harness started this same bridge; the daemon needs only its name and its reviewed digest.
     servers: [{

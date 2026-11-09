@@ -119,4 +119,71 @@ final class ExecutorCLIInvocationTests: XCTestCase {
             ["pairing-cancel", "--json", "--state-dir", stateDirectory]
         )
     }
+
+    /// Pause and Resume are their own verbs: neither is a stop, and neither
+    /// carries anything on standard input.
+    func testPauseAndResumeNameOnlyTheTeam() {
+        XCTAssertEqual(
+            ExecutorCLI.pause(stateDirectory: stateDirectory).arguments, ["pause", "--state-dir", stateDirectory]
+        )
+        XCTAssertEqual(
+            ExecutorCLI.resume(stateDirectory: stateDirectory).arguments, ["resume", "--state-dir", stateDirectory]
+        )
+        XCTAssertNil(ExecutorCLI.pause(stateDirectory: stateDirectory).standardInput)
+    }
+
+    /// Every team's names in one call: each folder is one `--state-dir`.
+    func testTeamNamesNameEveryFolderInOneCall() {
+        XCTAssertEqual(
+            ExecutorCLI.teamNames(stateDirectories: ["/a", "/b"]).arguments,
+            ["team-names", "--state-dir", "/a", "--state-dir", "/b", "--json"]
+        )
+    }
+
+    func testRequestsAreReadAsJSON() {
+        XCTAssertEqual(
+            ExecutorCLI.programRequests(stateDirectory: stateDirectory).arguments,
+            ["program-requests", "--state-dir", stateDirectory, "--json"]
+        )
+    }
+
+    /// The sessions agents are working in are read as JSON; a Stop names one
+    /// session by its UUID, which is checked before it reaches `argv`.
+    func testSessionsAndStopNameOnlyTheTeamAndASessionUUID() throws {
+        XCTAssertEqual(
+            ExecutorCLI.sessions(stateDirectory: stateDirectory).arguments,
+            ["sessions", "--state-dir", stateDirectory, "--json"]
+        )
+        let id = "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11"
+        XCTAssertEqual(
+            try ExecutorCLI.stopSession(id: id, stateDirectory: stateDirectory).arguments,
+            ["session", "stop", "--state-dir", stateDirectory, "--id", id, "--json"]
+        )
+        for refused in ["../escape", "--json", "", "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c1"] {
+            XCTAssertThrowsError(try ExecutorCLI.stopSession(id: refused, stateDirectory: stateDirectory), refused)
+        }
+    }
+
+    /// The bridge passes the CLI's sessions through with the team added, and
+    /// refuses anything that is not a list of sessions.
+    func testSessionRowsCarryTheTeamAndRefuseAnythingElse() throws {
+        let json = #"[{"sessionId":"0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11","agentName":"Sales agent","#
+            + #""startedAt":"2026-11-08T12:00:00.000Z","commands":[{"id":"c","kind":"program","status":"running","#
+            + #""program":"npm","args":["test"]}]}]"#
+        let data = Data(json.utf8)
+        let rows = try WorkingSessions.consoleRows(data, executorId: "team-1")
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0]["executorId"] as? String, "team-1")
+        XCTAssertEqual(rows[0]["agentName"] as? String, "Sales agent")
+        XCTAssertEqual((rows[0]["commands"] as? [[String: Any]])?.first?["program"] as? String, "npm")
+        XCTAssertEqual(try WorkingSessions.consoleRows(Data("[]".utf8), executorId: "team-1").count, 0)
+        let refusedLists = [
+            #"{"error":{"code":"X"}}"#,
+            #"[{"sessionId":"../x","commands":[]}]"#,
+            #"[{"sessionId":"0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11"}]"#
+        ]
+        for refused in refusedLists {
+            XCTAssertThrowsError(try WorkingSessions.consoleRows(Data(refused.utf8), executorId: "team-1"), refused)
+        }
+    }
 }

@@ -35,7 +35,8 @@ const fixture = (now: number) => {
   const receipt = { domain: T3_EXECUTION_GRAPH_DOMAIN, payload: '{}',
     keyId: 'b'.repeat(64), signature: 'a'.repeat(86) }
   const accepted: T3LaneInspectionAccepted = { inspectionId: inspection.inspectionId, graphId: '1'.repeat(64),
-    expiresAt: new Date(now + 12000).toISOString(), executorId: request.executorId, environmentId: request.environmentId,
+    expiresAt: new Date(now + 12000).toISOString(),
+    executorId: request.executorId, environmentId: request.environmentId,
     connectionEpoch: '1', runtimeGeneration: request.runtimeGeneration, sourceRevision: T3_SOURCE_COMMIT,
     physicalRootKey: runtime.physicalRootKey, captureGeneration: runtime.captureGeneration,
     correlationId: request.correlationId, commandId: 'command:one', requestSha256, relayHmac: inspection.relayHmac,

@@ -144,7 +144,9 @@ export const startAgentByteProcess = async (
     if (!effectTransport(owned.child)) throw new AgentStartError('protected_provider_transport_unavailable')
     return createAgentByteTransport(owned, scope)
   } catch (error) {
-    if (!await owned.confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(owned.identity)
+    if (!await owned.confirmHostExecutionStopped().catch(() => false)) {
+      throw new AgentProcessStopUnproved(owned.identity)
+    }
     throw error
   }
 }
@@ -152,7 +154,8 @@ export const startAgentByteProcess = async (
 const startOwnedAgentProcess = async (
   context: AgentProcessContext, argv: readonly string[], onLine: ((line: string) => void) | undefined,
   effect?: SessionEffectAuthority,
-): Promise<AgentProcess & { child: ChildProcess; rawExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+): Promise<AgentProcess & {
+  child: ChildProcess; rawExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   closed: Promise<void> }> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
   if (!context.control.stopTree) throw new AgentProcessStopUnproved()

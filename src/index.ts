@@ -7,9 +7,9 @@ import { EXECUTOR_PACKAGED_BUNDLE_FILE } from './runtime-integrity.js'
  * hand-written autostart script and somebody debugging one.
  */
 export const UNMARKED_BUNDLE_MESSAGE =
-  `${EXECUTOR_PACKAGED_BUNDLE_FILE} ran no command: it is the packaged executor CLI and `
+  `${EXECUTOR_PACKAGED_BUNDLE_FILE} ran no command: it is the packaged Nessie Computer CLI and `
   + 'must be started by its package, which sets NESSIE_EXECUTOR_PACKAGED_CLI=1. '
-  + 'Start the executor through its installed service, menu bar app or tray; to run this '
+  + 'Start Nessie Computer through its app or installed service; to run this '
   + 'bundle directly, set that variable first.'
 
 /**

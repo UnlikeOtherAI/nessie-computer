@@ -24,10 +24,10 @@ const BOOTSTRAP_TOKEN = /^[A-Za-z0-9_-]{43}$/
  */
 export const deriveGuestEgressToken = (bootstrapToken: string): string => {
   if (!BOOTSTRAP_TOKEN.test(bootstrapToken)) {
-    throw new WorkspacePathError('The executor micro-VM bootstrap token is malformed.')
+    throw new WorkspacePathError('The micro-VM bootstrap token is malformed.')
   }
   const key = Buffer.from(bootstrapToken, 'base64url')
-  if (key.byteLength !== 32) throw new WorkspacePathError('The executor micro-VM bootstrap token is malformed.')
+  if (key.byteLength !== 32) throw new WorkspacePathError('The micro-VM bootstrap token is malformed.')
   return createHmac('sha256', key).update(EGRESS_TOKEN_CONTEXT).digest('base64url')
 }
 

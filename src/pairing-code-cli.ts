@@ -9,9 +9,11 @@ import { localDevelopmentApiOrigin } from './pairing-origin.js'
 import { defaultExecutorWorkspaceFolders } from './default-workspace-folders.js'
 import { workspaceFoldersFromInput, type ExecutorWorkspaceFolder } from './workspace-folder-arguments.js'
 import { acquireDefaultPairingLease, defaultPairingDirectory, promoteDefaultPairing } from './pairing-code-directory.js'
+import { processContext } from './cli-output.js'
+import { codeLines } from './cli-pairing-words.js'
+import { retireMacLaunchAgent, startNewTeam } from './cli-team-runner.js'
 import { createExecutorServiceEnvironment } from './service-environment.js'
-import { disableExecutorServiceIfPresent, enableExecutorService } from './service-linux.js'
-import { createMacServiceEnvironment, disableMacExecutorService, enableMacExecutorService } from './service-macos.js'
+import { disableExecutorServiceIfPresent } from './service-linux.js'
 import { unpairExecutor } from './unpair.js'
 import { WorkspaceCleanupRequiredError } from './workspace-retirement.js'
 
@@ -41,20 +43,21 @@ const requestedFolders = async (input: Record<string, unknown>): Promise<Executo
     : workspaceFoldersFromInput(input, 'Workspace folder')
 )
 
-const destination = (view: PairingCodeView): string => (
-  `${view.organizationName ?? 'Nessie'}${view.teamName ? `, ${view.teamName}` : ''}`
-)
+/** `{team} · {organisation}`, the label every surface uses (contract §2). */
+const destination = (view: PairingCodeView): string => [view.teamName, view.organizationName].filter(Boolean).join(' · ') || 'Nessie'
 
+/** The terminal's Add this computer: the code and where to enter it (contract §3.3). No fingerprint. */
 const show = (view: PairingCodeView): void => {
   if (view.status === 'waiting') {
-    process.stdout.write(`\n${[...(view.code ?? '')].map((digit) => `[ ${digit} ]`).join(' ')}\n`)
-    process.stdout.write('In Nessie, open Admin › Computers › Pair a computer and paste this code.\n')
-    process.stdout.write(`${view.machineName ?? 'This computer'} — fingerprint: ${view.fingerprint ?? ''}\n`)
+    process.stdout.write(codeLines(view.code, view.expiresAt, new Date()))
   } else if (view.status === 'paired') {
     process.stdout.write(`Connected to ${destination(view)}.\n`)
   } else if (view.status === 'alreadyPaired') {
-    process.stdout.write(`This computer is paired to ${destination(view)}.\n`)
-  } else process.stdout.write(view.status === 'expired' ? 'The code expired. Start pairing again.\n' : 'Pairing cancelled.\n')
+    process.stdout.write(`This computer is already connected to ${destination(view)}.\n`)
+  } else {
+    process.stdout.write(view.status === 'expired'
+      ? 'The code expired. Run nessie-computer add for a new one.\n' : 'Adding this computer was cancelled.\n')
+  }
 }
 
 /** An explicit --cli connection runs under this OS account on Windows too. */
@@ -72,14 +75,12 @@ const runUnpair = async (args: string[], platform: NodeJS.Platform): Promise<voi
   const explicitDirectory = value(args, '--state-dir')
   const executorId = value(args, '--executor')
   if (!explicitDirectory && !executorId) {
-    throw new Error('Choose the connection to remove with --executor <id> from teams, or --state-dir.')
+    throw new Error('Choose the team to remove with --executor <id> (nessie-computer teams shows the ids), or --state-dir.')
   }
   const rootLease = explicitDirectory ? null : await acquireDefaultPairingLease()
   try {
     const directory = explicitDirectory ?? await defaultPairingDirectory(executorId)
-    if (!explicitDirectory && executorId && platform === 'darwin') {
-      await disableMacExecutorService({ executorId }, createMacServiceEnvironment())
-    }
+    if (!explicitDirectory && executorId && platform === 'darwin') await retireMacLaunchAgent(processContext(), executorId)
     if (!explicitDirectory && executorId && platform === 'linux') {
       await disableExecutorServiceIfPresent(
         { executorId }, { ...createExecutorServiceEnvironment(), write: () => undefined },
@@ -107,13 +108,13 @@ export const runPairingCodeCli = async (
   if (!['login', 'pairing-start', 'pairing-status', 'pairing-confirm', 'pairing-cancel', 'pair'].includes(command)) return false
   if (command === 'pair' && args.includes('--enrollment')) return false
   if (pairingUsesWindowsTray(args, platform)) {
-    process.stdout.write('Open Nessie Executor in the Windows tray and choose Add team.\n')
+    process.stdout.write('Run nessie-computer add, or open Nessie Computer and choose Add this computer.\n')
     return true
   }
   const explicitDirectory = value(args, '--state-dir')
   const executorId = value(args, '--executor')
   if (args.includes('--replace') && !explicitDirectory && !executorId) {
-    throw new Error('Choose the connection to replace with --executor <id> from status, or --state-dir.')
+    throw new Error('Choose the team to replace with --executor <id> (nessie-computer teams shows the ids), or --state-dir.')
   }
   const json = args.includes('--json')
   const rootLease = explicitDirectory ? null : await acquireDefaultPairingLease()
@@ -155,7 +156,8 @@ export const runPairingCodeCli = async (
         try {
           if (view.status === 'alreadyPaired') {
             show(view)
-            if ((await terminal.question('Replace this pairing? Type yes to continue: ')).trim().toLowerCase() !== 'yes') return true
+            if ((await terminal.question('Connect it again, replacing that connection? Type yes to continue: '))
+              .trim().toLowerCase() !== 'yes') return true
             view = await startPairingCode({
               apiBaseUrl: approved.origin, operationKeys, replace: true, stateDir: directory, workspaceFolders,
             })
@@ -173,19 +175,10 @@ export const runPairingCodeCli = async (
     }
     if (!explicitDirectory && view.status === 'paired' && view.executorId) {
       await promoteDefaultPairing(directory, view.executorId)
-      if (!json && process.stdin.isTTY && (platform === 'linux' || platform === 'darwin')
-        && ['login', 'pair', 'pairing-start'].includes(command)) {
-        if (platform === 'darwin') {
-          await enableMacExecutorService({ executorId: view.executorId }, {
-            ...createMacServiceEnvironment(), write: () => undefined,
-          })
-          process.stdout.write('Nessie Executor is running and will start when you log in.\n')
-        } else {
-          await enableExecutorService({ executorId: view.executorId, assumeYes: true }, {
-            ...createExecutorServiceEnvironment(), write: () => undefined,
-          })
-          process.stdout.write('Nessie Executor is running and will start automatically with this computer.\n')
-        }
+      // Whoever runs this computer's teams takes the new one: the app where
+      // it is installed, the command line's own service otherwise.
+      if (!json && process.stdin.isTTY && ['login', 'pair', 'pairing-start'].includes(command)) {
+        process.stdout.write(`${await startNewTeam({ ...processContext(), platform }, view.executorId)}\n`)
       }
     }
     if (json) process.stdout.write(`${JSON.stringify(view)}\n`)

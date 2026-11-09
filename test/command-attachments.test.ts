@@ -23,11 +23,8 @@ import {
   type ExecutorAttachmentUpload,
   type ExecutorCommandAttachmentStore,
 } from '../src/command-attachments.js'
-import {
-  recoverOrPollExecutorCommand,
-  type ExecutorCommandRecovery,
-  type ExecutorCommandRecoveryStore,
-} from '../src/command-recovery.js'
+import type { ExecutorCommandJournal, ExecutorCommandRecord } from '../src/command-journal.js'
+import { advanceExecutorCommand } from '../src/command-recovery.js'
 import { uploadExecutorCommandAttachment } from '../src/daemon.js'
 import { executeExecutorMcpCommand } from '../src/mcp-dispatch.js'
 import { executorMcpImageReferences, extractExecutorMcpImages } from '../src/mcp-images.js'
@@ -82,12 +79,16 @@ const digestsIn = (result: Record<string, unknown>): string[] =>
 const sidecarPath = (stateDir: string, commandId: string, digest: string): string =>
   join(stateDir, 'runtime', 'attachments', commandId, `${digest.slice('sha256:'.length)}.bin`)
 
-const memoryJournal = (initial: ExecutorCommandRecovery | null = null) => {
-  let value = initial
-  const saved: ExecutorCommandRecovery[] = []
-  const store: ExecutorCommandRecoveryStore = {
-    clear: async () => { value = null },
-    load: async () => value,
+type JournalStore = Pick<ExecutorCommandJournal, 'list' | 'remove' | 'save'>
+type InitialRecord = Pick<ExecutorCommandRecord, 'command' | 'phase' | 'result' | 'delivered'>
+
+/** A journal holding at most this test's one command. */
+const memoryJournal = (initial: InitialRecord | null = null) => {
+  let value: ExecutorCommandRecord | null = initial && { ...initial, receivedAt: '2026-11-08T10:00:00.000Z', version: 2 }
+  const saved: ExecutorCommandRecord[] = []
+  const store: JournalStore = {
+    list: async () => (value ? [value] : []),
+    remove: async () => { value = null },
     save: async (next) => {
       saved.push(structuredClone(next))
       value = structuredClone(next)
@@ -120,8 +121,8 @@ const fakeControlPlane = (options: {
   return { receipts, stored, upload, uploads }
 }
 
-const recover = (input: {
-  journal: ExecutorCommandRecoveryStore
+const recover = async (input: {
+  journal: JournalStore
   loseReceipt?: () => boolean
   now?: () => number
   receipts: Record<string, unknown>[]
@@ -129,8 +130,14 @@ const recover = (input: {
   upload: ExecutorAttachmentUpload
   execute?: () => Promise<Record<string, unknown>>
 }) => {
-  let delivered = false
-  return recoverOrPollExecutorCommand({
+  // What the dispatcher does: a held record goes on; otherwise the command arrives and is journaled first.
+  const [held] = await input.journal.list()
+  const record: ExecutorCommandRecord = held ?? {
+    command, phase: 'accepted_pending', receivedAt: '2026-11-08T10:00:00.000Z', version: 2,
+  }
+  if (!held) await input.journal.save(record)
+  return advanceExecutorCommand(record, {
+    admit: async () => ({ release: () => undefined }),
     attachments: {
       deliver: (pending) => deliverExecutorCommandAttachments({
         ...pending,
@@ -141,18 +148,11 @@ const recover = (input: {
       release: (commandId) => input.sidecars.remove(commandId),
     },
     execute: input.execute ?? (async () => ({ success: true })),
-    store: input.journal,
-    transport: {
-      poll: async () => {
-        if (delivered) return null
-        delivered = true
-        return command
-      },
-      receipt: async (receipt) => {
-        if (receipt.state !== 'result_acknowledged') return
-        if (input.loseReceipt?.()) throw new Error('the daemon stopped before the receipt')
-        input.receipts.push(receipt.result ?? {})
-      },
+    journal: input.journal,
+    receipt: async (receipt) => {
+      if (receipt.state !== 'result_acknowledged') return
+      if (input.loseReceipt?.()) throw new Error('the daemon stopped before the receipt')
+      input.receipts.push(receipt.result ?? {})
     },
   })
 }
@@ -167,7 +167,7 @@ const pendingScreenshot = async (sidecars: ExecutorCommandAttachmentStore) => {
   const extracted = extractExecutorMcpImages(await kelpieResult())
   await sidecars.write(command.commandId, extracted.images)
   const result = { ...extracted.result, success: true }
-  return memoryJournal({ command, phase: 'result_pending', result, version: 1 })
+  return memoryJournal({ command, phase: 'result_pending', result })
 }
 
 test('a real screenshot’s sidecar is on disk before the result that references it is journaled', async () => {
@@ -179,7 +179,7 @@ test('a real screenshot’s sidecar is on disk before the result that references
     }], { maxResultBytes: 65_536 }, { log: () => undefined, startTimeoutMs: 15_000 })
     const journal = memoryJournal()
     const checkedAtJournal: string[] = []
-    const store: ExecutorCommandRecoveryStore = {
+    const store: JournalStore = {
       ...journal.store,
       save: async (next) => {
         // The entry that first names the result; later saves only record
@@ -252,7 +252,7 @@ test('a restart between an upload and its journaled answer uploads again, and Ne
     const journal = await pendingScreenshot(sidecars)
     const api = fakeControlPlane()
     let crashed = false
-    const store: ExecutorCommandRecoveryStore = {
+    const store: JournalStore = {
       ...journal.store,
       save: async (next) => {
         if (next.delivered?.length && !crashed) {
@@ -315,7 +315,7 @@ test('a refused upload is terminal: the reference becomes a placeholder, journal
 const TIMEOUT = () => new ExecutorApiError('Executor API request timed out.', { code: 'EXECUTOR_API_TIMEOUT' })
 
 for (const [name, error, stopsSessions] of [
-  ['a 5xx', () => new ExecutorApiError('Executor API request failed (503).', { status: 503 }), false],
+  ['a 5xx', () => new ExecutorApiError('The Nessie request failed (503).', { status: 503 }), false],
   ['a timeout', TIMEOUT, false],
   ['a lost connection', () => new TypeError('fetch failed'), false],
   ['a fenced connection', () => new ExecutorApiError('Connection fenced.', { code: 'EXECUTOR_CONNECTION_FENCED', status: 409 }), true],
@@ -398,7 +398,7 @@ test('a retry sends only the images Nessie has not answered for', async () => {
     const extracted = extractExecutorMcpImages({ content: [pngImage(2_000, 1), pngImage(3_000, 2)] })
     const [first, second] = extracted.images.map((image) => image.digest)
     await sidecars.write(command.commandId, extracted.images)
-    const journal = memoryJournal({ command, phase: 'result_pending', result: { ...extracted.result, success: true }, version: 1 })
+    const journal = memoryJournal({ command, phase: 'result_pending', result: { ...extracted.result, success: true } })
     const api = fakeControlPlane()
     let secondFails = true
     const upload: ExecutorAttachmentUpload = async (image) => {
@@ -438,7 +438,7 @@ test('a sidecar that is gone or altered is withdrawn as lost, and nothing is upl
   }
 })
 
-test('the daemon’s start removes every sidecar folder but the one the journal still names', async () => {
+test('the daemon’s start removes every sidecar folder but those the journal still holds', async () => {
   await withRuntime(async (stateDir, sidecars) => {
     const { images } = extractExecutorMcpImages(await kelpieResult())
     const others = ['00000000-0000-4000-8000-000000000701', '00000000-0000-4000-8000-000000000702']
@@ -447,11 +447,11 @@ test('the daemon’s start removes every sidecar folder but the one the journal 
 
     // A journal that cannot be read says nothing about which folder is current.
     await assert.rejects(sweepExecutorCommandAttachments({
-      load: async () => { throw new Error('Executor command recovery journal is malformed.') },
+      list: async () => { throw new Error('Executor command recovery journal is malformed.') },
     }, sidecars), /malformed/)
     assert.equal((await readdir(folder)).length, 3)
 
-    await sweepExecutorCommandAttachments(memoryJournal({ command, phase: 'executing', version: 1 }).store, sidecars)
+    await sweepExecutorCommandAttachments(memoryJournal({ command, phase: 'executing' }).store, sidecars)
     assert.deepEqual(await readdir(folder), [command.commandId])
 
     await sweepExecutorCommandAttachments(memoryJournal().store, sidecars)

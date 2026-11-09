@@ -33,7 +33,8 @@ export function snapshotT3LaneDelivery(raw: ExecutorT3LaneDelivery,
       if (expiry <= now || expiry > now + T3_LANE_LIMITS.leaseMs) throw new Error('T3_LANE_AUTHORITY_EXPIRED')
     }
   }
-  const executionGraph = raw.executionGraph === undefined ? undefined : T3ExecutionReceiptSchema.parse(raw.executionGraph)
+  const executionGraph = raw.executionGraph === undefined
+    ? undefined : T3ExecutionReceiptSchema.parse(raw.executionGraph)
   if (executionGraph) {
     const graph = T3ExecutionGraphPayloadSchema.parse(JSON.parse(executionGraph.payload))
     const binding = graph.binding

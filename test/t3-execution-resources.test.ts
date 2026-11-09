@@ -22,7 +22,8 @@ test('execution resource codec preserves original IDs and accepts no paths, sett
     const value = receipt(); value.evidence.settingsLength = settingsLength
     assert.equal(T3ExecutionResourceReceiptSchema.safeParse(value).success, false)
   }
-  const duplicate = receipt(); duplicate.evidence.providerReferences.push({ ...duplicate.evidence.providerReferences[0]! })
+  const duplicate = receipt()
+  duplicate.evidence.providerReferences.push({ ...duplicate.evidence.providerReferences[0]! })
   assert.equal(T3ExecutionResourceReceiptSchema.safeParse(duplicate).success, false)
   const wrongRole = receipt(); wrongRole.evidence.source.databaseRole = 'sole-legacy'
   assert.equal(T3ExecutionResourceReceiptSchema.safeParse(wrongRole).success, false)

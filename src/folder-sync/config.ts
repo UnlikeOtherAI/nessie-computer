@@ -3,7 +3,7 @@ import { mkdir, readdir, readFile, realpath, rename } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 
-import type { FolderSyncConsoleRefusal } from '@nessie/executor-protocol'
+import { FolderSyncTeamFolderSchema, type FolderSyncConsoleRefusal } from '@nessie/executor-protocol'
 
 import type { StateSecurityDeps } from '../state-security.js'
 import type { ExecutorWorkspaceFolder } from '../workspace-folders.js'
@@ -31,7 +31,11 @@ export type FolderSyncConfig = {
   includeSensitive: boolean
   /** The folder's identity, also written to its marker; a new one starts a fresh index. */
   syncId: string | null
-  /** The team's folder under the root, allocated once from the handshake's label. */
+  /**
+   * The team's folder under the root, forward slashes: `<Organisation>/<Team>`,
+   * or one `<Team>` segment for a sync named before teams shared a main
+   * folder. Named once (`team-folder.ts`), then fixed.
+   */
   teamFolder: string | null
 }
 
@@ -79,7 +83,8 @@ export const folderSyncRootLabel = (root: string): string => basename(resolve(ro
  * `<root>/.nessie-sync-<executorId>`: which sync owns which team folder in this
  * root. One file per executor, so several teams share one root without
  * writing one another's marker. A missing marker is `root_missing` (C21);
- * a moved folder with its marker intact resumes.
+ * a moved folder with its marker intact resumes. A marker whose team folder
+ * is not one or two cleaned names is not one this engine wrote, and is ignored.
  */
 export type FolderSyncMarker = { syncId: string; executorId: string; teamFolder: string | null; createdAt: string }
 
@@ -94,7 +99,9 @@ export const markerPath = (root: string, executorId: string): string => join(roo
 export const readMarker = async (root: string, executorId: string): Promise<FolderSyncMarker | null> => {
   try {
     const parsed = JSON.parse(await readFile(fsPath(markerPath(root, executorId)), 'utf8')) as FolderSyncMarker
-    return parsed.executorId === executorId && typeof parsed.syncId === 'string' ? parsed : null
+    const folder = parsed.teamFolder ?? null
+    if (folder !== null && !FolderSyncTeamFolderSchema.safeParse(folder).success) return null
+    return parsed.executorId === executorId && typeof parsed.syncId === 'string' ? { ...parsed, teamFolder: folder } : null
   } catch {
     return null
   }
@@ -107,16 +114,42 @@ export const writeMarker = async (root: string, marker: FolderSyncMarker): Promi
   await rename(fsPath(temporary), fsPath(path))
 }
 
-/** Team folders other syncs in this root hold: a new team folder must not take one. */
-export const teamFoldersOfOtherSyncs = async (root: string, executorId: string): Promise<string[]> => {
-  const names = await readdir(fsPath(root)).catch(() => [] as string[])
-  const taken: string[] = []
-  for (const name of names) {
-    if (!name.startsWith(MARKER_PREFIX) || name === `${MARKER_PREFIX}${executorId}`) continue
-    const other = await readMarker(root, name.slice(MARKER_PREFIX.length))
-    if (other?.teamFolder) taken.push(other.teamFolder)
+/** The other syncs' markers in one folder: their executor ids and what they hold. */
+const othersIn = async (dir: string, executorId: string): Promise<FolderSyncMarker[]> => {
+  const markers: FolderSyncMarker[] = []
+  for (const name of await readdir(fsPath(dir)).catch(() => [] as string[])) {
+    if (!isSyncMarkerName(name) || name === `${MARKER_PREFIX}${executorId}`) continue
+    const other = await readMarker(dir, name.slice(MARKER_PREFIX.length))
+    if (other) markers.push(other)
   }
-  return taken
+  return markers
+}
+
+/**
+ * The team folders other syncs on this computer hold, as absolute paths, read
+ * from the markers in `dir` and in every folder above it: the syncs whose
+ * folder could hold `dir` or a folder named under it. (A sync whose root is
+ * inside a team folder is refused, `root_inside_other_sync`, and a scan never
+ * walks into a folder that holds a marker.)
+ */
+export const otherSyncTeamFolders = async (dir: string, executorId: string): Promise<string[]> => {
+  const folders: string[] = []
+  for (let at = resolve(dir); ; at = dirname(at)) {
+    for (const other of await othersIn(at, executorId)) {
+      if (other.teamFolder) folders.push(join(at, ...other.teamFolder.split('/')))
+    }
+    if (dirname(at) === at) return folders
+  }
+}
+
+/** The sync whose marker in `root` names `syncId`: when it began, for "the first team's folder". */
+export const markerForSync = async (root: string, syncId: string): Promise<FolderSyncMarker | null> => {
+  for (const name of await readdir(fsPath(root)).catch(() => [] as string[])) {
+    if (!isSyncMarkerName(name)) continue
+    const marker = await readMarker(root, name.slice(MARKER_PREFIX.length))
+    if (marker?.syncId === syncId) return marker
+  }
+  return null
 }
 
 // ── The root rule ───────────────────────────────────────────────────────────
@@ -133,18 +166,9 @@ const overlaps = (a: string, b: string): boolean => inside(a, b) || inside(b, a)
 
 const real = (path: string): Promise<string> => realpath(path).catch(() => resolve(path))
 
-/** True when a marker beside `root` or above it names a team folder of another sync that holds `root`. */
-const insideAnotherSync = async (root: string, executorId: string): Promise<boolean> => {
-  for (let dir = resolve(root); ; dir = dirname(dir)) {
-    const names = await readdir(fsPath(dir)).catch(() => [] as string[])
-    for (const name of names) {
-      if (!isSyncMarkerName(name) || name === `${MARKER_PREFIX}${executorId}`) continue
-      const other = await readMarker(dir, name.slice(MARKER_PREFIX.length))
-      if (other?.teamFolder && inside(join(dir, other.teamFolder), root)) return true
-    }
-    if (dirname(dir) === dir) return false
-  }
-}
+/** True when another sync's team folder (one or two segments under its root) holds `root`. */
+const insideAnotherSync = async (root: string, executorId: string): Promise<boolean> =>
+  (await otherSyncTeamFolders(root, executorId)).some((folder) => inside(folder, root))
 
 /**
  * Why `root` cannot be the sync folder, or null when it can: absolute, an
@@ -184,17 +208,24 @@ export const syncRootRefusal = async (
   return null
 }
 
-/** Files already in a folder with no marker of ours (C22): ask before they go to Nessie. */
-export const countExistingFiles = async (root: string, limit = 100_000): Promise<number> => {
+/**
+ * Files already in a folder with no marker of ours (C22): ask before they go
+ * to Nessie. Other teams' folders in it are theirs, never this team's new
+ * files, so they are not counted: their team folders, and any folder holding
+ * another sync's marker.
+ */
+export const countExistingFiles = async (root: string, executorId: string, limit = 100_000): Promise<number> => {
+  const theirs = new Set((await otherSyncTeamFolders(root, executorId)).map((folder) => caseFolded(resolve(folder))))
   let count = 0
   const walk = async (directory: string): Promise<void> => {
     const names = await readdir(fsPath(directory)).catch(() => [] as string[])
+    if (directory !== root && names.some(isSyncMarkerName)) return
     for (const name of names) {
       if (count >= limit || isIgnoredName(name)) continue
       const path = join(directory, name)
       const found = await lstatOrNull(path)
       if (found?.type === 'file') count += 1
-      else if (found?.type === 'directory') await walk(path)
+      else if (found?.type === 'directory' && !theirs.has(caseFolded(resolve(path)))) await walk(path)
     }
   }
   await walk(root)

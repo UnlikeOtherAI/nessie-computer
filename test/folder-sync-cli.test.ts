@@ -139,12 +139,15 @@ test('teamLabel is the team folder on disk and conflict paths are relative to it
   const h = await createSyncHarness()
   t.after(h.cleanup)
   h.server.teamLabel = 'Acme: R&D'
+  h.server.organizationName = 'Acme/Labs'
   const doc = h.server.actor.create({ spaceId: h.space.id, parentPageId: null, kind: 'file', title: 'spec.bin', content: 'base' })
   await h.enable()
   await h.settle()
   const state = FolderSyncConsoleStateSchema.parse((await run(h, ['status', '--json'])).json())
-  assert.equal(state.teamLabel, 'Acme_ R&D')
-  assert.deepEqual(await readdir(h.root).then((names) => names.filter((name) => !name.startsWith('.'))), ['Acme_ R&D'])
+  assert.equal(state.teamLabel, 'Acme_Labs/Acme_ R&D')
+  assert.equal(state.teamFolder, state.teamLabel)
+  assert.deepEqual(await readdir(h.root).then((names) => names.filter((name) => !name.startsWith('.'))), ['Acme_Labs'])
+  assert.deepEqual(await readdir(join(h.root, 'Acme_Labs')), ['Acme_ R&D'])
   const teamDir = join(h.root, state.teamLabel!)
   h.server.actor.edit(doc.id, 'theirs')
   await writeFile(join(teamDir, 'Projects', 'spec.bin'), 'mine')

@@ -1,22 +1,31 @@
 # Local AI connections
 
-The shared Windows/macOS console owns AI connections in the **AI** tab, between
-Sync and Settings. A team's **AI** button opens the same tab with that team
-selected. Saved connections belong to that computer and selected team.
+The shared Windows/macOS console owns AI connections in the **AI** tab, which
+follows the team dropdown (see [the team tabs](nessie-computer-team-tabs.md)).
+Saved connections belong to that computer and selected team.
 
-## ChatGPT
+## Claude Code and Codex on this computer
 
-Use **Add ChatGPT connection** for each account, give it a name, and complete
-the provider's sign-in. Each connection has a stable profile ID, independent
-sign-in, disconnect and background-work consent. **Manage** opens that profile;
-**Save name** changes only its local display label. Adding a profile does not
+**On this computer** sits above ChatGPT plans. It lists Claude Code and Codex
+with the account each is signed in to, and a **Make available** switch per
+team. The wire contract, accounts, sessions and verification are in
+[Claude Code and Codex as engines](local-cli-engines.md).
+
+## ChatGPT plans
+
+Use **Add a ChatGPT plan** for each plan, yours or your company's; the name is
+prefilled "ChatGPT plan N" and editable, and **Sign in with ChatGPT** completes
+the provider's own sign-in. Each plan has a stable profile ID, independent
+sign-in, sign-out and background-work consent. **Manage** opens that plan;
+**Save name** changes only its local display label. Adding a plan does not
 resume another account or inherit another profile's provider registration.
-Native credential custody and per-account funding rules still apply.
+Native credential custody and per-plan funding rules still apply: a plan funds
+the owner's own agents.
 
 ## Local and network model servers
 
-Use **Add server**, enter a name and API address, and choose **On this computer**
-or **On my local network**. Strata and other OpenAI-compatible APIs expose their
+Use **Add a model server**, enter a name and API address, and choose **On this
+computer** or **On my local network**. OpenAI-compatible APIs expose their
 models through the server address, normally ending in /v1. The remote server
 needs no executor: this connected computer sends requests to it. The server
 must listen on an address this computer can reach. Local Ollama discovery is
@@ -45,20 +54,20 @@ The Windows service verifies the requesting SID owns that pairing.
 
 ## Names and selection
 
-Team names come from the paired service backed by UOA. When the captured owner
-proof needs renewal, Teams directs the owner to Nessie → Computers → Confirm
-owner. This is explicit recovery; reading names never borrows another login.
-The console retries name lookup. Labels are not selectable; text inputs and
-copyable pairing codes remain selectable.
+Team names come from each team's saved, display-only label
+([team names](team-names.md)), which every `executor_view` row carries; reading
+them asks nobody and depends on no person's login. Labels are not selectable;
+text inputs and copyable pairing codes remain selectable.
 
 ## Verification
 
-Run the public Turbo task `//#test:ai-connections` with
+Claude Code and Codex have their own gate, `//#test:cli-engines`, and journey
+(`ai-local-renderer.mjs`, run by `--only=ai`). Run the public Turbo task `//#test:ai-connections` with
 `--root-turbo-json=scripts/turbo.public.json --concurrency=2`. On Windows, first
 build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed
 credential authority. The local headless journey is
-`node tray-windows/test/renderer-harness.mjs --ai-only`.
+`node tray-windows/test/renderer-harness.mjs --only=ai`, against the real console page.
 
 Revision c9f4016 passed build, lint, typecheck and all 42 focused tests on Maxis,
 with no skips. Shared AI/ChatGPT journeys passed in seven locales at 390/1280 px

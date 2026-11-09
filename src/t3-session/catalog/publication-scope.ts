@@ -36,7 +36,8 @@ export async function withRetainedCatalogPublication<A>(ports: Pick<RetainedCapt
   signal.throwIfAborted()
   await graph.recheck()
   requireCapture(graph.source === proven && graph.physicalSourceRecheck === local.physicalSourceRecheck &&
-    proven.admittedRootKey === input.source.admittedRootKey && proven.physicalRootKey === input.source.physicalRootKey &&
+    proven.admittedRootKey === input.source.admittedRootKey
+    && proven.physicalRootKey === input.source.physicalRootKey &&
     proven.environmentId === input.source.environmentId && proven.layout === input.source.layout &&
     proven.databaseRole === input.source.databaseRole && input.captureGeneration === local.captureGeneration,
   'capture_source_mismatch')

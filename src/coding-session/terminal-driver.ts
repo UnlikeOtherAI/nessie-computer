@@ -125,7 +125,8 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     },
     close: async (reason, effect) => { await stop(effect); context.update({ status: 'closed', reason }) },
     endIdle: stop,
-    running: () => process !== undefined || !settled || stopDebt !== undefined || context.state().agentIdentity !== undefined,
+    running: () => process !== undefined || !settled || stopDebt !== undefined
+      || context.state().agentIdentity !== undefined,
     busy: () => process?.alive() === true || !settled,
   }
 }

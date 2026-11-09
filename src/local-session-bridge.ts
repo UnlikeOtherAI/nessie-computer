@@ -18,7 +18,7 @@ export const enableLocalSessionBridge = async (
   if (previous?.existingSessions && previous.terminalCommands === 'commandRules') return state
   const loaded = previous ? await loadCodingSessionsConfig(codingSessionsConfigPath(stateDir)) : undefined
   if (loaded && loaded.digest !== previous?.configDigest) {
-    throw new Error('The coding-session configuration changed. Apply the local configuration before starting the executor.')
+    throw new Error('The coding-session configuration changed. Apply the local configuration before starting this team.')
   }
   return configureExecutorLocalPolicy(stateDir, state,
     [...new Set([...state.descriptor.operationKeys, 'mcp.tools', 'mcp.call'])],

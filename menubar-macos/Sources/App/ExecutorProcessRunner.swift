@@ -86,6 +86,28 @@ struct ExecutorProcessRunner {
         // swiftlint:enable optional_data_string_conversion
     }
 
+    /// The same run off the main thread, for callers that await it.
+    func runAsync(_ invocation: ExecutorCLIInvocation) async throws -> Completion {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                do {
+                    continuation.resume(returning: try run(invocation))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    /// The standard output of a run that must succeed; its refusal otherwise.
+    func output(_ invocation: ExecutorCLIInvocation) async throws -> Data {
+        let completion = try await runAsync(invocation)
+        guard completion.succeeded else {
+            throw Self.refusal(from: completion, fallback: Word.changeRefused.text)
+        }
+        return Data(completion.standardOutput.utf8)
+    }
+
     /// The refusal a completion carries, preferring the CLI's own last line.
     static func refusal(from completion: Completion, fallback: String) -> ExecutorRefusal {
         let line = completion.standardError
@@ -100,12 +122,15 @@ struct ExecutorProcessRunner {
     /// handle is the supervision: the daemon watches the pipe and tears every
     /// guest session down when it closes, so it cannot outlive this app. The same
     /// contract `desktop/src-tauri/src/executor_companion/runtime.rs` uses.
+    /// Its output goes to the team's log, which Settings → Help opens.
     func spawnDaemon(stateDirectory: String) throws -> (process: Process, parentLiveness: FileHandle) {
         let process = process(for: ExecutorCLI.serve(stateDirectory: stateDirectory))
         let liveness = Pipe()
+        let log = DaemonLog.handle(for: stateDirectory)
         process.standardInput = liveness
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
+        process.standardOutput = log ?? FileHandle.nullDevice
+        process.standardError = log ?? FileHandle.nullDevice
+        defer { try? log?.close() }
         try process.run()
         return (process, liveness.fileHandleForWriting)
     }

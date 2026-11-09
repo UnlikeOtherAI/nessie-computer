@@ -185,8 +185,11 @@ export const windowsControl = (
       throw new Error('Windows process termination exchange did not complete.')
     }
   }
+  const containedLaunch = jobHelper
+    ? (command: string, args: readonly string[]) => ({ command: jobHelper, args: ['job-run', '--', command, ...args] })
+    : undefined
   return {
-    ...(jobHelper ? { containment: 'windows_job' as const } : {}),
+    ...(containedLaunch ? { containment: 'windows_job' as const, containedLaunch } : {}),
     stopTree: async (identity, snapshot = [], effect) => {
       const result = await run(powershellPath(), [...POWERSHELL_ARGS, WINDOWS_TABLE])
       if (result.failed || !result.stdout.trim() || !recorded(identity)) return 'unknown'

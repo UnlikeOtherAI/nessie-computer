@@ -6,8 +6,9 @@ import test from 'node:test'
 
 import {
   createNonOverlappingExecutorTask,
+  SHUTDOWN_SIGNALS,
   waitForExecutorDaemonShutdown,
-} from '../src/daemon.js'
+} from '../src/daemon-tasks.js'
 
 test('a desktop parent-liveness pipe stops the daemon when its parent closes', async () => {
   const parentLiveness = new PassThrough()
@@ -25,6 +26,18 @@ test('parent EOF consumed during retained handoff startup still stops the daemon
   await ended
   await waitForExecutorDaemonShutdown(parent)
   assert.equal(parent.destroyed, true)
+});
+
+// The Windows installer asks a daemon it did not start (a scheduled task's, a
+// terminal's) to stop with Ctrl+Break before it replaces the files.
+test('Ctrl+Break stops the daemon as gracefully as a signal and leaves no listener behind', async () => {
+  const parentLiveness = new PassThrough()
+  const stopped = waitForExecutorDaemonShutdown(parentLiveness)
+  assert.ok(process.listenerCount('SIGBREAK') > 0)
+  process.emit('SIGBREAK', 'SIGBREAK')
+  await stopped
+  assert.equal(parentLiveness.destroyed, true)
+  for (const signal of SHUTDOWN_SIGNALS) assert.equal(process.listenerCount(signal), 0, signal)
 })
 
 // The menu bar app stops its daemon with SIGTERM and keeps the pipe's write end
@@ -34,7 +47,7 @@ test('parent EOF consumed during retained handoff startup still stops the daemon
 test('a daemon stopped by a signal exits while its parent still holds the liveness pipe', {
   skip: process.platform === 'win32' ? 'Windows has no catchable SIGTERM.' : false,
 }, async () => {
-  const daemon = new URL('../src/daemon.ts', import.meta.url).href
+  const daemon = new URL('../src/daemon-tasks.ts', import.meta.url).href
   const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
     const { waitForExecutorDaemonShutdown } = await import(${JSON.stringify(daemon)})
     const stopped = waitForExecutorDaemonShutdown(process.stdin)

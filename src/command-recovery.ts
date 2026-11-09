@@ -1,47 +1,26 @@
-import { randomUUID } from 'node:crypto'
-import { open, readFile, rename, unlink } from 'node:fs/promises'
-import { resolve } from 'node:path'
-
-import {
-  ExecutorCommandEnvelopeSchema,
-  type ExecutorCommandEnvelope,
-} from '@nessie/executor-protocol'
+import type { ExecutorCommandEnvelope } from '@nessie/executor-protocol'
 
 import { ExecutorApiError } from './api-client.js'
-import { assertOwnerOnlyStatePath, secureOwnerOnlyStateFile } from './state-security.js'
-import { ensureExecutorRuntimeDirectory } from './state-store.js'
+import type { ExecutorCommandJournal, ExecutorCommandRecord } from './command-journal.js'
 
-const JOURNAL_FILE = 'command-recovery.json'
-const UNKNOWN_OUTCOME_RESULT = {
+export const EXECUTOR_COMMAND_UNKNOWN_OUTCOME_RESULT = Object.freeze({
   code: 'EXECUTOR_COMMAND_UNKNOWN_OUTCOME',
   success: false,
-}
+})
 // What a result the control plane refused becomes. It is small and well formed
 // by construction, so the replacement receipt cannot be refused the same way.
-export const EXECUTOR_RESULT_REFUSED_RESULT = {
+export const EXECUTOR_RESULT_REFUSED_RESULT = Object.freeze({
   code: 'EXECUTOR_RESULT_REFUSED',
   success: false,
-}
+})
 
 type ReceiptState = 'accepted' | 'started' | 'result_acknowledged'
 
-export type ExecutorCommandRecovery = {
-  command: ExecutorCommandEnvelope
-  /**
-   * `result_pending` only: the digests of the result's images Nessie has
-   * already answered for, so a delivery that failed part-way resumes after them.
-   */
-  delivered?: string[]
-  phase: 'accepted_pending' | 'started_pending' | 'executing' | 'result_pending'
+export type ExecutorCommandReceiptSender = (input: {
+  commandId: ExecutorCommandEnvelope['commandId']
   result?: Record<string, unknown>
-  version: 1
-}
-
-export type ExecutorCommandRecoveryStore = {
-  clear: () => Promise<void>
-  load: () => Promise<ExecutorCommandRecovery | null>
-  save: (recovery: ExecutorCommandRecovery) => Promise<void>
-}
+  state: ReceiptState
+}) => Promise<void>
 
 /**
  * A result's images, which live beside the journal as sidecars
@@ -60,134 +39,28 @@ export type ExecutorCommandRecoveryAttachments = {
   release: (commandId: ExecutorCommandEnvelope['commandId']) => Promise<void>
 }
 
-export type ExecutorCommandRecoveryTransport = {
-  poll: () => Promise<ExecutorCommandEnvelope | null>
-  receipt: (input: {
-    commandId: ExecutorCommandEnvelope['commandId']
-    result?: Record<string, unknown>
-    state: ReceiptState
-  }) => Promise<void>
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> => (
-  Boolean(value) && typeof value === 'object' && !Array.isArray(value)
-)
-
-const DIGEST = /^sha256:[0-9a-f]{64}$/
-
-const isDigestList = (value: unknown): value is string[] => (
-  Array.isArray(value) && value.every((digest) => typeof digest === 'string' && DIGEST.test(digest))
-)
-
-const parseRecovery = (value: unknown): ExecutorCommandRecovery => {
-  if (!isRecord(value) || value.version !== 1) {
-    throw new Error('Executor command recovery journal is malformed.')
-  }
-  const command = ExecutorCommandEnvelopeSchema.safeParse(value.command)
-  const phase = value.phase
-  if (
-    !command.success
-    || !['accepted_pending', 'started_pending', 'executing', 'result_pending'].includes(String(phase))
-    || (phase === 'result_pending' && (!isRecord(value.result) || Object.keys(value.result).length === 0))
-    || (phase !== 'result_pending' && (value.result !== undefined || value.delivered !== undefined))
-    || (value.delivered !== undefined && !isDigestList(value.delivered))
-  ) {
-    throw new Error('Executor command recovery journal is malformed.')
-  }
-  return {
-    command: command.data,
-    ...(isDigestList(value.delivered) ? { delivered: value.delivered } : {}),
-    phase: phase as ExecutorCommandRecovery['phase'],
-    ...(phase === 'result_pending' ? { result: value.result as Record<string, unknown> } : {}),
-    version: 1,
-  }
-}
-
-export type ExecutorCommandRecoveryStoreDeps = {
-  ensureRuntimeDirectory?: (stateDir: string) => Promise<string>
-}
-
 /**
- * The journal is local control state, not a second server queue. It lives under
- * the same owner-only boundary as the machine key and is atomically replaced.
- *
- * One store secures the runtime directory **once**, not once per operation.
- * Securing it creates and re-applies an explicit DACL, which on Windows means
- * spawning the packaged native helper twice; the daemon polls once a second, so
- * deriving the journal path per operation cost two process creations a second
- * for the life of the daemon and burned roughly fifty times the CPU its macOS
- * counterpart did, where the same proof is an `lstat`. It is setup, not a
- * per-operation proof: every `load` and `save` below still proves the journal
- * *file* owner-only before this process reads or replaces its contents, which
- * is the check that stands between the daemon and content someone else wrote.
+ * What the dispatcher gives a command when it may start: either a slot and its
+ * resources (`release` gives them back), or the result it ends with without
+ * running — cancelled, stopped or closed while it waited.
  */
-export const createExecutorCommandRecoveryStore = (
-  stateDir: string,
-  deps: ExecutorCommandRecoveryStoreDeps = {},
-): ExecutorCommandRecoveryStore => {
-  const ensureRuntimeDirectory = deps.ensureRuntimeDirectory ?? ensureExecutorRuntimeDirectory
-  let secured: Promise<string> | undefined
-  const journalPath = async (): Promise<string> => {
-    // A rejected promise must never be the cached answer: a directory that
-    // could not be secured once has to be attempted again, or one transient
-    // failure would disable recovery for as long as the daemon runs.
-    secured ??= ensureRuntimeDirectory(stateDir)
-    try {
-      return resolve(await secured, JOURNAL_FILE)
-    } catch (error) {
-      secured = undefined
-      throw error
-    }
-  }
+export type ExecutorCommandAdmission =
+  | { release: () => void; result?: undefined }
+  | { release?: undefined; result: Record<string, unknown> }
 
-  return {
-    clear: async () => {
-      const path = await journalPath()
-      try {
-        await assertOwnerOnlyStatePath(path, 'file')
-        await unlink(path)
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-      }
-    },
-    load: async () => {
-      const path = await journalPath()
-      try {
-        await assertOwnerOnlyStatePath(path, 'file')
-        return parseRecovery(JSON.parse(await readFile(path, 'utf8')))
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null
-        throw error
-      }
-    },
-    save: async (recovery) => {
-      const path = await journalPath()
-      const temporaryPath = `${path}.${process.pid}.${randomUUID()}.new`
-      const handle = await open(temporaryPath, 'wx', 0o600)
-      try {
-        try {
-          await handle.writeFile(`${JSON.stringify(recovery)}\n`, 'utf8')
-          await handle.sync()
-        } finally {
-          await handle.close()
-        }
-        await secureOwnerOnlyStateFile(temporaryPath)
-        await rename(temporaryPath, path)
-      } finally {
-        await unlink(temporaryPath).catch(() => undefined)
-      }
-    },
-  }
+export type ExecutorCommandLifecycle = {
+  journal: Pick<ExecutorCommandJournal, 'remove' | 'save'>
+  receipt: ExecutorCommandReceiptSender
+  attachments?: ExecutorCommandRecoveryAttachments
+  /** Told when the control plane refused a result and it was replaced. */
+  onResultRefused?: (command: ExecutorCommandEnvelope) => void
+  /** Told each time the record moves to a new phase, after it is journaled. */
+  onPhase?: (record: ExecutorCommandRecord) => void
+  /** Waits until the command may start. */
+  admit: (record: ExecutorCommandRecord) => Promise<ExecutorCommandAdmission>
+  execute: (record: ExecutorCommandRecord) => Promise<Record<string, unknown>>
+  now?: () => Date
 }
-
-const terminalUnknownOutcome = (
-  recovery: ExecutorCommandRecovery,
-): ExecutorCommandRecovery => ({
-  command: recovery.command,
-  phase: 'result_pending',
-  result: UNKNOWN_OUTCOME_RESULT,
-  version: 1,
-})
 
 const receiptWasFencedByUnknownOutcome = (error: unknown): boolean => (
   error instanceof ExecutorApiError && error.code === 'EXECUTOR_COMMAND_REPLAY'
@@ -202,112 +75,99 @@ const isRefusedReplacement = (result: Record<string, unknown> | undefined): bool
 )
 
 /**
- * Advance one command to a durable terminal receipt. A response may disappear
- * after the server commits any receipt; retrying that same transition is safe.
- * A process death after execution begins is deliberately not retried: the
- * replacement daemon reports an unknown outcome so a side effect cannot run
- * twice.
+ * Advances one command to a durable terminal receipt. A response may disappear
+ * after the server commits any receipt; retrying that same transition is safe,
+ * so a failed step throws with the record still journaled at the phase it
+ * reached, and the caller advances it again later. A process death after
+ * execution begins is deliberately not retried: the replacement daemon
+ * reports an unknown outcome so a side effect cannot run twice.
  */
-export const recoverOrPollExecutorCommand = async (input: {
-  attachments?: ExecutorCommandRecoveryAttachments
-  execute: (command: ExecutorCommandEnvelope) => Promise<Record<string, unknown>>
-  /** Told when the control plane refused a result and it was replaced. */
-  onResultRefused?: (command: ExecutorCommandEnvelope) => void
-  store: ExecutorCommandRecoveryStore
-  transport: ExecutorCommandRecoveryTransport
-}): Promise<boolean> => {
-  let recovery = await input.store.load()
+export const advanceExecutorCommand = async (
+  initial: ExecutorCommandRecord, lifecycle: ExecutorCommandLifecycle,
+): Promise<void> => {
+  const now = lifecycle.now ?? (() => new Date())
+  let record = initial
+  // Read through a call: `move` replaces `record`, which narrowing cannot see.
+  const phase = (): ExecutorCommandRecord['phase'] => record.phase
   let executionStartedHere = false
-  if (!recovery) {
-    const command = await input.transport.poll()
-    if (!command) return false
-    recovery = { command, phase: 'accepted_pending', version: 1 }
-    await input.store.save(recovery)
+  let admission: ExecutorCommandAdmission | undefined
+  const move = async (next: ExecutorCommandRecord): Promise<void> => {
+    await lifecycle.journal.save(next)
+    record = next
+    lifecycle.onPhase?.(record)
   }
-
-  if (recovery.phase === 'accepted_pending') {
+  const unknownOutcome = (): ExecutorCommandRecord => ({
+    command: record.command, phase: 'result_pending', receivedAt: record.receivedAt,
+    result: { ...EXECUTOR_COMMAND_UNKNOWN_OUTCOME_RESULT },
+    ...(record.startedAt ? { startedAt: record.startedAt } : {}), version: 2,
+  })
+  const send = async (state: 'accepted' | 'started', next: ExecutorCommandRecord): Promise<void> => {
     try {
-      await input.transport.receipt({ commandId: recovery.command.commandId, state: 'accepted' })
+      await lifecycle.receipt({ commandId: record.command.commandId, state })
     } catch (error) {
       if (!receiptWasFencedByUnknownOutcome(error)) throw error
-      recovery = terminalUnknownOutcome(recovery)
-      await input.store.save(recovery)
+      await move(unknownOutcome())
+      return
     }
-    if (recovery.phase === 'accepted_pending') {
-      recovery = { ...recovery, phase: 'started_pending' }
-      await input.store.save(recovery)
-    }
+    await move(next)
   }
 
-  if (recovery.phase === 'started_pending') {
-    try {
-      await input.transport.receipt({ commandId: recovery.command.commandId, state: 'started' })
-    } catch (error) {
-      if (!receiptWasFencedByUnknownOutcome(error)) throw error
-      recovery = terminalUnknownOutcome(recovery)
-      await input.store.save(recovery)
+  try {
+    if (phase() === 'accepted_pending') await send('accepted', { ...record, phase: 'waiting' })
+
+    if (phase() === 'waiting' || phase() === 'started_pending') {
+      admission = await lifecycle.admit(record)
+      if (phase() === 'waiting') {
+        await move({ ...record, phase: 'started_pending', startedAt: now().toISOString() })
+      }
+      await send('started', { ...record, phase: 'executing' })
+      executionStartedHere = phase() === 'executing'
     }
-    if (recovery.phase === 'started_pending') {
-      recovery = { ...recovery, phase: 'executing' }
-      await input.store.save(recovery)
-      executionStartedHere = true
+
+    if (phase() === 'executing') {
+      const result = !executionStartedHere ? { ...EXECUTOR_COMMAND_UNKNOWN_OUTCOME_RESULT }
+        : admission?.result ?? await lifecycle.execute(record)
+      admission?.release?.()
+      admission = undefined
+      await move({ ...record, phase: 'result_pending', result })
     }
+  } finally {
+    admission?.release?.()
   }
 
-  if (recovery.phase === 'executing') {
-    const result = executionStartedHere
-      ? await input.execute(recovery.command)
-      : UNKNOWN_OUTCOME_RESULT
-    recovery = { command: recovery.command, phase: 'result_pending', result, version: 1 }
-    await input.store.save(recovery)
+  if (phase() !== 'result_pending' || !record.result) return
+  // The images a result references reach Nessie before the receipt does,
+  // from sidecars written before this entry was journaled. A restart here
+  // uploads again whatever Nessie had not yet answered for; the control
+  // plane takes a repeat as the same upload.
+  if (lifecycle.attachments) {
+    let pending = record
+    const result = await lifecycle.attachments.deliver({
+      command: pending.command,
+      delivered: pending.delivered ?? [],
+      journal: async (progress) => {
+        pending = { ...pending, ...progress }
+        await lifecycle.journal.save(pending)
+      },
+      result: record.result,
+    })
+    record = { ...pending, result }
   }
-
-  if (recovery.phase === 'result_pending') {
-    // The images a result references reach Nessie before the receipt does,
-    // from sidecars written before this entry was journaled. A restart here
-    // uploads again whatever Nessie had not yet answered for; the control
-    // plane takes a repeat as the same upload.
-    const pendingResult = recovery.result
-    if (input.attachments && pendingResult) {
-      let pending = recovery
-      const result = await input.attachments.deliver({
-        command: pending.command,
-        delivered: pending.delivered ?? [],
-        journal: async (progress) => {
-          pending = { ...pending, ...progress }
-          await input.store.save(pending)
-        },
-        result: pendingResult,
-      })
-      recovery = { ...pending, result }
-    }
-    try {
-      await input.transport.receipt({
-        commandId: recovery.command.commandId,
-        result: recovery.result,
-        state: 'result_acknowledged',
-      })
-    } catch (error) {
-      // A refused result is refused again on every retry, and the journal
-      // holds this machine's only command lane: retrying it would wedge the
-      // executor behind one bad answer for good. The replacement is journaled
-      // before it is sent, so a lost response replays it rather than the
-      // refused result; the receipt's digest is computed from it afresh.
-      if (!resultWasRefused(error) || isRefusedReplacement(recovery.result)) throw error
-      input.onResultRefused?.(recovery.command)
-      recovery = { ...recovery, result: { ...EXECUTOR_RESULT_REFUSED_RESULT } }
-      await input.store.save(recovery)
-      await input.transport.receipt({
-        commandId: recovery.command.commandId,
-        result: recovery.result,
-        state: 'result_acknowledged',
-      })
-    }
-    await input.store.clear()
-    // After the journal lets go, never before: a crash between the two leaves
-    // a folder no journal names, which the daemon's next start removes, where
-    // the other order would leave a journal naming images that are gone.
-    await input.attachments?.release(recovery.command.commandId).catch(() => undefined)
+  try {
+    await lifecycle.receipt({ commandId: record.command.commandId, result: record.result, state: 'result_acknowledged' })
+  } catch (error) {
+    // A refused result is refused again on every retry: retrying it would
+    // hold that command's record for good. The replacement is journaled before
+    // it is sent, so a lost response replays it rather than the refused
+    // result; the receipt's digest is computed from it afresh.
+    if (!resultWasRefused(error) || isRefusedReplacement(record.result)) throw error
+    lifecycle.onResultRefused?.(record.command)
+    await move({ ...record, result: { ...EXECUTOR_RESULT_REFUSED_RESULT } })
+    await lifecycle.receipt({ commandId: record.command.commandId, result: record.result, state: 'result_acknowledged' })
   }
-  return true
+  await lifecycle.journal.remove(record.command.commandId)
+  // After the journal lets go, never before: a crash between the two leaves
+  // a folder no journal names, which the daemon's next start removes, where
+  // the other order would leave a journal naming images that are gone.
+  await lifecycle.attachments?.release(record.command.commandId).catch(() => undefined)
 }

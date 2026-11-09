@@ -51,7 +51,7 @@ const localHostRegistration = async (state: ExecutorLocalState): Promise<{
   hostId: string
   organizationId: string
 }> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const observedAt = new Date().toISOString()
   const payload = { connectionEpoch: state.connectionEpoch, executorId: state.executorId, observedAt }
   return executorApi.localInferenceHost(state.apiBaseUrl, {
@@ -60,11 +60,12 @@ const localHostRegistration = async (state: ExecutorLocalState): Promise<{
   })
 }
 
-const claimLocalHost = async (
+/** Claims a host the executor registered, under its live executor connection; answers the host's new epoch. */
+export const claimLocalHost = async (
   state: ExecutorLocalState,
-  local: NonNullable<ExecutorLocalState['localInference']>,
+  local: { connectionEpoch: string; hostId: string; organizationId: string },
 ): Promise<string> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const api = createLocalInferenceDaemonApi({ apiBaseUrl: state.apiBaseUrl })
   const issued = await api.issueChallenge({ hostId: local.hostId })
   const challenge = { challenge: issued.challenge }
@@ -85,6 +86,28 @@ const claimLocalHost = async (
   const connected = await api.claim({ challenge: issued.challenge, envelope })
   return connected.connectionEpoch
 }
+
+/** One host's encrypted receipt journal in one owner-only file. */
+export const openLocalInferenceReceiptJournal = (path: string, key: Buffer): EncryptedLocalInferenceReceiptJournal =>
+  new EncryptedLocalInferenceReceiptJournal({
+    read: async () => {
+      try {
+        return JSON.parse(await readFile(path, 'utf8')) as {
+          ciphertext: string
+          iv: string
+          tag: string
+          version: 1
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+        throw error
+      }
+    },
+    remove: async () => { await unlink(path).catch((error: unknown) => {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }) },
+    write: (value) => replaceReceiptFile(path, value),
+  }, key)
 
 /**
  * Claim the local host immediately after its parent executor claim, then open
@@ -121,26 +144,8 @@ export const connectExecutorLocalInference = async (
     localInference: { ...local, connectionEpoch },
   }
   await saveExecutorState(stateDir, connected, withHost)
-  const path = await receiptPath(stateDir)
-  const journal = new EncryptedLocalInferenceReceiptJournal({
-    read: async () => {
-      try {
-        return JSON.parse(await readFile(path, 'utf8')) as {
-          ciphertext: string
-          iv: string
-          tag: string
-          version: 1
-        }
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
-        throw error
-      }
-    },
-    remove: async () => { await unlink(path).catch((error: unknown) => {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
-    }) },
-    write: (value) => replaceReceiptFile(path, value),
-  }, Buffer.from(connected.localInference.receiptJournalKey, 'base64url'))
+  const journal = openLocalInferenceReceiptJournal(await receiptPath(stateDir),
+    Buffer.from(connected.localInference.receiptJournalKey, 'base64url'))
   const localBackend = createInferenceEndpointBackend(() => readInferenceEndpoints(stateDir))
   return {
     session: startLocalInferenceHostSession({

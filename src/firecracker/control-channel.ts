@@ -55,14 +55,14 @@ const consumeHello = (
   if (buffered.byteLength < 4) return undefined
   const bodyLength = buffered.readUInt32BE(0)
   if (bodyLength > FRAME_MAX_BYTES - 4) {
-    throw new WorkspacePathError('The executor guest sent an oversized control hello.')
+    throw new WorkspacePathError('The guest sent an oversized control hello.')
   }
   if (buffered.byteLength < bodyLength + 4) return undefined
   let value: unknown
   try {
     value = JSON.parse(buffered.subarray(4, bodyLength + 4).toString('utf8'))
   } catch {
-    throw new WorkspacePathError('The executor guest sent an invalid control hello.')
+    throw new WorkspacePathError('The guest sent an invalid control hello.')
   }
   if (
     !isRecord(value)
@@ -75,7 +75,7 @@ const consumeHello = (
     || !BOOTSTRAP_TOKEN.test(value.sessionToken)
     || !constantTimeEqual(value.sessionToken, expectedBootstrapToken)
   ) {
-    throw new WorkspacePathError('The executor guest failed its control authentication.')
+    throw new WorkspacePathError('The guest failed its control authentication.')
   }
   return { remainder: buffered.subarray(bodyLength + 4) }
 }
@@ -98,7 +98,7 @@ export const startGuestControlChannel = async (
   listenPort: GuestChannelListener = listenGuestVsockPort,
 ): Promise<GuestControlChannel> => {
   if (!BOOTSTRAP_TOKEN.test(expectedBootstrapToken)) {
-    throw new WorkspacePathError('The executor micro-VM bootstrap token is malformed.')
+    throw new WorkspacePathError('The micro-VM bootstrap token is malformed.')
   }
   let settle: ((value: { input: Socket; output: PassThrough }) => void) | undefined
   let refuse: ((error: Error) => void) | undefined
@@ -142,17 +142,17 @@ export const startGuestControlChannel = async (
       settle?.({ input: socket, output })
     }
     socket.on('data', onData)
-    socket.once('error', () => refuse?.(new WorkspacePathError('The executor guest control channel failed.')))
+    socket.once('error', () => refuse?.(new WorkspacePathError('The guest control channel failed.')))
     socket.once('close', () => {
       output.end()
-      refuse?.(new WorkspacePathError('The executor guest closed its control channel before authenticating.'))
+      refuse?.(new WorkspacePathError('The guest closed its control channel before authenticating.'))
     })
   }
   listener = await listenPort(vsockPath, GUEST_CONTROL_PORT, admit)
   return {
     close: async () => {
       await listener?.close()
-      refuse?.(new WorkspacePathError('The executor guest control channel was closed.'))
+      refuse?.(new WorkspacePathError('The guest control channel was closed.'))
     },
     connected,
   }

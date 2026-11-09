@@ -35,6 +35,8 @@ const packages = await run('apt-ftparchive', ['packages', 'pool'], { cwd: apt })
 await writeFile(join(apt, 'dists/stable/main/binary-amd64/Packages'), packages.stdout)
 const release = await run('apt-ftparchive', [
   '-o', 'APT::FTPArchive::Release::Origin=Nessie',
+  // The label stays: apt refuses updates from a repository whose Label changes
+  // until each installed computer accepts it by hand.
   '-o', 'APT::FTPArchive::Release::Label=Nessie Executor',
   '-o', 'APT::FTPArchive::Release::Suite=stable',
   '-o', 'APT::FTPArchive::Release::Codename=stable',
@@ -54,14 +56,14 @@ await writeFile(join(output, 'nessie-executor.asc'), key.stdout)
 await writeFile(join(site, 'CNAME'), 'packages.nessie.works\n')
 await writeFile(join(site, '.nojekyll'), '')
 await writeFile(join(site, 'nessie-executor.repo'), `[nessie-executor]
-name=Nessie Executor
+name=Nessie Computer
 baseurl=${PACKAGE_SITE}/rpm
 enabled=1
 gpgcheck=1
 repo_gpgcheck=1
 gpgkey=${PACKAGE_SITE}/nessie-executor.asc
 `)
-await writeFile(join(site, 'index.html'), '<!doctype html><title>Nessie Executor packages</title><a href="https://nessie.works/docs/executor-setup">Installation instructions</a>\n')
+await writeFile(join(site, 'index.html'), '<!doctype html><title>Nessie Computer packages</title><a href="https://nessie.works/docs/executor-setup">Installation instructions</a>\n')
 await writeFile(join(site, 'version.json'), JSON.stringify({ version, fingerprint }))
 await run('tar', ['-czf', join(output, `nessie-executor_${version}_repository.tar.gz`), '-C', site, '.'])
 const sums = []

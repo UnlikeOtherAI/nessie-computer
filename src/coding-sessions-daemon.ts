@@ -171,8 +171,12 @@ export const createCodingSessionsDaemon = (input: {
   pairingSource?: () => import('@nessie/executor-protocol').ExecutorSessionPairingSource | undefined
   connectionEpoch?: () => string | undefined
   executorId: string
-  /** The rules this daemon runs under; changing them restarts it. */
-  commandRules: LocalCommandPolicy
+  /**
+   * The rules a call runs under, read as the call is stamped: a saved change
+   * applies to the next call without a restart, and a launch the owner allowed
+   * once reads the rules lent to it (`daemon-live-state.ts`).
+   */
+  commandRules: () => LocalCommandPolicy
   facts: ExecutorCodingSessionsFacts | undefined
   servers: readonly ExecutorLocalMcpServer[]
   sessions: ExecutorMcpSessionManager
@@ -316,7 +320,7 @@ export const createCodingSessionsDaemon = (input: {
       if (ownerKey) owners.add(ownerKey)
       return {
         [CODING_SESSION_COMMAND_META]: call.commandId,
-        [CODING_SESSION_COMMAND_RULES_META]: input.commandRules,
+        [CODING_SESSION_COMMAND_RULES_META]: input.commandRules(),
         ...(input.pairingSource?.() ? { [CODING_SESSION_PAIRING_SOURCE_META]: input.pairingSource() } : {}),
         ...(input.connectionEpoch?.() ? { [CODING_SESSION_CONNECTION_META]: input.connectionEpoch() } : {}),
         ...(call.codingSessionAuthority ? { [CODING_SESSION_AUTHORITY_META]: call.codingSessionAuthority } : {}),

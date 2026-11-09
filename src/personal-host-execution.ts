@@ -15,7 +15,10 @@ export const admitPersonalHostExecution = async (
   try {
     const local = await guard.admitHostExecution(label, authority)
     return { id: local.id, bindExecution: local.bindExecution,
-      release: async () => { await machine?.release(); await local.release() } }
+      release: async () => { await machine?.release(); await local.release() },
+      // The local registration and the service's durable host lease both stay;
+      // only the barrier process that would otherwise outlive this admission ends.
+      ...(machine ? { abandon: machine.abandon } : {}) }
   } catch (error) {
     await machine?.release()
     throw error

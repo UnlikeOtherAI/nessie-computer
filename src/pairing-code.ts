@@ -1,11 +1,11 @@
 import { createPrivateKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { hostname } from 'node:os'
-import { newLocalCommandPolicy } from './command-policy.js'
+import { pairedLocalCommandPolicy } from './command-policy.js'
+import { pairedLocalMcpPolicy } from './mcp-policy.js'
 
 import {
   canonicalExecutorPayload,
   EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
-  ExecutorPairingClaimSchema,
   ExecutorPairingPollResponseSchema,
   ExecutorPairingStartResponseSchema,
   type ExecutorPairingClaim,
@@ -13,7 +13,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
-import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-client.js'
+import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { buildSignedDescriptor } from './descriptor.js'
 import { configureExecutorWorkspaceFolders } from './pair.js'
 import { clearPairingCode, loadPairingCode, savePairingCode, type PendingPairingCode } from './pairing-code-store.js'
@@ -21,6 +21,7 @@ import { clearExecutorState, loadExecutorState, saveExecutorState, type Executor
 import { executorWorkspaceFolderNames, type ExecutorWorkspaceFolder } from './workspace-folders.js'
 import { acquireExecutorProcessLease } from './process-lease.js'
 import { ensureOwnerOnlyStateDirectory } from './state-security.js'
+import { readTeamLabel, saveTeamLabel, teamDisplayNames } from './team-label.js'
 import { assertWorkspaceMayChange } from './workspace-retirement.js'
 
 export type PairingCodeView = {
@@ -42,10 +43,7 @@ export const pairingSignature = (key: string, action: string, payload: Record<st
 ).toString('base64url')
 
 export const postPairing: ExecutorApiClient['pairing'] = async (origin, action, body) => {
-  try { return await executorApi.pairing(origin, action, body) } catch (error) {
-    if (action === 'connection' && error instanceof ExecutorApiError && error.code === 'UOA_SESSION_REQUIRED') {
-      throw new Error('PAIRING_OWNER_CONFIRMATION_REQUIRED')
-    }
+  try { return await executorApi.pairing(origin, action, body) } catch {
     throw new Error('Nessie could not complete pairing. Check your connection and try again.')
   }
 }
@@ -68,7 +66,7 @@ const sameOperations = (left: readonly string[], right: readonly string[]): bool
 const pairingDependencies = {
   acquireExecutorDaemonLease, clearExecutorState, clearPairingCode, configureExecutorWorkspaceFolders,
   loadExecutorState, loadPairingCode, postPairing, saveExecutorState, savePairingCode,
-  assertWorkspaceMayChange,
+  assertWorkspaceMayChange, readTeamLabel, saveTeamLabel,
   acquirePairingLease: async (directory: string) => {
     await ensureOwnerOnlyStateDirectory(directory)
     return acquireExecutorProcessLease(directory, 'pairing-operation.pid')
@@ -81,7 +79,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     acquireExecutorDaemonLease, clearExecutorState, clearPairingCode, configureExecutorWorkspaceFolders,
     loadExecutorState, loadPairingCode, postPairing, saveExecutorState, savePairingCode,
     acquirePairingLease,
-    assertWorkspaceMayChange,
+    assertWorkspaceMayChange, readTeamLabel, saveTeamLabel,
   } = { ...pairingDependencies, ...overrides }
 
   const existingState = async (directory: string): Promise<ExecutorLocalState | null> => (
@@ -98,12 +96,15 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     organizationName: claim.organization.name, teamName: claim.team?.name ?? null,
   })
 
-  const connectedView = async (state: ExecutorLocalState): Promise<PairingCodeView> => {
-    const payload = { executorId: state.executorId, timestamp: new Date().toISOString() }
-    const claim = ExecutorPairingClaimSchema.parse(await postPairing(state.apiBaseUrl, 'connection', {
-      ...payload, signature: pairingSignature(state.machinePrivateKey, 'connection', payload),
-    }))
-    return { status: 'paired', apiBaseUrl: state.apiBaseUrl, ...labels(claim) }
+  /**
+   * A connected team, named from its saved label (`team-label.ts`) without
+   * asking anyone: the names come from the pairing claim and the batched
+   * refresh (`team-names.ts`). A team that has never had a name has none here.
+   */
+  const connectedView = async (directory: string, state: ExecutorLocalState): Promise<PairingCodeView> => {
+    const label = await readTeamLabel(directory)
+    return { status: 'paired', apiBaseUrl: state.apiBaseUrl, executorId: state.executorId,
+      ...(label ? { organizationName: label.organizationName, teamName: label.teamName } : {}) }
   }
 
   const localPolicy = (
@@ -166,7 +167,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
       && !sameOperations(operations, existing.descriptor.operationKeys)) {
       throw new Error('This computer is already paired with different operations. Change its permissions explicitly.')
     }
-    if (existing && !input.replace) return { ...await connectedView(existing), status: 'alreadyPaired' }
+    if (existing && !input.replace) return { ...await connectedView(input.stateDir, existing), status: 'alreadyPaired' }
     if (existing && existing.apiBaseUrl !== input.apiBaseUrl) {
       throw new Error('Replace this pairing in the same Nessie service. Disconnect it before choosing a different service.')
     }
@@ -207,14 +208,19 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
   ): Promise<void> => {
     const state = await existingState(directory)
     if (state && state.executorId !== claim.executorId) throw new Error('This computer already has another pairing.')
+    // A new team starts with the built-in programs and every installed local app (contract §4.3, §4.5).
     if (!state) await saveExecutorState(directory, {
-      commandPolicy: newLocalCommandPolicy(),
+      commandPolicy: pairedLocalCommandPolicy(),
+      mcpPolicy: pairedLocalMcpPolicy(),
       apiBaseUrl: pending.apiBaseUrl,
       descriptor: localPolicy(pending.workspaceFolders, pending.request.descriptor.descriptor.operationKeys),
       executorId: claim.executorId,
       machinePrivateKey: pending.machinePrivateKey, machinePublicKey: pending.request.machinePublicKey,
       workspaceFolders: pending.workspaceFolders,
     })
+    // The claim names the team: every surface shows it from now on, before any refresh.
+    const names = teamDisplayNames({ organizationName: claim.organization.name, teamName: claim.team?.name ?? null })
+    if (names) await saveTeamLabel(directory, names, pending.apiBaseUrl).catch(() => undefined)
     await clearPairingCode(directory)
   }
 
@@ -231,7 +237,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     let pending = await loadPairingCode(directory)
     if (!pending) {
       const state = await existingState(directory)
-      return state ? connectedView(state) : { status: 'idle' }
+      return state ? connectedView(directory, state) : { status: 'idle' }
     }
     if (!pending.response) pending = await mint(directory, pending)
     await clearRetiredState(directory, pending)

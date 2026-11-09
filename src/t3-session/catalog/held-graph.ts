@@ -72,7 +72,8 @@ export async function withHeldRetainedCatalogGraph<A>(ports: RetainedCapturePort
     requireCapture(job?.physical_root === local.source.physicalRootKey && typeof job.stage_ref === 'string' &&
       typeof job.source_high_water === 'number' && Number.isSafeInteger(job.source_high_water) &&
       job.source_high_water >= 0, 'capture_history_not_ready')
-    const capture: LocalCatalogCapture = Object.freeze({ source: local.source, captureGeneration: local.captureGeneration,
+    const capture: LocalCatalogCapture = Object.freeze({
+      source: local.source, captureGeneration: local.captureGeneration,
       sourceHighWater: job.source_high_water, localCatalogReference: job.stage_ref })
     const stage = await ports.workspace.reopenGeneration(capture.localCatalogReference)
     requireCapture(stage.reference === capture.localCatalogReference, 'capture_stage_mismatch')
@@ -97,10 +98,13 @@ export async function withHeldRetainedCatalogGraph<A>(ports: RetainedCapturePort
       const graph: HeldRetainedCatalogGraph = Object.freeze({ ...capture, readiness: 'retained-read-only', signal,
         recheck: () => track(recheck()),
         createReadService: (authority: RetainedCatalogAuthorityPort) => composeRetainedCatalogService(source,
-          (targets, query) => readRetainedEffect({ ...ports, catalogAuthority: authority }, source, targets, query, held)),
+          (targets, query) => readRetainedEffect(
+            { ...ports, catalogAuthority: authority }, source, targets, query, held)),
         publish: (authority: RetainedCatalogPublicationAuthorityPort, state: () => ExecutorLocalState,
-          operationSignal?: AbortSignal) => track(createRetainedCatalogPublicationPort(ports, local, held, authority, state)
-          .publishLocalCapture(capture, { signal: operationSignal ? AbortSignal.any([signal, operationSignal]) : signal })),
+          operationSignal?: AbortSignal) => track(
+            createRetainedCatalogPublicationPort(ports, local, held, authority, state).publishLocalCapture(capture, {
+              signal: operationSignal ? AbortSignal.any([signal, operationSignal]) : signal,
+            })),
       })
       // A Promise callback is cooperatively cancelled through graph.signal, then
       // drained. Detaching it on abort would close SQL while its lane still runs.

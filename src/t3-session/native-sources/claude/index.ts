@@ -19,7 +19,9 @@ export interface ClaudeReadLease {
   recheck(): Promise<void>
   /** Check the exact discovered native identity, before its bytes are opened.
    * Root discovery permission alone must not authorize every transcript. */
-  recheckHistory(identity: { readonly historyId: string; readonly nativeId: string; readonly agentId: string | null }): Promise<void>
+  recheckHistory(identity: {
+    readonly historyId: string; readonly nativeId: string; readonly agentId: string | null
+  }): Promise<void>
 }
 
 /** REQUIRED, UNBOUND canonical admission producer. No callback factory here
@@ -56,7 +58,9 @@ export class NativeClaudeHistory {
     })
   }
 
-  async catalog(input: { readonly target: ClaudeReadTarget; readonly cursor?: ClaudeCatalogCursor; readonly limit?: number }) {
+  async catalog(input: {
+    readonly target: ClaudeReadTarget; readonly cursor?: ClaudeCatalogCursor; readonly limit?: number
+  }) {
     const limit = input.limit ?? 100
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('claude_history_page_invalid')
     return this.withScope(input.target, async lease => {
@@ -90,12 +94,15 @@ export class NativeClaudeHistory {
       const catalog = await scanClaudeCatalog(lease.historyRoot, () => lease.recheck())
       const entry = catalog.entries.find(row => historyIdOf(lease, row) === input.target.historyId)
       if (!entry) throw new Error('claude_history_not_found')
-      if (input.cursor && (input.cursor.historyId !== input.target.historyId || input.cursor.revision !== entry.revision)) {
+      if (input.cursor && (input.cursor.historyId !== input.target.historyId
+        || input.cursor.revision !== entry.revision)) {
         throw new Error('claude_history_cursor_stale')
       }
       const recheck = async () => {
         await lease.recheck()
-        await lease.recheckHistory({ historyId: input.target.historyId, nativeId: entry.nativeId, agentId: entry.agentId })
+        await lease.recheckHistory({
+          historyId: input.target.historyId, nativeId: entry.nativeId, agentId: entry.agentId,
+        })
       }
       await recheck()
       const page = await lease.historyRoot.withFile(entry.entryKey, entry.revision, async file => {

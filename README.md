@@ -1,53 +1,98 @@
-# Nessie Executor
+# Nessie Computer
 
-Public source for the local software that connects a computer to Nessie.
-It includes the CLI, Windows service and tray, macOS menu bar app, native
-runtime guards, sandbox tools and local controls. Nessie's server and product
-repository remain private.
+Nessie Computer lets the agents in your Nessie team work on your own computer.
+They can read the folders you share, run the programs you allow and use the
+apps installed there. You decide what they can use, on the computer itself,
+and you can pause them at any time.
 
-The computer's owner controls local folders and commands. Each paired team has
-separate permissions. Provider credentials, pairing keys and local files are
-not part of an update check. Read [the security model](SECURITY.md) before
-changing native launch, credential custody or installation code.
+It runs on Mac, Windows and Linux. On a Mac it lives in the menu bar; on
+Windows, in the notification area beside the clock; on Linux, as a service you
+control from the command line.
 
-## Build and check
+**Full guides:** [Nessie Computer wiki](https://github.com/UnlikeOtherAI/nessie-executor/wiki)
 
-Use Node 24 and pnpm 10.22.0. No Nessie checkout, database, private Git package
-or production signing credential is required for source verification.
+## Get started
+
+1. **Install it** on the computer the agents should use. Download the latest
+   package from [Releases](https://github.com/UnlikeOtherAI/nessie-executor/releases):
+
+   | Computer | Download | Needs |
+   |---|---|---|
+   | Mac | the `.dmg` file | Apple silicon (M1 or newer), macOS 15 or later |
+   | Windows | the `.msi` file | Windows 10 or 11, 64-bit |
+   | Linux | `.deb` (Debian, Ubuntu) or `.rpm` (Fedora) | x86-64 |
+
+   Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Install-Nessie-Computer)
+
+2. **Add a team.** Open Nessie Computer. It
+   shows an 8-digit pairing code. In Nessie, open **Computers**, choose
+   **Add a computer** and enter the code. Nessie shows this computer's name;
+   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-a-team)
+
+3. **Check what the team can use.** Pick the team in the **Team** list at the top
+   and open **Access**.
+
+## What a new team can use
+
+| | By default | You can |
+|---|---|---|
+| **Folders** | A *Nessie* folder in your home folder | Add or remove folders |
+| **Programs** | Apps from UnlikeOtherAI, Claude Code, Codex and T3 Code | Allow more, block some, or allow none |
+| **Other programs** | Agents ask first. You choose **Allow once**, **Always allow** or **Don't allow** | Answer on the computer |
+| **Local apps** | Every app on this computer that agents can talk to (MCP servers) | Switch any off |
+| **Claude Code and Codex** | Available if installed and signed in on this computer | Switch either off in **AI** |
+| **Websites** | None | Add the sites the agents' browser may open |
+
+Programs run under your account, so a program you allow can open any file you
+can. Allow programs you trust. [How access works](https://github.com/UnlikeOtherAI/nessie-executor/wiki/What-agents-can-use)
+
+## Everyday tasks
+
+- **Pause.** Choose **Pause** in the menu bar or notification-area menu. Agents
+  start nothing new until you choose **Resume**, even after a restart.
+  [Pausing](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Pause-and-resume)
+- **Several teams.** Add each one. In the window, pick a team from the
+  **Team** list, then change its access, documents and AI.
+  [Several teams](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Several-teams-on-one-computer)
+- **Keep your documents on the computer.** Open **Documents**, turn on
+  **Keep a copy of {team}'s documents on this computer** and pick a folder.
+  Every document you can read in that team syncs both ways.
+  [Documents](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Documents)
+- **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
+  in with ChatGPT. Add as many plans as you have, personal or company.
+  [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
+- **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
+  [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
+
+## Command line
+
+Everything the app does, the `nessie-computer` command does too, with the same
+words. (`nessie-executor` is the same command under its older name.)
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm verify
-pnpm start --version
+nessie-computer status                      # what each team is doing
+nessie-computer add                         # add a team: get a code
+nessie-computer pause                       # pause every team
+nessie-computer resume --team "Sales · Acme"
+nessie-computer access show --team "Sales · Acme"
+nessie-computer access programs allow "npm *" --team "Sales · Acme"
+nessie-computer requests list               # programs waiting for your answer
+nessie-computer help access                 # help for any command
 ```
 
-Native packages require their platform toolchains. Unsigned development
-artifacts cannot establish personal credential custody and must never be
-published or installed as official releases. Browser journeys run locally and
-headless; they are deliberately separate from ordinary CI unit tests.
+Add `--json` to any command for scripts. [Command line guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Command-line)
+· [Command reference](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Command-reference)
 
-Automatic updates are being built; they are not active in installed releases.
-The policy, trust model and remaining delivery gates are in
-[automatic updates](docs/automatic-updates.md).
+## Help
 
-On Windows, build the native ACL helper before running unit tests:
-`cargo build --manifest-path native/Cargo.toml`. The test runner puts
-its own unmarked Node beside that helper so state-security tests exercise real
-DACLs without enabling installed-only update or custody paths. The helper is
-resolved only beside that runtime, never through PATH or an environment override.
-Debug helpers exercise real Job Objects and ConPTY without the release helper’s
-installed-factory requirement. This test context never establishes signed release
-or credential eligibility.
+- [Troubleshooting](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Troubleshooting)
+- [What leaves your computer](https://github.com/UnlikeOtherAI/nessie-executor/wiki/What-leaves-your-computer)
+- [Report a problem](https://github.com/UnlikeOtherAI/nessie-executor/issues)
+- [Security model](SECURITY.md) · [Build from source](CONTRIBUTING.md)
 
 ## Licence
 
-This repository uses [FSL-1.1-ALv2](LICENSE), the existing Nessie licence.
-It permits use, inspection, modification and redistribution for permitted
-purposes, including internal commercial use. Competing commercial offerings
-are restricted. Each version becomes available under Apache 2.0 after two
-years. This is fair source / source available software.
-
-Bundled third-party components retain their own licences and notices.
-
-Computer telemetry, Claude/Codex account probes, native history and human input follow
-[computer data](docs/computer-data.md), including their independent viewer cursor and focused checks.
+[FSL-1.1-ALv2](LICENSE): fair source. You may use, inspect, change and share it
+for permitted purposes, including internal commercial use; competing commercial
+offerings are restricted. Each version becomes available under Apache 2.0 two
+years after its release. Bundled third-party components keep their own licences.

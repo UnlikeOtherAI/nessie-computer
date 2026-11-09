@@ -41,10 +41,10 @@ const MAX_BOOT_PAYLOAD_BYTES = 256 * MEBIBYTE
 
 export const bootDiskSizeBytes = (payloadBytes: number): number => {
   if (!Number.isSafeInteger(payloadBytes) || payloadBytes <= 0) {
-    throw new WorkspacePathError('The executor guest boot payload has no readable size.')
+    throw new WorkspacePathError('The guest boot payload has no readable size.')
   }
   if (payloadBytes > MAX_BOOT_PAYLOAD_BYTES) {
-    throw new WorkspacePathError('The executor guest kernel and initrd exceed the boot disk limit.')
+    throw new WorkspacePathError('The guest kernel and initrd exceed the boot disk limit.')
   }
   const wanted = Math.max(payloadBytes + BOOT_DISK_SLACK_BYTES, MINIMUM_BOOT_DISK_BYTES)
   return Math.ceil(wanted / MEBIBYTE) * MEBIBYTE

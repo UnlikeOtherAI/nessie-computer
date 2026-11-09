@@ -11,6 +11,7 @@ import { antigravitySummaryWindows, antigravityModelWindows,
 import { readCliProxyQuotas } from '../src/provider-process/cliproxy-quota.js'
 import { boundQuotaResponse } from '../src/provider-process/quota-fetch.js'
 import { collectQuotaSources } from '../src/provider-process/quota-source-collection.js'
+import { readCodexSubscription, type CodexAccountReader } from '../src/provider-process/codex-account.js'
 
 const at = '2026-11-07T12:00:00.000Z'
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status })
@@ -226,4 +227,26 @@ test('one failed provider leaves other readings intact and flags incomplete disc
     Promise.reject(new Error('fixture-private-credential-diagnostic'))])
   assert.deepEqual(result, { accounts: [account], incomplete: true })
   assert(!JSON.stringify(result).includes('fixture-private'))
+})
+
+test('Codex quota follows its own login status, not an account/read that names no account', async () => {
+  const calls: string[] = []
+  const reader = (signedIn: boolean, account: unknown): CodexAccountReader => ({
+    signedIn: async () => { calls.push('login status'); return signedIn },
+    rpc: () => ({
+      call: async (method: string) => {
+        calls.push(method)
+        return method === 'account/read' ? account
+          : { rateLimits: { primary: { usedPercent: 40, windowDurationMins: 300 } } }
+      },
+      close: () => { calls.push('close') },
+    }),
+  })
+  const signedIn = await readCodexSubscription('/opt/codex', {}, at, reader(true, { account: null }))
+  assert.equal(signedIn.status, 'ready')
+  assert.deepEqual(signedIn.windows.map(window => [window.kind, window.remainingPercent]), [['session', 60]])
+  assert.deepEqual(calls.splice(0), ['login status', 'account/read', 'account/rateLimits/read', 'close'])
+  const signedOut = await readCodexSubscription('/opt/codex', {}, at, reader(false, { account: { email: 'a@b.test' } }))
+  assert.equal(signedOut.status, 'signed_out')
+  assert.deepEqual(calls, ['login status'])
 })

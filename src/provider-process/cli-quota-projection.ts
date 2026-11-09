@@ -14,13 +14,17 @@ const base = (provider: ExecutorSubscription['provider'], checkedAt: string): Ex
   provider, checkedAt, status: 'unavailable', account: null, plan: null, windows: [],
 })
 
-/** The app-server's account and rate-limit responses, projected independently. */
+/**
+ * The app-server's account and rate-limit responses, projected independently.
+ * `signedIn` is what `codex login status` said, when the caller asked it: then
+ * an `account: null` answer means only that the account has no name here.
+ */
 export const codexSubscription = (
-  accountValue: unknown, limitsValue: unknown, checkedAt: string,
+  accountValue: unknown, limitsValue: unknown, checkedAt: string, login: { signedIn?: boolean } = {},
 ): ExecutorSubscription => {
   const root = object(accountValue)
   const account = object(root.account)
-  if (root.account === null) return { ...base('codex', checkedAt), status: 'signed_out' }
+  if (root.account === null && login.signedIn !== true) return { ...base('codex', checkedAt), status: 'signed_out' }
   const limits = object(limitsValue)
   const buckets = object(limits.rateLimitsByLimitId)
   const main = object(buckets.codex ?? limits.rateLimits)

@@ -420,3 +420,31 @@ test('boot-born credential claims do not confuse repeated Linux PID/start ticks 
     assert.equal((await guard.status()).protection, null)
   } finally { await clean() }
 })
+
+// 9 November, dictator: 405 host registrations, most from a boot that had
+// ended, sat in the guard; every native launch on the Mac then kept its
+// creation record and exited refused. A registration made in a new boot drops
+// the host and runtime registrations an earlier boot left behind.
+test('a registration in a new boot drops host and runtime registrations from earlier boots', async () => {
+  const { directory, guard: base, clean } = await fixture()
+  try {
+    await base.initialize()
+    const current = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const earlier = '11111111-1111-4111-8111-111111111111'
+    const state = await base.status()
+    const registration = (id: string, kind: string, bootId?: string) => ({ id, pid: 4242, startedAt: '7', label: id,
+      kind, guardVersion: 2, authority: null, ...(bootId ? { bootId } : {}) })
+    await writeFile(join(directory, 'guard.json'), JSON.stringify({ ...state, registrations: [
+      registration('old-host', 'host_execution', earlier), registration('old-runtime', 'runtime', earlier),
+      registration('old-credential', 'credential_runtime', earlier), registration('live-host', 'host_execution', current),
+      registration('unknown-boot', 'host_execution'),
+    ] }))
+    const guard = PersonalInferenceGuard.open({ directory, security,
+      processIdentity: async () => ({ pid: 2_000_000_000, startedAt: '1', bootId: current }),
+      kernelBootId: async () => current, verifyRuntimeInventory: async () => true })
+    const lease = await guard.admitHostExecution('stdio-mcp:kelpie', null)
+    const kept = (await guard.status()).registrations.map((item) => item.label).sort()
+    assert.deepEqual(kept, ['live-host', 'old-credential', 'stdio-mcp:kelpie', 'unknown-boot'])
+    await lease.release()
+  } finally { await clean() }
+})

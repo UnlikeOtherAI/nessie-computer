@@ -82,7 +82,9 @@ export function createRetainedDaemonRuntime(stateDirectory: string, state: () =>
     requireCapture(challenge.executorId === state().executorId && receipt.challengeId === id,
       'retained_handoff_executor_mismatch')
     requireCapture(challenge.selection.kind === 'whole_source', 'retained_handoff_whole_source_required')
-    const deadline = Math.min(request.expiresAtMs, receipt.expiresAtMs, challenge.grantExpiresAtMs, Date.now() + 300_000)
+    const deadline = Math.min(
+      request.expiresAtMs, receipt.expiresAtMs, challenge.grantExpiresAtMs, Date.now() + 300_000,
+    )
     requireCapture(deadline > Date.now(), 'retained_handoff_expired')
     const job: Running = { id, digest, stop: new AbortController(), abort: new AbortController(),
       done: Promise.resolve(), status: 'accepted' }

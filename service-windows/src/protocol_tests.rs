@@ -35,7 +35,7 @@ fn accepts_only_safe_executor_identifiers() {
     }
     assert_eq!(
         parse_request(r#"{"command":"start","executorId":"../state"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
 }
 
@@ -164,6 +164,10 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
             daemon_status: "running".to_owned(),
             executor_id: EXECUTOR.to_owned(),
             workspace_configured: true,
+            paused: true,
+            failure: None,
+            pending_program_requests: 2,
+            names: None,
         }],
     }
     .encode();
@@ -171,13 +175,36 @@ fn a_response_carries_executor_ids_and_states_and_nothing_else() {
     assert_eq!(
         encoded.trim_end(),
         format!(
-            r#"{{"status":"ok","executors":[{{"daemonStatus":"running","executorId":"{EXECUTOR}","workspaceConfigured":true}}]}}"#,
+            r#"{{"status":"ok","executors":[{{"daemonStatus":"running","executorId":"{EXECUTOR}","workspaceConfigured":true,"paused":true,"pendingProgramRequests":2}}]}}"#,
         ),
     );
-    let refusal = Response::error("This executor has not been paired on this computer.").encode();
+    let stopped = Response::Ok {
+        executors: vec![ExecutorStatus {
+            daemon_status: "stopped".to_owned(),
+            executor_id: EXECUTOR.to_owned(),
+            workspace_configured: true,
+            paused: false,
+            failure: Some(nessie_windows_common::failure::classify("Executor connection is fenced.")),
+            pending_program_requests: 0,
+            names: Some(nessie_windows_common::team_label::TeamLabel {
+                organization_name: "Acme".to_owned(),
+                team_name: Some("Sales".to_owned()),
+                api_base_url: "https://api.nessie.works".to_owned(),
+            }),
+        }],
+    }
+    .encode();
+    assert!(stopped.contains(
+        r#""failure":{"code":"EXECUTOR_CONNECTION_FENCED","message":"Executor connection is fenced."}"#
+    ));
+    // The team's saved name travels with its row; a path never does.
+    assert!(stopped.contains(
+        r#""names":{"organizationName":"Acme","teamName":"Sales","apiBaseUrl":"https://api.nessie.works"}"#
+    ));
+    let refusal = Response::error("This team is not connected on this computer.").encode();
     assert_eq!(
         refusal.trim_end(),
-        r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#,
+        r#"{"status":"error","reason":"This team is not connected on this computer."}"#,
     );
 }
 
@@ -214,7 +241,7 @@ fn remove_names_one_validated_executor_and_nothing_else() {
     );
     assert_eq!(
         parse_request(r#"{"command":"remove","executorId":"../executors"}"#),
-        Err("The executor id is malformed.".to_owned()),
+        Err("The team id is malformed.".to_owned()),
     );
     // The state directory is derived from the id; a caller may not name one.
     for line in [
@@ -238,5 +265,63 @@ fn a_removed_response_says_only_whether_the_sign_off_reached_nessie() {
     assert_eq!(
         Response::Removed { signed_off: false }.encode().trim_end(),
         r#"{"status":"removed","signedOff":false}"#,
+    );
+}
+
+#[test]
+fn the_owner_controls_name_one_validated_team_and_one_known_answer() {
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}","paused":true}}"#)).unwrap(),
+        Command::SetPaused { executor_id: EXECUTOR.to_owned(), paused: true },
+    );
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"programRequests","executorId":"{EXECUTOR}"}}"#)).unwrap(),
+        Command::ProgramRequests { executor_id: EXECUTOR.to_owned() },
+    );
+    assert_eq!(
+        parse_request(&format!(
+            r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"r-1","answer":"always"}}"#
+        )).unwrap(),
+        Command::AnswerProgramRequest {
+            executor_id: EXECUTOR.to_owned(), id: "r-1".to_owned(),
+            answer: nessie_windows_common::owner_controls::Answer::Always,
+        },
+    );
+    for line in [
+        format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}"}}"#),
+        format!(r#"{{"command":"setPaused","executorId":"{EXECUTOR}","paused":"yes"}}"#),
+        format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"../x","answer":"once"}}"#),
+        format!(r#"{{"command":"answerProgramRequest","executorId":"{EXECUTOR}","id":"r-1","answer":"approve"}}"#),
+        format!(r#"{{"command":"programRequests","executorId":"{EXECUTOR}","stateDir":"C:\\x"}}"#),
+        format!(r#"{{"command":"audience","executorId":"{EXECUTOR}"}}"#),
+    ] {
+        assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
+    }
+}
+
+#[test]
+fn the_sessions_commands_name_one_validated_team_and_one_session_uuid() {
+    const SESSION: &str = "0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11";
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"sessions","executorId":"{EXECUTOR}"}}"#)).unwrap(),
+        Command::Sessions { executor_id: EXECUTOR.to_owned() },
+    );
+    assert_eq!(
+        parse_request(&format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}","sessionId":"{SESSION}"}}"#))
+            .unwrap(),
+        Command::StopSession { executor_id: EXECUTOR.to_owned(), session_id: SESSION.to_owned() },
+    );
+    for line in [
+        format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}","sessionId":"../x"}}"#),
+        format!(r#"{{"command":"stopSession","executorId":"{EXECUTOR}"}}"#),
+        format!(r#"{{"command":"sessions","executorId":"{EXECUTOR}","stateDir":"C:\\x"}}"#),
+        format!(r#"{{"command":"stopSession","executorId":"../x","sessionId":"{SESSION}"}}"#),
+    ] {
+        assert!(parse_request(&line).is_err(), "line {line:?} must be refused");
+    }
+    assert_eq!(
+        Response::Sessions { sessions: vec![serde_json::json!({ "sessionId": SESSION, "commands": [] })] }
+            .encode().trim_end(),
+        format!(r#"{{"status":"sessions","sessions":[{{"commands":[],"sessionId":"{SESSION}"}}]}}"#),
     );
 }

@@ -139,6 +139,24 @@ final class ApprovedAPIOriginTests: XCTestCase {
         XCTAssertEqual(ApprovedAPIOrigin.label(for: "https://nessie.example.com"), "nessie.example.com")
     }
 
+    func testAComputersOwnPageIsOnItsTeamsServer() {
+        XCTAssertEqual(
+            ApprovedAPIOrigin.consoleURL(
+                forAPIOrigin: "https://api.nessie.works", isDevelopmentBuild: false, computerId: "0b6a3f14-98d2"
+            ).absoluteString,
+            "https://app.nessie.works/admin/computers/0b6a3f14-98d2"
+        )
+        for unsafe in ["../x", "a/b", "a?b", ""] {
+            XCTAssertEqual(
+                ApprovedAPIOrigin.consoleURL(
+                    forAPIOrigin: "https://api.nessie.works", isDevelopmentBuild: false, computerId: unsafe
+                ).absoluteString,
+                "https://app.nessie.works/admin/computers",
+                unsafe
+            )
+        }
+    }
+
     func testTheConsoleLinkFollowsTheNessieThisMacIsPairedWith() {
         XCTAssertEqual(
             ApprovedAPIOrigin.consoleURL(
@@ -177,15 +195,35 @@ final class ApprovedAPIOriginTests: XCTestCase {
             case let .failure(credentials) =
             ApprovedAPIOrigin.approve("https://user:pass@nessie.example.com", isDevelopmentBuild: false)
         else { return XCTFail("each of these addresses must be refused") }
+        XCTAssertEqual(http.message, Word.addressMustBeHTTPS.text)
+        XCTAssertEqual(path.message, Word.addressHasPath.text)
+        XCTAssertEqual(credentials.message, Word.addressHasCredentials.text)
         XCTAssertEqual(
-            http.message,
-            "The server address must start with https://."
+            Word.addressHasPath.text(in: .americanEnglish), "Enter only the server address, without a page path."
+        )
+    }
+
+    /// While a code is showing, Open Nessie lands on Add a computer with it;
+    /// anything that is not an eight-digit code is left out of the address.
+    func testOpenNessieCarriesOnlyAPairingCode() {
+        XCTAssertEqual(
+            ApprovedAPIOrigin.consoleURL(
+                forAPIOrigin: "https://api.nessie.works", isDevelopmentBuild: false, pairingCode: "01234567"
+            ).absoluteString,
+            "https://app.nessie.works/admin/computers?create=1&code=01234567"
         )
         XCTAssertEqual(
-            path.message,
-            "Enter only the server address, without a page path or anything after it."
+            ApprovedAPIOrigin.consoleURL(
+                forAPIOrigin: "https://nessie.acme.example", isDevelopmentBuild: false, pairingCode: "1234&x=1"
+            ).absoluteString,
+            "https://nessie.acme.example/admin/computers"
         )
-        XCTAssertEqual(credentials.message, "Enter the server address without a username or password.")
+        XCTAssertEqual(
+            ApprovedAPIOrigin.consoleURL(
+                forAPIOrigin: ApprovedAPIOrigin.localDevelopment, isDevelopmentBuild: true, pairingCode: "12345678"
+            ).absoluteString,
+            "http://localhost:5455/admin/computers?create=1&code=12345678"
+        )
     }
 
     /// The desktop app only ever shows the hosted service, so only that

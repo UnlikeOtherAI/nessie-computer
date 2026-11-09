@@ -22,7 +22,9 @@ const compare = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0
 
 /** Decode ONLY native layout structure. Neither titles nor record contents are
  * ownership proof. The protected owner has already confined these names. */
-function identity(name: string): { nativeId: string; agentId: string | null; parentHistoryKey: string | null } | undefined {
+function identity(name: string): {
+  nativeId: string; agentId: string | null; parentHistoryKey: string | null
+} | undefined {
   const parts = name.split('/')
   if (parts.some(part => !part || part === '.' || part === '..' || part.includes('\\'))) return undefined
   if (parts.length === 2 && parts[1]!.endsWith('.jsonl') && nativeIdIsValid(parts[1]!.slice(0, -6))) {
@@ -37,7 +39,9 @@ function identity(name: string): { nativeId: string; agentId: string | null; par
 
 /** All metadata arrives through a held native enumeration capability. This code
  * never accepts a filesystem root path and never searches provider credentials. */
-export async function scanClaudeCatalog(root: HeldNativeHistoryRoot, recheck: () => Promise<void>): Promise<ClaudeCatalog> {
+export async function scanClaudeCatalog(
+  root: HeldNativeHistoryRoot, recheck: () => Promise<void>,
+): Promise<ClaudeCatalog> {
   if (root.source !== 'claude' || !root.generation) throw new Error('claude_history_resource_mismatch')
   const entries: ClaudeHistoryEntry[] = []
   const reasons = new Set<string>()

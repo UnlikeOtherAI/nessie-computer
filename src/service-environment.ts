@@ -90,7 +90,7 @@ export const createExecutorServiceEnvironment = (): ExecutorServiceEnvironment =
 })
 
 export const assertExecutorIdentifier = (value: string): string => {
-  if (!validIdentifier(value)) throw new Error('The executor id is malformed.')
+  if (!validIdentifier(value)) throw new Error('The team id is malformed.')
   return value
 }
 

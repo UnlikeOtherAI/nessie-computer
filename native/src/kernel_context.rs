@@ -71,9 +71,15 @@ pub fn birth(pid: i32) -> Result<String, NativeError> {
     if pid <= 0 || unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0,
         info.as_mut_ptr().cast(), size) } != size { return Err(refused()); }
     let info = unsafe { info.assume_init() };
-    if info.pbi_pid != pid as u32 || info.pbi_start_tvusec >= 1_000_000 || info.pbi_start_tvsec == 0 {
-        return Err(refused());
-    }
+    if info.pbi_pid != pid as u32 { return Err(refused()); }
+    started(&info)
+}
+
+/// The generation a full kernel record names, read from that same record so a
+/// process that ends after it was read keeps the identity it was read with.
+#[cfg(target_os = "macos")]
+pub fn started(info: &libc::proc_bsdinfo) -> Result<String, NativeError> {
+    if info.pbi_start_tvusec >= 1_000_000 || info.pbi_start_tvsec == 0 { return Err(refused()); }
     let micros = info.pbi_start_tvsec.checked_mul(1_000_000)
         .and_then(|value| value.checked_add(info.pbi_start_tvusec)).ok_or_else(refused)?;
     Ok(micros.to_string())

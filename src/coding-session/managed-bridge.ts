@@ -177,7 +177,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       throw new CodingBridgeError(
         'coding_session_config_changed',
         'The coding-sessions configuration on this machine changed since it was reviewed. '
-        + 'A person has to review the executor policy again before sessions can start or continue.',
+        + 'The computer’s owner has to review this team’s access again before sessions can start or continue.',
       )
     }
   }
@@ -387,7 +387,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
 
   const daemonOnly = (meta: CodingBridgeCallMeta): void => {
     if (!meta.daemonControl) {
-      throw new CodingBridgeError('coding_session_daemon_only', 'Only the executor daemon may close or report every session.')
+      throw new CodingBridgeError('coding_session_daemon_only', 'Only Nessie Computer may close or report every session.')
     }
   }
 
