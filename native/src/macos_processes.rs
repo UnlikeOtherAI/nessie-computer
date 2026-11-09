@@ -19,8 +19,11 @@ pub struct Process {
     pub zombie: bool,
 }
 
-pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
-    if pid <= 0 { return Err(refused()); }
+/// How long an ending process may take to read as a zombie or as gone.
+const ENDING_READS: u32 = 100;
+
+/// The full kernel record; `None` once the process is gone.
+fn record(pid: i32) -> Result<Option<libc::proc_bsdinfo>, NativeError> {
     let mut info = std::mem::MaybeUninit::<libc::proc_bsdinfo>::zeroed();
     let size = std::mem::size_of::<libc::proc_bsdinfo>() as i32;
     if unsafe { libc::proc_pidinfo(pid, libc::PROC_PIDTBSDINFO, 0, info.as_mut_ptr().cast(), size) } != size {
@@ -28,28 +31,61 @@ pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
             else { Err(refused()) };
     }
     let info = unsafe { info.assume_init() };
-    let zombie = info.pbi_status == 5; // sys/proc.h SZOMB
-    let mut path = vec![0_i8; 4096]; // PROC_PIDPATHINFO_MAXSIZE
-    let read = unsafe { proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
-    let executable = if zombie { PathBuf::new() } else if read > 0 {
-        PathBuf::from(unsafe { CStr::from_ptr(path.as_ptr()) }.to_str().map_err(|_| refused())?)
-    } else if std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT)
-        && !product_name(command(&info.pbi_comm)?) {
-        // A live process whose image was replaced on disk (a browser helper
-        // after its app updated) has no path. It cannot be a product process,
-        // so it stays in the tree with no executable rather than hiding it.
-        PathBuf::new()
-    } else { return Err(refused()); };
-    if info.pbi_pid != pid as u32 || !zombie && !executable.as_os_str().is_empty() && !executable.is_absolute() {
-        return Err(refused());
-    }
-    Ok(Some(Process { pid, parent_pid: info.pbi_ppid as i32, group: info.pbi_pgid as i32,
-        uid: info.pbi_uid, started_at: kernel_context::birth(pid)?, executable, zombie }))
+    if info.pbi_pid != pid as u32 { return Err(refused()); }
+    Ok(Some(info))
 }
 
+/// The image path, or the errno that refused it.
+fn image(pid: i32) -> Result<PathBuf, Option<i32>> {
+    let mut path = vec![0_i8; 4096]; // PROC_PIDPATHINFO_MAXSIZE
+    let read = unsafe { proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
+    if read <= 0 { return Err(std::io::Error::last_os_error().raw_os_error()); }
+    unsafe { CStr::from_ptr(path.as_ptr()) }.to_str().map(PathBuf::from).map_err(|_| None)
+}
+
+pub fn information(pid: i32) -> Result<Option<Process>, NativeError> {
+    if pid <= 0 { return Err(refused()); }
+    let mut reads = 0;
+    loop {
+        let Some(info) = record(pid)? else { return Ok(None) };
+        let zombie = info.pbi_status == 5; // sys/proc.h SZOMB
+        let executable = if zombie { PathBuf::new() } else {
+            match image(pid) {
+                Ok(path) => path,
+                // XNU releases an ending process's image before it marks the
+                // process a zombie, answering ESRCH in between, and a process
+                // in exec has no image path for a moment (ENOENT). Read the
+                // record again until it is a zombie, gone or its new image:
+                // helpers that other apps start and end many times a second
+                // otherwise refused every snapshot, and a refusal ended the
+                // runtime that took it, as did every command a runtime started.
+                Err(Some(errno)) if reads < ENDING_READS && (errno == libc::ESRCH
+                    || errno == libc::ENOENT && product_name(command(&info.pbi_comm)?)) => {
+                    reads += 1;
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                    continue;
+                }
+                // A live process whose image was replaced on disk (a browser
+                // helper after its app updated) has no path. It cannot be a
+                // product process, so it stays in the tree with no executable
+                // rather than hiding it.
+                Err(Some(libc::ENOENT)) if !product_name(command(&info.pbi_comm)?) => PathBuf::new(),
+                Err(_) => return Err(refused()),
+            }
+        };
+        if !zombie && !executable.as_os_str().is_empty() && !executable.is_absolute() { return Err(refused()); }
+        return Ok(Some(Process { pid, parent_pid: info.pbi_ppid as i32, group: info.pbi_pgid as i32,
+            uid: info.pbi_uid, started_at: kernel_context::started(&info)?, executable, zombie }));
+    }
+}
+
+/// The kernel's command name. A name of `MAXCOMLEN` characters fills the
+/// record's field with no terminator, as `nessie-executor-native` does
+/// (`nessie-executor-`), so the whole field is then the name.
 fn command(name: &[libc::c_char]) -> Result<&str, NativeError> {
-    if !name.contains(&0) { return Err(refused()); }
-    unsafe { CStr::from_ptr(name.as_ptr()) }.to_str().map_err(|_| refused())
+    let bytes = unsafe { std::slice::from_raw_parts(name.as_ptr().cast::<u8>(), name.len()) };
+    let end = bytes.iter().position(|byte| *byte == 0).unwrap_or(bytes.len());
+    std::str::from_utf8(&bytes[..end]).map_err(|_| refused())
 }
 
 /// Names a Node or product process may carry. Such a process is observed in
@@ -161,12 +197,52 @@ mod tests {
         assert!(table.iter().all(|process| process.uid == unsafe { libc::getuid() } || process.uid == 0));
     }
 
+    /// Read throughout its exit, as a snapshot reads the helpers other apps
+    /// end, a process is live, a zombie or gone, never refused.
+    #[test]
+    fn a_process_read_throughout_its_exit_is_never_refused() {
+        for _ in 0..300 {
+            let mut child = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+            let pid = child.id() as i32;
+            while information(pid).unwrap().is_some_and(|process| !process.zombie) {}
+            child.wait().unwrap();
+        }
+    }
+
+    #[test]
+    fn snapshots_hold_while_processes_start_and_end() {
+        use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+        // A shell named like the product that replaces itself: its record
+        // keeps the product name while exec leaves it without an image path.
+        let directory = tempfile::tempdir().unwrap();
+        let product = directory.path().join("nessie-executor-churn");
+        std::fs::copy("/bin/zsh", &product).unwrap();
+        let stop = Arc::new(AtomicBool::new(false));
+        let churn = { let stop = stop.clone(); std::thread::spawn(move || while !stop.load(Ordering::Relaxed) {
+            std::process::Command::new("/usr/bin/true").status().unwrap();
+            std::process::Command::new(&product).args(["-c", "exec /usr/bin/true"]).status().unwrap();
+        }) };
+        let started = std::time::Instant::now();
+        let mut snapshots = Ok(0);
+        while snapshots.is_ok() && started.elapsed() < std::time::Duration::from_secs(3) {
+            snapshots = all().and_then(|_| live_groups()).map(|_| snapshots.unwrap() + 1);
+        }
+        stop.store(true, Ordering::Relaxed);
+        churn.join().unwrap();
+        assert!(snapshots.unwrap() > 0);
+    }
+
     #[test]
     fn product_names_are_never_unnamed() {
         for name in ["node", "nodejs", "Nessie", "Nessie Executor", "nessie-executor-native"] {
             assert!(product_name(name), "{name}");
         }
         for name in ["browser_crashpa", "launchd", "nodes", ""] { assert!(!product_name(name), "{name}"); }
-        assert!(command(&[b'a' as libc::c_char; 4]).is_err());
+        // MAXCOMLEN characters fill the field with no terminator.
+        let full = b"nessie-executor-".map(|byte| byte as libc::c_char);
+        assert_eq!(command(&full).unwrap(), "nessie-executor-");
+        assert!(product_name(command(&full).unwrap()));
+        assert_eq!(command(&[b'n' as libc::c_char, 0, b'x' as libc::c_char]).unwrap(), "n");
+        assert!(command(&[0xff_u8 as libc::c_char, 0]).is_err());
     }
 }

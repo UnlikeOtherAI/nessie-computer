@@ -136,6 +136,56 @@ on every Mac with `EXECUTOR_MACOS_PROCESS_UNVERIFIED` and no managed runtime
 could start. A user process whose image was replaced on disk stays in the tree
 with no executable path unless its name is a product name, which still refuses.
 
+A process that ends or execs while a snapshot reads it is read again rather
+than refused. XNU releases an ending process's image before it marks it a
+zombie, answering ESRCH for its path in between, and a process in exec has no
+path for a moment (ENOENT). The snapshot rereads the record, 1 ms apart and up
+to 100 times, until the process is a zombie, gone or on its new image, and takes
+the generation from the record it read rather than a second kernel call. A name
+of 16 characters fills the kernel's command field with no terminator; that
+field is the name (`nessie-executor-` for `nessie-executor-native`), where it
+used to refuse. On 9 November dictator's ChatGPT app started and ended `node`
+helpers many times a second; the team's daemon ended seconds after every start
+with `EXECUTOR_MACOS_PROCESS_UNVERIFIED`, and one-shot commands with
+`EXECUTOR_KERNEL_CONTEXT_UNAVAILABLE`.
+
+A runtime's supervisor no longer ends on a snapshot it cannot verify. It goes
+on supervising and takes the next snapshot 25 ms later. Ending left the runtime
+unsupervised and its journal held, and the app then started a second daemon
+beside the first, which Nessie refused as a concurrent command poll. A
+descendant that left the child's group while a snapshot failed was never
+followed, and no later snapshot recovers that ancestry. So a supervisor that
+missed any snapshot keeps its journal when the tree it can see has ended, and
+still returns the command's exit code. `ended_creation` clears such a journal
+once its group is gone and its host admissions have ended. Once the runtime has
+exited, a minute of failing to verify its tree or to take
+the barrier ends supervision with the journal kept. A tree that is still
+running is waited for as long as it runs.
+
+Creations wait up to 10 seconds for the machine barrier and the per-account
+admission lock, polling every 10 ms, instead of refusing with
+`EXECUTOR_MACHINE_CUSTODY_BUSY` or `EXECUTOR_MANAGED_ADMISSION_BUSY` the moment
+another creation holds one. A supervisor that met another creation while
+dropping its journal used to leave the journal behind. Update service callers
+still take the barrier at once and retry on their own schedule, so status
+answers keep their deadlines.
+
+A crashed runtime's journal no longer waits for a restart. Its supervisor
+drops the journal itself after following the whole tree, so a journal left with
+its supervisor and child ended belongs to one that ended first. Every build
+before this one did that on a refused snapshot, a daemon's included. Such a
+journal ends like a one-shot command's (`ended_creation`): supervisor and child
+ended, nothing of any account left in the child's group, and no unresolved
+host admission of its own. A `host_execution` registration resolves once the
+process it bound, the descendants recorded with it and a group it leads are
+all gone (`execution_ended`, matching `ps`'s whole-second start time). An
+unbound registration may have started a process nobody recorded, so it stays.
+Clearance still waits for every product process, including any a crashed
+runtime left outside its group. On dictator, after 1.0.25 was installed, the
+1.0.24 runtime kept starting daemons that died. Each died with a Kelpie MCP
+lease the daemon never released, which kept ten journals, and the swap to the
+corrected runtime could not clear.
+
 ## Recovering a stuck helper
 
 On 8 November the Mac's helper had run since 6 November with maintenance state
@@ -256,9 +306,9 @@ Recovery now works from both ends without weakening a fence:
   dropped itself (`reconcile`): no long-lived activity, supervisor and child
   ended, nothing left in the child's process group, no host registration of
   its own. Journals the old rule kept therefore clear on the next launch, not
-  only at the next restart; a daemon's journal and anything running stay.
+  only at the next restart; anything still running stays.
   Update clearance (`ready_with`) does not wait for such journals either
-  (`ended_one_shot`): the installed older creator keeps adding them until the
+  (`ended_creation`, then named `ended_one_shot`): the installed older creator keeps adding them until the
   swap installs the corrected one, so on dictator 1.0.22's helper could not
   clear for that swap. Clearance only skips them; it deletes nothing. The
   process-group check uses every account's processes (`live_groups`, from the

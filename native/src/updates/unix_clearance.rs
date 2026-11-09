@@ -124,18 +124,20 @@ pub(super) fn ready() -> UpdateResult<bool> {
 }
 
 pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResult<bool> {
-    // A macOS one-shot command's journal whose command ended with nothing of
-    // its own left is not a runtime that must leave: the corrected creator
-    // drops these itself. Earlier creators kept them whenever any team held a
-    // host registration, and an installed one still does, so without this
-    // the swap that brings the corrected creator could never clear. Nothing
-    // is pruned here; the new creator removes them on its first launch.
+    // A macOS journal whose creation ended with nothing of its own left is not
+    // a runtime that must leave: the corrected creator drops these itself.
+    // Earlier creators kept them whenever any team held a host registration,
+    // and their supervisors ended on a refused snapshot with the journal and
+    // host leases of a daemon in place; an installed one still does, so
+    // without this the swap that brings the corrected creator could never
+    // clear. Nothing is pruned here; the new creator removes them on its first
+    // launch. Product processes are still waited for below.
     #[cfg(target_os = "macos")]
     let groups = crate::macos_processes::live_groups().map_err(|_| ERROR)?;
     for (uid, root) in roots()? {
         for record in records(uid, &root)? {
             #[cfg(target_os = "macos")]
-            if matches!(crate::managed_runtime::ended_one_shot(&record, &root, &groups), Ok(true)) { continue; }
+            if matches!(crate::managed_macos_closure::ended_creation(&record, &root, &groups), Ok(true)) { continue; }
             let _ = record;
             return Ok(false);
         }
