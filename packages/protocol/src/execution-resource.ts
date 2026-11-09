@@ -62,3 +62,12 @@ export const T3ExecutionProcessLossObservationSchema = z.object({
   requeued: z.number().int().min(0).max(256),
 }).strict().refine(value => value.cancelled + value.requeued === value.rowCount)
 export type T3ExecutionProcessLossObservation = z.infer<typeof T3ExecutionProcessLossObservationSchema>
+
+/** Unsigned complete original shell facts. A parsed plan or empty target set
+ * never supplies lifecycle, command or mutation permission. */
+export const T3ExecutionLegacyShellObservationSchema = z.object({
+  version: z.literal(1), observedAtMs: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+  planDigest: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
+  targets: z.array(z.object({ action: z.enum(['repair', 'import']), threadId: id, projectId: id }).strict()).max(256),
+}).strict()
+export type T3ExecutionLegacyShellObservation = z.infer<typeof T3ExecutionLegacyShellObservationSchema>

@@ -107,8 +107,16 @@ pub(super) fn snapshot<T>(
     owner: &str,
     use_snapshot: impl FnOnce(&mut Connection) -> Result<T, String>,
 ) -> Result<T, String> {
+    snapshot_with_authorizer(main, owner, authorize, use_snapshot)
+}
+pub(super) fn snapshot_with_authorizer<T>(
+    main: &HeldObject,
+    owner: &str,
+    policy: nessie_windows_common::readonly_sqlite::Authorizer,
+    use_snapshot: impl FnOnce(&mut Connection) -> Result<T, String>,
+) -> Result<T, String> {
     let files = FileSnapshot::open(main, owner)?;
-    let mut connection = Connection::open(files.path(), authorize)?;
+    let mut connection = Connection::open(files.path(), policy)?;
     connection.read_one("BEGIN", &[])?;
     let result = use_snapshot(&mut connection)?;
     files.verify(&connection)?;

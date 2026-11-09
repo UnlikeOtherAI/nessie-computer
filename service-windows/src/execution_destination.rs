@@ -13,6 +13,8 @@ use std::{
 };
 #[path = "execution_destination_read.rs"]
 mod read;
+#[path = "execution_destination_legacy_shell.rs"]
+mod legacy_shell;
 #[path = "execution_destination_lineage.rs"]
 mod lineage;
 pub(super) use lineage::BoundObservation;
@@ -222,6 +224,12 @@ impl Destination {
     pub fn observe_process_loss(&self, generation: &str)
         -> Result<nessie_windows_common::execution_process_loss::Observation, String> {
         let result = read::process_loss(self.stage(generation)?, &self.owner)?;
+        self.recheck()?;
+        Ok(result)
+    }
+    pub fn observe_legacy_shells(&self, generation: &str)
+        -> Result<nessie_windows_common::execution_legacy_shell::Observation, String> {
+        let result = legacy_shell::observe(self.stage(generation)?, &self.owner)?;
         self.recheck()?;
         Ok(result)
     }

@@ -4,6 +4,8 @@
 mod lineage_tests;
 #[path = "execution_destination_process_loss_tests.rs"]
 mod process_loss_tests;
+#[path = "execution_destination_legacy_shell_tests.rs"]
+mod legacy_shell_tests;
 use super::*;
 use nessie_windows_common::{
     execution_resource::Object,

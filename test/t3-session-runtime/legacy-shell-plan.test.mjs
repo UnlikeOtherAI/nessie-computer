@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFile } from 'node:fs/promises'
 import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import * as SqlClient from 'effect/sql/SqlClient'
 import { LegacyImporter, EventSink, SessionLifecycleActionRefused, withSessionLegacyShellReconciliation,
   OriginalSqliteClient } from '@nessie/t3-session-source/engine'
+import { T3ExecutionLegacyShellObservationSchema } from '@nessie/executor-protocol'
 import { withOriginalState } from './outbox-fixture.mjs'
 
 // Synthetic data and owners through actual original SQL/events. No native or
@@ -236,4 +238,29 @@ test('finite SQLite windows cover cached steps and commit while permitting expir
     yield* insert(4)
     assert.deepEqual((yield* sql`SELECT value FROM synthetic_window ORDER BY value`).map(row => row.value), [1, 4])
   }))
+})
+
+test('the native fixture reproduces the complete original shell candidate through the real importer', async () => {
+  const fixture = JSON.parse(await readFile(new URL('./fixtures/legacy-shell-plan.json', import.meta.url), 'utf8'))
+  await withLegacy(Effect.gen(function* () {
+    const importer = yield* LegacyImporter.LegacyV1ThreadImporter, sql = yield* SqlClient.SqlClient
+    for (const statement of fixture.dataStatements) {
+      yield* sql.unsafe(statement.replace(/^INSERT INTO/u, 'INSERT OR IGNORE INTO'))
+    }
+    const candidate = yield* importer.prepareShellReconciliation
+    assert.equal(candidate.planDigest, fixture.planDigest)
+    assert.deepEqual(candidate.targets, fixture.targets)
+  }))
+})
+
+test('unsigned shell metadata accepts no raw plan, path, additional target field or unsupported action', () => {
+  const raw = { version: 1, observedAtMs: Date.now(), planDigest: 'sha256:' + 'a'.repeat(64),
+    targets: [{ action: 'import', threadId: 'observed:thread', projectId: 'observed:project' }] }
+  assert.deepEqual(T3ExecutionLegacyShellObservationSchema.parse(raw), raw)
+  for (const value of [{ ...raw, inputs: {} }, { ...raw, path: 'caller.sqlite' },
+    { ...raw, targets: [{ ...raw.targets[0], grant: true }] },
+    { ...raw, targets: [{ ...raw.targets[0], action: 'authorize' }] },
+    { ...raw, targets: Array.from({ length: 257 }, () => raw.targets[0]) }]) {
+    assert.equal(T3ExecutionLegacyShellObservationSchema.safeParse(value).success, false)
+  }
 })

@@ -3,14 +3,14 @@ import * as Effect from 'effect/Effect'
 import * as Layer from 'effect/Layer'
 import type * as Scope from 'effect/Scope'
 import type * as SqlClient from 'effect/sql/SqlClient'
-import { makeSessionEngineGraphWithAdapters, Settings, CommandLineage, EffectClaims, Outbox }
+import { makeSessionEngineGraphWithAdapters, Settings, CommandLineage, EffectClaims, Outbox, LegacyImporter }
   from '@nessie/t3-session-source/engine'
 import type { ServerSettingsError } from '@nessie/t3-session-source/contracts'
 import type { OwnedCaptureSqlError } from '../import/materialize.js'
 import type { ExecutorT3Request, ExecutorT3LaneDelivery, T3ExecutionSignedAdmission }
   from '@nessie/executor-protocol/t3-session'
 import { T3ExecutionInspectionSchema, T3ExecutionGraphPayloadSchema } from '@nessie/executor-protocol/t3-session'
-import type { T3ExecutionProcessLossObservation } from '@nessie/executor-protocol'
+import type { T3ExecutionProcessLossObservation, T3ExecutionLegacyShellObservation } from '@nessie/executor-protocol'
 import type { T3ExecutionResourceScope } from '../source/execution.js'
 import type { HeldSessionExecutionState } from './execution-state.js'
 import { sessionExecutionSettingsLayer } from './execution-settings.js'
@@ -33,6 +33,11 @@ export type SessionProcessLossInspection = Effect.Effect<{
   readonly observation: Readonly<T3ExecutionProcessLossObservation>
 }, EffectFailure<SessionExecutionGraphRecognition> | Outbox.EffectOutboxError | SessionExecutionGraphRefused,
 Scope.Scope>
+export type SessionLegacyShellInspection = Effect.Effect<{
+  readonly candidate: LegacyImporter.LegacyShellReconciliationCandidate
+  readonly observation: Readonly<T3ExecutionLegacyShellObservation>
+}, EffectFailure<SessionExecutionGraphRecognition> | LegacyImporter.LegacyV1ThreadImportError
+  | EffectFailure<EngineOwner['legacyShells']> | SessionExecutionGraphRefused, Scope.Scope>
 export interface SessionInspectionContext {
   readonly engine: EngineOwner
   readonly commandLineage: SessionCommandLineageRegistry
@@ -48,6 +53,8 @@ export interface SessionInspectionContext {
   /** Matching current inputs only. This supplies no lifecycle action owner. */
   observeProcessLoss(graph: HeldSessionExecutionGraph, request: LaunchRequest,
     delivery: ExecutorT3LaneDelivery): SessionProcessLossInspection
+  observeLegacyShells(graph: HeldSessionExecutionGraph, request: LaunchRequest,
+    delivery: ExecutorT3LaneDelivery): SessionLegacyShellInspection
 }
 export type SessionInspectionContextEffect = Effect.Effect<SessionInspectionContext,
   OwnedCaptureSqlError | ServerSettingsError | EffectFailure<Inspection> | SessionExecutionGraphRefused,
@@ -129,7 +136,36 @@ export const makeSessionInspectionContext = (source: T3ExecutionResourceScope,
         return Object.freeze({ candidate, observation: Object.freeze({ ...observed }) })
       }, catch: () => new SessionExecutionGraphRefused() })
     })
+    const observeLegacyShells = (graph: HeldSessionExecutionGraph, request: LaunchRequest,
+      delivery: ExecutorT3LaneDelivery): SessionLegacyShellInspection => Effect.gen(function* () {
+      yield* recognize(graph, request, delivery)
+      const original = yield* engine.legacyShells.pipe(Effect.provide(context))
+      const importer = Context.get(original, LegacyImporter.LegacyV1ThreadImporter)
+      const candidate = yield* importer.prepareShellReconciliation
+      const observed = yield* joinedNativeEffect(async cancellation => {
+        const signal = AbortSignal.any([cancellation, source.signal, state.signal])
+        signal.throwIfAborted()
+        const payload = T3ExecutionGraphPayloadSchema.parse(JSON.parse(graph.receipt.payload))
+        const facts = await source.inspectLegacyShells(payload)
+        signal.throwIfAborted()
+        return facts
+      }, () => new SessionExecutionGraphRefused())
+      yield* recognize(graph, request, delivery)
+      return yield* Effect.try({ try: () => {
+        const targets = candidate.targets, now = Date.now()
+        if (observed.planDigest !== candidate.planDigest || targets.length !== observed.targets.length
+          || targets.some((target, index) => {
+            const native = observed.targets[index]
+            return !native || target.threadId !== native.threadId || target.projectId !== native.projectId
+              || target.action !== native.action
+          }) || observed.observedAtMs < candidate.observedAtMs || now < observed.observedAtMs
+          || now >= candidate.observedAtMs + 5000 || now >= observed.observedAtMs + 5000) {
+          throw new SessionExecutionGraphRefused()
+        }
+        return Object.freeze({ candidate, observation: Object.freeze({ ...observed }) })
+      }, catch: () => new SessionExecutionGraphRefused() })
+    })
     return { engine, commandLineage, withCommandLineageCapture: source.withOriginalCommandLineage,
       executionSource: source,
-      context, inspect, recognize, observeProcessLoss, recheck: current }
+      context, inspect, recognize, observeProcessLoss, observeLegacyShells, recheck: current }
   })

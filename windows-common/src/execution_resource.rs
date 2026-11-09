@@ -64,6 +64,7 @@ pub enum Request {
     HoldDestinationFile { executor_id: String, resource_id: String, reference: String, file: Object },
     ObserveDestinationEffect { executor_id: String, resource_id: String, graph: crate::execution::Graph, effect_id: String },
     ObserveDestinationProcessLoss { executor_id: String, resource_id: String, graph: crate::execution::Graph },
+    ObserveDestinationLegacyShells { executor_id: String, resource_id: String, graph: crate::execution::Graph },
     OpenCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, retention_expires_at: u64 },
     RecordCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph, edge: crate::execution_command_lineage::Edge },
     CloseCommandLineage { executor_id: String, resource_id: String, graph: crate::execution::Graph },
@@ -82,6 +83,7 @@ impl Request {
             | Self::OpenDestination { executor_id, .. } | Self::HoldDestinationFile { executor_id, .. }
             | Self::CloseDestination { executor_id, .. } | Self::ObserveDestinationEffect { executor_id, .. }
             | Self::ObserveDestinationProcessLoss { executor_id, .. }
+            | Self::ObserveDestinationLegacyShells { executor_id, .. }
             | Self::OpenCommandLineage { executor_id, .. } | Self::RecordCommandLineage { executor_id, .. }
             | Self::CloseCommandLineage { executor_id, .. } | Self::ObserveBoundDestinationEffect { executor_id, .. } => executor_id,
             Self::PrepareEffectClaim { executor_id, .. } | Self::ConsumeEffectClaim { executor_id, .. } => executor_id,
@@ -117,7 +119,8 @@ impl Request {
                     return Err(REJECTED.into());
                 }
             }
-            Self::ObserveDestinationProcessLoss { resource_id, graph, .. } => {
+            Self::ObserveDestinationProcessLoss { resource_id, graph, .. }
+            | Self::ObserveDestinationLegacyShells { resource_id, graph, .. } => {
                 graph.binding.validate(true)?;
                 if !valid_nonce(resource_id) || !valid_nonce(&graph.nonce)
                     || graph.binding.executor_id != self.executor() { return Err(REJECTED.into()); }

@@ -60,6 +60,26 @@ the actual prepared writer's result. The generic lifecycle action callback no
 longer accepts this action. No enrolled native observer, backend grant or
 production authority owner is supplied by the conditional writer itself.
 
+The SYSTEM resource service now independently reads that complete shell plan
+from its already-held destination file. Its fixed SQL is copied from the pinned
+original importer; it selects the same repair/import rows, two original preview
+queries and ordinals, existing positions/projections/import markers, exact event
+slots and complete persistent schema. Only the three original FTS trigger
+definitions are permitted. Its separate read authorizer cannot read private
+tables, mutate SQL, load extensions or change connection modes. Snapshot handles,
+WAL state, resource watches and a five-second observation window are rechecked.
+
+The fixed resource companion accepts only the exact previously bound graph,
+with current source and process custody. It returns an unsigned digest, time and
+complete actual target list. The same original graph's `observeLegacyShells`
+compares those facts with its private candidate before returning either. The
+writer checks its own connection-local TEMP schema; a separate native reader
+cannot observe that TEMP namespace. Neither side returns raw rows or payloads.
+The cross-language fixture is synthetic and checked by both the real original
+importer and the actual Windows held-file reader. An enrolled observation
+receipt, current backend authority for every target and finite native consumption
+still need binding; these unsigned matching facts grant no lifecycle permission.
+
 The original process-loss transition cancels pending/running process-bound effects
 and requeues running replay-safe effects. Its existing global scope includes
 imported rows outside the current launch. An initial `launchThread` admission
