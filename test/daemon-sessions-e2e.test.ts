@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 import { canonicalExecutorJson, type ExecutorCommandEnvelope, type ExecutorOperationKey } from '@nessie/executor-protocol'
 
 import { serveExecutor } from '../src/daemon-server.js'
+import { detectExecutorHost } from '../src/host-platform.js'
 import { listProgramRequests, writeProgramRequestAnswer } from '../src/program-requests.js'
 import { runSessionsCommand } from '../src/session-cli.js'
 import { readSessions } from '../src/session-snapshot.js'
@@ -32,6 +33,19 @@ const RUN_ID = '00000000-0000-4000-8000-000000000e02'
 const SESSION = '00000000-0000-4000-8000-000000000e03'
 const OTHER_SESSION = '00000000-0000-4000-8000-000000000e04'
 const packagedWindowsRun = process.platform === 'win32' && process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1'
+
+/**
+ * A program request needs `command.run`, which a computer offers only with a
+ * sandbox backend (`assertHostSupportsOperations`): a Linux host without
+ * read/write access to /dev/kvm, as CI runners are, refuses it when the team
+ * is configured. Those two tests run where the backend exists.
+ */
+const sandboxBackend = (() => {
+  try { return detectExecutorHost().sandboxBackend } catch { return 'none' }
+})()
+const NO_SANDBOX_SKIP: string | false = sandboxBackend === 'none'
+  ? 'command.run needs a sandbox backend (KVM, Hyper-V or Virtualization.framework) on this computer.'
+  : false
 
 const readBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
   const chunks: Buffer[] = []
@@ -140,7 +154,8 @@ const eventually = async (what: string, check: () => boolean | Promise<boolean>,
   }
 }
 
-const fixture = async (options: { strict?: boolean } = {}) => {
+const fixture = async (options: { strict?: boolean; programs?: boolean } = {}) => {
+  const programs = options.programs ?? true
   const stateDir = await ensureOwnerOnlyStateDirectory(await mkdtemp(join(tmpdir(), 'nessie-sessions-state-')))
   const workspace = await mkdtemp(join(tmpdir(), 'nessie-sessions-workspace-'))
   await writeFile(join(workspace, 'report.md'), 'hello')
@@ -149,15 +164,17 @@ const fixture = async (options: { strict?: boolean } = {}) => {
   // command.run needs a guest VM configured; none starts, because nothing here is allowed to run.
   const state: ExecutorLocalState = {
     apiBaseUrl: nessie.apiBaseUrl,
-    browserSandbox: {
+    ...(programs ? { browserSandbox: {
       allowedOrigins: ['https://app.example.test'], guestInitrdBuilderPath: join(workspace, 'builder'),
       guestRuntimeBundlePath: join(workspace, 'runtime'), kernelPath: join(workspace, 'kernel'),
       vmHelperPath: join(workspace, 'helper'),
-    },
+    } } : {}),
     commandPolicy: { mode: 'allowlist', allowlist: [], denylist: [] },
     descriptor: {
       limits: { maxCommandRuntimeSeconds: 30, maxResultBytes: 65_536, maxSessions: 1 },
-      operationKeys: ['file.list', 'file.read', 'command.run', 'workspace.review', 'sandbox.stop'],
+      operationKeys: programs
+        ? ['file.list', 'file.read', 'command.run', 'workspace.review', 'sandbox.stop']
+        : ['file.list', 'file.read'],
       profiles: ['workspace_sandbox'],
       revision: 1, workspaceFolders: ['workspace'],
     },
@@ -189,7 +206,7 @@ const fixture = async (options: { strict?: boolean } = {}) => {
 }
 
 test('a program waiting for its owner holds only itself: a read in the same session finishes and the owner sees why', {
-  skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,
+  skip: WINDOWS_STATE_HELPER_SKIP || NO_SANDBOX_SKIP, timeout: 60_000,
 }, async () => {
   const { stateDir, nessie, cleanup } = await fixture()
   try {
@@ -222,7 +239,7 @@ test('a program waiting for its owner holds only itself: a read in the same sess
 })
 
 test('the owner\'s Stop ends one session\'s work, reaches Nessie, and is cleared when Nessie closes it', {
-  skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,
+  skip: WINDOWS_STATE_HELPER_SKIP || NO_SANDBOX_SKIP, timeout: 60_000,
 }, async () => {
   const { stateDir, nessie, cleanup } = await fixture()
   try {
@@ -251,7 +268,8 @@ test('the owner\'s Stop ends one session\'s work, reaches Nessie, and is cleared
 test('an older Nessie that refuses the concurrent poll still gets its work done, one command at a time', {
   skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,
 }, async () => {
-  const { nessie, cleanup } = await fixture({ strict: true })
+  // Reads only: an older Nessie's one-at-a-time path needs no sandbox backend.
+  const { nessie, cleanup } = await fixture({ programs: false, strict: true })
   try {
     const first = nessie.run('file.list', { path: 'workspace' })
     const second = nessie.run('file.read', { path: 'workspace/report.md' })
