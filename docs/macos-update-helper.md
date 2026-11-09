@@ -241,6 +241,22 @@ Recovery now works from both ends without weakening a fence:
   outside custody, keeps the swap waiting; the helper tries again every three
   seconds while admissions are held, and the app's restarts give it further
   chances when they are not.
+- **Creation journals end with their command.** Clearance needs no creation
+  journal from this boot in `~/.nessie/personal-inference/managed-runtimes`.
+  The macOS creator kept a command's journal, and exited refused, whenever the
+  guard held any `host_execution` registration at all. On dictator a team's
+  local apps had left 405 of them, most from the previous boot, so every
+  five-second `describe` kept its journal (371 in half an hour), exited 1 after
+  printing its answer, and the app never started the team or passed clearance
+  again. A command now keeps its journal only for a host registration its own
+  child made in this boot (`unresolved_host`, `native/src/managed_macos_runtime.rs`),
+  and a registration made in a new boot drops the host and runtime
+  registrations an earlier boot left (`PersonalInferenceGuard.register`).
+  Each launch first drops this boot's journals a one-shot command would have
+  dropped itself (`reconcile`): no long-lived activity, supervisor and child
+  ended, nothing left in the child's process group, no host registration of
+  its own. Journals the old rule kept therefore clear on the next launch, not
+  only at the next restart; a daemon's journal and anything running stay.
 - **A refused team stays in the window.** The console's `executor_view` lists a
   paired team whose `describe` is refused under `unreadable-<folder>`, so the
   window never opens Add another team over a team that exists. It reads as
