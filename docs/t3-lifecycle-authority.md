@@ -182,6 +182,34 @@ completion. An actual disabled setting or successfully read empty selection can
 still finish without enqueuing work; a failed observation cannot establish that
 result. A positive whole-action authority producer remains required.
 
+## Delegated-task recovery failures
+
+Delegated-task recovery now uses one shared original implementation for startup
+and the orchestrator. Its original child/parent selection, terminal-status rules,
+keyed thread locks, delivery refresh and concurrency of eight are retained.
+Failed SQL reads, child-result finalization or completion delivery propagate as
+`DelegatedRecovery.DelegatedTaskRecoveryError`. Defects and interruption retain
+their original causes; a failed concurrent child interrupts and joins its siblings.
+The actual question-dismissal helper also retains failures instead of logging
+them as successful recovery. Single-task restart recovery shares the same error
+boundary and its service declaration names that error.
+
+This prevents lifecycle startup from publishing running after failed delegated
+recovery. It supplies no recovery grant and does not make the whole recovery
+pass atomic across already committed commands. Runtime fixtures use the shared
+original loop and real keyed locks/SQLite with synthetic selected inputs and
+write callbacks. They cover selection failure, concurrent rollback/cleanup,
+completion failure, ordinary selection and original defects/cancellation.
+Component checks on 9 November 2026, Maxis/Windows 11, Node 24.19.0: the combined
+public/private build passed all 15 tasks. The full runtime run passed 225 cases
+and exposed one fixture comparing SQLite row prototypes. After that test-only
+correction, all five delegated-recovery cases passed in a filtered lifecycle
+rerun. Its nine other passing entries are file containers, not executed cases.
+The unchanged 225 results were reused; the whole runtime gate was not rerun.
+All 14 engine and 14 combined-source cases passed with zero skips. No native or
+PostgreSQL implementation changed, and no provider/install/production journey
+was established. Remaining action owners and real activation are still required.
+
 ## Whole shutdown preparation
 
 `Recovery.prepareShutdownPlan` prepares the entire original selected action in

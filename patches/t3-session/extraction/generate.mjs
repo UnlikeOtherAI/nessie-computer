@@ -35,6 +35,7 @@ import { extractSqlitePaths } from './sqlite-paths.mjs'
 import { extractWorkerClaims } from './worker-claims.mjs'
 import { extractFiniteSql } from './finite-sql.mjs'
 import { extractLegacyShellPlans } from './legacy-shells.mjs'
+import { extractDelegatedRecovery } from './delegated-recovery.mjs'
 
 /** Reproduce the reviewed exact source refactors from the original verified capsule. */
 export const generateExtractionManifest = snapshot => {
@@ -68,6 +69,7 @@ export const generateExtractionManifest = snapshot => {
   extractEffectClaims(author)
   extractLifecycleTransactions(author)
   extractRecoveryFailures(author)
+  extractDelegatedRecovery(author, redirects)
   extractProcessLossPlans(author)
   extractShutdownOutbox(author)
   extractSqlitePaths(author)

@@ -2009,6 +2009,165 @@
       "afterSha256": "54987cc4b99473e264cb1f73f9fca830052a5f4c864f27eeab3907e1590514b9"
     },
     {
+      "id": "delegated-recovery-retain:Failed to recover terminal app-owned subagent",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "              Effect.catchCause((cause) =>\n                Effect.logWarning(\"Failed to recover terminal app-owned subagent\", {\n                  childThreadId: threadId,\n                  cause,\n                }),\n              ),\n",
+      "to": "",
+      "beforeSha256": "eecf69a7a808becd13f0ae62574f542188e7d652757cbbf033d7be9475650de0",
+      "afterSha256": "e99baa7f9741df750d516eea903b6f2e4eff7ac1f7b192a32850d12cc9b21ba4"
+    },
+    {
+      "id": "delegated-recovery-retain:Failed to inspect app-owned subagents during recovery",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "      Effect.catchCause((cause) =>\n        Effect.logWarning(\"Failed to inspect app-owned subagents during recovery\", {\n          cause,\n        }),\n      ),\n",
+      "to": "",
+      "beforeSha256": "e99baa7f9741df750d516eea903b6f2e4eff7ac1f7b192a32850d12cc9b21ba4",
+      "afterSha256": "b918b26dae90ab723b48e88d4c9db032c6383fd5ea39aeea4cf26dbd9c7c4d5b"
+    },
+    {
+      "id": "delegated-recovery-retain:Failed to recover delegated completion delivery",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "                Effect.catchCause((cause) =>\n                  Effect.logWarning(\"Failed to recover delegated completion delivery\", {\n                    threadId,\n                    cause,\n                  }),\n                ),\n",
+      "to": "",
+      "beforeSha256": "b918b26dae90ab723b48e88d4c9db032c6383fd5ea39aeea4cf26dbd9c7c4d5b",
+      "afterSha256": "39b85acc17d04dc08edfac0b95c6797294e4ebff80e4ab07c7f4ff732a17365d"
+    },
+    {
+      "id": "delegated-recovery-retain:Failed to inspect delegated completion delivery during recovery",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "      Effect.catchCause((cause) =>\n        Effect.logWarning(\"Failed to inspect delegated completion delivery during recovery\", {\n          cause,\n        }),\n      ),\n",
+      "to": "",
+      "beforeSha256": "39b85acc17d04dc08edfac0b95c6797294e4ebff80e4ab07c7f4ff732a17365d",
+      "afterSha256": "bb52699b9544c7ebd1dc5457f26bf315a6250ec916351aa17c21482a86f6d422"
+    },
+    {
+      "id": "delegated-recovery-retain-question-dismissal",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "          Effect.catchCause((cause) =>\n            Effect.logWarning(\"Failed to dismiss task question\", {\n              requestId: request.id,\n              cause,\n            }),\n          ),\n",
+      "to": "",
+      "beforeSha256": "bb52699b9544c7ebd1dc5457f26bf315a6250ec916351aa17c21482a86f6d422",
+      "afterSha256": "e2ed731b360b2621b941b4ac2de1baa97ffd999a1b12961bd55223ad271d5a9d"
+    },
+    {
+      "id": "delegated-recovery-remove-empty-pipe:child",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "            }).pipe(\n            ),",
+      "to": "            }),",
+      "beforeSha256": "e2ed731b360b2621b941b4ac2de1baa97ffd999a1b12961bd55223ad271d5a9d",
+      "afterSha256": "eedade4d11edeee35381d15dcac9dd9ddcc3d6608fd431993226902ee8958d4c"
+    },
+    {
+      "id": "delegated-recovery-remove-empty-pipe:delivery",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "              )\n              .pipe(\n              ),",
+      "to": "              ),",
+      "beforeSha256": "eedade4d11edeee35381d15dcac9dd9ddcc3d6608fd431993226902ee8958d4c",
+      "afterSha256": "2c213bae110f8a1cc18cd9b0935ae13965d906cef44960c2e925580fa73d67bb"
+    },
+    {
+      "id": "delegated-recovery-remove-empty-pipe:question",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "        }).pipe(\n        );",
+      "to": "        });",
+      "beforeSha256": "2c213bae110f8a1cc18cd9b0935ae13965d906cef44960c2e925580fa73d67bb",
+      "afterSha256": "2981e30bdf9589bd9ce168784c450a2b44ce6d04f0da776ff6e738742ccb4f64"
+    },
+    {
+      "id": "delegated-recovery-retain-single-restart-failure",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "    (effect, threadId, _sourceRunId) =>\n      effect.pipe(\n        Effect.catchCause((cause) =>\n          Effect.logWarning(\"Failed to recover delegated task after restart\", {\n            childThreadId: threadId,\n            cause,\n          }),\n        ),\n      ),",
+      "to": "    (effect, _threadId, _sourceRunId) => retainRecoveryFailure(effect),",
+      "beforeSha256": "2981e30bdf9589bd9ce168784c450a2b44ce6d04f0da776ff6e738742ccb4f64",
+      "afterSha256": "02251d258012e5a6d51b787710eefec0177e3cd3d38c6f18db2d6fab400988cb"
+    },
+    {
+      "id": "delegated-recovery-shared-original-operation",
+      "file": "apps/server/src/orchestration-v2/DelegatedTaskRecovery.ts",
+      "create": [
+        {
+          "text": "import { type OrchestrationV2Run, type OrchestrationV2Subagent, RunId, ThreadId } from \"@t3tools/contracts\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\n"
+        },
+        {
+          "text": "import type { ProjectionStoreV2 } from \"./ProjectionStore.ts\";\nimport type * as ThreadCommandExecutor from \"./ThreadCommandExecutor.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Orchestrator.ts",
+          "start": 17916,
+          "end": 18346,
+          "sha256": "0e17262225f466aa89415adc6e10d20edd63f8896a032fc05285c209256b8e11",
+          "sourceStage": "current",
+          "sourceSha256": "02251d258012e5a6d51b787710eefec0177e3cd3d38c6f18db2d6fab400988cb"
+        },
+        {
+          "text": "export { delegatedTaskTerminalStatus };\n\n"
+        },
+        {
+          "text": "export class DelegatedTaskRecoveryError extends Schema.TaggedError<DelegatedTaskRecoveryError>()(\n  \"DelegatedTaskRecoveryError\", { cause: Schema.Defect() },\n) {}\n\nexport const retainRecoveryFailure = <A, E, R>(effect: Effect.Effect<A, E, R>):\n  Effect.Effect<A, DelegatedTaskRecoveryError, R> => effect.pipe(\n    Effect.mapError(cause => new DelegatedTaskRecoveryError({ cause })));\n\ninterface Inputs<E, R> {\n  readonly projectionStore: Pick<ProjectionStoreV2[\"Service\"],\n    \"getRecoveryThreadIds\" | \"getThreadShell\" | \"getThreadRecords\">;\n  readonly threadDispatch: ThreadCommandExecutor.ThreadCommandExecutor[\"Service\"];\n  readonly finalizeAppOwnedSubagent: (threadId: ThreadId) => Effect.Effect<void, E, R>;\n  readonly finalizeDelegatedCompletionDelivery: (threadId: ThreadId, runId: RunId) => Effect.Effect<void, E, R>;\n  readonly offerDelegatedCompletionDelivery: (threadId: ThreadId, runId: RunId) => Effect.Effect<void, E, R>;\n}\n\n/** Required real services and private original callbacks; no fallback,\n * provider construction or recovery permission is supplied here. */\nexport const make = <E, R>(input: Inputs<E, R>): Effect.Effect<void, DelegatedTaskRecoveryError, R> => {\n  const { projectionStore, threadDispatch, finalizeAppOwnedSubagent,\n    finalizeDelegatedCompletionDelivery, offerDelegatedCompletionDelivery } = input;\n"
+        },
+        {
+          "sourceFile": "apps/server/src/orchestration-v2/Orchestrator.ts",
+          "start": 525929,
+          "end": 528932,
+          "sha256": "8e5f2bef8942a417a321ce821a66f2cd75191e5b1078dc37eab34243d893bd6a",
+          "sourceStage": "current",
+          "sourceSha256": "02251d258012e5a6d51b787710eefec0177e3cd3d38c6f18db2d6fab400988cb"
+        },
+        {
+          "text": "  return retainRecoveryFailure(recoverDelegatedTasks);\n};\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "68c40255ffb7ff78619073a71c35b785380e5411e35be2a5d6ba4ffabe80c89f"
+    },
+    {
+      "id": "delegated-recovery-share-terminal-status",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "function delegatedTaskTerminalStatus(\n  status: OrchestrationV2Run[\"status\"],\n): OrchestrationV2Subagent[\"status\"] | null {\n  switch (status) {\n    case \"completed\":\n    case \"failed\":\n    case \"cancelled\":\n    case \"interrupted\":\n      return status;\n    case \"rolled_back\":\n      return \"cancelled\";\n    case \"preparing\":\n    case \"queued\":\n    case \"starting\":\n    case \"running\":\n    case \"waiting\":\n      return null;\n  }\n}\n\n",
+      "to": "",
+      "beforeSha256": "02251d258012e5a6d51b787710eefec0177e3cd3d38c6f18db2d6fab400988cb",
+      "afterSha256": "9ef99d02ed938851ac1147bbf252061259099b90fc306cf87acf3ed441d5df0b"
+    },
+    {
+      "id": "delegated-recovery-use-shared-original-operation",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "  const recoverDelegatedTasks = Effect.gen(function* () {\n    yield* projectionStore.getRecoveryThreadIds(\"subagent-results\").pipe(\n      Effect.tap((threadIds) =>\n        Effect.annotateCurrentSpan(\"recovery.subagentResultThreads\", threadIds.length),\n      ),\n      Effect.flatMap((threadIds) =>\n        Effect.forEach(\n          threadIds,\n          (threadId) =>\n            Effect.gen(function* () {\n              const thread = yield* projectionStore.getThreadShell(threadId);\n              const parentThreadId = thread?.lineage.parentThreadId;\n              if (parentThreadId === undefined || parentThreadId === null) return;\n              yield* threadDispatch.withLock(parentThreadId, finalizeAppOwnedSubagent(threadId));\n            }),\n          { concurrency: 8, discard: true },\n        ),\n      ),\n    );\n    yield* projectionStore.getRecoveryThreadIds(\"delegated-completions\").pipe(\n      Effect.tap((threadIds) =>\n        Effect.annotateCurrentSpan(\"recovery.delegatedCompletionThreads\", threadIds.length),\n      ),\n      Effect.flatMap((threadIds) =>\n        Effect.forEach(\n          threadIds,\n          (threadId) =>\n            threadDispatch\n              .withLock(\n                threadId,\n                Effect.gen(function* () {\n                  const projection = yield* projectionStore.getThreadRecords(threadId, [\"runs\"]);\n                  // Only the current delivery's run can settle its cohort; revisiting historical delivery runs repeatedly reloads the thread.\n                  const openDeliveryMessageIds = new Set(\n                    projection.runs.flatMap((run) =>\n                      run.delegatedCompletion?.delivery == null\n                        ? []\n                        : [run.delegatedCompletion.delivery.messageId],\n                    ),\n                  );\n                  const terminalDeliveryRunIds = projection.runs\n                    .filter(\n                      (run) =>\n                        delegatedTaskTerminalStatus(run.status) !== null &&\n                        openDeliveryMessageIds.has(run.userMessageId),\n                    )\n                    .map((run) => run.id);\n                  for (const runId of terminalDeliveryRunIds) {\n                    yield* finalizeDelegatedCompletionDelivery(threadId, runId);\n                  }\n                  const refreshed =\n                    terminalDeliveryRunIds.length === 0\n                      ? projection\n                      : yield* projectionStore.getThreadRecords(threadId, [\"runs\"]);\n                  for (const run of refreshed.runs) {\n                    if (\n                      run.delegatedCompletion?.delivery !== null &&\n                      run.delegatedCompletion !== undefined\n                    ) {\n                      yield* offerDelegatedCompletionDelivery(threadId, run.id);\n                    }\n                  }\n                }),\n              ),\n          { concurrency: 8, discard: true },\n        ),\n      ),\n    );\n  });\n\n",
+      "to": "  const recoverDelegatedTasks = makeDelegatedTaskRecovery({\n    projectionStore, threadDispatch, finalizeAppOwnedSubagent,\n    finalizeDelegatedCompletionDelivery, offerDelegatedCompletionDelivery,\n  });\n\n",
+      "beforeSha256": "9ef99d02ed938851ac1147bbf252061259099b90fc306cf87acf3ed441d5df0b",
+      "afterSha256": "0b5724a735675c571b0585e05ea6210e50033b465b3762a1a15215cc1f9c785d"
+    },
+    {
+      "id": "delegated-recovery-import-shared-operation",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
+      "from": "import { makeOrchestratorReads } from \"./OrchestratorReads.ts\";",
+      "to": "import { make as makeDelegatedTaskRecovery, delegatedTaskTerminalStatus, retainRecoveryFailure }\n  from \"./DelegatedTaskRecovery.ts\";\nimport { makeOrchestratorReads } from \"./OrchestratorReads.ts\";",
+      "beforeSha256": "0b5724a735675c571b0585e05ea6210e50033b465b3762a1a15215cc1f9c785d",
+      "afterSha256": "825412be94909a79d9d689e343cbb80b11e21c53b9aafaca4b0214532e54d717"
+    },
+    {
+      "id": "delegated-recovery-named-error-contract",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
+      "from": "import type { GuestShareId, OrchestrationV2SearchThreadInput, OrchestrationV2SearchThreadResult, OrchestrationV2ThreadHistoryPage } from \"@t3tools/contracts\";",
+      "to": "import type { DelegatedTaskRecoveryError } from \"./DelegatedTaskRecovery.ts\";\nimport type { GuestShareId, OrchestrationV2SearchThreadInput, OrchestrationV2SearchThreadResult, OrchestrationV2ThreadHistoryPage } from \"@t3tools/contracts\";",
+      "beforeSha256": "3904b250634fbbb84fbacb26e249a4f436afa2c19cd4b308c8bd5a9fffb181d7",
+      "afterSha256": "3e4c0f1c4907ef272ecc92b3c72122148d2e32cb8758e4d525582b22aa173344"
+    },
+    {
+      "id": "delegated-recovery-error-result",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
+      "from": "  readonly recoverDelegatedTasks: Effect.Effect<void>;",
+      "to": "  readonly recoverDelegatedTasks: Effect.Effect<void, DelegatedTaskRecoveryError>;",
+      "beforeSha256": "3e4c0f1c4907ef272ecc92b3c72122148d2e32cb8758e4d525582b22aa173344",
+      "afterSha256": "539ddb7db84507d959c2f4a4549ec7819ab5bf498437a857b44c321ea9a5ff1d"
+    },
+    {
+      "id": "delegated-recovery-single-error-result",
+      "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
+      "from": "  readonly recoverDelegatedTask: (threadId: ThreadId, sourceRunId: RunId) => Effect.Effect<void>;",
+      "to": "  readonly recoverDelegatedTask: (threadId: ThreadId, sourceRunId: RunId) => Effect.Effect<void, DelegatedTaskRecoveryError>;",
+      "beforeSha256": "539ddb7db84507d959c2f4a4549ec7819ab5bf498437a857b44c321ea9a5ff1d",
+      "afterSha256": "ba4703c12eb26201e795d2ec6b284cd7d08718585d9a035fadc53b822fbf7008"
+    },
+    {
       "id": "process-loss-share-physical-row-digest",
       "file": "apps/server/src/orchestration-v2/EffectOutbox.ts",
       "from": "        return \"sha256:\" + createHash(\"sha256\").update(JSON.stringify([\n          \"nessie.t3.pending-effect-row.v1\", ...claimColumns.map(column => prepared.row[column]),\n        ]), \"utf8\").digest(\"hex\");",
@@ -3910,24 +4069,24 @@
       "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
       "from": "\nconst isOrchestratorProjectionError",
       "to": "\nexport const isOrchestratorProjectionError",
-      "beforeSha256": "3904b250634fbbb84fbacb26e249a4f436afa2c19cd4b308c8bd5a9fffb181d7",
-      "afterSha256": "1defc718481f8f0471438f0bb564c04b01ee6f13119ba64a958030501ec94fc6"
+      "beforeSha256": "ba4703c12eb26201e795d2ec6b284cd7d08718585d9a035fadc53b822fbf7008",
+      "afterSha256": "410423326310cea21211050a410b630b37d02b39af95f53e59fecc5852477398"
     },
     {
       "id": "share-error-guard:runtimePolicyCeilingCause",
       "file": "apps/server/src/orchestration-v2/Orchestrator.session-api.ts",
       "from": "\nfunction runtimePolicyCeilingCause",
       "to": "\nexport function runtimePolicyCeilingCause",
-      "beforeSha256": "1defc718481f8f0471438f0bb564c04b01ee6f13119ba64a958030501ec94fc6",
-      "afterSha256": "e72bd6172bd0d783b22b372f948b73db4fd6f9e175002d446f391d67fce29368"
+      "beforeSha256": "410423326310cea21211050a410b630b37d02b39af95f53e59fecc5852477398",
+      "afterSha256": "2b9568c9cdc3f1dda10a215fb2728efdef4639c9959f109973575b0e762ca059"
     },
     {
       "id": "import-error-guards:Orchestrator",
       "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
-      "from": "import { makeOrchestratorReads } from \"./OrchestratorReads.ts\";",
-      "to": "import { isOrchestratorProjectionError, runtimePolicyCeilingCause } from \"./Orchestrator.session-api.ts\";\nimport { makeOrchestratorReads } from \"./OrchestratorReads.ts\";",
-      "beforeSha256": "eecf69a7a808becd13f0ae62574f542188e7d652757cbbf033d7be9475650de0",
-      "afterSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99"
+      "from": "import { make as makeDelegatedTaskRecovery, delegatedTaskTerminalStatus, retainRecoveryFailure }\n  from \"./DelegatedTaskRecovery.ts\";",
+      "to": "import { isOrchestratorProjectionError, runtimePolicyCeilingCause } from \"./Orchestrator.session-api.ts\";\nimport { make as makeDelegatedTaskRecovery, delegatedTaskTerminalStatus, retainRecoveryFailure }\n  from \"./DelegatedTaskRecovery.ts\";",
+      "beforeSha256": "825412be94909a79d9d689e343cbb80b11e21c53b9aafaca4b0214532e54d717",
+      "afterSha256": "9573a677f6004aa728e4e4658fdbebbbd2c48361d0ed8b5f617a28681be699ee"
     },
     {
       "id": "share-error-guard:isCheckpointRollbackExecutionError",
@@ -4331,32 +4490,32 @@
       "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
       "from": "import { CheckpointServiceV2 } from \"./CheckpointService.ts\";",
       "to": "import { CheckpointServiceV2 } from \"./CheckpointService.session-port.ts\";",
-      "beforeSha256": "84c06c73d11b914f0851c38d40521feee209f821fa837a503dc5a38a11c23a99",
-      "afterSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f"
+      "beforeSha256": "9573a677f6004aa728e4e4658fdbebbbd2c48361d0ed8b5f617a28681be699ee",
+      "afterSha256": "05f353fdcefc1b488343f5ca58aa4d30b4d194b9837806315662cbaa09ff2175"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/RunExecutionService.ts",
       "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
       "from": "import * as RunExecutionService from \"./RunExecutionService.ts\";",
       "to": "import * as RunExecutionService from \"./RunExecutionService.session-pure.ts\";",
-      "beforeSha256": "298d224e36bbc31d6f905570e91fb2e7210467f37d58df0222bc1a5baf63072f",
-      "afterSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa"
+      "beforeSha256": "05f353fdcefc1b488343f5ca58aa4d30b4d194b9837806315662cbaa09ff2175",
+      "afterSha256": "3020b8eb9617e36cf3af765ddc5be935321e25c52240a1c840d87cbe8397d845"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/orchestration-v2/ProviderSessionManager.ts",
       "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
       "from": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.ts\";",
       "to": "import { ProviderSessionManagerV2 } from \"./ProviderSessionManager.session-port.ts\";",
-      "beforeSha256": "7f4fe7fbb73d0dd16915bc3896c5d1defce5d41341a1ec8d998251433c3438aa",
-      "afterSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a"
+      "beforeSha256": "3020b8eb9617e36cf3af765ddc5be935321e25c52240a1c840d87cbe8397d845",
+      "afterSha256": "962f3457c101496f5f0e907f59736de6d7a7408dd831241dea9833e65a25784a"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/Orchestrator.ts:apps/server/src/serverSettings.ts",
       "file": "apps/server/src/orchestration-v2/Orchestrator.ts",
       "from": "import * as ServerSettings from \"../serverSettings.ts\";",
       "to": "import * as ServerSettings from \"../serverSettings.session-port.ts\";",
-      "beforeSha256": "b434b5f0821899a0a7a1a57480fbe784b29ee4b25d4f2bfed06df34a69db7b4a",
-      "afterSha256": "5b298e54b7e751b47b24bc60319f019cb225c3c1be96dfbd4045e683244dd119"
+      "beforeSha256": "962f3457c101496f5f0e907f59736de6d7a7408dd831241dea9833e65a25784a",
+      "afterSha256": "04163f511e3877d5290e3e4b7f0c54cfd3658e144a4c7660c1486b6690d79de3"
     },
     {
       "id": "port-import:apps/server/src/orchestration-v2/ThreadLaunchService.ts:apps/server/src/project/ProjectCloneTracker.ts",
