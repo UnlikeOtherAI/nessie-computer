@@ -60,9 +60,11 @@ mod tests {
     fn only_ended_controller_generations_are_attested_without_deleting_the_guard() {
         let root = tempfile::tempdir().unwrap();
         let boot = managed_runtime_context::boot_id().unwrap();
-        let mut ended = std::process::Command::new("/bin/sleep").arg("0.05").process_group(0).spawn().unwrap();
+        let mut ended = std::process::Command::new("/bin/cat").process_group(0)
+            .stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::null()).spawn().unwrap();
         let pid = ended.id() as i32;
         let birth = managed_runtime_context::birth(pid).unwrap();
+        drop(ended.stdin.take());
         ended.wait().unwrap();
         let mut live = std::process::Command::new("/bin/sleep").arg("30").process_group(0).spawn().unwrap();
         let live_pid = live.id() as i32;

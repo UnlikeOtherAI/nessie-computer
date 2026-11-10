@@ -209,9 +209,11 @@ mod tests {
         let directory = root.path().join("managed-runtimes");
         std::fs::create_dir(&directory).unwrap();
         let boot = managed_runtime_context::boot_id().unwrap();
-        let mut ended = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let mut ended = std::process::Command::new("/bin/cat").stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null()).spawn().unwrap();
         let ended_pid = ended.id() as i32;
         let ended_birth = managed_runtime_context::birth(ended_pid).unwrap();
+        drop(ended.stdin.take());
         ended.wait().unwrap();
         let own = unsafe { libc::getpid() };
         let own_birth = managed_runtime_context::birth(own).unwrap();

@@ -162,9 +162,11 @@ mod tests {
         let directory = root.path().join("managed-runtimes");
         fs::create_dir(&directory).unwrap();
         let boot = managed_runtime_context::boot_id().unwrap();
-        let mut child = std::process::Command::new("/bin/sleep").arg("0.05").spawn().unwrap();
+        let mut child = std::process::Command::new("/bin/cat").stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null()).spawn().unwrap();
         let pid = child.id() as i32;
         let birth = managed_runtime_context::birth(pid).unwrap();
+        drop(child.stdin.take());
         child.wait().unwrap();
         let record = |pid: i32, birth: &str| Record { protocol_version: 1, guard_version: managed_release::GUARD_VERSION,
             boot_id: boot.clone(), supervisor_pid: pid, supervisor_started_at: birth.into(),
