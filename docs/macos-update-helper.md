@@ -363,3 +363,19 @@ re-registration was refused); that the 0.9.0 worker verifies the new
 release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
 newer app to a working team. Any extra product process, such as a team daemon
 started by hand from the app bundle, holds clearance until it exits.
+
+## Framework signing
+
+The Developer ID signer seals embedded frameworks as bundles after their nested
+Mach-O files and before the app. Sentry is a versioned framework with resources;
+signing only its executable invalidates its resource seal and prevents the final
+strict verification. Framework bundles receive no app or Node entitlements. The
+release producer still requires strict verification, notarization and Gatekeeper
+assessment before an app can be installed.
+
+Startup pairing-status and team-name reads obey the same runtime hold as
+`describe`. Existing pairing files appear as waiting teams before their first
+reading, so opening the window during a hold does not start another pairing.
+After the hold, pairing status, names and team descriptions refresh normally.
+These reads are runtime processes too; launching them during the helper’s
+brief installation window can keep the older factory busy for the whole try.
