@@ -372,3 +372,10 @@ signing only its executable invalidates its resource seal and prevents the final
 strict verification. Framework bundles receive no app or Node entitlements. The
 release producer still requires strict verification, notarization and Gatekeeper
 assessment before an app can be installed.
+
+Startup pairing-status and team-name reads obey the same runtime hold as
+`describe`. Existing pairing files appear as waiting teams before their first
+reading, so opening the window during a hold does not start another pairing.
+After the hold, pairing status, names and team descriptions refresh normally.
+These reads are runtime processes too; launching them during the helper’s
+brief installation window can keep the older factory busy for the whole try.

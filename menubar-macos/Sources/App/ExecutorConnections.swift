@@ -193,6 +193,7 @@ final class ExecutorConnections: ObservableObject {
     /// the menu, notifications and the window follow a rename. A read that
     /// fails leaves every saved name as it was, and says why in this app's log.
     func refreshTeamNames() {
+        guard !ComputerUpdateService.holdingTeams else { return }
         guard let runner = controllers.lazy.compactMap(\.runner).first else { return }
         let invocation = ExecutorCLI.teamNames(stateDirectories: controllers.map(\.stateDirectory))
         let settled = controllers.filter { $0.pairing.state?.isPending != true }
@@ -271,7 +272,11 @@ final class ExecutorConnections: ObservableObject {
             if (try? await ExecutorUpdateControl.run(["operation": "status"])) != nil { break }
         }
         ComputerUpdateService.holdingTeams = false
-        controllers.forEach { $0.refresh(startWhenPaired: true) }
+        controllers.forEach {
+            $0.pairing.restore()
+            $0.refresh(startWhenPaired: true)
+        }
+        refreshTeamNames()
     }
 
     func shutdown() {
