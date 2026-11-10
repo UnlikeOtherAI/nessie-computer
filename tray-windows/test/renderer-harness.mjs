@@ -21,12 +21,13 @@ import { verifyDocumentsTab } from './documents-renderer.mjs'
 import { captureDocumentsTeamsBefore, verifyDocumentsTeams } from './documents-teams-renderer.mjs'
 import { verifyAiTab } from './ai-tab-renderer.mjs'
 import { verifyAiLocal } from './ai-local-renderer.mjs'
+import { verifyChatgptDialog } from './chatgpt-renderer.mjs'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const ui = join(root, 'packages/executor-console')
 const flag = (name) => process.argv.find((arg) => arg.startsWith(`--${name}=`))?.split('=')[1]
 const output = resolve(root, flag('output') ?? '.artifacts/executor-console')
-const only = flag('only')?.split(',') ?? ['shell', 'access', 'documents', 'documents-teams', 'ai', 'updates']
+const only = flag('only')?.split(',') ?? ['shell', 'access', 'documents', 'documents-teams', 'ai', 'chatgpt', 'updates']
 const before = flag('before')
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
   ?? (process.platform === 'win32' ? 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe' : undefined)
@@ -54,6 +55,7 @@ try {
   if (only.includes('documents-teams')) await verifyDocumentsTeams(browser, ui, after)
   if (only.includes('ai')) await verifyAiTab(browser, ui, after)
   if (only.includes('ai')) await verifyAiLocal(browser, ui)
+  if (only.includes('chatgpt')) await verifyChatgptDialog(browser, ui, after)
   if (only.includes('updates')) {
     await verifySoftwareUpdates(browser, ui, files, root)
     await verifyUpdatesStuck(browser, ui, files)

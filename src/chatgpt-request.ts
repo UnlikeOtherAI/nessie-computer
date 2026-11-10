@@ -61,14 +61,17 @@ export const chatgptRequestBody = (
     chatgptToolNames(attempt.tools)
     const mapped = mapMessagesToResponses(attempt.messages, { vision: true,
       continuationItems: (message) => replayChatgptContinuation(message, attempt, model, chatgptFunctionName),
-      functionIdentity: (name) => ({ name: chatgptFunctionName(name), namespace: CHATGPT_TOOL_NAMESPACE }) })
+      functionIdentity: (name) => ({ name: chatgptFunctionName(name),
+        ...(model.transport === 'codex' ? {} : { namespace: CHATGPT_TOOL_NAMESPACE }) }) })
     const definitions = mapToolsToResponses(attempt.tools)?.map((tool) => ({ ...tool,
       name: chatgptFunctionName(tool.name as string), strict: false }))
     const body = { model: model.providerModelId, input: mapped.input, store: false, stream: true,
       include: ['reasoning.encrypted_content'],
-      ...(mapped.instructions ? { instructions: mapped.instructions } : {}),
-      ...(definitions ? { tools: [{ type: 'namespace', name: CHATGPT_TOOL_NAMESPACE,
-        description: 'Nessie tools authorized for this request.', tools: definitions }] } : {}),
+      ...(model.transport === 'codex' ? { instructions: mapped.instructions ?? '' }
+        : mapped.instructions ? { instructions: mapped.instructions } : {}),
+      ...(definitions ? { tools: model.transport === 'codex' ? definitions
+        : [{ type: 'namespace', name: CHATGPT_TOOL_NAMESPACE,
+          description: 'Nessie tools authorized for this request.', tools: definitions }] } : {}),
       ...(attempt.thinking || attempt.reasoningEffort ? { reasoning: {
         ...(attempt.reasoningEffort ? { effort: attempt.reasoningEffort } : {}),
         ...(attempt.thinking ? { summary: 'auto' } : {}),

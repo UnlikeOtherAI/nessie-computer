@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { request } from 'node:http'
 import test from 'node:test'
-import type { ChatgptTokens, ChatgptOAuthRequest } from '../src/chatgpt-oauth-provider.js'
+import { CHATGPT_PERSONAL_CLIENT_ID,
+  type ChatgptTokens, type ChatgptOAuthRequest } from '../src/chatgpt-oauth-provider.js'
 import { startChatgptLoopbackLogin } from '../src/chatgpt-loopback-login.js'
 
 const tokens: ChatgptTokens = { issuer: 'https://auth.openai.com', subject: 'verified-subject', idToken: 'fixture-id',
@@ -31,25 +32,25 @@ const callback = (uri: string, query: Record<string, string>, method = 'GET', ho
     outgoing.end()
   })
 
-test('new registration binds exact loopback URI and fresh state/nonce/PKCE to one verified exchange', async () => {
+test('personal sign-in binds exact loopback URI and fresh state/nonce/PKCE to one verified exchange', async () => {
   const world = fixture()
   const login = await startChatgptLoopbackLogin({ hostId: 'urn:uuid:fixture-host' }, world.provider)
   try {
     const pending = world.pending()
-    assert.match(login.callbackUri, /^http:\/\/127\.0\.0\.1:\d+\/auth\/callback$/u)
+    assert.match(login.callbackUri, /^http:\/\/localhost:1455\/auth\/callback$/u)
     assert.equal(pending.redirectUri, login.callbackUri)
-    assert.equal(pending.clientId, null)
+    assert.equal(pending.clientId, CHATGPT_PERSONAL_CLIENT_ID)
     assert.equal(new Set([pending.state, pending.nonce, pending.verifier]).size, 3)
     assert.equal(await callback(login.callbackUri, { state: 'wrong-state', code: 'fixture-code',
-      client_id: 'oaiapp_fixture' }), 400)
+      client_id: CHATGPT_PERSONAL_CLIENT_ID }), 400)
     assert.equal(login.status(), 'awaiting_browser')
     assert.equal(world.exchanges.length, 0)
-    assert.equal(await callback(login.callbackUri, { state: pending.state, code: 'fixture-code',
-      client_id: 'oaiapp_fixture' }), 200)
+    assert.equal(await callback(login.callbackUri, { state: pending.state, code: 'fixture-code' }), 200)
     const result = await login.completion
     assert.equal(result.status, 'verified')
     assert.deepEqual(world.exchanges.map(({ clientId, redirectUri, verifier, nonce }) =>
-      ({ clientId, redirectUri, verifier, nonce })), [{ clientId: 'oaiapp_fixture', redirectUri: login.callbackUri,
+      ({ clientId, redirectUri, verifier, nonce })), [{ clientId: CHATGPT_PERSONAL_CLIENT_ID,
+      redirectUri: login.callbackUri,
       verifier: pending.verifier, nonce: pending.nonce }])
   } finally { await login.cancel() }
 })
@@ -95,7 +96,7 @@ test('cancellation fences even a late successful exchange and expiry closes the 
   const login = await startChatgptLoopbackLogin({ hostId: 'fixture-host' }, { ...world.provider,
     exchange: async (input) => { world.exchanges.push(input); began(); return late } })
   const response = callback(login.callbackUri, { state: world.pending().state, code: 'fixture-code',
-    client_id: 'oaiapp_fixture' }).catch(() => 0)
+    client_id: CHATGPT_PERSONAL_CLIENT_ID }).catch(() => 0)
   await started
   await login.cancel()
   finish(tokens)
@@ -112,7 +113,7 @@ test('forged Host, POST, duplicate state and declined consent do not exchange a 
   const world = fixture()
   const login = await startChatgptLoopbackLogin({ hostId: 'fixture-host' }, world.provider)
   try {
-    const query = { state: world.pending().state, code: 'fixture-code', client_id: 'oaiapp_fixture' }
+    const query = { state: world.pending().state, code: 'fixture-code', client_id: CHATGPT_PERSONAL_CLIENT_ID }
     assert.equal(await callback(login.callbackUri, query, 'GET', 'evil.example'), 400)
     assert.equal(await callback(login.callbackUri, query, 'POST'), 400)
     const duplicate = new URL(login.callbackUri)

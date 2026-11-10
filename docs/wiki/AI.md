@@ -45,12 +45,24 @@ for them.
 
 1. Choose **Add a ChatGPT plan**.
 2. Keep the suggested name (*ChatGPT plan 1*) or type your own, such as
-   *Work plan*.
+   *ChatGPT OR Main* or *Work plan*.
 3. Choose **Sign in with ChatGPT**. Your browser opens ChatGPT's own sign-in.
    Sign in with the account that has the plan.
 4. Back in Nessie Computer the plan shows **Ready**.
 
 Add as many plans as you have. Each one has its own name and sign-in.
+
+If the browser does not open, read the red message in the dialog. **Check again**
+retries the check and keeps the name you typed. A connection problem, an account
+that needs reconnecting and a computer that cannot protect the sign-in require
+different steps; the message says which one blocked the attempt. For an update
+problem, open **Settings → Software updates**, finish the update, then check again.
+
+The sign-in uses the public personal-agent OAuth flow, as OpenClaw does.
+Nessie Computer keeps its own sign-in on this computer; it does not import a
+Codex or OpenClaw account. Hosted Nessie can schedule the agent’s work too: it
+receives replies through the computer’s connection and never receives the
+OpenAI credentials. Codex does not need to be installed for this connection.
 
 On Windows the Nessie Computer background service keeps a plan's sign-in. The
 first plan for a team therefore adds a **ChatGPT plan connection** for that

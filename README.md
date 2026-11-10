@@ -59,7 +59,9 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
   Every document you can read in that team syncs both ways.
   [Documents](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Documents)
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
-  in with ChatGPT. Add as many plans as you have, personal or company.
+  in with ChatGPT. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
+  to OpenAI itself, including when connected to hosted Nessie. A blocked
+  sign-in shows a red message with the next step.
   [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
 - **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
   [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)

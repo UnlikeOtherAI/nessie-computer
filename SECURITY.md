@@ -36,6 +36,20 @@ process, a process group or a successful compiler run does not establish
 credential custody. Never weaken these checks to make development builds
 eligible for personal credentials.
 
+Personal ChatGPT connections use the public personal-agent OAuth client with
+fresh state and PKCE, a loopback callback, and a separate grant per named
+profile. Credentials, account selection, refresh and provider requests remain
+on the computer. The server receives inference and signed receipts, never
+OAuth URLs, codes or tokens. A hosted server is not the OAuth client.
+
+On macOS, credential custody verifies Nessie Computer's signed installation
+and actual managed native/runtime processes. Other applications, including
+unrelated Node programs and Nessie Desktop's user interface, are not Nessie
+Computer credential runtimes. Their presence alone cannot make personal
+sign-in unavailable. This is still an owner-account boundary, not an OS
+sandbox against other programs the owner runs. Nessie-managed terminal and
+coding admissions retain the explicit sign-in fence.
+
 On Windows, custody also refuses any `nessie-computer` or `nessie-executor`
 launcher (and the old Desktop app) in a folder on the user or machine PATH, so
 a stray npm or hand-made wrapper cannot run the CLI outside the managed

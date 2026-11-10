@@ -123,7 +123,7 @@ export const createProfileChatgptAuthProvider = (input: {
           throw new ChatgptError('chatgpt_policy_denied', 'not_sent')
         }
         signal.throwIfAborted()
-        return { accessToken: tokens.accessToken, signal,
+        return { accessToken: tokens.accessToken, ...(tokens.accountId ? { accountId: tokens.accountId } : {}), signal,
           release: async () => { forget(); leaseController.abort() } }
       } catch (error) {
         forget()

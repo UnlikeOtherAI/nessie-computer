@@ -7,8 +7,9 @@ use std::{fs::{self, File, OpenOptions}, io::{Read, Write}, os::unix::fs::{Metad
 fn refused() -> NativeError { NativeError::new("EXECUTOR_MANAGED_INVENTORY_UNVERIFIED") }
 fn product(process: &macos_processes::Process) -> bool {
     let name = process.executable.file_name().and_then(|name| name.to_str()).unwrap_or("");
-    ["node", "nodejs", "nessie", "Nessie", "nessie-desktop"].contains(&name)
-        || name.starts_with("nessie-executor")
+    // Personal-agent custody owns Nessie Computer's runtimes. An unrelated
+    // Node program or another app's UI is not one of its credential actors.
+    name.starts_with("nessie-executor")
 }
 fn probe(root: &Path, process: &macos_processes::Process, nonce: &str) -> Result<Record, NativeError> {
     let socket = format!("{}_{}-{}.sock", &managed_runtime_context::boot_id()?[..8], process.pid, process.started_at);
@@ -146,9 +147,16 @@ mod tests {
     #[test]
     fn unsigned_inventory_never_reports_compatibility() { assert!(barrier(&"a".repeat(64)).is_err()); }
     #[test]
-    fn unproven_live_node_is_not_adopted_from_its_path() {
+    fn unrelated_node_does_not_require_nessie_custody() {
         let process = macos_processes::Process { pid: 7, parent_pid: 1, group: 7, uid: 501,
             started_at: "10".into(), executable: "/tmp/node".into(), zombie: false };
+        assert!(!product(&process), "a person's other Node programs do not own Nessie Computer's grant");
+        assert!(validate_table(&[process], &[], 8).is_ok());
+    }
+    #[test]
+    fn an_unregistered_nessie_runtime_still_refuses_credential_activation() {
+        let process = macos_processes::Process { pid: 7, parent_pid: 1, group: 7, uid: 501,
+            started_at: "10".into(), executable: "/tmp/nessie-executor-runtime".into(), zombie: false };
         assert!(validate_table(&[process], &[], 8).is_err());
     }
 }

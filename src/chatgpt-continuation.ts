@@ -43,7 +43,7 @@ export const replayChatgptContinuation = (
   if (calls.length !== functions.length || functions.some((item, index) => {
     const call = calls[index]!
     const args = decodeProviderToolArguments(item.arguments)
-    return item.namespace !== 'nessie' || item.name !== functionName(call.toolName)
+    return item.namespace !== (model.transport === 'codex' ? undefined : 'nessie') || item.name !== functionName(call.toolName)
       || item.call_id !== call.toolCallId || !isDeepStrictEqual(args, call.arguments)
   })) return refuse()
   const content = items.flatMap((item) => item.type === 'message' ? item.content : [])
