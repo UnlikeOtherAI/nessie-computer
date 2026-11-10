@@ -31,7 +31,9 @@ fn probe(root: &Path, process: &macos_processes::Process, nonce: &str) -> Result
     Ok(record)
 }
 
-fn journal_records(root: &Path, records: &[Record]) -> Result<(), NativeError> {
+fn journal_records(root: &Path, records: &[Record]) -> Result<Vec<Record>, NativeError> {
+    let groups = macos_processes::live_groups()?;
+    let mut retired = Vec::new();
     let directory = root.join("managed-runtimes");
     let boot = managed_runtime_context::boot_id()?;
     for entry in fs::read_dir(&directory).map_err(|_| refused())? {
@@ -63,10 +65,15 @@ fn journal_records(root: &Path, records: &[Record]) -> Result<(), NativeError> {
             let socket = path.with_extension("sock");
             if socket.try_exists().map_err(|_| refused())? { fs::remove_file(socket).map_err(|_| refused())?; }
         } else if !records.contains(&record) {
-            return Err(refused()); // Root absence never erases possible escaped descendants.
+            if !crate::managed_macos_closure::controller_ended(&record, &groups)? { return Err(refused()); }
+            // Keep the original journal. A dead controller cannot receive more
+            // Nessie work; an escaped owner program is not claimed stopped.
+            retired.push(record);
+            if retired.len() > 4096 { return Err(refused()); }
         }
     }
-    File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())
+    File::open(directory).map_err(|_| refused())?.sync_all().map_err(|_| refused())?;
+    Ok(retired)
 }
 
 fn validate_table(table: &[macos_processes::Process], records: &[Record], own: i32) -> Result<(), NativeError> {
@@ -121,7 +128,7 @@ pub fn barrier(nonce: &str) -> Result<(), NativeError> {
             records.push(record);
         }
     }
-    journal_records(&barrier.root, &records)?;
+    let retired_journals = journal_records(&barrier.root, &records)?;
     validate_table(&initial, &records, own)?;
     let after = macos_processes::all()?; validate_table(&after, &records, own)?;
     let product_generations = |table: &[macos_processes::Process]| {
@@ -131,10 +138,12 @@ pub fn barrier(nonce: &str) -> Result<(), NativeError> {
     };
     if product_generations(&initial) != product_generations(&after) { return Err(refused()); }
     observations.unchanged()?;
+    let retired = crate::managed_macos_host_retirement::collect(&barrier.root, &retired_journals)?;
     let controller = records.iter().find(|record| record.child_pid == unsafe { libc::getppid() }).ok_or_else(refused)?;
     let transition = crate::managed_transition::Transition::publish(&barrier.root, controller)?;
     println!("{}", serde_json::json!({"status":"verified","protocolVersion":1,"nonce":nonce,
-        "root":barrier.root,"guardVersion":managed_release::GUARD_VERSION,"releaseDigest":release.digest,"records":records}));
+        "root":barrier.root,"guardVersion":managed_release::GUARD_VERSION,"releaseDigest":release.digest,
+        "records":records,"retiredHostControllers":retired}));
     std::io::stdout().flush().map_err(|_| refused())?;
     let mut line = [0_u8; 8]; let count = std::io::stdin().read(&mut line).map_err(|_| refused())?;
     if &line[..count] != b"release\n" { return Err(refused()); }
@@ -146,6 +155,34 @@ mod tests {
     use super::*;
     #[test]
     fn unsigned_inventory_never_reports_compatibility() { assert!(barrier(&"a".repeat(64)).is_err()); }
+    #[test]
+    fn ended_controller_journals_remain_readable_and_live_ones_still_refuse() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let directory = root.path().join("managed-runtimes");
+        fs::create_dir(&directory).unwrap();
+        let boot = managed_runtime_context::boot_id().unwrap();
+        let mut child = std::process::Command::new("/bin/sleep").arg("0.05").spawn().unwrap();
+        let pid = child.id() as i32;
+        let birth = managed_runtime_context::birth(pid).unwrap();
+        child.wait().unwrap();
+        let record = |pid: i32, birth: &str| Record { protocol_version: 1, guard_version: managed_release::GUARD_VERSION,
+            boot_id: boot.clone(), supervisor_pid: pid, supervisor_started_at: birth.into(),
+            child_pid: pid, child_started_at: birth.into(), release_digest: "a".repeat(64), activity: Some("serve".into()) };
+        let ended = record(pid, &birth);
+        let path = directory.join(format!("{}_{pid}-{birth}.json", &boot[..8]));
+        let bytes = serde_json::to_vec(&ended).unwrap();
+        fs::write(&path, &bytes).unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        journal_records(root.path(), &[]).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), bytes, "retirement does not erase the journal");
+        let own = unsafe { libc::getpid() };
+        let own_birth = managed_runtime_context::birth(own).unwrap();
+        let live_path = directory.join(format!("{}_{own}-{own_birth}.json", &boot[..8]));
+        fs::write(&live_path, serde_json::to_vec(&record(own, &own_birth)).unwrap()).unwrap();
+        fs::set_permissions(&live_path, fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(journal_records(root.path(), &[]).is_err());
+    }
     #[test]
     fn unrelated_node_does_not_require_nessie_custody() {
         let process = macos_processes::Process { pid: 7, parent_pid: 1, group: 7, uid: 501,

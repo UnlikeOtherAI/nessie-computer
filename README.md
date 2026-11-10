@@ -63,6 +63,9 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
   to OpenAI itself, including when connected to hosted Nessie. A blocked
   sign-in shows a red message with the next step.
   [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
+- **Update on a Mac.** Nessie Computer replaces its runtime after its work ends.
+  Stale records from an ended runtime do not require restarting macOS.
+  [Settings and updates](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Settings-and-updates)
 - **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
   [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
 

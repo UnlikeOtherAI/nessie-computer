@@ -200,7 +200,30 @@ ended, nothing of any account left in the child's group, and no unresolved
 host admission of its own. A `host_execution` registration resolves once the
 process it bound, the descendants recorded with it and a group it leads are
 all gone (`execution_ended`, matching `ps`'s whole-second start time). An
-unbound registration may have started a process nobody recorded, so it stays.
+unbound registration may have started a process nobody recorded, so its history
+stays. It no longer requires restarting macOS to replace the runtime.
+
+Replacement clearance checks that the native supervisor, runtime generation and
+runtime process group have ended, and still waits for every live product process.
+It does not claim that an escaped owner program has stopped. Personal activation
+uses a fresh signed native inventory under the retained launch barriers. That
+inventory can attest an ended controller directly from its guard generation,
+even when an old build already removed its creation journal. The guard archives
+each matching host admission, native controller proof and original creation
+journal when present under
+`retired-host-admissions/` before retiring its active authority. A failed archive
+write retains the admission. A live controller or process group, unreadable
+process metadata, another boot or an unmatched generation grants no retirement
+proof. Current-boot journals remain intact until normal creator reconciliation.
+This is the same owner-account boundary as unrelated programs the owner runs,
+not an OS sandbox or a claim that every escaped process ended.
+
+The focused public gate is `pnpm exec turbo run build lint typecheck
+test:runtime-recovery test:updates-native --root-turbo-json=scripts/turbo.public.json
+--concurrency=2`; native proof cases run through `cargo test --locked
+--manifest-path native/Cargo.toml --jobs 2` on macOS. No rendered UI changes
+are required by this recovery correction.
+
 Clearance still waits for every product process, including any a crashed
 runtime left outside its group. On dictator, after 1.0.25 was installed, the
 1.0.24 runtime kept starting daemons that died. Each died with a Kelpie MCP

@@ -41,8 +41,10 @@ const readOperation = async (stateDirectory: string, local: boolean): Promise<Op
 
 const preflight = async (stateDirectory: string, intent: PersonalChatgptConnectIntent): Promise<void> => {
   await matchingChatgptPairing(stateDirectory, intent)
-  await withManagedRuntimeInventory(async () => {
-    const status = await PersonalInferenceGuard.open().status()
+  await withManagedRuntimeInventory(async inventory => {
+    const guard = PersonalInferenceGuard.open()
+    await guard.retireHostAdmissions(inventory.retiredHostControllers ?? [])
+    const status = await guard.status()
     if (status.registrations.some(item => item.kind === 'host_execution')) {
       throw new PersonalInferenceProtectionError('personal_inference_incompatible_sessions')
     }
