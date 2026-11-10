@@ -91,6 +91,12 @@
       ],
       "cache": false
     },
+    "//#test:chatgpt-connection": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
     "//#test:cli-engines": {
       "dependsOn": [
         "^build"

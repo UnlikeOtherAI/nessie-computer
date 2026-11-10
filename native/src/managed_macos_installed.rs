@@ -1,4 +1,4 @@
-//! Known alternate product entrypoints must share the current native floor.
+//! Nessie Computer's own installed entrypoints must share the current native floor.
 use crate::{managed_release::Release, managed_runtime_context, protocol::NativeError};
 use std::{fs, path::{Path, PathBuf}};
 
@@ -18,7 +18,7 @@ pub fn verify(_release: &Release) -> Result<(), NativeError> {
     }
     let home = managed_runtime_context::home()?;
     for applications in [PathBuf::from("/Applications"), home.join("Applications")] {
-        for name in ["Nessie.app", "Nessie Desktop.app", "Nessie Executor.app", "NessieExecutorMenuBar.app"] {
+        for name in ["Nessie Executor.app", "NessieExecutorMenuBar.app"] {
             let app = applications.join(name);
             if !present(&app)? { continue; }
             crate::macos_provenance::require_independent_app(&app)?;

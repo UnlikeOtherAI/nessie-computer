@@ -104,7 +104,8 @@ export class ChatgptCredentialStore {
       // No catch restores prior bytes or retries an ambiguous rotating grant.
       const replacement = await exchange(prior.record.tokens)
       if (!replacement.accessToken || !replacement.refreshToken
-        || replacement.issuer !== prior.record.tokens.issuer || replacement.subject !== prior.record.tokens.subject) {
+        || replacement.issuer !== prior.record.tokens.issuer || replacement.subject !== prior.record.tokens.subject
+        || replacement.accountId !== prior.record.tokens.accountId) {
         invalid()
       }
       const next = ChatgptTokenRecordSchema.parse({ ...spent, revision: spent.revision + 1,

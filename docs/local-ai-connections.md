@@ -19,8 +19,29 @@ the provider's own sign-in. Each plan has a stable profile ID, independent
 sign-in, sign-out and background-work consent. **Manage** opens that plan;
 **Save name** changes only its local display label. Adding a plan does not
 resume another account or inherit another profile's provider registration.
-Native credential custody and per-plan funding rules still apply: a plan funds
-the owner's own agents.
+New profiles use the public Codex personal-agent OAuth client, the same
+`/oauth/authorize` and `/oauth/token` contract used by OpenClaw, with fresh
+PKCE and a loopback callback at `http://localhost:1455/auth/callback`. The
+computer opens the browser and owns token exchange, refresh and the selected
+ChatGPT account header. It calls `chatgpt.com/backend-api/codex` directly.
+There is no Codex installation prerequisite and no import of another app’s
+grant. Existing SIWC registrations retain their own exact local mapping.
+
+The server may be hosted, self-hosted or local. It schedules work and receives
+inference over the existing authenticated host WebSocket, never provider
+credentials. Native credential custody and per-plan funding rules still apply:
+a plan funds the owner’s own agents. The Mac inventory proves Nessie Computer’s
+managed processes and installation; unrelated Node programs or a separate
+Nessie Desktop UI do not fail that inventory. Other owner-run applications
+remain inside the ordinary OS-account trust boundary.
+
+The dialog shows blocked sign-in and failed checks as red alerts. A failed
+check keeps the name you typed and disables sign-in until **Check again**
+succeeds. A successful status read does not itself grant provider access.
+Server deployment restrictions, owner authority, local runtime protection and
+OpenAI sign-in failures have separate messages; none falls back to team credits.
+Local scope resolution failures also return these public reasons instead of
+escaping the CLI before its first status frame.
 
 ## Local and network model servers
 
@@ -68,6 +89,11 @@ build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed
 credential authority. The local headless journey is
 `node tray-windows/test/renderer-harness.mjs --only=ai`, against the real console page.
+Run `pnpm exec turbo run test:chatgpt-connection
+--root-turbo-json=scripts/turbo.public.json --concurrency=2` for the OAuth
+loopback, registration and public-failure contract (no installed native authority).
+The focused `--only=chatgpt` journey covers named starts, all public refusal
+messages, failed checks and recovery in seven locales at both native window sizes.
 
 Revision c9f4016 passed build, lint, typecheck and all 42 focused tests on Maxis,
 with no skips. Shared AI/ChatGPT journeys passed in seven locales at 390/1280 px

@@ -3,7 +3,8 @@ import { ExecutorInferenceSourceSchema } from '@nessie/executor-protocol'
 import type { ObservedInferenceModel } from './local-inference-backend.js'
 import type { ChatgptAccessLease, ChatgptInferenceSource } from './chatgpt-auth-provider.js'
 import { ChatgptError, chatgptProviderFailure, isRecord } from './chatgpt-errors.js'
-import { CHATGPT_MODELS_URL, chatgptFetch, readChatgptJson, type ChatgptFetch } from './chatgpt-http.js'
+import { CHATGPT_MODELS_URL, CHATGPT_PERSONAL_MODELS_URL, chatgptHeaders,
+  chatgptFetch, readChatgptJson, type ChatgptFetch } from './chatgpt-http.js'
 
 /** Exact official model metadata, verified 2026-10-13. Never infer alias capacities. */
 const VERIFIED_MODELS: Readonly<Record<string, { context: number; output: number; revision: string }>> = {
@@ -16,10 +17,24 @@ export type ChatgptModel = ObservedInferenceModel & {
   displayName: string
   numCtxCap: number
   maxOutputTokens: number
+  transport?: 'codex'
 }
 
 export const chatgptModelName = (source: ChatgptInferenceSource, slug: string): string =>
   `chatgpt/${source.profileId}/${slug}`
+
+const modelMetadata = (row: Record<string, unknown>, personal: boolean) => {
+  const known = typeof row.slug === 'string' && Object.hasOwn(VERIFIED_MODELS, row.slug)
+    ? VERIFIED_MODELS[row.slug] : undefined
+  if (!personal) return known
+  const context = row.context_window ?? row.max_context_window
+  if (!Number.isSafeInteger(context) || Number(context) < 1 || Number(context) > 2_000_000) return undefined
+  const output = row.max_output_tokens ?? known?.output ?? context
+  if (!Number.isSafeInteger(output) || Number(output) < 1 || Number(output) > Number(context)) return undefined
+  // When the catalogue has no separate output bound, the complete context
+  // window is a conservative ceiling; no smaller per-turn cap is promised.
+  return { context: Number(context), output: Number(output), revision: `codex-${row.slug}-${context}-${output}` }
+}
 
 export const readChatgptModels = async (
   source: ChatgptInferenceSource, lease: ChatgptAccessLease, fetchImpl: ChatgptFetch = chatgptFetch,
@@ -30,8 +45,9 @@ export const readChatgptModels = async (
   }
   let response: Response
   try {
-    response = await fetchImpl(CHATGPT_MODELS_URL, { method: 'GET', redirect: 'error', signal: lease.signal,
-      headers: { Authorization: `Bearer ${lease.accessToken}`, Accept: 'application/json' } })
+    response = await fetchImpl(lease.accountId ? CHATGPT_PERSONAL_MODELS_URL : CHATGPT_MODELS_URL,
+      { method: 'GET', redirect: 'error', signal: lease.signal,
+        headers: { ...chatgptHeaders(lease), Accept: 'application/json' } })
   } catch { throw new ChatgptError('chatgpt_unavailable', 'not_sent') }
   const body = await readChatgptJson(response)
   if (!response.ok) throw chatgptProviderFailure(body, response.status)
@@ -48,7 +64,7 @@ export const readChatgptModels = async (
       throw new ChatgptError('chatgpt_protocol_error', 'rejected')
     }
     seen.add(row.slug)
-    const metadata = Object.hasOwn(VERIFIED_MODELS, row.slug) ? VERIFIED_MODELS[row.slug] : undefined
+    const metadata = modelMetadata(row, Boolean(lease.accountId))
     if (!metadata) { unsupportedModelIds.push(row.slug); continue }
     if (chatgptModelName(source, row.slug).length > 200) { unsupportedModelIds.push(row.slug); continue }
     const displayName = row.display_name === undefined ? row.slug : row.display_name
@@ -56,11 +72,13 @@ export const readChatgptModels = async (
       throw new ChatgptError('chatgpt_protocol_error', 'rejected')
     }
     const manifestDigest = createHash('sha256').update(JSON.stringify({ source: parsed.data,
-      slug: row.slug, capacity: metadata, protocol: 'siwc-responses-v1' })).digest('hex')
+      slug: row.slug, capacity: metadata,
+      protocol: lease.accountId ? 'codex-responses-v1' : 'siwc-responses-v1' })).digest('hex')
     models.push({ inferenceSource: parsed.data, providerModelId: row.slug, displayName,
       name: chatgptModelName(source, row.slug), manifestDigest, modelRevision: metadata.revision,
       capabilities: ['completion', 'tools', 'thinking', 'vision'], numCtxCap: metadata.context,
-      maxOutputTokens: metadata.output, sizeBytes: null, remoteHost: null, remoteModel: null })
+      maxOutputTokens: metadata.output, ...(lease.accountId ? { transport: 'codex' as const } : {}),
+      sizeBytes: null, remoteHost: null, remoteModel: null })
   }
   return { models, unsupportedModelIds }
 }

@@ -1,13 +1,23 @@
 import { safeFetch } from '@nessie/executor-support/url-safety'
 import { ChatgptError } from './chatgpt-errors.js'
+import type { ChatgptAccessLease } from './chatgpt-auth-provider.js'
 
 export type ChatgptFetch = (url: string, init: RequestInit) => Promise<Response>
 export const CHATGPT_MODELS_URL = 'https://api.openai.com/v1/models'
 export const CHATGPT_RESPONSES_URL = 'https://api.openai.com/v1/responses'
+export const CHATGPT_PERSONAL_MODELS_URL = 'https://chatgpt.com/backend-api/codex/models'
+export const CHATGPT_PERSONAL_RESPONSES_URL = 'https://chatgpt.com/backend-api/codex/responses'
+
+export const chatgptHeaders = (lease: ChatgptAccessLease): Record<string, string> => ({
+  Authorization: `Bearer ${lease.accessToken}`,
+  ...(lease.accountId ? { 'ChatGPT-Account-Id': lease.accountId, originator: 'nessie-computer' } : {}),
+})
 
 /** Code-owned HTTPS origins only; no redirects or credentials from server config. */
 export const chatgptFetch: ChatgptFetch = (url, init) => {
-  if (url !== CHATGPT_MODELS_URL && url !== CHATGPT_RESPONSES_URL) {
+  const endpoints = [CHATGPT_MODELS_URL, CHATGPT_RESPONSES_URL,
+    CHATGPT_PERSONAL_MODELS_URL, CHATGPT_PERSONAL_RESPONSES_URL]
+  if (!endpoints.includes(url)) {
     throw new ChatgptError('chatgpt_policy_denied', 'not_sent')
   }
   return safeFetch(url, { ...init, redirect: 'error' }, { credentialsPresent: true, maxRedirects: 0 })

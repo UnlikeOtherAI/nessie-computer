@@ -3,7 +3,8 @@ import test from 'node:test'
 import type { ChatgptAuthProvider, ChatgptInferenceSource } from '../src/chatgpt-auth-provider.js'
 import { createChatgptBackend } from '../src/chatgpt-backend.js'
 import { ChatgptError, chatgptNonacceptanceEvidence } from '../src/chatgpt-errors.js'
-import { CHATGPT_MODELS_URL, CHATGPT_RESPONSES_URL } from '../src/chatgpt-http.js'
+import { CHATGPT_MODELS_URL, CHATGPT_RESPONSES_URL,
+  CHATGPT_PERSONAL_MODELS_URL, CHATGPT_PERSONAL_RESPONSES_URL } from '../src/chatgpt-http.js'
 import { chatgptFunctionName, chatgptRequestBody } from '../src/chatgpt-request.js'
 import { chatgptSseData } from '../src/chatgpt-sse.js'
 import { composeInferenceBackends, type LocalInferenceBackend } from '../src/local-inference-backend.js'
@@ -40,7 +41,7 @@ const sse = (events: unknown[]) => {
     controller.close()
   } }), { headers: { 'content-type': 'text/event-stream' } })
 }
-const fixture = () => {
+const fixture = (personal = false) => {
   let ready = true
   let backgroundRevision: number | null = null
   const acquisitions: Array<'discovery' | 'inference'> = []
@@ -57,14 +58,19 @@ const fixture = () => {
       acquisitions.push(input.purpose)
       assert.deepEqual(input.source, source)
       if (input.purpose === 'inference') assert.equal(input.attempt.inferenceSource?.kind, 'chatgpt')
-      return { accessToken: 'test-only-oauth-token', signal: input.signal, release: async () => { released++ } }
+      return { accessToken: 'test-only-oauth-token', ...(personal ? { accountId: 'account-main' } : {}),
+        signal: input.signal, release: async () => { released++ } }
     },
   }
   const backend = createChatgptBackend(auth, { fetchImpl: async (url, init) => {
     assert.equal(new Headers(init.headers).get('authorization'), 'Bearer test-only-oauth-token')
     assert.equal(init.redirect, 'error')
-    if (url === CHATGPT_MODELS_URL) return catalogue()
-    assert.equal(url, CHATGPT_RESPONSES_URL)
+    assert.equal(new Headers(init.headers).get('ChatGPT-Account-Id'), personal ? 'account-main' : null)
+    if (url === (personal ? CHATGPT_PERSONAL_MODELS_URL : CHATGPT_MODELS_URL)) {
+      return personal ? Response.json({ models: [{ slug: 'gpt-6.1-sol', display_name: 'GPT-6.1 Sol',
+        context_window: 1_050_000, max_output_tokens: 128_000, visibility: 'list' }] }) : catalogue()
+    }
+    assert.equal(url, personal ? CHATGPT_PERSONAL_RESPONSES_URL : CHATGPT_RESPONSES_URL)
     posts++; posted = JSON.parse(String(init.body)) as Record<string, unknown>
     return postResponse?.() ?? sse(events)
   } })
@@ -175,6 +181,32 @@ test('namespaced tool definitions and fragmented arguments retain original ident
   const replay = (f.posted?.input as Array<Record<string, unknown>>).find((item) => item.type === 'function_call')
   assert.equal(replay?.namespace, 'nessie')
   assert.equal(replay?.name, chatgptFunctionName(toolName))
+})
+
+test('personal OAuth uses the selected account on the ChatGPT endpoint and replays flat tool calls', async () => {
+  const f = fixture(true)
+  const input = await f.input()
+  const toolName = 'mcp/CRM.čti_klienta'
+  input.attempt.tools = [{ toolName, description: 'Read a customer', inputSchema: { type: 'object' } }]
+  const item = { id: 'function-1', type: 'function_call', call_id: 'call-1',
+    name: chatgptFunctionName(toolName), arguments: '{"id":42}' }
+  f.setEvents([{ type: 'response.output_item.added', item }, terminal([item])])
+  let result
+  for await (const event of f.backend.stream(input)) result = event
+  assert.deepEqual(result?.toolCalls, [{ toolName, toolCallId: 'call-1', arguments: { id: 42 } }])
+  const tool = (f.posted?.tools as Array<Record<string, unknown>>)[0]!
+  assert.equal(tool.type, 'function')
+  assert.equal(tool.name, chatgptFunctionName(toolName))
+  assert.equal(tool.namespace, undefined)
+  assert.equal(typeof f.posted?.instructions, 'string')
+  input.attempt.messages.push({ role: 'assistant', content: null, toolCalls: result!.toolCalls!,
+    responsesContinuation: result!.responsesContinuation }, { role: 'tool', toolCallId: 'call-1', content: 'Found' })
+  f.setEvents([terminal()])
+  for await (const event of f.backend.stream(input)) result = event
+  const replay = (f.posted?.input as Array<Record<string, unknown>>).find(entry => entry.type === 'function_call')
+  assert.equal(replay?.namespace, undefined)
+  assert.equal(replay?.call_id, 'call-1')
+  assert.equal(result?.done, true)
 })
 
 for (const [label, events] of [

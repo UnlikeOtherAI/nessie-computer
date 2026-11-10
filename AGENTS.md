@@ -69,7 +69,8 @@ Windows runtime admission uses its own fixed local pipe; keep pairing-control AC
 
 The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
 [local AI connections](docs/local-ai-connections.md); use the public Turbo
-`test:ai-connections` gate and the local `tray-windows/test/renderer-harness.mjs --only=ai` journey.
+`test:ai-connections` gate and the local `tray-windows/test/renderer-harness.mjs --only=ai` journey; `--only=chatgpt` covers
+named sign-in attempts, public refusal messages and check recovery.
 Claude Code and Codex offered as engines (the AI tab's On this computer, `ai local`, `local_cli` hosts) follow
 [Claude Code and Codex as engines](docs/local-cli-engines.md); its focused gate is `test:cli-engines`.
 

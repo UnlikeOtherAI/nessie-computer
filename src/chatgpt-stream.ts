@@ -5,7 +5,8 @@ import { sameChatgptSource } from './chatgpt-auth-provider.js'
 import type { ChatgptModel } from './chatgpt-models.js'
 import type { OllamaChatEvent } from './ollama-chat.js'
 import { ChatgptError, chatgptProtocolError, chatgptProviderFailure, isRecord } from './chatgpt-errors.js'
-import { CHATGPT_RESPONSES_URL, chatgptFetch, readChatgptJson, type ChatgptFetch } from './chatgpt-http.js'
+import { CHATGPT_RESPONSES_URL, CHATGPT_PERSONAL_RESPONSES_URL, chatgptHeaders,
+  chatgptFetch, readChatgptJson, type ChatgptFetch } from './chatgpt-http.js'
 import { CHATGPT_TOOL_NAMESPACE, chatgptRequestBody, chatgptToolNames } from './chatgpt-request.js'
 import { chatgptSseData } from './chatgpt-sse.js'
 import { chatgptContinuation } from './chatgpt-continuation.js'
@@ -27,9 +28,11 @@ const boundedAppend = (current: string, delta: unknown, maximum: number): string
   return current + delta
 }
 
-const callFrom = (item: Record<string, unknown>, names: ReadonlyMap<string, string>): Call => {
+const callFrom = (item: Record<string, unknown>, names: ReadonlyMap<string, string>, personal = false): Call => {
   const name = text(item.name)
-  if (item.namespace !== CHATGPT_TOOL_NAMESPACE || !names.has(name)) return chatgptProtocolError()
+  if (item.namespace !== (personal ? undefined : CHATGPT_TOOL_NAMESPACE) || !names.has(name)) {
+    return chatgptProtocolError()
+  }
   const argumentsValue = item.arguments
   if (typeof argumentsValue !== 'string' || Buffer.byteLength(argumentsValue, 'utf8') > MAX_TOOL_BYTES) {
     return chatgptProtocolError()
@@ -66,7 +69,7 @@ const completed = (
         output = boundedAppend(output, part.type === 'refusal' ? part.refusal : part.text, MAX_OUTPUT_BYTES)
       }
     } else if (item.type === 'function_call') {
-      const call = callFrom(item, names)
+      const call = callFrom(item, names, model.transport === 'codex')
       if (calls.length >= 128 || callIds.has(call.callId)) return chatgptProtocolError()
       callIds.add(call.callId)
       const prior = streamed.get(call.id)
@@ -100,9 +103,10 @@ export const streamChatgptResponse = async function* (input: LocalInferenceStrea
   if (signal.aborted) throw new ChatgptError('chatgpt_cancelled', 'not_sent')
   let response: Response
   try {
-    response = await (input.fetchImpl ?? chatgptFetch)(CHATGPT_RESPONSES_URL, {
+    const endpoint = lease.accountId ? CHATGPT_PERSONAL_RESPONSES_URL : CHATGPT_RESPONSES_URL
+    response = await (input.fetchImpl ?? chatgptFetch)(endpoint, {
       method: 'POST', redirect: 'error', signal, body: JSON.stringify(request),
-      headers: { Authorization: `Bearer ${lease.accessToken}`,
+      headers: { ...chatgptHeaders(lease),
         'Content-Type': 'application/json', Accept: 'text/event-stream' },
     })
   } catch { throw new ChatgptError(signal.aborted ? 'chatgpt_cancelled' : 'chatgpt_usage_unknown', 'unknown') }
@@ -131,7 +135,7 @@ export const streamChatgptResponse = async function* (input: LocalInferenceStrea
     } else if (event.type === 'response.output_item.added') {
       if (!isRecord(event.item)) return chatgptProtocolError()
       if (event.item.type === 'function_call') {
-        const call = callFrom(event.item, names)
+        const call = callFrom(event.item, names, model.transport === 'codex')
         if (calls.size >= 128 || calls.has(call.id) || [...calls.values()].some((c) => c.callId === call.callId)) {
           return chatgptProtocolError()
         }
