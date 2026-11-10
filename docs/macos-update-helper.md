@@ -363,3 +363,12 @@ re-registration was refused); that the 0.9.0 worker verifies the new
 release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
 newer app to a working team. Any extra product process, such as a team daemon
 started by hand from the app bundle, holds clearance until it exits.
+
+## Framework signing
+
+The Developer ID signer seals embedded frameworks as bundles after their nested
+Mach-O files and before the app. Sentry is a versioned framework with resources;
+signing only its executable invalidates its resource seal and prevents the final
+strict verification. Framework bundles receive no app or Node entitlements. The
+release producer still requires strict verification, notarization and Gatekeeper
+assessment before an app can be installed.

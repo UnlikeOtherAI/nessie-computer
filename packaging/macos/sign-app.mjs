@@ -18,12 +18,15 @@ const plistValue = async (app, key) => (await run('/usr/libexec/PlistBuddy', [
   '-c', `Print :${key}`, join(app, 'Contents/Info.plist'),
 ])).stdout.trim()
 
-const nestedMachOFiles = async (appPath, mainExecutable) => {
-  const { stdout } = await run('/usr/bin/find', [appPath, '-type', 'f'])
+const nestedSigningTargets = async (appPath, mainExecutable) => {
+  const { stdout } = await run('/usr/bin/find', [appPath, '-type', 'f', '-o', '-type', 'd', '-name', '*.framework'])
   const candidates = stdout.split('\n').map((line) => line.trim()).filter(Boolean)
   const binaries = []
   for (const path of candidates) {
     if (path === mainExecutable) continue
+    // A framework is a resource-bearing bundle. Signing only its Mach-O leaves
+    // its existing resource seal invalid after the executable is replaced.
+    if (path.endsWith('.framework')) { binaries.push(path); continue }
     const { stdout: kind } = await run('/usr/bin/file', ['--brief', '--mime-type', path])
     if (kind.trim() === 'application/x-mach-binary') binaries.push(path)
   }
@@ -37,9 +40,10 @@ export const signMacApp = async (appPath, { identity, teamId }, runtime) => {
   const runtimeEntitlements = join(packagingDirectory, RUNTIME_ENTITLEMENTS_FILE)
   const mainExecutable = join(appPath, 'Contents/MacOS', await plistValue(appPath, 'CFBundleExecutable'))
 
-  for (const path of await nestedMachOFiles(appPath, mainExecutable)) {
+  for (const path of await nestedSigningTargets(appPath, mainExecutable)) {
     await run('codesign', codesignArguments({
-      entitlements: path === runtime.nodePath ? runtimeEntitlements : appEntitlements,
+      entitlements: path.endsWith('.framework') ? undefined
+        : path === runtime.nodePath ? runtimeEntitlements : appEntitlements,
       identity,
       path,
     }))
