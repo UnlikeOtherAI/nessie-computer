@@ -46,7 +46,11 @@ export const registerLocalCliHost = async (
       signature: signExecutorDaemonPayload(state.machinePrivateKey, LOCAL_CLI_HOST_SIGNATURE_DOMAIN, payload) })
     return 'withdrawn' in answer ? { kind: 'withdrawn' } : { kind: 'host', ...answer }
   } catch (error) {
-    if (error instanceof LocalInferenceApiError && error.status === 404) return { kind: 'unsupported' }
+    // A Nessie from before this route answers 404, or 401 `AUTH_REQUIRED`: its
+    // sign-in check runs before it looks an unknown route up. Asking again every
+    // few seconds, as a refusal would, spent the address's shared request allowance.
+    if (error instanceof LocalInferenceApiError && (error.status === 404
+      || error.status === 401 && error.code === 'AUTH_REQUIRED')) return { kind: 'unsupported' }
     throw error
   }
 }

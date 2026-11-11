@@ -3,7 +3,6 @@ import {
 } from '@nessie/executor-protocol'
 import { argumentsFor, CodingBridgeError } from './coding-session/bridge-tools.js'
 import type { CodingBridge } from './coding-session/managed-bridge.js'
-import { assertPersonalHostExecution } from './personal-host-execution.js'
 import { deliverOnce } from './existing-session/delivery.js'
 
 /** The server admitted the human; the bridge still enforces the local provider and custody rules. */
@@ -21,7 +20,6 @@ export const sessionUserAction = async (
     // A session found open on the computer belongs to its own client, which answers its own prompts.
     if (action.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) return receipt('failed', 'request_not_answerable')
     try {
-      await assertPersonalHostExecution()
       // Each request is claimed once (`session-answer.ts`), so a retried action reads its first outcome.
       const outcome = await managed.call('session_answer', { sessionId: action.sessionId, answer: action.answer },
         { daemonControl: true, ownerKey: action.ownerKey, commandId: action.id })
@@ -39,7 +37,6 @@ export const sessionUserAction = async (
     if (action.kind === 'queue' || action.kind === 'push') {
       result = await nativeSend(action.kind, action.sessionId, action.message ?? '', action.ownerKey, action.id)
     } else {
-      if (action.kind !== 'interrupt') await assertPersonalHostExecution()
       result = await deliverOnce({ stateDir, commandId: `viewer-${action.id}`, ownerKey: action.ownerKey,
         sessionId: action.sessionId, action: action.kind, message: action.message ?? '', send: async () => {
           const value = await managed.call(action.kind === 'interrupt' ? 'session_interrupt' : 'session_send', {

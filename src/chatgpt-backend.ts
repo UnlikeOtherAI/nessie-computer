@@ -1,5 +1,5 @@
 import { ExecutorInferenceSourceSchema } from '@nessie/executor-protocol'
-import type { ChatgptAuthProvider, ChatgptInferenceSource } from './chatgpt-auth-provider.js'
+import type { ChatgptAccessLease, ChatgptAuthProvider, ChatgptInferenceSource } from './chatgpt-auth-provider.js'
 import { sameChatgptSource } from './chatgpt-auth-provider.js'
 import type { LocalInferenceBackend } from './local-inference-backend.js'
 import { ChatgptError } from './chatgpt-errors.js'
@@ -8,12 +8,28 @@ import { readChatgptModels, type ChatgptModel } from './chatgpt-models.js'
 import { chatgptRequestBody } from './chatgpt-request.js'
 import { streamChatgptResponse } from './chatgpt-stream.js'
 
+/**
+ * How long one profile's model list is reused. A turn reads the list three
+ * times (before, at and after the request); asking the provider each time put
+ * three extra round trips on every turn. A model withdrawn inside this window
+ * is refused by the provider's own answer, which also drops the saved list.
+ */
+export const CHATGPT_INVENTORY_TTL_MS = 60_000
+
+type Inventory = { source: ChatgptInferenceSource; readAt: number; models: ChatgptModel[]; unsupported: boolean }
+
 /** The auth consumer is mandatory. No API key, OAuth state or default profile path is accepted here. */
 export const createChatgptBackend = (auth: ChatgptAuthProvider, options: {
   fetchImpl?: ChatgptFetch
   onUnavailable?: (source: ChatgptInferenceSource, code: ChatgptError['code']) => void
+  /** Zero reads the provider's list every time. */
+  inventoryTtlMs?: number
+  now?: () => number
 } = {}): LocalInferenceBackend => {
+  const now = options.now ?? Date.now
+  const ttl = options.inventoryTtlMs ?? CHATGPT_INVENTORY_TTL_MS
   let observed = new Map<string, ChatgptModel>()
+  const inventories = new Map<string, Inventory>()
   const profiles = async (): Promise<ChatgptInferenceSource[]> => {
     const ready = await auth.listReadyProfiles()
     if (ready.length > 100) throw new ChatgptError('chatgpt_protocol_error', 'not_sent')
@@ -27,23 +43,46 @@ export const createChatgptBackend = (auth: ChatgptAuthProvider, options: {
       return parsed.data
     })
   }
+  /** A saved list answers only for the exact account generation and consent it was read under. */
+  const saved = (source: ChatgptInferenceSource): Inventory | undefined => {
+    const inventory = inventories.get(source.profileId)
+    if (!inventory) return undefined
+    if (sameChatgptSource(inventory.source, source) && now() - inventory.readAt < ttl) return inventory
+    inventories.delete(source.profileId)
+    return undefined
+  }
+  const read = async (source: ChatgptInferenceSource, lease: ChatgptAccessLease): Promise<Inventory> => {
+    const listed = await readChatgptModels(source, lease, options.fetchImpl)
+    const inventory = { source, readAt: now(), models: listed.models,
+      unsupported: listed.unsupportedModelIds.length > 0 }
+    inventories.set(source.profileId, inventory)
+    return inventory
+  }
   return {
     observe: async () => {
       const results = await Promise.allSettled((await profiles()).map(async (source) => {
         let lease
         try {
-          lease = await auth.acquireAccess({ purpose: 'discovery', source, signal: AbortSignal.timeout(10_000) })
-          const inventory = await readChatgptModels(source, lease, options.fetchImpl)
-          if (inventory.unsupportedModelIds.length) options.onUnavailable?.(source, 'chatgpt_unsupported_capability')
+          let inventory = saved(source)
+          if (!inventory) {
+            lease = await auth.acquireAccess({ purpose: 'discovery', source, signal: AbortSignal.timeout(10_000) })
+            inventory = await read(source, lease)
+          }
+          if (inventory.unsupported) options.onUnavailable?.(source, 'chatgpt_unsupported_capability')
+          // Background consent is a local permission and is read live, never from the saved list.
           const backgroundConsentRevision = await auth.backgroundConsentRevision?.(source) ?? null
           return inventory.models.map(model => ({ ...model,
             personalBackgroundConsentRevision: backgroundConsentRevision }))
         } catch (error) {
+          inventories.delete(source.profileId)
           options.onUnavailable?.(source, error instanceof ChatgptError ? error.code : 'chatgpt_unavailable')
           return []
         } finally { await lease?.release() }
       }))
       const current = await profiles()
+      for (const profileId of inventories.keys()) {
+        if (!current.some((source) => source.profileId === profileId)) inventories.delete(profileId)
+      }
       const models = results.flatMap((result) => result.status === 'fulfilled' ? result.value : [])
         .filter((model) => current.some((source) => sameChatgptSource(source, model.inferenceSource)))
       observed = new Map(models.map((model) => [model.name, model]))
@@ -67,13 +106,15 @@ export const createChatgptBackend = (auth: ChatgptAuthProvider, options: {
         signal: input.signal, attempt: input.attempt })
       let generationStarted = false
       try {
-        const inventory = await readChatgptModels(source, lease, options.fetchImpl)
+        const inventory = saved(source) ?? await read(source, lease)
         const live = inventory.models.find((candidate) => candidate.manifestDigest === model.manifestDigest
           && candidate.providerModelId === model.providerModelId && candidate.name === model.name)
         if (!live) throw new ChatgptError('chatgpt_model_missing', 'not_sent')
         generationStarted = true
         yield* streamChatgptResponse({ ...input, model: live, lease, fetchImpl: options.fetchImpl })
       } catch (error) {
+        // Whatever went wrong, the next turn asks the provider what it offers now.
+        inventories.delete(source.profileId)
         if (!generationStarted) {
           throw new ChatgptError(error instanceof ChatgptError ? error.code : 'chatgpt_unavailable', 'not_sent')
         }

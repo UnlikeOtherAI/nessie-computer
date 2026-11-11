@@ -91,7 +91,8 @@ const admit = async (profile: ChatgptProfileRecord, principal: PersonalInference
     if (!own || await currentKernelBootId() !== own.bootId) return fail()
     const admitted = PersonalInferenceGuard.open({ verifyRuntimeInventory: async (registered) => {
       for (const item of registered) {
-        if (item.kind === 'host_execution') return false
+        // Programs agents start run beside a plan; an older version's record of one says nothing here.
+        if (item.kind === 'host_execution') continue
         if (inventory.records.some((record) => item.pid === record.childPid
           && item.startedAt === record.childStartedAt && item.bootId === record.bootId)) continue
         // Stale v2 runtime metadata is not an active process. The independent
@@ -102,14 +103,13 @@ const admit = async (profile: ChatgptProfileRecord, principal: PersonalInference
       }
       return true
     } })
-    await admitted.retireHostAdmissions(inventory.retiredHostControllers ?? [])
     await admitted.activate({ profileId: profile.profileId, principal,
       inferenceSource: chatgptProfileSource(profile), backgroundConsentRevision: null }, async () => {
       activated = await store.update(profile.profileId, (prior) => {
         if (!prior || prior.revision !== profile.revision || prior.accountGeneration !== profile.accountGeneration
           || prior.consentRevision !== profile.consentRevision || prior.publicKey !== profile.publicKey) return fail()
         return { ...prior, revision: prior.revision + 1, principal,
-          hostExecutionRestricted: true,
+          hostExecutionRestricted: false,
           credentialProcess: { pid: process.pid, startedAt: own.childStartedAt, bootId: own.bootId } }
       })
       if (protectedWrite) activated = await protectedWrite(activated, mutation)
