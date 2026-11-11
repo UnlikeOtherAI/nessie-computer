@@ -4,6 +4,7 @@
 //   (none)                 every journey, both hosts, seven locales, light and dark, 640×680 and 440×500
 //   --only=<a,b>           some of shell, access, documents, documents-teams, ai, updates — for iterating on one tab
 //   --output=<dir>         where pictures go (default .artifacts/executor-console)
+//   --no-screenshots       assertions only; no image files are captured
 //   --before=<rev>         captures of the console as it was at <rev>, into <output>/before, for comparison
 //   --updates-only …       Software updates journeys alone (see docs/automatic-updates.md)
 //   --updates-stuck-only   the Mac helper-stuck, approval and refused-registration states in Needs you and Settings, seven locales, no pictures
@@ -47,8 +48,8 @@ try {
     await verifySoftwareUpdates(browser, ui, files, root)
     process.exit(0)
   }
-  const after = join(output, 'after')
-  await mkdir(after, { recursive: true })
+  const after = process.argv.includes('--no-screenshots') ? null : join(output, 'after')
+  if (after !== null) await mkdir(after, { recursive: true })
   if (only.includes('shell')) await verifyConsoleShell(browser, ui, after)
   if (only.includes('access')) await verifyAccessTab(browser, ui, after)
   if (only.includes('documents')) await verifyDocumentsTab(browser, ui, after)
@@ -60,5 +61,5 @@ try {
     await verifySoftwareUpdates(browser, ui, files, root)
     await verifyUpdatesStuck(browser, ui, files)
   }
-  process.stdout.write(`Shared Windows/macOS console passed. Pictures: ${after}\n`)
+  process.stdout.write(`Shared Windows/macOS console passed. ${after === null ? 'No pictures captured.' : `Pictures: ${after}`}\n`)
 } finally { await browser.close() }

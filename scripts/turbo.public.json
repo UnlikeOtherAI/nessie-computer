@@ -112,6 +112,12 @@
         "DATABASE_URL",
         "TZ"
       ]
+    },
+    "//#test:runtime-recovery": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

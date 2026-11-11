@@ -312,7 +312,9 @@ mod tests {
                     libc::_exit(125);
                 }
                 let mut byte = 0_u8;
-                libc::read(gate[0], (&mut byte as *mut u8).cast(), 1);
+                if libc::read(gate[0], (&mut byte as *mut u8).cast(), 1) != 1 || byte != 1 {
+                    libc::_exit(125);
+                }
                 libc::_exit(0); // Kernel closes the lock description, no manual unlink.
             }
         }
@@ -327,6 +329,9 @@ mod tests {
         );
         assert!(MachineBarrier::lock(File::open(&path).unwrap()).is_err());
         unsafe {
+            // Other fork-based tests may inherit a writer: release explicitly, never by EOF.
+            let byte = 1_u8;
+            assert_eq!(libc::write(gate[1], (&byte as *const u8).cast(), 1), 1);
             libc::close(gate[1]);
             libc::close(ready[0]);
         }

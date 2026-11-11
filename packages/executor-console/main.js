@@ -35,7 +35,7 @@
       return slot
     }
     const dialog = document.querySelector('dialog[open]')
-    const inDialog = dialog && [...dialog.querySelectorAll('.dialog-error')].find((node) => !node.parentElement.closest('[hidden]'))
+    const inDialog = dialog && [...dialog.querySelectorAll('.dialog-error:not([data-state-status])')].find((node) => !node.parentElement.closest('[hidden]'))
     return inDialog ?? byId(`tab-${currentTab}`)?.querySelector('.tab-error') ?? byId('error')
   }
   const reportError = (error, target) => {
@@ -132,7 +132,7 @@
   const dialogs = {
     open: (id) => {
       const dialog = byId(id)
-      for (const slot of dialog.querySelectorAll('.dialog-error')) slot.hidden = true
+      for (const slot of dialog.querySelectorAll('.dialog-error:not([data-state-status])')) slot.hidden = true
       if (!dialog.open) dialog.showModal()
       ;(dialog.querySelector('[autofocus]') ?? dialog.querySelector('h2')).focus()
       return dialog

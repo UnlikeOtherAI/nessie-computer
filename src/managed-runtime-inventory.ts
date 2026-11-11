@@ -20,8 +20,13 @@ const InventorySchema = z.object({
   root: z.string(), guardVersion: z.literal(PERSONAL_INFERENCE_GUARD_VERSION),
   releaseDigest: z.string().regex(/^[a-f0-9]{64}$/u), records: z.array(RecordSchema).max(256),
   machineEpoch: z.string().regex(/^[a-f0-9]{64}$/u).optional(),
+  retiredHostControllers: z.array(z.object({
+    pid: z.number().int().positive(), startedAt: z.string().regex(/^\d+$/u), bootId: z.string().uuid(),
+    journal: RecordSchema.optional(),
+  }).strict()).max(4096).optional(),
 }).strict()
 
+export type RetiredHostController = NonNullable<z.infer<typeof InventorySchema>['retiredHostControllers']>[number]
 export type ManagedRuntimeInventory = Readonly<z.infer<typeof InventorySchema>>
 const rejected = (): PersonalInferenceProtectionError =>
   new PersonalInferenceProtectionError('personal_inference_managed_inventory_unverified')
@@ -52,6 +57,11 @@ export const withManagedRuntimeInventory = async <T>(
         && record.childStartedAt === own.startedAt)
       if (parsed.nonce !== nonce || parsed.root !== personalInferenceDirectory() || !ownRecord
         || (process.platform === 'win32') !== (parsed.machineEpoch !== undefined)
+        || parsed.retiredHostControllers !== undefined && process.platform !== 'darwin'
+        || parsed.retiredHostControllers?.some(record => record.bootId !== ownRecord.bootId
+          || record.journal && (record.journal.bootId !== record.bootId || record.journal.childPid !== record.pid
+            || record.journal.childStartedAt !== record.startedAt)
+          || parsed.records.some(live => live.childPid === record.pid && live.childStartedAt === record.startedAt))
         || parsed.records.some(record => record.releaseDigest !== parsed.releaseDigest)
         || new Set(parsed.records.map(record => record.childPid)).size !== parsed.records.length) throw rejected()
       return parsed

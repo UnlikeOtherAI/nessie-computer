@@ -102,6 +102,7 @@ const admit = async (profile: ChatgptProfileRecord, principal: PersonalInference
       }
       return true
     } })
+    await admitted.retireHostAdmissions(inventory.retiredHostControllers ?? [])
     await admitted.activate({ profileId: profile.profileId, principal,
       inferenceSource: chatgptProfileSource(profile), backgroundConsentRevision: null }, async () => {
       activated = await store.update(profile.profileId, (prior) => {

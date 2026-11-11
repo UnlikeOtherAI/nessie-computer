@@ -88,25 +88,39 @@ pub(crate) fn reconcile(directory: &Path, boot: &str) -> Result<(), NativeError>
 /// journal after following the whole tree, so one left behind is a supervisor
 /// that ended first, as every earlier build's did on a refused snapshot. Update
 /// clearance does not wait for these, and still waits for every product
-/// process, including any such a runtime left outside its group.
+/// process, including any such a runtime left outside its group. Retired host
+/// authority is archived separately; its removal does not claim escaped programs
+/// ended.
 pub(crate) fn ended_creation(
     record: &Record, root: &Path, live_groups: &HashSet<i32>,
 ) -> Result<bool, NativeError> {
+    Ok(controller_ended(record, live_groups)? && !unresolved_host(root, record, live_groups)?)
+}
+
+/// The native supervisor and its runtime have ended and their process group is
+/// empty. This retires their ability to receive Nessie work; it does not claim
+/// that an unrecorded host program or every escaped descendant has stopped.
+/// Installation and the owner-account credential boundary use this proof while
+/// retaining any unresolved host admission as history.
+pub(crate) fn controller_ended(record: &Record, live_groups: &HashSet<i32>) -> Result<bool, NativeError> {
     let gone = |pid: i32, started: &str| match macos_processes::information(pid) {
         Ok(None) => true,
         Ok(Some(process)) => process.zombie || process.started_at != started,
         Err(_) => false,
     };
+    Ok(gone(record.supervisor_pid, &record.supervisor_started_at)
+        && process_group_ended(record.child_pid, &record.child_started_at, live_groups)?)
+}
+
+pub(crate) fn process_group_ended(pid: i32, started: &str, live_groups: &HashSet<i32>) -> Result<bool, NativeError> {
+    let live = macos_processes::information(pid)?;
+    let gone = live.as_ref().map_or(true, |process| process.zombie || process.started_at != started);
     // XNU, like every BSD, never hands out a pid that is still a process group
     // or session id. A child pid another process now holds therefore means the
     // child's group ended, and a live group with that id is the new process's.
     // On dictator three of 1888 journals met such a group and held the swap.
-    let reused = matches!(macos_processes::information(record.child_pid),
-        Ok(Some(process)) if process.started_at != record.child_started_at);
-    Ok(gone(record.supervisor_pid, &record.supervisor_started_at)
-        && gone(record.child_pid, &record.child_started_at)
-        && (reused || !live_groups.contains(&record.child_pid))
-        && !unresolved_host(root, record, live_groups)?)
+    let reused = live.is_some_and(|process| process.started_at != started);
+    Ok(gone && (reused || !live_groups.contains(&pid)))
 }
 
 fn own_host(item: &serde_json::Value, record: &Record) -> bool {
@@ -171,6 +185,9 @@ mod tests {
         let ended = |identity, descendants| execution_ended(&item(identity, descendants), &groups);
         assert!(!execution_ended(&json!({"kind":"host_execution"}), &groups), "unbound");
         assert!(ended(json!({"pid": gone, "startedAt": "1"}), json!([])));
+        let remaining_group = HashSet::from([gone as i32]);
+        assert!(!process_group_ended(gone as i32, "1", &remaining_group).unwrap(), "a remaining group fences retirement");
+        assert!(process_group_ended(gone as i32, "1", &HashSet::new()).unwrap());
         assert!(ended(json!({"pid": gone}), json!([])), "pid only, and gone");
         assert!(!ended(json!({"pid": live, "startedAt": second}), json!([])), "still running");
         assert!(!ended(json!({"pid": live}), json!([])), "pid only, and a process holds it");
@@ -192,9 +209,14 @@ mod tests {
         let directory = root.path().join("managed-runtimes");
         std::fs::create_dir(&directory).unwrap();
         let boot = managed_runtime_context::boot_id().unwrap();
-        let mut ended = std::process::Command::new("/usr/bin/true").spawn().unwrap();
+        let mut ended = std::process::Command::new("/bin/sh").args(["-c", "IFS= read -r line"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::null()).spawn().unwrap();
         let ended_pid = ended.id() as i32;
         let ended_birth = managed_runtime_context::birth(ended_pid).unwrap();
+        // A release byte does not depend on unrelated forked tests closing inherited writers.
+        std::io::Write::write_all(ended.stdin.as_mut().unwrap(), b"release\n").unwrap();
+        drop(ended.stdin.take());
         ended.wait().unwrap();
         let own = unsafe { libc::getpid() };
         let own_birth = managed_runtime_context::birth(own).unwrap();

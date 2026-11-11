@@ -54,7 +54,8 @@ export type LocalInferenceHostTransport = {
   accept: (control: LocalInferenceAttemptControl) => Promise<{ state: LocalInferenceAttemptControlState }>
   claim: (poll: LocalInferenceAttemptPoll) => Promise<LocalInferenceAttemptLease>
   frame: (frame: LocalInferenceFrame) => void
-  heartbeat: (heartbeat: { inventory: ObservedLocalModel[]; paused: boolean }) => Promise<{ serverTime: string }>
+  heartbeat: (heartbeat: { inventory: ObservedLocalModel[]; paused: boolean; displayLabel?: string })
+    => Promise<{ serverTime: string }>
   result: (receipt: LocalInferenceResultReceipt) => Promise<{ acknowledged: true }>
   terminate: (termination: LocalInferenceTermination) => Promise<{ acknowledged: true }>
 }

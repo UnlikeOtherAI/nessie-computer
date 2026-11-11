@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
@@ -12,6 +12,7 @@ import { replaceOwnerOnlyJson } from './owner-only-json.js'
 import { acquirePersonalAdmissionLock, createAdmissionProcessInspector,
   type PersonalAdmissionLockOptions } from './personal-admission-lock.js'
 import type { CodingProcessIdentity } from './coding-session/types.js'
+import type { RetiredHostController } from './managed-runtime-inventory.js'
 import { currentKernelBootId } from './kernel-boot.js'
 import { PersonalNativeWriters } from './personal-native-writers.js'
 import { personalInferenceDirectory, PersonalInferenceProtectionError } from './personal-inference-paths.js'
@@ -241,6 +242,37 @@ export class PersonalInferenceGuard {
   registerRuntime(label: string): Promise<PersonalHostExecutionLease> { return this.register('runtime', label, null) }
   admitHostExecution(label: string, authority: unknown): Promise<PersonalHostExecutionLease> {
     return this.register('host_execution', label, authority)
+  }
+
+  /**
+   * Called only with the authenticated macOS native inventory while its launch
+   * barrier is held. Retire a dead controller's authority, not its process tree:
+   * escaped owner programs are outside the owner-account credential boundary.
+   * Preserve every original admission and its native proof before changing the
+   * active guard. A live controller's admissions still fence sign-in.
+   */
+  async retireHostAdmissions(controllers: readonly RetiredHostController[]): Promise<void> {
+    if (controllers.length === 0) return
+    await this.mutate(async state => {
+      const retired = state.registrations.flatMap(registration => {
+        if (registration.kind !== 'host_execution'
+          || registration.guardVersion !== PERSONAL_INFERENCE_GUARD_VERSION) return []
+        const controller = controllers.find(record => record.bootId === registration.bootId
+          && record.pid === registration.pid && record.startedAt === registration.startedAt)
+        return controller ? [{ registration, controller }] : []
+      })
+      if (retired.length === 0) return
+      const directory = join(this.directory, 'retired-host-admissions')
+      await ensureOwnerOnlyStateDirectory(directory, this.options.security)
+      for (const entry of retired) {
+        const name = createHash('sha256').update(entry.registration.id).digest('hex')
+        await replaceOwnerOnlyJson(join(directory, name + '.json'), {
+          format: 1, reason: 'controller_ended', ...entry,
+        }, this.options.security)
+      }
+      const ids = new Set(retired.map(entry => entry.registration.id))
+      state.registrations = state.registrations.filter(item => !ids.has(item.id))
+    })
   }
 
   /** All credential writes occur INSIDE the same admission lock, after compatibility proof. */

@@ -61,8 +61,12 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
   in with ChatGPT. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
   to OpenAI itself, including when connected to hosted Nessie. A blocked
-  sign-in shows a red message with the next step.
+  sign-in shows a red message with the next step. Choose the connection’s model
+  in Nessie under **Connected accounts** → **AI plans**.
   [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
+- **Update on a Mac.** Nessie Computer replaces its runtime after its work ends.
+  Stale records from an ended runtime do not require restarting macOS.
+  [Settings and updates](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Settings-and-updates)
 - **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
   [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
 

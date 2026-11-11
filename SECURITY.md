@@ -48,7 +48,12 @@ unrelated Node programs and Nessie Desktop's user interface, are not Nessie
 Computer credential runtimes. Their presence alone cannot make personal
 sign-in unavailable. This is still an owner-account boundary, not an OS
 sandbox against other programs the owner runs. Nessie-managed terminal and
-coding admissions retain the explicit sign-in fence.
+coding admissions retain the explicit sign-in fence. A signed native inventory
+may retire an ended controller's admission authority after independently
+verifying its process generation and empty group. The original admission and
+proof are archived before the active guard changes. This does not claim that
+an arbitrary program which escaped that ended controller has stopped. Live
+controllers, unreadable generations and live Nessie runtimes remain refused.
 
 On Windows, custody also refuses any `nessie-computer` or `nessie-executor`
 launcher (and the old Desktop app) in a folder on the user or machine PATH, so

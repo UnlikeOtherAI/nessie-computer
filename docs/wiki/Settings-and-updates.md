@@ -47,6 +47,9 @@ the helper by itself, so the helper picks up the new version.
 On a Mac, the helper swaps in the new version's runtime only once no other
 Nessie app could start the old one. An older Nessie desktop app keeps it
 waiting until you quit that app; the helper finishes by itself once you do.
+An ended Nessie runtime's old local-app records no longer require restarting
+macOS. The helper verifies that the runtime has ended and keeps its history
+while replacing it. Your other Mac apps stay open.
 
 If you installed with a package manager (such as `apt` or `dnf`), update with
 that tool; Settings says so.
