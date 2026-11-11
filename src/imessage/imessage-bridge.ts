@@ -33,8 +33,9 @@ export const IMESSAGE_REPROBE_MS = 5 * 60_000
 const PAGE_ROWS = EXECUTOR_IMESSAGE_BATCH_MAXIMUM
 /** Pages per pass; a long backlog continues on the next pass. */
 const PAGES_PER_PASS = 40
-/** How long a sent message is looked for in `chat.db`. */
-const SENT_CONFIRM_MS = 5_000
+/** How long a sent message is looked for in `chat.db`: ten looks, half a second apart. */
+const SENT_CONFIRM_ATTEMPTS = 10
+const SENT_CONFIRM_STEP_MS = 500
 const DAY_MS = 86_400_000
 
 export type IMessageSendOutcome =
@@ -289,15 +290,15 @@ export class IMessageBridge {
   }
 
   private async confirmSent(database: ChatDatabase, to: string, before: number): Promise<IMessageSendOutcome> {
-    const deadline = this.now().getTime() + SENT_CONFIRM_MS
-    for (;;) {
+    // Counted, not timed: a fixed or stalled clock can never keep it looping.
+    for (let attempt = 0; ; attempt += 1) {
       const sent = database.sentAfter(to, before)
       if (sent && sent.error !== 0) {
         return refuse('IMESSAGE_SEND_FAILED', `Messages could not deliver to ${to} (error ${sent.error}).`)
       }
       if (sent) return { ok: true, result: { sent: true, to, messageGuid: sent.guid } }
-      if (this.now().getTime() >= deadline) return { ok: true, result: { sent: true, to, messageGuid: null } }
-      await this.sleep(500)
+      if (attempt >= SENT_CONFIRM_ATTEMPTS) return { ok: true, result: { sent: true, to, messageGuid: null } }
+      await this.sleep(SENT_CONFIRM_STEP_MS)
     }
   }
 }
