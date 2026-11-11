@@ -58,7 +58,10 @@ export type ChatDatabase = {
   rowIdBefore: (at: Date) => number
   /** Up to `limit` rows after `afterRowId`, oldest first; `includeOwn` maps the owner's own messages too. */
   scanAfter: (afterRowId: number, limit: number, includeOwn?: boolean) => ScannedRow[]
-  /** The owner's newest message to `handle` after `afterRowId`: its guid, Messages' error code and the address it went from. */
+  /**
+   * The owner's newest message to `handle` after `afterRowId`: its guid, Messages'
+   * error code and the address it went from.
+   */
   sentAfter: (handle: string, afterRowId: number) => { guid: string; error: number; from: string | null } | null
   /** The address the owner's last message to `handle` in their one-to-one chat went from; null without one. */
   sendingAddressFor: (handle: string) => string | null
