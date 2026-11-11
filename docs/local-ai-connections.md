@@ -105,3 +105,9 @@ address was unreachable in that check.
 
 Signed installed OAuth acceptance and the live subscription-funded agent task
 are still pending. Browser fixtures and source compilation do not prove them.
+
+Named ChatGPT profiles publish their display name in signed model reports, so
+Nessie can distinguish accounts on the same computer. The connection's model is
+chosen in Nessie under Connected accounts → AI plans or the computer's details;
+the available choices come from the signed-in account. OAuth credentials and
+OpenAI requests remain on Nessie Computer.

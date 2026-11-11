@@ -76,6 +76,7 @@ export const runProfileChatgptHost = async (input: {
       hostId: claimed.hostId, organizationId: claimed.principal.organizationId,
       machinePrivateKey: input.key.privateKey },
     backend: createChatgptBackend(auth, input.backendOptions), coordinator, journal,
+    connectionLabel: async () => (await store.read(input.profile.profileId))?.label,
     personalReceipts: custody.transport,
     isPaused: () => input.signal.aborted, origin: 'https://api.openai.com/v1', onError: () => undefined })
   const update = watchInferenceUpdateDrain({ loop: session.loop })

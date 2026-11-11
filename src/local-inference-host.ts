@@ -91,6 +91,7 @@ export class LocalInferenceHostLoop {
     fetchImpl?: OllamaFetch
     identity: LocalInferenceHostIdentity
     isPaused: () => boolean
+    connectionLabel?: () => Promise<string | undefined>
     journal: EncryptedLocalInferenceReceiptJournal
     personalReceipts?: PersonalReceiptTransport
     now?: () => Date
@@ -104,7 +105,9 @@ export class LocalInferenceHostLoop {
     const inventory = this.dependencies.backend
       ? { models: await this.dependencies.backend.observe() }
       : await observeOllamaInventory(this.dependencies.origin, this.dependencies.fetchImpl)
+    const displayLabel = await this.dependencies.connectionLabel?.()
     await this.dependencies.transport.heartbeat({
+      ...(displayLabel ? { displayLabel } : {}),
       inventory: inventory.models.map((model) => publishedModel(model, now.toISOString())),
       paused: this.#draining || this.dependencies.isPaused() || (await this.dependencies.coordinator.control()).paused,
     })

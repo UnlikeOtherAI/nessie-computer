@@ -85,6 +85,7 @@ export const callCount = (page, command) => page.evaluate((name) => window.calls
  * person would by scrolling. The scroll position is put back.
  */
 export const screenshot = async (page, output, name) => {
+  if (output === null) return
   await page.screenshot({ path: join(output, `${name}.png`), animations: 'disabled' })
   const scrolled = await page.evaluate(() => {
     const main = document.querySelector('dialog[open]') ?? document.querySelector('main')

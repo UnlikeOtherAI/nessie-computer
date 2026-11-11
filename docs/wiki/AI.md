@@ -126,3 +126,8 @@ nessie-computer ai plans add "Work plan" --team "Sales · Acme"   # opens ChatGP
 nessie-computer ai servers add "Studio" http://192.168.1.90:8080/v1 --where network --team "Sales · Acme"
 nessie-computer ai servers list --team "Sales · Acme"
 ```
+
+Choose the model in Nessie from **Your settings** → **Connected accounts** →
+**AI plans**, or open the computer's details. Each named account reports the
+models it can use; choose one there for your private agents using that connection.
+Wait for any task using it to finish before switching.

@@ -27,7 +27,7 @@ window.chatgptDialog = (() => {
     <p id="chatgpt-team"></p>
     <label id="chatgpt-name-label" for="chatgpt-name"></label>
     <div class="ai-name-row"><input id="chatgpt-name" maxlength="80"><button type="button" id="chatgpt-rename"></button></div>
-    <p id="chatgpt-status" role="status"></p>
+    <p id="chatgpt-status" role="status" data-state-status></p>
     <label id="chatgpt-profile-label" for="chatgpt-profile"></label>
     <select id="chatgpt-profile"></select>
     <label class="toggle" id="chatgpt-restriction-row"><input id="chatgpt-restriction" type="checkbox"><span id="chatgpt-restriction-copy"></span></label>
@@ -58,6 +58,7 @@ window.chatgptDialog = (() => {
     const status = readFailed ? t('failed')
       : reason ? t(`unavailable.${REASONS.includes(reason) ? reason : 'other'}`) : t(`phases.${phase}`)
     const failed = readFailed || Boolean(reason) || phase === 'unavailable'
+    byId('chatgpt-status').hidden = false
     byId('chatgpt-status').classList.toggle('dialog-error', failed)
     byId('chatgpt-status').setAttribute('role', failed ? 'alert' : 'status')
     if (byId('chatgpt-status').textContent !== status) byId('chatgpt-status').textContent = status

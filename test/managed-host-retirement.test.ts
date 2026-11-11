@@ -4,7 +4,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { PersonalInferenceGuard } from '../src/personal-inference-guard.js'
+import { PersonalInferenceGuard, type PersonalHostRegistration } from '../src/personal-inference-guard.js'
+import { hasKnownLiveHostExecution } from '../src/personal-host-session-state.js'
 import { verifyInferenceTestState } from './fixtures/local-inference-security.js'
 
 const bootId = '7035bda9-0000-4000-8000-000000000000'
@@ -85,4 +86,23 @@ test('failed history publication leaves the active admission and credential fenc
     await assert.rejects(f.guard.activate(protection, async () => assert.fail('must not write credentials')),
       /incompatible_sessions/u)
   } finally { await f.clean() }
+})
+
+test('known live host sessions have a specific refusal; unknown history still requires native proof', async () => {
+  const registration: PersonalHostRegistration = { ...controller, id: 'fixture', kind: 'host_execution',
+    guardVersion: 2, label: 'stdio-mcp:fixture', authority: null }
+  const asked: number[] = []
+  const inspector = { identify: async (pid: number) => { asked.push(pid); return controller }, isAlive: () => true }
+  assert.equal(await hasKnownLiveHostExecution([registration], bootId, inspector), true)
+  assert.equal(await hasKnownLiveHostExecution([{ ...registration, kind: 'runtime' }], bootId, inspector), false)
+  assert.equal(await hasKnownLiveHostExecution([registration], undefined, inspector), false)
+  assert.equal(await hasKnownLiveHostExecution([registration], 'ff61df02-d264-4db7-9a2d-2fa908745780', inspector), false)
+  assert.equal(await hasKnownLiveHostExecution([{ ...registration, startedAt: '2' }], bootId, inspector), false)
+  const unknown = { identify: async () => undefined, isAlive: () => true }
+  assert.equal(await hasKnownLiveHostExecution([registration], bootId, unknown), false)
+  asked.length = 0
+  await hasKnownLiveHostExecution([{ ...registration, startedAt: '2' }, { ...registration, startedAt: '2' }], bootId, inspector)
+  assert.equal(asked.length, 1, 'one inspection per controller generation')
+  const gone = { identify: async () => { throw new Error('dead process inspected') }, isAlive: () => false }
+  assert.equal(await hasKnownLiveHostExecution([registration], bootId, gone), false)
 })

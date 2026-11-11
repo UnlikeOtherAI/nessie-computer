@@ -22,6 +22,11 @@ export const verifyChatgptDialog = async (browser, ui, output) => {
         assert.equal(await page.locator('#chatgpt-status').getAttribute('role'), 'alert')
         assert.equal(await page.locator('#chatgpt-status').evaluate((node) => node.classList.contains('dialog-error')), true)
         assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
+        // An unrelated background action must not clear the dialog's owned
+        // readiness status. This hid the real Mac failure while Start stayed disabled.
+        await page.evaluate(() => window.nc.attempt(() => Promise.resolve()))
+        assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
+        assert.equal(await page.locator('#chatgpt-status').textContent(), expected)
         assert.equal(await page.locator('#chatgpt-name').inputValue(), 'ChatGPT OR Main')
         assert.equal(await page.locator('#chatgpt-restriction').isChecked(), true)
         await assertFits(page, `${locale} ${size} ${reason}`)

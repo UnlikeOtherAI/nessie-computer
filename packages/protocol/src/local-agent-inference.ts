@@ -194,7 +194,7 @@ export const LocalInferenceHostSchema = z.object({
 export type LocalInferenceHost = z.infer<typeof LocalInferenceHostSchema>
 
 export const LocalInferenceHostListSchema = z.object({
-  /** Whether this deployment can connect personal ChatGPT plans at all (never on hosted Nessie). */
+  /** Whether this service accepts computer-owned personal ChatGPT inference, including hosted Nessie. */
   chatgptAvailable: z.boolean(),
   hosts: z.array(LocalInferenceHostSchema),
   meta: PaginationMetaSchema,

@@ -18,6 +18,8 @@ import { profileBackgroundConsent, setChatgptBackgroundConsent } from './chatgpt
 import { resolveChatgptLocalOperation } from './chatgpt-local-operation.js'
 import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
 import { publicChatgptFailure } from './chatgpt-public-failure.js'
+import { currentKernelBootId } from './kernel-boot.js'
+import { hasKnownLiveHostExecution } from './personal-host-session-state.js'
 
 type Operation = ReturnType<typeof PersonalChatgptConsoleOperationSchema.parse>
 const usage = (): never => {
@@ -41,8 +43,11 @@ const readOperation = async (stateDirectory: string, local: boolean): Promise<Op
 
 const preflight = async (stateDirectory: string, intent: PersonalChatgptConnectIntent): Promise<void> => {
   await matchingChatgptPairing(stateDirectory, intent)
+  const guard = PersonalInferenceGuard.open()
+  if (await hasKnownLiveHostExecution((await guard.status()).registrations, await currentKernelBootId())) {
+    throw new PersonalInferenceProtectionError('personal_inference_incompatible_sessions')
+  }
   await withManagedRuntimeInventory(async inventory => {
-    const guard = PersonalInferenceGuard.open()
     await guard.retireHostAdmissions(inventory.retiredHostControllers ?? [])
     const status = await guard.status()
     if (status.registrations.some(item => item.kind === 'host_execution')) {
