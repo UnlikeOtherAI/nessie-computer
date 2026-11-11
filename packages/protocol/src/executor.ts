@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
+import { ExecutorIMessageReportSchema, ExecutorIMessageSwitchSchema } from './executor-imessage.js'
 import { ExecutorMonitorRequestSchema, ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
 import {
@@ -157,6 +158,9 @@ export const ExecutorOperationKeySchema = z.enum([
   // rather than granting a blanket "run local MCP".
   'mcp.tools',
   'mcp.call',
+  // One iMessage through the Messages app on the owner's own Mac
+  // (`executor-imessage.ts`). Only a macOS daemon advertises it.
+  'imessage.send',
 ])
 export type ExecutorOperationKey = z.infer<typeof ExecutorOperationKeySchema>
 
@@ -187,6 +191,7 @@ export const IMPLEMENTED_EXECUTOR_OPERATION_KEYS = [
   'sandbox.stop',
   'mcp.tools',
   'mcp.call',
+  'imessage.send',
 ] as const satisfies readonly ExecutorOperationKey[]
 export type ImplementedExecutorOperationKey =
   (typeof IMPLEMENTED_EXECUTOR_OPERATION_KEYS)[number]
@@ -743,6 +748,8 @@ export const ExecutorDaemonHeartbeatRequestSchema = z.object({
    * an unpaused daemon's signed payload byte-identical to an older daemon's.
    */
   ownerPaused: z.literal(true).optional(),
+  /** What a Mac lacks for iMessage (`executor-imessage.ts`); sent only to a Nessie that answered with `imessage`. */
+  imessage: ExecutorIMessageReportSchema.optional(),
   software: ExecutorSoftwareStatusSchema.optional(),
   observedAt: TimestampSchema,
   signature: ExecutorDaemonSignatureSchema,
@@ -811,6 +818,8 @@ export const ExecutorDaemonHeartbeatResponseSchema = ExecutorDaemonConnectionRes
   codingSessionClose: ExecutorCodingSessionCloseListSchema.optional(),
   existingSessionsAllowed: z.boolean().optional(),
   softwareUpdateRequest: ExecutorSoftwareUpdateRequestSchema.optional(),
+  /** The owner's iMessage switch, for a macOS executor (`executor-imessage.ts`). */
+  imessage: ExecutorIMessageSwitchSchema.optional(),
 }).strict()
 export type ExecutorDaemonHeartbeatResponse = z.infer<typeof ExecutorDaemonHeartbeatResponseSchema>
 
