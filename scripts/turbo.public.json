@@ -118,6 +118,12 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:mcp": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

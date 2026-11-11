@@ -58,6 +58,8 @@ fn attempt(coordinator: &Coordinator, bundle: &Bundle, process: &Process) -> Upd
     if plan(coordinator)? == ApplicationPlan::Keep {
         return Ok(true);
     }
+    // An older daemon may have completed shutdown but retained an idle transport.
+    super::macos_shutdown::request_completed()?;
     // The menu app stays: only the factory changes, never the app bundle.
     if !unix_clearance::ready_with(true, Some(process))? {
         return Ok(false);

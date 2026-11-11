@@ -153,3 +153,35 @@ test('Claude Code and Codex hosts follow the supervisor: drain, resume, stop run
   await local.supervisor.stop()
   assert.deepEqual(cliCalls, ['drain', 'resume', 'stop:run-1', 'heartbeat', 'stop'])
 })
+
+for (const operation of ['heartbeat', 'reconnect'] as const) {
+  test(`shutdown closes a connection completed during ${operation} and never starts another`, async () => {
+    const state = { executorId: 'executor-1' } as never
+    let finish!: () => void
+    let entered!: () => void
+    const started = new Promise<void>(resolve => { entered = resolve })
+    const pending = new Promise<void>(resolve => { finish = resolve })
+    const live = session(async () => undefined)
+    let calls = 0
+    const connect = async () => {
+      calls += 1
+      if (calls === 1) throw new Error('LOCAL_HOST_UNAVAILABLE')
+      entered()
+      await pending
+      return { state, session: live.session }
+    }
+    const local = await startExecutorLocalInferenceSupervisor('state-dir', state, connect as never, noCliEngines)
+    const work = operation === 'heartbeat' ? local.supervisor.heartbeat() : local.supervisor.reconnect(state)
+    await started
+    let ended = false
+    const stop = local.supervisor.stop().then(() => { ended = true })
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(ended, false, 'shutdown waits for the pending creation')
+    finish()
+    await Promise.all([work, stop])
+    assert.equal(live.stops(), 1, 'the late connection cannot outlive its parent')
+    await local.supervisor.heartbeat()
+    await local.supervisor.reconnect(state)
+    assert.equal(calls, 2, 'a stopped supervisor starts nothing')
+  })
+}

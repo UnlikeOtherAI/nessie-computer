@@ -20,7 +20,7 @@ The native coordinator, constrained OS installers and local update policy follow
 `test:updates-native` through the public Turbo graph for their focused gates.
 Stable catalogues require Windows, macOS, DEB and RPM together, including Linux detached signatures; preview may contain a complete subset. Catalog publication archives immutable signed bytes before advancing an existing mutable channel; see the same guide.
 The shared local Settings/update popup and Linux settings entry have local headless renderer journeys documented there; keep them out of CI. CLI launch checks never hold ordinary commands open.
-The macOS signed DMG carries the app and protected runtime; ended-controller recovery uses the public `test:runtime-recovery` gate and the Mac native tests in the helper guide. Linux package-publisher rotations also select the Linux native trust check.
+The macOS signed DMG carries the app and protected runtime; completed-daemon shutdown recovery and ended-controller recovery use the public `test:runtime-recovery` gate and the Mac native tests in the helper guide. Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
 Linux archive staging keeps builder ownership for rootless containers; nFPM supplies installed root ownership.

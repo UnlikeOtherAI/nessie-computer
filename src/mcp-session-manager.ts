@@ -188,7 +188,9 @@ export const createExecutorMcpSessionManager = (
     session.dead = true
     try {
       await endLocalAppAdmission(session.protectionLease, session.transport, processControl)
-    } finally { await session.client.close().catch(() => undefined) }
+    } finally {
+      await Promise.allSettled([session.client.close(), session.transport.close()])
+    }
   }
 
   const armIdleTimer = (server: string, session: ActiveSession): void => {

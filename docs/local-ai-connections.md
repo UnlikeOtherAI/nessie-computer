@@ -36,12 +36,22 @@ Nessie Desktop UI do not fail that inventory. Other owner-run applications
 remain inside the ordinary OS-account trust boundary.
 
 The dialog shows blocked sign-in and failed checks as red alerts. A failed
-check keeps the name you typed and disables sign-in until **Check again**
-succeeds. A successful status read does not itself grant provider access.
+check keeps the name you typed; **Check again** refreshes its status. A successful status read does not itself grant provider access.
 Server deployment restrictions, owner authority, local runtime protection and
 OpenAI sign-in failures have separate messages; none falls back to team credits.
 Local scope resolution failures also return these public reasons instead of
 escaping the CLI before its first status frame.
+
+On macOS, acknowledged sign-in briefly holds new team starts and lets idle
+app connections shut down normally before native credential admission. Teams
+resume after the credential handoff. Active commands remain untouched and can
+keep sign-in blocked until they finish. Update adoption and personal sign-in
+have independent holds, so one cannot release the other.
+
+An expired first login completes the existing credential, receipt and native
+absence proofs before clearing its removed signing key from public metadata.
+Retry then creates a new key and a fresh browser grant for the same named
+profile. No callback code or expired URL is reused.
 
 ## Local and network model servers
 
@@ -111,3 +121,7 @@ Nessie can distinguish accounts on the same computer. The connection's model is
 chosen in Nessie under Connected accounts → AI plans or the computer's details;
 the available choices come from the signed-in account. OAuth credentials and
 OpenAI requests remain on Nessie Computer.
+
+Shutdown coverage uses `//#test:updates` for late inference connections,
+`//#test:mcp` for local app transport cleanup, and `//#test:chatgpt-connection`
+for expired-login cleanup and retry. Mac native recovery and app tests run on macOS.

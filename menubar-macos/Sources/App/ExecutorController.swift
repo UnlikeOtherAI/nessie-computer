@@ -97,7 +97,7 @@ final class ExecutorController: ObservableObject {
     func reload() async {
         // Every `describe` is a runtime process, and the helper installs this
         // app's runtime only while none runs; the hold ends with a refresh.
-        guard !ComputerUpdateService.holdingTeams else { return }
+        guard !ComputerRuntimeGate.held else { return }
         guard let runner else {
             if case let .failure(refusal) = runtime {
                 model = ConnectionModel(pairing: .unavailable(refusal.message), daemon: .stopped)
@@ -306,7 +306,7 @@ final class ExecutorController: ObservableObject {
             failure = TeamFailure(code: nil, message: PackagedRuntime.missingRefusal)
             return
         }
-        guard isDevelopmentBuild || ComputerUpdateService.factoryReady, !ComputerUpdateService.holdingTeams,
+        guard isDevelopmentBuild || ComputerUpdateService.factoryReady, !ComputerRuntimeGate.held,
               !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) else {
             // The update factory is not ready yet, the helper is installing this
             // app's runtime, or a prior daemon is still tearing down (an update
