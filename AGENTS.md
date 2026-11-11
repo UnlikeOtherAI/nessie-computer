@@ -74,6 +74,9 @@ named sign-in attempts, public refusal messages and check recovery.
 Claude Code and Codex offered as engines (the AI tab's On this computer, `ai local`, `local_cli` hosts) follow
 [Claude Code and Codex as engines](docs/local-cli-engines.md); its focused gate is `test:cli-engines`.
 
+A signed-in ChatGPT plan and agent-run programs share one computer, each inference source has its own pool of turns, and a turn costs one model request; follow
+[parallel sources and streaming](docs/plans/2026-11-11-parallel-sources-and-streaming.md) and the console's [what is a list](docs/nessie-computer-team-tabs.md#what-is-a-list) rule.
+
 Team names come from a display-only label in each team's folder, refreshed in one signed batch per server; follow
 [team names](docs/team-names.md).
 

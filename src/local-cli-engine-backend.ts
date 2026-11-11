@@ -23,7 +23,13 @@ import {
 
 /** The identity this host gives a turn; part of every advertised digest. */
 const PROTOCOL = 'nessie-local-cli-engine-v1'
-const OBSERVE_TTL_MS = 15_000
+/**
+ * How long one look at the CLI (installed, signed in, its version and flags)
+ * serves the inventory and every turn. Each look starts the CLI two or three
+ * times, and a turn used to look again before and after itself. A turn that
+ * fails forgets the look, so a sign-out is noticed at once.
+ */
+const DETECTION_TTL_MS = 60_000
 const LABEL: Record<LocalCliEngine, string> = { 'claude-code': 'Claude Code', codex: 'Codex' }
 const program = (engine: LocalCliEngine): CliProgram => engine === 'claude-code' ? 'claude' : 'codex'
 const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex')
@@ -68,15 +74,17 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
 } = {}): LocalInferenceBackend & { stopRuns: (runIds: readonly string[]) => void } => {
   const run = options.run ?? runCommand
   const now = options.now ?? Date.now
-  let cached: { at: number; models: ObservedInferenceModel[] } | undefined
+  let cached: { at: number; current: Awaited<ReturnType<typeof observed>>; signInChecked: boolean } | undefined
   const turns = new Map<AbortController, { runId: string; sessionId?: string }>()
-  const fresh = async () => observed(target, await target.detect(), run)
+  const detected = async () => {
+    if (cached && now() - cached.at < DETECTION_TTL_MS) return cached
+    cached = { at: now(), current: await observed(target, await target.detect(), run), signInChecked: false }
+    return cached
+  }
   return {
     observe: async () => {
-      if (cached && now() - cached.at < OBSERVE_TTL_MS) return cached.models
-      const current = await fresh()
-      cached = { at: now(), models: current ? [current.model] : [] }
-      return cached.models
+      const { current } = await detected()
+      return current ? [current.model] : []
     },
     stopRuns: (runIds) => {
       for (const [controller, turn] of turns) if (runIds.includes(turn.runId)) controller.abort('session_stopped')
@@ -90,8 +98,8 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
         throw new LocalCliEngineError('session_stopped')
       }
       const prompt = cliEnginePrompt(attempt)
-      const current = await fresh()
-      cached = undefined
+      const look = await detected()
+      const { current } = look
       if (!current) throw new LocalCliEngineError('cli_not_installed')
       if (current.model.cliEngineState !== 'ready') throw new LocalCliEngineError('cli_signed_out')
       if (!current.inspected) throw new LocalCliEngineError('cli_unsupported')
@@ -122,9 +130,12 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
       try {
         await mkdir(join(folder, 'tmp'), { mode: 0o700 })
         const env = cliEngineEnvironment(cli, current.found.env, folder)
-        if (cli === 'claude' && !(await claudeAuthStatus(current.found.program!.path, env, run)).signedIn) {
+        if (cli === 'claude' && !look.signInChecked) {
           // A CLI that cannot read the account apart from its disposable config folder is refused, not trusted.
-          throw new LocalCliEngineError('cli_signed_out')
+          if (!(await claudeAuthStatus(current.found.program!.path, env, run)).signedIn) {
+            throw new LocalCliEngineError('cli_signed_out')
+          }
+          look.signInChecked = true
         }
         const effort = attempt.reasoningEffort === 'low' || attempt.reasoningEffort === 'medium'
           || attempt.reasoningEffort === 'high' ? attempt.reasoningEffort : undefined
@@ -157,6 +168,10 @@ export const createLocalCliEngineBackend = (target: LocalCliEngineTarget, option
         yield { done: true, finishReason: toolCalls.length ? 'tool-call' : 'stop', toolCalls,
           ...(result.inputTokens === null ? {} : { inputTokens: result.inputTokens }),
           ...(result.outputTokens === null ? {} : { outputTokens: result.outputTokens }) } satisfies OllamaChatEvent
+      } catch (error) {
+        // Whatever went wrong, the next turn looks at the CLI again.
+        if (cached === look) cached = undefined
+        throw error
       } finally {
         input.signal.removeEventListener('abort', forward)
         controller.abort('turn_ended')

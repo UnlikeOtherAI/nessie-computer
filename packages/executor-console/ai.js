@@ -10,13 +10,12 @@ window.aiTab = (() => {
   tab.innerHTML = `
     <div class="section-heading"><div class="label-row"><h3 id="ai-plans-title"></h3></div><button type="button" id="ai-add-chatgpt"></button></div>
     <div id="ai-chatgpt-list"></div>
-    <hr>
     <div class="section-heading"><div class="label-row"><h3 id="ai-endpoints-title"></h3></div><button type="button" id="ai-add-endpoint"></button></div>
     <div id="ai-endpoint-list"></div>
     <p id="ai-error" class="field-error" role="alert" hidden></p>
-    <button type="button" id="ai-refresh"></button>`
+    <button type="button" id="ai-refresh" class="link"></button>`
   // "On this computer" comes first, above ChatGPT plans (contract §12).
-  tab.prepend(window.aiLocal.section, document.createElement('hr'))
+  tab.prepend(window.aiLocal.section)
   // What a plan or a server is sits behind "?" beside each heading; on Windows the
   // plans' "?" also says how the first plan connects.
   const plansHelp = nc.help('')

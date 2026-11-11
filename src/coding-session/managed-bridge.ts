@@ -3,7 +3,6 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ExecutorCodingSessionCloseSchema, type PersonalInferenceAuthority } from '@nessie/executor-protocol'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
 import {
   argumentsFor,
@@ -418,9 +417,6 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     rewriter: rootSet.rewriter,
     call: async (tool, args, meta) => {
       try {
-        if (['session_start', 'session_send', 'session_review'].includes(tool)) {
-          await assertPersonalHostExecution(meta.personalAuthority)
-        }
         const commandId = commandIdOf(meta)
         if (!reviewed && !ALLOWED_UNREVIEWED.has(tool)) requireReviewedConfig()
         if (tool === 'session_close_all') return await closeAll(args, meta, commandId)

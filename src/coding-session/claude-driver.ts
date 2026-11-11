@@ -150,7 +150,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
     void spawned.exited.then(({ code }) => {
-      if (!spawned.confirmHostExecutionStopped && agent === spawned) agent = undefined
+      if (agent === spawned) agent = undefined
       const reason = agentFailureReason(spawned.stderrTail())
       rejectReady(new AgentStartError(reason))
       // Nothing is left to answer what this process asked.
@@ -160,8 +160,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       if (ending || context.state().status === 'closed') return
       context.log(`claude exited with code ${code}`)
       const busy = current.busy()
-      context.update({ ...(!spawned.confirmHostExecutionStopped ? { agentIdentity: undefined } : {}),
-        backgroundTasks: undefined })
+      context.update({ agentIdentity: undefined, backgroundTasks: undefined })
       if (busy || context.state().status === 'working' || context.state().status === 'starting') {
         context.emit({ kind: 'system', subtype: 'agent_exited', reason })
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
@@ -194,15 +193,13 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       current.endInput()
       await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
     }
-    const stopped = current?.confirmHostExecutionStopped
-      ? await current.confirmHostExecutionStopped(snapshot)
-      : (await context.control.killTree(identity, snapshot), true)
-    if (stopped) agent = undefined
+    await context.control.killTree(identity, snapshot)
+    agent = undefined
     // An interrupt the ended process never answered belongs to it, not to the next turn.
     interruptRequested = false
     interruptReason = undefined
     // Its background tasks went with it.
-    context.update({ ...(stopped ? { agentIdentity: undefined } : {}), backgroundTasks: undefined })
+    context.update({ agentIdentity: undefined, backgroundTasks: undefined })
     ending = false
   }
 

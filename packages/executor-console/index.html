@@ -30,22 +30,26 @@
     <section id="tab-ai" role="tabpanel" aria-labelledby="tab-button-ai" hidden></section>
     <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
       <p class="tab-error" role="alert" hidden></p>
-      <section id="settings-team" class="settings-team" aria-labelledby="settings-team-title" hidden>
+      <section id="settings-team" class="settings-team list" aria-labelledby="settings-team-title" hidden>
         <div class="row">
           <span id="settings-team-title" class="status-word"></span>
           <button id="settings-pause"></button>
           <button id="settings-disconnect"></button>
         </div>
       </section>
-      <label class="toggle"><input type="checkbox" id="autostart"><span id="autostart-label"></span></label>
-      <label class="toggle"><input type="checkbox" id="auto-restart"><span id="auto-restart-label"></span></label>
+      <div class="list" id="settings-computer">
+        <label class="toggle list-row"><input type="checkbox" id="autostart"><span id="autostart-label"></span></label>
+        <label class="toggle list-row"><input type="checkbox" id="auto-restart"><span id="auto-restart-label"></span></label>
+      </div>
       <section id="software-updates" aria-labelledby="update-title">
         <h2 id="update-title"></h2>
-        <p><span id="update-version-label"></span>: <strong id="update-version"></strong></p>
-        <div id="update-policy" hidden>
-          <label class="toggle"><input type="checkbox" id="update-automatic"><span id="update-automatic-label"></span></label>
+        <div class="list">
+          <p class="list-row"><span id="update-version-label"></span><strong id="update-version"></strong></p>
+          <div id="update-policy" class="list-row" hidden>
+            <label class="toggle"><input type="checkbox" id="update-automatic"><span id="update-automatic-label"></span></label>
+          </div>
+          <p id="update-status" class="list-row" role="status"></p>
         </div>
-        <p id="update-status" role="status"></p>
         <div class="update-actions"><button id="update-setup" class="primary" hidden></button><button id="update-check"></button><button id="update-install" class="primary" hidden></button></div>
         <p id="update-error" class="update-error" role="alert" hidden></p>
       </section>

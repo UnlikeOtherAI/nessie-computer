@@ -1,12 +1,10 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
-import { endLocalAppAdmission, GuardedStdioTransport, localAppLaunch } from './mcp-host-execution.js'
+import { GuardedStdioTransport, localAppLaunch, stopLocalApp } from './mcp-host-execution.js'
 import { createCodingProcessControl, type CodingProcessControl } from './coding-session/process-control.js'
 import { cancelExecutorMcpProcessTree } from './mcp-command-process.js'
 import { createStartBackoff, type LocalAppStartFailure } from './mcp-start-backoff.js'
 import { isBuiltinCodingSessionsServer, isTrustedCodingControlBridge } from './coding-sessions-policy.js'
-import { admitPersonalHostExecution } from './personal-host-execution.js'
-import { PersonalInferenceGuard, type PersonalHostExecutionLease } from './personal-inference-guard.js'
 import { classifyStartFailure, denied, failure, unavailable,
   startFailureMessage, type ExecutorMcpFailure } from './mcp-session-failure.js'
 export type { ExecutorMcpFailure } from './mcp-session-failure.js'
@@ -72,9 +70,7 @@ export type ExecutorMcpProbeOutcome =
   }
 
 export type ExecutorMcpSessionManager = {
-  listTools: (
-    server: string, cursor?: string, signal?: AbortSignal, authority?: unknown,
-  ) => Promise<Record<string, unknown>>
+  listTools: (server: string, cursor?: string, signal?: AbortSignal) => Promise<Record<string, unknown>>
   /**
    * `meta` becomes the request's `_meta`. Only the daemon sets it, and only
    * with the reserved keys a built-in bridge reads; a model never reaches it.
@@ -96,7 +92,8 @@ export type ExecutorMcpSessionManager = {
 
 type ActiveSession = {
   trustedCodingBridge: boolean
-  protectionLease?: PersonalHostExecutionLease | null
+  /** Started inside its own Job Object (packaged Windows), which ends with it. */
+  contained: boolean
   transport: GuardedStdioTransport
   catalog?: SessionCatalog
   client: Client
@@ -141,9 +138,6 @@ export const createExecutorMcpSessionManager = (
     idleTimeoutMs?: number
     log?: (message: string, cause: unknown) => void
     startTimeoutMs?: number
-    personalGuard?: PersonalInferenceGuard
-    /** How a local app's start is admitted; the packaged host's admission outside tests. */
-    admit?: typeof admitPersonalHostExecution
     processControl?: CodingProcessControl
     /** The first wait after repeated start failures, its cap, and the clock; tests shorten them. */
     startBackoffMs?: number
@@ -160,8 +154,6 @@ export const createExecutorMcpSessionManager = (
     console.error(`[nessie-executor] ${message}:`, cause instanceof Error ? cause.message : String(cause))
   })
   const maxResultBytes = Math.min(limits.maxResultBytes, MCP_RESULT_MAX_BYTES)
-  const personalGuard = options.personalGuard ?? PersonalInferenceGuard.open()
-  const admit = options.admit ?? admitPersonalHostExecution
   const sessions = new Map<string, ActiveSession>()
   const transports = new Map<string, StdioClientTransport>()
   const processControl = options.processControl ?? createCodingProcessControl()
@@ -179,7 +171,7 @@ export const createExecutorMcpSessionManager = (
   // manager usable, as the daemon's own suites rely on.
   let stopping = 0
 
-  /** Every end of a live session — idle, crash, cancel, stop — ends its admission too. */
+  /** Every end of a live session — idle, crash, cancel, stop — ends what it started too. */
   const closeSession = async (server: string, session: ActiveSession): Promise<void> => {
     if (sessions.get(server) !== session) return Promise.resolve()
     sessions.delete(server)
@@ -187,8 +179,9 @@ export const createExecutorMcpSessionManager = (
     clearTimeout(session.idleTimer)
     session.dead = true
     try {
-      await endLocalAppAdmission(session.protectionLease, session.transport, processControl)
+      if (session.contained) await stopLocalApp(session.transport, processControl)
     } finally {
+      // The client may have dropped its transport; an open one keeps the daemon alive after shutdown.
       await Promise.allSettled([session.client.close(), session.transport.close()])
     }
   }
@@ -197,14 +190,11 @@ export const createExecutorMcpSessionManager = (
     if (session.dead || session.pending > 0) return
     clearTimeout(session.idleTimer)
     session.idleTimer = setTimeout(() => {
-      void closeSession(server, session).catch(() => log('MCP process termination could not be confirmed.', undefined))
+      void closeSession(server, session).catch(() => undefined)
     }, idleTimeoutMs)
   }
 
-  const startSession = async (
-    spec: ExecutorLocalMcpServer,
-    authority?: unknown,
-  ): Promise<ActiveSession | ExecutorMcpUnavailableReason> => {
+  const startSession = async (spec: ExecutorLocalMcpServer): Promise<ActiveSession | ExecutorMcpUnavailableReason> => {
     const waiting = backoff.waiting(spec.name)
     if (waiting) return waiting
     const trustedCodingBridge = isTrustedCodingControlBridge(spec)
@@ -216,8 +206,7 @@ export const createExecutorMcpSessionManager = (
       backoff.failed(spec.name, 'not_installed')
       return 'not_installed'
     }
-    const protectionLease = trustedCodingBridge ? null
-      : await admit(`stdio-mcp:${spec.name}`, authority, personalGuard)
+    const contained = launch.containment !== undefined
     const client = new Client(
       { name: 'nessie-executor', version: '1' },
       { capabilities: {} },
@@ -234,7 +223,7 @@ export const createExecutorMcpSessionManager = (
         // so a server gets only the environment the policy spells out.
         ...(spec.env === undefined ? {} : { env: spec.env }),
         stderr: 'inherit',
-      }, processControl, protectionLease, launch.containment)
+      }, processControl, launch.containment)
       transports.set(spec.name, transport)
       transport.onerror = (error: Error) => {
         spawnError ??= error
@@ -244,7 +233,7 @@ export const createExecutorMcpSessionManager = (
       }
       const session: ActiveSession = {
         trustedCodingBridge,
-        protectionLease,
+        contained,
         transport,
         client,
         commandsWaiting: 0,
@@ -257,7 +246,7 @@ export const createExecutorMcpSessionManager = (
         // has already been rejected by the SDK, and the next request starts a
         // fresh process — subject to the start backoff.
         if (sessions.get(spec.name) === session) {
-          void closeSession(spec.name, session).catch(() => log('MCP process termination could not be confirmed.', undefined))
+          void closeSession(spec.name, session).catch(() => undefined)
         }
       }
       await withTimeout(client.connect(transport), startTimeoutMs)
@@ -268,10 +257,8 @@ export const createExecutorMcpSessionManager = (
       const reason = classifyStartFailure(spawnError, exited)
       log(`local MCP server "${spec.name}" failed to start (${reason})`, error)
       backoff.failed(spec.name, reason)
-      // The admission ends on this path too: released once the tree is proved
-      // stopped, its barrier process ended when it cannot be.
-      await endLocalAppAdmission(protectionLease, transport, processControl, [spawnError, error])
-        .catch(() => log('MCP process termination could not be confirmed.', undefined))
+      // Whatever the failed start left running ends here too.
+      if (contained) await stopLocalApp(transport, processControl)
       // The transport is closed as well as the client. A connect that never
       // completed leaves the client with no transport to close, so closing
       // only the client leaks the pipe — which keeps the daemon's event loop
@@ -290,14 +277,12 @@ export const createExecutorMcpSessionManager = (
    * other, and closed nothing — a process per race, running until the daemon
    * stopped. A shared start also counts one failure, not one per caller.
    */
-  const sessionFor = (
-    spec: ExecutorLocalMcpServer, authority?: unknown,
-  ): Promise<ActiveSession | ExecutorMcpUnavailableReason> => {
+  const sessionFor = (spec: ExecutorLocalMcpServer): Promise<ActiveSession | ExecutorMcpUnavailableReason> => {
     const live = sessions.get(spec.name)
     if (live && !live.dead) return Promise.resolve(live)
     let started = starting.get(spec.name)
     if (!started) {
-      started = startSession(spec, authority).finally(() => starting.delete(spec.name))
+      started = startSession(spec).finally(() => starting.delete(spec.name))
       starting.set(spec.name, started)
     }
     return started
@@ -316,7 +301,7 @@ export const createExecutorMcpSessionManager = (
   const withSession = async <T>(
     server: string,
     work: (session: ActiveSession) => Promise<T>,
-    options: { probe?: boolean; signal?: AbortSignal; authority?: unknown } = {},
+    options: { probe?: boolean; signal?: AbortSignal } = {},
   ): Promise<T | ExecutorMcpFailure> => {
     let spec: ExecutorLocalMcpServer
     try {
@@ -324,9 +309,6 @@ export const createExecutorMcpSessionManager = (
     } catch (error) {
       return denied(error as ExecutorMcpServerError)
     }
-    // A cached process is no exception: every call and passive catalogue read
-    // must still name eligible private authority once protection is active.
-    if (!isTrustedCodingControlBridge(spec)) await personalGuard.assertExecutionAuthority(options.authority)
     if (stopping > 0) return unavailable(`The MCP server "${server}" is not started: this team is stopping.`, 'not_probed')
     options.signal?.throwIfAborted()
     let teardown: Promise<void> | undefined
@@ -347,7 +329,7 @@ export const createExecutorMcpSessionManager = (
     }
     options.signal?.addEventListener('abort', cancel, { once: true })
     try {
-      const active = await sessionFor(spec, options.authority)
+      const active = await sessionFor(spec)
       if (options.signal?.aborted) {
         cancel()
         options.signal.throwIfAborted()
@@ -380,16 +362,15 @@ export const createExecutorMcpSessionManager = (
 
 
   return {
-    listTools: (server, cursor, signal, authority) => withSession(server, async (session) => {
+    listTools: (server, cursor, signal) => withSession(server, async (session) => {
       const catalog = await loadExecutorMcpCatalog(session, server, callTimeoutMs, log)
       // Unreachable: only a probe passes the signal that yields.
       if (catalog === PROBE_YIELDED) return failure('EXECUTOR_MCP_UNAVAILABLE', 'The catalog read was interrupted.')
       if ('code' in catalog) return catalog
       return executorMcpCatalogPage(catalog, cursor, maxResultBytes)
-    }, { signal, authority }),
+    }, { signal }),
     callTool: (server, tool, args, meta, images, signal) => withSession(server, async (session) => {
-      // Custody metadata is consumed by admission. Custom programs receive
-      // their tool arguments, not the owner's private run/identity projection.
+      // Custom programs receive their tool arguments, never the owner's private run and identity projection.
       const requestMeta = meta === undefined ? undefined : { ...meta }
       if (requestMeta && !session.trustedCodingBridge) delete requestMeta['nessie/personal-authority']
       let result
@@ -440,7 +421,7 @@ export const createExecutorMcpSessionManager = (
         }
       }
       return document
-    }, { signal, authority: meta?.['nessie/personal-authority'] }),
+    }, { signal }),
     probe: async (server) => {
       // A probe goes behind every command that is waiting or arrives while it
       // reads the catalog, a bounded number of times; a catalog already read

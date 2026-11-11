@@ -227,17 +227,14 @@ stays. It no longer requires restarting macOS to replace the runtime.
 Replacement clearance checks that the native supervisor, runtime generation and
 runtime process group have ended, and still waits for every live product process.
 It does not claim that an escaped owner program has stopped. Personal activation
-uses a fresh signed native inventory under the retained launch barriers. That
-inventory can attest an ended controller directly from its guard generation,
-even when an old build already removed its creation journal. The guard archives
-each matching host admission, native controller proof and original creation
-journal when present under
-`retired-host-admissions/` before retiring its active authority. A failed archive
-write retains the admission. A live controller or process group, unreadable
-process metadata, another boot or an unmatched generation grants no retirement
-proof. Current-boot journals remain intact until normal creator reconciliation.
-This is the same owner-account boundary as unrelated programs the owner runs,
-not an OS sandbox or a claim that every escaped process ended.
+uses a fresh signed native inventory under the retained launch barriers. After
+1.0.40 the programs agents start are no longer recorded in the plan's guard and
+no longer keep a plan from signing in, so the runtime neither reads nor needs
+the inventory's `retiredHostControllers`; a record an older runtime left is
+dropped at the next sign-in. The native helper still reports them, and removing
+that native code is a follow-up of its own. This is the same owner-account
+boundary as unrelated programs the owner runs, not an OS sandbox or a claim that
+every escaped process ended.
 
 The focused public gate is `pnpm exec turbo run build lint typecheck
 test:runtime-recovery test:updates-native --root-turbo-json=scripts/turbo.public.json

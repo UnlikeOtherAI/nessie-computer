@@ -17,6 +17,7 @@ import type { ChatgptOAuthProvider } from './chatgpt-oauth-provider.js'
 import { reconcileStoppedChatgptReceipts } from './chatgpt-profile-outbox.js'
 import { readChatgptBackgroundConsent } from './chatgpt-background-consent.js'
 import { watchInferenceUpdateDrain } from './updates/inference-drain.js'
+import { shareChatgptAuthority } from './chatgpt-shared-authority.js'
 
 const fail = (): never => { throw new PersonalInferenceProtectionError('chatgpt_host_authority_unavailable') }
 
@@ -27,7 +28,9 @@ export const runProfileChatgptHost = async (input: {
   oauth?: Pick<ChatgptOAuthProvider, 'refresh'>
   backendOptions?: Parameters<typeof createChatgptBackend>[1]
 }): Promise<string | undefined> => {
-  const context = await input.renewAuthority()
+  // One owner/team check serves the five-second timer and every credential lease.
+  const authority = shareChatgptAuthority(input.renewAuthority)
+  const context = await authority.fresh()
   const api = createLocalInferenceDaemonApi({ apiBaseUrl: context.principal.serverOrigin })
   const challenge = await api.issueChallenge({ hostId: context.hostId })
   const body = { challenge: challenge.challenge }
@@ -37,7 +40,7 @@ export const runProfileChatgptHost = async (input: {
       organizationId: context.principal.organizationId, connectionEpoch: context.hostConnectionEpoch,
       executorConnectionEpoch: context.connectionEpoch, sentAt: new Date().toISOString(), sequence: 1,
     } }) })
-  const claimed = await input.renewAuthority()
+  const claimed = await authority.fresh()
   if (claimed.hostId !== context.hostId || claimed.hostConnectionEpoch !== claim.connectionEpoch
     || claimed.connectionEpoch !== context.connectionEpoch
     || claimed.publicKeyFingerprint !== context.publicKeyFingerprint
@@ -69,7 +72,7 @@ export const runProfileChatgptHost = async (input: {
     return { ...prior, revision: prior.revision + 1, phase: 'ready', reason: null, planEnabled: true,
       restartAfterUpdate: undefined }
   })
-  const auth = createProfileChatgptAuthProvider({ ...input, context: claimed,
+  const auth = createProfileChatgptAuthProvider({ ...input, context: claimed, renewAuthority: authority.recent,
     assertInvocationPrepared: attempt => custody.assertInvocationPrepared(attempt) })
   const session = startLocalInferenceHostSession({ apiBaseUrl: claimed.principal.serverOrigin,
     identity: { connectionEpoch: claim.connectionEpoch, executorConnectionEpoch: claimed.connectionEpoch,
@@ -97,7 +100,7 @@ export const runProfileChatgptHost = async (input: {
     await session.heartbeat()
     timer = setInterval(() => {
       working ??= (async () => {
-        const live = await input.renewAuthority()
+        const live = await authority.fresh()
         if (live.connectionEpoch !== claimed.connectionEpoch || live.hostConnectionEpoch !== claim.connectionEpoch
           || live.publicKeyFingerprint !== claimed.publicKeyFingerprint
           || canonicalExecutorJson(live.principal) !== canonicalExecutorJson(claimed.principal)) return fail()

@@ -14,7 +14,6 @@ import { createCodingBridge as createManagedBridge, type CodingBridge } from './
 import { readSessionConversation } from './session-view.js'
 import { sessionUserAction } from '../session-user-action.js'
 import { openFirst } from './session-report.js'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
 export type { CodingBridge, CodingBridgeCallMeta } from './managed-bridge.js'
 
@@ -27,10 +26,8 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   process.stdin.once('end', () => { void existing.close() })
   return { rewriter: managed.rewriter, call: async (tool, value, meta) => {
     if (tool === 'session_user_action' && meta.daemonControl) {
-      const receipt = await sessionUserAction(value, dirname(loaded.configPath), managed, async (...args) => {
-        await assertPersonalHostExecution()
-        return existing.send(...args)
-      })
+      const receipt = await sessionUserAction(value, dirname(loaded.configPath), managed,
+        (...args) => existing.send(...args))
       return { receipt }
     }
     if (tool === 'session_inventory') {
@@ -101,7 +98,6 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       return { ...result, ...page, sessions: [...sessions, ...(cursor ? [] : result.sessions as unknown[])] }
     }
     if (tool === 'session_queue' || tool === 'session_push' || tool === 'session_steer') {
-      await assertPersonalHostExecution(meta.personalAuthority)
       const args = argumentsFor(value, ['sessionId', 'message', 'expectedTurnId'])
       if (!meta.commandId) throw new CodingBridgeError('coding_session_command_missing', 'Nessie must supply a command ID.')
       return project(await existing.send(tool.slice(8), sessionIdArgument(args.sessionId),

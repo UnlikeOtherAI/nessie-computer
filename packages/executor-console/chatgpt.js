@@ -30,7 +30,6 @@ window.chatgptDialog = (() => {
     <p id="chatgpt-status" role="status" data-state-status></p>
     <label id="chatgpt-profile-label" for="chatgpt-profile"></label>
     <select id="chatgpt-profile"></select>
-    <label class="toggle" id="chatgpt-restriction-row"><input id="chatgpt-restriction" type="checkbox"><span id="chatgpt-restriction-copy"></span></label>
     <div class="actions chatgpt-actions">
       <button type="button" id="chatgpt-start" class="primary"></button>
       <button type="button" id="chatgpt-cancel"></button>
@@ -65,11 +64,9 @@ window.chatgptDialog = (() => {
     byId('chatgpt-start').setAttribute('aria-describedby', 'chatgpt-status')
     const pending = ['signing_in', 'disconnecting'].includes(phase)
     byId('chatgpt-start').hidden = pending || phase === 'ready'
-    byId('chatgpt-start').disabled = busy || readFailed || !view || !byId('chatgpt-restriction').checked
-      || Boolean(newId && !byId('chatgpt-name').value.trim())
+    byId('chatgpt-start').disabled = busy || readFailed || !view || Boolean(newId && !byId('chatgpt-name').value.trim())
     byId('chatgpt-rename').hidden = !current
     byId('chatgpt-rename').disabled = busy || !byId('chatgpt-name').value.trim() || byId('chatgpt-name').value.trim() === current?.label
-    byId('chatgpt-restriction-row').hidden = pending || phase === 'ready'
     byId('chatgpt-cancel').hidden = phase !== 'signing_in' || !current?.operationId
     byId('chatgpt-disconnect').hidden = !current || ['disconnected', 'unavailable'].includes(phase)
     // Background work is kept: off until allowed here, with its revision fencing each change.
@@ -134,12 +131,10 @@ window.chatgptDialog = (() => {
     readFailed = false
     busy = false
     byId('chatgpt-profile').replaceChildren()
-    byId('chatgpt-restriction').checked = false
     byId('chatgpt-title').textContent = newId ? t('newTitle') : t('title')
     byId('chatgpt-name').value = newId ? nc.t('ai.planName', { n: number }) : ''
     byId('chatgpt-team').textContent = nc.team.label(nc.team.teamOf(executorId))
-    for (const [id, key] of [['profile-label', 'profileLabel'], ['restriction-copy', 'restriction'],
-      ['start', 'start'], ['cancel', 'cancel'], ['disconnect', 'disconnect'], ['refresh', 'refresh'],
+    for (const [id, key] of [['profile-label', 'profileLabel'], ['start', 'start'], ['cancel', 'cancel'], ['disconnect', 'disconnect'], ['refresh', 'refresh'],
       ['usage', 'usage'], ['close', 'close']]) byId(`chatgpt-${id}`).textContent = t(key)
     disclosure.set(t('disclosure'))
     backgroundHelp.set(t('background'))
@@ -155,7 +150,6 @@ window.chatgptDialog = (() => {
     timer = setInterval(() => { if (dialog.open) void check() }, 5000)
   }
   const act = (payload) => operation(payload)
-  byId('chatgpt-restriction').onchange = render
   byId('chatgpt-name').oninput = () => { nameDirty = true; render() }
   byId('chatgpt-rename').onclick = () => act({ operation: 'rename', profileId: profile().profileId, label: byId('chatgpt-name').value.trim() })
   byId('chatgpt-profile').onchange = () => {
@@ -164,6 +158,8 @@ window.chatgptDialog = (() => {
     render()
   }
   byId('chatgpt-refresh').onclick = () => act({ operation: 'status' })
+  // `acknowledgeHostRestriction` is still sent: the native bridges and runtimes through 1.0.40
+  // refuse a start without it.
   byId('chatgpt-start').onclick = () => act({ operation: 'start', acknowledgeHostRestriction: true,
     ...(newId ? { newProfileId: newId, label: byId('chatgpt-name').value.trim() } : profile() ? { profileId: profile().profileId } : {}) })
   byId('chatgpt-cancel').onclick = () => act({ operation: 'cancel', operationId: profile().operationId })
