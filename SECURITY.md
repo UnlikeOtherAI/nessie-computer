@@ -61,6 +61,15 @@ to program requests. Nothing records the programs agents start in the plan's
 guard any more; a record an older version left is dropped at the next sign-in.
 Live Nessie runtimes of another version still refuse a sign-in.
 
+On Windows the background service keeps plan sign-ins under its own account.
+Programs a team starts under your account cannot read them at all. Programs
+started by a team the background service runs use that same account and can:
+on a computer more than one person uses, such a team's agents can therefore
+reach another person's plan sign-in there. One computer still holds plans for
+one owner only. A computer shared between owners that needs this kept apart
+must not give a service-run team programs; a fence for that one case is not
+built.
+
 On Windows, custody also refuses any `nessie-computer` or `nessie-executor`
 launcher (and the old Desktop app) in a folder on the user or machine PATH, so
 a stray npm or hand-made wrapper cannot run the CLI outside the managed
