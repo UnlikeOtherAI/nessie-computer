@@ -209,10 +209,13 @@ mod tests {
         let directory = root.path().join("managed-runtimes");
         std::fs::create_dir(&directory).unwrap();
         let boot = managed_runtime_context::boot_id().unwrap();
-        let mut ended = std::process::Command::new("/bin/cat").stdin(std::process::Stdio::piped())
+        let mut ended = std::process::Command::new("/bin/sh").args(["-c", "IFS= read -r line"])
+            .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::null()).spawn().unwrap();
         let ended_pid = ended.id() as i32;
         let ended_birth = managed_runtime_context::birth(ended_pid).unwrap();
+        // A release byte does not depend on unrelated forked tests closing inherited writers.
+        std::io::Write::write_all(ended.stdin.as_mut().unwrap(), b"release\n").unwrap();
         drop(ended.stdin.take());
         ended.wait().unwrap();
         let own = unsafe { libc::getpid() };

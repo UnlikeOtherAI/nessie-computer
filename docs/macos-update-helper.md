@@ -402,3 +402,8 @@ reading, so opening the window during a hold does not start another pairing.
 After the hold, pairing status, names and team descriptions refresh normally.
 These reads are runtime processes too; launching them during the helper’s
 brief installation window can keep the older factory busy for the whole try.
+
+The native process-lifetime fixtures release children with explicit pipe messages,
+not EOF: concurrent fork-based tests can inherit another test's writer and retain
+EOF indefinitely. This is test synchronization only; it does not alter runtime
+inventory, admission retirement or installed credential eligibility.
