@@ -53,6 +53,8 @@
     const show = (on) => {
       if (on && pinned && pinned !== wrap) pinned.show(false)
       tip.hidden = !on
+      // A tip that opened under a resting pointer never takes a click meant for the button beneath it.
+      tip.classList.toggle('pinned', on && pinned === wrap)
       button.setAttribute('aria-expanded', String(on))
       if (on) place(wrap, tip)
       else if (pinned === wrap) pinned = null
