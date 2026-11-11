@@ -6,7 +6,7 @@ const accessEnglish = {
   sections: { folders: 'Folders', programs: 'Programs', websites: 'Websites', localApps: 'Local apps', coding: 'Coding assistants' },
   folders: {
     intro: 'Agents in {team} can read these folders and prepare changes for you to approve.',
-    agentsUse: 'Agents call it {name}', add: 'Add folder…', remove: 'Remove', removeLabel: 'Stop sharing {folder} with {team}',
+    add: 'Add folder…', remove: 'Remove', removeLabel: 'Stop sharing {folder} with {team}',
     last: 'Keep at least one folder. To end this team’s access, disconnect it in Settings.',
   multiple: 'Agents’ browser, sandboxed commands and coding sessions here need exactly one folder.',
   },
@@ -66,7 +66,7 @@ const accessByLocale = {
     sections: { folders: 'Složky', programs: 'Programy', websites: 'Weby', localApps: 'Místní aplikace', coding: 'Kódovací asistenti' },
     folders: {
       intro: 'Agenti v týmu {team} mohou číst tyto složky a připravovat změny, které schválíte.',
-      agentsUse: 'Agenti ji nazývají {name}', add: 'Přidat složku…', remove: 'Odebrat', removeLabel: 'Přestat sdílet {folder} s týmem {team}',
+      add: 'Přidat složku…', remove: 'Odebrat', removeLabel: 'Přestat sdílet {folder} s týmem {team}',
       last: 'Ponechte alespoň jednu složku. Přístup tohoto týmu ukončíte odpojením v Nastavení.',
     multiple: 'Prohlížeč agentů, izolované příkazy a kódovací relace zde vyžadují přesně jednu složku.',
     },
@@ -122,7 +122,7 @@ const accessByLocale = {
     sections: { folders: 'Ordner', programs: 'Programme', websites: 'Websites', localApps: 'Lokale Apps', coding: 'Coding-Assistenten' },
     folders: {
       intro: 'Agenten in {team} können diese Ordner lesen und Änderungen vorbereiten, die Sie freigeben.',
-      agentsUse: 'Agenten nennen ihn {name}', add: 'Ordner hinzufügen…', remove: 'Entfernen', removeLabel: '{folder} nicht mehr mit {team} teilen',
+      add: 'Ordner hinzufügen…', remove: 'Entfernen', removeLabel: '{folder} nicht mehr mit {team} teilen',
       last: 'Behalten Sie mindestens einen Ordner. Um den Zugriff dieses Teams zu beenden, trennen Sie es in den Einstellungen.',
     multiple: 'Browser der Agenten, Sandbox-Befehle und Coding-Sitzungen brauchen hier genau einen Ordner.',
     },
@@ -178,7 +178,7 @@ const accessByLocale = {
     sections: { folders: 'Carpetas', programs: 'Programas', websites: 'Sitios web', localApps: 'Apps locales', coding: 'Asistentes de código' },
     folders: {
       intro: 'Los agentes de {team} pueden leer estas carpetas y preparar cambios para que los apruebes.',
-      agentsUse: 'Los agentes la llaman {name}', add: 'Añadir carpeta…', remove: 'Quitar', removeLabel: 'Dejar de compartir {folder} con {team}',
+      add: 'Añadir carpeta…', remove: 'Quitar', removeLabel: 'Dejar de compartir {folder} con {team}',
       last: 'Conserva al menos una carpeta. Para terminar el acceso de este equipo, desconéctalo en Ajustes.',
     multiple: 'El navegador de los agentes, los comandos aislados y las sesiones de código necesitan aquí exactamente una carpeta.',
     },
@@ -234,7 +234,7 @@ const accessByLocale = {
     sections: { folders: 'Dossiers', programs: 'Programmes', websites: 'Sites web', localApps: 'Apps locales', coding: 'Assistants de code' },
     folders: {
       intro: 'Les agents de {team} peuvent lire ces dossiers et préparer des modifications que vous approuvez.',
-      agentsUse: 'Les agents l’appellent {name}', add: 'Ajouter un dossier…', remove: 'Retirer', removeLabel: 'Ne plus partager {folder} avec {team}',
+      add: 'Ajouter un dossier…', remove: 'Retirer', removeLabel: 'Ne plus partager {folder} avec {team}',
       last: 'Gardez au moins un dossier. Pour mettre fin à l’accès de cette équipe, déconnectez-la dans Réglages.',
     multiple: 'Le navigateur des agents, les commandes isolées et les sessions de code nécessitent ici exactement un dossier.',
     },
@@ -290,7 +290,7 @@ const accessByLocale = {
     sections: { folders: 'Cartelle', programs: 'Programmi', websites: 'Siti web', localApps: 'App locali', coding: 'Assistenti di codice' },
     folders: {
       intro: 'Gli agenti di {team} possono leggere queste cartelle e preparare modifiche da farti approvare.',
-      agentsUse: 'Gli agenti la chiamano {name}', add: 'Aggiungi cartella…', remove: 'Rimuovi', removeLabel: 'Smetti di condividere {folder} con {team}',
+      add: 'Aggiungi cartella…', remove: 'Rimuovi', removeLabel: 'Smetti di condividere {folder} con {team}',
       last: 'Tieni almeno una cartella. Per terminare l’accesso di questo team, disconnettilo in Impostazioni.',
     multiple: 'Il browser degli agenti, i comandi isolati e le sessioni di codice qui richiedono esattamente una cartella.',
     },

@@ -5,7 +5,6 @@ import type { CodingProcessControl } from './coding-session/process-control.js'
 import { absoluteDirectory, resolveProgramPath, windowsPathExtensions } from './coding-session/program-path.js'
 import type { CodingProcessIdentity } from './coding-session/types.js'
 import { stopExecutorMcpProcessTree } from './mcp-command-process.js'
-import type { PersonalHostExecutionLease } from './personal-inference-guard.js'
 import type { ExecutorLocalMcpServer } from './mcp-servers.js'
 
 /** What a local app's transport runs, and the containment what it starts is born into. */
@@ -52,7 +51,6 @@ export class GuardedStdioTransport extends StdioClientTransport {
   constructor(
     params: ConstructorParameters<typeof StdioClientTransport>[0],
     private readonly control: CodingProcessControl,
-    private readonly lease: PersonalHostExecutionLease | null,
     private readonly containment?: CodingProcessIdentity['containment'],
   ) { super(params) }
 
@@ -68,52 +66,22 @@ export class GuardedStdioTransport extends StdioClientTransport {
     if (pid === null || pid === undefined) return
     const contained = this.containment ? { containment: this.containment } : {}
     // Keep pid-only evidence if the process exits before its generation can be read.
-    const pendingIdentity = { pid, ...contained }
-    this.processIdentity = pendingIdentity
-    await this.lease?.bindExecution(pendingIdentity)
+    this.processIdentity = { pid, ...contained }
     const identified = await this.control.identify(pid)
-    if (identified) {
-      this.processIdentity = { ...identified, ...contained }
-      await this.lease?.bindExecution(this.processIdentity)
-    }
+    if (identified) this.processIdentity = { ...identified, ...contained }
   }
 }
 
-/** POSIX's positive evidence that nothing was spawned: ENOENT with no pid and no identity. */
-const provedNoSpawn = (transport: GuardedStdioTransport, startErrors: readonly unknown[]): boolean => (
-  // The SDK exposes an absent POSIX child as null. On Windows an already
-  // exited shell wrapper can also lose its pid; that is not no-spawn proof.
-  process.platform !== 'win32'
-  && startErrors.some((error) => (error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT')
-  && (transport.pid === undefined || transport.pid === null) && transport.processIdentity === undefined
-)
-
 /**
- * Ends a local app's admission, on every path out of one: a start that failed,
- * timed out or threw, a crash, an idle or a stopping close. The lease is
- * released once nothing it admitted can still run — no process was asked for,
- * none was spawned, or its tree is proved stopped (a contained start's Job
- * Object, `localAppLaunch`). A stop that cannot be proved keeps the admission
- * (custody) and throws, but first ends the barrier process holding it open
- * (`abandon`), so a retried start never piles them up.
+ * Ends the Job Object a contained local app started in (packaged Windows), on
+ * every path out of one: a start that failed, timed out or threw, a crash, an
+ * idle or a stopping close. Everywhere else the transport's own close ends the
+ * process, and a session bridge's detached hosts are meant to outlive it.
  */
-export const endLocalAppAdmission = async (
-  lease: PersonalHostExecutionLease | null | undefined,
-  transport: GuardedStdioTransport | undefined,
-  control: CodingProcessControl,
-  startErrors: readonly unknown[] = [],
+export const stopLocalApp = async (
+  transport: GuardedStdioTransport | undefined, control: CodingProcessControl,
 ): Promise<void> => {
-  if (!lease) return
   await transport?.starting?.catch(() => undefined)
-  if (!transport?.launched || provedNoSpawn(transport, startErrors)) {
-    await lease.release()
-    return
-  }
-  try {
-    await stopExecutorMcpProcessTree(transport, control, transport.processIdentity)
-  } catch (error) {
-    await lease.abandon?.().catch(() => undefined)
-    throw error
-  }
-  await lease.release()
+  if (!transport?.launched) return
+  await stopExecutorMcpProcessTree(transport, control, transport.processIdentity).catch(() => undefined)
 }

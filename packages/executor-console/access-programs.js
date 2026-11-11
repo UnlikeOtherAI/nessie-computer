@@ -207,6 +207,8 @@
     nodes.undo.hidden = !drafts.has(view.executorId)
     nodes.apply.textContent = t('programs.apply')
     nodes.apply.disabled = !dirty || !ok
+    // With nothing changed the switches above already say what is allowed.
+    nodes.apply.closest('.access-apply').hidden = !dirty && !drafts.has(view.executorId)
   }
 
   access.register('programs', { build, render })

@@ -32,13 +32,13 @@ export const verifyAiLocal = async (browser, ui) => {
         // On by default: installed and signed in is already available to the team's agents.
         const claudeSwitch = page.locator('#ai-local-list .list-row').nth(0).getByRole('switch')
         assert.equal(await claudeSwitch.isChecked(), true)
-        assert.match(await rowText(page, 0), new RegExp(await word(page, 'offered', { team })))
+        // The switch says the team may use it; the row adds only the account.
+        assert.match(await rowText(page, 0), /^Claude Code\s+person@example\.com$/)
         // Switching off saves when pressed, for the team in the dropdown only.
         await claudeSwitch.uncheck()
         assert.deepEqual((await lastCall(page, 'executor_set_local_ai')).args,
           { executorId: 'team-0', engine: 'claude-code', profileId: null, available: false })
-        await page.waitForFunction((text) => !document.querySelector('#ai-local-list .list-row').innerText.includes(text),
-          await word(page, 'offered', { team }))
+        await page.waitForFunction(() => !document.querySelector('#ai-local-list .list-row [role=switch]').checked)
         await selectTeam(page, 'team-1')
         await page.waitForFunction(() => window.calls.filter((call) => call.command === 'executor_local_ai'
           && call.args.executorId === 'team-1').length > 0)
@@ -115,7 +115,7 @@ export const verifyAiLocal = async (browser, ui) => {
     const { context, page, errors } = await openConsole(browser, ui, { host: 'macos', locale, dark: true, paired: 2 })
     await showTab(page, 'ai')
     await page.locator('#ai-local-list .list-row').nth(1).waitFor()
-    await page.waitForFunction(() => document.querySelector('#ai-local-list .list-row').innerText.includes('·'))
+    await page.waitForFunction(() => document.querySelector('#ai-local-list .list-row').innerText.includes('person@example.com'))
     await assertFits(page, `dark ${locale} on this computer`)
     assert.deepEqual(errors, [])
     await context.close()

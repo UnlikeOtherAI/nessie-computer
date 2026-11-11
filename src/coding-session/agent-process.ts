@@ -7,9 +7,7 @@ import { codingProcessIsAlive, type CodingProcessControl } from './process-contr
 import type { Projector } from './projection.js'
 import { rotateLogIfLarge, type CodingSessionPaths } from './session-files.js'
 import type { CodingEventBody, CodingProcessIdentity, CodingSessionState } from './types.js'
-import { admitPersonalHostExecution } from '../personal-host-execution.js'
 import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
-import type { PersonalInferenceGuard } from '../personal-inference-guard.js'
 import type { SessionRequestBook } from './session-request-book.js'
 import type { SessionSecretServer } from './session-secret-server.js'
 
@@ -37,7 +35,6 @@ export type AgentDriverContext = {
   state: () => CodingSessionState
   log: (message: string) => void
   personalAuthority?: PersonalInferenceAuthority
-  personalGuard?: PersonalInferenceGuard
   /** What the agent waits on its owner for; the driver opens requests here and answers its provider. */
   requests: SessionRequestBook
   /** The `request_secret` MCP server the agent is given. */
@@ -63,7 +60,6 @@ export class AgentStartError extends Error {
 }
 
 export type AgentProcess = {
-  confirmHostExecutionStopped?: (snapshot?: readonly CodingProcessIdentity[]) => Promise<boolean>
   identity: CodingProcessIdentity
   write: (text: string) => void
   endInput: () => void
@@ -95,26 +91,19 @@ export const agentFailureReason = (lines: readonly string[]): string => {
 }
 
 export const startAgentProcess = async (
-  context: Pick<AgentDriverContext, 'control' | 'env' | 'folder' | 'paths' | 'log' | 'personalAuthority' | 'personalGuard'>,
+  context: Pick<AgentDriverContext, 'control' | 'env' | 'folder' | 'paths' | 'log'>,
   argv: readonly string[],
   onLine: (line: string) => void,
 ): Promise<AgentProcess> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
-  const protectionLease = await admitPersonalHostExecution('coding/terminal', context.personalAuthority, context.personalGuard)
-  let child: ChildProcess
-  try {
-    await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
-    child = context.control.spawnAgent(argv[0]!, argv.slice(1), { cwd: context.folder, env: context.env })
-  }
-  catch (error) { await protectionLease?.release(); throw error }
+  await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
+  const child: ChildProcess = context.control.spawnAgent(argv[0]!, argv.slice(1),
+    { cwd: context.folder, env: context.env })
   const spawned = await new Promise<boolean>((settle) => {
     child.once('spawn', () => settle(true))
     child.once('error', () => settle(false))
   })
-  if (!spawned || child.pid === undefined) {
-    if (child.pid === undefined) await protectionLease?.release()
-    throw new AgentStartError('agent_missing')
-  }
+  if (!spawned || child.pid === undefined) throw new AgentStartError('agent_missing')
   let done = false
   // `close` means stdout has been read to the end, so the turn's last line is
   // parsed first. A descendant still holding the pipe would delay it forever,
@@ -147,7 +136,6 @@ export const startAgentProcess = async (
   void ended.then(() => log.end())
   child.stdin?.on('error', () => undefined)
   if (child.stdout) createInterface({ input: child.stdout }).on('line', onLine)
-  await protectionLease?.bindExecution({ pid: child.pid })
   // Through the agent guard this is the agent's own identity, which the guard reports; otherwise the child's.
   const identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid))
   if (!identity) {
@@ -156,21 +144,9 @@ export const startAgentProcess = async (
     const exitedOnItsOwn = done || !codingProcessIsAlive(child.pid)
     if (!done) child.kill('SIGKILL')
     await ended
-    // Unknown descendants keep their registration; never call release here.
     throw new AgentStartError(exitedOnItsOwn ? agentFailureReason(tail) : 'containment_failed')
   }
   if (context.control.containment) identity.containment = context.control.containment
-  try { await protectionLease?.bindExecution(identity) }
-  catch (error) { await context.control.killTree(identity).catch(() => undefined); throw error }
-  let released = false
-  const confirmHostExecutionStopped = async (snapshot: readonly CodingProcessIdentity[] = []): Promise<boolean> => {
-    if (released) return true
-    // The legacy killTree's void completion is deliberately never a release proof.
-    if (!context.control.stopTree || await context.control.stopTree(identity, snapshot) !== 'stopped') return false
-    await protectionLease?.release()
-    released = true
-    return true
-  }
   // Through the agent guard the process this host started is the guard, not the
   // agent. A guard that ends while this host lives — killed, or out of memory —
   // leaves an agent nobody watches (on POSIX it runs on in a group of its own,
@@ -183,11 +159,9 @@ export const startAgentProcess = async (
     if (context.control.identifySpawned && codingProcessIsAlive(identity.pid)) {
       await context.control.killTree(identity).catch(() => undefined)
     }
-    if (protectionLease) await confirmHostExecutionStopped().catch(() => false)
     return result
   })
   return {
-    ...(protectionLease ? { confirmHostExecutionStopped } : {}),
     identity,
     write: (text) => {
       if (!done && child.stdin?.writable) child.stdin.write(text)

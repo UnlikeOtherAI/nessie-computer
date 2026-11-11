@@ -144,9 +144,9 @@ export const runAiPlans = async (run: CliRun): Promise<void> => {
     if (rest.length > 1) throw new CliUsageError(`Give one plan name, in quotes when it has spaces: ai plans ${action} "Work plan".`, 'ai plans')
     if (!confirmed) await confirmRestriction(run)
     operation = action === 'add'
-      ? { operation: 'start', acknowledgeHostRestriction: true, newProfileId: randomUUID(),
+      ? { operation: 'start', newProfileId: randomUUID(),
         label: rest[0] ?? `ChatGPT plan ${current.profiles.length + 1}` }
-      : { operation: 'start', acknowledgeHostRestriction: true, profileId: plan().profileId }
+      : { operation: 'start', profileId: plan().profileId }
   } else if (action === 'rename') {
     if (rest.length !== 2) throw new CliUsageError('Use ai plans rename <plan> "<new name>".', 'ai plans')
     operation = { operation: 'rename', profileId: plan().profileId, label: rest[1] }

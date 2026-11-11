@@ -125,7 +125,8 @@
               draft.workspaceFolders = draft.workspaceFolders.filter((entry) => entry.name !== folder.name)
             } }), { 'aria-label': t('folders.removeLabel', { folder: folderLabel(folder.path), team: label }) })
             remove.disabled = input.workspaceFolders.length === 1
-            list.append(access.row({ name: folderLabel(folder.path), detail: `${folder.path} · ${t('folders.agentsUse', { name: folder.name })}`, control: remove, key: folder.name }))
+            list.append(access.row({ name: folderLabel(folder.path), detail: folder.path, control: remove,
+              key: folder.name }))
           }
         }, () => add)
       },

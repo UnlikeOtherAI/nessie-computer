@@ -18,8 +18,6 @@ import { profileBackgroundConsent, setChatgptBackgroundConsent } from './chatgpt
 import { resolveChatgptLocalOperation } from './chatgpt-local-operation.js'
 import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
 import { publicChatgptFailure } from './chatgpt-public-failure.js'
-import { currentKernelBootId } from './kernel-boot.js'
-import { hasKnownLiveHostExecution } from './personal-host-session-state.js'
 
 type Operation = ReturnType<typeof PersonalChatgptConsoleOperationSchema.parse>
 const usage = (): never => {
@@ -43,17 +41,8 @@ const readOperation = async (stateDirectory: string, local: boolean): Promise<Op
 
 const preflight = async (stateDirectory: string, intent: PersonalChatgptConnectIntent): Promise<void> => {
   await matchingChatgptPairing(stateDirectory, intent)
-  const guard = PersonalInferenceGuard.open()
-  if (await hasKnownLiveHostExecution((await guard.status()).registrations, await currentKernelBootId())) {
-    throw new PersonalInferenceProtectionError('personal_inference_incompatible_sessions')
-  }
-  await withManagedRuntimeInventory(async inventory => {
-    await guard.retireHostAdmissions(inventory.retiredHostControllers ?? [])
-    const status = await guard.status()
-    if (status.registrations.some(item => item.kind === 'host_execution')) {
-      throw new PersonalInferenceProtectionError('personal_inference_incompatible_sessions')
-    }
-  })
+  // Sign-in opens a browser; a runtime that cannot be verified is said so first.
+  await withManagedRuntimeInventory(async () => undefined)
 }
 const reconcile = async (store: ChatgptProfileStore, profile: ChatgptProfileRecord): Promise<ChatgptProfileRecord> => {
   // An update restart keeps its original operation and consent. Status may
@@ -123,8 +112,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
       }
     } else {
       await matchingChatgptPairing(stateDirectory, operation.intent)
-      if (operation.operation === 'start' && operation.acknowledgeHostRestriction === true
-        && ['linux', 'darwin', 'win32'].includes(process.platform)) {
+      if (operation.operation === 'start' && ['linux', 'darwin', 'win32'].includes(process.platform)) {
         await preflight(stateDirectory, operation.intent)
         await PersonalInferenceGuard.open().initialize()
         // One console/start handoff across pairings. Reload selected scope
@@ -197,8 +185,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         }
         catch { /* A live actor already owns this profile and observes the disconnect fence. */ }
       } else {
-        if (operation.acknowledgeHostRestriction !== true) reason = 'host_restriction_acknowledgement_required'
-        else if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
+        if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
         else {
           const active = operation.newProfileId ? scoped.find(item => item.profileId === operation.newProfileId)
             : operation.intent.profileId ? scoped[0]

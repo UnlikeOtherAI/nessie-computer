@@ -40,12 +40,12 @@ window.aiLocal = (() => {
   const engineName = (row) => (row.name ? t('withName', { engine: t(`engines.${row.engine}`), name: row.name })
     : t(`engines.${row.engine}`))
 
-  const detail = (row, team) => {
+  const detail = (row) => {
     if (!row.installed) return t('notInstalled')
     if (!row.signedIn) return row.profileId ? t('signedOutAccount') : t('signedOut', { program: PROGRAMS[row.engine] })
     const account = row.account ?? t('signedIn')
-    if (!row.available) return account
-    return `${account} · ${row.offered === 'yes' ? t('offered', { team }) : t('notYet')}`
+    // The switch says whether the team may use it; only what stands in its way is added.
+    return row.available && row.offered !== 'yes' ? `${account} · ${t('notYet')}` : account
   }
 
   const button = (label, name, action) => {
@@ -70,7 +70,7 @@ window.aiLocal = (() => {
       label.className = 'list-name'
       label.textContent = name
       const small = document.createElement('small')
-      small.textContent = detail(row, team)
+      small.textContent = detail(row)
       label.append(small)
       node.append(label)
       if (row.profileId && !row.signedIn && row.installed) {
@@ -81,11 +81,6 @@ window.aiLocal = (() => {
         disabled: !row.installed, onchange: (checked, input) => nc.attempt(() => change(executorId,
           'executor_set_local_ai', { engine: row.engine, profileId: row.profileId, available: checked }),
         { target: input }) }))
-      const caption = document.createElement('span')
-      caption.className = 'switch-caption'
-      caption.textContent = t('makeAvailable')
-      caption.setAttribute('aria-hidden', 'true')
-      node.lastChild.prepend(caption)
       list.append(node)
     }
     const add = byId('ai-local-add')

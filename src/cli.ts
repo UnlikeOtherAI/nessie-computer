@@ -16,6 +16,7 @@ import { runSessionsCommand } from './session-cli.js'
 import { ExecutorApiError } from './api-client.js'
 import { localCommandPolicyOf, type LocalCommandPolicy } from './command-policy.js'
 import { serveExecutor } from './daemon-server.js'
+import { stampDaemonLog } from './daemon-log-time.js'
 import { describeTeam } from './cli-describe.js'
 import { teamPaused } from './cli-teams.js'
 import { isUserCommand, runUserCli } from './cli-user.js'
@@ -389,6 +390,7 @@ export const run = async (args: string[]): Promise<void> => {
   // A packaged daemon proves its release integrity before it serves anything;
   // outside a package this is a no-op (see runtime-integrity.ts).
   await assertPackagedExecutorRuntime()
+  stampDaemonLog()
   await serveExecutor(command.stateDir, state, {
     ...(command.parentLivenessFromStandardInput ? { parentLiveness: process.stdin } : {}),
   })

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 import { stat, unlink } from 'node:fs/promises'
 
 import { buildAgentEnvironment } from './agent-env.js'
@@ -211,7 +210,6 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   /** An interrupt still waiting for its turn to end, and which turn that is. */
   let pendingInterrupt: { at: number; turn: number; reason?: string } | undefined
   const prepare = async (): Promise<AgentDriver> => {
-    await assertPersonalHostExecution(meta.personalAuthority)
     if (driver) return driver
     if (!await lock.stillOurs()) throw new AgentStartError('host_superseded')
     const terminal = meta.agent === 'terminal'

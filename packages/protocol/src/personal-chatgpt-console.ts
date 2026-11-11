@@ -70,8 +70,9 @@ export const PersonalChatgptConsoleOperationSchema = z.discriminatedUnion('opera
 /** Bundled console names only its selected connection; the CLI resolves scope locally. */
 export const PersonalChatgptLocalOperationSchema = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('status'), profileId: z.string().uuid().optional() }).strict(),
+  // `acknowledgeHostRestriction` is what apps through 1.0.40 send; it is read and means nothing.
   z.object({ operation: z.literal('start'), profileId: z.string().uuid().optional(),
-    acknowledgeHostRestriction: z.boolean(), newProfileId: z.string().uuid().optional(),
+    acknowledgeHostRestriction: z.boolean().optional(), newProfileId: z.string().uuid().optional(),
     label: ConnectionName.optional() }).strict(),
   z.object({ operation: z.literal('rename'), profileId: z.string().uuid(), label: ConnectionName }).strict(),
   z.object({ operation: z.literal('cancel'), operationId: z.string().uuid() }).strict(),

@@ -9,9 +9,8 @@ export const verifyChatgptDialog = async (browser, ui, output) => {
       await showTab(page, 'ai')
       await page.locator('#ai-add-chatgpt').click()
       await page.locator('#chatgpt-name').fill('ChatGPT OR Main')
-      await page.locator('#chatgpt-restriction').check()
       // Every closed protocol reason is translated and announced as an error.
-      // Checking again never loses the name or the person's acknowledgement.
+      // Checking again never loses the name.
       const reasons = await page.evaluate(() => Object.keys(window.chatgptDialog.reasons).filter((reason) => reason !== 'other'))
       for (const reason of [...reasons, 'future_reason']) {
         await page.evaluate((value) => { window.chatgptReason = value }, reason)
@@ -28,7 +27,6 @@ export const verifyChatgptDialog = async (browser, ui, output) => {
         assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
         assert.equal(await page.locator('#chatgpt-status').textContent(), expected)
         assert.equal(await page.locator('#chatgpt-name').inputValue(), 'ChatGPT OR Main')
-        assert.equal(await page.locator('#chatgpt-restriction').isChecked(), true)
         await assertFits(page, `${locale} ${size} ${reason}`)
         if (locale === 'en-GB' && ['runtime_inventory_unknown', 'deployment_ineligible'].includes(reason)) {
           await screenshot(page, output, `chatgpt-${reason}-${size}`)
