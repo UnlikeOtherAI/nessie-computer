@@ -127,12 +127,17 @@ export class IMessageBridge {
     if (!parsed.success) return
     const before = this.state()
     const wasOn = this.switchState?.enabled === true
+    // Only a switch turned on, or turned on again from a new moment, starts a pass:
+    // every answer repeats the switch, and a refused batch must wait for the sweep.
+    const turnedOn = parsed.data.enabled && (!wasOn || this.switchState?.since !== parsed.data.since)
     this.heardFromNessie = true
     this.switchState = parsed.data
     if (parsed.data.enabled) {
       this.startWatching()
-      if (!wasOn) this.lastProbeAt = 0
-      this.kick()
+      if (turnedOn) {
+        this.lastProbeAt = 0
+        this.kick()
+      }
     } else {
       this.stopWatching()
     }
