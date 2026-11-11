@@ -69,6 +69,10 @@ supervisor only after that daemon released its runtime registration, no
 credential protection remains, and every bound host execution is proved ended.
 A runtime or credential registration, unknown process, unresolved execution or
 invalid metadata leaves the daemon untouched. There is no signal escalation.
+Once a completed daemon receives that request, adoption keeps its durable
+drain instead of returning to the healthy old factory after one minute. The
+old native supervisor may still be settling its process inventory; new teams
+must not restart the old factory meanwhile.
 The request grants no clearance: adoption still independently waits for all
 required processes to exit and preserves journals and admission history.
 

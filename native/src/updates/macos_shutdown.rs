@@ -36,8 +36,9 @@ fn released(uid: u32, root: &Path, record: &Record) -> UpdateResult<bool> {
 /// Called only by application adoption under the machine launch barrier.
 /// Serve registers before accepting work and releases after all cleanup.
 /// The helper never signals a daemon that still holds that registration.
-pub(super) fn request_completed() -> UpdateResult<()> {
+pub(super) fn request_completed() -> UpdateResult<bool> {
     unix_runtime::privileged()?;
+    let mut requested = false;
     for (uid, root) in unix_clearance::roots()? {
         for record in unix_clearance::records(uid, &root)? {
             if record.activity.as_deref() != Some("serve") || !released(uid, &root, &record)? { continue; }
@@ -52,13 +53,14 @@ pub(super) fn request_completed() -> UpdateResult<()> {
             macos_provenance::require_process(parent.pid).map_err(|_| ERROR)?;
             if !released(uid, &root, &record)? || !unix_process::same_generation(&child)?
                 || !unix_process::same_generation(&parent)? { continue; }
+            requested = true;
             // No signal escalation, journal deletion or assumed termination.
             // The normal inventory must independently observe both processes gone.
             if unsafe { libc::kill(parent.pid, libc::SIGTERM) } != 0
                 && std::io::Error::last_os_error().raw_os_error() != Some(libc::ESRCH) { return Err(ERROR); }
         }
     }
-    Ok(())
+    Ok(requested)
 }
 
 #[cfg(test)]

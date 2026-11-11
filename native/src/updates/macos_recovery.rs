@@ -59,7 +59,14 @@ fn attempt(coordinator: &Coordinator, bundle: &Bundle, process: &Process) -> Upd
         return Ok(true);
     }
     // An older daemon may have completed shutdown but retained an idle transport.
-    super::macos_shutdown::request_completed()?;
+    if super::macos_shutdown::request_completed()? {
+        // A positively drained daemon was asked to finish. Keep admissions
+        // fenced while its native supervisor settles, rather than give the
+        // old factory new teams after the ordinary healthy-factory budget.
+        let mut maintenance = admission_unix::read()?;
+        maintenance.draining = true;
+        admission_unix::write(&maintenance)?;
+    }
     // The menu app stays: only the factory changes, never the app bundle.
     if !unix_clearance::ready_with(true, Some(process))? {
         return Ok(false);
@@ -88,7 +95,8 @@ pub(super) fn application_runtime(store: &Store) -> UpdateResult<()> {
         attempts += 1;
         // Admissions held for nothing newer than this app: no team can start
         // anyway, so keep trying instead of returning to the stuck worker.
-        if !persistent && attempts >= BRIEF_ATTEMPTS {
+        if !persistent && attempts >= BRIEF_ATTEMPTS
+            && !matches!(plan(&coordinator)?, ApplicationPlan::Install { persistent: true }) {
             return Ok(());
         }
         std::thread::sleep(Duration::from_secs(3));
