@@ -60,11 +60,22 @@ OpenAI sign-in failures have separate messages; none falls back to team credits.
 Local scope resolution failures also return these public reasons instead of
 escaping the CLI before its first status frame.
 
-On macOS, acknowledged sign-in briefly holds new team starts and lets idle
-app connections shut down normally before native credential admission. Teams
-resume after the credential handoff. Active commands remain untouched and can
-keep sign-in blocked until they finish. Update adoption and personal sign-in
-have independent holds, so one cannot release the other.
+On macOS, sign-in briefly holds new team starts and the app's own status
+reads, and lets idle team connections shut down normally before native
+credential admission: the inventory refuses when a Nessie runtime starts or
+ends while it is being taken. Teams resume after the credential handoff. A team
+with a running command is left alone, and its command does not keep sign-in
+out: the native inventory on macOS and Linux counts Nessie Computer's own
+runtimes and no longer the programs they started for agents
+(`managed_macos_inventory.rs`, `managed_inventory.rs`). On Linux a plain Node
+program is no longer counted as a runtime either. Update adoption and personal
+sign-in have independent holds, so one cannot release the other.
+
+A plan's host that fails connects again after 3 seconds, then 6, 12, 24 and
+48, then once a minute, and starts over once it has run for a minute
+(`chatgpt-host-retry.ts`). Each connection spends one of the host challenges
+Nessie allows a whole network in ten minutes; retrying every three seconds
+spent them all and took the models of every computer on that network offline.
 
 An expired first login completes the existing credential, receipt and native
 absence proofs before clearing its removed signing key from public metadata.

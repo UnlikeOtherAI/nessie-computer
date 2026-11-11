@@ -69,7 +69,8 @@ computer, and none of them keeps a plan from signing in
 ([security boundaries](../../SECURITY.md)). On macOS and Linux this also ends
 the state the fence could never leave: a program's stop cannot be proved
 there, so every local app that had ever run blocked sign-in until the runtime
-restarted.
+restarted. The native inventory had the same rule a second time, for any
+program still running under a runtime; it went with the fence.
 
 ## 5. Not built: several commands at once
 

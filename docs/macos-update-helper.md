@@ -66,7 +66,8 @@ but left an idle transport open. Under the machine launch barrier, the helper
 verifies its native creation journal, immutable release, publisher and exact
 kernel process generations. It requests normal SIGTERM through the native
 supervisor only after that daemon released its runtime registration, no
-credential protection remains, and every bound host execution is proved ended.
+credential protection remains, and every bound host execution an older version
+recorded is proved ended (versions after 1.0.40 record none).
 A runtime or credential registration, unknown process, unresolved execution or
 invalid metadata leaves the daemon untouched. There is no signal escalation.
 Once a completed daemon receives that request, adoption keeps its durable

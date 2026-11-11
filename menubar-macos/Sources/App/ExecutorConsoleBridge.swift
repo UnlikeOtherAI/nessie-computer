@@ -140,7 +140,7 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
                 )
             }
             let data: Data
-            if operation["operation"] as? String == "start", operation["acknowledgeHostRestriction"] as? Bool == true {
+            if operation["operation"] as? String == "start" {
                 data = try await connections.withPersonalSignIn(run)
             } else {
                 data = try await run()

@@ -17,6 +17,7 @@ import { chatgptProfileSource } from './chatgpt-profile-records.js'
 import { acquireOwnerStateLock } from './personal-admission-lock.js'
 import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
 import { runProfileChatgptHost } from './chatgpt-profile-host.js'
+import { chatgptHostRetryDelayMs, nextChatgptHostFailures } from './chatgpt-host-retry.js'
 import { clearChatgptOutboxKeys } from './chatgpt-profile-outbox.js'
 import type { createChatgptBackend } from './chatgpt-backend.js'
 import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
@@ -147,7 +148,9 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
       })
     } else {
       if (!key) return refused()
+      let failures = 0
       while (!controller.signal.aborted) {
+        const startedAt = Date.now()
         try {
           const updatedVersion = await runProfileChatgptHost({ runtime, profile, key, renewAuthority: renew,
             signal: controller.signal, oauth, backendOptions: dependencies.backendOptions })
@@ -172,7 +175,9 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
             return { ...prior, revision: prior.revision + 1, phase: 'reconnecting',
               reason: 'connection_unavailable', planEnabled: false }
           })
-          await delay(3000, undefined, { signal: controller.signal }).catch(() => undefined)
+          failures = nextChatgptHostFailures(failures, Date.now() - startedAt)
+          await delay(chatgptHostRetryDelayMs(failures), undefined, { signal: controller.signal })
+            .catch(() => undefined)
         }
       }
     }

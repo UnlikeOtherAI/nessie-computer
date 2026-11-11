@@ -51,7 +51,7 @@ for them.
 4. Back in Nessie Computer the plan shows **Ready**.
 
 On a Mac, idle team connections briefly reconnect while sign-in starts.
-Running commands keep going; wait for them to finish if sign-in is blocked.
+Running commands keep going and do not block sign-in.
 If Safari cannot connect to localhost, return here and start sign-in again:
 that browser attempt has expired. Your connection name is kept.
 
