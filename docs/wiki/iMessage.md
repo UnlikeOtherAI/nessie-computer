@@ -15,14 +15,21 @@ not offer it.
    control Messages. Choose **Allow**. You can change it later under **System
    Settings › Privacy & Security › Automation**.
 4. Messages on the Mac must be signed in to iMessage.
+5. Choose which of your iMessage addresses to use (your phone number unless you
+   pick an email) and where messages go: **Clients and my Personal Assistant**
+   or **Only my Personal Assistant**. If Messages starts new conversations from
+   another address, change **Start new conversations from** in Messages ›
+   Settings › iMessage, or choose that address in Nessie.
 
 The Overview says which of these is still missing.
 
 ## What happens
 
-- iMessages that arrive after you switch it on appear in your Personal
-  Assistant in Nessie, one conversation per chat. Earlier history stays on the
-  Mac.
+- iMessages that arrive after you switch it on appear in Nessie: in Clients, a
+  channel only you can see whose conversations mirror your chats (what you send
+  from your iPhone included), or in your Personal Assistant. Earlier history
+  stays on the Mac.
+- You reply from Clients. Nessie Computer sends it through Messages on the Mac.
 - Photos and files show as a placeholder with the file name. The files stay on
   the Mac.
 - Texts relayed from an iPhone (SMS and RCS) are not brought in.

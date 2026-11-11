@@ -24,8 +24,28 @@ who may send; this file owns what the Mac does. User guide:
   `IMESSAGE_NEEDS_FULL_DISK_ACCESS`, `IMESSAGE_NEEDS_AUTOMATION`,
   `IMESSAGE_NOT_SIGNED_IN`, `IMESSAGE_SEND_FAILED`).
 
+- **The report** also carries the account's `addresses` (phone numbers first),
+  read from `com.apple.madrid` › `IMD-IDS-Aliases` with `plutil`
+  (`imessage/imessage-addresses.ts`), and `newConversationsFrom`: the address
+  of the first message of the newest one-to-one chat the owner began, because
+  Messages keeps "Start new conversations from" nowhere readable.
+- **The switch** carries the owner's chosen `address` and the `mode`:
+  `clients` delivers the owner's own messages too (`fromMe`), so a Clients
+  thread mirrors the chat; `assistant` delivers only other people's.
+- **`imessageOutbox`** in the heartbeat answer: Clients replies the owner
+  pressed Send on, each handed over once. The bridge sends each with the same
+  send `imessage.send` uses and reports at
+  `POST /api/executor-daemon/imessage/sent` (domain `imessage_sent`) until
+  Nessie settles it. A person's Send has no agent run, which every executor
+  command needs.
+
 States: `off`, `ready`, `needs_full_disk_access`, `needs_automation`,
-`messages_not_signed_in`. The daemon never reports `ready` without having
+`messages_not_signed_in`, `sends_from_other_address` (Messages starts new
+conversations from another address than the chosen one). A send Messages would
+make from another address — the chat's own for an existing chat, the
+new-conversation address otherwise — is refused before anything is sent
+(`IMESSAGE_SENDS_FROM_OTHER_ADDRESS`); a sent message reports the address
+`chat.db` recorded (`destination_caller_id`). The daemon never reports `ready` without having
 opened `chat.db` and heard Messages name an enabled iMessage account.
 
 ## Only a Mac
