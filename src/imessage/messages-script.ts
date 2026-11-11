@@ -8,7 +8,8 @@ import { execFile } from 'node:child_process'
  * error -1743.
  */
 export const OSASCRIPT = '/usr/bin/osascript'
-const SCRIPT_TIMEOUT_MS = 30_000
+/** Inside Nessie's 60-second command deadline, with room to confirm the send. */
+const SCRIPT_TIMEOUT_MS = 20_000
 
 const SEND_SCRIPT = [
   'on run argv',
