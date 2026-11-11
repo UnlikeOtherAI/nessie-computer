@@ -34,9 +34,22 @@ export const EXECUTOR_IMESSAGE_STATES = [
   'needs_automation',
   /** Messages has no enabled iMessage account, or has never been set up on this Mac. */
   'messages_not_signed_in',
+  /**
+   * Messages starts new conversations from another of the account's addresses
+   * than the one the owner chose in Nessie ("Start new conversations from" in
+   * Messages settings), so a send would not come from the chosen address.
+   */
+  'sends_from_other_address',
 ] as const
 export const ExecutorIMessageStateSchema = z.enum(EXECUTOR_IMESSAGE_STATES)
 export type ExecutorIMessageState = z.infer<typeof ExecutorIMessageStateSchema>
+
+/** One of the account's addresses. */
+export const ExecutorIMessageAddressSchema = z.object({
+  address: z.string().min(3).max(254),
+  kind: z.enum(['phone', 'email']),
+}).strict()
+export type ExecutorIMessageAddress = z.infer<typeof ExecutorIMessageAddressSchema>
 
 /**
  * The heartbeat's `imessage` field. A macOS daemon sends it only after a
@@ -48,6 +61,13 @@ export const ExecutorIMessageReportSchema = z.object({
   state: ExecutorIMessageStateSchema,
   /** When the daemon last handed Nessie a message it accepted, if ever. */
   lastDeliveredAt: TimestampSchema.optional(),
+  /** The addresses the Mac's iMessage account can be reached at, phone numbers first. */
+  addresses: z.array(ExecutorIMessageAddressSchema).max(20).optional(),
+  /**
+   * The address Messages last started a new conversation from, read from the
+   * owner's own sent messages in `chat.db`; absent when it never has.
+   */
+  newConversationsFrom: z.string().max(254).optional(),
 }).strict()
 export type ExecutorIMessageReport = z.infer<typeof ExecutorIMessageReportSchema>
 
@@ -59,6 +79,14 @@ export type ExecutorIMessageReport = z.infer<typeof ExecutorIMessageReportSchema
 export const ExecutorIMessageSwitchSchema = z.object({
   enabled: z.boolean(),
   since: TimestampSchema.nullable(),
+  /** The owner's chosen address: the channel's identity and the address sends must come from. */
+  address: z.string().max(254).nullable(),
+  /**
+   * `clients`: an owner-only Clients channel, so the owner's own messages are
+   * delivered too and the thread mirrors the Messages chat. `assistant`: only
+   * other people's messages, into the owner's Personal Assistant home.
+   */
+  mode: z.enum(['clients', 'assistant']),
 }).strict()
 export type ExecutorIMessageSwitch = z.infer<typeof ExecutorIMessageSwitchSchema>
 
@@ -93,8 +121,12 @@ export type ExecutorIMessageAttachment = z.infer<typeof ExecutorIMessageAttachme
 export const ExecutorIMessageIncomingSchema = z.object({
   guid: z.string().min(1).max(128),
   receivedAt: TimestampSchema,
-  /** The sender's address as Messages knows it. */
+  /** The sender's address as Messages knows it; for the owner's own message, the address it went from. */
   sender: z.string().min(1).max(254),
+  /** The owner wrote it (on this Mac or another of their devices). Delivered only in Clients mode. */
+  fromMe: z.boolean(),
+  /** Which of the owner's addresses it reached, or went from; null when Messages did not record one. */
+  ownAddress: z.string().max(254).nullable(),
   conversation: z.object({
     /** Messages' chat identifier: the other person's address, or `chat…` for a group. */
     id: z.string().min(1).max(254),
@@ -152,6 +184,8 @@ export const ExecutorIMessageSendResultSchema = z.object({
   sent: z.literal(true),
   to: z.string(),
   messageGuid: z.string().max(128).nullable(),
+  /** The address Messages actually sent from, as `chat.db` recorded it; null when it was not confirmed. */
+  from: z.string().max(254).nullable(),
 }).strict()
 export type ExecutorIMessageSendResult = z.infer<typeof ExecutorIMessageSendResultSchema>
 
@@ -161,6 +195,8 @@ export const EXECUTOR_IMESSAGE_SEND_ERROR_CODES = [
   'IMESSAGE_NEEDS_FULL_DISK_ACCESS',
   'IMESSAGE_NEEDS_AUTOMATION',
   'IMESSAGE_NOT_SIGNED_IN',
+  /** Messages would send from another address than the chosen one; nothing was sent. */
+  'IMESSAGE_SENDS_FROM_OTHER_ADDRESS',
   'IMESSAGE_SEND_FAILED',
 ] as const
 export type ExecutorIMessageSendErrorCode = (typeof EXECUTOR_IMESSAGE_SEND_ERROR_CODES)[number]

@@ -50,7 +50,7 @@ test('the reader maps received iMessages and leaves out everything else', async 
     const incoming = rows.flatMap((row) => row.incoming ? [row.incoming] : [])
     assert.deepEqual(incoming.map((message) => message.guid), ['g-1', 'g-2', 'g-photo'])
     assert.deepEqual(incoming[0], {
-      guid: 'g-1', receivedAt: '2026-11-11T09:00:00.000Z', sender: '+447700900001',
+      guid: 'g-1', receivedAt: '2026-11-11T09:00:00.000Z', sender: '+447700900001', fromMe: false, ownAddress: null,
       conversation: { id: '+447700900001', group: false, name: null },
       text: 'Hello there', truncated: false, attachments: [],
     })
@@ -58,7 +58,7 @@ test('the reader maps received iMessages and leaves out everything else', async 
     assert.equal(incoming[1]?.text, 'From the body')
     assert.deepEqual(incoming[2]?.attachments, [{ kind: 'photo', name: 'IMG_1.HEIC' }, { kind: 'file', name: 'Plan.pdf' }])
     assert.equal(incoming[2]?.text, '')
-    assert.deepEqual(database.sentAfter('+447700900001', 1), { guid: 'g-own', error: 0 })
+    assert.deepEqual(database.sentAfter('+447700900001', 1), { guid: 'g-own', error: 0, from: null })
     assert.equal(database.sentAfter('+447700900001', 4), null)
   } finally {
     database.close()

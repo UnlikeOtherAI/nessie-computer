@@ -30,7 +30,8 @@ export const createChatDatabase = (path: string): Database => {
       service_name TEXT, display_name TEXT);
     CREATE TABLE message (ROWID INTEGER PRIMARY KEY AUTOINCREMENT, guid TEXT, text TEXT, attributedBody BLOB,
       handle_id INTEGER, service TEXT, date INTEGER, is_from_me INTEGER, item_type INTEGER DEFAULT 0,
-      associated_message_type INTEGER DEFAULT 0, cache_has_attachments INTEGER DEFAULT 0, error INTEGER DEFAULT 0);
+      associated_message_type INTEGER DEFAULT 0, cache_has_attachments INTEGER DEFAULT 0, error INTEGER DEFAULT 0,
+      destination_caller_id TEXT);
     CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER, message_date INTEGER);
     CREATE TABLE chat_handle_join (chat_id INTEGER, handle_id INTEGER);
     CREATE TABLE attachment (ROWID INTEGER PRIMARY KEY AUTOINCREMENT, mime_type TEXT, uti TEXT, transfer_name TEXT,
@@ -43,13 +44,17 @@ export const createChatDatabase = (path: string): Database => {
 export type MessageRow = {
   guid: string; text?: string | null; body?: Uint8Array | null; handle: number; service?: string; at: string
   fromMe?: boolean; chat: number; itemType?: number; tapback?: boolean; attachments?: number; error?: number
+  /** The owner's address it reached or went from (`destination_caller_id`). */
+  own?: string
 }
 
 export const insertMessage = (database: Database, row: MessageRow): void => {
   database.prepare(`INSERT INTO message (guid, text, attributedBody, handle_id, service, date, is_from_me, item_type,
-    associated_message_type, cache_has_attachments, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+    associated_message_type, cache_has_attachments, error, destination_caller_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
     row.guid, row.text ?? null, row.body ?? null, row.handle, row.service ?? 'iMessage', appleNanoseconds(row.at),
-    row.fromMe ? 1 : 0, row.itemType ?? 0, row.tapback ? 2000 : 0, row.attachments ? 1 : 0, row.error ?? 0)
+    row.fromMe ? 1 : 0, row.itemType ?? 0, row.tapback ? 2000 : 0, row.attachments ? 1 : 0, row.error ?? 0,
+    row.own ?? null)
   database.prepare('INSERT INTO chat_message_join (chat_id, message_id) VALUES (?, last_insert_rowid())').run(row.chat)
 }
 

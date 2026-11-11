@@ -6,6 +6,7 @@ import {
   EXECUTOR_IMESSAGE_CATCH_UP_DAYS,
   ExecutorIMessageSwitchSchema,
   type ExecutorDaemonIMessageResponse,
+  type ExecutorIMessageAddress,
   type ExecutorIMessageIncoming,
   type ExecutorIMessageReport,
   type ExecutorIMessageSendArguments,
@@ -23,6 +24,7 @@ export type IMessageCursorStore = {
   load: () => Promise<IMessageCursor | null>
   save: (cursor: IMessageCursor) => Promise<void>
 }
+import { normalizeIMessageAddress, readIMessageAddresses, type AddressReader } from './imessage-addresses.js'
 import { createMessagesApp, type MessagesApp, type MessagesFailure, type ScriptOutcome } from './messages-script.js'
 
 /** A quiet Mac is still looked at this often, in case a change was not noticed. */
@@ -54,6 +56,8 @@ export type IMessageBridgeOptions = {
   databasePath?: string
   openDatabase?: (path: string) => ChatDatabase
   messages?: MessagesApp
+  /** The account's addresses (`imessage-addresses.ts`). */
+  readAddresses?: AddressReader
   now?: () => Date
   sleep?: (ms: number) => Promise<void>
   watchFolder?: (folder: string, onChange: () => void) => (() => void) | null
@@ -89,6 +93,9 @@ export class IMessageBridge {
   private sweep: NodeJS.Timeout | null = null
   private readonly databasePath: string
   private readonly messages: MessagesApp
+  private readonly readAddresses: AddressReader
+  private addresses: ExecutorIMessageAddress[] = []
+  private newConversationsFrom: string | null = null
   private readonly open: (path: string) => ChatDatabase
   private readonly now: () => Date
   private readonly sleep: (ms: number) => Promise<void>
@@ -97,6 +104,7 @@ export class IMessageBridge {
   constructor(private readonly options: IMessageBridgeOptions) {
     this.databasePath = options.databasePath ?? defaultChatDatabasePath()
     this.messages = options.messages ?? createMessagesApp()
+    this.readAddresses = options.readAddresses ?? (() => readIMessageAddresses())
     this.open = options.openDatabase ?? ((path) => openChatDatabase(path))
     this.now = options.now ?? (() => new Date())
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
@@ -109,7 +117,12 @@ export class IMessageBridge {
   /** The heartbeat's `imessage`, once Nessie has said it knows the feature; never off a Mac. */
   report(): ExecutorIMessageReport | undefined {
     if (!this.options.supported || !this.heardFromNessie) return undefined
-    return { state: this.state(), ...(this.lastDeliveredAt ? { lastDeliveredAt: this.lastDeliveredAt } : {}) }
+    return {
+      state: this.state(),
+      ...(this.lastDeliveredAt ? { lastDeliveredAt: this.lastDeliveredAt } : {}),
+      ...(this.addresses.length > 0 ? { addresses: this.addresses } : {}),
+      ...(this.newConversationsFrom ? { newConversationsFrom: this.newConversationsFrom } : {}),
+    }
   }
 
   state(): ExecutorIMessageState {
@@ -117,7 +130,14 @@ export class IMessageBridge {
     if (this.databaseState === 'not_permitted') return 'needs_full_disk_access'
     if (this.databaseState === 'missing' || this.automation === 'no_account') return 'messages_not_signed_in'
     if (this.automation === 'refused') return 'needs_automation'
+    if (this.sendsFromOther(this.newConversationsFrom)) return 'sends_from_other_address'
     return 'ready'
+  }
+
+  /** The chosen address, when Messages would send from another one. */
+  private sendsFromOther(address: string | null): boolean {
+    const chosen = this.switchState?.address
+    return Boolean(chosen && address && normalizeIMessageAddress(chosen) !== normalizeIMessageAddress(address))
   }
 
   /** Nessie's switch, from a heartbeat answer or a delivery answer. Anything malformed is ignored. */
@@ -229,6 +249,8 @@ export class IMessageBridge {
     try {
       if (database) {
         await this.probe()
+        this.addresses = await this.readAddresses()
+        this.newConversationsFrom = database.newConversationsFrom()
         await this.deliverFrom(database)
       }
     } finally {
@@ -250,7 +272,8 @@ export class IMessageBridge {
       const since = this.switchState?.enabled ? this.switchState.since : null
       if (!since || this.options.paused()) return
       const cursor = await this.cursorFor(database, since)
-      const rows = database.scanAfter(cursor.rowId, PAGE_ROWS)
+      // In Clients mode the thread mirrors the Messages chat, the owner's own messages included.
+      const rows = database.scanAfter(cursor.rowId, PAGE_ROWS, this.switchState?.mode === 'clients')
       if (rows.length === 0) return
       const floor = Math.max(Date.parse(since), this.now().getTime() - EXECUTOR_IMESSAGE_CATCH_UP_DAYS * DAY_MS)
       const due = rows.flatMap((row) => row.incoming && Date.parse(row.incoming.receivedAt) >= floor
@@ -282,6 +305,14 @@ export class IMessageBridge {
           'Nessie Computer needs Full Disk Access on this Mac (System Settings › Privacy & Security).')
     }
     try {
+      // Fail closed: Messages sends from the chat's own address, or for a new
+      // chat from "Start new conversations from"; neither can be chosen here.
+      const sendsFrom = database.sendingAddressFor(input.to) ?? database.newConversationsFrom()
+      if (this.sendsFromOther(sendsFrom)) {
+        return refuse('IMESSAGE_SENDS_FROM_OTHER_ADDRESS', `Messages on this Mac would send this from ${sendsFrom}, `
+          + `not ${this.switchState?.address}. Change "Start new conversations from" in Messages settings, `
+          + 'or choose that address for iMessage in Nessie. Nothing was sent.')
+      }
       const before = database.latestRowId()
       const outcome = await this.messages.send(input.to, input.text)
       const previous = this.state()
@@ -301,8 +332,15 @@ export class IMessageBridge {
       if (sent && sent.error !== 0) {
         return refuse('IMESSAGE_SEND_FAILED', `Messages could not deliver to ${to} (error ${sent.error}).`)
       }
-      if (sent) return { ok: true, result: { sent: true, to, messageGuid: sent.guid } }
-      if (attempt >= SENT_CONFIRM_ATTEMPTS) return { ok: true, result: { sent: true, to, messageGuid: null } }
+      if (sent) {
+        // What chat.db recorded is what is reported, whatever was chosen; a new
+        // conversation it began is fresh evidence of where Messages starts them.
+        const previous = this.state()
+        this.newConversationsFrom = database.newConversationsFrom()
+        if (this.state() !== previous) this.options.onReportChanged()
+        return { ok: true, result: { sent: true, to, messageGuid: sent.guid, from: sent.from } }
+      }
+      if (attempt >= SENT_CONFIRM_ATTEMPTS) return { ok: true, result: { sent: true, to, messageGuid: null, from: null } }
       await this.sleep(SENT_CONFIRM_STEP_MS)
     }
   }

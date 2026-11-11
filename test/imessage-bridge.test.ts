@@ -9,12 +9,14 @@ import type { ExecutorIMessageIncoming } from '@nessie/executor-protocol'
 import { ChatDatabaseError } from '../src/imessage/chat-database.js'
 import { IMessageBridge } from '../src/imessage/imessage-bridge.js'
 import type { IMessageCursor } from '../src/imessage/imessage-cursor.js'
+import { orderedAddresses } from '../src/imessage/imessage-addresses.js'
 import { withHostIMessageOperation } from '../src/imessage/imessage-operation.js'
 import { classifyScriptFailure, createMessagesApp, type ScriptOutcome } from '../src/imessage/messages-script.js'
 import { createChatDatabase, insertMessage, seedChats } from './imessage-fixture.js'
 
 const SINCE = '2026-11-11T08:30:00.000Z'
 const NOW = new Date('2026-11-11T10:00:00.000Z')
+const OWN = '+447700900500'
 
 const setUp = async (t: test.TestContext) => {
   const directory = await mkdtemp(join(tmpdir(), 'nessie-imessage-bridge-'))
@@ -37,14 +39,16 @@ const setUp = async (t: test.TestContext) => {
     stateDir: directory, supported: true, databasePath, paused: () => paused,
     deliver: async (messages) => {
       delivered.push(messages)
-      return { stored: stored(messages), switch: { enabled: true, since: SINCE } }
+      return { stored: stored(messages), switch: { enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const } }
     },
     onReportChanged: () => { reports += 1 },
     messages: {
       probe: async () => probes.shift() ?? { ok: true, output: '1' },
       send: async (handle, text) => {
         sends.push([handle, text])
-        if (sendOutcome.ok) insertMessage(fixture, { guid: 'sent-1', text, handle: 1, chat: 1, fromMe: true, at: NOW.toISOString() })
+        if (sendOutcome.ok) {
+          insertMessage(fixture, { guid: 'sent-1', text, handle: 1, chat: 1, fromMe: true, at: NOW.toISOString(), own: OWN })
+        }
         return sendOutcome
       },
     },
@@ -52,6 +56,7 @@ const setUp = async (t: test.TestContext) => {
     sleep: async () => undefined,
     watchFolder: () => () => undefined,
     cursor: cursorStore,
+    readAddresses: async () => [{ address: OWN, kind: 'phone' }, { address: 'me@example.com', kind: 'email' }],
   })
   // Windows will not remove a database that is still open.
   t.after(async () => {
@@ -73,11 +78,11 @@ test('nothing is reported to a Nessie that never mentioned iMessage, and off rea
   const context = await setUp(t)
   const { bridge } = context
   assert.equal(bridge.report(), undefined)
-  bridge.applySwitch({ enabled: false, since: null })
+  bridge.applySwitch({ enabled: false, since: null, address: null, mode: 'assistant' as const })
   assert.deepEqual(bridge.report(), { state: 'off' })
   const elsewhere = new IMessageBridge({ stateDir: context.directory, supported: false, paused: () => false,
     deliver: async () => { throw new Error('never') }, onReportChanged: () => undefined })
-  elsewhere.applySwitch({ enabled: true, since: SINCE })
+  elsewhere.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   assert.equal(elsewhere.report(), undefined)
   assert.deepEqual(await elsewhere.send({ to: '+447700900001', text: 'x' }),
     { ok: false, code: 'IMESSAGE_OFF', message: 'iMessage is switched off for this computer in Nessie.' })
@@ -85,7 +90,7 @@ test('nothing is reported to a Nessie that never mentioned iMessage, and off rea
 
 test('switching on delivers what arrived since, not the history, and the cursor holds what Nessie stored', async (t) => {
   const context = await setUp(t)
-  context.bridge.applySwitch({ enabled: true, since: SINCE })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await context.bridge.idle()
   assert.deepEqual(context.delivered.map((batch) => batch.map((message) => message.guid)), [['g-1', 'g-2']])
   assert.deepEqual(context.cursor(), { since: SINCE, rowId: 3 })
@@ -108,7 +113,7 @@ test('switching on delivers what arrived since, not the history, and the cursor 
 test('a pause holds delivery until the owner resumes', async (t) => {
   const context = await setUp(t)
   context.setPaused(true)
-  context.bridge.applySwitch({ enabled: true, since: SINCE })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await context.bridge.idle()
   assert.equal(context.delivered.length, 0)
   context.setPaused(false)
@@ -120,7 +125,7 @@ test('a pause holds delivery until the owner resumes', async (t) => {
 test('a refused Automation permission is reported and refuses a send with its remedy', async (t) => {
   const context = await setUp(t)
   context.probes.splice(0, 1, { ok: false, failure: 'automation', detail: 'Not authorized (-1743)' })
-  context.bridge.applySwitch({ enabled: true, since: SINCE })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await context.bridge.idle()
   assert.equal(context.bridge.report()?.state, 'needs_automation')
   // Reading still works without it.
@@ -133,10 +138,10 @@ test('a refused Automation permission is reported and refuses a send with its re
 
 test('a send returns the guid Messages recorded', async (t) => {
   const context = await setUp(t)
-  context.bridge.applySwitch({ enabled: true, since: SINCE })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await context.bridge.idle()
   const sent = await context.bridge.send({ to: '+447700900001', text: 'On my way' })
-  assert.deepEqual(sent, { ok: true, result: { sent: true, to: '+447700900001', messageGuid: 'sent-1' } })
+  assert.deepEqual(sent, { ok: true, result: { sent: true, to: '+447700900001', messageGuid: 'sent-1', from: OWN } })
   assert.deepEqual(context.sends, [['+447700900001', 'On my way']])
   // A send that worked never reads as a missing sign-in.
   assert.equal(context.bridge.report()?.state, 'ready')
@@ -146,14 +151,14 @@ test('a database macOS will not open reads as missing Full Disk Access', async (
   const context = await setUp(t)
   const bridge = new IMessageBridge({
     stateDir: context.directory, supported: true, databasePath: join(context.directory, 'chat.db'),
-    paused: () => false, deliver: async () => ({ stored: [], switch: { enabled: true, since: SINCE } }),
+    paused: () => false, deliver: async () => ({ stored: [], switch: { enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const } }),
     onReportChanged: () => undefined, watchFolder: () => () => undefined,
     cursor: { load: async () => null, save: async () => undefined },
     openDatabase: () => { throw new ChatDatabaseError('not_permitted', 'refused') },
     messages: { probe: async () => ({ ok: true, output: '1' }), send: async () => ({ ok: true, output: '' }) },
   })
   t.after(() => bridge.stop())
-  bridge.applySwitch({ enabled: true, since: SINCE })
+  bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await bridge.idle()
   assert.equal(bridge.report()?.state, 'needs_full_disk_access')
   const refused = await bridge.send({ to: '+447700900001', text: 'Hello' })
@@ -177,9 +182,46 @@ test('AppleScript failures name their remedy, and the address and text travel as
   assert.ok(send.slice(0, -2).every((part, index) => index % 2 === 0 ? part === '-e' : !part.includes('rm -rf')))
 })
 
+test('addresses list phone numbers first, once each, in one spelling', () => {
+  assert.deepEqual(orderedAddresses(['Me@iCloud.com', 'tel:+447700900500', '+44 7700 900501', 'me@icloud.com']), [
+    { address: '+447700900500', kind: 'phone' }, { address: '+447700900501', kind: 'phone' },
+    { address: 'me@icloud.com', kind: 'email' },
+  ])
+})
+
 test('only a Mac offers imessage.send', () => {
   assert.deepEqual(withHostIMessageOperation(['file.list'], 'macos'), ['file.list', 'imessage.send'])
   assert.deepEqual(withHostIMessageOperation(['file.list', 'imessage.send'], 'macos'), ['file.list', 'imessage.send'])
   assert.deepEqual(withHostIMessageOperation(['file.list', 'imessage.send'], 'windows'), ['file.list'])
   assert.deepEqual(withHostIMessageOperation(['file.list'], 'linux'), ['file.list'])
+})
+
+test('Clients mode mirrors the chat, the owner's own messages included, and reports the addresses', async (t) => {
+  const context = await setUp(t)
+  insertMessage(context.fixture, { guid: 'mine', text: 'On it', handle: 1, chat: 1, fromMe: true,
+    at: '2026-11-11T09:20:00Z', own: 'tel:' + OWN })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
+  await context.bridge.idle()
+  const delivered = context.delivered.flat()
+  assert.deepEqual(delivered.map((message) => [message.guid, message.fromMe]), [['g-1', false], ['g-2', false], ['mine', true]])
+  assert.equal(delivered[2]?.sender, OWN)
+  assert.equal(delivered[2]?.conversation.id, '+447700900001')
+  assert.deepEqual(context.bridge.report()?.addresses, [{ address: OWN, kind: 'phone' }, { address: 'me@example.com', kind: 'email' }])
+})
+
+test('a send Messages would make from another address is refused, and the state says so', async (t) => {
+  const context = await setUp(t)
+  // The owner began a chat from their other number, so new conversations start there.
+  insertMessage(context.fixture, { guid: 'began', text: 'Hi', handle: 2, chat: 2, fromMe: true,
+    at: '2026-11-11T09:15:00Z', own: '+447700900777' })
+  context.fixture.prepare('INSERT INTO chat (guid, style, chat_identifier, service_name, display_name) VALUES (?, ?, ?, ?, ?)')
+    .run('iMessage;-;bob@example.com', 45, 'bob@example.com', 'iMessage', '')
+  context.fixture.prepare('UPDATE chat_message_join SET chat_id = 3 WHERE message_id = (SELECT MAX(ROWID) FROM message)').run()
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' })
+  await context.bridge.idle()
+  assert.equal(context.bridge.report()?.state, 'sends_from_other_address')
+  assert.equal(context.bridge.report()?.newConversationsFrom, '+447700900777')
+  const refused = await context.bridge.send({ to: 'new@example.com', text: 'Hello' })
+  assert.equal(!refused.ok && refused.code, 'IMESSAGE_SENDS_FROM_OTHER_ADDRESS')
+  assert.deepEqual(context.sends, [])
 })
