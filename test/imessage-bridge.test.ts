@@ -196,7 +196,7 @@ test('only a Mac offers imessage.send', () => {
   assert.deepEqual(withHostIMessageOperation(['file.list'], 'linux'), ['file.list'])
 })
 
-test('Clients mode mirrors the chat, the owner's own messages included, and reports the addresses', async (t) => {
+test('Clients mode mirrors the chat, the owner’s own messages included, and reports the addresses', async (t) => {
   const context = await setUp(t)
   insertMessage(context.fixture, { guid: 'mine', text: 'On it', handle: 1, chat: 1, fromMe: true,
     at: '2026-11-11T09:20:00Z', own: 'tel:' + OWN })
