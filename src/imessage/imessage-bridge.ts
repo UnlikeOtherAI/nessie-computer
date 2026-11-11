@@ -200,11 +200,14 @@ export class IMessageBridge {
       || this.automation !== 'granted' && this.now().getTime() - this.lastProbeAt >= IMESSAGE_REPROBE_MS
     if (!due) return
     this.lastProbeAt = this.now().getTime()
-    this.noteMessages(await this.messages.probe())
+    this.noteMessages(await this.messages.probe(), 'probe')
   }
 
-  private noteMessages(outcome: ScriptOutcome): void {
-    if (outcome.ok) {
+  /** A probe answers with the number of enabled iMessage accounts; a send that worked proves both. */
+  private noteMessages(outcome: ScriptOutcome, kind: 'probe' | 'send'): void {
+    if (outcome.ok && kind === 'send') {
+      this.automation = 'granted'
+    } else if (outcome.ok) {
       const accounts = Number.parseInt(outcome.output, 10)
       this.automation = Number.isFinite(accounts) && accounts > 0 ? 'granted' : 'no_account'
     } else if (outcome.failure === 'automation') {
@@ -276,7 +279,7 @@ export class IMessageBridge {
       const before = database.latestRowId()
       const outcome = await this.messages.send(input.to, input.text)
       const previous = this.state()
-      this.noteMessages(outcome)
+      this.noteMessages(outcome, 'send')
       if (this.state() !== previous) this.options.onReportChanged()
       if (!outcome.ok) return refuseScript(outcome.failure, outcome.detail)
       return await this.confirmSent(database, input.to, before)

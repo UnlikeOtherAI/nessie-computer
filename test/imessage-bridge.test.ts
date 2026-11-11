@@ -138,6 +138,8 @@ test('a send returns the guid Messages recorded', async (t) => {
   const sent = await context.bridge.send({ to: '+447700900001', text: 'On my way' })
   assert.deepEqual(sent, { ok: true, result: { sent: true, to: '+447700900001', messageGuid: 'sent-1' } })
   assert.deepEqual(context.sends, [['+447700900001', 'On my way']])
+  // A send that worked never reads as a missing sign-in.
+  assert.equal(context.bridge.report()?.state, 'ready')
 })
 
 test('a database macOS will not open reads as missing Full Disk Access', async (t) => {
@@ -145,7 +147,8 @@ test('a database macOS will not open reads as missing Full Disk Access', async (
   const bridge = new IMessageBridge({
     stateDir: context.directory, supported: true, databasePath: join(context.directory, 'chat.db'),
     paused: () => false, deliver: async () => ({ stored: [], switch: { enabled: true, since: SINCE } }),
-    onReportChanged: () => undefined, watchFolder: () => () => undefined, cursor: { load: async () => null, save: async () => undefined },
+    onReportChanged: () => undefined, watchFolder: () => () => undefined,
+    cursor: { load: async () => null, save: async () => undefined },
     openDatabase: () => { throw new ChatDatabaseError('not_permitted', 'refused') },
     messages: { probe: async () => ({ ok: true, output: '1' }), send: async () => ({ ok: true, output: '' }) },
   })
