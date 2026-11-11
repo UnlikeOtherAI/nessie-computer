@@ -7,8 +7,8 @@ Saved connections belong to that computer and selected team.
 ## Claude Code and Codex on this computer
 
 **On this computer** sits above ChatGPT plans. It lists Claude Code and Codex
-with the account each is signed in to, and a **Make available** switch per
-team. The wire contract, accounts, sessions and verification are in
+with the account each is signed in to, and one switch per team that offers
+it to that team's agents. The wire contract, accounts, sessions and verification are in
 [Claude Code and Codex as engines](local-cli-engines.md).
 
 ## ChatGPT plans
@@ -34,6 +34,24 @@ a plan funds the ownerâ€™s own agents. The Mac inventory proves Nessie Computerâ
 managed processes and installation; unrelated Node programs or a separate
 Nessie Desktop UI do not fail that inventory. Other owner-run applications
 remain inside the ordinary OS-account trust boundary.
+
+A signed-in plan and the programs agents start share the computer: a plan
+refuses no terminal, coding tool or local app, and none of them refuses a
+sign-in ([security boundaries](../SECURITY.md)).
+
+A turn on a plan costs one model request and nothing else on the wire. The
+plan's host asks Nessie to confirm its owner and team every five seconds and
+stops when the answer changes; each credential lease reuses that answer while
+it is under ten seconds old (`chatgpt-shared-authority.ts`) instead of asking
+again, which used to put six HTTPS round trips around every turn. The
+provider's model list is read once a minute per plan (`chatgpt-backend.ts`),
+not three times a turn; a failed request drops the saved list. Requests carry
+one prompt cache key per agent, so the instructions and tools an agent sends
+every turn are read from the provider's cache. `//#test:chatgpt-connection`
+pins these counts (`test/chatgpt-turn-overhead.test.ts`).
+
+Every model a plan lists is offered with the context window the provider
+states for it; which one an agent uses is chosen in Nessie.
 
 The dialog shows blocked sign-in and failed checks as red alerts. A failed
 check keeps the name you typed and disables sign-in until **Check again**

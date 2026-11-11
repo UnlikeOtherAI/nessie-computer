@@ -47,13 +47,19 @@ and actual managed native/runtime processes. Other applications, including
 unrelated Node programs and Nessie Desktop's user interface, are not Nessie
 Computer credential runtimes. Their presence alone cannot make personal
 sign-in unavailable. This is still an owner-account boundary, not an OS
-sandbox against other programs the owner runs. Nessie-managed terminal and
-coding admissions retain the explicit sign-in fence. A signed native inventory
-may retire an ended controller's admission authority after independently
-verifying its process generation and empty group. The original admission and
-proof are archived before the active guard changes. This does not claim that
-an arbitrary program which escaped that ended controller has stopped. Live
-controllers, unreadable generations and live Nessie runtimes remain refused.
+sandbox against other programs the owner runs.
+
+A signed-in ChatGPT plan and the programs agents start share one computer.
+Through 1.0.40 a plan kept every terminal, coding tool and local app off the
+computer, and any of them that had run kept a plan from signing in. That fence
+is gone, by the owner's decision (Ondrej, 11 November 2026): a program an agent
+starts runs as the owner and can read the plan's token file, exactly as it can
+already read Codex's and Claude Code's own sign-ins on the same computer. The
+token stays in its owner-only store, is never sent to Nessie, and what an agent
+may start is still decided by the team's Access rules and the owner's answers
+to program requests. Nothing records the programs agents start in the plan's
+guard any more; a record an older version left is dropped at the next sign-in.
+Live Nessie runtimes of another version still refuse a sign-in.
 
 On Windows, custody also refuses any `nessie-computer` or `nessie-executor`
 launcher (and the old Desktop app) in a folder on the user or machine PATH, so

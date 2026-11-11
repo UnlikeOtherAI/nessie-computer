@@ -69,13 +69,13 @@ first plan for a team therefore adds a **ChatGPT plan connection** for that
 team: Windows asks you to allow it, then this computer shows one more code to
 enter in Nessie under **Computers → Add a computer**.
 
-### Before you sign in
+### Plans and everything else, together
 
-While a ChatGPT plan is signed in, agents can't open terminals or coding tools
-under your account on this computer. That keeps the plan's sign-in out of
-their reach. Sign out to get them back. Nessie Computer asks you to tick a box
-confirming this before you sign in, and asks you to stop any terminals or
-coding tools agents are running first.
+A signed-in plan takes nothing else away. Agents keep their terminals, Claude
+Code and Codex sessions and local apps on this computer, and a plan signs in
+while they are running. A program an agent starts runs as you, so it can read
+the plan's sign-in on this computer, as it can already read Codex's and Claude
+Code's own. What agents may start is still yours to decide under **Access**.
 
 ### Background work
 

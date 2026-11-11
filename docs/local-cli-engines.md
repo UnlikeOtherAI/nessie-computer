@@ -174,7 +174,10 @@ The host refuses, with an error frame and an error receipt:
 - Who may use it (only the owner, or the team) follows the existing local-model
   binding and sharing rules (`localInferenceTeamShareAllows`); a host of role
   `local_cli` qualifies like a local-weights host.
-- The ChatGPT-plan terminal restriction never applies to a `local_cli` host.
+- One look at the CLI (installed, signed in, its version and flags) serves the
+  inventory and every turn for a minute; a turn that fails looks again at once.
+  Each look starts the CLI two or three times, and a turn used to look before
+  and after itself.
 - Plain words when the computer is offline, paused (**Paused on the
   computer**), turned off (**Turned off on {computer}**) or signed out.
 

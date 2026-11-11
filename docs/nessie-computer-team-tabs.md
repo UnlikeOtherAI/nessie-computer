@@ -90,11 +90,24 @@ suggested folder (`defaultRoot`) is the main folder another team on this
 computer already syncs into. A team synced before this layout keeps its
 one-segment folder. The rule itself is `src/folder-sync/team-folder.ts`.
 
+## What is a list
+
+A list is always a box: rows inside one bordered group, divided by rules
+(`style.css`, the `.list` rule and the tab lists it names). Anything outside a
+box is a heading or a button. An empty list says so inside the same box. A
+row is a name, at most one detail line under it, and one control on the right;
+the detail line carries a fact the control does not (an account, a path, why
+something is unavailable), never a restatement of the switch. Every on/off
+control is the same switch, including the Settings rows. Sections stand apart
+by space, not rules. Program rules show their Apply bar only while there is a
+change to apply. A "?" tip opens on hover and focus and never takes a click
+meant for the control beneath it; a click pins it.
+
 ## AI
 
 ChatGPT plans: any number, each named (prefilled "ChatGPT plan N", editable)
-and signed in with **Sign in with ChatGPT**. The restriction is one sentence
-beside its checkbox; background-work consent is kept with its revision fence.
+and signed in with **Sign in with ChatGPT**. A plan takes nothing else away, so
+there is nothing to tick; background-work consent is kept with its revision fence.
 Model servers: name, address, where it runs, optional key.
 
 On Windows plans live on the background service's connection
