@@ -55,7 +55,7 @@ export type IMessageBridgeOptions = {
   paused: () => boolean
   /** Something Nessie should hear changed; the daemon sends a heartbeat. */
   onReportChanged: () => void
-  /** Reports what became of the Clients replies the Mac was handed; answers the ids Nessie settled. */
+  /** Reports what became of the Clients replies the Mac was handed; answers the ids settled. */
   reportSent?: (results: ExecutorIMessageOutboxResult[]) => Promise<string[]>
   databasePath?: string
   openDatabase?: (path: string) => ChatDatabase
@@ -375,7 +375,9 @@ export class IMessageBridge {
         if (this.state() !== previous) this.options.onReportChanged()
         return { ok: true, result: { sent: true, to, messageGuid: sent.guid, from: sent.from } }
       }
-      if (attempt >= SENT_CONFIRM_ATTEMPTS) return { ok: true, result: { sent: true, to, messageGuid: null, from: null } }
+      if (attempt >= SENT_CONFIRM_ATTEMPTS) {
+        return { ok: true, result: { sent: true, to, messageGuid: null, from: null } }
+      }
       await this.sleep(SENT_CONFIRM_STEP_MS)
     }
   }

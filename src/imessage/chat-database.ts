@@ -45,7 +45,10 @@ const APPLE_EPOCH_MS = Date.UTC(2001, 0, 1)
  */
 const APPLE_MS = 'CASE WHEN m.date > 100000000000000 THEN m.date / 1000000 ELSE m.date * 1000 END'
 
-/** One scanned row. `incoming` is null for rows that are not an iMessage a person wrote (and, unless asked for, the owner's own). */
+/**
+ * One scanned row. `incoming` is null for rows that are not an iMessage a person
+ * wrote (and, unless asked for, the owner's own).
+ */
 export type ScannedRow = { rowId: number; incoming: ExecutorIMessageIncoming | null }
 
 export type ChatDatabase = {

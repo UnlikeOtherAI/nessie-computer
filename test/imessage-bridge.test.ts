@@ -231,7 +231,8 @@ test('a Clients reply from the outbox is sent once and reported until Nessie set
   context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
   await context.bridge.idle()
   const reports: string[][] = []
-  ;(context.bridge as unknown as { options: { reportSent: (r: { id: string; outcome: string }[]) => Promise<string[]> } })
+  type Reporting = { options: { reportSent: (r: { id: string; outcome: string }[]) => Promise<string[]> } }
+  ;(context.bridge as unknown as Reporting)
     .options.reportSent = async (results) => {
       reports.push(results.map((result) => `${result.id}:${result.outcome}`))
       return results.map((result) => result.id)
