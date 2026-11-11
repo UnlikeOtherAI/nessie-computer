@@ -38,7 +38,8 @@ export type ScriptRunner = (args: readonly string[]) => Promise<{ code: number |
 
 const runOsascript: ScriptRunner = (args) => new Promise((settle) => {
   execFile(OSASCRIPT, [...args], { timeout: SCRIPT_TIMEOUT_MS, maxBuffer: 64 * 1024 }, (error, stdout, stderr) => {
-    const code = error ? typeof (error as { code?: unknown }).code === 'number' ? (error as { code: number }).code : null : 0
+    const exit = (error as { code?: unknown } | null)?.code
+    const code = error ? typeof exit === 'number' ? exit : null : 0
     settle({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') })
   })
 })
@@ -60,7 +61,9 @@ export const classifyScriptFailure = (stderr: string): MessagesFailure => {
   return 'failed'
 }
 
-const outcomeOf = async (run: Promise<{ code: number | null; stdout: string; stderr: string }>): Promise<ScriptOutcome> => {
+type ScriptResult = { code: number | null; stdout: string; stderr: string }
+
+const outcomeOf = async (run: Promise<ScriptResult>): Promise<ScriptOutcome> => {
   const result = await run
   if (result.code === 0) return { ok: true, output: result.stdout.trim() }
   const detail = result.stderr.trim().slice(0, 500) || `osascript exited with ${String(result.code)}`

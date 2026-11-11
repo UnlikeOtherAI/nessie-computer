@@ -17,6 +17,12 @@ import {
 
 import { ChatDatabaseError, defaultChatDatabasePath, openChatDatabase, type ChatDatabase } from './chat-database.js'
 import { loadIMessageCursor, saveIMessageCursor, type IMessageCursor } from './imessage-cursor.js'
+
+/** Where the cursor is kept: the team's owner-only folder, unless a test supplies its own. */
+export type IMessageCursorStore = {
+  load: () => Promise<IMessageCursor | null>
+  save: (cursor: IMessageCursor) => Promise<void>
+}
 import { createMessagesApp, type MessagesApp, type MessagesFailure, type ScriptOutcome } from './messages-script.js'
 
 /** A quiet Mac is still looked at this often, in case a change was not noticed. */
@@ -50,6 +56,7 @@ export type IMessageBridgeOptions = {
   now?: () => Date
   sleep?: (ms: number) => Promise<void>
   watchFolder?: (folder: string, onChange: () => void) => (() => void) | null
+  cursor?: IMessageCursorStore
 }
 
 const watchFolderDefault = (folder: string, onChange: () => void): (() => void) | null => {
@@ -84,6 +91,7 @@ export class IMessageBridge {
   private readonly open: (path: string) => ChatDatabase
   private readonly now: () => Date
   private readonly sleep: (ms: number) => Promise<void>
+  private readonly cursor: IMessageCursorStore
 
   constructor(private readonly options: IMessageBridgeOptions) {
     this.databasePath = options.databasePath ?? defaultChatDatabasePath()
@@ -91,6 +99,10 @@ export class IMessageBridge {
     this.open = options.openDatabase ?? ((path) => openChatDatabase(path))
     this.now = options.now ?? (() => new Date())
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)))
+    this.cursor = options.cursor ?? {
+      load: () => loadIMessageCursor(options.stateDir),
+      save: (cursor) => saveIMessageCursor(options.stateDir, cursor),
+    }
   }
 
   /** The heartbeat's `imessage`, once Nessie has said it knows the feature; never off a Mac. */
@@ -134,7 +146,8 @@ export class IMessageBridge {
       return
     }
     this.running = this.pass().catch((error: unknown) => {
-      console.error('[nessie-executor] iMessage delivery stopped for now:', error instanceof Error ? error.message : String(error))
+      const reason = error instanceof Error ? error.message : String(error)
+      console.error('[nessie-executor] iMessage delivery stopped for now:', reason)
     }).finally(() => {
       this.running = null
       if (this.again) {
@@ -176,7 +189,8 @@ export class IMessageBridge {
       this.databaseState = 'readable'
       return database
     } catch (error) {
-      this.databaseState = error instanceof ChatDatabaseError && error.failure === 'missing' ? 'missing' : 'not_permitted'
+      const missing = error instanceof ChatDatabaseError && error.failure === 'missing'
+      this.databaseState = missing ? 'missing' : 'not_permitted'
       return null
     }
   }
@@ -215,10 +229,10 @@ export class IMessageBridge {
   }
 
   private async cursorFor(database: ChatDatabase, since: string): Promise<IMessageCursor> {
-    const saved = await loadIMessageCursor(this.options.stateDir)
+    const saved = await this.cursor.load()
     if (saved?.since === since) return saved
     const fresh = { since, rowId: database.rowIdBefore(new Date(since)) }
-    await saveIMessageCursor(this.options.stateDir, fresh)
+    await this.cursor.save(fresh)
     return fresh
   }
 
@@ -230,7 +244,8 @@ export class IMessageBridge {
       const rows = database.scanAfter(cursor.rowId, PAGE_ROWS)
       if (rows.length === 0) return
       const floor = Math.max(Date.parse(since), this.now().getTime() - EXECUTOR_IMESSAGE_CATCH_UP_DAYS * DAY_MS)
-      const due = rows.flatMap((row) => row.incoming && Date.parse(row.incoming.receivedAt) >= floor ? [row.incoming] : [])
+      const due = rows.flatMap((row) => row.incoming && Date.parse(row.incoming.receivedAt) >= floor
+        ? [row.incoming] : [])
       if (due.length > 0) {
         const answer = await this.options.deliver(due)
         this.applySwitch(answer.switch)
@@ -239,7 +254,7 @@ export class IMessageBridge {
         if (!due.every((message) => stored.has(message.guid))) return
         this.lastDeliveredAt = this.now().toISOString()
       }
-      await saveIMessageCursor(this.options.stateDir, { since, rowId: rows[rows.length - 1]!.rowId })
+      await this.cursor.save({ since, rowId: rows[rows.length - 1]!.rowId })
       if (rows.length < PAGE_ROWS) return
     }
   }
@@ -284,7 +299,8 @@ export class IMessageBridge {
   }
 }
 
-const refuse = (code: ExecutorIMessageSendErrorCode, message: string): IMessageSendOutcome => ({ ok: false, code, message })
+const refuse = (code: ExecutorIMessageSendErrorCode, message: string): IMessageSendOutcome =>
+  ({ ok: false, code, message })
 
 const refuseScript = (failure: MessagesFailure, detail: string): IMessageSendOutcome => {
   if (failure === 'automation') {

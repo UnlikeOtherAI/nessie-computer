@@ -8,7 +8,7 @@ import type { ExecutorIMessageIncoming } from '@nessie/executor-protocol'
 
 import { ChatDatabaseError } from '../src/imessage/chat-database.js'
 import { IMessageBridge } from '../src/imessage/imessage-bridge.js'
-import { loadIMessageCursor } from '../src/imessage/imessage-cursor.js'
+import type { IMessageCursor } from '../src/imessage/imessage-cursor.js'
 import { withHostIMessageOperation } from '../src/imessage/imessage-operation.js'
 import { classifyScriptFailure, createMessagesApp, type ScriptOutcome } from '../src/imessage/messages-script.js'
 import { createChatDatabase, insertMessage, seedChats } from './imessage-fixture.js'
@@ -18,9 +18,10 @@ const NOW = new Date('2026-11-11T10:00:00.000Z')
 
 const setUp = async (t: test.TestContext) => {
   const directory = await mkdtemp(join(tmpdir(), 'nessie-imessage-bridge-'))
-  t.after(() => rm(directory, { recursive: true, force: true }))
   const databasePath = join(directory, 'chat.db')
   const fixture = createChatDatabase(databasePath)
+  let cursor: IMessageCursor | null = null
+  const cursorStore = { load: async () => cursor, save: async (next: IMessageCursor) => { cursor = next } }
   seedChats(fixture)
   insertMessage(fixture, { guid: 'before', text: 'Older', handle: 1, chat: 1, at: '2026-11-11T08:00:00Z' })
   insertMessage(fixture, { guid: 'g-1', text: 'Hi', handle: 1, chat: 1, at: '2026-11-11T09:00:00Z' })
@@ -50,10 +51,17 @@ const setUp = async (t: test.TestContext) => {
     now: () => NOW,
     sleep: async () => undefined,
     watchFolder: () => () => undefined,
+    cursor: cursorStore,
   })
-  t.after(() => bridge.stop())
+  // Windows will not remove a database that is still open.
+  t.after(async () => {
+    bridge.stop()
+    await bridge.idle()
+    fixture.close()
+    await rm(directory, { recursive: true, force: true })
+  })
   return {
-    bridge, directory, fixture, delivered, probes, sends,
+    bridge, directory, fixture, delivered, probes, sends, cursor: () => cursor,
     setSendOutcome: (outcome: ScriptOutcome) => { sendOutcome = outcome },
     setStored: (next: typeof stored) => { stored = next },
     setPaused: (value: boolean) => { paused = value },
@@ -62,11 +70,12 @@ const setUp = async (t: test.TestContext) => {
 }
 
 test('nothing is reported to a Nessie that never mentioned iMessage, and off reads as off', async (t) => {
-  const { bridge } = await setUp(t)
+  const context = await setUp(t)
+  const { bridge } = context
   assert.equal(bridge.report(), undefined)
   bridge.applySwitch({ enabled: false, since: null })
   assert.deepEqual(bridge.report(), { state: 'off' })
-  const elsewhere = new IMessageBridge({ stateDir: '/x', supported: false, paused: () => false,
+  const elsewhere = new IMessageBridge({ stateDir: context.directory, supported: false, paused: () => false,
     deliver: async () => { throw new Error('never') }, onReportChanged: () => undefined })
   elsewhere.applySwitch({ enabled: true, since: SINCE })
   assert.equal(elsewhere.report(), undefined)
@@ -79,7 +88,7 @@ test('switching on delivers what arrived since, not the history, and the cursor 
   context.bridge.applySwitch({ enabled: true, since: SINCE })
   await context.bridge.idle()
   assert.deepEqual(context.delivered.map((batch) => batch.map((message) => message.guid)), [['g-1', 'g-2']])
-  assert.deepEqual(await loadIMessageCursor(context.directory), { since: SINCE, rowId: 3 })
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 3 })
   assert.equal(context.bridge.report()?.state, 'ready')
   assert.ok(context.bridge.report()?.lastDeliveredAt)
 
@@ -88,12 +97,12 @@ test('switching on delivers what arrived since, not the history, and the cursor 
   context.setStored(() => [])
   context.bridge.kick()
   await context.bridge.idle()
-  assert.deepEqual(await loadIMessageCursor(context.directory), { since: SINCE, rowId: 3 })
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 3 })
   context.setStored((messages) => messages.map((message) => message.guid))
   context.bridge.kick()
   await context.bridge.idle()
   assert.deepEqual(context.delivered.at(-1)?.map((message) => message.guid), ['g-3'])
-  assert.deepEqual(await loadIMessageCursor(context.directory), { since: SINCE, rowId: 4 })
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 4 })
 })
 
 test('a pause holds delivery until the owner resumes', async (t) => {
@@ -136,7 +145,7 @@ test('a database macOS will not open reads as missing Full Disk Access', async (
   const bridge = new IMessageBridge({
     stateDir: context.directory, supported: true, databasePath: join(context.directory, 'chat.db'),
     paused: () => false, deliver: async () => ({ stored: [], switch: { enabled: true, since: SINCE } }),
-    onReportChanged: () => undefined, watchFolder: () => () => undefined,
+    onReportChanged: () => undefined, watchFolder: () => () => undefined, cursor: { load: async () => null, save: async () => undefined },
     openDatabase: () => { throw new ChatDatabaseError('not_permitted', 'refused') },
     messages: { probe: async () => ({ ok: true, output: '1' }), send: async () => ({ ok: true, output: '' }) },
   })

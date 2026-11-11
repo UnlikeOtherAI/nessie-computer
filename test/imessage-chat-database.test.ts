@@ -13,7 +13,9 @@ test('the archived body reads back its text, in both length forms, and malformed
   const long = 'x'.repeat(300)
   assert.equal(attributedBodyText(archivedBody(long)), long)
   assert.equal(attributedBodyText(Buffer.from('no archive here')), null)
-  assert.equal(attributedBodyText(archivedBody('cut').subarray(0, 90)), null)
+  // A length that runs past the end of the blob reads as no text.
+  const whole = archivedBody('long enough to be cut')
+  assert.equal(attributedBodyText(whole.subarray(0, whole.length - 12)), null)
   assert.equal(attributedBodyText(null), null)
   assert.equal(readableMessageText(null, archivedBody('￼ look at this')), 'look at this')
   assert.equal(readableMessageText('plain', archivedBody('ignored')), 'plain')
@@ -23,6 +25,7 @@ test('the reader maps received iMessages and leaves out everything else', async 
   const directory = await mkdtemp(join(tmpdir(), 'nessie-imessage-db-'))
   t.after(() => rm(directory, { recursive: true, force: true }))
   const path = join(directory, 'chat.db')
+  // Closed below before the folder is removed: Windows keeps an open database.
   const fixture = createChatDatabase(path)
   seedChats(fixture)
   insertMessage(fixture, { guid: 'g-old', text: 'Before', handle: 1, chat: 1, at: '2026-11-10T08:00:00Z' })

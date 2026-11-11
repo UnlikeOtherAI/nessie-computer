@@ -84,3 +84,5 @@ Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 [sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.
 
 Standard crash/error SDKs, release configuration and verification limits follow [error reporting](docs/error-reporting.md).
+
+iMessage on a Mac — the read-only `chat.db` reader, the delivery cursor, `imessage.send` through AppleScript argv and the macOS-only operation — follows [iMessage](docs/imessage.md); Windows and Linux never offer or report it.

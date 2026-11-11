@@ -62,7 +62,9 @@ export type ChatDatabase = {
 const loadSqlite = (): SqliteModule =>
   createRequire(join(homedir(), 'nessie-imessage.cjs'))('node:sqlite') as SqliteModule
 
-export const openChatDatabase = (path = defaultChatDatabasePath(), sqlite: SqliteModule = loadSqlite()): ChatDatabase => {
+export const openChatDatabase = (
+  path = defaultChatDatabasePath(), sqlite: SqliteModule = loadSqlite(),
+): ChatDatabase => {
   // Without Full Disk Access macOS refuses even a stat of the file (EPERM);
   // only ENOENT means Messages has never kept a database on this Mac.
   try {

@@ -10,6 +10,7 @@
 - [Pause and resume](Pause-and-resume)
 - [Several teams](Several-teams-on-one-computer)
 - [Documents](Documents)
+- [iMessage](iMessage)
 - [AI](AI)
 - [Settings and updates](Settings-and-updates)
 - [Disconnect or uninstall](Disconnect-or-uninstall)
