@@ -83,15 +83,10 @@ fn validate_table(table: &[macos_processes::Process], records: &[Record], own: i
                 record.supervisor_pid == process.pid && record.supervisor_started_at == process.started_at
                 || record.child_pid == process.pid && record.child_started_at == process.started_at
                     && record.supervisor_pid == process.parent_pid) { return Err(refused()); }
-            continue;
         }
-        let mut parent = process.parent_pid; let mut depth = 0;
-        while parent > 1 && depth < table.len() {
-            let Some(ancestor) = table.iter().find(|item| item.pid == parent) else { break; };
-            if product(ancestor) { return Err(refused()); }
-            parent = ancestor.parent_pid; depth += 1;
-        }
-        if depth == table.len() { return Err(refused()); }
+        // A program a runtime started for an agent (a terminal, a coding tool,
+        // a local app) runs beside a plan. Through 1.0.40 any of them alive
+        // under a runtime refused the plan here, sign-in included.
     }
     Ok(())
 }
@@ -194,6 +189,17 @@ mod tests {
             started_at: "10".into(), executable: "/tmp/node".into(), zombie: false };
         assert!(!product(&process), "a person's other Node programs do not own Nessie Computer's grant");
         assert!(validate_table(&[process], &[], 8).is_ok());
+    }
+    #[test]
+    fn a_program_a_runtime_started_does_not_refuse_credential_activation() {
+        let process = |pid: i32, parent_pid: i32, name: &str| macos_processes::Process { pid, parent_pid, group: pid,
+            uid: 501, started_at: pid.to_string(), executable: format!("/tmp/{name}").into(), zombie: false };
+        let record = Record { protocol_version: 1, guard_version: managed_release::GUARD_VERSION,
+            boot_id: "boot".into(), supervisor_pid: 7, supervisor_started_at: "7".into(), child_pid: 9,
+            child_started_at: "9".into(), release_digest: "a".repeat(64), activity: Some("serve".into()) };
+        let table = [process(7, 1, "nessie-executor-native"), process(9, 7, "nessie-executor-runtime"),
+            process(11, 9, "zsh"), process(12, 11, "node")];
+        assert!(validate_table(&table, &[record], 8).is_ok());
     }
     #[test]
     fn an_unregistered_nessie_runtime_still_refuses_credential_activation() {

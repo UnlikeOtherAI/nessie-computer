@@ -59,7 +59,10 @@ token stays in its owner-only store, is never sent to Nessie, and what an agent
 may start is still decided by the team's Access rules and the owner's answers
 to program requests. Nothing records the programs agents start in the plan's
 guard any more; a record an older version left is dropped at the next sign-in.
-Live Nessie runtimes of another version still refuse a sign-in.
+The native inventory taken before a plan starts counts Nessie Computer's own
+runtimes on macOS and Linux, not the programs they started, and on Linux no
+longer a plain Node program. Live Nessie runtimes of another version still
+refuse a sign-in.
 
 On Windows the background service keeps plan sign-ins under its own account.
 Programs a team starts under your account cannot read them at all. Programs

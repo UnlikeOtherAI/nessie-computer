@@ -147,6 +147,10 @@ final class ExecutorUpdateMonitor {
                 }
             }
             while !Task.isCancelled {
+                if ComputerRuntimeGate.holds.personalSignIn {
+                    try? await Task.sleep(nanoseconds: 250_000_000)
+                    continue
+                }
                 let status = try? await ExecutorUpdateControl.run(["operation": "status"])
                 await self?.restartHelperIfNeeded(status, connections: connections)
                 if let status, let self, let console {

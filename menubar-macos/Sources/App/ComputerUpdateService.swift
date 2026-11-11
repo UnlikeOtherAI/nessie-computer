@@ -41,7 +41,10 @@ enum ComputerUpdateService {
     }
 
     /// Teams wait while the helper installs this app's newer runtime.
-    @MainActor static var holdingTeams = false
+    @MainActor static var holdingTeams: Bool {
+        get { ComputerRuntimeGate.holds.update }
+        set { ComputerRuntimeGate.holds.update = newValue }
+    }
 
     static var enabled: Bool { supported && SMAppService.daemon(plistName: plist).status == .enabled }
 

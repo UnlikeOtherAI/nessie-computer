@@ -59,6 +59,28 @@ accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not
 replace that factory from an older bundled runtime or reset removal intent.
 
+## Completed daemon shutdown
+
+Application-runtime adoption can meet an older daemon whose shutdown finished
+but left an idle transport open. Under the machine launch barrier, the helper
+verifies its native creation journal, immutable release, publisher and exact
+kernel process generations. It requests normal SIGTERM through the native
+supervisor only after that daemon released its runtime registration, no
+credential protection remains, and every bound host execution an older version
+recorded is proved ended (versions after 1.0.40 record none).
+A runtime or credential registration, unknown process, unresolved execution or
+invalid metadata leaves the daemon untouched. There is no signal escalation.
+Once a completed daemon receives that request, adoption keeps its durable
+drain instead of returning to the healthy old factory after one minute. The
+old native supervisor may still be settling its process inventory; new teams
+must not restart the old factory meanwhile.
+The request grants no clearance: adoption still independently waits for all
+required processes to exit and preserves journals and admission history.
+
+The runtime supervisor also fences late inference connections at shutdown and
+waits for pending creations to close. MCP cleanup closes the transport even
+after the client has dropped its transport reference.
+
 ## Replacement
 
 The signed catalogue names an immutable DMG asset with its size and SHA-256.

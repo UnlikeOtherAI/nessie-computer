@@ -180,7 +180,10 @@ export const createExecutorMcpSessionManager = (
     session.dead = true
     try {
       if (session.contained) await stopLocalApp(session.transport, processControl)
-    } finally { await session.client.close().catch(() => undefined) }
+    } finally {
+      // The client may have dropped its transport; an open one keeps the daemon alive after shutdown.
+      await Promise.allSettled([session.client.close(), session.transport.close()])
+    }
   }
 
   const armIdleTimer = (server: string, session: ActiveSession): void => {

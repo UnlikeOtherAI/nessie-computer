@@ -50,6 +50,11 @@ for them.
    Sign in with the account that has the plan.
 4. Back in Nessie Computer the plan shows **Ready**.
 
+On a Mac, idle team connections briefly reconnect while sign-in starts.
+Running commands keep going and do not block sign-in.
+If Safari cannot connect to localhost, return here and start sign-in again:
+that browser attempt has expired. Your connection name is kept.
+
 Add as many plans as you have. Each one has its own name and sign-in.
 
 If the browser does not open, read the red message in the dialog. **Check again**

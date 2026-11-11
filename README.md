@@ -62,7 +62,9 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
   in with ChatGPT. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
   to OpenAI itself, including when connected to hosted Nessie. A blocked
   sign-in shows a red message with the next step. Choose the connection’s model
-  in Nessie under **Connected accounts** → **AI plans**.
+  in Nessie under **Connected accounts** → **AI plans**. On a Mac, idle team
+  connections briefly reconnect for sign-in. If the browser attempt expires,
+  start sign-in again from **AI**; your name is kept.
   [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
 - **Update on a Mac.** Nessie Computer replaces its runtime after its work ends.
   Stale records from an ended runtime do not require restarting macOS.
