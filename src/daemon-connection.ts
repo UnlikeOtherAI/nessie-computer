@@ -100,7 +100,12 @@ export const heartbeatExecutor = async (
  * the answer. `report` is undefined until a Nessie answer carried `imessage`,
  * so an older Nessie is never sent the field.
  */
-export type IMessageHeartbeat = { report: ExecutorIMessageReport | undefined; onSwitch: (value: unknown) => void }
+export type IMessageHeartbeat = {
+  report: ExecutorIMessageReport | undefined
+  onSwitch: (value: unknown) => void
+  /** Clients replies the owner pressed Send on; each is handed over once. */
+  onOutbox: (value: unknown) => void
+}
 
 /** Whether the heartbeat says the owner paused this team, and who hears that Nessie refused to be told. */
 export type OwnerPauseReport = { paused: boolean; refused: () => void }
@@ -153,6 +158,7 @@ const sendHeartbeat = async (
   const response = await api.heartbeat(state.apiBaseUrl, body)
   onExistingSessionAccess?.(response.existingSessionsAllowed === true)
   imessage?.onSwitch(response.imessage)
+  if (response.imessageOutbox !== undefined) imessage?.onOutbox(response.imessageOutbox)
   if (onMonitorRequest) {
     const request = ExecutorMonitorRequestSchema.safeParse(response.monitorRequest)
     onMonitorRequest(request.success ? request.data : null)

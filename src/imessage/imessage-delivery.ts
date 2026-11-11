@@ -1,5 +1,7 @@
 import {
   ExecutorDaemonIMessageResponseSchema,
+  ExecutorDaemonIMessageSentResponseSchema,
+  type ExecutorIMessageOutboxResult,
   type ExecutorDaemonIMessageResponse,
   type ExecutorIMessageIncoming,
 } from '@nessie/executor-protocol'
@@ -29,4 +31,23 @@ export const deliverIMessages = async (
   return ExecutorDaemonIMessageResponseSchema.parse(
     await api.deliverIMessages(state.apiBaseUrl, { ...payload, signature }),
   )
+}
+
+/** Reports what became of the Clients replies the Mac was handed, signed under `imessage_sent`. */
+export const reportIMessagesSent = async (
+  state: ExecutorLocalState,
+  results: ExecutorIMessageOutboxResult[],
+  api: Pick<ExecutorApiClient, 'reportIMessagesSent'> = executorApi,
+): Promise<string[]> => {
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
+  const payload = {
+    connectionEpoch: state.connectionEpoch,
+    executorId: state.executorId,
+    observedAt: new Date().toISOString(),
+    results,
+  }
+  const signature = signExecutorDaemonPayload(state.machinePrivateKey, 'imessage_sent', payload)
+  return ExecutorDaemonIMessageSentResponseSchema.parse(
+    await api.reportIMessagesSent(state.apiBaseUrl, { ...payload, signature }),
+  ).settled
 }

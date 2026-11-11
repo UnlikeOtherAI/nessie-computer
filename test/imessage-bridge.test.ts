@@ -225,3 +225,21 @@ test('a send Messages would make from another address is refused, and the state 
   assert.equal(!refused.ok && refused.code, 'IMESSAGE_SENDS_FROM_OTHER_ADDRESS')
   assert.deepEqual(context.sends, [])
 })
+
+test('a Clients reply from the outbox is sent once and reported until Nessie settles it', async (t) => {
+  const context = await setUp(t)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
+  await context.bridge.idle()
+  const reports: string[][] = []
+  ;(context.bridge as unknown as { options: { reportSent: (r: { id: string; outcome: string }[]) => Promise<string[]> } })
+    .options.reportSent = async (results) => {
+      reports.push(results.map((result) => `${result.id}:${result.outcome}`))
+      return results.map((result) => result.id)
+    }
+  const item = { id: '11111111-1111-4111-8111-111111111111', to: '+447700900001', text: 'From Clients' }
+  context.bridge.sendOutbox([item])
+  context.bridge.sendOutbox([item])
+  await (context.bridge as unknown as { outboxQueue: Promise<void> }).outboxQueue
+  assert.deepEqual(context.sends, [['+447700900001', 'From Clients']])
+  assert.deepEqual(reports, [[`${item.id}:sent`]])
+})

@@ -2,7 +2,7 @@ import type { IMessageHeartbeat } from '../daemon-connection.js'
 import type { DaemonLiveState } from '../daemon-live-state.js'
 import type { ExecutorLocalState } from '../state-store.js'
 import { IMessageBridge } from './imessage-bridge.js'
-import { deliverIMessages } from './imessage-delivery.js'
+import { deliverIMessages, reportIMessagesSent } from './imessage-delivery.js'
 import { ensureHostIMessageOperation } from './imessage-operation.js'
 
 /**
@@ -25,6 +25,10 @@ export const createDaemonIMessage = (
         return deliverIMessages(live.current, messages)
       },
       onReportChanged: () => ring(),
+      reportSent: (results) => {
+        if (!live) throw new Error('This team is not connected from this computer yet.')
+        return reportIMessagesSent(live.current, results)
+      },
     })
     : undefined
   return {
@@ -36,6 +40,7 @@ export const createDaemonIMessage = (
     heartbeat: (): IMessageHeartbeat | undefined => bridge && {
       report: bridge.report(),
       onSwitch: (value) => bridge.applySwitch(value),
+      onOutbox: (value) => bridge.sendOutbox(value),
     },
     connect: (state: DaemonLiveState, onReportChanged: () => void): void => {
       live = state

@@ -200,3 +200,44 @@ export const EXECUTOR_IMESSAGE_SEND_ERROR_CODES = [
   'IMESSAGE_SEND_FAILED',
 ] as const
 export type ExecutorIMessageSendErrorCode = (typeof EXECUTOR_IMESSAGE_SEND_ERROR_CODES)[number]
+
+/**
+ * A Clients reply the owner pressed Send on (docs/imessage.md → "Clients
+ * replies"). A person's Send has no agent run, which every executor command
+ * needs, so it reaches the Mac as one item in the heartbeat answer's
+ * `imessageOutbox`, handed over once and never again. The Mac sends it with
+ * the same send `imessage.send` uses, and reports back at
+ * {@link EXECUTOR_DAEMON_IMESSAGE_SENT_PATH}.
+ */
+export const ExecutorIMessageOutboxItemSchema = z.object({
+  id: z.string().uuid(),
+  to: ExecutorIMessageHandleSchema,
+  text: z.string().trim().min(1).max(4_000),
+}).strict()
+export type ExecutorIMessageOutboxItem = z.infer<typeof ExecutorIMessageOutboxItemSchema>
+export const EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM = 10
+
+export const EXECUTOR_DAEMON_IMESSAGE_SENT_PATH = '/api/executor-daemon/imessage/sent'
+/** Domain of its signature, over the body without `signature`. */
+export const EXECUTOR_DAEMON_IMESSAGE_SENT_SIGNATURE_DOMAIN = 'nessie.executor.daemon.imessage_sent.v1'
+
+export const ExecutorIMessageOutboxResultSchema = z.discriminatedUnion('outcome', [
+  z.object({ id: z.string().uuid(), outcome: z.literal('sent'), messageGuid: z.string().max(128).nullable(),
+    from: z.string().max(254).nullable() }).strict(),
+  z.object({ id: z.string().uuid(), outcome: z.literal('refused'), code: z.enum(EXECUTOR_IMESSAGE_SEND_ERROR_CODES),
+    message: z.string().max(500) }).strict(),
+])
+export type ExecutorIMessageOutboxResult = z.infer<typeof ExecutorIMessageOutboxResultSchema>
+
+export const ExecutorDaemonIMessageSentRequestSchema = z.object({
+  connectionEpoch: z.string().regex(/^\d+$/u),
+  executorId: z.string().uuid(),
+  observedAt: TimestampSchema,
+  results: z.array(ExecutorIMessageOutboxResultSchema).min(1).max(EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM),
+  signature: z.string().min(64).max(256),
+}).strict()
+export type ExecutorDaemonIMessageSentRequest = z.infer<typeof ExecutorDaemonIMessageSentRequestSchema>
+
+export const ExecutorDaemonIMessageSentResponseSchema = z.object({
+  settled: z.array(z.string().uuid()).max(EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM),
+}).strict()

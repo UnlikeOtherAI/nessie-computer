@@ -4,9 +4,11 @@ import { dirname } from 'node:path'
 import {
   EXECUTOR_IMESSAGE_BATCH_MAXIMUM,
   EXECUTOR_IMESSAGE_CATCH_UP_DAYS,
+  ExecutorIMessageOutboxItemSchema,
   ExecutorIMessageSwitchSchema,
   type ExecutorDaemonIMessageResponse,
   type ExecutorIMessageAddress,
+  type ExecutorIMessageOutboxResult,
   type ExecutorIMessageIncoming,
   type ExecutorIMessageReport,
   type ExecutorIMessageSendArguments,
@@ -53,6 +55,8 @@ export type IMessageBridgeOptions = {
   paused: () => boolean
   /** Something Nessie should hear changed; the daemon sends a heartbeat. */
   onReportChanged: () => void
+  /** Reports what became of the Clients replies the Mac was handed; answers the ids Nessie settled. */
+  reportSent?: (results: ExecutorIMessageOutboxResult[]) => Promise<string[]>
   databasePath?: string
   openDatabase?: (path: string) => ChatDatabase
   messages?: MessagesApp
@@ -100,6 +104,9 @@ export class IMessageBridge {
   private readonly now: () => Date
   private readonly sleep: (ms: number) => Promise<void>
   private readonly cursor: IMessageCursorStore
+  private readonly outboxSeen = new Set<string>()
+  private outboxUnreported: ExecutorIMessageOutboxResult[] = []
+  private outboxQueue: Promise<void> = Promise.resolve()
 
   constructor(private readonly options: IMessageBridgeOptions) {
     this.databasePath = options.databasePath ?? defaultChatDatabasePath()
@@ -289,6 +296,34 @@ export class IMessageBridge {
       await this.cursor.save({ since, rowId: rows[rows.length - 1]!.rowId })
       if (rows.length < PAGE_ROWS) return
     }
+  }
+
+  /**
+   * Clients replies from the heartbeat answer. Each id is sent at most once in
+   * this process — Nessie hands each over once — and its outcome is reported
+   * until Nessie confirms it. Anything malformed is ignored.
+   */
+  sendOutbox(value: unknown): void {
+    const parsed = ExecutorIMessageOutboxItemSchema.array().safeParse(value)
+    if (!this.options.supported || !parsed.success) return
+    const fresh = parsed.data.filter((item) => !this.outboxSeen.has(item.id))
+    for (const item of fresh) this.outboxSeen.add(item.id)
+    if (fresh.length === 0 && this.outboxUnreported.length === 0) return
+    // One after another: a later answer waits for the sends before it.
+    this.outboxQueue = this.outboxQueue.then(async () => {
+      for (const item of fresh) {
+        const outcome = await this.send({ to: item.to, text: item.text })
+        this.outboxUnreported.push(outcome.ok
+          ? { id: item.id, outcome: 'sent', messageGuid: outcome.result.messageGuid, from: outcome.result.from }
+          : { id: item.id, outcome: 'refused', code: outcome.code, message: outcome.message.slice(0, 500) })
+      }
+      if (this.outboxUnreported.length === 0 || !this.options.reportSent) return
+      const settled = new Set(await this.options.reportSent(this.outboxUnreported.slice(0, 10)))
+      this.outboxUnreported = this.outboxUnreported.filter((result) => !settled.has(result.id))
+    }).catch((error: unknown) => {
+      console.error('[nessie-executor] an iMessage reply was not reported yet:',
+        error instanceof Error ? error.message : String(error))
+    })
   }
 
   /** `imessage.send`: refuses with a code that names its remedy, never pretends. */
