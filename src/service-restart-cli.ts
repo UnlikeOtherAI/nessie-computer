@@ -5,13 +5,13 @@ import {
   assertExecutorIdentifier, createExecutorServiceEnvironment, executorServiceStateRoot,
   type ExecutorServiceEnvironment,
 } from './service-environment.js'
-import { createMacServiceEnvironment, enableMacExecutorService, macServicePlan } from './service-macos.js'
+import { createMacServiceEnvironment, enableMacExecutorService, macLaunchAgent } from './service-macos.js'
 import { serviceAutoRestartEnabled, setServiceAutoRestart, writeLinuxServiceRestart } from './service-restart.js'
 
-const USAGE = 'Usage: nessie-executor autorestart <executor-id> [on|off]'
+const USAGE = 'Usage: nessie-computer autorestart <team-id> [on|off]'
 
-export const WINDOWS_AUTORESTART = 'On Windows the Nessie Executor app runs CLI teams. '
-  + 'Turn "Restart a connection if it stops" on or off in its Settings.'
+export const WINDOWS_AUTORESTART = 'On Windows the Nessie Computer app runs the teams you add here. '
+  + 'Use nessie-computer settings auto-restart, or Restart a team if it stops in the app\'s Settings.'
 
 const exists = async (path: string): Promise<boolean> => {
   try {
@@ -31,13 +31,13 @@ type RestartEnvironment = ExecutorServiceEnvironment & {
 const reapplyMacService = async (executorId: string): Promise<void> => {
   const environment = createMacServiceEnvironment()
   // Only an agent that was enabled is re-registered; otherwise `enable` applies the setting later.
-  if (await exists(macServicePlan({ executorId }, environment).path)) {
+  if (await exists(macLaunchAgent(executorId, environment).path)) {
     await enableMacExecutorService({ executorId }, environment)
   }
 }
 
 /**
- * `nessie-executor autorestart <executor-id> [on|off]` — whether that team's
+ * `nessie-computer autorestart <team-id> [on|off]` — whether that team's
  * service starts its daemon again after it stops without being asked to. With
  * no value it says which. A change is applied at once: launchd re-registers an
  * enabled agent (restarting its daemon once), and systemd reloads the drop-in.
@@ -70,6 +70,6 @@ export const runServiceRestartCli = async (
     }
   }
   const enabled = await serviceAutoRestartEnabled(stateDir)
-  environment.write(`executor ${executorId}: autorestart=${enabled ? 'on' : 'off'}`)
+  environment.write(`team ${executorId}: autorestart=${enabled ? 'on' : 'off'}`)
   return true
 }

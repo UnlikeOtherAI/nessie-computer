@@ -14,7 +14,8 @@ import {
 
 import { ExecutorApiError, type ExecutorApiClient } from '../src/api-client.js'
 import { executeWithCommandCancellation } from '../src/command-cancellation.js'
-import { recoverOrPollExecutorCommand, type ExecutorCommandRecovery } from '../src/command-recovery.js'
+import type { ExecutorCommandRecord } from '../src/command-journal.js'
+import { advanceExecutorCommand } from '../src/command-recovery.js'
 import { createExecutorMcpSessionManager } from '../src/mcp-session-manager.js'
 import { createCodingProcessControl } from '../src/coding-session/process-control.js'
 import { CODING_SESSIONS_CONFIG_DIGEST_ENV } from '../src/coding-session/config.js'
@@ -108,28 +109,25 @@ test('cancellation waits for local teardown, discards late output, and replays a
     },
     api: { pollCommand: async () => ({ command: null, cancellation: ++polls > 1 ? cancellation : null }) },
   })
-  let journal: ExecutorCommandRecovery | null = null
+  let journal: ExecutorCommandRecord | null = { command, phase: 'accepted_pending', receivedAt: new Date().toISOString(), version: 2 }
   let lost = true
-  const input = {
+  const advance = () => advanceExecutorCommand(journal!, {
+    admit: async () => ({ release: () => undefined }),
     execute,
-    store: {
-      load: async () => journal,
-      save: async (row: ExecutorCommandRecovery) => { journal = structuredClone(row) },
-      clear: async () => { journal = null },
+    journal: {
+      save: async (row) => { journal = structuredClone(row) },
+      remove: async () => { journal = null },
     },
-    transport: {
-      poll: async () => command,
-      receipt: async (receipt: { state: string; result?: Record<string, unknown> }) => {
-        if (receipt.state !== 'result_acknowledged') return
-        assert.equal(teardownDone, true)
-        assert.deepEqual(receipt.result, EXECUTOR_COMMAND_CANCELLED_RESULT)
-        if (lost) { lost = false; throw new Error('lost response') }
-      },
+    receipt: async (receipt) => {
+      if (receipt.state !== 'result_acknowledged') return
+      assert.equal(teardownDone, true)
+      assert.deepEqual(receipt.result, EXECUTOR_COMMAND_CANCELLED_RESULT)
+      if (lost) { lost = false; throw new Error('lost response') }
     },
-  }
-  await assert.rejects(recoverOrPollExecutorCommand(input), /lost response/)
-  assert.equal((journal as ExecutorCommandRecovery | null)?.phase, 'result_pending')
-  await recoverOrPollExecutorCommand(input)
+  })
+  await assert.rejects(advance(), /lost response/)
+  assert.equal((journal as ExecutorCommandRecord | null)?.phase, 'result_pending')
+  await advance()
   assert.equal(executed, 1)
   assert.equal(journal, null)
 })

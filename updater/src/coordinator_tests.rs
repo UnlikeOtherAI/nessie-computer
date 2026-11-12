@@ -14,6 +14,7 @@ struct Host {
     busy: Cell<bool>,
     healthy: Cell<bool>,
     installs: Cell<usize>,
+    draining: Cell<Option<bool>>,
     root: PathBuf,
 }
 impl Installer for Host {
@@ -27,7 +28,8 @@ impl Installer for Host {
             source_commit: value.source_commit.clone(),
         })
     }
-    fn set_draining(&self, _: bool, _: bool) -> UpdateResult<()> {
+    fn set_draining(&self, draining: bool, _: bool) -> UpdateResult<()> {
+        self.draining.set(Some(draining));
         Ok(())
     }
     fn verify_publishers(&self, _: &Manifest, _: &Path) -> UpdateResult<()> {
@@ -85,7 +87,7 @@ fn fixture() -> (
         expires_at: "2026-11-07T00:00:00.000Z".into(), minimum_updater_protocol: 1,
         targets: BTreeMap::from([(Target::WindowsX64Msi, vec![Asset { name: "executor.msi".into(), size: 4,
             sha256: format!("{:x}", Sha256::digest(b"good")),
-            url: "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.1/executor.msi".into() }])]) };
+            url: "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.1/executor.msi".into() }])]) };
     let payload = serde_json::to_vec(&manifest).unwrap();
     let envelope = serde_json::json!({"payload":STANDARD.encode(&payload),
         "signature":STANDARD.encode(key.sign(&payload).to_bytes())})
@@ -112,6 +114,7 @@ fn fixture() -> (
         busy: Cell::new(true),
         healthy: Cell::new(false),
         installs: Cell::new(0),
+        draining: Cell::new(None),
         root,
     };
     (
@@ -260,7 +263,7 @@ fn a_new_signed_release_can_recover_every_phase_and_retains_its_predecessor() {
         manifest.sequence = 2;
         manifest.source_commit = "c".repeat(40);
         manifest.targets.get_mut(&Target::WindowsX64Msi).unwrap()[0].url =
-        "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.2/executor.msi".into();
+        "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.2/executor.msi".into();
         let signer = SigningKey::from_bytes(&[42; 32]);
         let payload = serde_json::to_vec(&manifest).unwrap();
         let envelope = serde_json::json!({"payload":STANDARD.encode(&payload),
@@ -372,3 +375,78 @@ fn channel_selection_is_local_explicit_and_cannot_retarget_an_accepted_install()
     );
     assert_eq!(store.preferences().unwrap().channel, Channel::Stable);
 }
+
+/// Never reach the network: these ticks exercise installation and admission only.
+fn offline(store: &Store) {
+    store
+        .mutate_journal(|journal| {
+            journal.next_check_at = u64::MAX;
+            journal.last_checked_at = Some(1);
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn a_waiting_drain_ends_by_itself_then_retries_and_never_installs_between_attempts() {
+    let (_directory, store, host, key, _manifest, digest, now) = fixture();
+    let network = Network::default();
+    let coordinator = Coordinator { store: &store, network: &network, installer: &host, test_key: key };
+    offline(&store);
+    coordinator.advance(now).unwrap();
+    coordinator.tick(now).unwrap();
+    assert_eq!(host.draining.get(), Some(true), "waiting holds new work back");
+    let reopened = now + crate::drain::WINDOW;
+    coordinator.tick(reopened).unwrap();
+    assert_eq!(host.draining.get(), Some(false), "a drain that never clears ends");
+    let status = coordinator.status(reopened).unwrap();
+    assert!(!status.draining);
+    assert_eq!(status.phase, Phase::Waiting);
+    assert_eq!(store.journal().unwrap().pending.unwrap().digest, digest);
+    // Teams may start between attempts, so the machine is not replaced then.
+    host.busy.set(false);
+    coordinator.resume(reopened + 1).unwrap();
+    assert_eq!(host.installs.get(), 0);
+    let retry = now + crate::drain::WINDOW + crate::drain::PAUSE;
+    coordinator.tick(retry).unwrap();
+    assert_eq!(host.installs.get(), 1);
+    assert_eq!(store.journal().unwrap().pending.unwrap().phase, Phase::Restarting);
+    assert_eq!(host.draining.get(), Some(true), "replacement keeps the fence");
+}
+
+#[test]
+fn a_newer_app_runtime_retires_the_stuck_transaction_and_ends_its_drain() {
+    // The live Mac on 8 November: an old factory, an accepted older stage
+    // waiting for clearance that never comes, and admissions held.
+    let (_directory, store, host, key, _manifest, digest, now) = fixture();
+    let network = Network::default();
+    let coordinator = Coordinator { store: &store, network: &network, installer: &host, test_key: key };
+    offline(&store);
+    coordinator.advance(now).unwrap();
+    coordinator.tick(now).unwrap();
+    assert_eq!(host.draining.get(), Some(true));
+    let (phase, version) = coordinator.accepted_pending().unwrap().unwrap();
+    assert_eq!(
+        crate::recovery::application_plan("1.0.0", "1.0.2", Some((phase, &version)), false, true).unwrap(),
+        crate::recovery::ApplicationPlan::Install { persistent: true }
+    );
+    // The approved helper installs the app's own runtime (native side).
+    *host.installed.borrow_mut() = Installed { version: "1.0.2".into(), source_commit: "c".repeat(40) };
+    assert!(coordinator.retire_obsolete(now + 1).unwrap());
+    assert!(store.journal().unwrap().pending.is_none());
+    // An older worker still finishing its tick refuses the downgrade afterwards.
+    store.mutate_journal(|journal| { journal.code = Some("update.downgrade_refused".into()); Ok(()) }).unwrap();
+    assert!(store.root().join("retired").join(format!("{digest}.json")).is_file());
+    assert!(store.root().join("staged").join(&digest).join("executor.msi").is_file(), "bytes are kept");
+    coordinator.tick(now + 2_000).unwrap();
+    assert_eq!(host.draining.get(), Some(false), "the drain ends with its transaction");
+    let status = coordinator.status(now + 2_000).unwrap();
+    assert_eq!(status.installed_version, "1.0.2");
+    assert_eq!(status.phase, Phase::Idle);
+    assert!(status.code.is_none() && !status.draining && status.available_version.is_none());
+    assert!(store.journal().unwrap().pending.is_none(), "an older release is never accepted again");
+    assert_eq!(host.installs.get(), 0);
+}
+
+#[path = "coordinator_stale_tests.rs"]
+mod stale;

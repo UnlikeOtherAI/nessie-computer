@@ -1,6 +1,5 @@
 import { pairedPersonalAuthority } from './personal-authority-origin.js'
 import { createHash } from 'node:crypto'
-import type { Readable } from 'node:stream'
 
 import {
   canonicalExecutorJson,
@@ -13,6 +12,7 @@ import {
   ExecutorCommandRunArgumentsSchema,
   ExecutorCodingLaunchArgumentsSchema,
   ExecutorCodingObserveArgumentsSchema,
+  ExecutorIMessageSendArgumentsSchema,
   ImplementedExecutorOperationKeySchema,
   ExecutorWorkspacePromoteArgumentsSchema,
   RunIdSchema,
@@ -20,26 +20,21 @@ import {
 } from '@nessie/executor-protocol'
 
 import { executorApi, type ExecutorApiClient } from './api-client.js'
-import { executeWithCommandCancellation } from './command-cancellation.js'
-import { localCommandPolicyPermits } from './command-policy.js'
+import { CODING_SESSION_COMMAND_RULES_META } from './coding-session/meta-keys.js'
+import type { LocalCommandPolicy } from './command-policy.js'
+import { admitCommandRun, admitTerminalLaunch, type ProgramAdmission } from './daemon-program-admission.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorBrowserSessionManager } from './browser-session-manager.js'
 import type { ExecutorConnectedBrowserSessionManager } from './connected-browser-session-manager.js'
 import type { ExecutorCodingSessionManager } from './coding-session-manager.js'
 import type { CodingSessionsDaemon } from './coding-sessions-daemon.js'
 import type { ExecutorCommandSessionManager } from './command-session-manager.js'
+import type { IMessageBridge } from './imessage/imessage-bridge.js'
 import {
-  createExecutorCommandAttachmentStore,
-  deliverExecutorCommandAttachments,
   executorAttachmentUploadTimeoutMs,
   type ExecutorAttachmentUpload,
   type ExecutorCommandAttachmentStore,
 } from './command-attachments.js'
-import {
-  createExecutorCommandRecoveryStore,
-  recoverOrPollExecutorCommand,
-  type ExecutorCommandRecoveryStore,
-} from './command-recovery.js'
 import { executeExecutorMcpCommand } from './mcp-dispatch.js'
 import type { ExecutorMcpSessionManager } from './mcp-session-manager.js'
 import { applyNativePromotion } from './native-helper.js'
@@ -60,7 +55,7 @@ export { claimExecutor, heartbeatExecutor } from './daemon-connection.js'
 const digest = (value: unknown): string =>
   `sha256:${createHash('sha256').update(canonicalExecutorJson(value)).digest('hex')}`
 
-const receipt = async (
+export const sendExecutorCommandReceipt = async (
   state: ExecutorLocalState,
   input: {
     commandId: ExecutorCommandEnvelope['commandId']
@@ -68,7 +63,7 @@ const receipt = async (
     state: 'accepted' | 'started' | 'result_acknowledged'
   },
 ): Promise<void> => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const occurredAt = new Date().toISOString()
   const commandReceipt = {
     commandId: input.commandId,
@@ -97,7 +92,7 @@ export const uploadExecutorCommandAttachment = (
   state: ExecutorLocalState,
   api: Pick<ExecutorApiClient, 'uploadCommandAttachment'> = executorApi,
 ): ExecutorAttachmentUpload => async (image) => {
-  if (!state.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+  if (!state.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
   const payload = {
     attachment: {
       byteLength: image.bytes.length,
@@ -117,6 +112,19 @@ export const uploadExecutorCommandAttachment = (
 }
 
 /**
+ * The bridge's stamp for one call, with the rules a launch the owner allowed
+ * once runs under in place of the saved ones: only this call carries them.
+ */
+const withLaunchRules = (
+  bridge: Pick<CodingSessionsDaemon, 'callMeta'> | undefined, rules: LocalCommandPolicy,
+): Pick<CodingSessionsDaemon, 'callMeta'> | undefined => bridge && {
+  callMeta: (server, call) => {
+    const meta = bridge.callMeta(server, call)
+    return meta && { ...meta, [CODING_SESSION_COMMAND_RULES_META]: rules }
+  },
+}
+
+/**
  * A guest VM mounts one workspace. Until the guest protocol in
  * `executor/guest/*.go` can bind several, an executor that exposes more than one
  * folder refuses to start a guest session here — at the dispatch a person reads
@@ -131,7 +139,7 @@ const guestSessionRefusal = (state: ExecutorLocalState): Record<string, unknown>
       code: 'EXECUTOR_GUEST_SINGLE_FOLDER_REQUIRED',
       folders: executorWorkspaceFolderNames(state.workspaceFolders),
       message:
-        'A guest session mounts one workspace folder, and this executor exposes '
+        'A guest session mounts one folder, and this team uses '
         + `${state.workspaceFolders.length}. The workspace file operations reach every folder.`,
       success: false,
     }
@@ -150,12 +158,27 @@ export const executeExecutorCommand = async (
     mcpSessions?: ExecutorMcpSessionManager
     /** Stamps who a call to the built-in coding-sessions bridge is for. */
     codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
+    /** The owner paused this team on this computer (`owner-pause.ts`). */
+    ownerPaused?: () => boolean
+    /** iMessage on a Mac (`imessage/imessage-bridge.ts`). */
+    imessage?: Pick<IMessageBridge, 'send'>
+    /** Asks the owner about a launch refused only as not allowed; absent, it is refused as before. */
+    programRequests?: ProgramAdmission
     signal?: AbortSignal
   } = {},
 ): Promise<Record<string, unknown>> => {
   dependencies.signal?.throwIfAborted()
   if (!ImplementedExecutorOperationKeySchema.safeParse(command.operationKey).success) {
     return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }
+  }
+  // Paused, the team starts nothing new; what already runs finishes, and a
+  // stop, which only ends work, still ends it.
+  if (dependencies.ownerPaused?.() && command.operationKey !== 'sandbox.stop') {
+    return {
+      code: 'EXECUTOR_OWNER_PAUSED',
+      message: 'The computer\'s owner paused this team on the computer. Nothing new starts until they resume it.',
+      success: false,
+    }
   }
   if (new Date(command.expiresAt) <= new Date()) {
     return { code: 'EXECUTOR_COMMAND_EXPIRED', success: false }
@@ -304,21 +327,19 @@ export const executeExecutorCommand = async (
     if (!commandArguments.success) {
       return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
     }
+    const { commandSessions } = dependencies
+    const unavailable = (): Record<string, unknown> | null => guestSessionRefusal(state)
+      ?? (commandSessions ? null : { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false })
     // Refused here as well as in the session manager, against the same
     // predicate: this is the dispatch a person reads when they ask why a run
     // was refused, and it must not depend on a session backend being wired.
-    if (!localCommandPolicyPermits(
-      state,
-      commandArguments.data.program,
-      commandArguments.data.args,
-    )) {
-      return { code: 'EXECUTOR_COMMAND_DENIED', success: false }
-    }
-    const refusal = guestSessionRefusal(state)
-    if (refusal) return refusal
-    return dependencies.commandSessions
-      ? dependencies.commandSessions.run(command, runId.data)
-      : { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false }
+    // The owner is asked only about a launch that could then actually run.
+    const admitted = await admitCommandRun(dependencies.programRequests, state, command,
+      commandArguments.data.program, commandArguments.data.args, unavailable, dependencies.signal)
+    if ('refusal' in admitted) return admitted.refusal
+    const refusal = unavailable()
+    if (refusal || !commandSessions) return refusal ?? { code: 'EXECUTOR_COMMAND_UNAVAILABLE', success: false }
+    return commandSessions.run(command, runId.data, admitted.rules)
   }
   if (command.operationKey === 'coding.launch') {
     if (!ExecutorCodingLaunchArgumentsSchema.safeParse(command.payload.args).success) {
@@ -354,139 +375,27 @@ export const executeExecutorCommand = async (
     }
   }
   if (command.operationKey === 'mcp.tools' || command.operationKey === 'mcp.call') {
-    const { attachments } = dependencies
-    return executeExecutorMcpCommand(command.operationKey, command.payload.args, dependencies.mcpSessions, {
-      codingBridge: dependencies.codingBridge,
+    const { attachments, mcpSessions } = dependencies
+    const operationKey = command.operationKey
+    const admitted = operationKey === 'mcp.call' && mcpSessions
+      ? await admitTerminalLaunch(dependencies.programRequests, state, command, dependencies.signal)
+      : undefined
+    if (admitted && 'refusal' in admitted) return admitted.refusal
+    return executeExecutorMcpCommand(operationKey, command.payload.args, mcpSessions, {
+      codingBridge: admitted?.rules
+        ? withLaunchRules(dependencies.codingBridge, admitted.rules) : dependencies.codingBridge,
       commandId: command.commandId,
       payload: command.payload,
     }, attachments && ((images) => attachments.write(command.commandId, images)), dependencies.signal)
   }
+  if (command.operationKey === 'imessage.send') {
+    const args = ExecutorIMessageSendArgumentsSchema.safeParse(command.payload.args)
+    if (!args.success) return { code: 'IMESSAGE_SEND_FAILED', message: args.error.issues[0]?.message, success: false }
+    if (!dependencies.imessage) return { code: 'IMESSAGE_OFF', message: 'iMessage is only on a Mac.', success: false }
+    const outcome = await dependencies.imessage.send(args.data)
+    return outcome.ok ? { ...outcome.result, success: true }
+      : { code: outcome.code, message: outcome.message, success: false }
+  }
   // Other declared-only operations remain unavailable.
   return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }
-}
-
-/**
- * `store` is owned by the caller and lives as long as the daemon does. It used
- * to be built here, once per poll, which rebuilt the owner-only proof of the
- * runtime directory every second — two native-helper process spawns per poll on
- * Windows. The journal it fronts is per-`stateDir` state, and `stateDir` does
- * not change across a daemon's life, so one store is the honest lifetime. The
- * sidecar store beside it is the caller's for the same reason.
- */
-export const pollAndExecuteCommand = async (
-  stateDir: string,
-  state: ExecutorLocalState,
-  browserSessions: ExecutorBrowserSessionManager,
-  commandSessions: ExecutorCommandSessionManager,
-  codingSessions: ExecutorCodingSessionManager,
-  mcpSessions: ExecutorMcpSessionManager,
-  store: ExecutorCommandRecoveryStore = createExecutorCommandRecoveryStore(stateDir),
-  codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>,
-  sidecars: ExecutorCommandAttachmentStore = createExecutorCommandAttachmentStore(stateDir),
-): Promise<void> => {
-  const connectionEpoch = state.connectionEpoch
-  if (!connectionEpoch) return
-  await recoverOrPollExecutorCommand({
-    attachments: {
-      deliver: ({ command, delivered, journal, result }) => deliverExecutorCommandAttachments({
-        command,
-        delivered,
-        journal,
-        // The reason names only Nessie's own refusal; the image stays here.
-        onWithdrawn: (reference, reason) => {
-          console.error(
-            `[nessie-executor] image ${reference.attachmentDigest} of command ${command.commandId} `
-            + `was not delivered: ${reason}`,
-          )
-        },
-        result,
-        sidecars,
-        upload: uploadExecutorCommandAttachment(state),
-      }),
-      release: (commandId) => sidecars.remove(commandId),
-    },
-    execute: (command) => executeWithCommandCancellation({
-      command,
-      state,
-      cancel: async () => {
-        const runId = RunIdSchema.parse(command.payload.runId)
-        // Tear down only the backend this command owns; other sessions on the
-        // computer keep their own lifetimes. VM teardown ends every guest process.
-        if (command.operationKey.startsWith('browser.')) await browserSessions.stop(runId)
-        if (command.operationKey === 'command.run') await commandSessions.stop(runId)
-        if (command.operationKey.startsWith('coding.')) await codingSessions.stop(runId)
-      },
-      execute: (signal) => executeExecutorCommand(stateDir, state, command, {
-        attachments: sidecars, browserSessions, codingSessions, mcpSessions, commandSessions,
-        signal, ...(codingBridge ? { codingBridge } : {}),
-      }),
-    }),
-    // The result itself stays on this machine: it can quote program output.
-    onResultRefused: (command) => {
-      console.error(
-        `[nessie-executor] Nessie refused the result of ${command.operationKey} command ${command.commandId}; `
-        + 'it was reported as EXECUTOR_RESULT_REFUSED instead.',
-      )
-    },
-    store,
-    transport: {
-      poll: async () => {
-        const observedAt = new Date().toISOString()
-        const payload = {
-          connectionEpoch,
-          executorId: state.executorId,
-          observedAt,
-        }
-        const response = await executorApi.pollCommand(state.apiBaseUrl, {
-          ...payload,
-          signature: signExecutorDaemonPayload(state.machinePrivateKey, 'poll', payload),
-        })
-        return response.command
-      },
-      receipt: (input) => receipt(state, input),
-    },
-  })
-}
-
-export const waitForExecutorDaemonShutdown = async (
-  parentLiveness?: Readable,
-  updateReady?: Promise<void>,
-): Promise<void> => new Promise((resolve) => {
-  const stop = () => {
-    process.off('SIGINT', stop)
-    process.off('SIGTERM', stop)
-    parentLiveness?.off('close', stop)
-    parentLiveness?.off('end', stop)
-    parentLiveness?.off('error', stop)
-    // A signal stops the daemon while its parent still holds the pipe, and a
-    // resumed pipe left open keeps this process alive after its shutdown.
-    parentLiveness?.destroy()
-    resolve()
-  }
-  process.once('SIGINT', stop)
-  process.once('SIGTERM', stop)
-  void updateReady?.then(stop)
-  if (parentLiveness) {
-    parentLiveness.once('close', stop)
-    parentLiveness.once('end', stop)
-    parentLiveness.once('error', stop)
-    parentLiveness.resume()
-  }
-})
-
-export const createNonOverlappingExecutorTask = (
-  task: () => Promise<void>,
-): { current: () => Promise<void> | null; run: () => Promise<void> } => {
-  let current: Promise<void> | null = null
-  return {
-    current: () => current,
-    run: () => {
-      if (current) return current
-      const started = task().finally(() => {
-        if (current === started) current = null
-      })
-      current = started
-      return started
-    },
-  }
 }

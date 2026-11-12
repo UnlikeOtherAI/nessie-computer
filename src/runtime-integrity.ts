@@ -168,7 +168,7 @@ const verifyManifestDigests = (
     return refuse('the packaged Node binary does not match the runtime manifest')
   }
   if (manifest.executorBundleSha256 !== digests['nessie-executor.cjs']) {
-    return refuse('the packaged executor bundle does not match the runtime manifest')
+    return refuse('the packaged Nessie Computer bundle does not match the runtime manifest')
   }
   if (names.nativeHelper && manifest.nativeHelperSha256 !== digests[names.nativeHelper]) {
     return refuse('the packaged native helper does not match the runtime manifest')
@@ -227,7 +227,7 @@ export const verifyExecutorRuntime = (facts: ExecutorRuntimeFacts): ExecutorRunt
     facts.runningBundleRealPath !== undefined
     && facts.runningBundleRealPath !== join(facts.directoryRealPath, 'nessie-executor.cjs')
   ) {
-    return refuse('the running executor bundle is not the packaged one')
+    return refuse('the running Nessie Computer bundle is not the packaged one')
   }
   if (facts.platform !== 'linux') return { ok: true }
   const directoryOwnership = verifyOwnership('the packaged runtime directory', directory)
@@ -362,7 +362,7 @@ export const assertPackagedExecutorRuntime = async (): Promise<void> => {
   const verdict = verifyExecutorRuntime(facts)
   if (verdict.ok) return
   throw new Error(
-    `The Nessie Executor runtime failed verification: ${verdict.reason}. `
+    `The Nessie Computer runtime failed verification: ${verdict.reason}. `
     + 'Reinstall the nessie-executor package from the Nessie apt repository; '
     + 'a runtime that is not root-owned is never trusted.',
   )

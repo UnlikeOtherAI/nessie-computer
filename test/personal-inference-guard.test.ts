@@ -13,7 +13,6 @@ import { PersonalInferenceGuard } from '../src/personal-inference-guard.js'
 import { assertPersonalInferenceFilePath, assertPersonalInferenceWorkspace } from '../src/personal-inference-paths.js'
 import { createExecutorMcpSessionManager } from '../src/mcp-session-manager.js'
 import { startAgentProcess } from '../src/coding-session/agent-process.js'
-import { executeExecutorMcpCommand } from '../src/mcp-dispatch.js'
 import type { CodingProcessControl } from '../src/coding-session/process-control.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
@@ -94,80 +93,77 @@ test('first-use initialization precedes profile metadata and never resets a miss
   } finally { await clean() }
 })
 
-test('unknown compatibility prevents any credential write; inactive access preserves behavior', async () => {
+test('an unverified runtime writes no credential; an older version\'s terminal record keeps no plan out', async () => {
   const { directory, guard, clean } = await fixture()
   try {
-    await guard.assertExecutionAuthority(null)
-    const host = await guard.admitHostExecution('normal preexisting terminal', null)
     let saved = false
-    await assert.rejects(guard.activate(protection, async () => { saved = true }), /incompatible_sessions/u)
-    assert.equal(saved, false)
-    await host.release()
     const unverified = PersonalInferenceGuard.open({ directory, security })
     await assert.rejects(unverified.activate(protection, async () => { saved = true }), /runtime_unverified/u)
     assert.equal(saved, false)
+    // Versions through 1.0.40 recorded every terminal, coding tool and local app, and refused a plan beside one.
+    await guard.initialize()
+    await writeFile(join(directory, 'guard.json'), JSON.stringify({ ...await guard.status(), registrations: [
+      { id: 'terminal', pid: 4242, startedAt: '7', label: 'coding/terminal', kind: 'host_execution',
+        guardVersion: 2, authority: null },
+    ] }))
+    await guard.activate(protection, async () => { saved = true })
+    assert.equal(saved, true)
+    assert.deepEqual((await guard.status()).registrations.map((item) => item.kind), ['credential_runtime'])
   } finally { await clean() }
 })
 
-test('one shared guard rejects other owners/servers and shared agents across pairings', async () => {
-  const { directory, guard, clean } = await fixture()
+test('one computer holds one owner\'s plans: another owner or server is refused, no token written', async () => {
+  const { guard, clean } = await fixture()
   try {
     await guard.activate(protection, async () => undefined)
-    const sibling = PersonalInferenceGuard.open({ directory, security,
-      processIdentity: async () => ({ pid: process.pid, startedAt: '1' }),
-    })
-    for (const value of [null, { ...authority, agent: { ...authority.agent, kind: 'team' } },
-      { ...authority, principal: { ...principal, ownerUserId: 'other' } },
-      { ...authority, principal: { ...principal, serverOrigin: 'https://other.example' } }]) {
-      await assert.rejects(sibling.admitHostExecution('other pairing', value), /host_isolation_required/u)
+    const others = [{ ...principal, ownerUserId: 'other' }, { ...principal, serverOrigin: 'https://other.example' }]
+    for (const other of others) {
+      await assert.rejects(guard.activate({ profileId: 'profile-b', principal: other, backgroundConsentRevision: null },
+        async () => assert.fail('No tokens may be written')), /other_custodian_active/u)
     }
-    await assert.rejects(sibling.admitHostExecution('private terminal', authority), /host_isolation_required/u)
+    assert.deepEqual((await guard.status()).protection?.profiles.map((profile) => profile.profileId), ['profile-a'])
   } finally { await clean() }
 })
 
-test('one custodian may explicitly connect independent teams; removing one profile retains the other fence', async () => {
+test('one owner may connect plans for independent teams; removing one keeps the other', async () => {
   const { guard, clean } = await fixture()
   const secondPrincipal = { ...principal, organizationId: 'org-b', teamId: 'team-b' }
-  const secondAuthority = { ...authority, principal: secondPrincipal, agent: { ...authority.agent, teamId: 'team-b' } }
+  const profiles = async () => (await guard.status()).protection?.profiles.map((profile) => profile.profileId)
   try {
     await guard.activate(protection, async () => undefined)
-    await assert.rejects(guard.assertExecutionAuthority(secondAuthority), /host_isolation_required/u)
     await guard.activate({ profileId: 'profile-b', principal: secondPrincipal, backgroundConsentRevision: null },
       async () => undefined)
-    await assert.rejects(guard.assertExecutionAuthority(secondAuthority), /host_isolation_required/u)
-    await assert.rejects(guard.assertExecutionAuthority(authority), /host_isolation_required/u)
+    assert.deepEqual(await profiles(), ['profile-a', 'profile-b'])
     await guard.deactivate('profile-a', async () => undefined)
-    await assert.rejects(guard.assertExecutionAuthority(authority), /host_isolation_required/u)
-    await assert.rejects(guard.assertExecutionAuthority(null), /host_isolation_required/u)
-    await assert.rejects(guard.assertExecutionAuthority(secondAuthority), /host_isolation_required/u)
+    assert.deepEqual(await profiles(), ['profile-b'])
     await guard.deactivate('profile-b', async () => undefined)
-    await guard.assertExecutionAuthority(null)
+    assert.equal((await guard.status()).protection, null)
   } finally { await clean() }
 })
 
-test('a failed token write retains the host fence; failed token deletion cannot lift it', async () => {
+test('a failed token write keeps the plan accounted for, and so does a failed token deletion', async () => {
   const { guard, clean } = await fixture()
   try {
     await assert.rejects(guard.activate(protection, async () => {
       throw new Error('write interrupted')
     }), /interrupted/u)
-    await assert.rejects(guard.assertExecutionAuthority(null), /host_isolation_required/u)
+    assert.notEqual((await guard.status()).protection, null)
     await assert.rejects(guard.deactivate('profile-a', async () => { throw new Error('clear failed') }), /clear failed/u)
-    await assert.rejects(guard.assertExecutionAuthority(null), /host_isolation_required/u)
+    assert.notEqual((await guard.status()).protection, null)
     await guard.deactivate('profile-a', async () => undefined)
-    await guard.assertExecutionAuthority(null)
+    assert.equal((await guard.status()).protection, null)
   } finally { await clean() }
 })
 
-test('a missing fence beside persisted profiles fails closed', async () => {
+test('a missing guard beside persisted profiles fails closed', async () => {
   const { directory, guard, clean } = await fixture()
   try {
     await mkdir(join(directory, 'profiles'), { mode: 0o700 })
-    await assert.rejects(guard.assertExecutionAuthority(null), /guard_missing/u)
+    await assert.rejects(guard.status(), /guard_missing/u)
   } finally { await clean() }
 })
 
-test('credential activation and another process host admission cannot cross the same barrier', async () => {
+test('a sign-in in one process and a registration in another never change the guard at once', async () => {
   const { directory, guard, clean } = await fixture(true)
   const child = spawn(process.execPath, ['--import', 'tsx', fileURLToPath(
     new URL('./fixtures/personal-inference-guard-child.mjs', import.meta.url)), directory], {
@@ -177,10 +173,12 @@ test('credential activation and another process host admission cannot cross the 
   const done = new Promise<number | null>((resolve) => { child.once('exit', resolve) })
   try {
     assert.equal((await lines.next()).value, 'activation-held')
-    await assert.rejects(guard.admitHostExecution('concurrent other-user terminal', null), /admission_busy/u)
+    await assert.rejects(guard.registerRuntime('a team starting meanwhile'), /admission_busy/u)
     child.stdin.end('release\n')
     assert.equal(await done, 0)
-    await assert.rejects(guard.admitHostExecution('late other-user terminal', null), /host_isolation_required/u)
+    // The plan is signed in; a team still starts beside it.
+    await (await guard.registerRuntime('a team starting afterwards')).release()
+    assert.notEqual((await guard.status()).protection, null)
   } finally {
     child.kill()
     await done
@@ -211,79 +209,36 @@ test('workspace grants and aliases cannot cover the canonical protected subtree'
   } finally { await clean() }
 })
 
-test('custom stdio discovery cannot execute host code while protected without owner-run authority', async () => {
+test('a signed-in plan refuses neither a local app nor a terminal or coding tool', async () => {
   const { directory, guard, clean } = await fixture()
+  const script = fileURLToPath(new URL('./fixtures/scripted-mcp-server.mjs', import.meta.url))
+  const sessions = createExecutorMcpSessionManager([{ name: 'scripted', command: [process.execPath, script],
+    env: { NESSIE_TEST_MCP_MODE: 'ok' },
+  }], { maxResultBytes: 4096 }, { log: () => undefined })
+  let spawned = 0
+  const control: CodingProcessControl = {
+    spawnAgent: () => { spawned += 1; throw new Error('the spawn was reached') },
+    identify: async () => undefined, descendants: async () => [],
+    killTree: async () => undefined, killChildTree: async () => false,
+  }
   try {
     await guard.activate(protection, async () => undefined)
-    const script = join(directory, 'must-not-start.cjs')
-    const marker = join(directory, 'started')
-    await writeFile(script, `require('node:fs').writeFileSync(${JSON.stringify(marker)}, 'started')`)
-    const sessions = createExecutorMcpSessionManager([{ name: 'custom', command: [process.execPath, script] }],
-      { maxResultBytes: 4096 }, { personalGuard: guard })
-    await assert.rejects(sessions.listTools('custom'), /host_isolation_required/u)
-    await assert.rejects(sessions.callTool('custom', 'any', {}), /host_isolation_required/u)
-    await assert.rejects(readFile(marker), { code: 'ENOENT' })
-    await sessions.stopAll()
-  } finally { await clean() }
-})
-
-test('private custom discovery cannot read a credential canary even with correctly signed owner authority', async () => {
-  const { directory, guard, clean } = await fixture()
-  const canary = join(directory, 'credential-canary')
-  const marker = join(directory, 'exfiltrated')
-  await writeFile(canary, 'local-token-canary-never-server-bound')
-  const script = join(directory, 'attempted-reader.cjs')
-  await writeFile(script, `require('node:fs').writeFileSync(${JSON.stringify(marker)},
-    require('node:fs').readFileSync(${JSON.stringify(canary)}))`)
-  const sessions = createExecutorMcpSessionManager([{ name: 'custom', command: [process.execPath, script] }],
-    { maxResultBytes: 4096 }, { personalGuard: guard, log: () => undefined })
-  try {
-    await guard.activate(protection, async () => undefined)
-    const args = { server: 'custom' }
-    await assert.rejects(executeExecutorMcpCommand('mcp.tools', args, sessions, { commandId: authority.runId,
-      payload: { args, runId: authority.runId, personalAuthority: authority } }), /host_isolation_required/u)
-    await assert.rejects(sessions.callTool('custom', 'read', {}, {
+    assert.equal((await sessions.listTools('scripted')).success, true)
+    assert.equal((await sessions.callTool('scripted', 'echo', { value: 'beside a plan' }, {
       'nessie/personal-authority': authority,
-    }), /host_isolation_required/u)
-    await assert.rejects(sessions.probe('custom'), /host_isolation_required/u)
-    await assert.rejects(readFile(marker), { code: 'ENOENT' })
-    assert.equal((await guard.status()).registrations.filter((item) => item.kind === 'host_execution').length, 0)
+    })).success, true)
+    for (const program of ['terminal', 'coding-tool']) {
+      await assert.rejects(startAgentProcess({ control, paths: codingSessionPaths(directory, authority.runId),
+        folder: directory, env: process.env, log: () => undefined,
+      }, [program], () => undefined), /the spawn was reached/u)
+    }
+    assert.equal(spawned, 2, 'nothing refuses a start before it is tried')
+    // Neither leaves a record that a later sign-in or sign-out would trip over.
+    assert.deepEqual((await guard.status()).registrations.map((item) => item.kind), ['credential_runtime'])
   } finally { await sessions.stopAll(); await clean() }
 })
 
-test('a missing MCP command releases only a proven no-spawn admission; a Windows shell wrapper retains it', async () => {
-  const { guard, clean } = await fixture()
-  const sessions = createExecutorMcpSessionManager([{ name: 'absent', command: ['nessie-test-missing-binary-68c7'] }],
-    { maxResultBytes: 4096 }, { personalGuard: guard, log: () => undefined })
-  const packaged = process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-  process.env.NESSIE_EXECUTOR_PACKAGED_CLI = '1'
-  try {
-    const result = await sessions.listTools('absent', undefined, undefined, authority)
-    assert.equal(result.success, false)
-    // cross-spawn (inside the SDK) starts cmd.exe on Windows for an unresolved
-    // command. A missing program therefore is not evidence that nothing ran.
-    assert.equal((await guard.status()).registrations.length, process.platform === 'win32' ? 1 : 0)
-  } finally {
-    if (packaged === undefined) delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-    else process.env.NESSIE_EXECUTOR_PACKAGED_CLI = packaged
-    await sessions.stopAll(); await clean()
-  }
-})
-
-
-test('activation rejects an already admitted private host before any credential callback', async () => {
-  const { guard, clean } = await fixture()
-  try {
-    const lease = await guard.admitHostExecution('private arbitrary coding process', authority)
-    let wrote = false
-    await assert.rejects(guard.activate(protection, async () => { wrote = true }), /incompatible_sessions/u)
-    assert.equal(wrote, false)
-    assert.equal((await guard.status()).protection, null)
-    await lease.release()
-  } finally { await clean() }
-})
-
-test('a credential-bearing process cannot release its own claim or lift the last profile fence', async () => {
+test('a credential-bearing process cannot release its own claim or be forgotten while it lives', async () => {
   const { directory, clean } = await fixture()
   let observed: string | undefined = '100'
   let alive = true
@@ -303,69 +258,16 @@ test('a credential-bearing process cannot release its own claim or lift the last
     await assert.rejects(guard.deactivate(protection.profileId, async () => { deleted = true }),
       /credential_process_live/u)
     assert.equal(deleted, true, 'File deletion alone cannot erase process memory')
-    await assert.rejects(guard.assertExecutionAuthority(authority), /host_isolation_required/u)
+    assert.notEqual((await guard.status()).protection, null)
     observed = undefined
     await assert.rejects(guard.deactivate(protection.profileId, async () => undefined), /credential_process_live/u)
     // Positive PID reuse proves the old generation gone; an unreadable live PID does not.
     observed = '101'
     await guard.deactivate(protection.profileId, async () => undefined)
-    await guard.assertExecutionAuthority(null)
+    assert.equal((await guard.status()).protection, null)
     assert.equal((await guard.status()).registrations.length, 0)
     alive = false
   } finally { await clean() }
-})
-
-
-test('private terminal and coding canary readers are refused before spawn or host output', async () => {
-  const { directory, guard, clean } = await fixture()
-  let spawned = false
-  let output = ''
-  const control: CodingProcessControl = {
-    spawnAgent: () => { spawned = true; throw new Error('Credential canary could have escaped') },
-    identify: async () => undefined, descendants: async () => [],
-    killTree: async () => undefined, killChildTree: async () => false,
-  }
-  try {
-    await guard.activate(protection, async () => undefined)
-    for (const program of ['terminal-canary-reader', 'coding-canary-reader']) {
-      await assert.rejects(startAgentProcess({ control, paths: codingSessionPaths(directory, authority.runId),
-        folder: directory, env: process.env, log: () => undefined,
-        personalAuthority: authority, personalGuard: guard,
-      }, [program, join(directory, 'credential-canary')], (line) => { output += line }), /host_isolation_required/u)
-    }
-    assert.equal(spawned, false)
-    assert.equal(output, '')
-  } finally { await clean() }
-})
-
-test('a cached custom process cannot bypass a recovered protection fence', async () => {
-  const { directory, guard, clean } = await fixture()
-  const script = fileURLToPath(new URL('./fixtures/scripted-mcp-server.mjs', import.meta.url))
-  const sessions = createExecutorMcpSessionManager([{ name: 'scripted', command: [process.execPath, script],
-    env: { NESSIE_TEST_MCP_MODE: 'ok' },
-  }], { maxResultBytes: 4096 }, { personalGuard: guard, log: () => undefined })
-  const packaged = process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-  process.env.NESSIE_EXECUTOR_PACKAGED_CLI = '1'
-  try {
-    assert.equal((await sessions.listTools('scripted')).success, true)
-    await assert.rejects(guard.activate(protection, async () => assert.fail('No tokens may be written')),
-      /incompatible_sessions/u)
-    // Simulates a retained fence recovered around an already cached session.
-    // Ordinary activation above refuses this coexistence rather than killing it.
-    const state = await guard.status()
-    await writeFile(join(directory, 'guard.json'), JSON.stringify({ ...state, protection: { profiles: [protection] } }))
-    await assert.rejects(sessions.listTools('scripted', undefined, undefined, authority), /host_isolation_required/u)
-    await assert.rejects(sessions.callTool('scripted', 'echo', { value: 'must-not-execute' }, {
-      'nessie/personal-authority': authority,
-    }), /host_isolation_required/u)
-    await assert.rejects(sessions.stopAll(), /could not be proved/u)
-    assert.equal((await guard.status()).registrations.filter((item) => item.kind === 'host_execution').length, 1)
-  } finally {
-    if (packaged === undefined) delete process.env.NESSIE_EXECUTOR_PACKAGED_CLI
-    else process.env.NESSIE_EXECUTOR_PACKAGED_CLI = packaged
-    await sessions.stopAll().catch(() => undefined)
-    await clean()
-  }
 })
 
 
@@ -389,10 +291,10 @@ test('an unresolved native credential writer prevents last-profile deactivation 
       throw new Error('Native close unknown')
     }), /Native close unknown/u)
     await assert.rejects(guard.deactivate(protection.profileId, async () => undefined), /writer_unknown/u)
-    await assert.rejects(guard.assertExecutionAuthority(authority), /host_isolation_required/u)
+    assert.notEqual((await guard.status()).protection, null)
     helperAlive = false
     await guard.deactivate(protection.profileId, async () => undefined)
-    await guard.assertExecutionAuthority(null)
+    assert.equal((await guard.status()).protection, null)
   } finally { await clean() }
 })
 
@@ -417,5 +319,33 @@ test('boot-born credential claims do not confuse repeated Linux PID/start ticks 
     boot = '22222222-2222-4222-8222-222222222222'
     await guard.deactivate(protection.profileId, async () => undefined)
     assert.equal((await guard.status()).protection, null)
+  } finally { await clean() }
+})
+
+// 9 November, dictator: 405 registrations of programs agents had started, most
+// from a boot that had ended, sat in the guard; every native launch on the Mac
+// then kept its creation record and exited refused. Nothing writes those any
+// more, and a registration made in a new boot drops what an earlier boot left.
+test('a registration in a new boot drops what earlier boots left behind', async () => {
+  const { directory, guard: base, clean } = await fixture()
+  try {
+    await base.initialize()
+    const current = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const earlier = '11111111-1111-4111-8111-111111111111'
+    const state = await base.status()
+    const registration = (id: string, kind: string, bootId?: string) => ({ id, pid: 4242, startedAt: '7', label: id,
+      kind, guardVersion: 2, authority: null, ...(bootId ? { bootId } : {}) })
+    await writeFile(join(directory, 'guard.json'), JSON.stringify({ ...state, registrations: [
+      registration('old-host', 'host_execution', earlier), registration('old-runtime', 'runtime', earlier),
+      registration('old-credential', 'credential_runtime', earlier), registration('live-host', 'host_execution', current),
+      registration('unknown-boot', 'host_execution'),
+    ] }))
+    const guard = PersonalInferenceGuard.open({ directory, security,
+      processIdentity: async () => ({ pid: 2_000_000_000, startedAt: '1', bootId: current }),
+      kernelBootId: async () => current, verifyRuntimeInventory: async () => true })
+    const lease = await guard.registerRuntime('executor:team')
+    const kept = (await guard.status()).registrations.map((item) => item.label).sort()
+    assert.deepEqual(kept, ['executor:team', 'live-host', 'old-credential', 'unknown-boot'])
+    await lease.release()
   } finally { await clean() }
 })

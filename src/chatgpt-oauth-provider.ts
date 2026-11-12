@@ -1,10 +1,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto'
-import { importJWK, jwtVerify, type JWK } from 'jose'
+import { decodeJwt, importJWK, jwtVerify, type JWK } from 'jose'
 import { safeFetch, type PinnedFetch } from '@nessie/executor-support/url-safety'
 
 export const CHATGPT_ISSUER = 'https://auth.openai.com'
 export const CHATGPT_RESOURCE = 'https://api.openai.com/v1'
 export const CHATGPT_SCOPES = 'openid profile email offline_access resource.invoke chatgpt.tokens.use.direct'
+/** The public personal-agent client also used by Codex and OpenClaw. This is not a client secret. */
+export const CHATGPT_PERSONAL_CLIENT_ID = 'app_EMoamEEZ73f0CkXaXp7hrann'
+export const CHATGPT_PERSONAL_SCOPES = 'openid profile email offline_access'
 export const CHATGPT_CALLBACK_PATH = '/auth/callback'
 export class ChatgptAuthError extends Error {
   override readonly name = 'ChatgptAuthError'
@@ -22,6 +25,7 @@ export const issuedChatgptClient = (value: unknown): value is string => typeof v
 export type ChatgptTokens = {
   idToken: string; accessToken: string | null; refreshToken: string | null
   expiresAt: number | null; scopes: string[]; subject: string; issuer: typeof CHATGPT_ISSUER
+  accountId?: string
 }
 type Discovery = { issuer: string; authorization_endpoint: string; token_endpoint: string; jwks_uri: string
   revocation_endpoint: string }
@@ -90,16 +94,19 @@ export class ChatgptOAuthProvider {
   }
 
   async authorizationUrl(input: ChatgptOAuthRequest): Promise<string> {
-    const { authorization_endpoint } = await this.discovery()
+    const personal = !input.clientId || input.clientId === CHATGPT_PERSONAL_CLIENT_ID
+    const authorization_endpoint = personal ? `${CHATGPT_ISSUER}/oauth/authorize`
+      : (await this.discovery()).authorization_endpoint
     const redirect = new URL(input.redirectUri)
-    if (redirect.protocol !== 'http:' || redirect.hostname !== '127.0.0.1'
+    if (redirect.protocol !== 'http:' || !['127.0.0.1', ...(personal ? ['localhost'] : [])].includes(redirect.hostname)
       || redirect.pathname !== CHATGPT_CALLBACK_PATH || redirect.search || redirect.hash || !redirect.port) {
       return refuse('oauth_callback_invalid')
     }
     const url = new URL(authorization_endpoint)
-    url.search = new URLSearchParams({ client_id: input.clientId ?? 'dynamic_agent_client',
-      ...(input.clientId ? {} : { agent_name_hint: 'Nessie' }), ext_agent_host_id: input.hostId,
-      response_type: 'code', redirect_uri: input.redirectUri, scope: CHATGPT_SCOPES, resource: CHATGPT_RESOURCE,
+    url.search = new URLSearchParams({ client_id: input.clientId ?? CHATGPT_PERSONAL_CLIENT_ID,
+      ...(personal ? { originator: 'nessie-computer', id_token_add_organizations: 'true', codex_cli_simplified_flow: 'true' }
+        : { ext_agent_host_id: input.hostId, resource: CHATGPT_RESOURCE }),
+      response_type: 'code', redirect_uri: input.redirectUri, scope: personal ? CHATGPT_PERSONAL_SCOPES : CHATGPT_SCOPES,
       state: input.state, nonce: input.nonce, code_challenge_method: 'S256',
       code_challenge: createHash('sha256').update(input.verifier).digest('base64url'),
       ...(input.clientId && input.idTokenHint ? { id_token_hint: input.idTokenHint } : {}),
@@ -157,35 +164,46 @@ export class ChatgptOAuthProvider {
       : input.previous?.scopes ?? []
     const accessToken = typeof value.access_token === 'string' && value.access_token ? value.access_token : null
     const refreshToken = typeof value.refresh_token === 'string' && value.refresh_token
-      ? value.refresh_token : null
+      ? value.refresh_token : clientId === CHATGPT_PERSONAL_CLIENT_ID && value.refresh_token === undefined
+        ? input.previous?.refreshToken ?? null : null
     if (input.previous && (!accessToken || !refreshToken)) return refuse('oauth_response_invalid')
     const expiresIn = value.expires_in
     if (accessToken && (value.token_type !== 'Bearer' || !Number.isSafeInteger(expiresIn) || Number(expiresIn) < 1)) {
       return refuse('oauth_response_invalid')
     }
+    const personal = clientId === CHATGPT_PERSONAL_CLIENT_ID
+    const auth = (personal ? decodeJwt(idToken)['https://api.openai.com/auth'] : undefined) as
+      Record<string, unknown> | undefined
+    const accountId = auth?.chatgpt_account_id ?? input.previous?.accountId
+    if (personal && (typeof accountId !== 'string' || !/^[A-Za-z0-9_-]{1,200}$/u.test(accountId)
+      || input.previous?.accountId && accountId !== input.previous.accountId)) return refuse('oauth_identity_invalid')
     return { idToken, subject, issuer: CHATGPT_ISSUER, scopes, accessToken, refreshToken,
+      ...(personal ? { accountId: accountId as string } : {}),
       expiresAt: accessToken ? this.now() + Number(expiresIn) * 1_000 : null }
   }
 
   async exchange(input: { code: string; clientId: string; redirectUri: string; verifier: string
     nonce: string; subject?: string; signal?: AbortSignal }): Promise<ChatgptTokens> {
     if (!issuedChatgptClient(input.clientId)) return refuse('oauth_client_invalid')
-    const discovery = await this.discovery(input.signal)
-    const value = await this.request(discovery.token_endpoint, { method: 'POST', signal: input.signal,
+    const personal = input.clientId === CHATGPT_PERSONAL_CLIENT_ID
+    const endpoint = personal ? `${CHATGPT_ISSUER}/oauth/token` : (await this.discovery(input.signal)).token_endpoint
+    const value = await this.request(endpoint, { method: 'POST', signal: input.signal,
       headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({
         grant_type: 'authorization_code', client_id: input.clientId, code: input.code,
-        code_verifier: input.verifier, redirect_uri: input.redirectUri, resource: CHATGPT_RESOURCE,
+        code_verifier: input.verifier, redirect_uri: input.redirectUri,
+        ...(personal ? {} : { resource: CHATGPT_RESOURCE }),
       }) })
-    return this.tokens(value, input.clientId, input)
+    return this.tokens(value, input.clientId, { ...input, ...(personal ? { nonce: undefined } : {}) })
   }
 
   async refresh(clientId: string, previous: ChatgptTokens, signal: AbortSignal): Promise<ChatgptTokens> {
     if (!issuedChatgptClient(clientId) || !previous.refreshToken) return refuse('invalid_refresh_token')
-    const discovery = await this.discovery(signal)
-    const value = await this.request(discovery.token_endpoint, { method: 'POST', signal,
+    const personal = clientId === CHATGPT_PERSONAL_CLIENT_ID
+    const endpoint = personal ? `${CHATGPT_ISSUER}/oauth/token` : (await this.discovery(signal)).token_endpoint
+    const value = await this.request(endpoint, { method: 'POST', signal,
       headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({
         grant_type: 'refresh_token', client_id: clientId,
-        refresh_token: previous.refreshToken, resource: CHATGPT_RESOURCE,
+        refresh_token: previous.refreshToken, ...(personal ? {} : { resource: CHATGPT_RESOURCE }),
       }) })
     return this.tokens(value, clientId, { subject: previous.subject, previous, signal })
   }
@@ -205,4 +223,5 @@ export class ChatgptOAuthProvider {
 
 export const hasChatgptPlanPermission = (tokens: ChatgptTokens): boolean => typeof tokens.accessToken === 'string'
   && tokens.accessToken.length > 0 && Array.isArray(tokens.scopes)
-  && tokens.scopes.includes('chatgpt.tokens.use.direct') && tokens.scopes.includes('resource.invoke')
+  && (Boolean(tokens.accountId && tokens.refreshToken)
+    || tokens.scopes.includes('chatgpt.tokens.use.direct') && tokens.scopes.includes('resource.invoke'))

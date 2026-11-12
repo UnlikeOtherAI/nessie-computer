@@ -287,17 +287,15 @@ export const titleForLocalName = (name: string, kind: FolderSyncPageKind): strin
 }
 
 /**
- * The team's folder under the root: its display name, cleaned like any
- * folder, with the short team id appended when another team already holds the
- * name (plan §2.2).
+ * One segment of a team's folder (rule 8): the team's or its organisation's
+ * display name, cleaned like any folder. `tagged` appends the executor id's
+ * short tag, which keeps it apart from another sync's folder of that name
+ * (`team-folder.ts` decides when).
  */
-export const teamFolderName = (teamLabel: string, teamId: string, takenNames: readonly string[]): string => {
-  const parts = unignored({ base: cleanBase(cleanTitle(teamLabel)), ext: '', id: teamId, dup: null })
-  const plain = renderName(parts, FOLDER_SYNC_PATH_LIMITS.segmentBytes) ?? `_~${idTag(teamId)}`
-  const taken = new Set(takenNames.map(nameKey))
-  if (!taken.has(nameKey(plain))) return plain
-  return renderName({ ...parts, base: `${parts.base} ${idTag(teamId)}` }, FOLDER_SYNC_PATH_LIMITS.segmentBytes)
-    ?? `_~${idTag(teamId)}`
+export const teamFolderSegment = (label: string, executorId: string, tagged: boolean): string => {
+  const parts = unignored({ base: cleanBase(cleanTitle(label)), ext: '', id: executorId, dup: null })
+  const base = tagged ? `${parts.base} ${idTag(executorId)}` : parts.base
+  return renderName({ ...parts, base }, FOLDER_SYNC_PATH_LIMITS.segmentBytes) ?? `_~${idTag(executorId)}`
 }
 
 /** `a/b/c.md` → `a/b`; a top-level segment's parent is the empty string. */

@@ -198,6 +198,25 @@ fn copy(source: &Path, target: &Path, depth: u32) -> UpdateResult<()> {
     Ok(())
 }
 
+/// Monotonic for the app as well as its runtime: an app installed by hand that
+/// is newer than an accepted catalogue release is never replaced by it.
+pub(super) fn refuse_older_application(version: &str) -> UpdateResult<()> {
+    let path = Path::new(APPLICATIONS[0]).join("Contents/Resources/executor-runtime/manifest.json");
+    // A missing app refuses nothing: replacement installs it.
+    let Ok(file) = File::open(path) else { return Ok(()); };
+    let mut bytes = Vec::new();
+    file.take(65_537).read_to_end(&mut bytes).map_err(|_| ERROR)?;
+    if application_newer(&bytes, version) { Err("update.downgrade_refused") } else { Ok(()) }
+}
+
+/// Read only to refuse: an unreadable manifest never authorizes anything.
+fn application_newer(manifest: &[u8], version: &str) -> bool {
+    manifest.len() <= 65_536 && serde_json::from_slice::<serde_json::Value>(manifest).ok()
+        .and_then(|value| value["executorVersion"].as_str().map(str::to_owned))
+        .is_some_and(|installed| nessie_executor_updater::catalog::compare_versions(&installed, version)
+            == Ok(std::cmp::Ordering::Greater))
+}
+
 /// The caller retains the persistent machine barrier and has independently
 /// cleared old actors. Replacing this link never replaces a custody inode.
 pub(super) fn select(digest: &str) -> UpdateResult<()> {
@@ -212,4 +231,17 @@ pub(super) fn select(digest: &str) -> UpdateResult<()> {
     std::os::unix::fs::symlink(Path::new("releases").join(digest), &draft).map_err(|_| ERROR)?;
     fs::rename(draft, root.join("current")).map_err(|_| ERROR)?;
     File::open(root).and_then(|file| file.sync_all()).map_err(|_| ERROR)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_newer_hand_installed_app_is_never_replaced_by_an_older_release() {
+        let manifest = br#"{"executorVersion":"1.0.15"}"#;
+        assert!(super::application_newer(manifest, "1.0.13"));
+        assert!(!super::application_newer(manifest, "1.0.15"));
+        assert!(!super::application_newer(manifest, "1.0.16"));
+        assert!(!super::application_newer(b"{}", "1.0.13"));
+        assert!(!super::application_newer(b"not json", "1.0.13"));
+    }
 }

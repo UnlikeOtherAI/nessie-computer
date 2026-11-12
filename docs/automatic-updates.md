@@ -1,7 +1,7 @@
 # Automatic executor updates
 
 Status: **preview published; stable acceptance incomplete**. Immutable release
-[1.0.12](https://github.com/UnlikeOtherAI/nessie-executor/releases/tag/executor-v1.0.12)
+[1.0.12](https://github.com/UnlikeOtherAI/nessie-computer/releases/tag/executor-v1.0.12)
 contains signed Windows x64 MSI, Apple-silicon DMG and Linux x64 DEB/RPM packages
 from `e799a7aa3dc53d8430a925ba3027b2039adca7ae`. Anonymous downloads matched
 all recorded hashes and sizes on 8 November 2026, including both Linux detached
@@ -184,6 +184,14 @@ barrier during replacement. Do not kill or cancel a running task to install
 an update. Restart only connections whose local running switch is still on.
 Confirm the new runtime's own version, revision and health before reporting
 success.
+
+A drain is a bounded attempt. A waiting transaction holds new admissions for at
+most one hour, then reopens them for six hours before the next attempt; nothing
+running is stopped. Replacement is offered only inside an attempt window, and
+`installing` and `restarting` keep the fence. A downloading or waiting
+transaction whose version the installed runtime already meets (for example, a
+newer Mac app installed its own runtime) is archived under `updates/retired/`
+and its drain ends. See [recovering a stuck helper](macos-update-helper.md#recovering-a-stuck-helper).
 
 Journal the exact accepted release and installation phase before replacement.
 On interruption or reboot, inspect the actual package and resume that
@@ -483,9 +491,10 @@ publication; it does not claim the legacy CLI builder's artifact attestations.
 
 ## Windows CLI entry point
 
-The MSI installs `nessie-executor.cmd` beside its native launcher and registers
-that protected directory in the machine PATH. New terminals can use
-`nessie-executor updates status --json` and the ordinary CLI commands. The wrapper
+The MSI installs `nessie-computer.cmd` and, under the older name,
+`nessie-executor.cmd` beside its native launcher and registers that protected
+directory in the machine PATH. Both are the same wrapper. New terminals can use
+`nessie-computer settings updates --json` and the ordinary CLI commands. The wrapper
 passes arguments to the fixed native managed-runtime entry; it never invokes an
 ambient Node binary, selects an update origin or supplies credentials. Windows
 Installer owns PATH registration and removes it on uninstall. Installed 1.0.12 passed command discovery through machine PATH, ordinary-user
@@ -499,6 +508,45 @@ Major upgrades remove the old product inside the MSI transaction, after
 `InstallInitialize`; failure restores the old product. Installed tests must use
 the original signed MSI. A transform may inject a failure only in a separate
 rollback test, and that result is not an ordinary installation pass.
+
+Before any file changes, the MSI closes what runs from the install folder
+besides the service, which it stops itself: the Windows app in each session,
+and team daemons a scheduled task or a terminal started. Files replaced under
+running processes failed the install with 1603, and the rollback queued
+reboot-time file swaps that undid the next install. `--close-for-install` runs
+from the package's own Binary-table copy of the service, so the new code runs
+while an older release is installed. It is an immediate action before
+`InstallValidate`: the upgrade removes the previous product at
+`RemoveExistingProducts`, straight after `InstallInitialize`, and Windows
+Installer fails an upgrade with error 2613 (1603) when any script action comes
+ahead of it. `installSequenceProblems` in `packaging/windows/msi-plan.mjs` checks
+that rule against the authoring. As an immediate action it runs as the
+installing account, SYSTEM for an automatic update. An account that cannot
+write the service's note of the closed apps (a manual install) still closes
+them, and the app opens at the next sign-in instead of straight after the
+install. A Windows app from this release quits when
+the install event is set, and its daemons stop as their liveness pipes close.
+Other daemons get Ctrl+Break on their own console, which this release's daemon
+treats as a graceful stop. Whatever still runs after 30 seconds is terminated
+(the app after six). The action refuses with `install_handover.still_running`
+before any file changes if something survives that. `--reopen-after-install`
+reopens each closed app in its own session, for the person signed in there,
+after the service starts again. A failed install does not reopen them: a
+rollback action would run before the previous release's files are restored. The
+restored service starts again, and the app at the next sign-in.
+
+The setup custom actions (`--secure-state-root`, `--secure-updater-root`,
+`--disable-updater-for-removal`) keep only an exit code in the MSI log, so a
+refusal is also written to the Windows Application event log under the source
+`Nessie Computer Setup`, as one line led by a stable code: for example
+`updater_setup.helper_refused helper=update.installed_tray_unverified exit=1`.
+`helper=` is the native helper's own code. `update.installed_tray_unverified`
+and `update.installed_service_unverified` mean that file in the release folder
+is not the one the new manifest names. A Windows app still running from the
+previous install causes the first: Windows Installer replaces a file in use only
+at the next restart. Read it with Event Viewer, or in Windows PowerShell:
+`Get-WinEvent -LogName Application -FilterXPath "*[System[Provider[@Name='Nessie Computer Setup']]]" -MaxEvents 5`.
+The line carries codes only, never a path, key or child-process output.
 
 The native protected-image pin requests READ_CONTROL for its retained handle.
 Creator-owner inheritance-only ACEs do not grant access to the parent; actual
@@ -585,3 +633,13 @@ delete custody evidence or clear the transaction to make installation proceed.
 The source regression covers absent state in 0775 homes, existing unsafe state,
 owner mismatch and dangling state/home symlinks. Signed installed recovery
 remains pending.
+
+## Repository rename
+
+Source and new releases live in `UnlikeOtherAI/nessie-computer`. GitHub redirects
+the former repository URL. Signature verification accepts only these two exact
+repository names for immutable versioned assets, so previously signed catalogues
+remain usable. Keep the former repository name unclaimed. Old installed updaters
+only recognise the former asset URLs: catalogue publication must retain that URL
+for a transition release until those installations have updated. Download links
+for people use the new repository.

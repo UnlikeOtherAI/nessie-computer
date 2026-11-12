@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  NessieExecutor_<version>_x64.msi — the standalone Nessie Executor.
+  NessieExecutor_<version>_x64.msi — Nessie Computer for Windows.
 
   It installs one directory of files, registers a service under its own virtual
-  account, tells Hyper-V about the socket the guest speaks on, and starts the
-  tray at login. Everything a person's executor state ever holds lives under
+  account, tells Hyper-V about the socket the guest speaks on, starts the app
+  at login, adds its Start menu shortcut and registers nessie-computer:// links.
+  The product is called Nessie Computer; the file name, UpgradeCode, service
+  names, pipe names, install folder and state folder keep their original
+  identifiers so upgrades and installed scripts keep working. Everything a person's executor state ever holds lives under
   %ProgramData%, owned by the service account, and is deliberately left behind
   on uninstall: a pairing is a machine key and a signed policy revision, and
   removing a program is not a statement about wanting those destroyed.
@@ -14,7 +17,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
-    Name="Nessie Executor"
+    Name="Nessie Computer"
     Manufacturer="UnlikeOtherAI"
     Version="$(var.Version)"
     UpgradeCode="9a1c6d2e-4f3b-4a7d-9c1e-2b8f5d6a4e10"
@@ -22,7 +25,7 @@
     Compressed="yes"
     InstallerVersion="500">
 
-    <SummaryInformation Description="Runs a paired Nessie executor as a Windows service." />
+    <SummaryInformation Description="Lets agents in your Nessie teams use this computer." />
     <Property Id="NessieManagedRuntimeGuardVersion" Value="2" />
     <Property Id="NessieAutomaticUpdateProtocol" Value="$(var.EnableUpdater)" />
 
@@ -30,7 +33,7 @@
          re-registers the service, and never touches the state root. -->
     <!-- Removal belongs to the transaction: a failed upgrade restores the previous product. -->
     <MajorUpgrade Schedule="afterInstallInitialize"
-                  DowngradeErrorMessage="A newer Nessie Executor is already installed." />
+                  DowngradeErrorMessage="A newer Nessie Computer is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
     <!-- A person double-clicking this package sees a product, not Windows
@@ -54,7 +57,7 @@
     <!-- The packaged Node and the guest artifacts are x86_64 only. -->
     <Launch
       Condition="VersionNT64"
-      Message="Nessie Executor requires 64-bit Windows 10 22H2 or later." />
+      Message="Nessie Computer requires 64-bit Windows 10 22H2 or later." />
 
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Nessie Executor">
@@ -70,6 +73,10 @@
         </Directory>
       </Directory>
     </StandardDirectory>
+
+    <!-- The Start menu shortcut. Besides launching the app, it carries the
+         application identity Windows shows its notifications under. -->
+    <StandardDirectory Id="ProgramMenuFolder" />
 
     <!-- Pairing material and machine keys belong to the service, not to a
          person's profile. The installer establishes the service-owned DACL
@@ -106,6 +113,10 @@
         <File Id="CliCommand" Source="$(var.StagingDir)\nessie-executor.cmd" KeyPath="yes" />
         <Environment Id="ExecutorCliPath" Name="PATH" Value="[INSTALLFOLDER]"
                      Action="set" Part="last" Permanent="no" System="yes" />
+      </Component>
+      <!-- The command's name; nessie-executor.cmd above stays for what already calls it. -->
+      <Component>
+        <File Id="ComputerCliCommand" Source="$(var.StagingDir)\nessie-computer.cmd" KeyPath="yes" />
       </Component>
     </ComponentGroup>
 
@@ -167,8 +178,8 @@
         <ServiceInstall
           Id="NessieExecutorServiceInstall"
           Name="NessieExecutor"
-          DisplayName="Nessie Executor"
-          Description="Supervises paired Nessie executors and their sandboxed sessions."
+          DisplayName="Nessie Computer"
+          Description="Keeps this computer connected to your Nessie teams and runs their sandboxed sessions."
           Type="ownProcess"
           Start="auto"
           ErrorControl="normal"
@@ -196,7 +207,7 @@
           Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000c000-facb-11e6-bd58-64006a7986d3"
           ForceCreateOnInstall="yes"
           ForceDeleteOnUninstall="yes">
-          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor" KeyPath="yes" />
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Computer" KeyPath="yes" />
         </RegistryKey>
       </Component>
 
@@ -206,7 +217,7 @@
           Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000c001-facb-11e6-bd58-64006a7986d3"
           ForceCreateOnInstall="yes"
           ForceDeleteOnUninstall="yes">
-          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor egress" KeyPath="yes" />
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Computer egress" KeyPath="yes" />
         </RegistryKey>
       </Component>
 
@@ -216,7 +227,7 @@
           Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices\0000bfff-facb-11e6-bd58-64006a7986d3"
           ForceCreateOnInstall="yes"
           ForceDeleteOnUninstall="yes">
-          <RegistryValue Type="string" Name="ElementName" Value="Nessie Executor console" KeyPath="yes" />
+          <RegistryValue Type="string" Name="ElementName" Value="Nessie Computer console" KeyPath="yes" />
         </RegistryKey>
       </Component>
 
@@ -231,6 +242,44 @@
           Type="string"
           Value="&quot;[INSTALLFOLDER]nessie-executor-tray.exe&quot;"
           KeyPath="yes" />
+      </Component>
+
+      <!-- "Nessie Computer" in the Start menu. Its AppUserModelID is the app's
+           identifier, which is the identity its toasts are shown under, so
+           program requests and notifications carry the product's name. Keyed
+           by an HKCU value like the login entry above. -->
+      <Component Id="StartMenuShortcut" Directory="ProgramMenuFolder" Guid="5c8e2a17-3f64-4b91-a0d5-7e19c2b48f63">
+        <Shortcut
+          Id="NessieComputerShortcut"
+          Name="Nessie Computer"
+          Description="Lets agents in your Nessie teams use this computer."
+          Target="[INSTALLFOLDER]nessie-executor-tray.exe"
+          WorkingDirectory="INSTALLFOLDER"
+          Icon="NessieExecutorIcon">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="com.unlikeotherai.nessie.executor.tray" />
+        </Shortcut>
+        <RegistryValue
+          Root="HKCU"
+          Key="Software\UnlikeOtherAI\Nessie Executor"
+          Name="StartMenuShortcut"
+          Type="integer"
+          Value="1"
+          KeyPath="yes" />
+      </Component>
+
+      <!-- nessie-computer:// links from Nessie's web open this app on the
+           right screen. The app registers the same values on its first run
+           when they are missing, for an account that did not run the
+           installer. -->
+      <Component Directory="INSTALLFOLDER" Guid="e2a96b4d-7c1f-4f38-9b05-3d8a6c71e5f9">
+        <RegistryKey Root="HKCU" Key="Software\Classes\nessie-computer" ForceDeleteOnUninstall="yes">
+          <RegistryValue Type="string" Value="URL:Nessie Computer" KeyPath="yes" />
+          <RegistryValue Type="string" Name="URL Protocol" Value="" />
+          <RegistryValue Type="string" Key="DefaultIcon"
+            Value="&quot;[INSTALLFOLDER]nessie-executor-tray.exe&quot;,0" />
+          <RegistryValue Type="string" Key="shell\open\command"
+            Value="&quot;[INSTALLFOLDER]nessie-executor-tray.exe&quot; &quot;%1&quot;" />
+        </RegistryKey>
       </Component>
 
       <!-- Created, never removed: MSI leaves a non-empty directory alone, and a
@@ -274,7 +323,36 @@
       Impersonate="no"
       Return="check" />
 
+    <!-- Before any file changes, close what runs from the install folder
+         besides the service (the Windows app in each session, and team
+         daemons a scheduled task or a terminal started), and reopen the app
+         afterwards. Files replaced under running processes failed the install
+         with 1603 and left reboot-time file swaps that undid the next one.
+         Closing runs the package's own copy of the service binary from the
+         Binary table, so it is the new code even while an older release is
+         installed; it derives the folder itself. Neither runs inside an
+         upgrade's removal of the previous product.
+
+         Closing is an immediate action before InstallValidate, not a deferred
+         one: the upgrade removes the previous product at RemoveExistingProducts,
+         straight after InstallInitialize, and Windows Installer refuses any
+         script action ahead of it (error 2613, every upgrade failed with 1603).
+         Running first also leaves Restart Manager nothing in use to report. As
+         an immediate action it runs as the installing account: SYSTEM for an
+         automatic update. An account that cannot write the service's note of
+         the closed apps (a manual install) still closes them; the app then opens
+         at the next sign-in instead of straight after the install. There is no
+         rollback reopen: a rollback action would run before the previous
+         release's files are restored. -->
+    <Binary Id="ServiceSetup" SourceFile="$(var.StagingDir)\nessie-executor-service.exe" />
+    <CustomAction Id="CloseForInstall" BinaryRef="ServiceSetup" ExeCommand="--close-for-install"
+      Execute="immediate" Return="check" />
+    <CustomAction Id="ReopenAfterInstall" FileRef="ServiceExe" ExeCommand="--reopen-after-install"
+      Execute="deferred" Impersonate="no" Return="ignore" />
+
     <InstallExecuteSequence>
+      <Custom Action="CloseForInstall" Before="InstallValidate" Condition="NOT UPGRADINGPRODUCTCODE" />
+      <Custom Action="ReopenAfterInstall" After="StartServices" Condition="NOT UPGRADINGPRODUCTCODE AND NOT (REMOVE=&quot;ALL&quot;)" />
       <?if $(var.EnableUpdater) = 1 ?>
       <Custom Action="RestoreUpdaterAfterFailedRemoval" Before="DisableUpdaterForRemoval" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom Action="DisableUpdaterForRemoval" Before="StopServices" Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
@@ -293,7 +371,7 @@
       ExeCommand="--secure-updater-root" Execute="rollback" Impersonate="no" Return="check" />
     <?endif?>
 
-    <Feature Id="Main" Title="Nessie Executor" Level="1">
+    <Feature Id="Main" Title="Nessie Computer" Level="1">
       <ComponentGroupRef Id="PackagedRuntime" />
       <ComponentGroupRef Id="ExecutorService" />
       <ComponentGroupRef Id="MachineConfiguration" />

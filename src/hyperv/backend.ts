@@ -235,7 +235,7 @@ export const createHyperVBackend = (
       const guest = await Promise.race([
         resources.control.connected,
         delay(input.readyTimeoutMs).then(() => {
-          throw new WorkspacePathError('The executor guest did not open its control channel in time.')
+          throw new WorkspacePathError('The guest did not open its control channel in time.')
         }),
       ])
       const control = new GuestVmControlClient(guest.input, guest.output)

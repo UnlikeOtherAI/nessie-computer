@@ -85,7 +85,7 @@ const localAppsTools = [
 const ollamaSearchTools = [
   {
     name: 'ollama_web_search',
-    description: 'Search using this executor’s configured Ollama account. Returns source URLs and excerpts.',
+    description: 'Search using this computer’s configured Ollama account. Returns source URLs and excerpts.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['query'],
       properties: { query: { type: 'string', minLength: 1, maxLength: 4_000 }, max_results: { type: 'integer', minimum: 1, maximum: 10 } },
@@ -93,7 +93,7 @@ const ollamaSearchTools = [
   },
   {
     name: 'ollama_web_fetch',
-    description: 'Read a public page using this executor’s configured Ollama account.',
+    description: 'Read a public page using this computer’s configured Ollama account.',
     inputSchema: {
       type: 'object', additionalProperties: false, required: ['url'],
       properties: { url: { type: 'string', minLength: 1, maxLength: 4_000 } },

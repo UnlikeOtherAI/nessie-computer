@@ -113,4 +113,6 @@ export const EXECUTOR_NO_SANDBOX_OPERATION_KEYS = [
   ...EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
   'mcp.tools',
   'mcp.call',
+  // Sends through the Messages app the Mac already runs; no guest is involved.
+  'imessage.send',
 ] as const

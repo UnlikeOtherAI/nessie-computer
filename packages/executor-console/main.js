@@ -1,216 +1,266 @@
-const { invoke, listen } = window.executorNative
-const byId = (id) => document.getElementById(id)
-let connections = []
-let currentExecutorId = null
-let description = null
-let loadFailed = false
-let currentTab = 'teams'
-const TEAM_TABS = ['folders', 'commands', 'sync']
-const connectionNames = new Map()
-const lookupFailed = new Set()
-const ownerConfirmationRequired = new Set()
-const connectionLabel = (connection) => [connection?.organizationName, connection?.teamName].filter(Boolean).join(' / ')
-const teamLabel = (executorId) => connectionLabel(connectionNames.get(executorId))
-  || (lookupFailed.has(executorId) ? 'Team name unavailable' : 'Checking team…')
-const serverHost = (executorId) => {
-  const url = connectionNames.get(executorId)?.apiBaseUrl
-  return url ? new URL(url).host : null
-}
+// The window itself: the team dropdown above the tabs, the tabs, errors
+// beside their control, the footer line, dialogs and the events the native
+// host sends. Teams, Needs you, Add another team, Settings and the team tabs
+// each build on `window.nc` (documented in README.md).
+(() => {
+  const nc = window.nc
+  const { invoke, listen } = window.executorNative
+  const byId = (id) => document.getElementById(id)
+  const t = nc.t
+  const TEAM_TABS = ['access', 'documents', 'ai']
+  const TABS = [...TEAM_TABS, 'settings']
+  const ADD_TEAM = '+'
+  const TAB_KEY = 'nc.tab'
+  // The window reopens on the tab a person last used, even after the page reloads.
+  const remembered = () => { try { return window.localStorage.getItem(TAB_KEY) } catch { return null } }
+  let currentTab = TABS.includes(remembered()) ? remembered() : 'access'
+  const viewListeners = new Set()
 
-/** A failure shows where the person is looking: in the open dialog, above its buttons, or under the tabs. */
-const reportError = (error) => {
-  const dialog = document.querySelector('dialog[open]')
-  const inDialog = dialog && [...dialog.querySelectorAll('.dialog-error')]
-    .find((node) => !node.parentElement.closest('[hidden]'))
-  const target = inDialog ?? byId('error')
-  target.textContent = String(error?.message ?? error)
-  target.hidden = false
-  // The address the error is about is marked as the field to correct.
-  if (target.id === 'pairing-form-error') byId('pairing-server').setAttribute('aria-invalid', 'true')
-}
-const clearErrors = () => { for (const node of document.querySelectorAll('#error, .dialog-error')) node.hidden = true }
-// Actions report their own failure and never lock the page while they run.
-const attempt = (action) => {
-  clearErrors()
-  return Promise.resolve().then(action).catch(reportError)
-}
-
-/**
- * The footer line. An unresolved save problem — one per team and section —
- * outranks any later news and stays until that same change succeeds; only
- * then does the footer go back to the latest note.
- */
-const saveProblems = new Map()
-let saveNote = ''
-const renderSaveStatus = () => {
-  const status = byId('save-status')
-  status.replaceChildren()
-  if (!saveProblems.size) {
-    status.textContent = saveNote
-    return
-  }
-  // Every open problem is listed, newest last, so none hides another.
-  for (const [index, problem] of [...saveProblems.values()].entries()) {
-    const line = document.createElement('span')
-    line.className = 'save-problem'
-    const message = document.createElement('span')
-    message.id = `save-problem-${index}`
-    message.textContent = problem.message
-    line.append(message)
-    if (problem.retry) {
-      const retry = document.createElement('button')
-      retry.textContent = 'Try again'
-      retry.setAttribute('aria-describedby', message.id)
-      retry.onclick = () => problem.retry()
-      line.append(' ', retry)
+  // ---- errors: beside the control that failed, else in the open dialog, else under the tab's heading
+  const slotFor = (target) => {
+    const element = typeof target === 'string' ? byId(target) : target
+    if (element instanceof Element) {
+      if (element.matches('.tab-error, .dialog-error, .field-error')) return element
+      const named = element.getAttribute('aria-errormessage')
+      if (named && byId(named)) return byId(named)
+      const existing = element.parentElement?.querySelector(`[data-error-for="${CSS.escape(element.id)}"]`)
+      if (existing) return existing
+      const slot = document.createElement('p')
+      slot.className = 'field-error'
+      slot.setAttribute('role', 'alert')
+      slot.dataset.errorFor = element.id
+      slot.hidden = true
+      const anchor = element.closest('.row, label, .switch') ?? element
+      anchor.insertAdjacentElement('afterend', slot)
+      return slot
     }
-    status.append(line)
+    const dialog = document.querySelector('dialog[open]')
+    const inDialog = dialog && [...dialog.querySelectorAll('.dialog-error:not([data-state-status])')].find((node) => !node.parentElement.closest('[hidden]'))
+    return inDialog ?? byId(`tab-${currentTab}`)?.querySelector('.tab-error') ?? byId('error')
   }
-}
-const setSaveNote = (text) => { saveNote = text; renderSaveStatus() }
-const setSaveProblem = (group, problem) => {
-  saveProblems.delete(group)
-  if (problem) saveProblems.set(group, problem)
-  renderSaveStatus()
-}
-/** A removed team's problems and unsaved draft go with it: nothing is left to save them to. */
-const forgetTeamProblems = (executorId) => {
-  for (const group of [...saveProblems.keys()]) if (group.startsWith(`${executorId}:`)) saveProblems.delete(group)
-  drafts.delete(executorId)
-  renderSaveStatus()
-}
-
-// The latest save that succeeded since the queue was last idle; it is
-// reported once, in the footer and as a notification, when everything is done.
-let savedSinceIdle = null
-autosave.onIdle(async () => {
-  const saved = savedSinceIdle
-  savedSinceIdle = null
-  if (!saved) {
-    if (saveNote.startsWith('Saving')) setSaveNote('')
-    return
+  const reportError = (error, target) => {
+    const slot = slotFor(target)
+    // errors.js loads after this file; a native refusal line becomes words here.
+    const { text, code } = nc.failure.sentence(error)
+    slot.textContent = text
+    if (code) slot.dataset.code = code
+    else delete slot.dataset.code
+    slot.hidden = false
+    const element = typeof target === 'string' ? byId(target) : target
+    if (element instanceof Element && /^(INPUT|SELECT|TEXTAREA)$/.test(element.tagName)) element.setAttribute('aria-invalid', 'true')
   }
-  setSaveNote('Settings saved')
-  await notify('Settings saved', saved)
-})
-
-/** A system notification; with notifications turned off, the footer says it instead. */
-const notify = async (title, body) => {
-  try { await invoke('executor_notify', { title, body }) } catch { setSaveNote(`${title}: ${body}`) }
-}
-
-/** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
-const keepFocus = (container, rebuild, fallback) => {
-  const key = container.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
-  rebuild()
-  if (key === undefined) return
-  const again = [...container.querySelectorAll('[data-key]')].find((node) => node.dataset.key === key && !node.disabled)
-  ;(again ?? fallback()).focus()
-}
-
-/**
- * Folders and Commands appear only once the picked team's settings have
- * loaded, so a field can never show one team's values while the picker names
- * another.
- */
-const renderTeamState = () => {
-  const scoped = TEAM_TABS.includes(currentTab) || currentTab === 'ai'
-  const loading = TEAM_TABS.includes(currentTab) && Boolean(currentExecutorId) && description?.executorId !== currentExecutorId
-  byId('no-team').hidden = !(scoped && !currentExecutorId)
-  byId('team-loading').hidden = !loading
-  byId('team-loading-text').textContent = !loading ? ''
-    : loadFailed ? `Couldn’t load settings for ${teamLabel(currentExecutorId)}.`
-      : `Loading settings for ${teamLabel(currentExecutorId)}…`
-  byId('team-reload').hidden = !loadFailed
-  byId('tab-ai').hidden = currentTab !== 'ai' || !currentExecutorId
-  for (const tab of TEAM_TABS) byId(`tab-${tab}`).hidden = currentTab !== tab || !currentExecutorId || loading
-}
-
-const loadDescription = async () => {
-  const id = currentExecutorId
-  loadFailed = false
-  renderTeamState()
-  // Saves still waiting read the fields as they are; they finish before new values replace them.
-  await autosave.flush()
-  try {
-    const next = await invoke('executor_describe', { executorId: id })
-    if (id !== currentExecutorId) return
-    description = next
-    renderPermissions(next, { fields: true })
-    restoreDrafts(id)
-  } catch (error) {
-    if (id !== currentExecutorId) return
-    loadFailed = true
-    throw new Error(`Couldn’t load settings for ${teamLabel(id)}. ${error?.message ?? error}`)
-  } finally { renderTeamState() }
-}
-
-const selectTeam = async (executorId) => {
-  if (executorId === currentExecutorId) return
-  currentExecutorId = executorId
-  description = null
-  byId('connection').value = executorId ?? ''
-  renderTeamState()
-  if (executorId && TEAM_TABS.includes(currentTab)) await loadDescription()
-  if (currentTab === 'ai') await loadAi()
-}
-
-const tabs = [...document.querySelectorAll('[role=tab]')]
-const showTab = async (tab) => {
-  currentTab = tab
-  for (const button of tabs) {
-    const selected = button.dataset.tab === tab
-    button.setAttribute('aria-selected', String(selected))
-    button.tabIndex = selected ? 0 : -1
+  const clearError = (target) => {
+    const slot = slotFor(target)
+    slot.hidden = true
+    slot.textContent = ''
+    delete slot.dataset.code
+    const element = typeof target === 'string' ? byId(target) : target
+    if (element instanceof Element) element.removeAttribute('aria-invalid')
   }
-  byId('tab-teams').hidden = tab !== 'teams'
-  byId('tab-settings').hidden = tab !== 'settings'
-  if (tab === 'ai') void loadAi()
-  renderTeamState()
-  if (TEAM_TABS.includes(tab) && currentExecutorId && description?.executorId !== currentExecutorId) await loadDescription()
-}
-for (const button of tabs) {
-  button.onclick = () => attempt(() => showTab(button.dataset.tab))
-  button.onkeydown = (event) => {
-    const index = tabs.indexOf(button)
-    const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 }[event.key]
-    if (next === undefined) return
-    event.preventDefault()
-    const target = tabs[(next + tabs.length) % tabs.length]
-    target.focus()
-    attempt(() => showTab(target.dataset.tab))
-  }
-}
-
-for (const button of document.querySelectorAll('.dialog-close')) button.onclick = () => button.closest('dialog').close()
-for (const button of document.querySelectorAll('[data-action=pair]')) button.onclick = () => attempt(openPairDialog)
-byId('connection').onchange = () => attempt(() => selectTeam(byId('connection').value))
-byId('team-reload').onclick = () => attempt(loadDescription)
-byId('hide').onclick = () => attempt(async () => { await autosave.flush(); await invoke('executor_hide_status') })
-byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', {
-  apiBaseUrl: connectionNames.get(currentExecutorId)?.apiBaseUrl ?? 'nessie',
-}))
-/**
- * The tray and the menu bar open a tab with `tray://section/<name>`. Their
- * payload may name the team to show first (`{ executorId }`), as the Sync line
- * does for the team its status is about; a team this page does not list is
- * ignored, and the tab still opens.
- */
-const openSection = async (tab, target) => {
-  const executorId = typeof target?.executorId === 'string' ? target.executorId : null
-  const listed = !connections.length || connections.some((connection) => connection.executorId === executorId)
-  if (executorId && listed) await selectTeam(executorId)
-  await showTab(tab)
-}
-for (const [event, tab] of [['teams', 'teams'], ['settings', 'settings'], ['reach', 'folders'], ['tools', 'commands'], ['sync', 'sync'], ['ai', 'ai']]) {
-  listen(`tray://section/${event}`, (target) => attempt(() => openSection(tab, target)))
-}
-listen('tray://pair', () => attempt(openPairDialog))
-window.addEventListener('DOMContentLoaded', () => {
-  attempt(async () => {
-    for (const load of [refresh, restorePairing, loadAutostart, loadAutoRestart]) {
-      try { await load() } catch (error) { reportError(error) }
+  /**
+   * A read that failed tries again by itself: after 5 seconds, then twice as
+   * long each time, at most a minute. `failed(run)` schedules `run`, which
+   * checks that its tab and team are still showing; `succeeded()` resets the
+   * wait. Try again only hurries it — nothing waits for a click to recover.
+   */
+  const retrying = () => {
+    let timer = null
+    let failures = 0
+    const cancel = () => { clearTimeout(timer); timer = null }
+    return {
+      failed: (run) => {
+        cancel()
+        timer = setTimeout(run, Math.min(5000 * 2 ** failures, 60000))
+        failures += 1
+      },
+      succeeded: () => { cancel(); failures = 0 },
+      cancel,
     }
+  }
+
+  /** Runs an action and reports its failure where the person is looking; it never locks the page. */
+  const attempt = (action, { target } = {}) => {
+    clearError(target)
+    return Promise.resolve().then(action).catch((error) => reportError(error, target))
+  }
+
+  // ---- footer: one line; an unresolved problem outranks any later note until that same change succeeds
+  const problems = new Map()
+  let note = ''
+  const renderFooter = () => {
+    const status = byId('save-status')
+    status.replaceChildren()
+    if (!problems.size) { status.textContent = note; return }
+    for (const [index, problem] of [...problems.values()].entries()) {
+      const line = document.createElement('span')
+      line.className = 'save-problem'
+      const message = document.createElement('span')
+      message.id = `save-problem-${index}`
+      message.textContent = problem.message
+      line.append(message)
+      if (problem.retry) {
+        const retry = document.createElement('button')
+        retry.textContent = t('shell.tryAgain')
+        retry.setAttribute('aria-describedby', message.id)
+        retry.onclick = () => problem.retry()
+        line.append(' ', retry)
+      }
+      status.append(line)
+    }
+  }
+  const footer = {
+    note: (text) => { note = text; renderFooter() },
+    current: () => note,
+    problem: (group, problem) => { problems.delete(group); if (problem) problems.set(group, problem); renderFooter() },
+    problems: () => [...problems.keys()],
+    forget: (prefix) => {
+      for (const group of [...problems.keys()]) if (group.startsWith(prefix)) problems.delete(group)
+      renderFooter()
+    },
+  }
+
+  /** Rebuilding a list keeps keyboard focus on the same row's control, or moves it somewhere deliberate. */
+  const keepFocus = (container, rebuild, fallback) => {
+    const key = container.contains(document.activeElement) ? document.activeElement.dataset.key : undefined
+    rebuild()
+    if (key === undefined) return
+    const again = [...container.querySelectorAll('[data-key]')].find((node) => node.dataset.key === key && !node.disabled)
+    ;(again ?? fallback?.())?.focus()
+  }
+
+  // ---- dialogs
+  const dialogs = {
+    open: (id) => {
+      const dialog = byId(id)
+      for (const slot of dialog.querySelectorAll('.dialog-error:not([data-state-status])')) slot.hidden = true
+      if (!dialog.open) dialog.showModal()
+      ;(dialog.querySelector('[autofocus]') ?? dialog.querySelector('h2')).focus()
+      return dialog
+    },
+    close: (id) => { const dialog = byId(id); if (dialog.open) dialog.close() },
+  }
+  document.addEventListener('click', (event) => {
+    const button = event.target.closest('.dialog-close')
+    if (button) button.closest('dialog').close()
   })
-  setInterval(() => { refresh().catch(reportError) }, 5000)
-})
+
+  // ---- tabs and the team row: one dropdown above the tabs picks the team every tab shows
+  const tabs = [...document.querySelectorAll('[role=tab]')]
+  const renderTeamRow = () => {
+    const teams = nc.team.teams()
+    const scoped = TEAM_TABS.includes(currentTab)
+    byId('no-team').hidden = !scoped || Boolean(teams.length)
+    const select = byId('team-select')
+    select.replaceChildren()
+    for (const team of teams) {
+      const option = document.createElement('option')
+      option.value = team.executorId
+      option.textContent = nc.team.label(team.executorId)
+      select.append(option)
+    }
+    // The last entry starts pairing at once; with no team yet it is the only one.
+    const add = document.createElement('option')
+    add.value = ADD_TEAM
+    add.textContent = `＋ ${t('shell.addTeam')}`
+    select.append(add)
+    select.value = nc.team.current() ?? ADD_TEAM
+    for (const tab of TEAM_TABS) byId(`tab-${tab}`).hidden = currentTab !== tab || !teams.length
+  }
+  const showTab = (tab) => {
+    if (!TABS.includes(tab)) return
+    currentTab = tab
+    try { window.localStorage.setItem(TAB_KEY, tab) } catch { /* a page without storage still shows the tab */ }
+    for (const button of tabs) {
+      const selected = button.dataset.tab === tab
+      button.setAttribute('aria-selected', String(selected))
+      button.tabIndex = selected ? 0 : -1
+    }
+    byId('tab-settings').hidden = tab !== 'settings'
+    renderTeamRow()
+    for (const listener of viewListeners) listener(tab)
+  }
+  for (const button of tabs) {
+    button.onclick = () => showTab(button.dataset.tab)
+    button.onkeydown = (event) => {
+      const index = tabs.indexOf(button)
+      const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tabs.length - 1 }[event.key]
+      if (next === undefined) return
+      event.preventDefault()
+      const target = tabs[(next + tabs.length) % tabs.length]
+      target.focus()
+      showTab(target.dataset.tab)
+    }
+  }
+  byId('team-select').onchange = () => attempt(async () => {
+    const chosen = byId('team-select').value
+    if (chosen !== ADD_TEAM) { await nc.team.select(chosen); return }
+    byId('team-select').value = nc.team.current() ?? ADD_TEAM
+    await nc.pairing.open()
+  })
+  // The host opens the paired server's Computers page: the selected team's, or its own when no team is selected.
+  byId('open-nessie').onclick = () => attempt(() => invoke('executor_open_nessie', nc.team.current() ? { executorId: nc.team.current() } : {}))
+
+  // Static words. Everything else is written by the script that owns it.
+  document.title = t('shell.title')
+  for (const button of tabs) button.textContent = t(`shell.${button.dataset.tab}`)
+  byId('tablist').setAttribute('aria-label', t('shell.tabs'))
+  byId('team-select-label').textContent = t('shell.team')
+  byId('needs-you-list').setAttribute('aria-label', t('shell.needsYou'))
+  byId('open-nessie').textContent = t('shell.openNessie')
+  byId('no-team-connect').textContent = t('shell.addTeam')
+
+  Object.assign(nc, {
+    byId, invoke, listen, attempt, retrying, reportError, clearError, footer, keepFocus, dialogs,
+    view: {
+      current: () => currentTab,
+      show: showTab,
+      onChange: (listener) => { viewListeners.add(listener); return () => viewListeners.delete(listener) },
+      teamTabs: TEAM_TABS,
+    },
+  })
+
+  /**
+   * The menu bar and notification area open a tab with `tray://section/<name>`,
+   * or the window as it was with `tray://open`; the payload may name the team
+   * to show first. `tray://connect` opens Add another team. A team this window
+   * does not list is ignored, and the tab still opens.
+   */
+  const openSection = async (tab, target) => {
+    const executorId = typeof target?.executorId === 'string' ? target.executorId : null
+    if (executorId && nc.team.list().some((team) => team.executorId === executorId)) await nc.team.select(executorId)
+    showTab(tab ?? currentTab)
+  }
+  for (const tab of TABS) listen(`tray://section/${tab}`, (target) => attempt(() => openSection(tab, target)))
+  listen('tray://open', (target) => attempt(() => openSection(null, target)))
+  listen('tray://connect', () => attempt(() => nc.pairing.open()))
+  /**
+   * A `nessie-computer://` link that started the app is handed over once the
+   * page asks for it (Windows). A host without the command answers with a
+   * refusal, which means no link.
+   */
+  const openLaunchLink = async () => {
+    let link = null
+    try { link = await invoke('executor_launch_link') } catch { return false }
+    if (link?.connect) await nc.pairing.open()
+    else if (link && (link.section === null || link.section === undefined || TABS.includes(link.section))) {
+      await openSection(link.section ?? null, link)
+    }
+    return Boolean(link)
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    nc.team.onListChange(renderTeamRow)
+    nc.team.onChange(() => { byId('team-select').value = nc.team.current() ?? '' })
+    byId('no-team-connect').onclick = () => attempt(() => nc.pairing.open())
+    attempt(async () => {
+      try { await nc.team.refresh() } catch (error) { reportError(error) }
+      let restored = false
+      try { restored = await nc.pairing.restore() } catch (error) { reportError(error) }
+      const linked = await openLaunchLink()
+      // With no team yet the window opens straight on a pairing code.
+      if (!nc.team.teams().length && !restored && !linked) await nc.pairing.open()
+    })
+    setInterval(() => { nc.team.refresh().catch((error) => reportError(error)) }, 5000)
+    showTab(currentTab)
+  })
+})()

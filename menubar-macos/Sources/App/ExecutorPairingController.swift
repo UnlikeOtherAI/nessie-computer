@@ -42,7 +42,7 @@ final class ExecutorPairingController: ObservableObject {
                 stateDirectory: stateDirectory
             ))
         } catch {
-            failure = "Nessie could not start pairing. Check the address, then try again."
+            failure = (error as? ExecutorRefusal)?.message ?? Word.pairingFailed.text
         }
     }
 
@@ -56,22 +56,24 @@ final class ExecutorPairingController: ObservableObject {
     }
 
     private func perform(_ invocation: ExecutorCLIInvocation) {
-        guard !busy else { return }
+        guard !ComputerRuntimeGate.held, !busy else { return }
         guard let runner else {
-            failure = "Nessie Executor needs to be reinstalled before this Mac can pair."
+            failure = PackagedRuntime.missingRefusal
             return
         }
         busy = true
         failure = nil
         work.async { [weak self] in
+            let completion = try? runner.run(invocation)
             let result: Result<ExecutorPairing, ExecutorRefusal>
-            do {
-                let completion = try runner.run(invocation)
-                let output = Data(completion.standardOutput.utf8)
-                result = completion.succeeded
-                    ? .success(try ExecutorPairing.decode(output))
-                    : .failure(ExecutorRefusal(ExecutorPairing.failureMessage(from: output)))
-            } catch {
+            if let completion, completion.succeeded,
+               let state = try? ExecutorPairing.decode(Data(completion.standardOutput.utf8)) {
+                result = .success(state)
+            } else if let completion, !completion.succeeded {
+                result = .failure(ExecutorRefusal(
+                    ExecutorPairing.failureMessage(from: Data(completion.standardOutput.utf8))
+                ))
+            } else {
                 result = .failure(ExecutorRefusal(ExecutorPairing.genericFailureMessage))
             }
             Task { @MainActor [weak self] in

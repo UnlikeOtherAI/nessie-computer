@@ -1,7 +1,18 @@
 import { z } from 'zod'
 import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
+import {
+  EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM, ExecutorIMessageOutboxWireItemSchema, ExecutorIMessageReportSchema,
+  ExecutorIMessageSwitchSchema,
+} from './executor-imessage.js'
 import { ExecutorMonitorRequestSchema, ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
+import {
+  EXECUTOR_AGENT_NAME_MAX_CHARS,
+  EXECUTOR_CONCURRENT_COMMANDS_MAXIMUM,
+  ExecutorConcurrentPollAnswerFieldsSchema,
+  ExecutorConcurrentPollFieldsSchema,
+  ExecutorSessionIdSchema,
+} from './executor-sessions.js'
 
 import {
   AgentIdSchema,
@@ -59,8 +70,9 @@ export type ExecutorEnrollmentId = z.infer<typeof ExecutorEnrollmentIdSchema>
 export const ExecutorBindingIdSchema = createUuidBrandSchema<'ExecutorBindingId'>()
 export type ExecutorBindingId = z.infer<typeof ExecutorBindingIdSchema>
 
-export const ExecutorSessionIdSchema = createUuidBrandSchema<'ExecutorSessionId'>()
-export type ExecutorSessionId = z.infer<typeof ExecutorSessionIdSchema>
+// The session a run's work on the computer belongs to (contract §11); its
+// schema lives with the rest of the session wire contract.
+export { ExecutorSessionIdSchema, type ExecutorSessionId } from './executor-sessions.js'
 
 export const ExecutorCommandIdSchema = createUuidBrandSchema<'ExecutorCommandId'>()
 export type ExecutorCommandId = z.infer<typeof ExecutorCommandIdSchema>
@@ -149,6 +161,9 @@ export const ExecutorOperationKeySchema = z.enum([
   // rather than granting a blanket "run local MCP".
   'mcp.tools',
   'mcp.call',
+  // One iMessage through the Messages app on the owner's own Mac
+  // (`executor-imessage.ts`). Only a macOS daemon advertises it.
+  'imessage.send',
 ])
 export type ExecutorOperationKey = z.infer<typeof ExecutorOperationKeySchema>
 
@@ -179,6 +194,7 @@ export const IMPLEMENTED_EXECUTOR_OPERATION_KEYS = [
   'sandbox.stop',
   'mcp.tools',
   'mcp.call',
+  'imessage.send',
 ] as const satisfies readonly ExecutorOperationKey[]
 export type ImplementedExecutorOperationKey =
   (typeof IMPLEMENTED_EXECUTOR_OPERATION_KEYS)[number]
@@ -727,6 +743,16 @@ export const ExecutorDaemonHeartbeatRequestSchema = z.object({
    * exactly when it is present, so an older daemon's signature still verifies.
    */
   localMcp: ExecutorLocalMcpReportSchema.optional(),
+  /**
+   * Present, and `true`, exactly while the computer's owner has paused this
+   * team on the computer itself. The daemon stays connected, refuses new work
+   * (`EXECUTOR_OWNER_PAUSED`) and keeps reporting, so Nessie can show "Paused
+   * on the computer" instead of "offline". Absent means not paused, which keeps
+   * an unpaused daemon's signed payload byte-identical to an older daemon's.
+   */
+  ownerPaused: z.literal(true).optional(),
+  /** What a Mac lacks for iMessage (`executor-imessage.ts`); sent only to a Nessie that answered with `imessage`. */
+  imessage: ExecutorIMessageReportSchema.optional(),
   software: ExecutorSoftwareStatusSchema.optional(),
   observedAt: TimestampSchema,
   signature: ExecutorDaemonSignatureSchema,
@@ -741,13 +767,33 @@ export const ExecutorDaemonDescriptorRequestSchema = z.object({
 }).strict()
 export type ExecutorDaemonDescriptorRequest = z.infer<typeof ExecutorDaemonDescriptorRequestSchema>
 
+/**
+ * The command poll. Without `concurrency` it is the one-command-at-a-time
+ * shape every daemon has sent (`activeCommand` asks only whether that command
+ * is cancelled). With `concurrency: 1` the daemon also sends its free
+ * `capacity` and every `activeCommands` it holds, and Nessie answers the
+ * concurrent shape (`docs/sessions-and-concurrency.md`); `activeCommand` is
+ * then absent. Every field present is inside the `poll`-domain signature.
+ */
 export const ExecutorDaemonCommandPollRequestSchema = z.object({
   activeCommand: ExecutorCommandCancellationTargetSchema.optional(),
   connectionEpoch: z.string().regex(/^\d+$/),
   executorId: ExecutorIdSchema,
   observedAt: TimestampSchema,
   signature: ExecutorDaemonSignatureSchema,
-}).strict()
+}).merge(ExecutorConcurrentPollFieldsSchema.partial()).strict().superRefine((value, context) => {
+  const concurrent = value.concurrency !== undefined
+  const concurrentFields = [value.capacity, value.activeCommands, value.waiting, value.stoppedSessions]
+  if (concurrent && (value.capacity === undefined || value.activeCommands === undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'A concurrent poll sends capacity and activeCommands.' })
+  }
+  if (!concurrent && concurrentFields.some((field) => field !== undefined)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Only a concurrent poll sends capacity, activeCommands, waiting or stoppedSessions.' })
+  }
+  if (concurrent && value.activeCommand !== undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'A concurrent poll names its commands in activeCommands.' })
+  }
+})
 export type ExecutorDaemonCommandPollRequest = z.infer<
   typeof ExecutorDaemonCommandPollRequestSchema
 >
@@ -775,6 +821,10 @@ export const ExecutorDaemonHeartbeatResponseSchema = ExecutorDaemonConnectionRes
   codingSessionClose: ExecutorCodingSessionCloseListSchema.optional(),
   existingSessionsAllowed: z.boolean().optional(),
   softwareUpdateRequest: ExecutorSoftwareUpdateRequestSchema.optional(),
+  /** The owner's iMessage switch, for a macOS executor (`executor-imessage.ts`). */
+  imessage: ExecutorIMessageSwitchSchema.optional(),
+  /** Clients replies the owner pressed Send on, each handed to the Mac once (`executor-imessage.ts`). */
+  imessageOutbox: z.array(ExecutorIMessageOutboxWireItemSchema).max(EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM).optional(),
 }).strict()
 export type ExecutorDaemonHeartbeatResponse = z.infer<typeof ExecutorDaemonHeartbeatResponseSchema>
 
@@ -796,6 +846,8 @@ export const ExecutorAvailabilityReasonSchema = z.enum([
   'descriptor_unreviewed',
   'local_policy_denied',
   'credential_unavailable',
+  /** The computer's owner paused this team on the computer (heartbeat `ownerPaused`). */
+  'owner_paused',
 ])
 export type ExecutorAvailabilityReason = z.infer<
   typeof ExecutorAvailabilityReasonSchema
@@ -1005,6 +1057,14 @@ export const ExecutorCommandEnvelopeSchema = z
     idempotencyKey: z.string().min(1).max(255),
     argumentDigest: Sha256DigestSchema,
     payload: NonEmptyRecordSchema,
+    /**
+     * The session the command belongs to, and the display name of the agent
+     * whose run it is (shown to the owner in a program request). Sent only in
+     * answer to a concurrent poll: an older daemon parses the envelope
+     * strictly and would refuse either field.
+     */
+    sessionId: ExecutorSessionIdSchema.optional(),
+    agentName: z.string().trim().min(1).max(EXECUTOR_AGENT_NAME_MAX_CHARS).optional(),
   })
   .strict()
 export type ExecutorCommandEnvelope = z.infer<typeof ExecutorCommandEnvelopeSchema>
@@ -1020,10 +1080,31 @@ export const ExecutorCommandReceiptSchema = z
   .strict()
 export type ExecutorCommandReceipt = z.infer<typeof ExecutorCommandReceiptSchema>
 
-export const ExecutorDaemonCommandPollResponseSchema = z.object({
+/** The answer to a poll without `concurrency`: one command, or whether the active one is cancelled. */
+export const ExecutorDaemonLegacyCommandPollResponseSchema = z.object({
   cancellation: ExecutorCommandCancellationSchema.nullable().optional(),
   command: ExecutorCommandEnvelopeSchema.nullable(),
 }).strict()
+export type ExecutorDaemonLegacyCommandPollResponse = z.infer<
+  typeof ExecutorDaemonLegacyCommandPollResponseSchema
+>
+
+/**
+ * The answer to a concurrent poll: up to the free capacity of new commands,
+ * oldest first, each with its `sessionId`; cancellations for commands the
+ * poll named; and sessions Nessie ended.
+ */
+export const ExecutorDaemonConcurrentCommandPollResponseSchema = z.object({
+  commands: z.array(ExecutorCommandEnvelopeSchema).max(EXECUTOR_CONCURRENT_COMMANDS_MAXIMUM),
+}).merge(ExecutorConcurrentPollAnswerFieldsSchema).strict()
+export type ExecutorDaemonConcurrentCommandPollResponse = z.infer<
+  typeof ExecutorDaemonConcurrentCommandPollResponseSchema
+>
+
+export const ExecutorDaemonCommandPollResponseSchema = z.union([
+  ExecutorDaemonConcurrentCommandPollResponseSchema,
+  ExecutorDaemonLegacyCommandPollResponseSchema,
+])
 export type ExecutorDaemonCommandPollResponse = z.infer<
   typeof ExecutorDaemonCommandPollResponseSchema
 >

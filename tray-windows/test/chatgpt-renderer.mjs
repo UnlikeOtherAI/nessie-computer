@@ -1,57 +1,61 @@
+// Local-only journey through the real AI tab and named ChatGPT dialog.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
-import { installRendererHost } from './renderer-host.mjs'
+import { LOCALES, assertFits, openConsole, screenshot, showTab } from './renderer-page.mjs'
 
-export const verifyChatgptLocales = async (browser, ui, output, files) => {
-  let proofs = 0
-  for (const host of ['windows', 'macos']) {
-    for (const locale of ['en-GB', 'en-US', 'cs', 'de', 'es', 'fr', 'it']) {
-      for (const width of [390, 1280]) {
-        const context = await browser.newContext({ locale, viewport: { width, height: 800 } })
-        await installRendererHost(context, host, { paired: true })
-        const page = await context.newPage()
-        const errors = []
-        page.on('pageerror', error => errors.push(error.message))
-        await page.route('http://localhost:5875/**', async route => {
-          const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
-          assert.ok(files.includes(file), file)
-          await route.fulfill({ body: await readFile(join(ui, file)), contentType: file.endsWith('.js')
-            ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html' })
-        })
-        await page.goto('http://localhost:5875/')
-        await page.getByRole('button', { name: 'AI · UnlikeOtherAI / Platform', exact: true }).click()
-        await page.locator('#ai-chatgpt-list button').first().click()
-        await page.waitForFunction(() => window.calls.some(call => call.command === 'executor_personal_chatgpt'))
-        assert.equal(await page.locator('#chatgpt-start').isDisabled(), true)
-        await page.locator('#chatgpt-restriction').check()
-        await page.locator('#chatgpt-start').focus()
-        await page.keyboard.press('Enter')
-        await page.locator('#chatgpt-background').waitFor()
-        assert.equal(await page.locator('#chatgpt-background').textContent(), await page.evaluate(() => window.chatgptConsoleWords.backgroundOn))
-        await page.locator('#chatgpt-background').click()
-        await page.waitForFunction(() => window.chatgptProfile.backgroundConsentRevision === 1)
-        await page.locator('#chatgpt-background').click()
-        await page.waitForFunction(() => window.chatgptProfile.backgroundConsentRevision === null)
-        await page.locator('#chatgpt-background').click()
-        await page.waitForFunction(() => window.chatgptProfile.backgroundConsentRevision === 2)
-        const writes = await page.evaluate(() => window.calls.filter(call => call.command === 'executor_personal_chatgpt'
-          && call.args.operation.operation === 'background-consent').map(call => call.args))
-        assert.deepEqual(writes.map(write => [write.operation.enabled, write.operation.expectedRevision]),
-          [[true, null], [false, 1], [true, null]])
-        assert.ok(writes.every(write => write.executorId === 'team-0'))
-        assert.equal(await page.locator('#chatgpt-dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth), true)
-        assert.ok((await page.locator('#chatgpt-background').boundingBox()).height >= 44)
-        await page.screenshot({ path: join(output, `${host}-chatgpt-${locale}-${width}.png`), fullPage: true })
-        await page.locator('#chatgpt-close').click()
-        const afterClose = await page.evaluate(() => window.calls.filter(call =>
-          call.command === 'executor_personal_chatgpt' && ['cancel', 'disconnect'].includes(call.args.operation.operation)))
-        assert.deepEqual(afterClose, [], 'closing does not cancel sign-in or clear credential custody')
-        assert.deepEqual(errors, [])
-        await context.close()
-        proofs += 1
+export const verifyChatgptDialog = async (browser, ui, output) => {
+  for (const locale of LOCALES) {
+    for (const size of ['desktop', 'minimum']) {
+      const { context, page, errors } = await openConsole(browser, ui, { host: 'macos', locale, size, paired: 1 })
+      await showTab(page, 'ai')
+      await page.locator('#ai-add-chatgpt').click()
+      await page.locator('#chatgpt-name').fill('ChatGPT OR Main')
+      // Every closed protocol reason is translated and announced as an error.
+      // Checking again never loses the name.
+      const reasons = await page.evaluate(() => Object.keys(window.chatgptDialog.reasons).filter((reason) => reason !== 'other'))
+      for (const reason of [...reasons, 'future_reason']) {
+        await page.evaluate((value) => { window.chatgptReason = value }, reason)
+        await page.locator('#chatgpt-refresh').click()
+        const expected = await page.evaluate((value) => window.nc.t(`chatgpt.unavailable.${value}`),
+          reason === 'future_reason' ? 'other' : reason)
+        await page.waitForFunction((value) => document.getElementById('chatgpt-status').textContent === value, expected)
+        assert.equal(await page.locator('#chatgpt-status').getAttribute('role'), 'alert')
+        assert.equal(await page.locator('#chatgpt-status').evaluate((node) => node.classList.contains('dialog-error')), true)
+        assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
+        // An unrelated background action must not clear the dialog's owned
+        // readiness status. This hid the real Mac failure while Start stayed disabled.
+        await page.evaluate(() => window.nc.attempt(() => Promise.resolve()))
+        assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
+        assert.equal(await page.locator('#chatgpt-status').textContent(), expected)
+        assert.equal(await page.locator('#chatgpt-name').inputValue(), 'ChatGPT OR Main')
+        await assertFits(page, `${locale} ${size} ${reason}`)
+        if (locale === 'en-GB' && ['runtime_inventory_unknown', 'deployment_ineligible'].includes(reason)) {
+          await screenshot(page, output, `chatgpt-${reason}-${size}`)
+        }
       }
+      // A transport failure blocks sign-in until a successful check, with
+      // the same error styling on manual retries and automatic polls.
+      await page.evaluate(() => { window.chatgptReason = null; window.chatgptOffline = true })
+      await page.locator('#chatgpt-refresh').click()
+      await page.waitForFunction(() => document.getElementById('chatgpt-status').textContent === window.nc.t('chatgpt.failed'))
+      assert.equal(await page.locator('#chatgpt-start').isDisabled(), true)
+      await page.locator('#chatgpt-refresh').click()
+      assert.equal(await page.locator('#chatgpt-status').isVisible(), true)
+      await page.evaluate(() => { window.chatgptOffline = false })
+      await page.locator('#chatgpt-refresh').click()
+      await page.waitForFunction(() => document.getElementById('chatgpt-status').getAttribute('role') === 'status')
+      assert.equal(await page.locator('#chatgpt-start').isEnabled(), true)
+      assert.equal(await page.locator('#chatgpt-status').evaluate((node) => node.classList.contains('dialog-error')), false)
+      await page.locator('#chatgpt-start').click()
+      await page.locator('#chatgpt-background').waitFor()
+      const start = await page.evaluate(() => window.calls.find((call) => call.command === 'executor_personal_chatgpt'
+        && call.args.operation.operation === 'start').args.operation)
+      assert.equal(start.label, 'ChatGPT OR Main')
+      assert.equal(start.acknowledgeHostRestriction, true)
+      assert.match(start.newProfileId, /^[a-f0-9-]{36}$/)
+      assert.equal(await page.locator('#chatgpt-name').inputValue(), 'ChatGPT OR Main')
+      assert.deepEqual(errors, [])
+      await context.close()
     }
   }
-  process.stdout.write(`ChatGPT console: ${proofs} locale/width/host journeys passed.\n`)
+  process.stdout.write('ChatGPT dialog: named start, every refusal, failed checks and recovery; seven locales, two window sizes.\n')
 }

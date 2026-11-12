@@ -82,10 +82,10 @@ export const deriveExecutorWorkspaceFolderName = (path: string): string => {
 export const assertExecutorWorkspaceFolders = (
   folders: readonly ExecutorWorkspaceFolder[],
 ): readonly ExecutorWorkspaceFolder[] => {
-  if (folders.length === 0) throw new WorkspacePathError('An executor needs at least one workspace folder.')
+  if (folders.length === 0) throw new WorkspacePathError('A team needs at least one folder.')
   if (folders.length > EXECUTOR_WORKSPACE_FOLDER_MAXIMUM) {
     throw new WorkspacePathError(
-      `An executor may expose at most ${EXECUTOR_WORKSPACE_FOLDER_MAXIMUM} workspace folders.`,
+      `A team may use at most ${EXECUTOR_WORKSPACE_FOLDER_MAXIMUM} folders.`,
     )
   }
   for (const folder of folders) assertExecutorWorkspaceFolderName(folder.name)

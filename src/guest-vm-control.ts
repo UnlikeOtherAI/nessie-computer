@@ -64,7 +64,7 @@ type GuestControlEnvelope = {
 
 const decodePayload = (value: unknown): Buffer => {
   if (typeof value !== 'string' || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
-    throw unavailable('The executor VM helper emitted an invalid control response.')
+    throw unavailable('The VM helper emitted an invalid control response.')
   }
   return Buffer.from(value, 'base64')
 }
@@ -74,13 +74,13 @@ const decodeResponse = (frame: Buffer): GuestControlEnvelope => {
   try {
     value = JSON.parse(frame.toString('utf8'))
   } catch {
-    throw unavailable('The executor VM helper emitted an invalid control response.')
+    throw unavailable('The VM helper emitted an invalid control response.')
   }
   if (!isRecord(value) || Object.keys(value).some((key) => !['kind', 'payload', 'requestId', 'version'].includes(key))) {
-    throw unavailable('The executor VM helper emitted an invalid control response.')
+    throw unavailable('The VM helper emitted an invalid control response.')
   }
   if (value.kind !== 'response' || value.version !== 1 || typeof value.requestId !== 'string' || !UUID.test(value.requestId)) {
-    throw unavailable('The executor VM helper emitted an invalid control response.')
+    throw unavailable('The VM helper emitted an invalid control response.')
   }
   return { kind: 'response', payload: decodePayload(value.payload), requestId: value.requestId }
 }
@@ -92,7 +92,7 @@ const encodeRequest = (payload: Buffer, requestId: string): Buffer => {
     requestId,
     version: 1,
   }))
-  if (body.length > FRAME_MAX_BYTES - 4) throw unavailable('The executor control request is too large.')
+  if (body.length > FRAME_MAX_BYTES - 4) throw unavailable('The control request is too large.')
   const frame = Buffer.allocUnsafe(body.length + 4)
   frame.writeUInt32BE(body.length, 0)
   body.copy(frame, 4)
@@ -116,13 +116,13 @@ export class GuestVmControlClient {
       this.rejectReady = reject
     })
     output.on('data', (chunk: Buffer) => this.receive(Buffer.from(chunk)))
-    output.once('error', () => this.close(unavailable('The executor VM helper is unavailable.')))
-    input.once('error', () => this.close(unavailable('The executor VM helper is unavailable.')))
+    output.once('error', () => this.close(unavailable('The VM helper is unavailable.')))
+    input.once('error', () => this.close(unavailable('The VM helper is unavailable.')))
   }
 
   waitForReady(timeoutMs: number): Promise<void> {
     const timeout = setTimeout(() => {
-      this.close(unavailable('The executor VM helper timed out.'))
+      this.close(unavailable('The VM helper timed out.'))
     }, timeoutMs)
     return this.readyPromise.finally(() => clearTimeout(timeout))
   }
@@ -191,7 +191,7 @@ export class GuestVmControlClient {
     return parseDraftChunk(payload)
   }
 
-  close(error: Error = unavailable('The executor VM helper closed its control pipe.')): void {
+  close(error: Error = unavailable('The VM helper closed its control pipe.')): void {
     if (this.closed) return
     this.closed = true
     if (!this.ready && !this.readyError) {
@@ -206,17 +206,17 @@ export class GuestVmControlClient {
   }
 
   private request(payload: Buffer): Promise<Buffer> {
-    if (this.closed || !this.ready || this.readyError) return Promise.reject(unavailable('The executor VM helper is unavailable.'))
-    if (this.pending) return Promise.reject(unavailable('The executor VM already has an active control request.'))
-    if (payload.length > 32_768) return Promise.reject(unavailable('The executor control request is too large.'))
+    if (this.closed || !this.ready || this.readyError) return Promise.reject(unavailable('The VM helper is unavailable.'))
+    if (this.pending) return Promise.reject(unavailable('The VM already has an active control request.'))
+    if (payload.length > 32_768) return Promise.reject(unavailable('The control request is too large.'))
     const requestId = randomUUID()
     return new Promise<Buffer>((resolvePromise, reject) => {
       const timeout = setTimeout(() => {
-        this.close(unavailable('The executor guest timed out.'))
+        this.close(unavailable('The guest timed out.'))
       }, CONTROL_TIMEOUT_MS)
       this.pending = { reject: reject, requestId, resolve: resolvePromise, timeout }
       this.input.write(encodeRequest(payload, requestId), (error) => {
-        if (error) this.close(unavailable('The executor VM helper is unavailable.'))
+        if (error) this.close(unavailable('The VM helper is unavailable.'))
       })
     })
   }
@@ -230,7 +230,7 @@ export class GuestVmControlClient {
 
   private consumeReady(): void {
     if (this.output.length > READY_MAX_BYTES) {
-      this.close(unavailable('The executor VM helper emitted invalid session output.'))
+      this.close(unavailable('The VM helper emitted invalid session output.'))
       return
     }
     const lineEnd = this.output.indexOf(0x0a)
@@ -251,7 +251,7 @@ export class GuestVmControlClient {
       this.ready = true
       this.resolveReady?.()
     } catch {
-      this.close(unavailable('The executor VM helper emitted invalid session output.'))
+      this.close(unavailable('The VM helper emitted invalid session output.'))
     }
   }
 
@@ -259,7 +259,7 @@ export class GuestVmControlClient {
     while (this.output.length >= 4) {
       const bodyLength = this.output.readUInt32BE(0)
       if (bodyLength > FRAME_MAX_BYTES - 4) {
-        this.close(unavailable('The executor VM helper emitted an invalid control response.'))
+        this.close(unavailable('The VM helper emitted an invalid control response.'))
         return
       }
       const frameLength = bodyLength + 4
@@ -270,11 +270,11 @@ export class GuestVmControlClient {
       try {
         response = decodeResponse(frame)
       } catch (error) {
-        this.close(error instanceof Error ? error : unavailable('The executor VM helper is unavailable.'))
+        this.close(error instanceof Error ? error : unavailable('The VM helper is unavailable.'))
         return
       }
       if (!this.pending || response.requestId !== this.pending.requestId) {
-        this.close(unavailable('The executor VM helper emitted an unexpected control response.'))
+        this.close(unavailable('The VM helper emitted an unexpected control response.'))
         return
       }
       const pending = this.pending

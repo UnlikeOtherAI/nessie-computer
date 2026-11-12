@@ -23,7 +23,7 @@ test('the public workspace contains every internal runtime dependency', async ()
 test('public source verification has no Prisma or private-package preflight', async () => {
   const value = await manifest(root)
   assert.equal(value.license, 'FSL-1.1-ALv2')
-  assert.equal(value.repository.url, 'git+https://github.com/UnlikeOtherAI/nessie-executor.git')
+  assert.equal(value.repository.url, 'git+https://github.com/UnlikeOtherAI/nessie-computer.git')
   assert.doesNotMatch(JSON.stringify(value.scripts), /prisma|DEEP_AGENT_READ_TOKEN|REMEMBER_READ_TOKEN/u)
   const licence = await readFile(join(root, 'LICENSE'), 'utf8')
   assert.match(licence, /FSL-1\.1-ALv2/u)

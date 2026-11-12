@@ -10,8 +10,9 @@ fn refused() -> NativeError { NativeError::new("EXECUTOR_CHATGPT_BROWSER_UNAVAIL
 fn validate(bytes: &[u8]) -> Result<String, NativeError> {
     if bytes.len() > 132_096 { return Err(refused()); }
     let request: Request = serde_json::from_slice(bytes).map_err(|_| refused())?;
-    let prefix = "https://auth.openai.com/api/accounts/authorize?";
-    if request.url.len() > 131_072 || !request.url.starts_with(prefix)
+    let prefix = ["https://auth.openai.com/api/accounts/authorize?", "https://auth.openai.com/oauth/authorize?"]
+        .into_iter().find(|prefix| request.url.starts_with(prefix)).ok_or_else(refused)?;
+    if request.url.len() > 131_072
         || request.url.contains(['\0', '\r', '\n', '#'])
         || !request.url[prefix.len()..].split('&').any(|field| field == "response_type=code") {
         return Err(refused());
@@ -67,6 +68,7 @@ mod tests {
     #[test]
     fn browser_cannot_open_other_origins_routes_or_actions() {
         assert!(validate(br#"{"url":"https://auth.openai.com/api/accounts/authorize?response_type=code&state=opaque"}"#).is_ok());
+        assert!(validate(br#"{"url":"https://auth.openai.com/oauth/authorize?response_type=code&state=opaque"}"#).is_ok());
         for url in ["https://auth.openai.com.evil.test/api/accounts/authorize?response_type=code",
             "https://auth.openai.com/other?response_type=code", "https://auth.openai.com/api/accounts/authorize?response_type=token",
             "file:///private/secret", "https://auth.openai.com/api/accounts/authorize?response_type=code#fragment"] {

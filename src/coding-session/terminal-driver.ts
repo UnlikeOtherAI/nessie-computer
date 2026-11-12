@@ -66,7 +66,7 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
       if (!ending) context.update({
         status: code === 0 ? 'closed' : 'failed', reason: code === 0 ? undefined : 'terminal_process_ended',
         ...(code === null ? {} : { exitCode: code }),
-        ...(!child.confirmHostExecutionStopped ? { agentIdentity: undefined } : {}), turnStartedAt: undefined,
+        agentIdentity: undefined, turnStartedAt: undefined,
       })
     }).finally(() => { settled = true })
     return child
@@ -75,11 +75,9 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     ending = true
     if (process) {
       const descendants = await context.control.descendants(process.identity)
-      const stopped = process.confirmHostExecutionStopped
-        ? await process.confirmHostExecutionStopped(descendants)
-        : (await context.control.killTree(process.identity, descendants), true)
+      await context.control.killTree(process.identity, descendants)
       await process.exited
-      if (stopped) context.update({ agentIdentity: undefined })
+      context.update({ agentIdentity: undefined })
     }
     await writer.flush()
     context.update({ turnStartedAt: undefined })

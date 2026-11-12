@@ -107,10 +107,10 @@ pub fn verify_manifest(
     }) {
         return Err("update.replayed_manifest");
     }
-    let release = format!(
-        "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v{}/",
-        manifest.version
-    );
+    // Retain already signed catalogues from before the repository rename.
+    let releases = ["nessie-computer", "nessie-executor"].map(|repository| {
+        format!("https://github.com/UnlikeOtherAI/{repository}/releases/download/executor-v{}/", manifest.version)
+    });
     for assets in manifest.targets.values() {
         if assets.is_empty() || assets.len() > 3 {
             return Err("update.invalid_asset");
@@ -127,7 +127,7 @@ pub fn verify_manifest(
                 || asset.size == 0
                 || asset.size > 2_147_483_648
                 || !hexadecimal(&asset.sha256, 64)
-                || asset.url != format!("{release}{}", asset.name)
+                || !releases.iter().any(|release| asset.url == format!("{release}{}", asset.name))
                 || !names.insert(&asset.name)
             {
                 return Err("update.invalid_asset");

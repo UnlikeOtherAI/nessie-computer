@@ -19,6 +19,10 @@ export const chatgptToolNames = (tools: readonly ToolSchemaDescriptor[]): Readon
   return names
 }
 
+/** Opaque and stable for one agent's model selection; it names nothing a provider could use. */
+export const chatgptPromptCacheKey = (attempt: LocalInferenceAttemptRequest): string =>
+  createHash('sha256').update(`nessie-computer:${attempt.bindingId}`).digest('hex').slice(0, 32)
+
 /** A hard cap is satisfied only by a documented natural maximum, never by cancellation. */
 export const assertChatgptOutputCap = (attempt: LocalInferenceAttemptRequest, model: ChatgptModel): void => {
   if (attempt.maxOutputTokens !== undefined && model.maxOutputTokens > attempt.maxOutputTokens) {
@@ -61,14 +65,20 @@ export const chatgptRequestBody = (
     chatgptToolNames(attempt.tools)
     const mapped = mapMessagesToResponses(attempt.messages, { vision: true,
       continuationItems: (message) => replayChatgptContinuation(message, attempt, model, chatgptFunctionName),
-      functionIdentity: (name) => ({ name: chatgptFunctionName(name), namespace: CHATGPT_TOOL_NAMESPACE }) })
+      functionIdentity: (name) => ({ name: chatgptFunctionName(name),
+        ...(model.transport === 'codex' ? {} : { namespace: CHATGPT_TOOL_NAMESPACE }) }) })
     const definitions = mapToolsToResponses(attempt.tools)?.map((tool) => ({ ...tool,
       name: chatgptFunctionName(tool.name as string), strict: false }))
     const body = { model: model.providerModelId, input: mapped.input, store: false, stream: true,
       include: ['reasoning.encrypted_content'],
-      ...(mapped.instructions ? { instructions: mapped.instructions } : {}),
-      ...(definitions ? { tools: [{ type: 'namespace', name: CHATGPT_TOOL_NAMESPACE,
-        description: 'Nessie tools authorized for this request.', tools: definitions }] } : {}),
+      // One key per agent keeps its long shared prefix (instructions and tools) on the
+      // provider's prompt cache from turn to turn; without it each turn is read cold.
+      ...(model.transport === 'codex' ? { prompt_cache_key: chatgptPromptCacheKey(attempt) } : {}),
+      ...(model.transport === 'codex' ? { instructions: mapped.instructions ?? '' }
+        : mapped.instructions ? { instructions: mapped.instructions } : {}),
+      ...(definitions ? { tools: model.transport === 'codex' ? definitions
+        : [{ type: 'namespace', name: CHATGPT_TOOL_NAMESPACE,
+          description: 'Nessie tools authorized for this request.', tools: definitions }] } : {}),
       ...(attempt.thinking || attempt.reasoningEffort ? { reasoning: {
         ...(attempt.reasoningEffort ? { effort: attempt.reasoningEffort } : {}),
         ...(attempt.thinking ? { summary: 'auto' } : {}),

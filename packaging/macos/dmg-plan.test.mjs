@@ -297,7 +297,7 @@ test('an unsigned image says so in its file name and in Finder', () => {
     dmgFileName('0.1.0', 'arm64', 'development'),
     `NessieExecutor_0.1.0_arm64-${DEVELOPMENT_MARKER}.dmg`,
   )
-  assert.equal(dmgVolumeName('0.1.0', 'release'), 'Nessie Executor 0.1.0')
+  assert.equal(dmgVolumeName('0.1.0', 'release'), 'Nessie Computer 0.1.0')
   assert.ok(dmgVolumeName('0.1.0', 'development').includes(DEVELOPMENT_MARKER))
   // The marker survives being downloaded, forwarded and renamed in a release
   // draft — which is the whole reason it is in the name rather than in a log.
@@ -344,11 +344,11 @@ test('the image is the app and the drop target, and it is read-only', () => {
     hdiutilArguments({
       output: '/tmp/x.dmg',
       sourceDirectory: '/tmp/stage',
-      volumeName: 'Nessie Executor 0.1.0',
+      volumeName: 'Nessie Computer 0.1.0',
     }),
     [
       'create',
-      '-volname', 'Nessie Executor 0.1.0',
+      '-volname', 'Nessie Computer 0.1.0',
       '-srcfolder', '/tmp/stage',
       '-fs', 'HFS+',
       '-format', 'UDZO',
@@ -382,7 +382,7 @@ test('the build signs inside-out, and never with --deep', () => {
   assert.ok(codesignVerifyArguments('/a').includes('--deep'))
   // Nested binaries first, sorted deepest-first, with the main executable left
   // to the bundle signature.
-  assert.ok(signerScript.includes('nestedMachOFiles'))
+  assert.ok(signerScript.includes('nestedSigningTargets'))
   assert.ok(signerScript.includes('right.split(\'/\').length - left.split(\'/\').length'))
   // The manifest is rewritten after the Node is signed and before the bundle is
   // sealed: a signature changes the bytes runtime-integrity.ts verifies, and a

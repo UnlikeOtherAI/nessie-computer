@@ -16,6 +16,7 @@ export const ChatgptProfileRecordSchema = PersonalChatgptProfileStatusSchema
       .refine((value) => value !== 'dynamic_agent_client').nullable(),
     extAgentHostId: z.string().uuid(), issuer: z.literal(CHATGPT_ISSUER),
     subject: z.string().min(1).max(512).nullable(),
+    accountId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/u).optional(),
   }).strict(),
   publicKey: z.string().min(32).max(1024).nullable(),
   credentialProcess: z.object({
@@ -46,6 +47,7 @@ export const ChatgptTokenRecordSchema = z.object({
     expiresAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable(),
     scopes: z.array(z.string().min(1).max(256)).max(64),
     subject: z.string().min(1).max(512), issuer: z.literal(CHATGPT_ISSUER),
+    accountId: z.string().regex(/^[A-Za-z0-9_-]{1,200}$/u).optional(),
   }).strict().nullable(),
 }).strict().superRefine((record, context) => {
   if ((record.rotationId === null) !== (record.tokens !== null)) {

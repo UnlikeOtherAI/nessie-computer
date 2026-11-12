@@ -1,28 +1,26 @@
-//! Talking to the service over `\\.\pipe\NessieExecutor`.
+//! Talking to the service over its control pipe, `\\.\pipe\NessieExecutor`,
+//! through `nessie_windows_common::control_channel`: the same way in the
+//! command line uses, so both prove the pipe is served by the signed service
+//! before anything is written.
 //!
 //! One request line, one answer line, one connection. The tray keeps nothing
-//! and decides nothing: the service owns the executors, their state, and every
+//! and decides nothing: the service owns the teams, their state, and every
 //! refusal a person reads.
 //!
 //! Two Windows errors matter enough to translate, because they are the two a
 //! person can actually act on: the pipe is missing when the service is not
 //! running, and access is denied when this account has never been admitted —
 //! which is what pairing's one elevated step exists to fix.
-//!
-//! The protocol's answer shapes are portable and tested on any host; the pipe
-//! itself lives behind `cfg(windows)` in [`imp`].
 
 use crate::state::ExecutorStatus;
-use std::io::{BufRead, BufReader, Read};
-
-/// Bounded so a service answering nonsense cannot exhaust this process.
-const MAX_ANSWER_BYTES: u64 = 1_048_576;
+#[cfg(any(windows, test))]
+use nessie_windows_common::control_channel::Unreachable;
 
 pub const SERVICE_NOT_RUNNING: &str =
-    "the service is not running — start Nessie Executor in Services";
+    "the service is not running — start Nessie Computer in Services";
 
 pub const NOT_ADMITTED: &str =
-    "this account may not control the executor — pair one from this tray to be admitted";
+    "this Windows account can’t use the Nessie Computer service yet — add this computer to a team to be admitted";
 
 /// The useful answers the service can give, plus an error it already worded.
 /// The tray never sees a path, a key, or a challenge unless it asked for a
@@ -37,113 +35,36 @@ pub enum ServiceResponse {
     Describe(serde_json::Value),
     Pairing(serde_json::Value),
     Removed { signed_off: bool },
+    ProgramRequests(Vec<nessie_windows_common::owner_controls::ProgramRequest>),
+    /// The sessions agents are working in for one team, as `sessions --json` printed them.
+    Sessions(Vec<serde_json::Value>),
 }
 
-/// Reads one complete line from a pipe response. A named-pipe server may close
-/// immediately after writing: Windows reports that as `ERROR_BROKEN_PIPE`, not
-/// end-of-file, so reading until EOF turns a valid answer into a false refusal.
-/// The protocol is one newline-framed JSON answer, and a missing terminator is
-/// incomplete even when its bytes happen to parse as JSON.
-fn read_one_response(reader: impl Read) -> Result<ServiceResponse, String> {
-    let mut answer = String::new();
-    let mut bounded = BufReader::new(reader.take(MAX_ANSWER_BYTES));
-    bounded
-        .read_line(&mut answer)
-        .map_err(|_| "the service closed the connection".to_owned())?;
-    if !answer.ends_with('\n') {
-        return Err("the service closed the connection".to_owned());
+/// The sentence for a pipe that could not be used at all; the two a person
+/// can act on are the ones `call` recognises when it merges the team lists.
+#[cfg(any(windows, test))]
+fn unreachable(reason: Unreachable) -> String {
+    match reason {
+        Unreachable::NotRunning => SERVICE_NOT_RUNNING,
+        Unreachable::NotAdmitted => NOT_ADMITTED,
+        Unreachable::NotTrusted => "something other than the signed Nessie Computer service is answering its pipe",
+        Unreachable::Busy => "the service is busy — try again in a moment",
+        Unreachable::Failed => "the service could not be reached",
     }
+    .to_owned()
+}
+
+/// Sends one request and returns the answer it was given. A refusal comes
+/// back as the service's own words, never as a status code the tray would
+/// have to invent a sentence for.
+#[cfg(windows)]
+fn service_call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
+    let mut line = serde_json::to_string(request)
+        .map_err(|_| "the control request could not be prepared".to_owned())?;
+    line.push('\n');
+    let answer = nessie_windows_common::control_channel::call(&line, crate::service_peer::PIN).map_err(unreachable)?;
     decode(&answer)
 }
-
-#[cfg(windows)]
-mod imp {
-    use std::{
-        io::Write,
-        mem::ManuallyDrop,
-        os::windows::{ffi::OsStrExt, io::FromRawHandle},
-    };
-
-    use windows_sys::Win32::Foundation::{
-        CloseHandle, GetLastError, ERROR_ACCESS_DENIED, ERROR_FILE_NOT_FOUND, ERROR_PIPE_BUSY,
-        HANDLE, INVALID_HANDLE_VALUE,
-    };
-    use nessie_windows_common::CONTROL_PIPE_CLIENT_ACCESS;
-    use windows_sys::Win32::Storage::FileSystem::{
-        CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING,
-    };
-    use windows_sys::Win32::System::Pipes::WaitNamedPipeW;
-
-    use super::{read_one_response, NOT_ADMITTED, SERVICE_NOT_RUNNING};
-
-    const PIPE_NAME: &str = r"\\.\pipe\NessieExecutor";
-
-    /// How long to wait for a free instance, and how many times. The service
-    /// serves each connection on its own thread, so a busy pipe is a burst, not
-    /// a queue.
-    const BUSY_WAIT_MS: u32 = 2_000;
-
-    const BUSY_ATTEMPTS: u32 = 3;
-
-    fn wide(value: &str) -> Vec<u16> {
-        std::ffi::OsStr::new(value).encode_wide().chain(std::iter::once(0)).collect()
-    }
-
-    fn open() -> Result<HANDLE, String> {
-        let name = wide(PIPE_NAME);
-        for _ in 0..BUSY_ATTEMPTS {
-            let handle = unsafe {
-                CreateFileW(
-                    name.as_ptr(),
-                    CONTROL_PIPE_CLIENT_ACCESS,
-                    0,
-                    std::ptr::null(),
-                    OPEN_EXISTING,
-                    FILE_ATTRIBUTE_NORMAL,
-                    std::ptr::null_mut(),
-                )
-            };
-            if handle != INVALID_HANDLE_VALUE && !handle.is_null() {
-                return Ok(handle);
-            }
-            match unsafe { GetLastError() } {
-                ERROR_PIPE_BUSY => {
-                    unsafe { WaitNamedPipeW(name.as_ptr(), BUSY_WAIT_MS) };
-                }
-                ERROR_FILE_NOT_FOUND => return Err(SERVICE_NOT_RUNNING.to_owned()),
-                ERROR_ACCESS_DENIED => return Err(NOT_ADMITTED.to_owned()),
-                _ => return Err("the service could not be reached".to_owned()),
-            }
-        }
-        Err("the service is busy — try again in a moment".to_owned())
-    }
-
-    /// Sends one request and returns the answer it was given. A refusal comes
-    /// back as the service's own words, never as a status code the tray would
-    /// have to invent a sentence for.
-    pub fn call(request: &serde_json::Value) -> Result<super::ServiceResponse, String> {
-        let handle = open()?;
-        if let Err(error) = crate::service_peer::verify(handle) {
-            unsafe { CloseHandle(handle) };
-            return Err(error);
-        }
-        let file = ManuallyDrop::new(unsafe { std::fs::File::from_raw_handle(handle as *mut _) });
-        let mut line = serde_json::to_string(request)
-            .map_err(|_| "the control request could not be prepared".to_owned())?;
-        line.push('\n');
-        let wrote = (&*file).write_all(line.as_bytes()).and_then(|()| (&*file).flush());
-        let response = if wrote.is_ok() {
-            read_one_response(&*file)
-        } else {
-            Err("the service closed the connection".to_owned())
-        };
-        unsafe { CloseHandle(handle) };
-        response
-    }
-}
-
-#[cfg(windows)]
-use imp::call as service_call;
 
 /// Personal delegation always reaches the service; it never borrows the
 /// user-session CLI's independent machine key or falls back after a refusal.
@@ -172,8 +93,8 @@ fn local_route(command: &str, owned: Option<bool>) -> bool {
         "pairingStart" | "pairingStatus" | "pairingCancel"))
 }
 
-/// Ordinary Add team remains interactive for the owner's installed tools.
-/// Personal-plan pairing addresses service_control explicitly, without fallback.
+/// Add another team runs under this account; a ChatGPT plan connection
+/// addresses service_control explicitly, without fallback.
 pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
     let command = request["command"].as_str().unwrap_or("");
     if command == "status" {
@@ -198,7 +119,7 @@ pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
 /// not recognise is a failure, never an empty executor list.
 fn decode(answer: &str) -> Result<ServiceResponse, String> {
     let parsed: serde_json::Value = serde_json::from_str(answer.trim())
-        .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+        .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
     match parsed.get("status").and_then(serde_json::Value::as_str) {
         Some("inferenceConnections") => parsed.get("connections").cloned().map(ServiceResponse::InferenceConnections)
             .ok_or_else(|| "No inference connections were returned.".to_owned()),
@@ -206,23 +127,31 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             .ok_or_else(|| "The service returned no personal authority.".to_owned()),
         Some("pairing") => parsed.get("pairing").cloned().map(ServiceResponse::Pairing)
             .ok_or_else(|| "Pairing returned no answer.".to_owned()),
+        Some("programRequests") => parsed.get("requests").cloned()
+            .ok_or_else(|| "The program requests could not be read.".to_owned())
+            .and_then(nessie_windows_common::owner_controls::parse_program_requests)
+            .map(ServiceResponse::ProgramRequests),
+        Some("sessions") => parsed.get("sessions").cloned()
+            .ok_or_else(|| "The list of what agents are doing could not be read.".to_owned())
+            .and_then(nessie_windows_common::owner_sessions::parse_sessions)
+            .map(ServiceResponse::Sessions),
         Some("ok") => {
             let executors = serde_json::from_value(
                 parsed.get("executors").cloned().unwrap_or(serde_json::Value::Null),
             )
-            .map_err(|_| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+            .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
             Ok(ServiceResponse::Status(executors))
         }
         Some("pairOk") => {
             let executor_id = parsed
                 .get("executorId")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
                 .to_owned();
             let fingerprint = parsed
                 .get("fingerprint")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
                 .to_owned();
             Ok(ServiceResponse::Pair { executor_id, fingerprint })
         }
@@ -230,37 +159,63 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             let description = parsed
                 .get("description")
                 .cloned()
-                .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned())?;
+                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
             Ok(ServiceResponse::Describe(description))
         }
         Some("removed") => parsed
             .get("signedOff")
             .and_then(serde_json::Value::as_bool)
             .map(|signed_off| ServiceResponse::Removed { signed_off })
-            .ok_or_else(|| "Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
+            .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
         Some("error") => Err(parsed
             .get("reason")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("the service refused the request")
             .to_owned()),
-        _ => Err("Nessie Executor couldn’t understand its service’s reply. Try again, or restart Nessie Executor.".to_owned()),
+        _ => Err("Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{decode, read_one_response, ServiceResponse};
+    use super::{decode, unreachable, ServiceResponse, NOT_ADMITTED, SERVICE_NOT_RUNNING};
+    use nessie_windows_common::control_channel::{read_answer, Unreachable};
+
+    /// What `service_call` does with the bytes the pipe returns.
+    fn read_one_response(reader: impl std::io::Read) -> Result<ServiceResponse, String> {
+        decode(&read_answer(reader).map_err(unreachable)?)
+    }
 
     #[test]
     fn an_ok_answer_carries_the_executor_list_verbatim() {
         let response = decode(
-            r#"{"status":"ok","executors":[{"daemonStatus":"running","executorId":"a-1","workspaceConfigured":true}]}"#,
+            r#"{"status":"ok","executors":[{"daemonStatus":"running","executorId":"a-1","workspaceConfigured":true,"paused":true,"pendingProgramRequests":1}]}"#,
         )
         .expect("an ok answer must decode");
         let ServiceResponse::Status(executors) = response else { panic!("expected status response") };
         assert_eq!(executors.len(), 1);
         assert_eq!(executors[0].daemon_status, "running");
         assert_eq!(executors[0].executor_id, "a-1");
+        assert!(executors[0].paused);
+        assert_eq!(executors[0].pending_program_requests, 1);
+        assert_eq!(executors[0].connection, crate::state::Connection::Service);
+    }
+
+    #[test]
+    fn program_requests_and_sessions_answers_decode_strictly() {
+        let requests = decode(r#"{"status":"programRequests","requests":[{"id":"r1","program":"python","args":[],"requestedAt":"2026-11-08T10:00:00.000Z","expiresAt":"2026-11-08T10:02:00.000Z"}]}"#)
+            .expect("a request list must decode");
+        let ServiceResponse::ProgramRequests(list) = requests else { panic!("expected requests") };
+        assert_eq!(list[0].program, "python");
+        assert!(decode(r#"{"status":"programRequests"}"#).is_err());
+        assert!(decode(r#"{"status":"programRequests","requests":{}}"#).is_err());
+        let sessions = decode(r#"{"status":"sessions","sessions":[{"sessionId":"0b0c3a40-6f1e-4f7e-9d3b-2d1b8f1e4c11","commands":[]}]}"#)
+            .unwrap();
+        let ServiceResponse::Sessions(list) = sessions else { panic!("expected sessions") };
+        assert_eq!(list.len(), 1);
+        assert!(decode(r#"{"status":"sessions","sessions":{}}"#).is_err());
+        assert!(decode(r#"{"status":"sessions"}"#).is_err());
+        assert!(decode(r#"{"status":"audience","audience":{"agents":[]}}"#).is_err());
     }
 
     #[test]
@@ -304,8 +259,8 @@ mod tests {
     #[test]
     fn a_refusal_reaches_the_person_in_the_services_own_words() {
         assert_eq!(
-            decode(r#"{"status":"error","reason":"This executor has not been paired on this computer."}"#),
-            Err("This executor has not been paired on this computer.".to_owned()),
+            decode(r#"{"status":"error","reason":"This team is not connected on this computer."}"#),
+            Err("This team is not connected on this computer.".to_owned()),
         );
     }
 
@@ -329,8 +284,20 @@ mod tests {
     #[test]
     fn an_unterminated_or_oversized_response_is_refused() {
         assert!(read_one_response(&b"{\"status\":\"ok\",\"executors\":[]}"[..]).is_err());
-        let oversized = format!("{}\n", "x".repeat(super::MAX_ANSWER_BYTES as usize));
+        let limit = nessie_windows_common::control_channel::MAX_ANSWER_BYTES as usize;
+        let oversized = format!("{}\n", "x".repeat(limit));
         assert!(read_one_response(oversized.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn the_two_reasons_a_person_can_act_on_keep_their_own_words() {
+        // `call` lists this account's own teams when the service is missing or
+        // has not admitted this account; it recognises those two by these words.
+        assert_eq!(unreachable(Unreachable::NotRunning), SERVICE_NOT_RUNNING);
+        assert_eq!(unreachable(Unreachable::NotAdmitted), NOT_ADMITTED);
+        for reason in [Unreachable::NotTrusted, Unreachable::Busy, Unreachable::Failed] {
+            assert!(![SERVICE_NOT_RUNNING, NOT_ADMITTED].contains(&unreachable(reason).as_str()));
+        }
     }
 
     #[cfg(windows)]

@@ -14,6 +14,26 @@ final class ExecutorStateDiscoveryTests: XCTestCase {
         try Data("unread by discovery".utf8).write(to: path.appendingPathComponent(name))
     }
 
+    /// A team the command line connected while the app runs is the app's to
+    /// start; one the app already runs, or one still showing its code, is not.
+    func testATeamTheCommandLineConnectedIsUnclaimedUntilTheAppRunsIt() throws {
+        try withRoot { root in
+            let known = root.appendingPathComponent("connections/known")
+            let connected = root.appendingPathComponent("cli/connected")
+            let waiting = root.appendingPathComponent("cli/waiting")
+            let empty = root.appendingPathComponent("cli/empty")
+            try paired(known)
+            try paired(connected)
+            try paired(waiting)
+            try paired(waiting, pending: true)
+            try FileManager.default.createDirectory(at: empty, withIntermediateDirectories: true)
+            let found = [known.path, connected.path, waiting.path, empty.path]
+            let unclaimed = ExecutorStateDiscovery.unclaimedTeams(in: found, known: [known.path + "/"])
+            XCTAssertEqual(unclaimed, [connected.path])
+            XCTAssertEqual(ExecutorStateDiscovery.unclaimedTeams(in: found, known: [known.path, connected.path]), [])
+        }
+    }
+
     func testUsesCanonicalDirectoryWhenNothingWasPaired() throws {
         try withRoot { root in
             let preferred = root.appendingPathComponent("current").path

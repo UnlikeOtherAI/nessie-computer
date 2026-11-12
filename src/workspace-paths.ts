@@ -41,7 +41,7 @@ export const safeRelativeWorkspacePath = (value: string | undefined): string => 
     normalized === EXECUTOR_PROMOTION_JOURNAL_DIRECTORY
     || normalized.startsWith(`${EXECUTOR_PROMOTION_JOURNAL_DIRECTORY}/`)
   ) {
-    throw new WorkspacePathError('Workspace paths may not access executor journal state.')
+    throw new WorkspacePathError('Workspace paths may not access Nessie Computer’s journal state.')
   }
   return normalized
 }

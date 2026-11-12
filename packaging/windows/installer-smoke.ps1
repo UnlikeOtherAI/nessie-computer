@@ -89,14 +89,96 @@ if ($RequireSignedService) {
 }
 
 # The Run entry starts the tray at the installing user's next logon; there is
-# no logon here, so the tray is started directly and must survive with no
-# window of its own.
+# no logon here, so the tray is started directly and must keep running.
 $run = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name NessieExecutorTray
 if (-not $run.NessieExecutorTray) {
   throw 'the tray autostart entry is missing'
 }
 
 $trayPath = Join-Path $env:ProgramFiles 'Nessie Executor\nessie-executor-tray.exe'
+
+# The product is Nessie Computer wherever a person sees it; the service keeps
+# its name, and the Start menu shortcut carries the app's toast identity.
+$service = Get-CimInstance Win32_Service -Filter "Name='NessieExecutor'"
+if ($service.DisplayName -ne 'Nessie Computer') {
+  throw "the service is displayed as '$($service.DisplayName)'"
+}
+$shortcutPath = Join-Path ([Environment]::GetFolderPath('CommonPrograms')) 'Nessie Computer.lnk'
+if (-not (Test-Path -LiteralPath $shortcutPath -PathType Leaf)) {
+  throw 'the Nessie Computer Start menu shortcut is missing'
+}
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcutPath)
+if ($shortcut.TargetPath -ne $trayPath) {
+  throw "the Start menu shortcut opens '$($shortcut.TargetPath)'"
+}
+$linkCommand = (Get-ItemProperty 'HKCU:\Software\Classes\nessie-computer\shell\open\command').'(default)'
+if ($linkCommand -ne "`"$trayPath`" `"%1`"") {
+  throw "nessie-computer links open '$linkCommand'"
+}
+if ($null -eq (Get-ItemProperty 'HKCU:\Software\Classes\nessie-computer' -Name 'URL Protocol' -ErrorAction SilentlyContinue)) {
+  throw 'nessie-computer is not registered as a link scheme'
+}
+
+# A first launch with no team may open the app's own window on the pairing
+# code; no other window may appear. Process.MainWindowTitle cannot tell: the
+# framework keeps two helper windows that are WS_VISIBLE so they receive
+# messages, but layered and never painted, so nobody sees them. They are
+# matched exactly by class and title: tao's event target, and the
+# single-instance helper named after the app identifier in tauri.conf.json.
+Add-Type -TypeDefinition @'
+using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+using System.Text;
+
+public static class NessieSmokeWindows {
+  public sealed class TopLevelWindow {
+    public string ClassName;
+    public string Title;
+  }
+
+  private delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
+
+  [DllImport("user32.dll")]
+  private static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
+
+  [DllImport("user32.dll")]
+  private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+
+  [DllImport("user32.dll")]
+  private static extern bool IsWindowVisible(IntPtr window);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern int GetWindowText(IntPtr window, StringBuilder text, int capacity);
+
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  private static extern int GetClassName(IntPtr window, StringBuilder text, int capacity);
+
+  public static List<TopLevelWindow> Visible(int processId) {
+    var windows = new List<TopLevelWindow>();
+    EnumWindows((window, parameter) => {
+      uint windowProcessId;
+      GetWindowThreadProcessId(window, out windowProcessId);
+      if (windowProcessId != (uint)processId || !IsWindowVisible(window)) {
+        return true;
+      }
+      var title = new StringBuilder(512);
+      GetWindowText(window, title, title.Capacity);
+      var className = new StringBuilder(256);
+      GetClassName(window, className, className.Capacity);
+      windows.Add(new TopLevelWindow { ClassName = className.ToString(), Title = title.ToString() });
+      return true;
+    }, IntPtr.Zero);
+    return windows;
+  }
+}
+'@
+$appIdentifier = 'com.unlikeotherai.nessie.executor.tray'
+$helperWindows = @(
+  @{ ClassName = 'Tao Thread Event Target'; Title = '' },
+  @{ ClassName = "$appIdentifier-sic"; Title = "$appIdentifier-siw" }
+)
+
 $tray = Start-Process -FilePath $trayPath -PassThru
 try {
   Start-Sleep -Seconds 10
@@ -104,9 +186,20 @@ try {
   if (-not $trayRunning) {
     throw 'the tray exited within ten seconds'
   }
-  $trayRunning.Refresh()
-  if ($trayRunning.MainWindowTitle -ne '') {
-    throw "the tray opened a window at launch: '$($trayRunning.MainWindowTitle)'"
+  $unexpectedWindows = @(
+    [NessieSmokeWindows]::Visible($tray.Id) | Where-Object {
+      $window = $_
+      $isHelper = @(
+        $helperWindows | Where-Object {
+          $_.ClassName -ceq $window.ClassName -and $_.Title -ceq $window.Title
+        }
+      ).Count -gt 0
+      -not $isHelper -and $window.Title -cne 'Nessie Computer'
+    }
+  )
+  if ($unexpectedWindows.Count -gt 0) {
+    $described = ($unexpectedWindows | ForEach-Object { "'$($_.Title)' ($($_.ClassName))" }) -join ', '
+    throw "the tray opened a window other than Nessie Computer at launch: $described"
   }
 } finally {
   $trayRunning = Get-Process -Id $tray.Id -ErrorAction SilentlyContinue
@@ -128,6 +221,12 @@ if (Get-Service NessieExecutor -ErrorAction SilentlyContinue) {
 }
 if (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name NessieExecutorTray -ErrorAction SilentlyContinue) {
   throw 'the tray autostart entry was not removed'
+}
+if (Test-Path -LiteralPath $shortcutPath) {
+  throw 'the Start menu shortcut was not removed'
+}
+if (Test-Path 'HKCU:\Software\Classes\nessie-computer') {
+  throw 'the nessie-computer link registration was not removed'
 }
 
 # A pairing is a machine key and a signed policy revision, and uninstalling a

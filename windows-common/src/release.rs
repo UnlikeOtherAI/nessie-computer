@@ -34,15 +34,28 @@ pub struct Release {
     pub launch_consumers: Option<LaunchConsumers>,
     _pins: Vec<File>,
 }
+/// The installed service executable is not the signed one this release names.
+pub const SERVICE_UNVERIFIED: &str = "The installed service is not this release's signed service.";
+/// The installed Windows app is not the signed one this release names. An
+/// older app still running keeps its file in use, and Windows Installer then
+/// replaces that file only at the next restart.
+pub const TRAY_UNVERIFIED: &str = "The installed Windows app is not this release's signed app.";
+
+/// Which launch consumer a refusal names, so a diagnosis can tell them apart.
+fn consumer_unverified(name: &str) -> &'static str {
+    if name.eq_ignore_ascii_case("nessie-executor-tray.exe") { TRAY_UNVERIFIED } else { SERVICE_UNVERIFIED }
+}
+
 impl Release {
     /// A coherent installed package includes the signed launch consumers,
-    /// not only its native helper and JavaScript payload.
+    /// not only its native helper and JavaScript payload. A mismatch names the
+    /// consumer ([`SERVICE_UNVERIFIED`], [`TRAY_UNVERIFIED`]).
     pub fn verify_launch_consumers(&mut self, pin_eku: Option<&str>) -> Result<(), String> {
         let consumers = self.launch_consumers.as_ref().ok_or(REJECTED)?;
         for (name, expected) in [("nessie-executor-service.exe", &consumers.service_sha256),
             ("nessie-executor-tray.exe", &consumers.tray_sha256)] {
-            let file = pin_launcher(&self.runtime.root.join(name), pin_eku)?;
-            verify_launcher_digest(&file, expected)?;
+            let file = pin_launcher(&self.runtime.root.join(name), pin_eku).map_err(|_| consumer_unverified(name))?;
+            verify_launcher_digest(&file, expected).map_err(|_| consumer_unverified(name))?;
             self._pins.push(file);
         }
         Ok(())
@@ -277,6 +290,12 @@ mod directory_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn a_launch_consumer_refusal_names_the_service_or_the_windows_app() {
+        assert_eq!(consumer_unverified("nessie-executor-tray.exe"), TRAY_UNVERIFIED);
+        assert_eq!(consumer_unverified("nessie-executor-service.exe"), SERVICE_UNVERIFIED);
+        assert_ne!(TRAY_UNVERIFIED, SERVICE_UNVERIFIED);
+    }
     #[test]
     fn a_user_writable_self_attested_runtime_never_becomes_a_trusted_release() {
         let root = tempfile::tempdir().unwrap();

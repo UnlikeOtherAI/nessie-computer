@@ -7,7 +7,7 @@ import test from 'node:test'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 import { runPairingCodeCli } from '../src/pairing-code-cli.js'
-import { createUnpair } from '../src/unpair.js'
+import { createUnpair, TeamRunningError } from '../src/unpair.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 
 const keys = generateKeyPairSync('ed25519')
@@ -59,15 +59,15 @@ test('a running connection, the home folder or a filesystem root is never remove
     acquireExecutorDaemonLease: async () => { throw new Error('EXECUTOR_DAEMON_ALREADY_RUNNING') },
     remove: async () => { throw new Error('must not remove') },
   })
-  await assert.rejects(running('/state/team'), /running\. Stop it first/)
+  await assert.rejects(running('/state/team'), TeamRunningError)
   const { events, unpair } = harness(async () => undefined)
-  await assert.rejects(unpair(homedir()), /not an executor connection/)
-  await assert.rejects(unpair(resolve('/')), /not an executor connection/)
+  await assert.rejects(unpair(homedir()), /isn't a team's folder/)
+  await assert.rejects(unpair(resolve('/')), /isn't a team's folder/)
   assert.deepEqual(events, [])
 })
 
 test('the CLI names the connection to remove', async () => {
-  await assert.rejects(runPairingCodeCli(['unpair'], 'linux'), /Choose the connection to remove/)
+  await assert.rejects(runPairingCodeCli(['unpair'], 'linux'), /Choose the team to remove/)
 })
 
 test('personal cleanup refusal preserves the pairing and releases its daemon lease', async () => {

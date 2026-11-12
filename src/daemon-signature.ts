@@ -10,13 +10,17 @@ export type ExecutorDaemonSignatureDomain =
   | 'claim'
   | 'cancel'
   | 'heartbeat'
+  | 'imessage'
+  | 'imessage_sent'
   | 'local_inference.host'
+  | 'local_inference.cli_host'
   | 'chatgpt.challenge'
   | 'chatgpt.delegate'
   | 'chatgpt.disconnect'
   | 'poll'
   | 'receipt'
   | 'sync'
+  | 'teams'
 
 /** Signs a bounded executor control-plane request with the paired machine key. */
 export const signExecutorDaemonPayload = (

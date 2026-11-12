@@ -42,7 +42,7 @@ try {
           () => window.executorLinuxReply(message.id, null, true))
       } } } }
     })
-    const files = ['index.html', 'native.js', 'style.css', 'updates.js', 'updates-words.js']
+    const files = ['index.html', 'native.js', 'style.css', 'i18n.js', 'help.js', 'updates.js', 'updates-words.js']
     await page.route('http://localhost:5878/**', async route => {
       const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
       assert.ok(files.includes(file))
@@ -55,7 +55,8 @@ try {
     const capture = name => page.screenshot({ path: join(output, name + '-' + width + '.png'), fullPage: true })
     await capture('current')
     await page.locator('#update-automatic').uncheck()
-    await page.getByText('Automatic updates are off.', { exact: false }).waitFor()
+    // The explanation sits behind "?" beside the switch and follows it.
+    await page.waitForFunction(() => document.querySelector('#update-hint .help-tip').textContent.startsWith('Automatic updates are off.'))
     await page.locator('#update-check').click()
     await page.getByRole('dialog').waitFor()
     await page.getByRole('button', { name: 'Remind me in 24 hours', exact: true }).waitFor()

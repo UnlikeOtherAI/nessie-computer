@@ -36,10 +36,10 @@ export const workspaceForRun = async (
 ): Promise<string> => {
   const paths = await sandboxFolderPaths(stateDir, runId, folder.name)
   try {
-    return await configureOrdinaryDirectory(paths.workspace, 'The executor sandbox workspace')
+    return await configureOrdinaryDirectory(paths.workspace, 'The sandbox workspace')
   } catch (error) {
     try {
-      await assertOrdinaryDirectory(paths.root, 'The executor sandbox is unavailable.')
+      await assertOrdinaryDirectory(paths.root, 'The sandbox is unavailable.')
     } catch (rootError) {
       if (!missing(rootError)) throw rootError
       // This folder has no draft for this run. Another folder of the same run
@@ -73,7 +73,7 @@ export const workspaceViewForRun = (
 export const stopSandboxWorkspace = async (stateDir: string, runId: string): Promise<boolean> => {
   const paths = await sandboxPaths(stateDir, runId)
   try {
-    await assertOrdinaryDirectory(paths.root, 'The executor sandbox is unavailable.')
+    await assertOrdinaryDirectory(paths.root, 'The sandbox is unavailable.')
   } catch (error) {
     if (missing(error)) return false
     throw error
@@ -83,9 +83,9 @@ export const stopSandboxWorkspace = async (stateDir: string, runId: string): Pro
     try {
       const lease = await lstat(folder.guestLease)
       if (lease.isSymbolicLink() || !lease.isFile()) {
-        throw new WorkspacePathError('The executor guest lease is unavailable.')
+        throw new WorkspacePathError('The guest lease is unavailable.')
       }
-      throw new WorkspacePathError('The executor sandbox has an active guest lease.')
+      throw new WorkspacePathError('The sandbox has an active guest lease.')
     } catch (error) {
       if (!missing(error)) throw error
     }

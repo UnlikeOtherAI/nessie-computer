@@ -16,6 +16,13 @@ test('release input cannot change artifact paths or insert formula code', () => 
   assert.equal(archiveName('1.2.3'), 'nessie-executor_1.2.3_darwin_arm64.tar.gz')
 })
 
+test('the Homebrew formula installs nessie-computer beside the older nessie-executor', () => {
+  const formula = homebrewFormula('1.2.3', 'c'.repeat(64))
+  assert.match(formula, /bin\.install_symlink "nessie-executor" => "nessie-computer"/)
+  assert.match(formula, /assert_equal "nessie-computer 1\.2\.3", shell_output\("#\{bin\}\/nessie-computer --version"\)/)
+  assert.doesNotMatch(formula.split('def caveats')[1].split('end')[0], /nessie-executor login|executor-id/)
+})
+
 test('native Linux packages keep the runtime and service at their trusted locations', () => {
   for (const format of ['deb', 'rpm']) {
     const config = linuxPackage('1.0.0', '/build/payload', format, '/temporary/signing-key.asc')
@@ -51,7 +58,7 @@ test('publication rejects verification keys, altered payloads and mismatched sou
       assert.equal(command, 'gh')
       assert.equal(args[args.indexOf('--source-ref') + 1], 'refs/heads/main')
       assert.equal(args[args.indexOf('--source-digest') + 1], candidate.commit)
-      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/nessie-executor/.github/workflows/executor-cli.yml')
+      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/nessie-computer/.github/workflows/executor-cli.yml')
       assert.ok(args.includes('--deny-self-hosted-runners'))
     })
     assert.equal(attested.commit, candidate.commit)
@@ -101,6 +108,8 @@ test('build workflow cannot publish a release or silently produce an unsigned Ma
   assert.ok(workflow.includes("SIGNING_KEY: ${{ inputs.release_signing && secrets.EXECUTOR_REPOSITORY_SIGNING_KEY || '' }}"))
   assert.ok(workflow.includes("if: ${{ inputs.macos && github.ref == 'refs/heads/main' }}"))
   assert.match(workflow, /if: inputs.release_signing\s+uses: actions\/attest@v4/)
+  assert.ok(workflow.indexOf('run: node packaging/linux/verify-signing.mjs')
+    < workflow.indexOf('- name: Build and check executor'))
 })
 
 test('app manifests refuse moving URLs and retain the actual installed app versions', () => {
@@ -115,13 +124,17 @@ test('app manifests refuse moving URLs and retain the actual installed app versi
   assert.equal(Object.keys(manifests).length, 3)
   assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /PackageVersion: 0.0.1500/)
   assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /Scope: machine/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /Commands:\n {2}- nessie-computer\n {2}- nessie-executor\n/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml'], /DisplayName: Nessie Computer\n/)
+  assert.match(manifests['UnlikeOtherAI.NessieExecutor.locale.en-US.yaml'], /PackageName: Nessie Computer\nPackageUrl/)
   assert.throws(() => wingetManifests({ version: '1.0.0', tag: 'v1.0.0', sha256: 'a'.repeat(64) }), /ProductCode/)
 })
 test('standalone manifests use public releases while Desktop companions retain their publishing repository', () => {
   const source = 'a'.repeat(40)
   assert.equal(stableAppTag('executor-v1.0.0'), 'executor-v1.0.0')
   const input = { app: 'executor', version: '1.0.0', tag: 'executor-v1.0.0', sha256: 'b'.repeat(64) }
-  assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.0/'))
+  assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.0/'))
+  assert.match(appCask(input), /name "Nessie Computer"[\s\S]*app "Nessie Executor\.app"/)
   assert.ok(appCask({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie' })
     .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
   const manifests = wingetManifests({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie',
@@ -129,5 +142,5 @@ test('standalone manifests use public releases while Desktop companions retain t
   assert.ok(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml']
     .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
   assert.ok(manifests['UnlikeOtherAI.NessieExecutor.locale.en-US.yaml']
-    .includes(`UnlikeOtherAI/nessie-executor/blob/${source}/LICENSE`))
+    .includes(`UnlikeOtherAI/nessie-computer/blob/${source}/LICENSE`))
 })

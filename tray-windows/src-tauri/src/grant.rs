@@ -119,7 +119,7 @@ mod imp {
         if applied == ERROR_SUCCESS {
             Ok(())
         } else {
-            Err("Windows would not grant the Nessie Executor service access to that workspace."
+            Err("Windows would not grant the Nessie Computer service access to that workspace."
                 .to_owned())
         }
     }
@@ -146,7 +146,7 @@ mod imp {
     /// possible — pairing must not start before the grant has actually landed.
     pub fn request_workspace_grant(workspace: &Path) -> Result<(), String> {
         let executable = std::env::current_exe()
-            .map_err(|_| "Nessie Executor could not locate itself.".to_owned())?;
+            .map_err(|_| "Nessie Computer could not locate itself.".to_owned())?;
         let file = wide_path(&executable);
         let verb = wide("runas");
         let parameters = wide(&format!("{GRANT_SWITCH} \"{}\"", workspace.display()));
@@ -161,7 +161,7 @@ mod imp {
             // The overwhelmingly common cause is the person declining the
             // prompt, and that is a decision, not a defect.
             return Err(
-                "Granting the Nessie Executor service access to that workspace was cancelled."
+                "Granting the Nessie Computer service access to that workspace was cancelled."
                     .to_owned(),
             );
         }
@@ -174,7 +174,7 @@ mod imp {
         if read != 0 && code == 0 {
             Ok(())
         } else {
-            Err("The Nessie Executor service was not granted access to that workspace.".to_owned())
+            Err("The Nessie Computer service was not granted access to that workspace.".to_owned())
         }
     }
 }
@@ -184,7 +184,7 @@ pub use imp::{grant_workspace, request_workspace_grant};
 
 #[cfg(not(windows))]
 const WINDOWS_ONLY: &str =
-    "Granting a workspace to the Nessie Executor service is a Windows operation.";
+    "Granting a workspace to the Nessie Computer service is a Windows operation.";
 
 #[cfg(not(windows))]
 pub fn grant_workspace(path: &std::path::Path) -> Result<(), String> {

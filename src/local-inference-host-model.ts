@@ -34,6 +34,8 @@ export const publishedModel = (model: ObservedOllamaModel, reportedAt: string): 
     ? { personalBackgroundConsentRevision: model.personalBackgroundConsentRevision } : {}),
   capabilities: knownCapabilities(model),
   ...(model.identitySource ? { identitySource: model.identitySource } : {}),
+  ...(model.cliEngine ? { cliEngine: model.cliEngine } : {}),
+  ...(model.cliEngineState ? { cliEngineState: model.cliEngineState } : {}),
   manifestDigest: model.manifestDigest,
   name: model.name,
   numCtxCap: model.numCtxCap,
@@ -72,7 +74,8 @@ export const capabilityFor = (
   ...((model.maxOutputTokens ?? attempt.maxOutputTokens) === undefined ? {}
     : { maxOutputTokens: model.maxOutputTokens ?? attempt.maxOutputTokens }),
   model: attempt.modelName,
-  provider: attempt.inferenceSource?.kind === 'chatgpt' ? 'executor/chatgpt' : 'local_device',
+  provider: attempt.inferenceSource?.kind === 'chatgpt' ? 'executor/chatgpt'
+    : model.cliEngine ? `executor/${model.cliEngine}` : 'local_device',
   source: 'live' as const,
   structuredOutputMode: knownCapabilities(model).includes('json_schema') ? 'native-json' as const : 'text-only' as const,
   supportsChat: true,

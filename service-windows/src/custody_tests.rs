@@ -1,7 +1,7 @@
 use super::{host_members_cleared, job_members};
 use crate::custody_store::{Host, State};
 use nessie_windows_common::{
-    custody::VERSION,
+    custody::{Record, RuntimeKind, VERSION},
     process::{Owned, Process},
 };
 use std::{
@@ -67,20 +67,7 @@ fn wait_for_root_only(host: &Host, root: &Process, unknown_pid: u32) {
 }
 #[test]
 fn independent_job_membership_refuses_live_unknown_children_and_recovers_without_stopping_root() {
-    let name = format!(
-        "Global\\NessieCustody-test-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
-            .as_nanos()
-    );
-    let wide: Vec<u16> = std::ffi::OsStr::new(&name)
-        .encode_wide()
-        .chain(Some(0))
-        .collect();
-    let job = Owned(unsafe { CreateJobObjectW(std::ptr::null(), wide.as_ptr()) });
-    assert!(!job.0.is_null());
+    let (name, job) = named_job();
     let mut root = suspended();
     let mut unknown = suspended();
     assert_eq!(
@@ -122,4 +109,84 @@ fn independent_job_membership_refuses_live_unknown_children_and_recovers_without
     assert!(node.alive());
     root.0.kill().unwrap();
     root.0.wait().unwrap();
+}
+
+fn named_job() -> (String, Owned) {
+    let name = format!(
+        "Global\\NessieCustody-test-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    );
+    let wide: Vec<u16> = std::ffi::OsStr::new(&name)
+        .encode_wide()
+        .chain(Some(0))
+        .collect();
+    let job = Owned(unsafe { CreateJobObjectW(std::ptr::null(), wide.as_ptr()) });
+    assert!(!job.0.is_null());
+    (name, job)
+}
+
+fn registered(bridge: &Process, job_name: &str) -> Record {
+    Record {
+        protocol_version: 1,
+        guard_version: VERSION,
+        supervisor: bridge.generation.clone(),
+        child: bridge.generation.clone(),
+        owner_sid: bridge.sid.clone(),
+        session_id: bridge.session,
+        release_digest: "b".repeat(64),
+        job_name: job_name.into(),
+        kind: RuntimeKind::Guarded,
+    }
+}
+
+/// A daemon's coding-session bridge is a registered runtime in the daemon's
+/// own job for the daemon's whole life. It must not hold every lease taken
+/// after it started, or leases pile up until the custody store refuses to load.
+#[test]
+fn a_runtime_registered_before_the_lease_does_not_hold_it() {
+    let (name, job) = named_job();
+    let mut root = suspended();
+    let mut bridge = suspended();
+    std::thread::sleep(Duration::from_millis(20));
+    let mut later = suspended();
+    for child in [&root, &bridge] {
+        assert_eq!(
+            unsafe { AssignProcessToJobObject(job.0, child.0.as_raw_handle() as HANDLE) },
+            1
+        );
+    }
+    let node = Process::open(root.0.id()).unwrap();
+    let bridge_process = Process::open(bridge.0.id()).unwrap();
+    let lease_controller = Process::open(later.0.id()).unwrap();
+    let earlier_controller = Process::open(std::process::id()).unwrap();
+    let mut state = State {
+        version: VERSION,
+        ..State::default()
+    };
+    let host = Host {
+        owner_sid: node.sid.clone(),
+        controller: lease_controller.generation.clone(),
+        runtime_child: node.generation.clone(),
+        job_name: name.clone(),
+    };
+    // Unregistered, the bridge is an unknown member and holds the lease.
+    assert!(!host_members_cleared(&state, &host, None).unwrap());
+    state
+        .runtimes
+        .insert("bridge".into(), registered(&bridge_process, &name));
+    assert!(host_members_cleared(&state, &host, None).unwrap());
+    // A runtime that started after the lease began could be the lease's own work.
+    let older_lease = Host {
+        controller: earlier_controller.generation.clone(),
+        ..host.clone()
+    };
+    assert!(!host_members_cleared(&state, &older_lease, None).unwrap());
+    for child in [&mut root, &mut bridge, &mut later] {
+        child.0.kill().unwrap();
+        child.0.wait().unwrap();
+    }
 }

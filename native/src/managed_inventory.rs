@@ -50,8 +50,6 @@ fn processes() -> Result<Vec<Process>, NativeError> {
             .and_then(|(_, rest)| rest.rsplit_once(')').map(|(name, _)| name))
             .ok_or_else(refused)?;
         if metadata.uid() == 0
-            && command != "node"
-            && command != "nodejs"
             && !["nessie", "Nessie", "nessie-desktop"].contains(&command)
             && !command.starts_with("nessie-executor")
         {
@@ -77,9 +75,10 @@ fn processes() -> Result<Vec<Process>, NativeError> {
             .file_name()
             .and_then(|name| name.to_str())
             .ok_or_else(refused)?;
+        // A plain Node program is somebody's own, or one an agent started: it
+        // runs beside a plan. A Nessie runtime that is not managed still
+        // refuses one through its own entry in the plan's guard.
         if [
-            "node",
-            "nodejs",
             "nessie-executor-runtime",
             "nessie-executor-native",
             "nessie",
@@ -89,7 +88,7 @@ fn processes() -> Result<Vec<Process>, NativeError> {
         .contains(&name)
             || name.starts_with("nessie-executor")
         {
-            // Elevated product/Node runtime may read the owner's credentials;
+            // An elevated product runtime may read the owner's credentials;
             // this per-user supervisor cannot grant it personal authority.
             if metadata.uid() == 0 {
                 return Err(refused());
@@ -369,8 +368,8 @@ pub fn barrier(nonce: &str) -> Result<(), NativeError> {
         .map_err(|_| refused())?
         .sync_all()
         .map_err(|_| refused())?;
-    // Every independently discovered Node/product runtime must have creation
-    // proof from a retained supervisor; unrelated/unmanaged Node is refused.
+    // Every independently discovered product runtime must have creation proof
+    // from a retained supervisor.
     for process in &initial {
         if process.pid != own
             && process.product
@@ -385,29 +384,9 @@ pub fn barrier(nonce: &str) -> Result<(), NativeError> {
             return Err(refused());
         }
     }
-    // Descendants are discovered through the complete same-UID process table,
-    // not the cooperative journal. Arbitrary/unproven surviving host children
-    // prevent activation even when the supervisor itself has valid provenance.
-    for process in &initial {
-        if process.pid == own || process.product {
-            continue;
-        }
-        let mut parent = process.parent_pid;
-        let mut depth = 0;
-        while parent > 1 && depth < initial.len() {
-            let Some(ancestor) = initial.iter().find(|candidate| candidate.pid == parent) else {
-                break;
-            };
-            if ancestor.product {
-                return Err(refused());
-            }
-            parent = ancestor.parent_pid;
-            depth += 1;
-        }
-        if depth == initial.len() {
-            return Err(refused());
-        }
-    }
+    // A program a runtime started for an agent (a terminal, a coding tool, a
+    // local app) runs beside a plan. Through 1.0.40 any of them alive under a
+    // runtime refused the plan here, sign-in included.
     // A second independent scan catches changed generations during the probe.
     let after = processes()?;
     if initial.iter().filter(|process| process.product).count()

@@ -3,7 +3,6 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ExecutorCodingSessionCloseSchema, type PersonalInferenceAuthority } from '@nessie/executor-protocol'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
 import {
   argumentsFor,
@@ -167,7 +166,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       throw new CodingBridgeError(
         'coding_session_config_changed',
         'The coding-sessions configuration on this machine changed since it was reviewed. '
-        + 'A person has to review the executor policy again before sessions can start or continue.',
+        + 'The computer’s owner has to review this team’s access again before sessions can start or continue.',
       )
     }
   }
@@ -368,7 +367,7 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
 
   const daemonOnly = (meta: CodingBridgeCallMeta): void => {
     if (!meta.daemonControl) {
-      throw new CodingBridgeError('coding_session_daemon_only', 'Only the executor daemon may close or report every session.')
+      throw new CodingBridgeError('coding_session_daemon_only', 'Only Nessie Computer may close or report every session.')
     }
   }
 
@@ -418,9 +417,6 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
     rewriter: rootSet.rewriter,
     call: async (tool, args, meta) => {
       try {
-        if (['session_start', 'session_send', 'session_review'].includes(tool)) {
-          await assertPersonalHostExecution(meta.personalAuthority)
-        }
         const commandId = commandIdOf(meta)
         if (!reviewed && !ALLOWED_UNREVIEWED.has(tool)) requireReviewedConfig()
         if (tool === 'session_close_all') return await closeAll(args, meta, commandId)

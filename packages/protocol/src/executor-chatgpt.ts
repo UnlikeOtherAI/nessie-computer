@@ -12,8 +12,8 @@ export const ExecutorChatgptContextSchema = z.object({
   publicKeyFingerprint: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
   connectionEpoch: z.string().regex(/^[1-9][0-9]{0,18}$/u),
   principal: PersonalInferencePrincipalSchema,
-  /** Hosted activation remains categorically unavailable. */
-  deployment: z.enum(['local', 'selfHosted']),
+  /** The server schedules work; personal OAuth and provider requests stay on the computer. */
+  deployment: z.enum(['local', 'selfHosted', 'hosted']),
   observedAt: z.string().datetime(),
   expiresAt: z.string().datetime(),
 }).strict()
@@ -33,7 +33,7 @@ export const ExecutorChatgptDelegationChallengeSchema = z.object({
   challengeId: z.string().uuid(), nonce: z.string().regex(/^[A-Za-z0-9_-]{32,128}$/u),
   executorId: z.string().uuid(), profileId: z.string().uuid(), connectionEpoch: z.string().regex(/^[1-9][0-9]{0,18}$/u),
   role: z.literal('chatgpt'), publicKeyFingerprint: z.string().regex(/^sha256:[a-f0-9]{64}$/u),
-  principal: PersonalInferencePrincipalSchema, deployment: z.enum(['local', 'selfHosted']),
+  principal: PersonalInferencePrincipalSchema, deployment: z.enum(['local', 'selfHosted', 'hosted']),
   expiresAt: z.string().datetime(), digest: z.string().regex(/^[a-f0-9]{64}$/u),
 }).strict()
 export type ExecutorChatgptDelegationChallenge = z.infer<typeof ExecutorChatgptDelegationChallengeSchema>

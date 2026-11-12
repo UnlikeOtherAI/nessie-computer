@@ -1,5 +1,7 @@
-import { PersonalInferenceReceiptStatusSchema } from '@nessie/executor-protocol'
+import { LocalCliHostResponseSchema, PersonalInferenceReceiptStatusSchema } from '@nessie/executor-protocol'
 import type {
+  LocalCliHostRequest,
+  LocalCliHostResponse,
   LocalInferenceAttemptControlState,
   LocalInferenceAttemptPoll,
   LocalInferenceAttemptRequest,
@@ -52,7 +54,8 @@ export type LocalInferenceHostTransport = {
   accept: (control: LocalInferenceAttemptControl) => Promise<{ state: LocalInferenceAttemptControlState }>
   claim: (poll: LocalInferenceAttemptPoll) => Promise<LocalInferenceAttemptLease>
   frame: (frame: LocalInferenceFrame) => void
-  heartbeat: (heartbeat: { inventory: ObservedLocalModel[]; paused: boolean }) => Promise<{ serverTime: string }>
+  heartbeat: (heartbeat: { inventory: ObservedLocalModel[]; paused: boolean; displayLabel?: string })
+    => Promise<{ serverTime: string }>
   result: (receipt: LocalInferenceResultReceipt) => Promise<{ acknowledged: true }>
   terminate: (termination: LocalInferenceTermination) => Promise<{ acknowledged: true }>
 }
@@ -73,6 +76,8 @@ export type LocalInferenceDaemonApi = {
     serverTime: string
   }>
   issueChallenge: (input: { hostId: string }) => Promise<{ challenge: string; expiresAt: string }>
+  /** A Claude Code or Codex engine connection's host (docs/local-cli-engines.md); an older Nessie answers 404. */
+  registerCliHost: (input: LocalCliHostRequest) => Promise<LocalCliHostResponse>
   goodbye: (input: {
     envelope: LocalInferenceSignedEnvelope; goodbye: { reason: 'desktop_exit' | 'executor_shutdown'; receipt: string }
   }) => Promise<{ acknowledged: true }>
@@ -184,6 +189,8 @@ export const createLocalInferenceDaemonApi = (input: {
   return {
     claim: (body) => post('/api/local-inference/daemon/claim', body),
     issueChallenge: (body) => post('/api/local-inference/daemon/challenge', body),
+    registerCliHost: async (body) => LocalCliHostResponseSchema.parse(
+      await post('/api/local-inference/daemon/executor-cli-host', body)),
     goodbye: (body) => post('/api/local-inference/daemon/goodbye', body),
     receiptStatus: async body => PersonalInferenceReceiptStatusSchema.parse(
       await post('/api/local-inference/daemon/receipts/status', body)),

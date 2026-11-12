@@ -27,7 +27,7 @@ export const assertWorkspaceMayChange = async (stateDir: string): Promise<void> 
     throw cause
   }
   if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error('Local executor runtime state must be an ordinary directory.')
+    throw new Error('Local runtime state must be an ordinary directory.')
   }
   if ((await readdir(runtimeDirectory)).length > 0) {
     throw new WorkspaceCleanupRequiredError()

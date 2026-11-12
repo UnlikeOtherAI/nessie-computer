@@ -19,6 +19,7 @@ import {
 
 import { codingSessionsStateIsConsistent } from './coding-sessions-policy.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from './command-policy.js'
+import { parseLocalMcpPolicy, type LocalMcpPolicy } from './mcp-policy.js'
 import {
   assertExecutorLocalMcpServers,
   executorLocalMcpServerNames,
@@ -62,6 +63,14 @@ export type ExecutorCodexSandboxConfig = {
 
 export type ExecutorLocalState = {
   commandPolicy?: LocalCommandPolicy
+  /** Which local apps the team may use; absent reads as `listed` (`mcp-policy.ts`). */
+  mcpPolicy?: LocalMcpPolicy
+  /**
+   * The websites (HTTPS origins) the owner chose before the guest browser was
+   * set up. Once it is, they live in `browserSandbox.allowedOrigins` and this
+   * is absent: the two are never both present.
+   */
+  allowedOrigins?: string[]
   apiBaseUrl: string
   connectionEpoch?: string
   descriptor: {
@@ -254,7 +263,9 @@ export type ExecutorPreparedPairing = {
   workspaceFolders: ExecutorWorkspaceFolder[]
 }
 
-const statePath = (stateDir: string): string => resolve(stateDir, STATE_FILE)
+/** The file every save of a team's state replaces atomically; the running daemon watches it. */
+export const executorStatePath = (stateDir: string): string => resolve(stateDir, STATE_FILE)
+const statePath = executorStatePath
 const pairingPath = (stateDir: string): string => resolve(stateDir, PAIRING_FILE)
 export const deepTestSourceGrantPath = (stateDir: string): string =>
   resolve(stateDir, DEEPTEST_SOURCE_GRANT_FILE)
@@ -304,7 +315,7 @@ const parseLocalMcpServers = (value: unknown): ExecutorLocalMcpServer[] | null =
     if (
       !keys.includes('name')
       || !keys.includes('command')
-      || keys.some((key) => !['name', 'command', 'cwd', 'env'].includes(key))
+      || keys.some((key) => !['name', 'command', 'cwd', 'env', 'source'].includes(key))
       || typeof candidate.name !== 'string'
       || !Array.isArray(candidate.command)
       || candidate.command.some((part) => typeof part !== 'string')
@@ -321,6 +332,7 @@ const parseLocalMcpServers = (value: unknown): ExecutorLocalMcpServer[] | null =
       command: [...candidate.command] as string[],
       ...(candidate.cwd === undefined ? {} : { cwd: candidate.cwd as string }),
       ...(candidate.env === undefined ? {} : { env: { ...(candidate.env as Record<string, string>) } }),
+      ...(candidate.source === undefined ? {} : { source: candidate.source as ExecutorLocalMcpServer['source'] }),
     })
   }
   try {
@@ -361,7 +373,7 @@ export const withStateMutationLock = async <T>(stateDir: string, mutate: () => P
     handle = await open(lockPath, 'wx', 0o600)
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      throw new Error('Executor state is already being updated. Try again when that update finishes.')
+      throw new Error('This team’s settings are already being updated. Try again when that update finishes.')
     }
     throw error
   }
@@ -603,6 +615,7 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
   await assertOwnerOnly(path, 'file')
   const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<ExecutorLocalState>
   if (parsed.commandPolicy !== undefined) parsed.commandPolicy = parseLocalCommandPolicy(parsed.commandPolicy)
+  if (parsed.mcpPolicy !== undefined) parsed.mcpPolicy = parseLocalMcpPolicy(parsed.mcpPolicy)
   const workspaceFolders = migratedWorkspaceFolders(parsed as LegacySingleRootShape)
   const mcpServers = parsed.mcpServers === undefined ? undefined : parseLocalMcpServers(parsed.mcpServers)
   if (
@@ -615,10 +628,13 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
     || mcpServers === null
     || (parsed.nativeHelperPath !== undefined && typeof parsed.nativeHelperPath !== 'string')
     || (parsed.browserSandbox !== undefined && !validBrowserSandbox(parsed.browserSandbox))
+    || (parsed.allowedOrigins !== undefined && (parsed.browserSandbox !== undefined
+      || !Array.isArray(parsed.allowedOrigins)
+      || parsed.allowedOrigins.some((origin) => typeof origin !== 'string' || origin.includes('\0'))))
     || (parsed.codexSandbox !== undefined && !validCodexSandbox(parsed.codexSandbox))
     || !parsed.descriptor
   ) {
-    throw new Error('Executor state is malformed.')
+    throw new Error('This team’s saved state is malformed.')
   }
   const descriptor = parsed.descriptor as ExecutorLocalState['descriptor']
   // The descriptor's names and the local launch specs are written together and
@@ -634,9 +650,9 @@ export const loadExecutorState = async (stateDir: string): Promise<ExecutorLocal
         !== canonicalExecutorJson(executorLocalMcpServerNames(mcpServers ?? []))
     ))
   ) {
-    throw new Error('Executor state is malformed.')
+    throw new Error('This team’s saved state is malformed.')
   }
-  if (!codingSessionsStateIsConsistent(descriptor.codingSessions, mcpServers)) throw new Error('Executor state is malformed.')
+  if (!codingSessionsStateIsConsistent(descriptor.codingSessions, mcpServers)) throw new Error('This team’s saved state is malformed.')
   // The single legacy root becomes one named folder here and nowhere else, and
   // `workspaceRoot` is dropped so no later save can write both spellings.
   const rest = { ...(parsed as ExecutorLocalState) } as ExecutorLocalState & { workspaceRoot?: string }
@@ -678,12 +694,12 @@ export const saveExecutorState = async (
       throw error
     })
     if (expectedState === undefined) {
-      if (currentState !== null) throw new Error('Executor state already exists.')
+      if (currentState !== null) throw new Error('This team’s state already exists.')
     } else if (
       currentState === null
       || canonicalExecutorJson(currentState) !== canonicalExecutorJson(expectedState)
     ) {
-      throw new Error('Executor state changed before this update could be saved.')
+      throw new Error('This team’s settings changed before this update could be saved.')
     }
     const grantPath = deepTestSourceGrantPath(stateDir)
     if (currentState === null || currentState.executorId !== state.executorId) {
@@ -787,13 +803,13 @@ export const loadExecutorPreparedPairing = async (
   try {
     await assertOwnerOnly(path, 'file')
     const parsed: unknown = JSON.parse(await readFile(path, 'utf8'))
-    if (!validPreparedPairing(parsed)) throw new Error('Executor pairing state is malformed.')
+    if (!validPreparedPairing(parsed)) throw new Error('This team’s pairing state is malformed.')
     // An unfinished pairing from before folders had names carries one root;
     // migrate it the same way the state file is migrated.
     const rest = { ...parsed } as ExecutorPreparedPairing & { workspaceRoot?: string }
     delete rest.workspaceRoot
     const workspaceFolders = migratedWorkspaceFolders(parsed as LegacySingleRootShape)
-    if (workspaceFolders === null) throw new Error('Executor pairing state is malformed.')
+    if (workspaceFolders === null) throw new Error('This team’s pairing state is malformed.')
     return { ...rest, workspaceFolders }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null

@@ -81,12 +81,12 @@ const awaitApiSocket = async (
   const deadline = now() + API_SOCKET_TIMEOUT_MS
   for (;;) {
     if (child.exitCode !== null || child.signalCode !== null) {
-      throw new WorkspacePathError('The executor micro-VM exited before its control socket appeared.')
+      throw new WorkspacePathError('The micro-VM exited before its control socket appeared.')
     }
     const info = await stat(apiSocketPath).catch(() => undefined)
     if (info?.isSocket()) return
     if (now() >= deadline) {
-      throw new WorkspacePathError('The executor micro-VM did not open its control socket in time.')
+      throw new WorkspacePathError('The micro-VM did not open its control socket in time.')
     }
     await delay(API_SOCKET_POLL_INTERVAL_MS)
   }
@@ -230,7 +230,7 @@ export const createFirecrackerBackend = (
         const guest = await Promise.race([
           resources.channel.connected,
           delay(input.readyTimeoutMs).then(() => {
-            throw new WorkspacePathError('The executor guest did not open its control channel in time.')
+            throw new WorkspacePathError('The guest did not open its control channel in time.')
           }),
         ])
         const control = new GuestVmControlClient(guest.input, guest.output)

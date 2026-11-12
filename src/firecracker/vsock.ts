@@ -15,7 +15,7 @@ const ACKNOWLEDGEMENT_MAX_BYTES = 64
  */
 export const connectGuestVsockPort = async (udsPath: string, port: number): Promise<Socket> => {
   if (!Number.isInteger(port) || port < 1 || port > 0xffff_ffff) {
-    throw new WorkspacePathError('The executor micro-VM vsock port is invalid.')
+    throw new WorkspacePathError('The micro-VM vsock port is invalid.')
   }
   const socket = createConnection({ path: udsPath })
   try {
@@ -23,7 +23,7 @@ export const connectGuestVsockPort = async (udsPath: string, port: number): Prom
       const fail = (message: string): void => reject(new WorkspacePathError(message))
       let received = Buffer.alloc(0)
       const timeout = setTimeout(() => {
-        fail('The executor micro-VM did not acknowledge the guest vsock connection.')
+        fail('The micro-VM did not acknowledge the guest vsock connection.')
       }, ACKNOWLEDGEMENT_TIMEOUT_MS)
       const settle = (action: () => void): void => {
         clearTimeout(timeout)
@@ -44,18 +44,18 @@ export const connectGuestVsockPort = async (udsPath: string, port: number): Prom
             const line = received.toString('ascii')
             settle(() => (/^OK [0-9]+$/.test(line)
               ? resolvePromise()
-              : fail('The executor micro-VM refused the guest vsock connection.')))
+              : fail('The micro-VM refused the guest vsock connection.')))
             return
           }
           received = Buffer.concat([received, byte])
           if (received.byteLength > ACKNOWLEDGEMENT_MAX_BYTES) {
-            settle(() => fail('The executor micro-VM answered the vsock connection with an invalid acknowledgement.'))
+            settle(() => fail('The micro-VM answered the vsock connection with an invalid acknowledgement.'))
             return
           }
         }
       }
-      const onError = (): void => settle(() => fail('The executor micro-VM vsock socket is unavailable.'))
-      const onClose = (): void => settle(() => fail('The executor micro-VM closed the guest vsock connection.'))
+      const onError = (): void => settle(() => fail('The micro-VM vsock socket is unavailable.'))
+      const onClose = (): void => settle(() => fail('The micro-VM closed the guest vsock connection.'))
       socket.on('readable', onReadable)
       socket.once('error', onError)
       socket.once('close', onClose)

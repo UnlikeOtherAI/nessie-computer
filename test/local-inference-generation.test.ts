@@ -47,6 +47,7 @@ test('a token stream travels as a few ordered frames, with its text and reasonin
   assert.equal(g.frames.filter((frame) => frame.type === 'output_text.delta').map((frame) => frame.text).join(''),
     tokens.join(''))
   assert.deepEqual(g.frames.map((frame) => frame.final), [...g.frames.slice(1).map(() => false), true])
+  assert.equal(g.frames[0]?.text, 'I ', 'the first words travel at once, never waiting for the window')
 })
 
 test('a stream that ends on tool calls still sends one final, empty frame', async () => {

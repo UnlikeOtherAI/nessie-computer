@@ -1,6 +1,30 @@
 # macOS updates with the existing Developer ID identity
 
-Status: implementation in progress. No installed upgrade is claimed.
+Status: the signed manual upgrade from 1.0.40 to 1.1.0 was verified on
+12 November 2026 on dictator. Automatic catalogue-driven replacement remains a
+separate verification requirement.
+
+## Verified 1.1.0 installation
+
+The downloaded Apple silicon DMG was Developer ID signed, notarized, stapled and
+accepted by Gatekeeper. Its source is
+`0eedf3601fc3e24f2ac12518394f5e4994c031c4`, size is 42,399,979 bytes, and SHA-256 is
+`b4c60e12c1cc5db1b8212373ea2289e431323cb9933e24f5e9ad22b01e7d121a`.
+The versioned asset and `Nessie-Computer-macOS-Apple-Silicon.dmg` downloaded from
+the draft release had identical bytes.
+
+The app was installed at the existing `/Applications/Nessie Executor.app` path.
+The helper held runtime adoption while the older Nessie Desktop was running.
+After Desktop was closed normally, the helper's automatic retry adopted 1.1.0
+without editing custody state or protected files. Settings showed installed
+version 1.1.0; `/usr/local/bin/nessie-computer --version` returned
+`nessie-computer 1.1.0`, and `--help` succeeded. The protected runtime manifest
+matched the source above. The older Desktop was then reopened.
+
+Existing team connection refusals predated the upgrade; this verification does
+not claim a successful team connection or an automatic catalogue update.
+
+## Distribution identity
 
 The distribution identity is the existing `Developer ID Application:
 UnlikeOtherAI s.r.o. (23B7GTLBN7)`. Its certificate is on the Mac Desktop and its
@@ -33,10 +57,59 @@ The copied app is read by an unprivileged process inside a private directory,
 then frozen and verified. A verified snapshot is reused for retries rather than
 copying the same app on each restart.
 
+A newer app installed over an older one restarts the helper by itself while
+the installed runtime is older than its own. The helper installs the app's
+runtime only while no team process runs, and tries for about a minute after it
+starts, so the app stops its teams for that restart, and restarts the helper
+only once every team process has gone, including one the previous copy of the
+app started, which can outlive it for a minute or two. The helper answers status
+only once that attempt is over, and launchd can take minutes to start a helper
+that was just registered again, so the teams start again once the installed
+runtime is the app's version, the helper answers ninety seconds or more after
+its registration took, or ten minutes pass. macOS can refuse a registration
+made right after removing the old one, so the hold registers again on the usual
+schedule meanwhile. Every `describe` and status question is a runtime process
+too, so during the hold the teams' five-second reads pause and the helper is
+asked at most every fifteen seconds.
+The app reads the installed version from the runtime's manifest, so this holds
+even while the helper does not answer. Replacing the app unloads the helper,
+whose program lives inside it, so a newer app installed by hand makes this held
+restart at launch, before any team starts, instead of a plain registration. A
+helper waiting for the owner's approval cannot run, so the teams start then
+too. Relaunching soon after a try follows the same retry schedule.
+
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not
 replace that factory from an older bundled runtime or reset removal intent.
+
+The helper installs both `nessie-computer` and the existing `nessie-executor`
+command in `/usr/local/bin` when that directory is Root-controlled. Each
+launcher is checked separately: an unrelated file or package-manager-owned
+prefix is preserved. Approving the helper is required before these commands
+can use the protected runtime.
+
+## Completed daemon shutdown
+
+Application-runtime adoption can meet an older daemon whose shutdown finished
+but left an idle transport open. Under the machine launch barrier, the helper
+verifies its native creation journal, immutable release, publisher and exact
+kernel process generations. It requests normal SIGTERM through the native
+supervisor only after that daemon released its runtime registration, no
+credential protection remains, and every bound host execution an older version
+recorded is proved ended (versions after 1.0.40 record none).
+A runtime or credential registration, unknown process, unresolved execution or
+invalid metadata leaves the daemon untouched. There is no signal escalation.
+Once a completed daemon receives that request, adoption keeps its durable
+drain instead of returning to the healthy old factory after one minute. The
+old native supervisor may still be settling its process inventory; new teams
+must not restart the old factory meanwhile.
+The request grants no clearance: adoption still independently waits for all
+required processes to exit and preserves journals and admission history.
+
+The runtime supervisor also fences late inference connections at shutdown and
+waits for pending creations to close. MCP cleanup closes the transport even
+after the client has dropped its transport reference.
 
 ## Replacement
 
@@ -135,3 +208,251 @@ refused (EPERM) for Root daemons such as launchd, so the earlier snapshot failed
 on every Mac with `EXECUTOR_MACOS_PROCESS_UNVERIFIED` and no managed runtime
 could start. A user process whose image was replaced on disk stays in the tree
 with no executable path unless its name is a product name, which still refuses.
+
+A process that ends or execs while a snapshot reads it is read again rather
+than refused. XNU releases an ending process's image before it marks it a
+zombie, answering ESRCH for its path in between, and a process in exec has no
+path for a moment (ENOENT). The snapshot rereads the record, 1 ms apart and up
+to 100 times, until the process is a zombie, gone or on its new image, and takes
+the generation from the record it read rather than a second kernel call. A name
+of 16 characters fills the kernel's command field with no terminator; that
+field is the name (`nessie-executor-` for `nessie-executor-native`), where it
+used to refuse. On 9 November dictator's ChatGPT app started and ended `node`
+helpers many times a second; the team's daemon ended seconds after every start
+with `EXECUTOR_MACOS_PROCESS_UNVERIFIED`, and one-shot commands with
+`EXECUTOR_KERNEL_CONTEXT_UNAVAILABLE`.
+
+A runtime's supervisor no longer ends on a snapshot it cannot verify. It goes
+on supervising and takes the next snapshot 25 ms later. Ending left the runtime
+unsupervised and its journal held, and the app then started a second daemon
+beside the first, which Nessie refused as a concurrent command poll. A
+descendant that left the child's group while a snapshot failed was never
+followed, and no later snapshot recovers that ancestry. So a supervisor that
+missed any snapshot keeps its journal when the tree it can see has ended, and
+still returns the command's exit code. `ended_creation` clears such a journal
+once its group is gone and its host admissions have ended. Once the runtime has
+exited, a minute of failing to verify its tree or to take
+the barrier ends supervision with the journal kept. A tree that is still
+running is waited for as long as it runs.
+
+Creations wait up to 10 seconds for the machine barrier and the per-account
+admission lock, polling every 10 ms, instead of refusing with
+`EXECUTOR_MACHINE_CUSTODY_BUSY` or `EXECUTOR_MANAGED_ADMISSION_BUSY` the moment
+another creation holds one. A supervisor that met another creation while
+dropping its journal used to leave the journal behind. Update service callers
+still take the barrier at once and retry on their own schedule, so status
+answers keep their deadlines.
+
+A crashed runtime's journal no longer waits for a restart. Its supervisor
+drops the journal itself after following the whole tree, so a journal left with
+its supervisor and child ended belongs to one that ended first. Every build
+before this one did that on a refused snapshot, a daemon's included. Such a
+journal ends like a one-shot command's (`ended_creation`): supervisor and child
+ended, nothing of any account left in the child's group, and no unresolved
+host admission of its own. A `host_execution` registration resolves once the
+process it bound, the descendants recorded with it and a group it leads are
+all gone (`execution_ended`, matching `ps`'s whole-second start time). An
+unbound registration may have started a process nobody recorded, so its history
+stays. It no longer requires restarting macOS to replace the runtime.
+
+Replacement clearance checks that the native supervisor, runtime generation and
+runtime process group have ended, and still waits for every live product process.
+It does not claim that an escaped owner program has stopped. Personal activation
+uses a fresh signed native inventory under the retained launch barriers. After
+1.0.40 the programs agents start are no longer recorded in the plan's guard and
+no longer keep a plan from signing in, so the runtime neither reads nor needs
+the inventory's `retiredHostControllers`; a record an older runtime left is
+dropped at the next sign-in. The native helper still reports them, and removing
+that native code is a follow-up of its own. This is the same owner-account
+boundary as unrelated programs the owner runs, not an OS sandbox or a claim that
+every escaped process ended.
+
+The focused public gate is `pnpm exec turbo run build lint typecheck
+test:runtime-recovery test:updates-native --root-turbo-json=scripts/turbo.public.json
+--concurrency=2`; native proof cases run through `cargo test --locked
+--manifest-path native/Cargo.toml --jobs 2` on macOS. No rendered UI changes
+are required by this recovery correction.
+
+Clearance still waits for every product process, including any a crashed
+runtime left outside its group. On dictator, after 1.0.25 was installed, the
+1.0.24 runtime kept starting daemons that died. Each died with a Kelpie MCP
+lease the daemon never released, which kept ten journals, and the swap to the
+corrected runtime could not clear.
+
+## Recovering a stuck helper
+
+On 8 November the Mac's helper had run since 6 November with maintenance state
+`{"draining":true,"restartReady":false,"target":null}`. Its accepted preview
+1.0.13 transaction (superseding 1.0.12 at 13:46) sat in `waiting`. The installed
+0.9.0 runtime (`879a601`) refused every launch with
+`EXECUTOR_MANAGED_RELEASE_REJECTED`: its `load()` resolved the `current` launch
+symlink as the release directory, which the immutability check rejects (fixed
+later by binding the kernel image). Installing 1.0.13 needed whole-machine
+clearance with the menu app gone. The app quits only through the handoff it
+starts when status says `waiting` and draining, but the 0.9.0 broker took 11.8
+seconds to answer status, past the 5-second native and 10-second app deadlines.
+The handoff never started, the drain never ended and no team could start.
+launchd's 178 runs and last exit 1 date from the 6 November snapshot failures;
+the running service had not restarted since. Replacing the app with 1.0.12 and
+1.0.15 did not restart it: launchd keeps the registered job until it exits, and
+the job hands over to the protected worker image of the installed runtime.
+
+Recovery now works from both ends without weakening a fence:
+
+- **Bounded drain.** A `waiting` transaction holds new starts back for at most
+  one hour (`updater/src/drain.rs`). Admissions then reopen for six hours and
+  the same accepted transaction tries again. Replacement is offered only inside
+  a window. `installing` and `restarting` keep the fence. The first drain time
+  is kept in `updates/drain.json`, beside the journal, so older workers ignore it.
+- **The app's own runtime.** Each time launchd starts the helper, its
+  app-bundled entry compares the installed runtime with the compiled app version
+  (`native/src/updates/macos_recovery.rs`). When the app is newer and no
+  replacement has started, it installs the app's runtime exactly as first setup
+  does: verified sealed snapshot, machine barrier, independent clearance with
+  the menu app allowed to stay, legacy retirement, then `current`. A
+  `downloading` or `waiting` transaction the new runtime meets is archived in
+  `updates/retired/<digest>.json` with its failure code and request, its staged
+  bytes stay, and the drain ends. An older worker still running then refuses the
+  downgrade, finds no transaction and exits; the new service starts a worker
+  from the new runtime. While admissions are already held for nothing newer
+  than the app, the entry keeps trying every three seconds. Otherwise it tries
+  for about a minute and hands over to the installed worker as before.
+- **The app restarts its helper.** A newer app unregisters and registers its
+  daemon once per app version when status shows an older installed runtime or
+  fails two probes in a row. The person's **Restart updates** does the same on
+  request and opens Login Items if macOS asks for approval again.
+- **Plain words.** While the helper can't be reached or refuses, the app reports
+  the local status `update.helper_unavailable`. The window's Needs you strip
+  and the menu say "Updates are stuck — teams can't start" instead of "No team
+  connected", with Restart updates as the one action.
+- **Approval is asked for, not called stuck.** While SMAppService reports the
+  daemon `requiresApproval`, or after this app re-registered it and it has failed
+  two probes since (8 November, 1.0.16: no helper job ran for ten minutes after
+  the automatic re-register), the app reports `update.approval_required`
+  instead. The menu's Needs you line ("Needs you: allow Nessie Computer in
+  System Settings to finish updating") opens Login Items itself; Overview's
+  Needs you strip and Settings say "Allow Nessie Computer in System Settings to
+  finish updating" with **Open Login Items**, which calls
+  `SMAppService.openSystemSettingsLoginItems()`. `ComputerUpdateRecovery.attention`
+  decides between them. The journey
+  `node tray-windows/test/renderer-harness.mjs --updates-stuck-only` asserts
+  these states and the refused registration below in both places in seven
+  locales.
+- **A refused registration is said, not swallowed.** On 9 November (1.0.18)
+  the automatic restart unregistered the helper and macOS refused the new
+  `register()` with "Operation not permitted". The restart ignored the error,
+  SMAppService then reported `notRegistered`, launchd ran no helper job, and
+  the app had already spent its one automatic registration, so it never
+  registered again. The menu said "No team connected" while a team, started by
+  another process, was serving. Now every `register()` refusal goes to the
+  unified log and is kept, with the app version and its attempt count, under
+  `computer-update-helper-registration` in the app's defaults (display only).
+  While SMAppService reports `notRegistered` or `notFound`, the app registers
+  again by itself at most twice per app version (the restart's or first
+  setup's attempt and one more, 15 seconds later), never in a loop. While the
+  refusal holds, the app reports `update.registration_failed` with macOS's
+  short reason; the window's Needs you strip and Settings say "Updates can't
+  start: <reason>" with **Try again**, and the menu says "Needs you: updates
+  can't start — <reason>". **Try again** registers again without limit and,
+  if macOS still refuses, opens Login Items. `ComputerUpdateRegistration`
+  and `ComputerUpdateRecovery.attention` decide this.
+- **The restart waits for macOS to let go.** 1.0.19 still had no helper on
+  9 November. Its launch registered (accepted), its restart unregistered and
+  called `register()` 12 ms later, and smd logged "Job is not allowed to
+  bootstrap": Login Items still listed the removed job as enabled, so macOS
+  returned "Operation not permitted". The same refusal is in the log at 22:11,
+  01:38 and 02:12; every register made once the record had settled was
+  accepted. The restart now polls the status every 250 ms, for up to ten
+  seconds, until macOS stops reporting the helper enabled, and only then
+  registers.
+- **Nothing waits for a click.** The two-attempt limit is gone. After each
+  refused `register()` the app registers again by itself once
+  `ComputerUpdateRegistration.retryDelay` has passed (15 seconds, doubling, at
+  most 15 minutes), for as long as macOS refuses; an accepted registration
+  resets it. The automatic helper restart is no longer once per app version:
+  while the helper stays unreachable or reports an installed runtime older than
+  the app, the app restarts it again after `ComputerUpdateRecovery.restartDelay`
+  (15 minutes, doubling, at most four hours), recorded under
+  `computer-update-helper-restarts`. **Try again** and **Restart updates** only
+  hurry these.
+- **Old entrypoints still hold the swap.** The app's runtime is installed only
+  once clearance passes. Nessie Desktop (`nessie-desktop`; the allow list named
+  a `Nessie` executable that never existed) may stay only when its sealed floor
+  keys pass `require_independent_app`; otherwise clearance waits for it to quit
+  instead of failing, so recovery keeps trying. A desktop build without the
+  `NessieExecutor*` keys (0.1.1 has none), or a runtime someone started by hand
+  outside custody, keeps the swap waiting; the helper tries again every three
+  seconds while admissions are held, and the app's restarts give it further
+  chances when they are not.
+- **Creation journals end with their command.** Clearance needs no creation
+  journal from this boot in `~/.nessie/personal-inference/managed-runtimes`.
+  The macOS creator kept a command's journal, and exited refused, whenever the
+  guard held any `host_execution` registration at all. On dictator a team's
+  local apps had left 405 of them, most from the previous boot, so every
+  five-second `describe` kept its journal (371 in half an hour), exited 1 after
+  printing its answer, and the app never started the team or passed clearance
+  again. A command now keeps its journal only for a host registration its own
+  child made in this boot (`unresolved_host`, `native/src/managed_macos_runtime.rs`),
+  and a registration made in a new boot drops the host and runtime
+  registrations an earlier boot left (`PersonalInferenceGuard.register`).
+  Each launch first drops this boot's journals a one-shot command would have
+  dropped itself (`reconcile`): no long-lived activity, supervisor and child
+  ended, nothing left in the child's process group, no host registration of
+  its own. Journals the old rule kept therefore clear on the next launch, not
+  only at the next restart; anything still running stays.
+  Update clearance (`ready_with`) does not wait for such journals either
+  (`ended_creation`, then named `ended_one_shot`): the installed older creator keeps adding them until the
+  swap installs the corrected one, so on dictator 1.0.22's helper could not
+  clear for that swap. Clearance only skips them; it deletes nothing. The
+  process-group check uses every account's processes (`live_groups`, from the
+  short process record), not the caller's own, so a Root helper still sees a
+  user's leftover descendant; a process it cannot read counts as running.
+  A child pid another process now holds proves the child's group ended, since
+  XNU never hands out a pid that is still a group or session id; on dictator
+  three of 1888 journals met a live group led by such a new process and held
+  the swap until this was taken into account.
+- **A refused team stays in the window.** The console's `executor_view` lists a
+  paired team whose `describe` is refused under `unreadable-<folder>`, so the
+  window never opens Add another team over a team that exists. It reads as
+  working while its daemon runs and says why when stopped; it takes its
+  executor id back on the next reading that succeeds.
+- **A running team is never "No team connected".** A team whose `describe` is
+  refused (here, by the stale installed runtime the missing helper could not
+  replace) still counts when its daemon lease is held by a live process, and
+  the menu says "Working for 1 team". A pairing that can't be read and isn't
+  running reads "Not connected — open Nessie Computer". Neither depends on the
+  helper's state.
+- **Monotonic for the app too.** Catalogue replacement refuses to put an older
+  app over a newer hand-installed one (`update.downgrade_refused`), and the
+  status client now waits nine seconds.
+
+Source checks cover these with the live state as fixtures: 22 updater tests on
+macOS (two model the 8 November state and fail without the change), 51 native
+Mac tests, 149 app unit tests, strict SwiftLint and an App/Core typecheck.
+Still unverified on the real Mac: whether SMAppService keeps the existing
+approval across unregister and register (9 November suggests not: the
+re-registration was refused); that the 0.9.0 worker verifies the new
+release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
+newer app to a working team. Any extra product process, such as a team daemon
+started by hand from the app bundle, holds clearance until it exits.
+
+## Framework signing
+
+The Developer ID signer seals embedded frameworks as bundles after their nested
+Mach-O files and before the app. Sentry is a versioned framework with resources;
+signing only its executable invalidates its resource seal and prevents the final
+strict verification. Framework bundles receive no app or Node entitlements. The
+release producer still requires strict verification, notarization and Gatekeeper
+assessment before an app can be installed.
+
+Startup pairing-status and team-name reads obey the same runtime hold as
+`describe`. Existing pairing files appear as waiting teams before their first
+reading, so opening the window during a hold does not start another pairing.
+After the hold, pairing status, names and team descriptions refresh normally.
+These reads are runtime processes too; launching them during the helper’s
+brief installation window can keep the older factory busy for the whole try.
+
+The native process-lifetime fixtures release children with explicit pipe messages,
+not EOF: concurrent fork-based tests can inherit another test's writer and retain
+EOF indefinitely. This is test synchronization only; it does not alter runtime
+inventory, admission retirement or installed credential eligibility.

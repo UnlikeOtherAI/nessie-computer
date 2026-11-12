@@ -1,6 +1,8 @@
 import { LocalInferenceApiError } from './local-inference-api.js'
 import { connectExecutorLocalInference } from './local-inference-runtime.js'
 import type { ExecutorLocalState } from './state-store.js'
+import type { LocalCliSessionGate } from './local-cli-engine-backend.js'
+import { createLocalCliEngineManager } from './local-cli-engine-manager.js'
 
 export type ExecutorLocalInferenceSupervisor = {
   drain: () => Promise<void>
@@ -9,6 +11,9 @@ export type ExecutorLocalInferenceSupervisor = {
   heartbeat: () => Promise<void>
   reconnect: (state: ExecutorLocalState) => Promise<ExecutorLocalState>
   stop: () => Promise<void>
+  /** Ends the Claude Code and Codex turns of these runs (the owner's Stop, a closed session). */
+  stopRuns: (runIds: readonly string[]) => void
+  setSessionGate: (gate: LocalCliSessionGate) => void
 }
 
 type Connected = Awaited<ReturnType<typeof connectExecutorLocalInference>>
@@ -36,10 +41,13 @@ export const startExecutorLocalInferenceSupervisor = async (
   stateDir: string,
   state: ExecutorLocalState,
   connectLocal: typeof connectExecutorLocalInference = connectExecutorLocalInference,
+  createCliEngines: typeof createLocalCliEngineManager = createLocalCliEngineManager,
 ): Promise<{ state: ExecutorLocalState; supervisor: ExecutorLocalInferenceSupervisor }> => {
   let desiredState = state
   let connected: Connected | null = null
   let draining = false
+  let stopped = false
+  const connecting = new Set<Promise<ExecutorLocalState>>()
   // The daemon's stderr is the only place a lost local host says why, so each
   // distinct reason is written once, not every twenty seconds; the server's
   // Offline state is what the person sees, this is what the operator reads.
@@ -61,10 +69,16 @@ export const startExecutorLocalInferenceSupervisor = async (
     connected = null
     await current?.session.stop()
   }
-  const connect = async (nextState: ExecutorLocalState): Promise<ExecutorLocalState> => {
+  const connectOnce = async (nextState: ExecutorLocalState): Promise<ExecutorLocalState> => {
+    if (stopped) return nextState
     await disconnect()
+    if (stopped) return nextState
     desiredState = nextState
     const next = await connectLocal(stateDir, desiredState)
+    if (stopped) {
+      await next.session.stop()
+      return next.state
+    }
     connected = next
     if (draining) await next.session.loop.drain()
     desiredState = next.state
@@ -75,6 +89,14 @@ export const startExecutorLocalInferenceSupervisor = async (
     })
     return desiredState
   }
+  const connect = (nextState: ExecutorLocalState): Promise<ExecutorLocalState> => {
+    const pending = connectOnce(nextState).finally(() => { connecting.delete(pending) })
+    connecting.add(pending)
+    return pending
+  }
+  // Claude Code and Codex hosts (contract §12) are siblings of the local-weights
+  // host: each follows its own switch, and neither one's failure stops the other.
+  const cliEngines = createCliEngines(stateDir, state)
   try {
     await connect(state)
   } catch (error) {
@@ -84,19 +106,29 @@ export const startExecutorLocalInferenceSupervisor = async (
     diagnose('connect', error)
     connected = null
   }
+  // Registration is a network call per engine; the daemon starts without waiting for it.
+  void cliEngines.reconcile(desiredState).catch((error: unknown) => diagnose('connect', error))
   return {
     state: desiredState,
     supervisor: {
-      drain: async () => { draining = true; await connected?.session.loop.drain() },
-      resume: () => { draining = false; connected?.session.loop.resume() },
-      isIdle: () => connected?.session.loop.isIdle() ?? true,
+      drain: async () => {
+        draining = true
+        await Promise.all([connected?.session.loop.drain(), cliEngines.drain()])
+      },
+      resume: () => { if (stopped) return; draining = false; connected?.session.loop.resume(); cliEngines.resume() },
+      isIdle: () => (connected?.session.loop.isIdle() ?? true) && cliEngines.isIdle(),
+      stopRuns: (runIds) => cliEngines.stopRuns(runIds),
+      setSessionGate: (gate) => cliEngines.setSessionGate(gate),
       heartbeat: async () => {
+        if (stopped) return
+        // A sibling: its detection and registrations never hold up the local-weights heartbeat.
+        void cliEngines.heartbeat().catch((error: unknown) => diagnose('heartbeat', error))
         let stage: 'connect' | 'heartbeat' = connected ? 'heartbeat' : 'connect'
         if (!connected && Date.now() < claimNotBefore) return
         try {
           if (!connected) await connect(desiredState)
           const live = connected
-          if (!live) return
+          if (!live || stopped) return
           // The claim answers before the socket opens, and the socket retries
           // on its own. A heartbeat sent into a socket still opening fails as
           // unreachable; counted against the claim it closed the socket, the
@@ -105,7 +137,7 @@ export const startExecutorLocalInferenceSupervisor = async (
           // for `connected`, and from here on a failure is the heartbeat's.
           if (stage === 'connect') {
             const ready = await socketReady(live.session)
-            if (ready !== true) return
+            if (ready !== true || stopped) return
           }
           stage = 'heartbeat'
           await live.session.heartbeat()
@@ -122,14 +154,22 @@ export const startExecutorLocalInferenceSupervisor = async (
           }
         }
       },
-      stop: disconnect,
+      stop: async () => {
+        stopped = true
+        await Promise.allSettled([...connecting])
+        await Promise.all([disconnect(), cliEngines.stop()])
+      },
       reconnect: async (nextState) => {
+        if (stopped) return nextState
+        let reconnected = nextState
         try {
-          return await connect(nextState)
+          reconnected = await connect(nextState)
         } catch {
           connected = null
-          return nextState
         }
+        if (stopped) return reconnected
+        void cliEngines.reconcile(reconnected).catch((error: unknown) => diagnose('connect', error))
+        return reconnected
       },
     },
   }

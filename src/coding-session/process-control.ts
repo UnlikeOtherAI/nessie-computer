@@ -45,6 +45,13 @@ export type CodingProcessControl = {
   containment?: 'windows_job' | 'posix_group'
   /** Positive stop evidence. Absence after an uncontained root exited cannot prove its descendants stopped. */
   stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[]) => Promise<'stopped' | 'unknown'>
+  /**
+   * How to start a program inside its own Job Object, for a caller that
+   * spawns it itself (a local app over stdio): Windows with the job helper
+   * only. What it starts is recorded with `containment`, which is what lets
+   * `stopTree` prove the whole tree stopped.
+   */
+  containedLaunch?: (command: string, args: readonly string[]) => { command: string; args: string[] }
   /** Set when this host cannot contain an agent; starting one fails with this reason. */
   refusal?: string
   spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }) => ChildProcess

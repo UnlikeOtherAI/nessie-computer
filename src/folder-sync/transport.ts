@@ -18,6 +18,7 @@ import {
   FolderSyncSnapshotResponseSchema,
   FolderSyncUploadBeginResponseSchema,
   FolderSyncUploadPartResponseSchema,
+  ExecutorPairingClaimSchema,
   canonicalExecutorJson,
   folderSyncPartByteLength,
   folderSyncPartCount,
@@ -42,6 +43,7 @@ import {
 
 import { executorApi, ExecutorApiError, type ExecutorApiClient } from '../api-client.js'
 import { signExecutorDaemonPayload } from '../daemon-signature.js'
+import { pairingSignature } from '../pairing-code.js'
 import { fsPath } from './local-fs.js'
 
 /**
@@ -72,7 +74,17 @@ export type FolderSyncUploadSource = {
 }
 
 export type FolderSyncTransport = {
+  /**
+   * Asks for the organisation's name too (`wantsOrganizationName`), and asks
+   * again without it when an older Nessie refuses the field.
+   */
   handshake(requested: FolderSyncHandshakeRequest['requested']): Promise<FolderSyncHandshakeResponse>
+  /**
+   * The team's and organisation's names from this computer's pairing claim —
+   * the read the apps label teams with — for a Nessie whose handshake does not
+   * name the organisation, and to show where files will go before it has run.
+   */
+  teamNames(): Promise<{ teamName: string | null; organizationName: string }>
   snapshot(cursor: string | null): Promise<FolderSyncSnapshotResponse>
   changes(cursors: FolderSyncCursors, wait: boolean, signal?: AbortSignal): Promise<FolderSyncChangesResponse>
   /** Fetch a version into `partPath`, resuming from what the part already holds. */
@@ -122,17 +134,27 @@ export const isTransientSyncError = (error: unknown): boolean => {
   return error.code === undefined || (error.status !== undefined && error.status >= 500)
 }
 
+/**
+ * Nessie's strict request parsing answers an unknown key with a 400
+ * `VALIDATION_ERROR` naming it. Only that answer, about this field, is read as
+ * a Nessie older than `wantsOrganizationName`; every other refusal fails the
+ * handshake as before.
+ */
+export const organizationNameFieldRefused = (error: unknown): boolean => error instanceof ExecutorApiError
+  && error.status === 400 && error.code === 'VALIDATION_ERROR'
+  && `${error.message} ${JSON.stringify(error.details ?? null)}`.includes('wantsOrganizationName')
+
 const SYNC = '/api/executor-daemon/sync'
 const LONG_POLL_TIMEOUT_MS = FOLDER_SYNC_TIMING.longPollMs + 10_000
 const transferTimeoutMs = (bytes: number): number => 60_000 + Math.ceil(bytes / 64)
 
 export const createFolderSyncTransport = (
   connection: () => FolderSyncConnection,
-  api: Pick<ExecutorApiClient, 'syncGetBytes' | 'syncPost' | 'syncPutBytes'> = executorApi,
+  api: Pick<ExecutorApiClient, 'pairing' | 'syncGetBytes' | 'syncPost' | 'syncPutBytes'> = executorApi,
 ): FolderSyncTransport => {
   const envelope = (operation: FolderSyncOperation) => {
     const live = connection()
-    if (!live.connectionEpoch) throw new Error('Executor has not claimed a live daemon connection.')
+    if (!live.connectionEpoch) throw new Error('This team is not connected from this computer right now.')
     return {
       live,
       fields: {
@@ -194,9 +216,36 @@ export const createFolderSyncTransport = (
     }, { timeoutMs: transferTimeoutMs(source.byteLength) }))
   }
 
+  // The connection on which Nessie refused `wantsOrganizationName`: an older
+  // Nessie. The handshake leaves the field out for the rest of that connection,
+  // and the organisation's name comes from the pairing claim (`team-names.ts`);
+  // a reconnect may meet an upgraded Nessie, so it asks again then.
+  let organizationNameRefusedOn: string | undefined
+  const handshake: FolderSyncTransport['handshake'] = async (requested) => {
+    const epoch = connection().connectionEpoch
+    if (organizationNameRefusedOn !== epoch) {
+      try {
+        return FolderSyncHandshakeResponseSchema.parse(
+          await signed('handshake', '/handshake', { requested, wantsOrganizationName: true }),
+        )
+      } catch (error) {
+        if (!organizationNameFieldRefused(error)) throw error
+        organizationNameRefusedOn = epoch
+      }
+    }
+    return FolderSyncHandshakeResponseSchema.parse(await signed('handshake', '/handshake', { requested }))
+  }
+
   return {
-    handshake: async (requested) =>
-      FolderSyncHandshakeResponseSchema.parse(await signed('handshake', '/handshake', { requested })),
+    handshake,
+    teamNames: async () => {
+      const live = connection()
+      const payload = { executorId: live.executorId, timestamp: new Date().toISOString() }
+      const claim = ExecutorPairingClaimSchema.parse(await api.pairing(live.apiBaseUrl, 'connection', {
+        ...payload, signature: pairingSignature(live.machinePrivateKey, 'connection', payload),
+      }))
+      return { teamName: claim.team?.name ?? null, organizationName: claim.organization.name }
+    },
     snapshot: async (cursor) =>
       FolderSyncSnapshotResponseSchema.parse(await signed('snapshot', '/snapshot', { cursor })),
     changes: async (cursors, wait, signal) => FolderSyncChangesResponseSchema.parse(await signed(

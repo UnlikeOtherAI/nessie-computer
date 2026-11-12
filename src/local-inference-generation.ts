@@ -21,6 +21,8 @@ class CoalescingFramePublisher {
   #text = ''
   #timer: NodeJS.Timeout | undefined
   #failure: { error: unknown } | undefined
+  /** Whether this stream has sent anything yet: its first words never wait for the window. */
+  #started = false
 
   constructor(private readonly publish: Publish, private readonly windowMs: number) {}
 
@@ -29,7 +31,7 @@ class CoalescingFramePublisher {
     if (this.#type !== undefined && this.#type !== type) this.flush(false)
     this.#type = type
     this.#text += text
-    if (Buffer.byteLength(this.#text, 'utf8') >= LOCAL_INFERENCE_FRAME_COALESCE_BYTES) this.flush(false)
+    if (!this.#started || Buffer.byteLength(this.#text, 'utf8') >= LOCAL_INFERENCE_FRAME_COALESCE_BYTES) this.flush(false)
     else if (!this.#timer) this.#timer = setTimeout(() => this.flush(false), this.windowMs)
   }
 
@@ -39,6 +41,7 @@ class CoalescingFramePublisher {
     const text = this.#text
     this.#text = ''
     if (this.#failure || !final && (this.#type === undefined || !text)) return
+    this.#started = true
     try { this.publish(this.#type ?? 'output_text.delta', text, final) }
     catch (error) { this.#failure = { error } }
   }

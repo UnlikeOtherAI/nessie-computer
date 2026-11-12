@@ -9,7 +9,7 @@ import { renewChatgptProfileAuthority } from './chatgpt-profile-authority.js'
 import { activateManagedChatgptRuntime, activateManagedChatgptCustodyRuntime,
   prepareNewManagedChatgptRuntime } from './chatgpt-managed-runtime.js'
 import { ChatgptCredentialStore } from './chatgpt-credential-store.js'
-import { ChatgptOAuthProvider, hasChatgptPlanPermission } from './chatgpt-oauth-provider.js'
+import { ChatgptAuthError, ChatgptOAuthProvider, hasChatgptPlanPermission } from './chatgpt-oauth-provider.js'
 import { startChatgptLoopbackLogin } from './chatgpt-loopback-login.js'
 import { openChatgptBrowser } from './chatgpt-browser.js'
 import { chatgptProfileIntent, disconnectChatgptDelegation } from './chatgpt-profile-disconnect.js'
@@ -17,9 +17,11 @@ import { chatgptProfileSource } from './chatgpt-profile-records.js'
 import { acquireOwnerStateLock } from './personal-admission-lock.js'
 import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
 import { runProfileChatgptHost } from './chatgpt-profile-host.js'
+import { chatgptHostRetryDelayMs, nextChatgptHostFailures } from './chatgpt-host-retry.js'
 import { clearChatgptOutboxKeys } from './chatgpt-profile-outbox.js'
 import type { createChatgptBackend } from './chatgpt-backend.js'
 import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
+import { publicChatgptFailure } from './chatgpt-public-failure.js'
 
 const refused = (): never => { throw new PersonalInferenceProtectionError('chatgpt_operation_fenced') }
 
@@ -119,7 +121,10 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
       try {
         await (dependencies.browser ?? openChatgptBrowser)(login.authorizationUrl)
         const result = await login.completion
-        if (result.status !== 'verified') throw new Error('chatgpt_login_incomplete')
+        if (result.status !== 'verified') throw new ChatgptAuthError(result.code)
+        if (profile.registration.accountId && result.tokens.accountId !== profile.registration.accountId) {
+          throw new ChatgptAuthError('oauth_account_changed')
+        }
         controller.signal.throwIfAborted()
         await renew()
         // Retain the issued registration before token publication. A crash
@@ -127,7 +132,8 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
         profile = await store.update(profileId, prior => {
           if (!prior || prior.operationId !== operationId || prior.phase !== 'signing_in') return refused()
           return { ...prior, revision: prior.revision + 1,
-            registration: { ...prior.registration, clientId: result.clientId, subject: result.tokens.subject } }
+            registration: { ...prior.registration, clientId: result.clientId, subject: result.tokens.subject,
+              ...(result.tokens.accountId ? { accountId: result.tokens.accountId } : {}) } }
         })
         await credentials.save(result.tokens)
         tokens = result.tokens
@@ -142,7 +148,9 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
       })
     } else {
       if (!key) return refused()
+      let failures = 0
       while (!controller.signal.aborted) {
+        const startedAt = Date.now()
         try {
           const updatedVersion = await runProfileChatgptHost({ runtime, profile, key, renewAuthority: renew,
             signal: controller.signal, oauth, backendOptions: dependencies.backendOptions })
@@ -167,19 +175,21 @@ export const runChatgptCredentialRuntime = async (args: string[], dependencies: 
             return { ...prior, revision: prior.revision + 1, phase: 'reconnecting',
               reason: 'connection_unavailable', planEnabled: false }
           })
-          await delay(3000, undefined, { signal: controller.signal }).catch(() => undefined)
+          failures = nextChatgptHostFailures(failures, Date.now() - startedAt)
+          await delay(chatgptHostRetryDelayMs(failures), undefined, { signal: controller.signal })
+            .catch(() => undefined)
         }
       }
     }
     const current = await store.read(profileId)
     if (current?.phase === 'disconnecting') await clear()
-  } catch {
+  } catch (error) {
     if ((await store.read(profileId))?.phase === 'disconnecting') await clearCredentials?.().catch(() => undefined)
     // Public metadata contains only an enumerated reason. No provider/portal
     // error, URL, state, code, token or JWT payload reaches stdout/stderr.
     await store.update(profileId, prior => {
       if (!prior || prior.operationId !== operationId || prior.phase === 'disconnecting') return refused()
-      return { ...prior, revision: prior.revision + 1, phase: 'reconnecting', reason: 'connection_unavailable',
+      return { ...prior, revision: prior.revision + 1, phase: 'reconnecting', reason: publicChatgptFailure(error),
         planEnabled: false }
     }).catch(() => undefined)
   } finally {

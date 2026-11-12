@@ -140,6 +140,8 @@ test('Codex configuration stores only an owner-private source path and a pinned 
         'sandbox.stop',
         'coding.launch',
         'coding.observe',
+        // A Mac's descriptor also offers imessage.send (src/imessage/imessage-operation.ts).
+        'imessage.send',
       ],
       profiles: ['workspace_sandbox', 'coding_session'],
       revision: 2,
@@ -235,6 +237,8 @@ test('browser configuration verifies owner-controlled guest artifacts before ena
       'browser.open',
       'browser.observe',
       'browser.act',
+      // A Mac's descriptor also offers imessage.send (src/imessage/imessage-operation.ts).
+      'imessage.send',
     ])
     assert.equal(configured.descriptor.revision, 2)
     assert.deepEqual(await loadExecutorState(stateDir), configured)

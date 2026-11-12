@@ -93,7 +93,7 @@ pub fn executor_copy_code(code: String) -> Result<(), String> {
         Ok(())
     }
     #[cfg(not(windows))]
-    Err("This is the Windows executor console.".into())
+    Err("This works on Windows only.".into())
 }
 
 // ── Folder sync ────────────────────────────────────────────────────────────
@@ -102,7 +102,7 @@ pub fn executor_copy_code(code: String) -> Result<(), String> {
 // app opens comes from the CLI's own `sync status --json`, and every change
 // goes to `nessie-executor sync --input-stdin` as JSON, never on argv.
 
-const SYNC_UNAVAILABLE: &str = "Folder sync works for teams added in this app under your Windows account.";
+const SYNC_UNAVAILABLE: &str = "Documents sync for teams connected in this app under your Windows account.";
 const SYNC_INVALID: &str = "Invalid folder sync action.";
 
 fn is_uuid(value: &str) -> bool {
@@ -118,7 +118,7 @@ fn is_uuid(value: &str) -> bool {
 fn sync_cli(
     executor_id: &str, tail: &[&str], input: Option<&serde_json::Value>,
 ) -> Result<serde_json::Value, String> {
-    if !is_uuid(executor_id) { return Err("Invalid executor identity.".into()); }
+    if !is_uuid(executor_id) { return Err("Invalid team identity.".into()); }
     if !crate::user_connections::owns(executor_id) { return Err(SYNC_UNAVAILABLE.into()); }
     let mut arguments = vec!["sync".to_owned(), "--executor".to_owned(), executor_id.to_owned()];
     arguments.extend(tail.iter().map(|part| (*part).to_owned()));
@@ -181,11 +181,15 @@ fn restore_command(entry_id: &str) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "command": "restore_trash", "entryId": entry_id }))
 }
 
-/// The steps from the sync root to a conflict's file: the team folder, then
-/// the relative path's own segments. None may climb, name a drive or hide a
-/// separator.
+/// The steps from the sync root to a conflict's file: the team folder — its
+/// organisation folder and its own (`Org/Team`), or one folder for a sync
+/// named before teams shared a main folder — then the relative path's own
+/// segments. Each is checked for a link on the way; none may climb, name a
+/// drive or hide a separator.
 fn relative_segments<'a>(team_label: &'a str, rel_path: &'a str) -> Result<Vec<&'a str>, String> {
-    let segments: Vec<&str> = std::iter::once(team_label).chain(rel_path.split('/')).collect();
+    let team: Vec<&str> = team_label.split('/').collect();
+    if team.len() > 2 { return Err(SYNC_INVALID.into()); }
+    let segments: Vec<&str> = team.into_iter().chain(rel_path.split('/')).collect();
     if segments.iter().any(|segment| segment.is_empty() || *segment == "." || *segment == ".."
         || segment.contains(['\\', ':', '\0'])) {
         return Err(SYNC_INVALID.into());
@@ -227,7 +231,7 @@ fn open_location(
     // A file is shown selected in Explorer, never opened: it may be a program.
     if location == "file" {
         let path = listed_file(&state, rel_path.ok_or(SYNC_INVALID)?)?;
-        return app.opener().reveal_item_in_dir(path).map_err(|_| "Nessie Executor could not show that file.".into());
+        return app.opener().reveal_item_in_dir(path).map_err(|_| "Nessie Computer could not show that file.".into());
     }
     let folder = match location {
         "root" => local_folder(&state, "root", "The sync folder is missing. Choose it again.")?,
@@ -235,7 +239,7 @@ fn open_location(
         _ => return Err(SYNC_INVALID.into()),
     };
     app.opener().open_path(folder.display().to_string(), None::<&str>)
-        .map_err(|_| "Nessie Executor could not open that folder.".into())
+        .map_err(|_| "Nessie Computer could not open that folder.".into())
 }
 
 /// Opens this computer's Sync tab in Nessie at the address the CLI's handshake
@@ -250,7 +254,7 @@ fn open_manage(app: &AppHandle, executor_id: &str) -> Result<(), String> {
     if !(url.scheme() == "https" || local) || !url.username().is_empty() || url.password().is_some() {
         return Err("Nessie gave an address this app does not open.".into());
     }
-    app.opener().open_url(url.as_str(), None::<&str>).map_err(|_| "Nessie Executor could not open Nessie.".into())
+    app.opener().open_url(url.as_str(), None::<&str>).map_err(|_| "Nessie Computer could not open Nessie.".into())
 }
 
 async fn blocking<T: Send + 'static>(
@@ -350,6 +354,11 @@ mod sync_tests {
             assert!(relative_segments("Platform", path).is_err(), "{path}");
         }
         assert!(relative_segments("..", "x").is_err());
+        // A team folder inside its organisation's: both are steps of their own, each checked for a link.
+        assert_eq!(relative_segments("UnlikeOtherAI/Platform", "Plan.md").unwrap(), vec!["UnlikeOtherAI", "Platform", "Plan.md"]);
+        for team in ["UnlikeOtherAI/..", "../Platform", "/Platform", "UnlikeOtherAI/", "A/B/C", "C:/Platform"] {
+            assert!(relative_segments(team, "Plan.md").is_err(), "{team}");
+        }
     }
 }
 

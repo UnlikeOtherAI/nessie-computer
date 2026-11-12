@@ -9,11 +9,9 @@ enum LaunchAtLogin {
             return nil
         } catch {
             if SMAppService.mainApp.status == .requiresApproval {
-                return ExecutorRefusal(
-                    "Allow Nessie Executor in System Settings → General → Login Items & Extensions."
-                )
+                return ExecutorRefusal(.loginItemNeedsApproval)
             }
-            return ExecutorRefusal("macOS could not change this setting. Check Login Items in System Settings.")
+            return ExecutorRefusal(.loginItemFailed)
         }
     }
 }

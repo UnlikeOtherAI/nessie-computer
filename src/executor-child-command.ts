@@ -18,7 +18,7 @@ export const executorChildCommand = (
       const executable = platform === 'win32' ? 'nessie-executor-runtime.exe' : 'nessie-executor-runtime'
       if (runtime.execArgv.length !== 0 || resolve(runtime.entry) !== join(directory, 'nessie-executor.cjs')
         || resolve(runtime.execPath) !== join(directory, executable)) {
-        throw new Error('A managed executor child must use its fixed release without Node loader arguments.')
+        throw new Error('A managed child process must use its fixed release without Node loader arguments.')
       }
       return [join(directory, platform === 'win32' ? 'nessie-executor-native.exe' : 'nessie-executor-native'),
         'managed-runtime', '--', ...arguments_]

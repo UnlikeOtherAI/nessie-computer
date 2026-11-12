@@ -98,11 +98,11 @@ const privateAuthority = {
   runId: identity(5), rootRunId: identity(5), soleReaderUserId: identity(3),
 }
 
-test('signed custom discovery and calls carry admission authority without a bridge owner', async () => {
+test('a signed call carries its run\'s authority to the session; reading an app\'s tools needs none', async () => {
   const seen: unknown[] = []
   const sessions = { ...untouched(),
-    listTools: async (_server: string, _cursor?: string, _signal?: AbortSignal, authority?: unknown) => {
-      seen.push(authority)
+    listTools: async (...given: unknown[]) => {
+      assert.equal(given.length, 3, 'server, cursor and signal: no authority is asked of a catalogue read')
       return { success: true }
     },
     callTool: async (_server: string, _tool: string, _args?: Record<string, unknown>,
@@ -116,7 +116,7 @@ test('signed custom discovery and calls carry admission authority without a brid
     assert.equal((await executeExecutorMcpCommand(operation, args, sessions, { commandId: identity(6),
       payload: { args, runId: identity(5), personalAuthority: privateAuthority } })).success, true)
   }
-  assert.deepEqual(seen, [privateAuthority, privateAuthority])
+  assert.deepEqual(seen, [privateAuthority])
 })
 
 test('authority with another run or a mismatched bridge owner never reaches the session manager', async () => {

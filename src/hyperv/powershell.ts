@@ -22,7 +22,7 @@ export const runPowerShell: HyperVProcessRunner = async ({ argv, path, timeoutMs
     let overflowed = false
     const timeout = setTimeout(() => {
       child.kill('SIGKILL')
-      reject(new WorkspacePathError('An executor guest VM operation timed out.'))
+      reject(new WorkspacePathError('A guest VM operation timed out.'))
     }, timeoutMs)
     child.stdout?.setEncoding('utf8')
     child.stdout?.on('data', (chunk: string) => {
@@ -40,7 +40,7 @@ export const runPowerShell: HyperVProcessRunner = async ({ argv, path, timeoutMs
     child.once('close', (code) => {
       clearTimeout(timeout)
       if (code !== 0 || overflowed) {
-        reject(new WorkspacePathError('An executor guest VM operation failed on this computer.'))
+        reject(new WorkspacePathError('A guest VM operation failed on this computer.'))
         return
       }
       resolvePromise(output)

@@ -1,4 +1,4 @@
-//! What the Nessie Executor service and its tray both have to agree on.
+//! What the Nessie Computer service and its tray both have to agree on.
 //!
 //! Three facts, and all are the kind that break silently when they are stated
 //! twice: the account Windows derives from the service name — pick the two
@@ -13,11 +13,16 @@
 #[cfg(windows)]
 mod sid;
 
+pub mod control_channel;
 pub mod custody;
 pub mod custody_store;
+pub mod failure;
 #[cfg(windows)]
 pub mod custody_observation;
 pub mod lease;
+pub mod owner_controls;
+pub mod owner_sessions;
+pub mod team_label;
 pub mod inference_control;
 #[cfg(windows)]
 pub mod process;
@@ -32,6 +37,10 @@ pub mod release;
 pub mod runtime;
 #[cfg(windows)]
 pub mod service_channel;
+#[cfg(windows)]
+pub mod session_launch;
+#[cfg(windows)]
+pub mod install_handover;
 pub mod unpair;
 #[cfg(windows)]
 pub mod update_admission;
@@ -47,12 +56,21 @@ pub use sid::sid_to_string;
 /// the MSI authors the same string.
 pub const SERVICE_NAME: &str = "NessieExecutor";
 
+/// The service's control pipe: pairing, team controls and the owner's own
+/// answers. The service, the Windows app and the command line's relay
+/// (`control_channel`) all address it by this name.
+pub const CONTROL_PIPE_NAME: &str = r"\\.\pipe\NessieExecutor";
+
 /// Runtime admission only; pairing and machine control retain their separate ACL.
 pub const CUSTODY_PIPE_NAME: &str = r"\\.\pipe\NessieExecutorCustody";
 
 /// The account Windows creates for a service registered with that name and no
 /// password. The workspace ACL grant and the Hyper-V group membership name it.
 pub const SERVICE_ACCOUNT: &str = r"NT SERVICE\NessieExecutor";
+
+/// The MSI's install folder under Program Files: the release, the service, the
+/// Windows app and the command line all run from it.
+pub const INSTALL_DIRECTORY_NAME: &str = "Nessie Executor";
 
 /// The service's own directory name under `%ProgramData%`. Pairing material
 /// and machine keys belong to the service account, not to a person's profile,

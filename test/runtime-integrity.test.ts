@@ -142,7 +142,7 @@ test('an altered binary, an altered bundle, and an unsupported manifest are refu
   )
   assert.equal(
     refusal(packagedFacts({ digests: { 'nessie-executor.cjs': sha256('tampered'), 'nessie-executor-runtime': sha256(NODE_BYTES) } })),
-    'the packaged executor bundle does not match the runtime manifest',
+    'the packaged Nessie Computer bundle does not match the runtime manifest',
   )
   assert.equal(
     refusal(packagedFacts({ manifestText: manifestText({ format: 2 }) })),
@@ -238,7 +238,7 @@ test('a declared native helper is verified, and a half-declared one is refused',
 test('a bundle executed from outside the verified runtime directory is refused', () => {
   assert.equal(
     refusal(packagedFacts({ runningBundleRealPath: '/tmp/nessie-executor.cjs' })),
-    'the running executor bundle is not the packaged one',
+    'the running Nessie Computer bundle is not the packaged one',
   )
   // Joined as the verifier joins it: facts are collected on the host that
   // checks them, so the running path has that host's separators.

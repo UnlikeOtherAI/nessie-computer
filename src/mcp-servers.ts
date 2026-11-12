@@ -23,7 +23,21 @@ export type ExecutorLocalMcpServer = {
   cwd?: string
   /** Extra environment for the server process, over the SDK's safe default set. */
   env?: Record<string, string>
+  /**
+   * Where discovery found this server (`local-app-discovery.ts`). Absent means
+   * the owner named it, or it is the executor's own coding-sessions bridge;
+   * only a discovered entry is replaced when discovery runs again.
+   */
+  source?: LocalAppSource
 }
+
+/** Where an installed local app (MCP server) was found on this computer. */
+export const LOCAL_APP_SOURCES = ['unlikeotherai', 'claude-code', 'codex'] as const
+export type LocalAppSource = typeof LOCAL_APP_SOURCES[number]
+
+export const isLocalAppSource = (value: unknown): value is LocalAppSource => (
+  (LOCAL_APP_SOURCES as readonly unknown[]).includes(value)
+)
 
 export class ExecutorMcpServerError extends Error {
   readonly code: string
@@ -49,7 +63,7 @@ export const assertExecutorLocalMcpServers = (
   if (servers.length > EXECUTOR_MCP_SERVER_MAXIMUM) {
     throw new ExecutorMcpServerError(
       'EXECUTOR_MCP_POLICY_INVALID',
-      `An executor may front at most ${EXECUTOR_MCP_SERVER_MAXIMUM} local MCP servers.`,
+      `A team may use at most ${EXECUTOR_MCP_SERVER_MAXIMUM} local apps (MCP servers).`,
     )
   }
   for (const server of servers) {
@@ -77,6 +91,12 @@ export const assertExecutorLocalMcpServers = (
       throw new ExecutorMcpServerError(
         'EXECUTOR_MCP_POLICY_INVALID',
         `The MCP server "${server.name}" needs an absolute working directory.`,
+      )
+    }
+    if (server.source !== undefined && !isLocalAppSource(server.source)) {
+      throw new ExecutorMcpServerError(
+        'EXECUTOR_MCP_POLICY_INVALID',
+        `The MCP server "${server.name}" names a discovery source this policy does not know.`,
       )
     }
     if (server.env !== undefined) {
@@ -120,8 +140,8 @@ export const findExecutorLocalMcpServer = (
     throw new ExecutorMcpServerError(
       'EXECUTOR_MCP_DENIED',
       servers.length === 0
-        ? 'This executor fronts no local MCP server — its reviewed policy names none.'
-        : `This executor's reviewed policy names no MCP server called "${name}".`,
+        ? 'This team uses no local app (MCP server) — its reviewed policy names none.'
+        : `This team’s reviewed policy names no local app (MCP server) called "${name}".`,
     )
   }
   return found

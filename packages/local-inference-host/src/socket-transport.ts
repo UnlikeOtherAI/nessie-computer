@@ -5,11 +5,15 @@
 export const LOCAL_INFERENCE_SOCKET_PATH = '/api/local-inference/daemon/socket'
 
 /**
- * Deltas within this window travel as one frame. A frame is relayed to the
- * worker without a database write, but each is still a signed socket message,
- * so a frame per token would make the relay, not the model, the pace.
+ * A stream's first delta travels at once; after it, deltas within this window
+ * travel as one frame. A frame is relayed to the worker without a database
+ * write, but each is still a signed socket message, so a frame per token would
+ * make the relay, not the model, the pace. At 40 ms a stream sends at most 25
+ * frames a second: sixteen streams side by side cost the server about 400
+ * signature checks a second, well under a tenth of one core, and a reader
+ * sees text arrive as it is written rather than in 150 ms steps.
  */
-export const LOCAL_INFERENCE_FRAME_COALESCE_MS = 150
+export const LOCAL_INFERENCE_FRAME_COALESCE_MS = 40
 /** A burst flushes at this many bytes of raw UTF-8 text before the window ends. */
 export const LOCAL_INFERENCE_FRAME_COALESCE_BYTES = 4 * 1024
 

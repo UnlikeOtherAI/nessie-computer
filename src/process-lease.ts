@@ -35,7 +35,7 @@ const processIsLive = (pid: number): boolean => {
 const staleLease = async (path: string): Promise<boolean> => {
   const value = (await readFile(path, 'utf8')).trim()
   if (!/^[1-9][0-9]{0,9}$/.test(value)) {
-    throw new Error('Executor daemon lease is malformed.')
+    throw new Error('This team’s process lease is malformed.')
   }
   return !processIsLive(Number(value))
 }

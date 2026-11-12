@@ -172,8 +172,11 @@ export const windowsControl = (
       throw new Error('Windows process termination exchange did not complete.')
     }
   }
+  const containedLaunch = jobHelper
+    ? (command: string, args: readonly string[]) => ({ command: jobHelper, args: ['job-run', '--', command, ...args] })
+    : undefined
   return {
-    ...(jobHelper ? { containment: 'windows_job' as const } : {}),
+    ...(containedLaunch ? { containment: 'windows_job' as const, containedLaunch } : {}),
     stopTree: async (identity, snapshot = []) => {
       const result = await run(powershellPath(), [...POWERSHELL_ARGS, WINDOWS_TABLE])
       if (result.failed || !result.stdout.trim() || !recorded(identity)) return 'unknown'
@@ -197,11 +200,11 @@ export const windowsControl = (
     ...(refusal ? { refusal } : {}),
     // Through the helper the program is resolved and started by `CreateProcessW`
     // inside the job; the host still holds the same three pipes.
-    spawnAgent: (command, args, options) => spawn(
-      jobHelper ?? command,
-      jobHelper ? ['job-run', '--', command, ...args] : args,
-      { cwd: options.cwd, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false },
-    ),
+    spawnAgent: (command, args, options) => {
+      const launch = containedLaunch?.(command, args) ?? { command, args }
+      return spawn(launch.command, launch.args,
+        { cwd: options.cwd, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false })
+    },
     identify: async (pid) => {
       const started = await startTimeOfLive(pid, startedAt)
       return started === undefined ? undefined : { pid, startedAt: started }

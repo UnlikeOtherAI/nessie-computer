@@ -161,10 +161,10 @@ fn enrollment_refuses_untrusted_clients_and_a_refusing_service_without_writing()
     );
     assert!(!directory.path().join("control-clients").exists());
     let refused =
-        Control::Refused("Executor controls require a signed, intact Nessie release.".to_owned());
+        Control::Refused("Nessie Computer’s controls need a signed, intact release.".to_owned());
     assert_eq!(
         enroll_control_client(directory.path(), &refused, None, None),
-        Response::error("Executor controls require a signed, intact Nessie release."),
+        Response::error("Nessie Computer’s controls need a signed, intact release."),
     );
     assert!(!directory.path().join("control-clients").exists());
 }

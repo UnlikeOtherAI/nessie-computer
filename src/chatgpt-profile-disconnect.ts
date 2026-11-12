@@ -9,7 +9,7 @@ import type { ChatgptProfileRecord } from './chatgpt-profile-records.js'
 import { ChatgptProfileStore } from './chatgpt-profile-store.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
-import { createPersonalStateMutation } from './personal-state-mutation.js'
+import { createPersonalStateMutation, type PersonalStateMutation } from './personal-state-mutation.js'
 import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
 import { ChatgptReceiptCustody } from './chatgpt-receipt-custody.js'
 import { WindowsServiceChatgptAuthority, windowsServiceExecutorId,
@@ -40,16 +40,23 @@ export const disconnectChatgptDelegation = async (
 /** This public controller never opens provider credential bytes. */
 export const finalizeChatgptDisconnect = async (
   stateDirectory: string, profile: ChatgptProfileRecord,
+  // Code-only fixture seams; local operations cannot supply dependencies.
+  dependencies: {
+    store?: ChatgptProfileStore
+    mutation?: PersonalStateMutation
+    guard?: Pick<PersonalInferenceGuard, 'deactivate'>
+    disconnect?: typeof disconnectChatgptDelegation
+  } = {},
 ): Promise<void> => {
   if (profile.phase !== 'disconnecting') throw new PersonalInferenceProtectionError('chatgpt_disconnect_fenced')
   // A revoked parent or unavailable server cannot preserve local credential
   // authority after every secret/outbox/process is positively gone. Historical
   // liabilities are still checked below and must have their original ACKs.
-  await disconnectChatgptDelegation(stateDirectory, profile).catch(() => undefined)
-  const store = new ChatgptProfileStore()
-  const mutation = await createPersonalStateMutation()
+  await (dependencies.disconnect ?? disconnectChatgptDelegation)(stateDirectory, profile).catch(() => undefined)
+  const store = dependencies.store ?? new ChatgptProfileStore()
+  const mutation = dependencies.mutation ?? await createPersonalStateMutation()
   const directory = store.profileDirectory(profile.profileId)
-  await PersonalInferenceGuard.open().deactivate(profile.profileId, async () => {
+  await (dependencies.guard ?? PersonalInferenceGuard.open()).deactivate(profile.profileId, async () => {
     for (const name of ['credentials.json', 'companion-key.json']) {
       const credentials = await lstat(join(directory, name)).catch((error: NodeJS.ErrnoException) => {
         if (error.code !== 'ENOENT') throw error
@@ -67,6 +74,6 @@ export const finalizeChatgptDisconnect = async (
       throw new PersonalInferenceProtectionError('chatgpt_disconnect_fenced')
     }
     return { ...prior, revision: prior.revision + 1, phase: 'disconnected', reason: null,
-      planEnabled: false, hostExecutionRestricted: false, credentialProcess: null, operationId: null }
+      planEnabled: false, hostExecutionRestricted: false, credentialProcess: null, operationId: null, publicKey: null }
   })
 }

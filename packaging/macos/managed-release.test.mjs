@@ -34,11 +34,14 @@ test('the macOS package selects its complete immutable release through the curre
     const candidate = await stageMacManagedRelease(runtime, payload, scripts)
     const root = join(payload, 'Library/Application Support/Nessie Executor')
     assert.equal(await readlink(join(root, 'current')), `releases/${candidate.releaseDigest}`)
+    const releaseRoot = await realpath(candidate.root)
     for (const name of ['nessie-executor-native', 'nessie-executor-runtime', 'nessie-executor.cjs']) {
-      assert.equal(await realpath(join(root, 'current', name)), join(candidate.root, name))
+      assert.equal(await realpath(join(root, 'current', name)), join(releaseRoot, name))
     }
-    assert.match(await readFile(join(payload, 'usr/local/bin/nessie-executor'), 'utf8'),
-      new RegExp(`/releases/${candidate.releaseDigest}/nessie-executor-native`))
+    for (const command of ['nessie-computer', 'nessie-executor']) {
+      assert.match(await readFile(join(payload, 'usr/local/bin', command), 'utf8'),
+        new RegExp(`/releases/${candidate.releaseDigest}/nessie-executor-native`))
+    }
     assert.match(await readFile(join(scripts, 'postinstall'), 'utf8'), /managed-custody-install/)
   } finally { await writable(scratch); await rm(scratch, { recursive: true, force: true }) }
 })

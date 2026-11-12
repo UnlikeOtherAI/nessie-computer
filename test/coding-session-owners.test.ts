@@ -8,6 +8,7 @@ import type { ExecutorCodingSessionsFacts } from '@nessie/executor-protocol'
 
 import { CODING_SESSIONS_CONFIG_DIGEST_ENV } from '../src/coding-session/config.js'
 import { createCodingSessionsDaemon } from '../src/coding-sessions-daemon.js'
+import { newLocalCommandPolicy } from '../src/command-policy.js'
 import { createCodingHarness, OWNER_A, OWNER_B } from './coding-session-harness.js'
 
 /**
@@ -153,7 +154,8 @@ test('a ticket\'s sessions are their own owner: a lease-end close misses them, a
     configDigest: harness.server.env![CODING_SESSIONS_CONFIG_DIGEST_ENV]!,
   }
   const daemon = createCodingSessionsDaemon({
-    executorId: randomUUID(), facts, servers: [harness.server], sessions: harness.manager, log: () => undefined,
+    executorId: randomUUID(), commandRules: newLocalCommandPolicy, facts, servers: [harness.server],
+    sessions: harness.manager, log: () => undefined,
   })
   const person = { agentId: randomUUID(), actorUserId: randomUUID() }
   const keyFor = (owner: { agentId: string; actorUserId: string; contextId?: string }): string => {

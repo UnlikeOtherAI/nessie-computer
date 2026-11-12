@@ -8,6 +8,7 @@ import { canonicalExecutorPayload, EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
 import { createPairingCodeClient } from '../src/pairing-code.js'
 import type { PendingPairingCode } from '../src/pairing-code-store.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
+import type { TeamLabel } from '../src/team-label.js'
 
 const executorId = '00000000-0000-4000-8000-000000000001'
 const pairingId = '00000000-0000-4000-8000-000000000002'
@@ -22,10 +23,12 @@ const claim: ExecutorPairingClaim = {
 const fixture = () => {
   let pending: PendingPairingCode | null = null
   let state: ExecutorLocalState | null = null
+  let label: TeamLabel | null = null
   let stage = 'waiting'
   let loseStart = false
   let failRetirement = false
   let losePoll = false
+  let refuseCancel = false
   let pairingLocked = false
   let mintGate: Promise<void> | null = null
   let workspaceHasArtifacts = false
@@ -52,6 +55,11 @@ const fixture = () => {
       return state
     },
     saveExecutorState: async (_directory, value) => { state = value },
+    readTeamLabel: async () => label,
+    saveTeamLabel: async (_directory, names, apiBaseUrl) => {
+      label = { ...names, apiBaseUrl, checkedAt: '2026-11-08T12:00:00.000Z' }
+      return label
+    },
     clearExecutorState: async () => {
       if (failRetirement) { failRetirement = false; throw new Error('local write failed') }
       events.push('clear-old'); state = null
@@ -84,14 +92,15 @@ const fixture = () => {
         if (loseStart) { loseStart = false; throw new Error('response lost') }
         return starts.get(requestId)!
       }
-      if (action === 'connection') return claim
       if (action === 'poll' && losePoll) { losePoll = false; throw new Error('poll response lost') }
+      if (action === 'cancel' && refuseCancel) throw new Error('This pairing is no longer available.')
       return { status: stage, pairingId, fingerprint, expiresAt: '2099-01-01T00:00:00.000Z',
         ...(stage === 'waiting' ? {} : { claim }) }
     },
   })
   return {
-    client, events, requests, pending: () => pending, state: () => state,
+    client, events, requests, pending: () => pending, state: () => state, label: () => label,
+    forgetLabel: () => { label = null },
     // A claim in Nessie activates the pairing; the server's next poll answer is `confirmed`.
     claim: () => { stage = 'confirmed' }, loseResponse: () => { loseStart = true },
     wait: () => { stage = 'waiting' },
@@ -99,6 +108,8 @@ const fixture = () => {
     reject: () => { stage = 'rejected' },
     failRetirement: () => { failRetirement = true },
     losePoll: () => { losePoll = true },
+    // Nessie deletes a code some time after it runs out and then refuses to cancel it.
+    forgetCode: () => { refuseCancel = true },
     holdMint: () => {
       let release!: () => void
       mintGate = new Promise<void>((done) => { release = done })
@@ -129,11 +140,38 @@ test('pairing preserves the key through response loss and saves the pairing on t
   assert.ok(!f.events.includes('confirm'), 'the computer never asks for or sends a second consent')
   assert.equal(f.state()?.executorId, executorId)
   assert.deepEqual(f.state()?.descriptor.operationKeys, EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS)
-  assert.deepEqual(f.state()?.commandPolicy, { mode: 'all', allowlist: [], denylist: [] })
+  // A new team starts with the built-in programs only and every installed local app (contract §4.3, §4.5).
+  assert.deepEqual(f.state()?.commandPolicy, {
+    mode: 'allowlist', allowlist: [], denylist: [],
+    trusted: { unlikeotherai: true, claudeCode: true, codex: true, t3Code: true },
+  })
+  assert.deepEqual(f.state()?.mcpPolicy, { mode: 'installed', disabled: [] })
   assert.equal(Object.hasOwn(f.state()!.descriptor, 'commandPolicy'), false)
   assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"commandPolicy"')))
+  assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"mcpPolicy"')))
+  assert.ok(f.requests.every((request) => !JSON.stringify(request).includes('"trusted"')))
   assert.equal(f.pending(), null)
   assert.equal(Object.hasOwn(f.state()!, 'organizationName'), false)
+  // The claim's names become the team's label at once, before any refresh.
+  assert.deepEqual(f.label(), { organizationName: 'Acme', teamName: 'Platform', apiBaseUrl: input.apiBaseUrl,
+    checkedAt: '2026-11-08T12:00:00.000Z' })
+})
+
+test('a connected team is named from its saved label, without asking Nessie or any person', async () => {
+  const f = fixture()
+  await f.client.startPairingCode(input)
+  f.claim()
+  await f.client.pairingCodeStatus(input.stateDir)
+  const asked = f.events.length
+  const named = await f.client.pairingCodeStatus(input.stateDir)
+  assert.deepEqual([named.status, named.executorId, named.organizationName, named.teamName, named.apiBaseUrl],
+    ['paired', executorId, 'Acme', 'Platform', input.apiBaseUrl])
+  f.forgetLabel()
+  const unnamed = await f.client.pairingCodeStatus(input.stateDir)
+  assert.equal(unnamed.status, 'paired')
+  assert.equal(unnamed.organizationName, undefined)
+  assert.equal(f.events.length, asked, 'reading a connected team\'s status sends nothing')
+  assert.ok(!f.events.includes('connection'))
 })
 
 test('read-only pairing binds and retains the exact operations across response loss and browser claim', async () => {
@@ -217,6 +255,36 @@ test('pairing cancellation recovers a lost mint response and expired attempts ca
   await f.client.cancelPairingCode(input.stateDir)
   f.wait()
   assert.equal((await f.client.startPairingCode(input)).status, 'waiting')
+})
+
+test('an attempt Nessie calls expired ends on the computer and is never reopened', async () => {
+  const f = fixture()
+  await f.client.startPairingCode(input)
+  f.expire()
+  const expired = await f.client.pairingCodeStatus(input.stateDir)
+  assert.deepEqual([expired.status, expired.code], ['expired', '01234567'])
+  assert.equal(f.pending(), null)
+  const polls = f.events.filter((event) => event === 'poll').length
+  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).status, 'idle')
+  assert.equal(f.events.filter((event) => event === 'poll').length, polls, 'an ended attempt asks Nessie nothing')
+  assert.equal(f.events.includes('cancel'), false)
+})
+
+test('cancel ends the attempt on the computer even when Nessie refuses or cannot be reached', async () => {
+  const f = fixture()
+  await f.client.startPairingCode(input)
+  f.forgetCode()
+  assert.equal((await f.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
+  assert.ok(f.events.includes('cancel'), 'Nessie is still asked first')
+  assert.equal(f.pending(), null)
+  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).status, 'idle')
+  const offline = fixture()
+  offline.loseResponse()
+  await assert.rejects(offline.client.startPairingCode(input), /response lost/)
+  offline.loseResponse()
+  assert.equal((await offline.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
+  assert.equal(offline.pending(), null)
+  assert.equal(offline.events.includes('cancel'), false)
 })
 
 test('starting pairing again replaces a server-confirmed expired attempt without cancelling it', async () => {

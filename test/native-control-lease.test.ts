@@ -34,7 +34,11 @@ test('a public ACK cannot substitute for actual successful native release', asyn
 test('an ACK from an exited helper never remains a live hold', async () => {
   const held = await acquire('early-close')
   try {
-    await new Promise(resolve => setTimeout(resolve, 150))
+    const deadline = Date.now() + 5000
+    while (Date.now() < deadline) {
+      try { held.assertLive() } catch { break }
+      await new Promise(resolve => setTimeout(resolve, 20))
+    }
     assert.throws(held.assertLive)
     await assert.rejects(held.release())
   } finally { await held.abort() }

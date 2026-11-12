@@ -5,7 +5,7 @@ import { linuxSoftwarePage } from './page.mjs'
 export const stageLinuxConsole = async (root, resources) => {
   const destination = join(resources, 'console')
   await mkdir(destination, { recursive: true })
-  for (const file of ['style.css', 'updates.js', 'updates-words.js']) {
+  for (const file of ['style.css', 'i18n.js', 'help.js', 'updates.js', 'updates-words.js']) {
     await copyFile(join(root, 'packages/executor-console', file), join(destination, file))
   }
   for (const file of ['app.py', 'native.js']) {
@@ -22,7 +22,7 @@ export const linuxConsoleLauncher = (release) => [
 ].join('\n')
 
 export const linuxConsoleDesktop = (background = false) => [
-  '[Desktop Entry]', 'Type=Application', 'Name=Nessie Executor',
+  '[Desktop Entry]', 'Type=Application', 'Name=Nessie Computer',
   `Exec=/usr/bin/nessie-executor-app${background ? ' --background' : ''}`,
   'Icon=computer-symbolic', 'Terminal=false', 'Categories=Utility;',
   'StartupNotify=true', ...(background ? ['X-GNOME-Autostart-enabled=true'] : []), '',

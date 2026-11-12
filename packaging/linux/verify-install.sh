@@ -26,7 +26,8 @@ else
   echo 'Choose deb or rpm.' >&2
   exit 1
 fi
-test "$(NODE_OPTIONS=--invalid-option nessie-executor --version)" = "nessie-executor $version"
+test "$(NODE_OPTIONS=--invalid-option nessie-computer --version)" = "nessie-computer $version"
+test "$(NODE_OPTIONS=--invalid-option nessie-executor --version)" = "nessie-computer $version"
 useradd --create-home nessie-package-test
 test "$(runuser -u nessie-package-test -- nessie-executor teams --json)" = '[]'
 release=$(readlink -f /usr/lib/nessie-executor/current)

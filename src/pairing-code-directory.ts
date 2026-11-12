@@ -13,13 +13,13 @@ export const acquireDefaultPairingLease = async () => (
   acquireExecutorProcessLease(await ensureOwnerOnlyStateDirectory(root()), 'pairing-operation.pid')
 )
 
-/** A new account gets its own key; replacement must name an existing connection. */
+/** A new team gets its own key; replacement must name a team already on this computer. */
 export const defaultPairingDirectory = async (executorId?: string): Promise<string> => {
   const directory = await ensureOwnerOnlyStateDirectory(root())
   if (executorId) {
-    if (!/^[a-f0-9-]{36}$/i.test(executorId)) throw new Error('Choose a valid executor id from status.')
+    if (!/^[a-f0-9-]{36}$/i.test(executorId)) throw new Error('Choose a team id: nessie-computer teams shows them.')
     const selected = resolve(directory, executorId)
-    if (!await loadExecutorState(selected)) throw new Error('That connection is not paired on this computer.')
+    if (!await loadExecutorState(selected)) throw new Error('That team isn\'t on this computer.')
     return selected
   }
   const pending: string[] = []
@@ -32,7 +32,7 @@ export const defaultPairingDirectory = async (executorId?: string): Promise<stri
     })) pending.push(child)
   }
   if (pending.length > 1) {
-    throw new Error('Several pairings are in progress. Use --state-dir to finish or cancel one first.')
+    throw new Error('Several Add this computer attempts are open. Finish or cancel one with --state-dir first.')
   }
   if (pending[0]) return pending[0]
   const staging = resolve(directory, 'pairing')
@@ -52,6 +52,6 @@ export const promoteDefaultPairing = async (directory: string, executorId: strin
   if (await lstat(destination).catch((error: unknown) => {
     if (absent(error)) return null
     throw error
-  })) throw new Error('This computer already has that pairing.')
+  })) throw new Error('This computer is already in that team.')
   await rename(directory, destination)
 }

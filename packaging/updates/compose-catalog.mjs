@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { releaseVersion } from '../cli/release-plan.mjs'
 
+// Old installed updaters require this exact alias; GitHub redirects it after the rename.
 const RELEASES = 'https://github.com/UnlikeOtherAI/nessie-executor/releases/download'
 const packagesFor = version => [
   { name: `NessieExecutor_${version}_x64.msi`, target: 'windows-x64-msi' },

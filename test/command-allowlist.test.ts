@@ -149,23 +149,12 @@ test('the permitted programs are part of what a person reviews', () => {
   assert.notEqual(withGit.descriptor.localPolicyDigest, without.descriptor.localPolicyDigest)
 })
 
-test('configure stores a canonical list and refuses command.run without one', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
+// An empty list with command.run is the enforced "No programs" policy (program-trust.test.ts).
+test('configure stores a canonical list and refuses malformed rules', { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
   const stateDir = await mkdtemp(join(tmpdir(), 'nessie-allowlist-'))
   const state = stateWith()
   await saveExecutorState(stateDir, state)
 
-  await assert.rejects(
-    configureExecutorLocalPolicy(
-      stateDir,
-      state,
-      ['file.read', 'command.run', 'workspace.review', 'sandbox.stop'],
-      undefined,
-      sandboxHost,
-      state.workspaceFolders,
-      [],
-    ),
-    /Name at least one permitted program/,
-  )
   await assert.rejects(
     configureExecutorLocalPolicy(
       stateDir,

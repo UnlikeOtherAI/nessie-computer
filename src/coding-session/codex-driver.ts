@@ -193,7 +193,7 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
     }
     withdrawAsked('expired', 'provider_exited')
     if (ending || closing || context.state().status === 'closed') return
-    context.update({ ...(!spawned.confirmHostExecutionStopped ? { agentIdentity: undefined } : {}) })
+    context.update({ agentIdentity: undefined })
     if (turnActive || turnBeginning) {
       turnActive = false
       turnId = undefined
@@ -301,16 +301,14 @@ export const createCodexDriver = (context: AgentDriverContext): AgentDriver => {
         current.endInput()
         await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
       }
-      const stopped = current?.confirmHostExecutionStopped
-        ? await current.confirmHostExecutionStopped(snapshot)
-        : (await context.control.killTree(identity, snapshot), true)
-      if (stopped && agent === current) {
+      await context.control.killTree(identity, snapshot)
+      if (agent === current) {
         agent = undefined
         rpc?.failAll()
         rpc = undefined
       }
-      threadId = stopped ? undefined : threadId
-      if (stopped) context.update({ agentIdentity: undefined })
+      threadId = undefined
+      context.update({ agentIdentity: undefined })
     } finally {
       ending = false
     }

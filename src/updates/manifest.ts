@@ -73,11 +73,13 @@ export const verifyUpdateManifest = (
     }
     if (manifest.sequence < options.highestSequence || manifest.sequence === options.highestSequence
       && digest !== options.previousDigest) throw new UpdateError('update.replayed_manifest')
-    const release = `https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v${manifest.version}/`
+    // Previously signed catalogues retain the repository's old URL after its rename.
+    const releases = ['nessie-computer', 'nessie-executor'].map(repository =>
+      `https://github.com/UnlikeOtherAI/${repository}/releases/download/executor-v${manifest.version}/`)
     for (const assets of Object.values(manifest.targets)) {
       const names = new Set<string>()
       for (const asset of assets ?? []) {
-        if (asset.url !== `${release}${asset.name}` || names.has(asset.name)) {
+        if (!releases.some(release => asset.url === `${release}${asset.name}`) || names.has(asset.name)) {
           throw new UpdateError('update.invalid_asset')
         }
         names.add(asset.name)

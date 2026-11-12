@@ -3,13 +3,13 @@ name = "nessie-hyperv-bridge"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Bridges a Hyper-V guest's vsock channels onto Windows named pipes for the Nessie executor daemon."
+description = "Bridges a Hyper-V guest's vsock channels onto Windows named pipes for Nessie Computer."
 
 # What Windows names this executable in Task Manager and its properties; the
 # icon beside it is embedded by build.rs.
 [package.metadata.tauri-winres]
-FileDescription = "Nessie Executor Hyper-V Bridge"
-ProductName = "Nessie Executor"
+FileDescription = "Nessie Computer Hyper-V Bridge"
+ProductName = "Nessie Computer"
 
 [[bin]]
 name = "nessie-hyperv-bridge"

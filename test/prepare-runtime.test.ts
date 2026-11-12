@@ -46,7 +46,7 @@ test('the shared preparation writes the exact runtime layout both supervisors ve
     })
     const version = packaged(['--version'])
     assert.equal(version.status, 0, version.stderr)
-    assert.equal(version.stdout, 'nessie-executor development\n')
+    assert.equal(version.stdout, 'nessie-computer development\n')
     const host = packaged(['coding-session-host'])
     assert.equal(host.status, 1)
     assert.match(host.stderr, /Usage: nessie-executor coding-session-host/u)

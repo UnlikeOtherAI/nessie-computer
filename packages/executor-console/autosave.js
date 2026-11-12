@@ -1,7 +1,8 @@
-// Every setting saves as soon as it changes; there are no Save buttons. Saves
-// run one at a time and in order — applying one restarts that team's local
-// connection — while the page stays usable. Typing is debounced per field
-// group, and leaving a field, switching team or closing flushes what is left.
+// A team setting saves as soon as it changes, except Programs, which has an
+// explicit Apply. Saves run one at a time and in order — the runtime applies
+// each live, without restarting the team (contract §4.1) — while the page
+// stays usable. Typing is debounced per field group; leaving a field or
+// switching team flushes what is left. A save never posts an OS notification.
 const autosave = (() => {
   const timers = new Map()
   const idleListeners = []
@@ -43,3 +44,4 @@ const autosave = (() => {
     onIdle: (listener) => { idleListeners.push(listener) },
   }
 })()
+window.autosave = autosave

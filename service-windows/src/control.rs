@@ -50,7 +50,7 @@ impl Control {
             Self::Supervising(supervisor) => supervisor,
         };
         let Ok(mut supervisor) = supervisor.lock() else {
-            return Response::error("The Nessie Executor service is not available.");
+            return Response::error("The Nessie Computer service is not available.");
         };
         match command {
             // The pipe owns this command and independently observes its process.
@@ -111,6 +111,34 @@ impl Control {
                 },
                 Err(reason) => Response::error(reason),
             },
+            Command::SetPaused { executor_id, paused } => match supervisor.set_paused(&executor_id, paused) {
+                Ok(()) => Response::Ok {
+                    executors: supervisor.statuses(),
+                },
+                Err(reason) => Response::error(reason),
+            },
+            Command::ProgramRequests { executor_id } => {
+                match supervisor.program_requests(&executor_id, client_sid) {
+                    Ok(requests) => Response::ProgramRequests { requests },
+                    Err(reason) => Response::error(reason),
+                }
+            }
+            Command::AnswerProgramRequest { executor_id, id, answer } => {
+                match supervisor.answer_program_request(&executor_id, &id, answer, client_sid) {
+                    Ok(requests) => Response::ProgramRequests { requests },
+                    Err(reason) => Response::error(reason),
+                }
+            }
+            Command::Sessions { executor_id } => match supervisor.sessions(&executor_id, client_sid) {
+                Ok(sessions) => Response::Sessions { sessions },
+                Err(reason) => Response::error(reason),
+            },
+            Command::StopSession { executor_id, session_id } => {
+                match supervisor.stop_session(&executor_id, &session_id, client_sid) {
+                    Ok(sessions) => Response::Sessions { sessions },
+                    Err(reason) => Response::error(reason),
+                }
+            }
             Command::Remove { executor_id } => match supervisor.remove(&executor_id, client_sid) {
                 Ok(signed_off) => Response::Removed { signed_off },
                 Err(reason) => Response::error(reason),
@@ -204,7 +232,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
     }
 
@@ -220,7 +248,7 @@ mod tests {
                 },
                 None,
             ),
-            Response::error("This executor has not been paired on this computer."),
+            Response::error("This team is not connected on this computer."),
         );
         assert!(!directory.path().join("executors").exists());
     }
@@ -246,7 +274,7 @@ mod tests {
     /// instead would have the tray reporting the wrong problem entirely.
     #[test]
     fn a_refusing_service_answers_every_command_with_its_reason() {
-        let refusal = "Executor controls require a signed, intact Nessie release.";
+        let refusal = "Nessie Computer’s controls need a signed, intact release.";
         let control = Control::Refused(refusal.to_owned());
         for command in [
             Command::Status,

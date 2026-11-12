@@ -323,7 +323,7 @@ export const buildFat32Image = (input: Fat32ImageInput): Buffer => {
   const allocations = allocateTree({ geometry, label: input.label, root: input.root })
   const used = allocations.reduce((total, allocation) => total + allocation.clusterCount, 0)
   if (used > geometry.clusterCount) {
-    throw new WorkspacePathError('The executor guest kernel and initrd do not fit on the boot disk.')
+    throw new WorkspacePathError('The guest kernel and initrd do not fit on the boot disk.')
   }
   const image = Buffer.alloc(input.sizeBytes)
   const boot = buildBootSector({ geometry, label: input.label })
