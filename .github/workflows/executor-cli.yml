@@ -155,8 +155,8 @@ jobs:
           - { image: 'ubuntu:22.04', format: deb }
           - { image: 'ubuntu:24.04', format: deb }
           - { image: 'debian:12', format: deb }
-          - { image: 'rockylinux:9', format: rpm }
-          - { image: 'almalinux:9', format: rpm }
+          # EL9 lacks webkit2gtk4.1, required by the local Settings window.
+          # Keep this matrix aligned with the supported downloads in README.md.
           - { image: 'fedora:latest', format: rpm }
     steps:
       - uses: actions/checkout@v4
