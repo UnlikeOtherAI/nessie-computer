@@ -2,7 +2,7 @@
 
 [Installer Nessie Computer](Install-Nessie-Computer.md)
 
-[Nedlastinger: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Nedlastinger: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Krever Windows 10 22H2 eller nyere, x64. Åpne MSI-filen, godkjenn installasjonen og åpne Nessie Computer fra Start. Ikonet kan ligge blant de skjulte ikonene i systemstatusfeltet.
 

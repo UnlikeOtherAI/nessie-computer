@@ -2,7 +2,7 @@
 
 [Instaloni Nessie Computer](Install-Nessie-Computer.md)
 
-[Shkarkime: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Shkarkime: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Kërkon Apple silicon dhe macOS 15 ose më të ri. Hapni DMG, tërhiqni Nessie Computer te Applications dhe hapeni. Kur t’ju kërkohet, lejoni shërbimin ndihmës në sfond te cilësimet e sistemit.
 

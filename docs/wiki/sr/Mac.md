@@ -2,7 +2,7 @@
 
 [Инсталација Nessie Computer](Install-Nessie-Computer.md)
 
-[Преузимања: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Преузимања: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Потребни су Apple silicon и macOS 15 или новији. Отворите DMG, превуците Nessie Computer у Applications и отворите га. На захтев дозволите помоћну услугу у позадини у системским подешавањима.
 

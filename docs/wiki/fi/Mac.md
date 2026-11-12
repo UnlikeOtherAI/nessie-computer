@@ -2,7 +2,7 @@
 
 [Asenna Nessie Computer](Install-Nessie-Computer.md)
 
-[Lataukset: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Lataukset: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Vaatii Apple siliconin ja macOS 15:n tai uudemman. Avaa DMG, vedä Nessie Computer Ohjelmat-kansioon ja avaa se. Salli taustalla toimiva apupalvelu Järjestelmäasetuksissa pyydettäessä.
 

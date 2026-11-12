@@ -2,7 +2,7 @@
 
 [Nessie Computer इंस्टॉल करें](Install-Nessie-Computer.md)
 
-[डाउनलोड: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[डाउनलोड: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Windows 10 22H2 या नया संस्करण, x64 चाहिए। MSI खोलें, इंस्टॉलेशन की अनुमति दें और Start से Nessie Computer खोलें। आइकन सूचना क्षेत्र के छिपे हुए आइकनों में हो सकता है।
 

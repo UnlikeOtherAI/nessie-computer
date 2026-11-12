@@ -2,7 +2,7 @@
 
 [Nessie Computeri paigaldamine](Install-Nessie-Computer.md)
 
-[Allalaadimised: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Allalaadimised: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Vajab Windows 10 22H2 või uuemat, x64. Avage MSI, kinnitage paigaldus ja avage Nessie Computer menüüst Start. Ikoon võib olla teavitusala peidetud ikoonide seas.
 

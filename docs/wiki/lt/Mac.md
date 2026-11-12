@@ -2,7 +2,7 @@
 
 [Įdiegti Nessie Computer](Install-Nessie-Computer.md)
 
-[Atsisiuntimai: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Atsisiuntimai: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Reikia Apple silicon ir macOS 15 arba naujesnės versijos. Atidarykite DMG, nutempkite Nessie Computer į Applications ir paleiskite. Kai prašoma, sistemos nustatymuose leiskite foninę pagalbinę tarnybą.
 

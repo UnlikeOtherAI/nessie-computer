@@ -2,7 +2,7 @@
 
 [Installer Nessie Computer](Install-Nessie-Computer.md)
 
-[Nedlastinger: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Nedlastinger: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Krever Apple silicon og macOS 15 eller nyere. Åpne DMG-filen, dra Nessie Computer til Programmer og åpne appen. Tillat bakgrunnshjelperen i Systeminnstillinger når du blir bedt om det.
 
