@@ -11,10 +11,10 @@ export const linuxSoftwarePage = (source) => {
   return `<!doctype html>
 <html lang="en-GB"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src https://api.github.com">
 <title>Nessie Computer</title><link rel="stylesheet" href="style.css"></head><body><main>
 ${section('<section id="software-updates"', '</section>')}
 </main>${section('<dialog id="update-dialog"', '</dialog>')}
-<script src="native.js"></script><script src="i18n.js"></script><script src="help.js"></script><script src="updates-words.js"></script><script src="updates.js"></script>
+<script src="native.js"></script><script src="i18n.js"></script><script src="help.js"></script><script src="updates-words.js"></script><script src="update-notes.js"></script><script src="updates.js"></script>
 </body></html>\n`
 }

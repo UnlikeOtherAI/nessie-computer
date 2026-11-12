@@ -20,7 +20,7 @@ const Observation = z.object({
 }).strict()
 export type UpdateState = z.infer<typeof Preferences> & z.infer<typeof Observation>
 export const defaultUpdateState = (): UpdateState => ({
-  format: 1, automatic: true, channel: 'stable', highestSequence: 0,
+  format: 1, automatic: false, channel: 'stable', highestSequence: 0,
 })
 
 /** Upgrades never replace this owner-only state directory. */

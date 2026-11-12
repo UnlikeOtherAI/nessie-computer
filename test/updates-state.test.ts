@@ -6,11 +6,12 @@ import test from 'node:test'
 import { defaultUpdateState, readUpdateState, remindAboutUpdateTomorrow,
   updateReminderDue, writeUpdateObservation, writeUpdatePreferences } from '../src/updates/state.js'
 
-test('automatic stable updates default on and an explicit opt-out survives later catalog writes', async () => {
+test('stable updates ask first and an explicit opt-out survives later catalog writes', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'nessie-update-preferences-'))
   const stateRoot = join(directory, 'updates')
   try {
     assert.deepEqual(await readUpdateState(stateRoot), defaultUpdateState())
+    assert.equal(defaultUpdateState().automatic, false)
     await writeUpdatePreferences(stateRoot, { ...defaultUpdateState(), automatic: false })
     await writeUpdateObservation(stateRoot, { ...defaultUpdateState(), highestSequence: 7 })
     assert.equal((await readUpdateState(stateRoot)).automatic, false)
@@ -27,7 +28,7 @@ test('automatic stable updates default on and an explicit opt-out survives later
 })
 
 test('reminders are per version, last one day and a newer release is announced immediately', () => {
-  const state = remindAboutUpdateTomorrow(defaultUpdateState(), '1.0.2', 100)
+  const state = remindAboutUpdateTomorrow({ ...defaultUpdateState(), automatic: true }, '1.0.2', 100)
   assert.equal(updateReminderDue(state, '1.0.2', 101), false)
   assert.equal(updateReminderDue(state, '1.0.2', 86_400_100), true)
   assert.equal(updateReminderDue(state, '1.0.3', 101), true)

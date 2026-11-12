@@ -21,6 +21,7 @@
     node('automatic').checked = status?.automatic === true
     node('automatic').disabled = busy || !status?.canInstall
     node('policy').hidden = !status?.canInstall
+    node('prompt-install').disabled = node('prompt-remind').disabled = busy
     node('check').disabled = busy || status?.canInstall === false || active.has(status?.phase)
     // One action for each: set the helper up, open Login Items for one macOS
     // holds back, restart one that is stuck, or register again one macOS refused.
@@ -46,12 +47,13 @@
     for (const listener of listeners) listener(status)
   }
 
-  const offer = () => {
-    if (!status?.notify || status.automatic || !status.canInstall || !status.availableVersion
-      || active.has(status.phase) || announced === status.availableVersion) return
+  const offer = (requested = false) => {
+    if (!status?.canInstall || !status.availableVersion || active.has(status.phase)) return
+    if (!requested && (!status.notify || status.automatic || announced === status.availableVersion)) return
     // Do not obscure another decision, such as connecting a team or signing in.
     if (document.querySelector('dialog[open]')) return
     announced = status.availableVersion
+    nc.updateNotes.reset({ ...status })
     node('prompt-body').textContent = text('promptBody', status.availableVersion)
     node('prompt-install').textContent = text('install', status.availableVersion)
     node('dialog').showModal()
@@ -92,7 +94,8 @@
   node('prompt-remind').textContent = text('remind')
   node('check').onclick = () => load({ operation: 'check' })
   node('setup').onclick = () => load({ operation: 'setup' })
-  node('install').onclick = node('prompt-install').onclick = () => load({ operation: 'install' })
+  node('install').onclick = () => offer(true)
+  node('prompt-install').onclick = () => load({ operation: 'install' })
   node('automatic').onchange = () => load({ operation: 'automatic', enabled: node('automatic').checked })
   node('prompt-remind').onclick = () => load({ operation: 'remind' })
   // Escape means the same durable 24-hour reminder as its labelled button.

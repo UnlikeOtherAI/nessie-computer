@@ -77,7 +77,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
             assert.equal(await page.locator('#software-updates').evaluate((element) => element.scrollWidth <= element.clientWidth), true)
           }
         }
-        await page.screenshot({ path: join(output, `${host}-${width}-${state}.png`), fullPage: true })
+        if (!process.argv.includes('--no-screenshots')) await page.screenshot({ path: join(output, `${host}-${width}-${state}.png`), fullPage: true })
         if (!before && state === 'bootstrap') {
           await page.getByText('Finish current work and stop older copies of Nessie Computer. Update setup will then finish automatically.',
             { exact: true }).waitFor()
@@ -106,6 +106,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         }
         if (!before && ['available', 'failed'].includes(state)) {
           await page.locator('#update-install').click()
+          await page.locator('#update-prompt-install').click()
           await page.getByText('Downloading version 1.0.1…', { exact: true }).waitFor()
           assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_update_control').at(-1).args),
             { request: { operation: 'install' } })
@@ -135,7 +136,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       await page.locator('#update-setup').waitFor()
       assert.equal(await page.locator('#update-policy').isVisible(), false)
       assert.equal(await page.locator('#update-check').isEnabled(), false)
-      await page.screenshot({ path: join(output, `macos-440-setup-${locale}.png`), fullPage: true })
+      if (!process.argv.includes('--no-screenshots')) await page.screenshot({ path: join(output, `macos-440-setup-${locale}.png`), fullPage: true })
       await page.evaluate(() => { window.updateSetupDenied = true })
       await page.locator('#update-setup').click()
       await page.locator('#update-error').waitFor()
@@ -153,7 +154,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       if (bootstrapOnly) {
         await page.waitForFunction(() => document.getElementById('update-status').textContent === window.nc.t('updates.bootstrap'))
         assert.equal(await page.locator('#software-updates').evaluate((element) => element.scrollWidth <= element.clientWidth), true)
-        await page.screenshot({ path: join(output, `windows-440-bootstrap-${locale}.png`), fullPage: true })
+        if (!process.argv.includes('--no-screenshots')) await page.screenshot({ path: join(output, `windows-440-bootstrap-${locale}.png`), fullPage: true })
         assert.deepEqual(errors, [])
         journeys++
         await context.close()
@@ -166,7 +167,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         const rect = button.getBoundingClientRect()
         return rect.top >= 0 && rect.bottom <= innerHeight
       }), true)
-      await page.screenshot({ path: join(output, `windows-440-prompt-${locale}.png`), fullPage: true })
+      if (!process.argv.includes('--no-screenshots')) await page.screenshot({ path: join(output, `windows-440-prompt-${locale}.png`), fullPage: true })
       await page.keyboard.press('Escape')
       await page.waitForFunction(() => !document.getElementById('update-dialog').open)
       assert.equal(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_update_control').at(-1).args.request.operation), 'remind')

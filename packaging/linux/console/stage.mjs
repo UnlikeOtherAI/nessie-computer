@@ -5,7 +5,7 @@ import { linuxSoftwarePage } from './page.mjs'
 export const stageLinuxConsole = async (root, resources) => {
   const destination = join(resources, 'console')
   await mkdir(destination, { recursive: true })
-  for (const file of ['style.css', 'i18n.js', 'help.js', 'updates.js', 'updates-words.js']) {
+  for (const file of ['style.css', 'i18n.js', 'help.js', 'update-notes.js', 'updates.js', 'updates-words.js']) {
     await copyFile(join(root, 'packages/executor-console', file), join(destination, file))
   }
   for (const file of ['app.py', 'native.js']) {

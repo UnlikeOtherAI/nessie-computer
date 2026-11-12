@@ -96,6 +96,7 @@ fn fixture() -> (
         .unwrap()
         .timestamp_millis() as u64;
     let store = Store::new(root.clone());
+    store.mutate_preferences(|preferences| { preferences.automatic = true; Ok(()) }).unwrap();
     store
         .mutate_journal(|journal| {
             journal.available_envelope = Some(envelope.clone());
