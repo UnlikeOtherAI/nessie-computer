@@ -108,6 +108,8 @@ test('build workflow cannot publish a release or silently produce an unsigned Ma
   assert.ok(workflow.includes("SIGNING_KEY: ${{ inputs.release_signing && secrets.EXECUTOR_REPOSITORY_SIGNING_KEY || '' }}"))
   assert.ok(workflow.includes("if: ${{ inputs.macos && github.ref == 'refs/heads/main' }}"))
   assert.match(workflow, /if: inputs.release_signing\s+uses: actions\/attest@v4/)
+  assert.ok(workflow.indexOf('run: node packaging/linux/verify-signing.mjs')
+    < workflow.indexOf('- name: Build and check executor'))
 })
 
 test('app manifests refuse moving URLs and retain the actual installed app versions', () => {

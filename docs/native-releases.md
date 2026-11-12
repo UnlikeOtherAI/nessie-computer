@@ -17,6 +17,9 @@ GitHub Release:
 
 Linux aliases also carry identical copies of their versioned detached `.asc` signatures.
 Build Linux packages on a Linux x86-64 host and verify them with the existing publisher key.
+A Linux-only publisher change requires rebuilding the Linux helper and packages.
+Retain verified macOS and Windows assets when their build inputs are unchanged;
+record each platform's exact source SHA in the release notes and manifests.
 
 Each alias also needs its own `.sha256` file: retain the same digest but name the
 alias inside the checksum file. Verify byte equality before upload and download
