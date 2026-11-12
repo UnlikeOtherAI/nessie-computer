@@ -17,6 +17,10 @@ GitHub Release:
 
 Linux aliases also carry identical copies of their versioned detached `.asc` signatures.
 Build Linux packages on a Linux x86-64 host and verify them with the existing publisher key.
+The repository install matrix covers Ubuntu 22.04/24.04, Debian 12 and Fedora.
+Rocky Linux 9 and AlmaLinux 9 lack the required `webkit2gtk4.1` package for
+local Settings and are not supported RPM targets. Keep the workflow matrix
+aligned with the distributions offered in the README and installation guides.
 A Linux-only publisher change requires rebuilding the Linux helper and packages.
 Retain verified macOS and Windows assets when their build inputs are unchanged;
 record each platform's exact source SHA in the release notes and manifests.
