@@ -124,6 +124,11 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 #software-updates h2, .settings-block h2 { font-size: 15px; }
 #software-updates p { margin: 0; }
 .update-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+#update-dialog[open] { display: flex; flex-direction: column; max-height: 80dvh; max-width: 80vw; box-sizing: border-box; }
+#update-notes-panel { overflow-y: auto; min-height: 0; overflow-wrap: anywhere; }
+#update-notes-panel[hidden] { display: none; }
+#update-notes-entries p { white-space: pre-wrap; }
+#update-dialog > :not(#update-notes-panel) { flex-shrink: 0; }
 #update-dialog button { min-height: 44px; }
 #update-dialog .actions { flex-wrap: wrap; }
 /*

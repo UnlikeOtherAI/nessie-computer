@@ -24,7 +24,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             format: 1,
-            automatic: true,
+            automatic: false,
             channel: Channel::Stable,
             reminded_version: None,
             remind_after: None,

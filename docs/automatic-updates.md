@@ -643,3 +643,40 @@ remain usable. Keep the former repository name unclaimed. Old installed updaters
 only recognise the former asset URLs: catalogue publication must retain that URL
 for a transition release until those installations have updated. Download links
 for people use the new repository.
+
+## GitHub publication and release notes
+
+Publishing an immutable `executor-vX.Y.Z` GitHub release queues the protected-main
+catalogue workflow. Stable releases select stable; prereleases select preview.
+Catalogue releases never trigger another publication. The publisher still checks
+main CI, the immutable release, versioned package digests and the complete stable
+platform set. It downloads only the versioned installers and Linux signatures,
+not their friendly download aliases or checksum files. The serialized publisher
+allocates the next signed sequence; retries reuse the existing version's archive,
+and a delayed older release cannot roll the channel backwards. Releases made by
+another workflow with `GITHUB_TOKEN` must explicitly dispatch
+`publish-update-catalog.yml` on main (GitHub does not emit downstream release
+workflows for that token). Manual dispatch also repairs a missed publication.
+
+All packages must report the catalogue's exact source revision after restart.
+The already-published 1.1.0 release has different Mac/Windows and Linux revisions;
+it is not eligible for this single-source catalogue. Do not rewrite it or relax
+runtime confirmation. Build the next release from one verified source revision.
+Existing stable acceptance gaps above remain release gates.
+
+Fresh installations check automatically but ask before installation. Existing
+saved preferences survive upgrades. Settings > Software updates and the new-version
+notification open the same decision dialog. Update starts the existing verified
+download, idle drain, installation and restart; Remind me in 24 hours keeps the
+current version. Automatic installation remains an explicit local setting.
+
+Show release notes expands the update dialog, like Nessie's main bundle update
+prompt. It lazily reads ten public GitHub releases per page and shows immutable
+Computer releases newer than the installed version and no newer than the offer.
+Stable excludes preview releases. Notes are English plain text, never executable
+HTML; controls use all seven console locales. Failed pages offer Retry without
+advancing; closing the dialog cancels the request. Notes use anonymous requests
+to api.github.com only, with bounded responses and deadlines. They carry no
+pairing or sign-in data and have no role in selecting or authorizing an install.
+The native updater remains the sole source of available versions. The dialog
+stays within 80% of the viewport with scrolling notes and visible decision buttons.
