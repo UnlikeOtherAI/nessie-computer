@@ -43,11 +43,11 @@ mod tests {
     use std::cmp::Ordering;
 
     #[test]
-    fn defaults_are_automatic_and_stable() {
+    fn defaults_ask_before_installing_stable_updates() {
         let preferences = Preferences::default();
-        assert!(preferences.automatic);
+        assert!(!preferences.automatic);
         assert_eq!(preferences.channel, Channel::Stable);
-        assert!(!should_notify(&preferences, "1.0.1", 100));
+        assert!(should_notify(&preferences, "1.0.1", 100));
     }
 
     #[test]

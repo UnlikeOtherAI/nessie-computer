@@ -414,6 +414,7 @@ mod tests {
     fn journal_progress_never_overwrites_a_concurrent_opt_out() {
         let directory = tempfile::tempdir().unwrap();
         let store = Store::new(directory.path().to_path_buf());
+        store.mutate_preferences(|preferences| { preferences.automatic = true; Ok(()) }).unwrap();
         assert!(store.preferences().unwrap().automatic);
         let mut journal = store.journal().unwrap();
         let mut preferences = store.preferences().unwrap();

@@ -126,7 +126,7 @@ mod tests {
     fn only_the_waiting_phase_is_bounded_and_the_first_drain_is_recorded_once() {
         let directory = tempfile::tempdir().unwrap();
         let store = Store::new(directory.path().to_path_buf());
-        let preferences = Preferences::default();
+        let preferences = Preferences { automatic: true, ..Preferences::default() };
         let mut journal = waiting(&"a".repeat(64));
         assert!(store.draining(&preferences, &journal, 50).unwrap());
         store.begin_drain(&preferences, &journal, 50).unwrap();
