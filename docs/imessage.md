@@ -19,10 +19,13 @@ who may send; this file owns what the Mac does. User guide:
   messages, signed by the machine key over the body without `signature` under
   `nessie.executor.daemon.imessage.v1`, admitted like a command poll. The
   answer lists the GUIDs Nessie holds and the switch as it stands.
-- **`imessage.send`** — `{ to, text }`; result `{ sent, to, messageGuid }` or a
-  refusal code naming its remedy (`IMESSAGE_OFF`,
+- **`imessage.send`** — `{ to, text }`; result `{ sent, to, messageGuid, from }`
+  or a refusal code naming its remedy (`IMESSAGE_OFF`,
   `IMESSAGE_NEEDS_FULL_DISK_ACCESS`, `IMESSAGE_NEEDS_AUTOMATION`,
-  `IMESSAGE_NOT_SIGNED_IN`, `IMESSAGE_SEND_FAILED`).
+  `IMESSAGE_NOT_SIGNED_IN`, `IMESSAGE_SENDS_FROM_OTHER_ADDRESS`,
+  `IMESSAGE_SEND_FAILED`, `IMESSAGE_SEND_UNCERTAIN`). The text is
+  `ExecutorIMessageSendTextSchema`: 1 to 4,000 UTF-16 code units, the schema
+  Nessie checks a Clients reply against before claiming it.
 
 - **The report** also carries the account's `addresses` (phone numbers first),
   read from `com.apple.madrid` › `IMD-IDS-Aliases` with `plutil`
@@ -33,11 +36,16 @@ who may send; this file owns what the Mac does. User guide:
   `clients` delivers the owner's own messages too (`fromMe`), so a Clients
   thread mirrors the chat; `assistant` delivers only other people's.
 - **`imessageOutbox`** in the heartbeat answer: Clients replies the owner
-  pressed Send on, each handed over once. The bridge sends each with the same
-  send `imessage.send` uses and reports at
-  `POST /api/executor-daemon/imessage/sent` (domain `imessage_sent`) until
-  Nessie settles it. A person's Send has no agent run, which every executor
-  command needs.
+  pressed Send on, each handed over once. A person's Send has no agent run,
+  which every executor command needs. The answer carries them loosely
+  (`ExecutorIMessageOutboxWireItemSchema`) so no reply can fail a heartbeat;
+  `imessage/imessage-replies.ts` checks each item alone and reports one it
+  cannot send as `refused`. It sends the rest with the same send
+  `imessage.send` uses and reports each outcome on its own at
+  `POST /api/executor-daemon/imessage/sent` (domain `imessage_sent`): `sent`,
+  `refused`, or `unknown` when Messages never answered and `chat.db` does not
+  show the message. An outcome Nessie does not take is reported again on every
+  heartbeat, up to 20 times, and holds back nothing else.
 
 States: `off`, `ready`, `needs_full_disk_access`, `needs_automation`,
 `messages_not_signed_in`, `sends_from_other_address` (Messages starts new
@@ -45,7 +53,10 @@ conversations from another address than the chosen one). A send Messages would
 make from another address — the chat's own for an existing chat, the
 new-conversation address otherwise — is refused before anything is sent
 (`IMESSAGE_SENDS_FROM_OTHER_ADDRESS`); a sent message reports the address
-`chat.db` recorded (`destination_caller_id`). The daemon never reports `ready` without having
+`chat.db` recorded (`destination_caller_id`). It fails closed: with no address
+chosen, or no evidence of where the send would leave from (no one-to-one chat
+history with that person and no chat the owner ever began on this Mac), it is
+refused with the same code and the remedy. The daemon never reports `ready` without having
 opened `chat.db` and heard Messages name an enabled iMessage account.
 
 ## Only a Mac
@@ -78,7 +89,11 @@ file's name); their bytes never leave the Mac.
 folder (`imessage.json`). A new `since` starts at the newest row dated before
 it, so switching on imports no history. Each pass reads 50 rows at a time, up
 to 40 pages, delivers what is due (on or after `since`, and at most seven days
-old), and moves the cursor only past a batch Nessie stored in full. A pass
+old), and moves the cursor only past a batch Nessie stored in full. A message
+with neither text nor an attachment yet — a photo before Messages has written
+its attachment row — stops the page before it while it is under two minutes
+old, so the next pass reads it again; one still empty after that is passed
+over. A pass
 runs when the Messages folder changes, every 30 seconds, when the switch turns
 on and when the owner resumes a paused team. A paused team reads nothing.
 
@@ -90,7 +105,10 @@ Error `-1743`/`-1744` is a refused Automation permission; `-1728` naming the
 account is a Messages without an enabled iMessage account. After the script
 returns, the bridge looks for the owner's new message to that address in
 `chat.db` for up to five seconds and returns its GUID, or null when it did not
-appear in time. Messages' own failure code on that row is a refusal.
+appear in time. Messages' own failure code on that row is a refusal. A script
+stopped before it answered (the timeout, or a kill) may still have sent:
+`chat.db` decides, and a message not found is `IMESSAGE_SEND_UNCERTAIN` —
+never a definite failure, never resent.
 
 ## Checks
 

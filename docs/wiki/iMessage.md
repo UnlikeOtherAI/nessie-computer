@@ -19,7 +19,9 @@ not offer it.
    pick an email) and where messages go: **Clients and my Personal Assistant**
    or **Only my Personal Assistant**. If Messages starts new conversations from
    another address, change **Start new conversations from** in Messages ›
-   Settings › iMessage, or choose that address in Nessie.
+   Settings › iMessage, or choose that address in Nessie. Nessie sends nothing
+   it cannot confirm will come from your chosen address: until Messages has
+   started a conversation from it on this Mac, start one there yourself.
 
 The Overview says which of these is still missing.
 
@@ -47,4 +49,7 @@ reading Messages within a second. Removing Full Disk Access or the Automation
 permission on the Mac also stops it, and Nessie shows what is missing.
 
 Full Disk Access applies to everything Nessie Computer runs on the Mac,
-including programs agents start there under your Access rules.
+including programs agents start there under your Access rules. If you share
+the Mac later, iMessage pauses, but macOS keeps the permission: while other
+people use the Mac through Nessie, turn off Full Disk Access for Nessie
+Computer, so nothing run for them can read your messages.
