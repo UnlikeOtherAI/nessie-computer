@@ -106,3 +106,12 @@ offerings are restricted. Each version becomes available under Apache 2.0 two
 years after its release. Bundled third-party components keep their own licences.
 
 Error and crash reporting uses the standard Sentry SDKs; see [configuration and verification](docs/error-reporting.md).
+
+Nessie Computer checks its signed GitHub update feed. In **Settings → Software
+updates**, review **Show release notes** before accepting an offered update.
+It downloads, waits for current work and restarts; your teams and settings stay
+on the computer. Fresh installations ask first. Existing automatic-update
+preferences are preserved. See [Settings and updates](docs/wiki/Settings-and-updates.md)
+for reminders and automatic installation. A published package becomes an offered
+update only after its signed catalogue is published; the current stable rollout
+limits are recorded in [automatic updates](docs/automatic-updates.md).

@@ -68,3 +68,16 @@ nessie-computer settings logs               # where the logs are
 `login` and `auto-restart` change the same two switches as this tab. On Linux,
 and on a Mac without the app, `auto-restart` sets each team's command-line
 service instead.
+
+### Read changes before updating
+
+Open **Settings → Software updates** and choose **Update to…**, or use the
+notification when a new version is available. **Show release notes** lists what
+changed in Nessie Computer since your installed version. **Load more** reads
+older releases; **Retry** tries a failed request again. Notes are written in English.
+
+Choose **Update to…** in the dialog to download the update. Nessie Computer waits
+for current work to finish, installs it and restarts. **Remind me in 24 hours**
+keeps your current version. New installations ask first; you can enable
+**Install updates automatically** in the same section. An existing saved choice
+is kept when you upgrade.

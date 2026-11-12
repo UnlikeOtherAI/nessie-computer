@@ -24,7 +24,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             format: 1,
-            automatic: true,
+            automatic: false,
             channel: Channel::Stable,
             reminded_version: None,
             remind_after: None,
@@ -414,6 +414,7 @@ mod tests {
     fn journal_progress_never_overwrites_a_concurrent_opt_out() {
         let directory = tempfile::tempdir().unwrap();
         let store = Store::new(directory.path().to_path_buf());
+        store.mutate_preferences(|preferences| { preferences.automatic = true; Ok(()) }).unwrap();
         assert!(store.preferences().unwrap().automatic);
         let mut journal = store.journal().unwrap();
         let mut preferences = store.preferences().unwrap();
@@ -445,5 +446,18 @@ mod tests {
         assert!(reopened.installation_enabled().unwrap());
         assert!(!reopened.preferences().unwrap().automatic);
         assert_eq!(reopened.journal().unwrap().pending.unwrap().digest, "a".repeat(64));
+    }
+}
+
+#[cfg(test)]
+mod preference_defaults {
+    #[test]
+    fn new_installations_ask_and_saved_choices_survive() {
+        assert!(!super::Preferences::default().automatic);
+        let mut saved = super::Preferences::default();
+        saved.automatic = true;
+        let bytes = serde_json::to_vec(&saved).unwrap();
+        let restored: super::Preferences = serde_json::from_slice(&bytes).unwrap();
+        assert!(restored.automatic);
     }
 }

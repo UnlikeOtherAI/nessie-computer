@@ -126,3 +126,6 @@ iMessage on a Mac — the read-only `chat.db` reader, the delivery cursor, `imes
 The public repository is `UnlikeOtherAI/nessie-computer`; CLI and documented command coverage use the public Turbo `test:cli` gate. Repository-rename update compatibility follows [automatic updates](docs/automatic-updates.md#repository-rename).
 The focused `test:session-local-pairing` Turbo gate covers shared local bridge
 enrollment fixtures under [original session authority](docs/original-session-authority.md).
+
+Published immutable version releases queue the protected-main signed catalogue;
+release-note display and ask-first defaults follow [GitHub publication](docs/automatic-updates.md#github-publication-and-release-notes).

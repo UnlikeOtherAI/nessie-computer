@@ -18,8 +18,8 @@ on:
         description: Full source revision compiled into those packages
         required: true
       sequence:
-        description: Catalogue sequence, higher than the channel's previous one
-        required: true
+        description: Optional sequence (otherwise advance the signed channel automatically)
+        required: false
 
 permissions:
   contents: write
@@ -54,8 +54,9 @@ jobs:
           fi
           mkdir -p "$RUNNER_TEMP/assets"
           gh release download "executor-v$VERSION" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/assets" \
-            --pattern '*.dmg' --pattern '*.msi' --pattern '*.deb' --pattern '*.rpm' \
-            --pattern '*.deb.asc' --pattern '*.rpm.asc'
+            --pattern "NessieExecutor_${VERSION}_*.dmg" --pattern "NessieExecutor_${VERSION}_*.msi" \
+            --pattern "nessie-executor_${VERSION}_*.deb" --pattern "nessie-executor_${VERSION}_*.rpm" \
+            --pattern "nessie-executor_${VERSION}_*.deb.asc" --pattern "nessie-executor_${VERSION}_*.rpm.asc"
       - name: Archive and publish the signed catalogue
         env:
           GH_TOKEN: ${{ github.token }}

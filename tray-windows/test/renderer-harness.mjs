@@ -15,6 +15,7 @@ import { chromium } from 'playwright-core'
 import { consoleFiles } from './renderer-host.mjs'
 import { verifyConsoleShell } from './console-renderer.mjs'
 import { captureConsoleBefore } from './console-before.mjs'
+import { verifyUpdateNotes } from './update-notes-renderer.mjs'
 import { verifySoftwareUpdates } from './updates-renderer.mjs'
 import { verifyUpdatesStuck } from './updates-stuck-renderer.mjs'
 import { verifyAccessTab } from './access-renderer.mjs'
@@ -35,6 +36,10 @@ const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
 const browser = await chromium.launch({ executablePath, headless: true })
 const files = [...consoleFiles.shell, ...consoleFiles.teamTabs]
 try {
+  if (only.includes('update-notes')) {
+    await verifyUpdateNotes(browser, ui, root, process.argv.includes('--no-screenshots') ? null : output)
+    process.exit(0)
+  }
   if (before) {
     await captureConsoleBefore(browser, root, before, join(output, 'before'))
     await captureDocumentsTeamsBefore(browser, root, before, join(output, 'before'))

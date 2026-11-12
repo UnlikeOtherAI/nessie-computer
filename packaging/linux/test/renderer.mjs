@@ -42,7 +42,7 @@ try {
           () => window.executorLinuxReply(message.id, null, true))
       } } } }
     })
-    const files = ['index.html', 'native.js', 'style.css', 'i18n.js', 'help.js', 'updates.js', 'updates-words.js']
+    const files = ['index.html', 'native.js', 'style.css', 'i18n.js', 'help.js', 'update-notes.js', 'updates.js', 'updates-words.js']
     await page.route('http://localhost:5878/**', async route => {
       const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
       assert.ok(files.includes(file))
@@ -52,7 +52,7 @@ try {
     await page.goto('http://localhost:5878/')
     await page.locator('#update-version').getByText('1.0.2', { exact: true }).waitFor()
     assert.equal(await page.locator('#update-automatic').isChecked(), true)
-    const capture = name => page.screenshot({ path: join(output, name + '-' + width + '.png'), fullPage: true })
+    const capture = name => process.argv.includes('--no-screenshots') ? Promise.resolve() : page.screenshot({ path: join(output, name + '-' + width + '.png'), fullPage: true })
     await capture('current')
     await page.locator('#update-automatic').uncheck()
     // The explanation sits behind "?" beside the switch and follows it.

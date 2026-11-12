@@ -77,6 +77,12 @@
   <dialog id="update-dialog" aria-labelledby="update-prompt-title" aria-describedby="update-prompt-body">
     <h2 id="update-prompt-title"></h2>
     <p id="update-prompt-body"></p>
+    <button id="update-notes-toggle" aria-expanded="false" aria-controls="update-notes-panel"></button>
+    <section id="update-notes-panel" hidden>
+      <div id="update-notes-entries"></div>
+      <p id="update-notes-status" role="status"></p>
+      <button id="update-notes-retry" hidden></button><button id="update-notes-more" hidden></button>
+    </section>
     <p id="update-prompt-error" class="update-error" role="alert" hidden></p>
     <div class="actions"><button id="update-prompt-remind"></button><button id="update-prompt-install" class="primary"></button></div>
   </dialog>
@@ -125,6 +131,7 @@
   <script src="pairing-words.js"></script>
   <script src="pairing.js"></script>
   <script src="updates-words.js"></script>
+  <script src="update-notes.js"></script>
   <script src="updates.js"></script>
   <script src="settings-words.js"></script>
   <script src="settings.js"></script>

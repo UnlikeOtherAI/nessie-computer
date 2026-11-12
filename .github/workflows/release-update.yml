@@ -1,0 +1,23 @@
+name: Offer published Computer update
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+  actions: write
+jobs:
+  queue:
+    if: startsWith(github.event.release.tag_name, 'executor-v')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Queue signed catalogue on protected main
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node packaging/updates/release-trigger.mjs

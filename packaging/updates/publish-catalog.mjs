@@ -5,7 +5,10 @@ import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { releaseVersion } from '../cli/release-plan.mjs'
-import { publishCatalog } from './catalog-history.mjs'
+import { catalogFloor, publishCatalog } from './catalog-history.mjs'
+
+import { EXECUTOR_UPDATE_PUBLIC_KEY } from '../../src/updates/trusted-key.ts'
+import { nextSequence } from './release-sequence.mjs'
 
 const repository = 'UnlikeOtherAI/nessie-computer'
 const execute = promisify(execFile)
@@ -82,11 +85,15 @@ async function main() {
   }
   const { CHANNEL: channel, VERSION: version, SOURCE_COMMIT: sourceCommit, SEQUENCE } = process.env
   releaseVersion(version)
-  const sequence = Number(SEQUENCE)
+  let sequence = SEQUENCE ? Number(SEQUENCE) : undefined
   if (!['stable', 'preview'].includes(channel) || !/^[a-f0-9]{40}$/u.test(sourceCommit ?? '')
-    || !Number.isSafeInteger(sequence) || sequence < 1) throw new Error('Invalid catalog release inputs.')
+    || sequence !== undefined && (!Number.isSafeInteger(sequence) || sequence < 1)) throw new Error('Invalid catalog release inputs.')
   const github = await githubCatalogPublisher(resolve(output))
   await github.assertSource(sourceCommit)
+  if (sequence === undefined) {
+    const current = catalogFloor(await github.readCatalog('update-catalog-' + channel), channel, EXECUTOR_UPDATE_PUBLIC_KEY)
+    sequence = nextSequence(current.manifest, version, sourceCommit)
+  }
   const result = await publishCatalog({ directory: resolve(assets), channel, version, sourceCommit, sequence,
     days: Number(process.env.VALID_DAYS ?? '30'), privateKey: process.env.EXECUTOR_UPDATE_SIGNING_KEY }, github)
   process.stdout.write('Published ' + result.archiveTag + '; SHA-256 ' + result.sha256
