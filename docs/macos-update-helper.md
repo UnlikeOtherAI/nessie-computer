@@ -59,6 +59,12 @@ accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not
 replace that factory from an older bundled runtime or reset removal intent.
 
+The helper installs both `nessie-computer` and the existing `nessie-executor`
+command in `/usr/local/bin` when that directory is Root-controlled. Each
+launcher is checked separately: an unrelated file or package-manager-owned
+prefix is preserved. Approving the helper is required before these commands
+can use the protected runtime.
+
 ## Completed daemon shutdown
 
 Application-runtime adoption can meet an older daemon whose shutdown finished

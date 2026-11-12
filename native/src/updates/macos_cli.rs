@@ -19,7 +19,16 @@ pub(super) fn install() -> UpdateResult<()> {
         if parent.exists() && admission_unix::directory(parent).is_err() { return Ok(()); }
         unix_runtime::directory(parent)?;
     }
-    let target = bin.join("nessie-executor");
+    install_launchers(bin)
+}
+
+fn install_launchers(bin: &Path) -> UpdateResult<()> {
+    for name in ["nessie-computer", "nessie-executor"] { install_launcher(bin, name)?; }
+    Ok(())
+}
+
+fn install_launcher(bin: &Path, name: &str) -> UpdateResult<()> {
+    let target = bin.join(name);
     let expected = launcher("current");
     match fs::symlink_metadata(&target) {
         Ok(entry) => {
@@ -39,11 +48,32 @@ pub(super) fn install() -> UpdateResult<()> {
     let mut random = [0_u8; 16];
     unsafe { libc::arc4random_buf(random.as_mut_ptr().cast(), random.len()); }
     let nonce: String = random.iter().map(|byte| format!("{byte:02x}")).collect();
-    let draft = bin.join(format!(".nessie-executor-{nonce}"));
+    let draft = bin.join(format!(".{name}-{nonce}"));
     let mut file = OpenOptions::new().write(true).create_new(true).mode(0o755)
         .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC).open(&draft).map_err(|_| ERROR)?;
     file.set_permissions(fs::Permissions::from_mode(0o755)).map_err(|_| ERROR)?;
     file.write_all(expected.as_bytes()).and_then(|()| file.sync_all()).map_err(|_| ERROR)?;
     fs::rename(draft, target).map_err(|_| ERROR)?;
     File::open(bin).and_then(|file| file.sync_all()).map_err(|_| ERROR)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn installs_both_commands_without_replacing_an_unrelated_launcher() {
+        let bin = tempfile::tempdir().unwrap();
+        install_launchers(bin.path()).unwrap();
+        for name in ["nessie-computer", "nessie-executor"] {
+            assert_eq!(fs::read_to_string(bin.path().join(name)).unwrap(), launcher("current"));
+            assert_eq!(fs::metadata(bin.path().join(name)).unwrap().mode() & 0o777, 0o755);
+        }
+        fs::write(bin.path().join("nessie-computer"), "unrelated package manager command").unwrap();
+        fs::remove_file(bin.path().join("nessie-executor")).unwrap();
+        install_launchers(bin.path()).unwrap();
+        assert_eq!(fs::read_to_string(bin.path().join("nessie-computer")).unwrap(),
+            "unrelated package manager command");
+        assert_eq!(fs::read_to_string(bin.path().join("nessie-executor")).unwrap(), launcher("current"));
+    }
 }
