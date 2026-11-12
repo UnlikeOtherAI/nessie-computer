@@ -11,8 +11,9 @@ use nessie_windows_common::unpair::{parse_unpair_output, unpair_arguments};
 
 use crate::{
     lease::unowned_daemon_is_stopping,
+    legacy_pairing::LegacyPairing,
     log::log_line,
-    paths::{executor_state_dir, executors_root, has_executor_state, pending_root, PAIRED_BY_FILE},
+    paths::{executor_state_dir, executors_root, has_executor_state, PAIRED_BY_FILE},
     protocol::PairCommand,
     supervisor::{parse_fingerprint, wait_bounded, Supervisor, COMMAND_TIMEOUT},
 };
@@ -131,7 +132,11 @@ impl Supervisor {
     ///
     /// Like Start, Stop and configuration, removal is open to every account
     /// the control pipe admits; the account that asked is recorded in the log.
-    pub fn remove(&mut self, executor_id: &str, requested_by: Option<&str>) -> Result<bool, String> {
+    pub fn remove(
+        &mut self,
+        executor_id: &str,
+        requested_by: Option<&str>,
+    ) -> Result<bool, String> {
         let state_dir = self.state_dir(executor_id)?;
         if !has_executor_state(&state_dir) {
             return Err("This team is not connected on this computer.".to_owned());
@@ -170,7 +175,11 @@ impl Supervisor {
         match fs::remove_file(state_dir.join(PAIRED_BY_FILE)) {
             Ok(()) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(_) => return Err("Nessie Computer could not forget who paired this connection.".to_owned()),
+            Err(_) => {
+                return Err(
+                    "Nessie Computer could not forget who paired this connection.".to_owned(),
+                )
+            }
         }
         match fs::remove_dir(state_dir) {
             Ok(()) => {}
@@ -179,7 +188,9 @@ impl Supervisor {
             // every list; files nobody named are left for a person to inspect.
             Err(_) => log_line(
                 &self.root,
-                &format!("executor {executor_id} was removed but its directory still holds other files"),
+                &format!(
+                    "executor {executor_id} was removed but its directory still holds other files"
+                ),
             ),
         }
         Ok(())
@@ -193,19 +204,59 @@ impl Supervisor {
         paired_by: Option<&str>,
         secure: impl Fn(&Path) -> Result<(), String>,
     ) -> Result<(String, String), String> {
-        let staging = pending_root(&self.root).join(&command.enrollment_id);
-        let _ = fs::remove_dir_all(&staging);
-        secure(&staging)?;
-        let output = self.run_pair(command, &staging).inspect_err(|_| {
-            let _ = fs::remove_dir_all(&staging);
-        })?;
-        let fingerprint = parse_fingerprint(&output).ok_or_else(|| {
-            "Pairing succeeded but returned no fingerprint.".to_owned()
-        })?;
-        Ok((self.promote(&staging, paired_by)?, fingerprint))
+        self.pair_with_timeout(command, paired_by, secure, COMMAND_TIMEOUT)
     }
 
-    fn run_pair(&self, command: &PairCommand, staging: &Path) -> Result<String, String> {
+    pub(crate) fn pair_with_timeout(
+        &mut self,
+        command: &PairCommand,
+        paired_by: Option<&str>,
+        secure: impl Fn(&Path) -> Result<(), String>,
+        timeout: std::time::Duration,
+    ) -> Result<(String, String), String> {
+        let attempt = LegacyPairing::open(&self.root, command, paired_by, &secure)?;
+        let completed = match attempt.completed()? {
+            Some(completed) => completed,
+            None => {
+                secure(&attempt.staging)?;
+                let output = self.run_pair(command, &attempt.staging, timeout)?;
+                let fingerprint = parse_fingerprint(&output)
+                    .ok_or_else(|| "Pairing succeeded but returned no fingerprint.".to_owned())?;
+                attempt.record(staged_executor_id(&attempt.staging)?, fingerprint)?
+            }
+        };
+        let destination = executor_state_dir(&self.root, &completed.executor_id)?;
+        if attempt.staging.exists() {
+            if staged_executor_id(&attempt.staging)? != completed.executor_id {
+                return Err("Pairing left no usable settings on this computer.".into());
+            }
+            self.promote(&attempt.staging, paired_by)?;
+        } else if !has_executor_state(&destination)
+            || fs::read_to_string(destination.join(PAIRED_BY_FILE))
+                .ok()
+                .as_deref()
+                .map(str::trim)
+                != paired_by
+        {
+            return Err("Pairing left no usable settings on this computer.".into());
+        }
+        // Promotion and its owner marker are durable before discarding the CLI
+        // request. A crash here is harmless: the completed service journal can
+        // replay the same result without creating another key or enrollment.
+        match fs::remove_file(destination.join("executor-pairing.json")) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err("Nessie Computer could not save the new team’s settings.".into()),
+        }
+        Ok((completed.executor_id, completed.fingerprint))
+    }
+
+    fn run_pair(
+        &self,
+        command: &PairCommand,
+        staging: &Path,
+        timeout: std::time::Duration,
+    ) -> Result<String, String> {
         let mut child = self
             .command()
             .args(pair_arguments(
@@ -217,60 +268,77 @@ impl Supervisor {
             .stdout(Stdio::piped())
             .spawn()
             .map_err(|_| "Nessie Computer could not start its packaged command.".to_owned())?;
-        let mut stdin = child.stdin.take().ok_or_else(|| {
-            "Nessie Computer could not provide the pairing challenge securely.".to_owned()
-        })?;
-        let input = serde_json::to_vec(&serde_json::json!({
-            "challenge": command.challenge,
-            "workspaceRoot": command.workspace_root,
-        }))
-        .map_err(|_| "Nessie Computer could not prepare the local pairing input.".to_owned())?;
-        stdin.write_all(&input).map_err(|_| {
-            "Nessie Computer could not provide the pairing challenge securely.".to_owned()
-        })?;
-        drop(stdin);
-        let outcome = wait_bounded(&mut child, COMMAND_TIMEOUT)?;
-        if outcome != Some(0) {
-            // A timed-out child can keep stdout open forever. Kill and reap it
-            // before reading, otherwise pairing can wedge the control pipe.
+        // Every failure, including stdin and process inspection errors, reaps
+        // this invocation before its service-side journal lock is released.
+        let result = (|| {
+            let mut stdin = child.stdin.take().ok_or_else(|| {
+                "Nessie Computer could not provide the pairing challenge securely.".to_owned()
+            })?;
+            let input = serde_json::to_vec(&serde_json::json!({
+                "challenge": command.challenge,
+                "workspaceRoot": command.workspace_root,
+            }))
+            .map_err(|_| "Nessie Computer could not prepare the local pairing input.".to_owned())?;
+            stdin.write_all(&input).map_err(|_| {
+                "Nessie Computer could not provide the pairing challenge securely.".to_owned()
+            })?;
+            drop(stdin);
+            let outcome = wait_bounded(&mut child, timeout)?;
+            if outcome != Some(0) {
+                // A timed-out child can keep stdout open forever. Kill and reap it
+                // before reading, otherwise pairing can wedge the control pipe.
+                return Err("Pairing was rejected. No pairing output was retained.".to_owned());
+            }
+            let mut output = String::new();
+            if let Some(mut stdout) = child.stdout.take() {
+                let _ = stdout.read_to_string(&mut output);
+            }
+            Ok(output)
+        })();
+        if result.is_err() {
             let _ = child.kill();
             let _ = child.wait();
-            return Err(
-                "Pairing was rejected. No pairing output was retained.".to_owned(),
-            );
         }
-        let mut output = String::new();
-        if let Some(mut stdout) = child.stdout.take() {
-            let _ = stdout.read_to_string(&mut output);
-        }
-        Ok(output)
+        result
     }
 
     /// Promotes the API-named staged pairing without ever overwriting an
     /// existing machine key.
-    pub(crate) fn promote(&self, staging: &Path, paired_by: Option<&str>) -> Result<String, String> {
-        let state: serde_json::Value = serde_json::from_slice(
-            &fs::read(staging.join(crate::paths::EXECUTOR_STATE_FILE))
-                .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?,
-        )
-        .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?;
-        let executor_id = state
-            .get("executorId")
-            .and_then(serde_json::Value::as_str)
-            .ok_or_else(|| "Pairing left no usable settings on this computer.".to_owned())?
-            .to_owned();
+    pub(crate) fn promote(
+        &self,
+        staging: &Path,
+        paired_by: Option<&str>,
+    ) -> Result<String, String> {
+        let executor_id = staged_executor_id(staging)?;
         let destination = executor_state_dir(&self.root, &executor_id)?;
         if destination.exists() {
             return Err("This team is already connected on this computer.".to_owned());
         }
         fs::create_dir_all(executors_root(&self.root))
             .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
-        fs::rename(staging, &destination)
-            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         if let Some(sid) = paired_by {
-            fs::write(destination.join(PAIRED_BY_FILE), format!("{sid}\n"))
+            let mut owner = fs::File::create(staging.join(PAIRED_BY_FILE))
+                .map_err(|_| "Nessie Computer could not record the pairing account.".to_owned())?;
+            owner
+                .write_all(format!("{sid}\n").as_bytes())
+                .and_then(|()| owner.sync_all())
                 .map_err(|_| "Nessie Computer could not record the pairing account.".to_owned())?;
         }
+        fs::rename(staging, &destination)
+            .map_err(|_| "Nessie Computer could not save the new team’s settings.".to_owned())?;
         Ok(executor_id)
     }
+}
+
+fn staged_executor_id(staging: &Path) -> Result<String, String> {
+    let state: serde_json::Value = serde_json::from_slice(
+        &fs::read(staging.join(crate::paths::EXECUTOR_STATE_FILE))
+            .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?,
+    )
+    .map_err(|_| "Pairing left no usable settings on this computer.".to_owned())?;
+    state
+        .get("executorId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| "Pairing left no usable settings on this computer.".to_owned())
 }

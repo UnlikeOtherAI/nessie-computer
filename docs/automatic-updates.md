@@ -578,6 +578,10 @@ recovery unchanged.
 
 ### Runtime admission and pairing control
 
+Both pipes have independent worker limits and request/reply deadlines; saturation
+expires without stopping the service. See [runtime durability](runtime-durability.md)
+for the lifetime contract and Windows fixtures.
+
 The pairing/control pipe `\\.\pipe\NessieExecutor` retains its existing
 Administrators and explicitly approved-account ACL. User-owned connections do
 not need a legacy service pairing or a repair grant to start. Their signed native

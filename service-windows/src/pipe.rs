@@ -1,37 +1,37 @@
 //! Separate pairing-control and runtime-admission channels, one JSON object per line.
 //!
-//! Each accepted connection is served on its own short-lived thread, and a fresh
-//! instance is created immediately, so a client that connects and then says
-//! nothing cannot wedge the service or lock out the tray. Every instance is
+//! Each channel has its own bounded worker budget and transport deadlines.
+//! An idle custody client cannot consume pairing-control workers. Every instance is
 //! created with a descriptor built from the accounts recorded *at that moment*,
 //! which is how an elevated grant takes effect without restarting the service.
 
 use std::{
-    io::{BufRead, BufReader, Read, Write},
-    mem::ManuallyDrop,
-    os::windows::{ffi::OsStrExt, io::FromRawHandle},
+    os::windows::ffi::OsStrExt,
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    time::{Duration, Instant},
 };
 
 use windows_sys::Win32::Foundation::{
-    CloseHandle, GetLastError, ERROR_PIPE_CONNECTED, HANDLE, INVALID_HANDLE_VALUE,
+    CloseHandle, GetLastError, ERROR_PIPE_CONNECTED, ERROR_PIPE_LISTENING, HANDLE,
+    INVALID_HANDLE_VALUE,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FlushFileBuffers, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
+    CreateFileW, FILE_ATTRIBUTE_NORMAL, OPEN_EXISTING, PIPE_ACCESS_DUPLEX,
 };
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE,
-    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
+    ConnectNamedPipe, CreateNamedPipeW, PIPE_NOWAIT, PIPE_READMODE_BYTE,
+    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE,
 };
 
 use crate::{
     control::Control,
     log::log_line,
     paths::{control_client_sids, control_clients_root},
+    pipe_transport::{Connection, Slots},
     protocol::{parse_request, Command, Response, MAX_REQUEST_BYTES},
     security::{connected_client_identity, current_user_sid_string, PipeSecurity, CLIENT_ACCESS},
 };
@@ -55,9 +55,10 @@ impl Scope {
     }
 }
 
-/// Big enough for the largest request the protocol accepts plus its answer, so
-/// a control call never blocks on the transport itself.
+/// Fixed per-instance buffers, independent of a client's declared input size.
 const PIPE_BUFFER_BYTES: u32 = 128 * 1024;
+const MAX_CONNECTIONS: usize = 16;
+const IO_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// The default time a client waits for an instance, in milliseconds. Only
 /// applies to a client that asks Windows to wait.
@@ -79,7 +80,7 @@ fn admitted_sids(root: &Path) -> Vec<String> {
     sids
 }
 
-fn create_instance(root: &Path, scope: Scope) -> Result<HANDLE, String> {
+fn create_instance(root: &Path, scope: Scope, name: &str) -> Result<Connection, String> {
     let own = current_user_sid_string()
         .map_err(|_| "Windows would not report the Nessie Computer account.".to_owned())?;
     let mut security = match scope {
@@ -89,12 +90,12 @@ fn create_instance(root: &Path, scope: Scope) -> Result<HANDLE, String> {
     let attributes = security.attributes();
     let handle = unsafe {
         CreateNamedPipeW(
-            wide(scope.name()).as_ptr(),
+            wide(name).as_ptr(),
             PIPE_ACCESS_DUPLEX,
-            // Byte mode with blocking reads, and never over the network: a DACL
+            // Byte mode with nonblocking I/O, and never over the network: a DACL
             // alone would still admit a domain account remotely.
-            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT | PIPE_REJECT_REMOTE_CLIENTS,
-            PIPE_UNLIMITED_INSTANCES,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            (MAX_CONNECTIONS + 1) as u32,
             PIPE_BUFFER_BYTES,
             PIPE_BUFFER_BYTES,
             PIPE_DEFAULT_TIMEOUT_MS,
@@ -104,21 +105,25 @@ fn create_instance(root: &Path, scope: Scope) -> Result<HANDLE, String> {
     if handle == INVALID_HANDLE_VALUE || handle.is_null() {
         return Err("Nessie Computer could not open its control channel.".to_owned());
     }
-    Ok(handle)
+    unsafe { Connection::from_handle(handle) }
+        .map_err(|_| "Nessie Computer could not open its control channel.".to_owned())
 }
 
-/// Reads one request line and writes one answer. The handle is closed here, and
-/// only here: `ManuallyDrop` keeps the `File` wrapper from closing it early,
-/// because a pipe must be flushed and disconnected first or the client can lose
-/// the answer it is still reading.
-fn serve_connection(handle: HANDLE, root: &Path, control: &Control, scope: Scope) {
-    let file = ManuallyDrop::new(unsafe { std::fs::File::from_raw_handle(handle as *mut _) });
-    let mut line = String::new();
-    let response = {
-        let mut reader = BufReader::new((&*file).take(MAX_REQUEST_BYTES as u64 + 1));
-        match reader.read_line(&mut line) {
-            Ok(0) | Err(_) => None,
-            Ok(_) => {
+/// Command execution keeps its existing bounds. Transport gets separate read
+/// and reply deadlines so a legitimate long-running command can still reply.
+fn serve_connection(
+    mut connection: Connection,
+    root: &Path,
+    control: &Control,
+    scope: Scope,
+    shutdown: &AtomicBool,
+    timeout: Duration,
+) {
+    let handle = connection.handle();
+    let response =
+        match connection.request(MAX_REQUEST_BYTES + 1, Instant::now() + timeout, shutdown) {
+            None => None,
+            Some(line) => {
                 // Windows can impersonate only after it has received a client
                 // message. Reading the line first makes this identity an
                 // authenticated fact rather than a best-effort pre-read.
@@ -153,17 +158,13 @@ fn serve_connection(handle: HANDLE, root: &Path, control: &Control, scope: Scope
                     Err(reason) => Response::error(reason),
                 })
             }
-        }
-    };
+        };
     if let Some(response) = response {
-        let mut writer = &*file;
-        let _ = writer.write_all(response.encode().as_bytes());
-        let _ = writer.flush();
-    }
-    unsafe {
-        FlushFileBuffers(handle);
-        DisconnectNamedPipe(handle);
-        CloseHandle(handle);
+        connection.reply(
+            response.encode().as_bytes(),
+            Instant::now() + timeout,
+            shutdown,
+        );
     }
 }
 
@@ -235,9 +236,7 @@ fn enroll_control_client(
     }
 }
 
-/// Unblocks a pending `ConnectNamedPipe` by connecting to it. The service's own
-/// account is admitted for exactly this, so a stop never waits on whether anyone
-/// happens to call.
+/// Wake-up retained for service callers; accept and transport also observe shutdown.
 pub fn poke() {
     for scope in [Scope::Control, Scope::Custody] {
         poke_channel(scope);
@@ -277,44 +276,98 @@ pub fn serve(root: PathBuf, control: Arc<Control>, shutdown: Arc<AtomicBool>) {
             custody_control,
             custody_shutdown,
             Scope::Custody,
+            Scope::Custody.name(),
+            IO_TIMEOUT,
         )
     });
-    serve_channel(root, control, Arc::clone(&shutdown), Scope::Control);
+    serve_channel(
+        root,
+        control,
+        Arc::clone(&shutdown),
+        Scope::Control,
+        Scope::Control.name(),
+        IO_TIMEOUT,
+    );
     shutdown.store(true, Ordering::SeqCst);
     poke();
     let _ = custody.join();
 }
 
-fn serve_channel(root: PathBuf, control: Arc<Control>, shutdown: Arc<AtomicBool>, scope: Scope) {
+fn serve_channel(
+    root: PathBuf,
+    control: Arc<Control>,
+    shutdown: Arc<AtomicBool>,
+    scope: Scope,
+    name: &str,
+    timeout: Duration,
+) {
+    let slots = Slots::new(MAX_CONNECTIONS);
+    let mut failed = false;
     while !shutdown.load(Ordering::SeqCst) {
-        let handle = match create_instance(&root, scope) {
-            Ok(handle) => handle,
+        let Some(permit) = slots.acquire() else {
+            std::thread::sleep(Duration::from_millis(10));
+            continue;
+        };
+        let connection = match create_instance(&root, scope, name) {
+            Ok(connection) => {
+                failed = false;
+                connection
+            }
             Err(reason) => {
-                log_line(&root, &reason);
-                shutdown.store(true, Ordering::SeqCst);
-                poke();
-                return;
+                if !failed {
+                    log_line(&root, &reason);
+                }
+                failed = true;
+                std::thread::sleep(Duration::from_millis(250));
+                continue;
             }
         };
-        let connected = unsafe { ConnectNamedPipe(handle, std::ptr::null_mut()) } != 0
-            || unsafe { GetLastError() } == ERROR_PIPE_CONNECTED;
-        if shutdown.load(Ordering::SeqCst) || !connected {
-            unsafe {
-                DisconnectNamedPipe(handle);
-                CloseHandle(handle);
+        let connected = loop {
+            if shutdown.load(Ordering::Acquire) {
+                break false;
             }
+            // In NOWAIT mode a successful call merely starts listening.
+            let listening =
+                unsafe { ConnectNamedPipe(connection.handle(), std::ptr::null_mut()) } != 0;
+            let error = if listening {
+                ERROR_PIPE_LISTENING
+            } else {
+                unsafe { GetLastError() }
+            };
+            match error {
+                ERROR_PIPE_CONNECTED => break true,
+                ERROR_PIPE_LISTENING => std::thread::sleep(Duration::from_millis(10)),
+                _ => break false,
+            }
+        };
+        if !connected {
             continue;
         }
         let served = Arc::clone(&control);
-        // `HANDLE` is a raw pointer and therefore not `Send`; it is a kernel
-        // handle valid in every thread of this process, and exactly one thread
-        // owns it from here to its `CloseHandle`.
-        let owned = handle as usize;
         let state_root = root.clone();
-        std::thread::spawn(move || serve_connection(owned as HANDLE, &state_root, &served, scope));
+        let stopped = Arc::clone(&shutdown);
+        // Dropping a failed spawn's closure releases both the handle and permit.
+        if std::thread::Builder::new()
+            .name("nessie-control".into())
+            .spawn(move || {
+                let _permit = permit;
+                serve_connection(connection, &state_root, &served, scope, &stopped, timeout);
+            })
+            .is_err()
+        {
+            log_line(
+                &root,
+                "Nessie Computer could not start a control worker; it will retry.",
+            );
+            std::thread::sleep(Duration::from_millis(250));
+        }
     }
 }
 
 #[cfg(test)]
 #[path = "pipe_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "pipe_lifecycle_tests.rs"]
+mod lifecycle_tests;

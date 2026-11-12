@@ -11,6 +11,9 @@ control from the command line.
 
 **Full guides:** [Nessie Computer wiki](https://github.com/UnlikeOtherAI/nessie-executor/wiki)
 
+For interrupted connections and pairing retries, start with
+[Troubleshooting](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Troubleshooting).
+
 ## Get started
 
 1. **Install it** on the computer the agents should use. Download the latest

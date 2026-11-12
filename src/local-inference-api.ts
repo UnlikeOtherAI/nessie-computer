@@ -20,9 +20,18 @@ const REQUEST_TIMEOUT_MS = 25_000
 type LocalInferenceApiFetch = (url: string, init: RequestInit) => Promise<Response>
 
 export type LocalInferenceAttemptLease = {
-  admission: LocalInferenceResourceAdmission | null
-  attempt: LocalInferenceAttemptRequest | null
-  dispatchFence: number | null
+  admission: LocalInferenceResourceAdmission
+  attempt: LocalInferenceAttemptRequest
+  dispatchFence: number
+} | {
+  /** Fenced replay settles the original admission without disclosing its request. */
+  admission: LocalInferenceResourceAdmission
+  attempt: Pick<LocalInferenceAttemptRequest, 'attemptId'>
+  dispatchFence: null
+} | {
+  admission: null
+  attempt: null
+  dispatchFence: null
 }
 
 export type LocalInferenceFrame = {

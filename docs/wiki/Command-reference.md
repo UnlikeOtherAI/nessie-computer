@@ -292,6 +292,10 @@ Lower-level commands the apps and services use. They take a team's state
 folder (`--state-dir`) and JSON on standard input or output. Their help is in
 `nessie-computer help plumbing`. Prefer the commands above in your own scripts.
 
+The legacy Windows service's enrollment-based `pair` command retains its
+prepared request until the service saves the connection. Retry with the same
+input and Windows account after an interrupted reply; see [Troubleshooting](Troubleshooting).
+
 `connect` checks that Nessie still accepts this computer for the team, registers
 its local model host, and exits; `serve` then keeps the connection open.
 

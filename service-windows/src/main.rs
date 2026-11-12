@@ -32,6 +32,7 @@ mod hyperv;
 mod install_modes;
 use nessie_windows_common::lease;
 mod log;
+mod legacy_pairing;
 use nessie_windows_common::runtime as manifest;
 use setup_report::Refusal;
 #[cfg(windows)]
@@ -40,6 +41,8 @@ mod custody_store;
 mod paths;
 #[cfg(windows)]
 mod pipe;
+#[cfg(windows)]
+mod pipe_transport;
 mod protocol;
 mod protocol_values;
 mod provenance;

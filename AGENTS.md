@@ -15,6 +15,8 @@ prerequisites. Windows source tests use the Debug native helper beside an
 unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
 claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
+Guard capacity, Windows pipe deadlines and legacy pairing recovery follow
+[runtime durability](docs/runtime-durability.md); use `test:runtime-durability` through the public Turbo graph.
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.

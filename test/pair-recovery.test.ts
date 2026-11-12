@@ -109,3 +109,34 @@ test('client-recovery: unfinished pairing rejects different enrollment input', a
     await rm(root, { force: true, recursive: true })
   }
 })
+
+test('service promotion keeps the signed preparation across successful CLI exits', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nessie-pair-promotion-'))
+  const workspaceRoot = join(root, 'workspace')
+  await mkdir(workspaceRoot)
+  const input: PairExecutorInput = { apiBaseUrl: 'https://api.example.test',
+    challenge: Buffer.alloc(32, 7).toString('base64url'), enrollmentId: '00000000-0000-4000-8000-000000000601',
+    stateDir: join(root, 'state'), workspaceFolders: [{ name: 'workspace', path: workspaceRoot }], retainPrepared: true }
+  let prepared: ExecutorPreparedPairing | null = null
+  const requests: ExecutorEnrollmentRequest[] = []
+  const states: ExecutorLocalState[] = []
+  const dependencies = {
+    clearPrepared: async () => assert.fail('Only the service may clear preparation after promotion'),
+    loadPrepared: async () => prepared,
+    savePrepared: async (_directory: string, value: ExecutorPreparedPairing) => { prepared = structuredClone(value) },
+    saveState: async (_directory: string, value: ExecutorLocalState) => { states.push(structuredClone(value)) },
+    submitEnrollment: async (_origin: string, request: ExecutorEnrollmentRequest) => {
+      requests.push(structuredClone(request))
+      return { executorId: '00000000-0000-4000-8000-000000000602', fingerprint: `sha256:${'2'.repeat(64)}` }
+    },
+  }
+  try {
+    const first = await pairExecutor(input, dependencies)
+    // The service can crash after the CLI saved state but before its stdout or
+    // staging directory was promoted. A new process submits the same proof.
+    assert.deepEqual(await pairExecutor(input, dependencies), first)
+    assert.deepEqual(requests[1], requests[0])
+    assert.equal(states[1]?.machinePrivateKey, states[0]?.machinePrivateKey)
+    assert.ok(prepared)
+  } finally { await rm(root, { force: true, recursive: true }) }
+})

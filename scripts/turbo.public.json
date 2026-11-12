@@ -106,6 +106,12 @@
         "DATABASE_URL",
         "TZ"
       ]
+    },
+    "//#test:runtime-durability": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

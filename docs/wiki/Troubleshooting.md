@@ -36,6 +36,15 @@ Codes work once and last 5 minutes. On the computer choose **Get a new code**.
 Check you're in the right team in Nessie, and on the right Nessie server if your
 organisation runs its own.
 
+### An older Windows service pairing lost its connection
+
+If you use the older enrollment-based service command, retry the same enrollment
+from the Windows account that started it, with the same server and workspace.
+Nessie Computer keeps its prepared request through a failed reply or restart;
+do not delete the pending pairing files. A different account or changed input
+cannot take over that attempt. The app's **Add another team** code dialog uses
+the separate [code-pairing flow](Add-a-team).
+
 ### A team shows "Team name not available yet"
 Nessie hasn't named that team on this computer yet. Nessie Computer asks for
 every team's name when it opens and every hour after, and keeps a name once it

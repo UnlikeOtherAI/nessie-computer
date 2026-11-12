@@ -37,7 +37,8 @@
     "test:windows-source": "node scripts/run-tests.mjs --test-concurrency=1 test/state-security.test.ts test/windows-source-state.test.ts test/coding-session-bridge.test.ts test/coding-session-containment.test.ts test/secret-destination.test.ts test/session-answer.test.ts test/session-requests-live.test.ts test/terminal-session.test.ts test/session-files.test.ts test/existing-claude-channel.test.ts test/state-store.test.ts test/guest-runtime.test.ts",
     "test:ai-connections": "node scripts/run-tests.mjs --test-concurrency=2 test/inference-endpoints.test.ts test/openai-local.test.ts test/local-model-server.test.ts test/chatgpt-profile-store.test.ts test/chatgpt-profile-authority.test.ts",
     "test:cli-engines": "node scripts/run-tests.mjs --test-concurrency=1 test/local-cli-engine.test.ts test/local-cli-engine-settings.test.ts test/deeptest-inference.test.ts test/local-inference-host.test.ts test/local-inference-supervisor.test.ts test/cli-help.test.ts",
-    "test:error-reporting": "node scripts/run-tests.mjs --test-concurrency=1 test/error-reporting.test.ts"
+    "test:error-reporting": "node scripts/run-tests.mjs --test-concurrency=1 test/error-reporting.test.ts",
+    "test:runtime-durability": "node scripts/run-tests.mjs --test-concurrency=1 test/personal-inference-guard.test.ts test/personal-inference-guard-capacity.test.ts test/pair-recovery.test.ts test/legacy-pair-cli.test.ts test/local-inference-host.test.ts test/local-inference-settlement.test.ts test/cli-help.test.ts test/index.test.ts test/pairing-code-cli.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

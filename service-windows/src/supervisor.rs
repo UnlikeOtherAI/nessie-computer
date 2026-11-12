@@ -470,3 +470,7 @@ impl Supervisor {
 #[cfg(test)]
 #[path = "supervisor_tests.rs"]
 mod supervisor_tests;
+
+#[cfg(all(test, windows))]
+#[path = "supervisor_pair_recovery_tests.rs"]
+mod pair_recovery_tests;

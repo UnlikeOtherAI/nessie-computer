@@ -1,25 +1,13 @@
 import {
-  createHash,
-  createPrivateKey,
-  createPublicKey,
-  generateKeyPairSync,
-  type KeyObject,
-  sign,
-} from 'node:crypto'
-
-import {
-  canonicalExecutorJson,
-  canonicalExecutorPayload,
   EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
-  ExecutorEnrollmentRequestSchema,
   ImplementedExecutorOperationKeySchema,
-  type ExecutorEnrollmentRequest,
   type ExecutorSignedDescriptor,
 } from '@nessie/executor-protocol'
 
-import { executorApi } from './api-client.js'
+import { pairEnrollment, type PairExecutorDependencies, type PairExecutorInput } from './pair-enrollment.js'
+export type { PairExecutorInput } from './pair-enrollment.js'
 import {
-  configuredCommandAllowlist, localCommandPolicyOf, pairedLocalCommandPolicy, parseLocalCommandPolicy,
+  configuredCommandAllowlist, localCommandPolicyOf, parseLocalCommandPolicy,
   type LocalCommandPolicy,
 } from './command-policy.js'
 import { websitesFor, type ExecutorConfigurationSettings } from './configuration-input.js'
@@ -31,18 +19,14 @@ import { verifyGuestRuntimeBundle } from './guest-runtime-bundle.js'
 import { detectExecutorHost, type ExecutorHost } from './host-platform.js'
 import { discoverLocalApps } from './local-app-discovery.js'
 import { composeLocalMcpServers, managedMcpOperations } from './local-mcp-apps.js'
-import { localMcpPolicyOf, MCP_OPERATION_KEYS, pairedLocalMcpPolicy } from './mcp-policy.js'
+import { localMcpPolicyOf, MCP_OPERATION_KEYS } from './mcp-policy.js'
 import { executorLocalMcpServerNames, type ExecutorLocalMcpServer } from './mcp-servers.js'
 import { verifyNativeHelperPath } from './native-helper.js'
 import {
-  clearExecutorPreparedPairing,
-  loadExecutorPreparedPairing,
-  saveExecutorPreparedPairing,
   saveExecutorState,
   type ExecutorBrowserSandboxConfig,
   type ExecutorCodexSandboxConfig,
   type ExecutorLocalState,
-  type ExecutorPreparedPairing,
 } from './state-store.js'
 import {
   assertExecutorWorkspaceFolderName,
@@ -52,17 +36,6 @@ import {
 } from './workspace-folders.js'
 import { configureWorkspaceFolderPath } from './workspace.js'
 import { assertWorkspaceMayChange } from './workspace-retirement.js'
-
-const rawEd25519PublicKey = (publicKey: KeyObject): string =>
-  publicKey.export({ format: 'der', type: 'spki' }).subarray(-32).toString('base64url')
-
-export type PairExecutorInput = {
-  apiBaseUrl: string
-  challenge: string
-  enrollmentId: string
-  stateDir: string
-  workspaceFolders: readonly ExecutorWorkspaceFolder[]
-}
 
 /**
  * Canonicalise every paired folder, then check the set as a whole. Both halves
@@ -425,129 +398,11 @@ export const configureExecutorCodexSandbox = async (
   return next
 }
 
-type PairExecutorDependencies = {
-  clearPrepared: (stateDir: string) => Promise<void>
-  loadPrepared: (stateDir: string) => Promise<ExecutorPreparedPairing | null>
-  savePrepared: (stateDir: string, prepared: ExecutorPreparedPairing) => Promise<void>
-  saveState: (stateDir: string, state: ExecutorLocalState) => Promise<void>
-  submitEnrollment: (
-    baseUrl: string,
-    request: ExecutorEnrollmentRequest,
-  ) => Promise<{ executorId: string; fingerprint: string }>
-}
-
-const pairExecutorDependencies: PairExecutorDependencies = {
-  clearPrepared: clearExecutorPreparedPairing,
-  loadPrepared: loadExecutorPreparedPairing,
-  savePrepared: saveExecutorPreparedPairing,
-  saveState: saveExecutorState,
-  submitEnrollment: executorApi.submitEnrollment,
-}
-
-const preparePairing = (
-  input: PairExecutorInput,
-  workspaceFolders: ExecutorWorkspaceFolder[],
-): ExecutorPreparedPairing => {
-  const keys = generateKeyPairSync('ed25519')
-  const machinePublicKey = rawEd25519PublicKey(keys.publicKey)
-  const descriptor = buildSignedDescriptor(
-    keys.privateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64url'),
-    { ...initialLocalPolicy, workspaceFolders: executorWorkspaceFolderNames(workspaceFolders) },
-  )
-  const digest = `sha256:${createHash('sha256')
-    .update(canonicalExecutorJson(descriptor.descriptor))
-    .digest('hex')}`
-  const request = ExecutorEnrollmentRequestSchema.parse({
-    challenge: input.challenge,
-    descriptor,
-    enrollmentId: input.enrollmentId,
-    machinePublicKey,
-    proof: sign(
-      null,
-      Buffer.from(canonicalExecutorPayload('nessie.executor.enrollment.v1', {
-        challenge: input.challenge,
-        descriptorDigest: digest,
-        enrollmentId: input.enrollmentId,
-        machinePublicKey,
-      })),
-      keys.privateKey,
-    ).toString('base64url'),
-  })
-  return {
-    apiBaseUrl: input.apiBaseUrl,
-    enrollmentId: input.enrollmentId,
-    machinePrivateKey: keys.privateKey.export({
-      format: 'der',
-      type: 'pkcs8',
-    }).toString('base64url'),
-    request,
-    workspaceFolders,
-  }
-}
-
-const assertPreparedPairingMatches = (
-  input: PairExecutorInput,
-  workspaceFolders: readonly ExecutorWorkspaceFolder[],
-  prepared: ExecutorPreparedPairing,
-): void => {
-  let storedPublicKey: string
-  try {
-    const privateKey = createPrivateKey({
-      format: 'der',
-      key: Buffer.from(prepared.machinePrivateKey, 'base64url'),
-      type: 'pkcs8',
-    })
-    storedPublicKey = rawEd25519PublicKey(createPublicKey(privateKey))
-  } catch {
-    throw new Error('This team’s pairing state contains an invalid private key.')
-  }
-  if (
-    prepared.apiBaseUrl !== input.apiBaseUrl
-    || prepared.enrollmentId !== input.enrollmentId
-    || prepared.request.enrollmentId !== prepared.enrollmentId
-    || prepared.request.challenge !== input.challenge
-    || prepared.request.machinePublicKey !== storedPublicKey
-    || !sameWorkspaceFolders(prepared.workspaceFolders, workspaceFolders)
-  ) {
-    throw new Error(
-      'This team’s folder contains a different unfinished pairing. '
-      + 'Complete that pairing before starting another.',
-    )
-  }
-}
-
 export const pairExecutor = async (
-  input: PairExecutorInput,
-  dependencies: PairExecutorDependencies = pairExecutorDependencies,
-): Promise<{ fingerprint: string }> => {
-  const workspaceFolders = await configureExecutorWorkspaceFolders(input.workspaceFolders)
-  let prepared = await dependencies.loadPrepared(input.stateDir)
-  if (prepared) {
-    assertPreparedPairingMatches(input, workspaceFolders, prepared)
-  } else {
-    prepared = preparePairing(input, workspaceFolders)
-    // No enrollment request may leave the host until its exact key and proof
-    // can survive a lost response or process restart.
-    await dependencies.savePrepared(input.stateDir, prepared)
-  }
-  const pending = await dependencies.submitEnrollment(prepared.apiBaseUrl, prepared.request)
-  const state: ExecutorLocalState = {
-    apiBaseUrl: prepared.apiBaseUrl,
-    commandPolicy: pairedLocalCommandPolicy(),
-    mcpPolicy: pairedLocalMcpPolicy(),
-    descriptor: {
-      ...initialLocalPolicy,
-      workspaceFolders: executorWorkspaceFolderNames(prepared.workspaceFolders),
-    },
-    executorId: pending.executorId,
-    machinePrivateKey: prepared.machinePrivateKey,
-    machinePublicKey: prepared.request.machinePublicKey,
-    workspaceFolders: prepared.workspaceFolders,
-  }
-  await dependencies.saveState(input.stateDir, state)
-  await dependencies.clearPrepared(input.stateDir)
-  return { fingerprint: pending.fingerprint }
-}
+  input: PairExecutorInput, dependencies?: PairExecutorDependencies,
+): Promise<{ fingerprint: string }> => pairEnrollment(
+  input, await configureExecutorWorkspaceFolders(input.workspaceFolders), initialLocalPolicy, dependencies,
+)
 
 export const signedDescriptorForState = (state: ExecutorLocalState): ExecutorSignedDescriptor =>
   buildSignedDescriptor(state.machinePrivateKey, state.descriptor)

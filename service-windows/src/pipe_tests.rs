@@ -217,10 +217,12 @@ fn runtime_pipe_rejects_pairing_and_status_before_reaching_control() {
                     == windows_sys::Win32::Foundation::ERROR_PIPE_CONNECTED;
             assert!(connected);
             serve_connection(
-                server,
+                unsafe { crate::pipe_transport::Connection::from_handle(server).unwrap() },
                 &served_root,
                 &Control::Refused("test readiness refusal".into()),
                 Scope::Custody,
+                &std::sync::atomic::AtomicBool::new(false),
+                std::time::Duration::from_secs(2),
             );
         });
         let mut client = unsafe { fs::File::from_raw_handle(client.cast()) };

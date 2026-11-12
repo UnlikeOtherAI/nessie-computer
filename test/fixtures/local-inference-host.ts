@@ -138,9 +138,9 @@ export const apiFor = (
         capacity: 1, controlRevision: 1, paused: false, resourceId: RESOURCE_ID, healthReason: null,
       }),
       accept: async (control) => { calls.accepts.push(control); return { state: 'active' } },
-      claim: async () => ({
-        admission: lease ? ADMISSION : null, attempt: lease, dispatchFence: lease === null ? null : dispatchFence,
-      }),
+      claim: async () => lease === null
+        ? { admission: null, attempt: null, dispatchFence: null }
+        : { admission: ADMISSION, attempt: lease, dispatchFence },
       frame: (frame) => { calls.frames.push({ frame }) },
       heartbeat: async (heartbeat) => {
         calls.heartbeats.push({ heartbeat })

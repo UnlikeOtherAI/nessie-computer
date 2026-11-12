@@ -6,6 +6,8 @@
  * session or per agent (`builtin-mcp-cli.ts`) never load the daemon.
  */
 import { dirname } from 'node:path'
+import { acquireExecutorProcessLease } from './process-lease.js'
+import { ensureOwnerOnlyStateDirectory } from './state-security.js'
 import { setExistingSessionsEnabled } from './existing-session/settings.js'
 
 import { claimExecutor, heartbeatExecutor } from './daemon.js'
@@ -204,13 +206,16 @@ export const run = async (args: string[]): Promise<void> => {
         challenge: command.challenge ?? await readPairingChallenge(),
         workspaceFolders: command.workspaceFolders!,
       }
-    const paired = await pairExecutor({
-      ...command,
-      ...input,
-    })
-    process.stdout.write(
-      `Pairing request submitted. Confirm fingerprint ${paired.fingerprint} in Nessie, then run connect.\n`,
-    )
+    await ensureOwnerOnlyStateDirectory(command.stateDir)
+    const lease = await acquireExecutorProcessLease(command.stateDir, 'pairing-operation.pid')
+    try {
+      const paired = await pairExecutor({ ...command, ...input,
+        retainPrepared: process.platform === 'win32' && process.env.NESSIE_EXECUTOR_SUPERVISOR === 'service',
+      })
+      process.stdout.write(
+        `Pairing request submitted. Confirm fingerprint ${paired.fingerprint} in Nessie, then run connect.\n`,
+      )
+    } finally { await lease.release() }
     return
   }
   if (command.kind === 'enable') {
