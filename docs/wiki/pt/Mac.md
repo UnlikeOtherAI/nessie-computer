@@ -2,7 +2,7 @@
 
 [Instalar o Nessie Computer](Install-Nessie-Computer.md)
 
-[Transferências: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Transferências: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Requer Apple silicon e macOS 15 ou posterior. Abra o DMG, arraste o Nessie Computer para Aplicações e abra-o. Quando solicitado, permita o serviço auxiliar em segundo plano nas Definições do Sistema.
 

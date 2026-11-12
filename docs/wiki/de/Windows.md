@@ -2,7 +2,7 @@
 
 [Nessie Computer installieren](Install-Nessie-Computer.md)
 
-[Downloads: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Downloads: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Erfordert Windows 10 22H2 oder neuer, x64. Öffnen Sie die MSI-Datei, bestätigen Sie die Installation und öffnen Sie Nessie Computer über Start. Das Symbol kann bei den ausgeblendeten Symbolen im Infobereich liegen.
 

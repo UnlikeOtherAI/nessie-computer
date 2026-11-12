@@ -2,7 +2,7 @@
 
 [Установка Nessie Computer](Install-Nessie-Computer.md)
 
-[Загрузки: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Загрузки: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Требуются Apple silicon и macOS 15 или новее. Откройте DMG, перетащите Nessie Computer в «Программы» и запустите. По запросу разрешите вспомогательную фоновую службу в системных настройках.
 

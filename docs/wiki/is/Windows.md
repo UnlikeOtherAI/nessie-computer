@@ -2,7 +2,7 @@
 
 [Setja upp Nessie Computer](Install-Nessie-Computer.md)
 
-[Niðurhal: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Niðurhal: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Krefst Windows 10 22H2 eða nýrra, x64. Opnaðu MSI-skrána, samþykktu uppsetningu og opnaðu Nessie Computer úr Start. Táknið gæti verið meðal falinna tákna á tilkynningasvæðinu.
 

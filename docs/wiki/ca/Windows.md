@@ -2,7 +2,7 @@
 
 [Instal·lar Nessie Computer](Install-Nessie-Computer.md)
 
-[Baixades: `NessieExecutor_1.1.0_x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Baixades: `Nessie-Computer-Windows-x64.msi`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi)
 
 Cal Windows 10 22H2 o posterior, x64. Obriu el MSI, autoritzeu la instal·lació i obriu Nessie Computer des d’Inici. La icona pot ser entre les icones ocultes de l’àrea de notificació.
 

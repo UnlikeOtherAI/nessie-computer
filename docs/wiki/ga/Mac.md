@@ -2,7 +2,7 @@
 
 [Suiteáil Nessie Computer](Install-Nessie-Computer.md)
 
-[Íoslódálacha: `NessieExecutor_1.1.0_arm64.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases)
+[Íoslódálacha: `Nessie-Computer-macOS-Apple-Silicon.dmg`](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg)
 
 Teastaíonn Apple silicon agus macOS 15 nó níos nuaí. Oscail an DMG, tarraing Nessie Computer chuig Applications agus oscail é. Ceadaigh an tseirbhís chúnta sa chúlra i Socruithe an Chórais nuair a iarrtar ort.
 
