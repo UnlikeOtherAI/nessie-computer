@@ -54,12 +54,14 @@ Needs an x86-64 computer with systemd. There are packages for Debian and
 Ubuntu (`.deb`) and Fedora (`.rpm`). On Linux you use the
 [command line](Command-line.md); a small settings window for updates is included.
 
+[Debian / Ubuntu (.deb)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.deb) · [Fedora (.rpm)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.rpm)
+
 ```sh
 # Debian, Ubuntu
-sudo apt install ./nessie-executor_<version>_amd64.deb
+sudo apt install ./Nessie-Computer-Linux-x64.deb
 
 # Fedora
-sudo dnf install ./nessie-executor_<version>_x86_64.rpm
+sudo dnf install ./Nessie-Computer-Linux-x64.rpm
 ```
 
 Each package has a detached signature (`.asc`). The Linux publisher

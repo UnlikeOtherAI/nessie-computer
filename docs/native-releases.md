@@ -12,6 +12,11 @@ GitHub Release:
 | --- | --- |
 | `NessieExecutor_<version>_arm64.dmg` | `Nessie-Computer-macOS-Apple-Silicon.dmg` |
 | `NessieExecutor_<version>_x64.msi` | `Nessie-Computer-Windows-x64.msi` |
+| `nessie-executor_<version>_amd64.deb` | `Nessie-Computer-Linux-x64.deb` |
+| `nessie-executor_<version>_x86_64.rpm` | `Nessie-Computer-Linux-x64.rpm` |
+
+Linux aliases also carry identical copies of their versioned detached `.asc` signatures.
+Build Linux packages on a Linux x86-64 host and verify them with the existing publisher key.
 
 Each alias also needs its own `.sha256` file: retain the same digest but name the
 alias inside the checksum file. Verify byte equality before upload and download

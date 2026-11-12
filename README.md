@@ -20,7 +20,7 @@ control from the command line.
    |---|---|---|
    | Mac | [Download for Apple silicon](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg) | Apple silicon (M1 or newer), macOS 15 or later |
    | Windows | [Download for Windows x64](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi) | Windows 10 or 11, 64-bit |
-   | Linux | `.deb` (Debian, Ubuntu) or `.rpm` (Fedora) | x86-64 |
+   | Linux | [Debian / Ubuntu (.deb)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.deb) · [Fedora (.rpm)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.rpm) | x86-64 |
 
    Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Install-Nessie-Computer.md)
 
