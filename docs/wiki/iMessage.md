@@ -1,8 +1,8 @@
 # iMessage
 
 On a Mac, Nessie Computer can bring the iMessages that reach Messages into
-Nessie, and agents can send iMessages as you. Windows and Linux computers do
-not offer it.
+Nessie, and your Personal Assistant can send iMessages as you. Windows and
+Linux computers do not offer it.
 
 ## Turn it on
 
@@ -37,10 +37,11 @@ The Overview says which of these is still missing.
 - Texts relayed from an iPhone (SMS and RCS) are not brought in.
 - While the Mac is off, asleep or paused, new messages wait on the Mac and come
   in when it is back, up to seven days later.
-- Agents assigned to the Mac send an iMessage only when you ask them in your
-  own conversation. The first message to somebody who has not written to you
-  waits for your approval. If the Mac is off, asleep or paused, sending fails
-  at once.
+- Only your Personal Assistant reads and sends your iMessages; no other agent
+  assigned to the Mac can, whoever asks. It sends only when you ask it in your
+  own conversation, while it is added to the Mac on the Mac's **Agents** tab in
+  Nessie. The first message to somebody who has not written to you waits for
+  your approval. If the Mac is off, asleep or paused, sending fails at once.
 
 ## Turn it off
 

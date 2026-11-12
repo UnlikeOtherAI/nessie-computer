@@ -6,8 +6,9 @@ import { TimestampSchema } from './schema-primitives.js'
  * iMessage on a Mac (docs/imessage.md). While the owner of a private macOS
  * computer has switched iMessage on in Nessie, the daemon reads the iMessages
  * that reach that Mac's Messages app from `~/Library/Messages/chat.db` and
- * hands them to Nessie, and an agent acting for that owner may send one
- * through Messages (`imessage.send`). Nothing here is offered on Windows or
+ * hands them to Nessie, and the owner's own Personal Assistant — no other
+ * agent — may send one through Messages (`imessage.send`); Nessie decides
+ * which agent holds it. Nothing here is offered on Windows or
  * Linux: the daemon never reports the field there, and Nessie never shows it.
  *
  * Three facts decide whether it works, and each is somebody else's:
