@@ -66,4 +66,6 @@ export const seedChats = (database: Database): void => {
     .run('iMessage;-;+447700900001', 45, '+447700900001', 'iMessage', '')
   database.prepare('INSERT INTO chat (guid, style, chat_identifier, service_name, display_name) VALUES (?, ?, ?, ?, ?)')
     .run('iMessage;+;chat123', 43, 'chat123', 'iMessage', 'Climbing')
+  // Who is in each chat, as Messages records it: Alice alone, then both in the group.
+  database.exec('INSERT INTO chat_handle_join (chat_id, handle_id) VALUES (1, 1), (2, 1), (2, 2)')
 }
