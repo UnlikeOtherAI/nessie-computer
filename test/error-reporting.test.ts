@@ -35,6 +35,9 @@ test('the real CLI reports failed commands without reporting ordinary use or cha
   await mkdir(scratch, { recursive: true })
   const state = await mkdtemp(resolve(scratch, 'nessie-reporting-'))
   try {
+    const version = await invoke(['--version'], dsn)
+    assert.equal(version.code, 0, version.stderr)
+    assert.ok(version.stdout.length > 0)
     const help = await invoke(['--help'], dsn)
     assert.equal(help.code, 0, help.stderr)
     assert.ok(help.stdout.length > 0)
