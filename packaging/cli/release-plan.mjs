@@ -2,7 +2,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export const REPOSITORY = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
-export const RELEASES = 'https://github.com/UnlikeOtherAI/nessie-executor/releases'
+export const RELEASES = 'https://github.com/UnlikeOtherAI/nessie-computer/releases'
 export const PACKAGE_SITE = 'https://packages.nessie.works'
 
 export const releaseVersion = (value = process.env.NESSIE_EXECUTOR_VERSION) => {

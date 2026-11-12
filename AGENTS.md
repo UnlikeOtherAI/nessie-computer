@@ -86,3 +86,5 @@ Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 Standard crash/error SDKs, release configuration and verification limits follow [error reporting](docs/error-reporting.md).
 
 iMessage on a Mac — the read-only `chat.db` reader, the delivery cursor, `imessage.send` through AppleScript argv and the macOS-only operation — follows [iMessage](docs/imessage.md); Windows and Linux never offer or report it.
+
+The public repository is `UnlikeOtherAI/nessie-computer`; CLI and documented command coverage use the public Turbo `test:cli` gate. Repository-rename update compatibility follows [automatic updates](docs/automatic-updates.md#repository-rename).

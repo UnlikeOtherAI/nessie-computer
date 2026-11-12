@@ -124,6 +124,12 @@
         "^build"
       ],
       "cache": false
+    },
+    "//#test:cli": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

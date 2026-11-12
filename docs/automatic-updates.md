@@ -1,7 +1,7 @@
 # Automatic executor updates
 
 Status: **preview published; stable acceptance incomplete**. Immutable release
-[1.0.12](https://github.com/UnlikeOtherAI/nessie-executor/releases/tag/executor-v1.0.12)
+[1.0.12](https://github.com/UnlikeOtherAI/nessie-computer/releases/tag/executor-v1.0.12)
 contains signed Windows x64 MSI, Apple-silicon DMG and Linux x64 DEB/RPM packages
 from `e799a7aa3dc53d8430a925ba3027b2039adca7ae`. Anonymous downloads matched
 all recorded hashes and sizes on 8 November 2026, including both Linux detached
@@ -633,3 +633,13 @@ delete custody evidence or clear the transaction to make installation proceed.
 The source regression covers absent state in 0775 homes, existing unsafe state,
 owner mismatch and dangling state/home symlinks. Signed installed recovery
 remains pending.
+
+## Repository rename
+
+Source and new releases live in `UnlikeOtherAI/nessie-computer`. GitHub redirects
+the former repository URL. Signature verification accepts only these two exact
+repository names for immutable versioned assets, so previously signed catalogues
+remain usable. Keep the former repository name unclaimed. Old installed updaters
+only recognise the former asset URLs: catalogue publication must retain that URL
+for a transition release until those installations have updated. Download links
+for people use the new repository.

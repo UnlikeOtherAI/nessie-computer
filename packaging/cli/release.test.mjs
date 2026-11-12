@@ -58,7 +58,7 @@ test('publication rejects verification keys, altered payloads and mismatched sou
       assert.equal(command, 'gh')
       assert.equal(args[args.indexOf('--source-ref') + 1], 'refs/heads/main')
       assert.equal(args[args.indexOf('--source-digest') + 1], candidate.commit)
-      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/nessie-executor/.github/workflows/executor-cli.yml')
+      assert.equal(args[args.indexOf('--signer-workflow') + 1], 'UnlikeOtherAI/nessie-computer/.github/workflows/executor-cli.yml')
       assert.ok(args.includes('--deny-self-hosted-runners'))
     })
     assert.equal(attested.commit, candidate.commit)
@@ -131,7 +131,7 @@ test('standalone manifests use public releases while Desktop companions retain t
   const source = 'a'.repeat(40)
   assert.equal(stableAppTag('executor-v1.0.0'), 'executor-v1.0.0')
   const input = { app: 'executor', version: '1.0.0', tag: 'executor-v1.0.0', sha256: 'b'.repeat(64) }
-  assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.0/'))
+  assert.ok(appCask(input).includes('UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.0/'))
   assert.match(appCask(input), /name "Nessie Computer"[\s\S]*app "Nessie Executor\.app"/)
   assert.ok(appCask({ ...input, tag: 'v1.0.0', releaseRepository: 'UnlikeOtherAI/Nessie' })
     .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
@@ -140,5 +140,5 @@ test('standalone manifests use public releases while Desktop companions retain t
   assert.ok(manifests['UnlikeOtherAI.NessieExecutor.installer.yaml']
     .includes('UnlikeOtherAI/Nessie/releases/download/v1.0.0/'))
   assert.ok(manifests['UnlikeOtherAI.NessieExecutor.locale.en-US.yaml']
-    .includes(`UnlikeOtherAI/nessie-executor/blob/${source}/LICENSE`))
+    .includes(`UnlikeOtherAI/nessie-computer/blob/${source}/LICENSE`))
 })

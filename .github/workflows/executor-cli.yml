@@ -1,4 +1,4 @@
-name: Build Executor CLI
+name: Build Nessie Computer CLI
 
 on:
   workflow_dispatch:
@@ -113,7 +113,8 @@ jobs:
       - name: Smoke-test installed DEB
         run: |
           apt-get install -y ./dist/executor-cli/*.deb
-          test "$(nessie-executor --version)" = "nessie-executor $NESSIE_EXECUTOR_VERSION"
+          test "$(nessie-computer --version)" = "nessie-computer $NESSIE_EXECUTOR_VERSION"
+          test "$(nessie-executor --version)" = "nessie-computer $NESSIE_EXECUTOR_VERSION"
           nessie-executor teams --json --state-root "$RUNNER_TEMP/empty-state"
           systemd-analyze verify /usr/lib/systemd/user/nessie-executor@.service
       - name: Attest production candidate

@@ -12,7 +12,7 @@ test('accepts the Mac DMG target the native updater installs', () => {
     sourceCommit: 'a'.repeat(40), publishedAt: new Date(now).toISOString(),
     expiresAt: new Date(now + 86_400_000).toISOString(), minimumUpdaterProtocol: 1,
     targets: { 'darwin-arm64-dmg': [{ name: 'NessieExecutor_0.9.1_arm64.dmg', size: 1, sha256: 'b'.repeat(64),
-      url: 'https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v0.9.1/NessieExecutor_0.9.1_arm64.dmg' }] } }))
+      url: 'https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v0.9.1/NessieExecutor_0.9.1_arm64.dmg' }] } }))
   const envelope = JSON.stringify({ payload: payload.toString('base64'),
     signature: sign(null, payload, key.privateKey).toString('base64') })
   const checked = verifyUpdateManifest(envelope, key.publicKey.export({ type: 'spki', format: 'pem' }) as string,

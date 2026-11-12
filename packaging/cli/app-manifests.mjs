@@ -12,7 +12,7 @@ const digest = (value) => {
 }
 
 const releaseBase = (repository) => {
-  if (!['UnlikeOtherAI/nessie-executor', 'UnlikeOtherAI/Nessie'].includes(repository)) {
+  if (!['UnlikeOtherAI/nessie-computer', 'UnlikeOtherAI/Nessie'].includes(repository)) {
     throw new Error('Choose an official executor or Desktop release repository.')
   }
   return `https://github.com/${repository}/releases`
@@ -29,7 +29,7 @@ export const appCask = ({ app, version, tag, sha256, releaseRepository }) => {
   // The bundle keeps its folder name: updates and custody find it there.
   const bundle = executor ? 'Nessie Executor' : 'Nessie'
   const asset = executor ? 'Nessie-Executor-macOS-Apple-Silicon.dmg' : 'Nessie-macOS-Apple-Silicon.dmg'
-  const releases = releaseBase(releaseRepository ?? (executor ? 'UnlikeOtherAI/nessie-executor' : 'UnlikeOtherAI/Nessie'))
+  const releases = releaseBase(releaseRepository ?? (executor ? 'UnlikeOtherAI/nessie-computer' : 'UnlikeOtherAI/Nessie'))
   return `cask "${token}" do
   version "${version}"
   sha256 "${sha256.toLowerCase()}"
@@ -66,7 +66,7 @@ PublisherUrl: https://nessie.works
 PackageName: Nessie Computer
 PackageUrl: https://nessie.works/docs/executor-setup
 License: FSL-1.1-ALv2
-LicenseUrl: https://github.com/UnlikeOtherAI/nessie-executor/blob/${licenseRevision}/LICENSE
+LicenseUrl: https://github.com/UnlikeOtherAI/nessie-computer/blob/${licenseRevision}/LICENSE
 ShortDescription: Connect your computer to Nessie with local per-team permissions.
 Moniker: nessie-computer
 ManifestType: defaultLocale
