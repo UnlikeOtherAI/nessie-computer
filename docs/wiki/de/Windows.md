@@ -8,7 +8,7 @@ Erfordert Windows 10 22H2 oder neuer, x64. Öffnen Sie die MSI-Datei, bestätige
 
 Fügen Sie den Computer mit dem Code aus der App dem gewünschten Team in Nessie hinzu. Prüfen Sie die Zugriffsrechte, bevor Agenten arbeiten.
 
-Prüfe vor der Bestätigung, dass der Herausgeber **UnlikeOtherAI s.r.o.** ist. Öffne nach der Installation ein neues PowerShell-Fenster und prüfe den installierten Befehl:
+Prüfen Sie vor der Bestätigung, dass der Herausgeber **UnlikeOtherAI s.r.o.** ist. Öffnen Sie nach der Installation ein neues PowerShell-Fenster und prüfen Sie den installierten Befehl:
 
 ```powershell
 nessie-computer --version
