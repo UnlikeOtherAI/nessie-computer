@@ -31,16 +31,23 @@ const PROBE_SCRIPT = [
 ]
 
 export type ScriptOutcome = { ok: true; output: string } | { ok: false; failure: MessagesFailure; detail: string }
-/** `automation`: control of Messages refused. `account`: no enabled iMessage account. */
-export type MessagesFailure = 'automation' | 'account' | 'failed'
+/**
+ * `automation`: control of Messages refused. `account`: no enabled iMessage
+ * account. `unknown`: the script was stopped before it answered (the timeout,
+ * or a kill), so Messages may or may not have acted on it.
+ */
+export type MessagesFailure = 'automation' | 'account' | 'failed' | 'unknown'
 
-export type ScriptRunner = (args: readonly string[]) => Promise<{ code: number | null; stdout: string; stderr: string }>
+/** `stopped`: the process ended by a signal (the timeout's or another), not by answering. */
+export type ScriptResult = { code: number | null; stdout: string; stderr: string; stopped?: boolean }
+export type ScriptRunner = (args: readonly string[]) => Promise<ScriptResult>
 
 const runOsascript: ScriptRunner = (args) => new Promise((settle) => {
   execFile(OSASCRIPT, [...args], { timeout: SCRIPT_TIMEOUT_MS, maxBuffer: 64 * 1024 }, (error, stdout, stderr) => {
-    const exit = (error as { code?: unknown } | null)?.code
-    const code = error ? typeof exit === 'number' ? exit : null : 0
-    settle({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? '') })
+    const failure = error as { code?: unknown; killed?: boolean; signal?: string | null } | null
+    const code = error ? typeof failure?.code === 'number' ? failure.code : null : 0
+    settle({ code, stdout: String(stdout ?? ''), stderr: String(stderr ?? ''),
+      stopped: Boolean(failure?.killed || failure?.signal) })
   })
 })
 
@@ -61,11 +68,10 @@ export const classifyScriptFailure = (stderr: string): MessagesFailure => {
   return 'failed'
 }
 
-type ScriptResult = { code: number | null; stdout: string; stderr: string }
-
 const outcomeOf = async (run: Promise<ScriptResult>): Promise<ScriptOutcome> => {
   const result = await run
   if (result.code === 0) return { ok: true, output: result.stdout.trim() }
+  if (result.stopped) return { ok: false, failure: 'unknown', detail: 'Messages did not answer in time.' }
   const detail = result.stderr.trim().slice(0, 500) || `osascript exited with ${String(result.code)}`
   return { ok: false, failure: classifyScriptFailure(result.stderr), detail }
 }

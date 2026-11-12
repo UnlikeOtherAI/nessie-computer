@@ -47,9 +47,11 @@ const APPLE_MS = 'CASE WHEN m.date > 100000000000000 THEN m.date / 1000000 ELSE 
 
 /**
  * One scanned row. `incoming` is null for rows that are not an iMessage a person
- * wrote (and, unless asked for, the owner's own).
+ * wrote (and, unless asked for, the owner's own). `unfinishedAt` is set on a
+ * message that has neither text nor an attachment yet — Messages writes a
+ * photo's attachment row after the message — with the time it is dated.
  */
-export type ScannedRow = { rowId: number; incoming: ExecutorIMessageIncoming | null }
+export type ScannedRow = { rowId: number; incoming: ExecutorIMessageIncoming | null; unfinishedAt?: string }
 
 export type ChatDatabase = {
   /** The newest message's row id, or 0 for an empty database. */
@@ -144,10 +146,12 @@ const chatDatabaseOver = (database: Database): ChatDatabase => {
   return {
     latestRowId: () => Number(latest.get()?.id ?? 0),
     rowIdBefore: (at) => Number(before.get(at.getTime() - APPLE_EPOCH_MS)?.id ?? 0),
-    scanAfter: (afterRowId, limit, includeOwn = false) => scan.all(afterRowId, limit).map((row) => ({
-      rowId: Number(row.rowId),
-      incoming: incomingOf(row, () => attachments.all(row.rowId), includeOwn),
-    })),
+    scanAfter: (afterRowId, limit, includeOwn = false) => scan.all(afterRowId, limit).map((row) => {
+      const incoming = incomingOf(row, () => attachments.all(row.rowId), includeOwn)
+      return incoming === UNFINISHED
+        ? { rowId: Number(row.rowId), incoming: null, unfinishedAt: dateOf(row) }
+        : { rowId: Number(row.rowId), incoming }
+    }),
     sentAfter: (handle, afterRowId) => {
       const row = sent.get(afterRowId, handle)
       return row && typeof row.guid === 'string'
@@ -161,10 +165,15 @@ const chatDatabaseOver = (database: Database): ChatDatabase => {
 
 /** Group chats have style 43; one-to-one chats 45. */
 const GROUP_STYLE = 43
+/** A message Messages has stored without its text or attachment yet. */
+const UNFINISHED = Symbol('unfinished')
+
+const dateOf = (row: Record<string, unknown>): string =>
+  new Date(APPLE_EPOCH_MS + Number(row.appleMs ?? 0)).toISOString()
 
 const incomingOf = (
   row: Record<string, unknown>, readAttachments: () => Record<string, unknown>[], includeOwn: boolean,
-): ExecutorIMessageIncoming | null => {
+): ExecutorIMessageIncoming | typeof UNFINISHED | null => {
   // Only what a person wrote over iMessage: not an SMS or RCS text an iPhone
   // relayed, not a tapback, edit marker or group event; the owner's own only when asked.
   const fromMe = Number(row.fromMe) !== 0
@@ -177,13 +186,13 @@ const incomingOf = (
   if (fromMe && typeof row.chatId !== 'string') return null
   const text = readableMessageText(typeof row.text === 'string' ? row.text : null, row.body as Uint8Array | null)
   const found = Number(row.hasAttachments ?? 0) === 1 ? readAttachments().map(attachmentOf) : []
-  if (text.length === 0 && found.length === 0) return null
+  if (text.length === 0 && found.length === 0) return UNFINISHED
   const group = Number(row.chatStyle) === GROUP_STYLE
   const chatId = typeof row.chatId === 'string' && row.chatId.length > 0 ? row.chatId : sender
   const truncated = text.length > EXECUTOR_IMESSAGE_TEXT_MAXIMUM
   return {
     guid: row.guid.slice(0, 128),
-    receivedAt: new Date(APPLE_EPOCH_MS + Number(row.appleMs ?? 0)).toISOString(),
+    receivedAt: dateOf(row),
     sender: sender.slice(0, 254),
     fromMe,
     ownAddress,

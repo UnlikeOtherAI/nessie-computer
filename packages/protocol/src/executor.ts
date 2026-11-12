@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { ExecutorSoftwareStatusSchema, ExecutorSoftwareUpdateRequestSchema } from './executor-updates.js'
 import {
-  ExecutorIMessageOutboxItemSchema, ExecutorIMessageReportSchema, ExecutorIMessageSwitchSchema,
+  EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM, ExecutorIMessageOutboxWireItemSchema, ExecutorIMessageReportSchema,
+  ExecutorIMessageSwitchSchema,
 } from './executor-imessage.js'
 import { ExecutorMonitorRequestSchema, ExecutorMonitorSnapshotSchema } from './executor-monitor.js'
 import { ExecutorCommandCancellationSchema, ExecutorCommandCancellationTargetSchema } from './executor-cancellation.js'
@@ -823,7 +824,7 @@ export const ExecutorDaemonHeartbeatResponseSchema = ExecutorDaemonConnectionRes
   /** The owner's iMessage switch, for a macOS executor (`executor-imessage.ts`). */
   imessage: ExecutorIMessageSwitchSchema.optional(),
   /** Clients replies the owner pressed Send on, each handed to the Mac once (`executor-imessage.ts`). */
-  imessageOutbox: z.array(ExecutorIMessageOutboxItemSchema).max(10).optional(),
+  imessageOutbox: z.array(ExecutorIMessageOutboxWireItemSchema).max(EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM).optional(),
 }).strict()
 export type ExecutorDaemonHeartbeatResponse = z.infer<typeof ExecutorDaemonHeartbeatResponseSchema>
 

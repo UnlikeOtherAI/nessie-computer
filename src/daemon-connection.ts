@@ -158,7 +158,8 @@ const sendHeartbeat = async (
   const response = await api.heartbeat(state.apiBaseUrl, body)
   onExistingSessionAccess?.(response.existingSessionsAllowed === true)
   imessage?.onSwitch(response.imessage)
-  if (response.imessageOutbox !== undefined) imessage?.onOutbox(response.imessageOutbox)
+  // Every answer, with replies or without: outcomes still owed are reported again.
+  imessage?.onOutbox(response.imessageOutbox)
   if (onMonitorRequest) {
     const request = ExecutorMonitorRequestSchema.safeParse(response.monitorRequest)
     onMonitorRequest(request.success ? request.data : null)

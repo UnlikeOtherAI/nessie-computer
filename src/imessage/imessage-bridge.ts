@@ -4,7 +4,6 @@ import { dirname } from 'node:path'
 import {
   EXECUTOR_IMESSAGE_BATCH_MAXIMUM,
   EXECUTOR_IMESSAGE_CATCH_UP_DAYS,
-  ExecutorIMessageOutboxItemSchema,
   ExecutorIMessageSwitchSchema,
   type ExecutorDaemonIMessageResponse,
   type ExecutorIMessageAddress,
@@ -13,7 +12,6 @@ import {
   type ExecutorIMessageReport,
   type ExecutorIMessageSendArguments,
   type ExecutorIMessageSendErrorCode,
-  type ExecutorIMessageSendResult,
   type ExecutorIMessageState,
   type ExecutorIMessageSwitch,
 } from '@nessie/executor-protocol'
@@ -28,6 +26,9 @@ export type IMessageCursorStore = {
 }
 import { normalizeIMessageAddress, readIMessageAddresses, type AddressReader } from './imessage-addresses.js'
 import { createMessagesApp, type MessagesApp, type MessagesFailure, type ScriptOutcome } from './messages-script.js'
+import { IMessageReplies, type IMessageSendOutcome } from './imessage-replies.js'
+
+export type { IMessageSendOutcome } from './imessage-replies.js'
 
 /** A quiet Mac is still looked at this often, in case a change was not noticed. */
 export const IMESSAGE_SWEEP_MS = 30_000
@@ -41,10 +42,8 @@ const PAGES_PER_PASS = 40
 const SENT_CONFIRM_ATTEMPTS = 10
 const SENT_CONFIRM_STEP_MS = 500
 const DAY_MS = 86_400_000
-
-export type IMessageSendOutcome =
-  | { ok: true; result: ExecutorIMessageSendResult }
-  | { ok: false; code: ExecutorIMessageSendErrorCode; message: string }
+/** How long a message Messages has not finished writing (a photo before its attachment row) is waited for. */
+export const IMESSAGE_UNFINISHED_WAIT_MS = 2 * 60_000
 
 export type IMessageBridgeOptions = {
   stateDir: string
@@ -104,9 +103,7 @@ export class IMessageBridge {
   private readonly now: () => Date
   private readonly sleep: (ms: number) => Promise<void>
   private readonly cursor: IMessageCursorStore
-  private readonly outboxSeen = new Set<string>()
-  private outboxUnreported: ExecutorIMessageOutboxResult[] = []
-  private outboxQueue: Promise<void> = Promise.resolve()
+  private readonly replies: IMessageReplies
 
   constructor(private readonly options: IMessageBridgeOptions) {
     this.databasePath = options.databasePath ?? defaultChatDatabasePath()
@@ -119,6 +116,7 @@ export class IMessageBridge {
       load: () => loadIMessageCursor(options.stateDir),
       save: (cursor) => saveIMessageCursor(options.stateDir, cursor),
     }
+    this.replies = new IMessageReplies({ send: (input) => this.send(input), report: () => this.options.reportSent })
   }
 
   /** The heartbeat's `imessage`, once Nessie has said it knows the feature; never off a Mac. */
@@ -280,7 +278,12 @@ export class IMessageBridge {
       if (!since || this.options.paused()) return
       const cursor = await this.cursorFor(database, since)
       // In Clients mode the thread mirrors the Messages chat, the owner's own messages included.
-      const rows = database.scanAfter(cursor.rowId, PAGE_ROWS, this.switchState?.mode === 'clients')
+      const scanned = database.scanAfter(cursor.rowId, PAGE_ROWS, this.switchState?.mode === 'clients')
+      // A recent message Messages has not finished writing stops the page before it: the cursor
+      // never passes it, and the next pass reads it again. An old one is left behind.
+      const waiting = scanned.findIndex((row) => row.unfinishedAt
+        && this.now().getTime() - Date.parse(row.unfinishedAt) < IMESSAGE_UNFINISHED_WAIT_MS)
+      const rows = waiting === -1 ? scanned : scanned.slice(0, waiting)
       if (rows.length === 0) return
       const floor = Math.max(Date.parse(since), this.now().getTime() - EXECUTOR_IMESSAGE_CATCH_UP_DAYS * DAY_MS)
       const due = rows.flatMap((row) => row.incoming && Date.parse(row.incoming.receivedAt) >= floor
@@ -294,36 +297,18 @@ export class IMessageBridge {
         this.lastDeliveredAt = this.now().toISOString()
       }
       await this.cursor.save({ since, rowId: rows[rows.length - 1]!.rowId })
-      if (rows.length < PAGE_ROWS) return
+      if (waiting !== -1 || rows.length < PAGE_ROWS) return
     }
   }
 
-  /**
-   * Clients replies from the heartbeat answer. Each id is sent at most once in
-   * this process — Nessie hands each over once — and its outcome is reported
-   * until Nessie confirms it. Anything malformed is ignored.
-   */
+  /** Each heartbeat answer's Clients replies, or none (`imessage-replies.ts`). */
   sendOutbox(value: unknown): void {
-    const parsed = ExecutorIMessageOutboxItemSchema.array().safeParse(value)
-    if (!this.options.supported || !parsed.success) return
-    const fresh = parsed.data.filter((item) => !this.outboxSeen.has(item.id))
-    for (const item of fresh) this.outboxSeen.add(item.id)
-    if (fresh.length === 0 && this.outboxUnreported.length === 0) return
-    // One after another: a later answer waits for the sends before it.
-    this.outboxQueue = this.outboxQueue.then(async () => {
-      for (const item of fresh) {
-        const outcome = await this.send({ to: item.to, text: item.text })
-        this.outboxUnreported.push(outcome.ok
-          ? { id: item.id, outcome: 'sent', messageGuid: outcome.result.messageGuid, from: outcome.result.from }
-          : { id: item.id, outcome: 'refused', code: outcome.code, message: outcome.message.slice(0, 500) })
-      }
-      if (this.outboxUnreported.length === 0 || !this.options.reportSent) return
-      const settled = new Set(await this.options.reportSent(this.outboxUnreported.slice(0, 10)))
-      this.outboxUnreported = this.outboxUnreported.filter((result) => !settled.has(result.id))
-    }).catch((error: unknown) => {
-      console.error('[nessie-executor] an iMessage reply was not reported yet:',
-        error instanceof Error ? error.message : String(error))
-    })
+    if (this.options.supported) this.replies.receive(value)
+  }
+
+  /** Waits for the Clients replies in hand; tests and shutdown use it. */
+  repliesIdle(): Promise<void> {
+    return this.replies.idle()
   }
 
   /** `imessage.send`: refuses with a code that names its remedy, never pretends. */
@@ -340,27 +325,53 @@ export class IMessageBridge {
           'Nessie Computer needs Full Disk Access on this Mac (System Settings › Privacy & Security).')
     }
     try {
-      // Fail closed: Messages sends from the chat's own address, or for a new
-      // chat from "Start new conversations from"; neither can be chosen here.
-      const sendsFrom = database.sendingAddressFor(input.to) ?? database.newConversationsFrom()
-      if (this.sendsFromOther(sendsFrom)) {
-        return refuse('IMESSAGE_SENDS_FROM_OTHER_ADDRESS', `Messages on this Mac would send this from ${sendsFrom}, `
-          + `not ${this.switchState?.address}. Change "Start new conversations from" in Messages settings, `
-          + 'or choose that address for iMessage in Nessie. Nothing was sent.')
-      }
+      const unproven = this.sendingAddressRefusal(database, input.to)
+      if (unproven) return unproven
       const before = database.latestRowId()
       const outcome = await this.messages.send(input.to, input.text)
       const previous = this.state()
       this.noteMessages(outcome, 'send')
       if (this.state() !== previous) this.options.onReportChanged()
+      // Stopped before it answered: only chat.db can say whether Messages sent it.
+      if (!outcome.ok && outcome.failure === 'unknown') return await this.confirmSent(database, input.to, before, false)
       if (!outcome.ok) return refuseScript(outcome.failure, outcome.detail)
-      return await this.confirmSent(database, input.to, before)
+      return await this.confirmSent(database, input.to, before, true)
     } finally {
       database.close()
     }
   }
 
-  private async confirmSent(database: ChatDatabase, to: string, before: number): Promise<IMessageSendOutcome> {
+  /**
+   * Fail closed: Messages sends from the chat's own address, or for a chat with
+   * no history from the address it starts new conversations from, and neither
+   * can be chosen from here. Without evidence of that address, nothing is sent.
+   */
+  private sendingAddressRefusal(database: ChatDatabase, to: string): IMessageSendOutcome | null {
+    const chosen = this.switchState?.address ?? null
+    const sendsFrom = database.sendingAddressFor(to) ?? database.newConversationsFrom()
+    if (!chosen) {
+      return refuse('IMESSAGE_SENDS_FROM_OTHER_ADDRESS',
+        'Choose the address iMessage sends from on this computer\'s page in Nessie. Nothing was sent.')
+    }
+    if (!sendsFrom) {
+      return refuse('IMESSAGE_SENDS_FROM_OTHER_ADDRESS', 'Messages on this Mac has not yet shown which address it '
+        + `starts new conversations from, so this might not come from ${chosen}. In Messages › Settings › iMessage, `
+        + `set "Start new conversations from" to ${chosen} and start one conversation in Messages. Nothing was sent.`)
+    }
+    if (!this.sendsFromOther(sendsFrom)) return null
+    return refuse('IMESSAGE_SENDS_FROM_OTHER_ADDRESS', `Messages on this Mac would send this from ${sendsFrom}, `
+      + `not ${chosen}. Change "Start new conversations from" in Messages settings, `
+      + 'or choose that address for iMessage in Nessie. Nothing was sent.')
+  }
+
+  /**
+   * Looks for the message in chat.db. `accepted`: Messages answered the send, so
+   * a message not found in time is reported as sent but unconfirmed; otherwise
+   * Messages never answered, and one not found may or may not have gone.
+   */
+  private async confirmSent(
+    database: ChatDatabase, to: string, before: number, accepted: boolean,
+  ): Promise<IMessageSendOutcome> {
     // Counted, not timed: a fixed or stalled clock can never keep it looping.
     for (let attempt = 0; ; attempt += 1) {
       const sent = database.sentAfter(to, before)
@@ -376,7 +387,9 @@ export class IMessageBridge {
         return { ok: true, result: { sent: true, to, messageGuid: sent.guid, from: sent.from } }
       }
       if (attempt >= SENT_CONFIRM_ATTEMPTS) {
-        return { ok: true, result: { sent: true, to, messageGuid: null, from: null } }
+        return accepted ? { ok: true, result: { sent: true, to, messageGuid: null, from: null } }
+          : refuse('IMESSAGE_SEND_UNCERTAIN', 'Messages did not answer in time, and it has not recorded the '
+            + 'message. It may or may not have been sent; do not send it again.')
       }
       await this.sleep(SENT_CONFIRM_STEP_MS)
     }

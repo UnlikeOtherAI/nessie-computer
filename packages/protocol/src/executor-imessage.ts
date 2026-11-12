@@ -165,13 +165,22 @@ export const ExecutorDaemonIMessageResponseSchema = z.object({
 export type ExecutorDaemonIMessageResponse = z.infer<typeof ExecutorDaemonIMessageResponseSchema>
 
 /**
+ * The longest text Nessie sends through a Mac, counted in UTF-16 code units —
+ * JavaScript's `length`, where an emoji counts as two. Nessie checks a Clients
+ * reply against {@link ExecutorIMessageSendTextSchema} before claiming it, and
+ * the Mac checks the same schema, so neither side accepts what the other refuses.
+ */
+export const EXECUTOR_IMESSAGE_SEND_TEXT_MAXIMUM = 4_000
+export const ExecutorIMessageSendTextSchema = z.string().trim().min(1).max(EXECUTOR_IMESSAGE_SEND_TEXT_MAXIMUM)
+
+/**
  * `imessage.send`: one text to one address. Whether the owner must approve a
  * first message to somebody new is Nessie's decision, made before the command
  * exists (docs/imessage.md); the Mac sends what reaches it.
  */
 export const ExecutorIMessageSendArgumentsSchema = z.object({
   to: ExecutorIMessageHandleSchema,
-  text: z.string().trim().min(1).max(4_000),
+  text: ExecutorIMessageSendTextSchema,
 }).strict()
 export type ExecutorIMessageSendArguments = z.infer<typeof ExecutorIMessageSendArgumentsSchema>
 
@@ -198,6 +207,11 @@ export const EXECUTOR_IMESSAGE_SEND_ERROR_CODES = [
   /** Messages would send from another address than the chosen one; nothing was sent. */
   'IMESSAGE_SENDS_FROM_OTHER_ADDRESS',
   'IMESSAGE_SEND_FAILED',
+  /**
+   * Messages was stopped before it answered (a timeout), and `chat.db` does not
+   * show the message: it may or may not have gone. Never resent.
+   */
+  'IMESSAGE_SEND_UNCERTAIN',
 ] as const
 export type ExecutorIMessageSendErrorCode = (typeof EXECUTOR_IMESSAGE_SEND_ERROR_CODES)[number]
 
@@ -212,10 +226,22 @@ export type ExecutorIMessageSendErrorCode = (typeof EXECUTOR_IMESSAGE_SEND_ERROR
 export const ExecutorIMessageOutboxItemSchema = z.object({
   id: z.string().uuid(),
   to: ExecutorIMessageHandleSchema,
-  text: z.string().trim().min(1).max(4_000),
+  text: ExecutorIMessageSendTextSchema,
 }).strict()
 export type ExecutorIMessageOutboxItem = z.infer<typeof ExecutorIMessageOutboxItemSchema>
 export const EXECUTOR_IMESSAGE_OUTBOX_MAXIMUM = 10
+
+/**
+ * An outbox item as the heartbeat answer carries it: loose enough that no
+ * reply's content can fail the whole heartbeat. The Mac checks each item on
+ * its own against {@link ExecutorIMessageOutboxItemSchema} and reports one it
+ * cannot send as refused, so a bad item fails alone.
+ */
+export const ExecutorIMessageOutboxWireItemSchema = z.object({
+  id: z.string().uuid(),
+  to: z.string().max(2_048),
+  text: z.string().max(100_000),
+}).strict()
 
 export const EXECUTOR_DAEMON_IMESSAGE_SENT_PATH = '/api/executor-daemon/imessage/sent'
 /** Domain of its signature, over the body without `signature`. */
@@ -226,6 +252,8 @@ export const ExecutorIMessageOutboxResultSchema = z.discriminatedUnion('outcome'
     from: z.string().max(254).nullable() }).strict(),
   z.object({ id: z.string().uuid(), outcome: z.literal('refused'), code: z.enum(EXECUTOR_IMESSAGE_SEND_ERROR_CODES),
     message: z.string().max(500) }).strict(),
+  /** Messages did not answer and `chat.db` does not show it: it may or may not have gone, and is never resent. */
+  z.object({ id: z.string().uuid(), outcome: z.literal('unknown'), message: z.string().max(500) }).strict(),
 ])
 export type ExecutorIMessageOutboxResult = z.infer<typeof ExecutorIMessageOutboxResultSchema>
 

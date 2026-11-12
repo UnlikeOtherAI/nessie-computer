@@ -4,7 +4,9 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
 
-import type { ExecutorIMessageIncoming } from '@nessie/executor-protocol'
+import {
+  ExecutorIMessageSendTextSchema, type ExecutorIMessageIncoming, type ExecutorIMessageOutboxResult,
+} from '@nessie/executor-protocol'
 
 import { ChatDatabaseError } from '../src/imessage/chat-database.js'
 import { IMessageBridge } from '../src/imessage/imessage-bridge.js'
@@ -12,7 +14,7 @@ import type { IMessageCursor } from '../src/imessage/imessage-cursor.js'
 import { orderedAddresses } from '../src/imessage/imessage-addresses.js'
 import { withHostIMessageOperation } from '../src/imessage/imessage-operation.js'
 import { classifyScriptFailure, createMessagesApp, type ScriptOutcome } from '../src/imessage/messages-script.js'
-import { createChatDatabase, insertMessage, seedChats } from './imessage-fixture.js'
+import { createChatDatabase, insertMessage, seedChats, type Database } from './imessage-fixture.js'
 
 const SINCE = '2026-11-11T08:30:00.000Z'
 const NOW = new Date('2026-11-11T10:00:00.000Z')
@@ -32,9 +34,13 @@ const setUp = async (t: test.TestContext) => {
   const probes: ScriptOutcome[] = [{ ok: true, output: '1' }]
   const sends: Array<[string, string]> = []
   let sendOutcome: ScriptOutcome = { ok: true, output: '' }
+  // Whether Messages records the message, whatever the script answered; by default only when it answered.
+  let recorded: boolean | null = null
   let stored: (messages: ExecutorIMessageIncoming[]) => string[] = (messages) => messages.map((message) => message.guid)
   let paused = false
   let reports = 0
+  let reportSent: (results: ExecutorIMessageOutboxResult[]) => Promise<string[]> =
+    async (results) => results.map((result) => result.id)
   const bridge = new IMessageBridge({
     stateDir: directory, supported: true, databasePath, paused: () => paused,
     deliver: async (messages) => {
@@ -42,11 +48,12 @@ const setUp = async (t: test.TestContext) => {
       return { stored: stored(messages), switch: { enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const } }
     },
     onReportChanged: () => { reports += 1 },
+    reportSent: (results) => reportSent(results),
     messages: {
       probe: async () => probes.shift() ?? { ok: true, output: '1' },
       send: async (handle, text) => {
         sends.push([handle, text])
-        if (sendOutcome.ok) {
+        if (recorded ?? sendOutcome.ok) {
           insertMessage(fixture, { guid: 'sent-1', text, handle: 1, chat: 1, fromMe: true, at: NOW.toISOString(), own: OWN })
         }
         return sendOutcome
@@ -68,11 +75,17 @@ const setUp = async (t: test.TestContext) => {
   return {
     bridge, directory, fixture, delivered, probes, sends, cursor: () => cursor,
     setSendOutcome: (outcome: ScriptOutcome) => { sendOutcome = outcome },
+    setRecorded: (value: boolean | null) => { recorded = value },
     setStored: (next: typeof stored) => { stored = next },
     setPaused: (value: boolean) => { paused = value },
+    setReportSent: (next: typeof reportSent) => { reportSent = next },
     reports: () => reports,
   }
 }
+
+/** The owner wrote to Alice from the chosen address before: evidence of where Messages sends to her from. */
+const proveAddress = (fixture: Database): void => insertMessage(fixture, { guid: 'earlier-mine', text: 'See you',
+  handle: 1, chat: 1, fromMe: true, at: '2026-11-11T08:05:00Z', own: OWN })
 
 test('nothing is reported to a Nessie that never mentioned iMessage, and off reads as off', async (t) => {
   const context = await setUp(t)
@@ -133,13 +146,17 @@ test('a refused Automation permission is reported and refuses a send with its re
   context.setSendOutcome({ ok: false, failure: 'automation', detail: 'Not authorized (-1743)' })
   const refused = await context.bridge.send({ to: '+447700900001', text: 'Hello' })
   assert.equal(refused.ok, false)
-  assert.equal(!refused.ok && refused.code, 'IMESSAGE_NEEDS_AUTOMATION')
+  assert.equal(!refused.ok && refused.code, 'IMESSAGE_SENDS_FROM_OTHER_ADDRESS', 'no evidence of the address yet')
+  proveAddress(context.fixture)
+  const refusedByMacOS = await context.bridge.send({ to: '+447700900001', text: 'Hello' })
+  assert.equal(!refusedByMacOS.ok && refusedByMacOS.code, 'IMESSAGE_NEEDS_AUTOMATION')
 })
 
 test('a send returns the guid Messages recorded', async (t) => {
   const context = await setUp(t)
   context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' as const })
   await context.bridge.idle()
+  proveAddress(context.fixture)
   const sent = await context.bridge.send({ to: '+447700900001', text: 'On my way' })
   assert.deepEqual(sent, { ok: true, result: { sent: true, to: '+447700900001', messageGuid: 'sent-1', from: OWN } })
   assert.deepEqual(context.sends, [['+447700900001', 'On my way']])
@@ -230,17 +247,132 @@ test('a Clients reply from the outbox is sent once and reported until Nessie set
   const context = await setUp(t)
   context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
   await context.bridge.idle()
+  proveAddress(context.fixture)
   const reports: string[][] = []
-  type Reporting = { options: { reportSent: (r: { id: string; outcome: string }[]) => Promise<string[]> } }
-  ;(context.bridge as unknown as Reporting)
-    .options.reportSent = async (results) => {
-      reports.push(results.map((result) => `${result.id}:${result.outcome}`))
-      return results.map((result) => result.id)
-    }
+  context.setReportSent(async (results) => {
+    reports.push(results.map((result) => `${result.id}:${result.outcome}`))
+    return results.map((result) => result.id)
+  })
   const item = { id: '11111111-1111-4111-8111-111111111111', to: '+447700900001', text: 'From Clients' }
   context.bridge.sendOutbox([item])
   context.bridge.sendOutbox([item])
-  await (context.bridge as unknown as { outboxQueue: Promise<void> }).outboxQueue
+  await context.bridge.repliesIdle()
   assert.deepEqual(context.sends, [['+447700900001', 'From Clients']])
   assert.deepEqual(reports, [[`${item.id}:sent`]])
+})
+
+test('with no evidence of the address Messages sends from, nothing is sent', async (t) => {
+  const context = await setUp(t)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' })
+  await context.bridge.idle()
+  // Nobody was ever written to from this Mac, so where a new conversation starts is unknown.
+  const unknown = await context.bridge.send({ to: 'new@example.com', text: 'Hello' })
+  assert.equal(!unknown.ok && unknown.code, 'IMESSAGE_SENDS_FROM_OTHER_ADDRESS')
+  assert.match(!unknown.ok ? unknown.message : '', /has not yet shown which address/u)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: null, mode: 'assistant' })
+  proveAddress(context.fixture)
+  const unchosen = await context.bridge.send({ to: '+447700900001', text: 'Hello' })
+  assert.equal(!unchosen.ok && unchosen.code, 'IMESSAGE_SENDS_FROM_OTHER_ADDRESS')
+  assert.deepEqual(context.sends, [])
+})
+
+test('a send Messages never answered is looked up in chat.db and never called a failure', async (t) => {
+  const stopped = createMessagesApp(async () => ({ code: null, stdout: '', stderr: '', stopped: true }))
+  assert.deepEqual(await stopped.send('+447700900001', 'Hi'),
+    { ok: false, failure: 'unknown', detail: 'Messages did not answer in time.' })
+  const context = await setUp(t)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
+  await context.bridge.idle()
+  proveAddress(context.fixture)
+  context.setSendOutcome({ ok: false, failure: 'unknown', detail: 'Messages did not answer in time.' })
+  context.setRecorded(true)
+  assert.deepEqual(await context.bridge.send({ to: '+447700900001', text: 'Late' }),
+    { ok: true, result: { sent: true, to: '+447700900001', messageGuid: 'sent-1', from: OWN } })
+  context.setRecorded(false)
+  const uncertain = await context.bridge.send({ to: '+447700900001', text: 'Later' })
+  assert.equal(!uncertain.ok && uncertain.code, 'IMESSAGE_SEND_UNCERTAIN')
+  const reports: string[] = []
+  context.setReportSent(async (results) => {
+    reports.push(...results.map((result) => `${result.id}:${result.outcome}`))
+    return results.map((result) => result.id)
+  })
+  const item = { id: '22222222-2222-4222-8222-222222222222', to: '+447700900001', text: 'From Clients' }
+  context.bridge.sendOutbox([item])
+  await context.bridge.repliesIdle()
+  assert.deepEqual(reports, [`${item.id}:unknown`])
+})
+
+test('a report that fails holds back only its own reply, and is tried again next heartbeat', async (t) => {
+  const context = await setUp(t)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
+  await context.bridge.idle()
+  proveAddress(context.fixture)
+  const first = { id: '33333333-3333-4333-8333-333333333331', to: '+447700900001', text: 'One' }
+  const second = { id: '33333333-3333-4333-8333-333333333332', to: '+447700900001', text: 'Two' }
+  const reported: string[] = []
+  let refusals = 1
+  context.setReportSent(async (results) => {
+    if (results.some((result) => result.id === first.id) && refusals-- > 0) throw new Error('Nessie said 500')
+    reported.push(...results.map((result) => result.id))
+    return results.map((result) => result.id)
+  })
+  context.bridge.sendOutbox([first, second])
+  await context.bridge.repliesIdle()
+  assert.deepEqual(reported, [second.id])
+  // The next heartbeat answer carries no replies; the one still owed is reported anyway.
+  context.bridge.sendOutbox(undefined)
+  await context.bridge.repliesIdle()
+  assert.deepEqual(reported, [second.id, first.id])
+  assert.deepEqual(context.sends.map(([, text]) => text), ['One', 'Two'])
+})
+
+test('a reply the Mac cannot send fails alone, reported as refused, counted as the server counts', async (t) => {
+  // UTF-16 code units, on Nessie and on the Mac alike: an emoji counts as two.
+  assert.equal(ExecutorIMessageSendTextSchema.safeParse('😀'.repeat(2_000)).success, true)
+  assert.equal(ExecutorIMessageSendTextSchema.safeParse('😀'.repeat(2_001)).success, false)
+  const context = await setUp(t)
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'clients' })
+  await context.bridge.idle()
+  proveAddress(context.fixture)
+  const results: Array<{ id: string; outcome: string; code?: string }> = []
+  context.setReportSent(async (batch) => {
+    results.push(...batch.map((result) => ({ id: result.id, outcome: result.outcome,
+      ...(result.outcome === 'refused' ? { code: result.code } : {}) })))
+    return batch.map((result) => result.id)
+  })
+  const tooLong = { id: '44444444-4444-4444-8444-444444444441', to: '+447700900001', text: '😀'.repeat(2_001) }
+  const fine = { id: '44444444-4444-4444-8444-444444444442', to: '+447700900001', text: 'Short' }
+  context.bridge.sendOutbox([tooLong, fine, { not: 'a reply' }])
+  await context.bridge.repliesIdle()
+  assert.deepEqual(context.sends, [['+447700900001', 'Short']])
+  assert.deepEqual(results, [
+    { id: tooLong.id, outcome: 'refused', code: 'IMESSAGE_SEND_FAILED' },
+    { id: fine.id, outcome: 'sent' },
+  ])
+})
+
+test('a photo Messages has not finished writing is waited for, then delivered', async (t) => {
+  const context = await setUp(t)
+  // The message row is there; its attachment row is not yet.
+  insertMessage(context.fixture, { guid: 'photo', text: null, handle: 1, chat: 1, attachments: 1,
+    at: '2026-11-11T09:59:30Z' })
+  context.bridge.applySwitch({ enabled: true, since: SINCE, address: OWN, mode: 'assistant' })
+  await context.bridge.idle()
+  assert.deepEqual(context.delivered.map((batch) => batch.map((message) => message.guid)), [['g-1', 'g-2']])
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 3 })
+  context.fixture.prepare('INSERT INTO attachment (mime_type, uti, transfer_name) VALUES (?, ?, ?)')
+    .run('image/jpeg', 'public.jpeg', 'IMG_2.JPG')
+  context.fixture.prepare('INSERT INTO message_attachment_join VALUES (4, 1)').run()
+  context.bridge.kick()
+  await context.bridge.idle()
+  assert.deepEqual(context.delivered.at(-1)?.map((message) => [message.guid, message.attachments]),
+    [['photo', [{ kind: 'photo', name: 'IMG_2.JPG' }]]])
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 4 })
+  // One that never finishes is left behind once it is old, so it cannot hold up what follows.
+  insertMessage(context.fixture, { guid: 'never', text: null, handle: 1, chat: 1, at: '2026-11-11T09:40:00Z' })
+  insertMessage(context.fixture, { guid: 'after', text: 'Next', handle: 1, chat: 1, at: '2026-11-11T09:59:40Z' })
+  context.bridge.kick()
+  await context.bridge.idle()
+  assert.deepEqual(context.delivered.at(-1)?.map((message) => message.guid), ['after'])
+  assert.deepEqual(context.cursor(), { since: SINCE, rowId: 6 })
 })
