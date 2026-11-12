@@ -680,3 +680,12 @@ to api.github.com only, with bounded responses and deadlines. They carry no
 pairing or sign-in data and have no role in selecting or authorizing an install.
 The native updater remains the sole source of available versions. The dialog
 stays within 80% of the viewport with scrolling notes and visible decision buttons.
+
+
+The focused local release-note journey is
+`node tray-windows/test/renderer-harness.mjs --only=update-notes --no-screenshots`.
+It covers all seven locales at 640 and 390 pixels, lazy reading, failed-page retry,
+version filtering, inert HTML-like content, paging and acceptance. The existing
+`--updates-only --no-screenshots` journey covers both host transports, reminders,
+install progress and service recovery. Linux uses
+`node packaging/linux/test/renderer.mjs --no-screenshots`. These stay out of CI.
