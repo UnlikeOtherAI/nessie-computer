@@ -7,3 +7,5 @@
 Requires Apple silicon and macOS 15 or later. Open the DMG, drag Nessie Computer to Applications, then open it. Allow its background helper in System Settings when prompted.
 
 Use the code shown in the app to add this computer to the intended team in Nessie. Review access before letting agents work.
+
+For an upgrade, let active work finish and quit older Nessie Desktop copies. The helper retries automatically. Check the installed version in Settings and run `nessie-computer --version` before reopening Desktop; replacing the app alone does not prove the runtime has upgraded.

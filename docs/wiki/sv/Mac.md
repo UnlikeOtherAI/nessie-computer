@@ -7,3 +7,5 @@
 Kräver Apple silicon och macOS 15 eller senare. Öppna DMG-filen, dra Nessie Computer till Program och öppna appen. Tillåt bakgrundshjälpen i Systeminställningar när du blir tillfrågad.
 
 Använd koden från appen för att lägga till datorn i önskat team i Nessie. Granska åtkomstbehörigheterna innan agenterna arbetar.
+
+Låt pågående arbete bli klart och avsluta äldre Nessie Desktop-appar före uppdateringen. Hjälptjänsten försöker automatiskt igen. Kontrollera den installerade versionen i Inställningar och med `nessie-computer --version` innan du öppnar Desktop igen; att bara ersätta appen bevisar inte att körmiljön har uppdaterats.

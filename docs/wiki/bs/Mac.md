@@ -7,3 +7,5 @@
 Potreban je Apple silicon i macOS 15 ili noviji. Otvorite DMG, prevucite Nessie Computer u Aplikacije i otvorite ga. Kada se zatraži, dozvolite pomoćnu uslugu u pozadini u sistemskim postavkama.
 
 Kod iz aplikacije koristite da dodate računar željenom timu u Nessie. Provjerite dozvole prije nego što agenti počnu raditi.
+
+Prije ažuriranja sačekajte završetak rada i zatvorite starije kopije Nessie Desktop. Pomoćna usluga automatski pokušava ponovo. Prije ponovnog otvaranja Desktopa provjerite instaliranu verziju u postavkama i naredbom `nessie-computer --version`; zamjena same aplikacije ne potvrđuje ažuriranje izvršnog okruženja.
