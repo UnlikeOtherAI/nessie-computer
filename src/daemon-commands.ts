@@ -15,6 +15,7 @@ import type { ExecutorCommandSessionManager } from './command-session-manager.js
 import { createDaemonCommandPoll } from './daemon-command-poll.js'
 import type { DaemonLiveState } from './daemon-live-state.js'
 import type { DaemonTools } from './daemon-tools.js'
+import type { IMessageBridge } from './imessage/imessage-bridge.js'
 import { executeExecutorCommand, sendExecutorCommandReceipt, uploadExecutorCommandAttachment } from './daemon.js'
 import type { ProgramRequestGate } from './program-request-gate.js'
 import { removeSessionsFile, writeSessionsFile } from './session-snapshot.js'
@@ -35,6 +36,8 @@ export const createDaemonCommands = (input: {
   tools: () => DaemonTools
   paused: () => boolean
   programGate: ProgramRequestGate
+  /** iMessage on a Mac; absent elsewhere, where `imessage.send` is never advertised. */
+  imessage?: Pick<IMessageBridge, 'send'>
   /** Something the poll reports changed: poll now. */
   onChange: () => void
   /** A run's session ended or was stopped: its Claude Code and Codex turns end too. */
@@ -107,7 +110,7 @@ export const createDaemonCommands = (input: {
       return executeExecutorCommand(stateDir, live.current, command, {
         attachments: sidecars, browserSessions, codingSessions, commandSessions,
         mcpSessions: tools.mcpSessions, codingBridge: tools.codingBridge, signal,
-        ownerPaused: input.paused,
+        ownerPaused: input.paused, imessage: input.imessage,
         programRequests: { gate: input.programGate, ownerWait },
       })
     },

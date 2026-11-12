@@ -13,6 +13,7 @@ on the internet can connect in. This page lists what it sends, and what stays.
 | Readings such as CPU, memory, disk and the busiest program names | Only while someone with access has the computer's monitor open in Nessie | The computer monitor |
 | Files an agent reads or produces | When an agent works on a task you allowed | The work itself |
 | Your documents and changes to them | While Documents is on | Keeping both copies the same |
+| iMessages you receive (sender, text and attachment names), the ones you send when they go to Clients, and your iMessage addresses | On a Mac, while you switched iMessage on in Nessie | They arrive in Clients or your Personal Assistant, and you choose the address ([iMessage](iMessage)) |
 | Which update it has and whether it is up to date | With the "still here" signal | Showing the version in Nessie |
 
 ## Stays on the computer

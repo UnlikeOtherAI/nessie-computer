@@ -5,6 +5,8 @@ import {
   type ExecutorMonitorRequest,
   type ExecutorMonitorSnapshot,
   type ExecutorDaemonHeartbeatWithFolderSyncRequest,
+  ExecutorIMessageReportSchema,
+  type ExecutorIMessageReport,
   type ExecutorLocalMcpReport,
   type FolderSyncHeartbeatSummary,
   ExecutorSoftwareStatusSchema,
@@ -76,11 +78,12 @@ export const heartbeatExecutor = async (
   monitor?: ExecutorMonitorSnapshot,
   onMonitorRequest?: (request: ExecutorMonitorRequest | null) => void,
   ownerPause?: OwnerPauseReport,
+  imessage?: IMessageHeartbeat,
 ): Promise<unknown> => {
   const report = ownerPause?.paused === true
   try {
     return await sendHeartbeat(state, report, localMcp, onExistingSessionAccess, folderSync, api, updates, monitor,
-      onMonitorRequest)
+      onMonitorRequest, imessage)
   } catch (error) {
     if (!report || !ownerPausedFieldRefused(error)) throw error
     // An older Nessie parses the heartbeat strictly and refuses the field it
@@ -88,8 +91,20 @@ export const heartbeatExecutor = async (
     // what Nessie hears changes, so the heartbeat goes again without it.
     ownerPause?.refused()
     return sendHeartbeat(state, false, localMcp, onExistingSessionAccess, folderSync, api, updates, monitor,
-      onMonitorRequest)
+      onMonitorRequest, imessage)
   }
+}
+
+/**
+ * iMessage on a Mac: what to report, and who hears the owner's switch from
+ * the answer. `report` is undefined until a Nessie answer carried `imessage`,
+ * so an older Nessie is never sent the field.
+ */
+export type IMessageHeartbeat = {
+  report: ExecutorIMessageReport | undefined
+  onSwitch: (value: unknown) => void
+  /** Clients replies the owner pressed Send on; each is handed over once. */
+  onOutbox: (value: unknown) => void
 }
 
 /** Whether the heartbeat says the owner paused this team, and who hears that Nessie refused to be told. */
@@ -115,6 +130,7 @@ const sendHeartbeat = async (
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void } | undefined,
   monitor: ExecutorMonitorSnapshot | undefined,
   onMonitorRequest: ((request: ExecutorMonitorRequest | null) => void) | undefined,
+  imessage: IMessageHeartbeat | undefined,
 ): Promise<unknown> => {
   if (!state.connectionEpoch) {
     throw new Error('This team is not connected from this computer right now.')
@@ -128,6 +144,7 @@ const sendHeartbeat = async (
     executorId: state.executorId,
     // Checked against its contract before it is signed.
     ...(folderSync === undefined ? {} : { folderSync: FolderSyncHeartbeatSummarySchema.parse(folderSync) }),
+    ...(imessage?.report === undefined ? {} : { imessage: ExecutorIMessageReportSchema.parse(imessage.report) }),
     ...(localMcp === undefined ? {} : { localMcp }),
     ...(updates === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
     observedAt,
@@ -140,6 +157,9 @@ const sendHeartbeat = async (
   const body: HeartbeatBody = { ...signed, signature }
   const response = await api.heartbeat(state.apiBaseUrl, body)
   onExistingSessionAccess?.(response.existingSessionsAllowed === true)
+  imessage?.onSwitch(response.imessage)
+  // Every answer, with replies or without: outcomes still owed are reported again.
+  imessage?.onOutbox(response.imessageOutbox)
   if (onMonitorRequest) {
     const request = ExecutorMonitorRequestSchema.safeParse(response.monitorRequest)
     onMonitorRequest(request.success ? request.data : null)
