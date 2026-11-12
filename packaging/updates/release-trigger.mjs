@@ -13,7 +13,12 @@ export function releaseRequest(release) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'))
-  const request = releaseRequest(event.release)
+  const tag = event.release?.tag_name ?? ''
+  if (!/^executor-v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u.test(tag)) process.exit(0)
+  // Webhook payloads need not carry the REST API's immutability field.
+  const release = JSON.parse(execFileSync('gh', ['api', `repos/UnlikeOtherAI/nessie-computer/releases/tags/${tag}`],
+    { encoding: 'utf8' }))
+  const request = releaseRequest(release)
   if (request) {
     const repository = 'UnlikeOtherAI/nessie-computer'
     const source = execFileSync('gh', ['api', `repos/${repository}/commits/executor-v${request.version}`, '--jq', '.sha'],

@@ -447,3 +447,16 @@ mod tests {
         assert_eq!(reopened.journal().unwrap().pending.unwrap().digest, "a".repeat(64));
     }
 }
+
+#[cfg(test)]
+mod preference_defaults {
+    #[test]
+    fn new_installations_ask_and_saved_choices_survive() {
+        assert!(!super::Preferences::default().automatic);
+        let mut saved = super::Preferences::default();
+        saved.automatic = true;
+        let bytes = serde_json::to_vec(&saved).unwrap();
+        let restored: super::Preferences = serde_json::from_slice(&bytes).unwrap();
+        assert!(restored.automatic);
+    }
+}

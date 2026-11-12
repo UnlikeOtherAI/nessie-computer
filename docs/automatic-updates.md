@@ -106,7 +106,7 @@ cannot choose a download URL, command or update policy. The packaged CLI's
 version and source revision are compiled into the signed bundle and included
 in its runtime manifest; process environment overrides cannot change them.
 
-Stable installation defaults to automatic. A local opt-out survives subsequent
+Fresh installations ask before installing stable updates. A saved automatic-update choice survives subsequent
 catalogue checks, downloads, app restarts and upgrades. Opting out keeps version
 checks and prompts for a new version with Update now and Remind me in 24 hours;
 the reminder lasts 24 hours and never suppresses a newer version. Preview

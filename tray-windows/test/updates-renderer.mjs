@@ -106,6 +106,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
         }
         if (!before && ['available', 'failed'].includes(state)) {
           await page.locator('#update-install').click()
+          await page.locator('#update-prompt-install').click()
           await page.getByText('Downloading version 1.0.1…', { exact: true }).waitFor()
           assert.deepEqual(await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_update_control').at(-1).args),
             { request: { operation: 'install' } })
