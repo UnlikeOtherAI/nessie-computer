@@ -11,7 +11,7 @@ them, and use a pull request. Merge only after the required checks pass.
 
 Use Node 24, pnpm 10.22.0 and `pnpm verify`. Packaging probes SQLite authorization on the selected runtime; see [runtime requirements](docs/automatic-updates.md#runtime-requirements). Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
-prerequisites. Windows source tests use the Debug native helper beside an
+prerequisites. Shared T3 source build/typecheck ordering follows [the package contract](docs/session-engine-package.md). Windows source tests use the Debug native helper beside an
 unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
 claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.

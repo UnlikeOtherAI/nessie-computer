@@ -194,7 +194,11 @@ retained under the owning package's ignored build directory.
 Direct package build/typecheck scripts also invoke that same idempotent
 preparation before loading compiler dependencies, including in Docker. Turbo
 keeps its explicit graph prerequisite; neither path assumes isolated producer
-dependencies already exist.
+dependencies already exist. The package's typecheck also depends on its own
+build in both Turbo graphs: these commands prepare the same archive and isolated
+dependency directory. Serializing them prevents observing a partially written
+archive or changing the dependency tree while its sibling compiles. Upstream
+`^build` and `^typecheck` prerequisites remain intact.
 
 ```powershell
 pnpm.cmd exec turbo run build --filter=@nessie/t3-session-source --root-turbo-json=scripts/turbo.public.json --concurrency=1

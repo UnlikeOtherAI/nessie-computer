@@ -211,6 +211,7 @@
     },
     "@nessie/t3-session-source#typecheck": {
       "dependsOn": [
+        "build",
         "^build",
         "^typecheck",
         "prepare:engine"
