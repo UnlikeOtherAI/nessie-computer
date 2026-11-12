@@ -2,8 +2,9 @@
 
 The daemon's half of iMessage. Nessie's standard (`docs/standards/imessage.md`
 in the private repository) owns who may switch it on, where messages land and
-who may send — the owner's own Personal Assistant, and no other agent; this
-file owns what the Mac does. User guide: [iMessage](wiki/iMessage.md).
+who may send — the owner's own Personal Assistant, given the operation when
+iMessage is switched on, and no other agent; this file owns what the Mac does.
+User guide: [iMessage](wiki/iMessage.md).
 
 ## Wire
 

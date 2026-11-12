@@ -38,10 +38,10 @@ The Overview says which of these is still missing.
 - While the Mac is off, asleep or paused, new messages wait on the Mac and come
   in when it is back, up to seven days later.
 - Only your Personal Assistant reads and sends your iMessages; no other agent
-  assigned to the Mac can, whoever asks. It sends only when you ask it in your
-  own conversation, while it is added to the Mac on the Mac's **Agents** tab in
-  Nessie. The first message to somebody who has not written to you waits for
-  your approval. If the Mac is off, asleep or paused, sending fails at once.
+  assigned to the Mac can, whoever asks. Switching iMessage on is all it needs,
+  and it sends only when you ask it in your own conversation. The first
+  message to somebody who has not written to you waits for your approval. If
+  the Mac is off, asleep or paused, sending fails at once.
 
 ## Turn it off
 
