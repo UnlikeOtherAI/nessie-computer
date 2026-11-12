@@ -7,3 +7,10 @@
 Reikia Windows 10 22H2 arba naujesnės versijos, x64. Atidarykite MSI, patvirtinkite diegimą ir paleiskite Nessie Computer iš meniu Pradėti. Piktograma gali būti tarp paslėptų pranešimų srities piktogramų.
 
 Programoje rodomu kodu pridėkite kompiuterį prie norimos Nessie komandos. Prieš agentams pradedant darbą patikrinkite prieigos leidimus.
+
+Prieš patvirtindami patikrinkite, ar leidėjas yra **UnlikeOtherAI s.r.o.**. Įdiegę atidarykite naują „PowerShell“ langą ir patikrinkite įdiegtą komandą:
+
+```powershell
+nessie-computer --version
+nessie-computer --help
+```

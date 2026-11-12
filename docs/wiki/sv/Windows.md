@@ -7,3 +7,10 @@
 Kräver Windows 10 22H2 eller senare, x64. Öppna MSI-filen, godkänn installationen och öppna Nessie Computer från Start. Ikonen kan finnas bland de dolda ikonerna i meddelandefältet.
 
 Använd koden från appen för att lägga till datorn i önskat team i Nessie. Granska åtkomstbehörigheterna innan agenterna arbetar.
+
+Kontrollera före godkännande att utgivaren är **UnlikeOtherAI s.r.o.**. Öppna ett nytt PowerShell-fönster efter installationen och kontrollera det installerade kommandot:
+
+```powershell
+nessie-computer --version
+nessie-computer --help
+```
