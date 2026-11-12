@@ -31,7 +31,7 @@ Connected to Sales · Acme.
 ```
 
 `nessie-computer connect` does the same. See
-[Who runs your teams](Command-line#who-runs-your-teams).
+[Who runs your teams](Command-line.md#who-runs-your-teams).
 
 ## Your organisation runs its own Nessie
 
@@ -43,7 +43,7 @@ or run `nessie-computer add --server https://nessie.example.com`.
 
 - **Folders:** a *Nessie* folder in your home folder.
 - **Programs:** apps from UnlikeOtherAI, Claude Code, Codex and T3 Code.
-  Anything else, agents ask you first. See [Programs](Programs).
+  Anything else, agents ask you first. See [Programs](Programs.md).
 - **Local apps:** every app on the computer that agents can talk to.
 - **Claude Code and Codex:** available for the agents' AI if installed and signed in.
 - **Websites:** none.

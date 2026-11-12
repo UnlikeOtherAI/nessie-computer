@@ -9,7 +9,7 @@ Access has five parts:
 | Part | What it means | New team gets |
 |---|---|---|
 | [Folders](#folders) | Folders agents can read, and prepare changes to | The *Nessie* folder |
-| [Programs](Programs) | Programs agents can start | Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code |
+| [Programs](Programs.md) | Programs agents can start | Apps from UnlikeOtherAI, Claude Code, Codex, T3 Code |
 | [Websites](#websites) | Sites the agents' own browser may open | None |
 | [Local apps](#local-apps) | Apps on this computer agents can talk to (MCP servers) | All of them |
 | [Coding assistants](#coding-assistants) | Your existing Claude Code and Codex conversations | As set when you connected |
@@ -40,7 +40,7 @@ Agents' own browser, sandboxed commands and Codex sessions work with exactly
 one folder. With two or more, those refuse to start until you remove the
 extras. Reading files, terminals and local apps keep working.
 
-Folders are not the same as [Documents](Documents). Folders are your files,
+Folders are not the same as [Documents](Documents.md). Folders are your files,
 shared with agents. Documents is a copy of your team's Nessie documents kept on
 this computer.
 
@@ -67,7 +67,7 @@ Each app has a switch. Switch one off and agents stop using it; install a new
 one and it appears, switched on. The details of how an app starts stay on this
 computer; Nessie only learns its name. An app that keeps failing to start is
 tried again less and less often, up to every 30 minutes (see
-[Troubleshooting](Troubleshooting)).
+[Troubleshooting](Troubleshooting.md)).
 
 ## Coding assistants
 

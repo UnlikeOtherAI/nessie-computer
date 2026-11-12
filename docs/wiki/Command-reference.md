@@ -53,7 +53,7 @@ nessie-computer add [--server <https://address>] [--no-wait] [--json]
 - `--server` — only for an organisation with its own Nessie (default `https://api.nessie.works`).
 - `--no-wait` — print the code and return; `status` shows when it's done.
 
-Who runs the new team (see [Who runs your teams](Command-line#who-runs-your-teams)):
+Who runs the new team (see [Who runs your teams](Command-line.md#who-runs-your-teams)):
 
 - **Windows, or a Mac with the Nessie Computer app:** the app. `add` opens
   it if it isn't open.

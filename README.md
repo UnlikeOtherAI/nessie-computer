@@ -9,7 +9,7 @@ It runs on Mac, Windows and Linux. On a Mac it lives in the menu bar; on
 Windows, in the notification area beside the clock; on Linux, as a service you
 control from the command line.
 
-**Full guides:** [Nessie Computer wiki](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Home.md)
+**Full guides:** [Nessie Computer guides](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Home.md)
 
 ## Get started
 
@@ -18,8 +18,8 @@ control from the command line.
 
    | Computer | Download | Needs |
    |---|---|---|
-   | Mac | the `.dmg` file | Apple silicon (M1 or newer), macOS 15 or later |
-   | Windows | the `.msi` file | Windows 10 or 11, 64-bit |
+   | Mac | [Download for Apple silicon](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg) | Apple silicon (M1 or newer), macOS 15 or later |
+   | Windows | [Download for Windows x64](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi) | Windows 10 or 11, 64-bit |
    | Linux | `.deb` (Debian, Ubuntu) or `.rpm` (Fedora) | x86-64 |
 
    Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Install-Nessie-Computer.md)

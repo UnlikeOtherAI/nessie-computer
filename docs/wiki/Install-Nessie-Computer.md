@@ -52,7 +52,7 @@ The installer is signed by **UnlikeOtherAI s.r.o.**
 
 Needs an x86-64 computer with systemd. There are packages for Debian and
 Ubuntu (`.deb`) and Fedora (`.rpm`). On Linux you use the
-[command line](Command-line); a small settings window for updates is included.
+[command line](Command-line.md); a small settings window for updates is included.
 
 ```sh
 # Debian, Ubuntu
@@ -67,7 +67,7 @@ fingerprint is `C2CDA17E5C87A0F3A22D0A511EEA727FD300D4B9`.
 
 ## Next
 
-[Add a team](Add-a-team).
+[Add a team](Add-a-team.md).
 
 ## Languages
 

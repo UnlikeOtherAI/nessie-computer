@@ -57,7 +57,7 @@ on the network. `nessie-computer access local-apps --json` shows, under
   offline; choose **Resume**.
 
 ### An agent says it isn't allowed to run something
-The program isn't on the team's [Programs](Programs) list. When the agent asks,
+The program isn't on the team's [Programs](Programs.md) list. When the agent asks,
 answer the request under **Needs you**. If you missed it, add the program on
 **Access → Programs**.
 
@@ -73,15 +73,15 @@ again**. Nothing about what agents can use changes.
 
 ### "Nessie did not accept this computer's signature"
 The team was connected again from somewhere else, or the computer's files were
-restored. [Disconnect](Disconnect-or-uninstall) the team and
-[connect it](Add-a-team) again.
+restored. [Disconnect](Disconnect-or-uninstall.md) the team and
+[connect it](Add-a-team.md) again.
 
 ### ChatGPT says terminals and coding tools are stopped
 That is expected while a ChatGPT plan is signed in. See
-[AI](AI#before-you-sign-in).
+[AI](AI.md#before-you-sign-in).
 
 ### Documents shows something to check
-See [Documents → When something needs you](Documents#when-something-needs-you).
+See [Documents → When something needs you](Documents.md#when-something-needs-you).
 
 ## Logs
 
