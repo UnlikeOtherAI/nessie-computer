@@ -1,6 +1,30 @@
 # macOS updates with the existing Developer ID identity
 
-Status: implementation in progress. No installed upgrade is claimed.
+Status: the signed manual upgrade from 1.0.40 to 1.1.0 was verified on
+12 November 2026 on dictator. Automatic catalogue-driven replacement remains a
+separate verification requirement.
+
+## Verified 1.1.0 installation
+
+The downloaded Apple silicon DMG was Developer ID signed, notarized, stapled and
+accepted by Gatekeeper. Its source is
+`0eedf3601fc3e24f2ac12518394f5e4994c031c4`, size is 42,399,979 bytes, and SHA-256 is
+`b4c60e12c1cc5db1b8212373ea2289e431323cb9933e24f5e9ad22b01e7d121a`.
+The versioned asset and `Nessie-Computer-macOS-Apple-Silicon.dmg` downloaded from
+the draft release had identical bytes.
+
+The app was installed at the existing `/Applications/Nessie Executor.app` path.
+The helper held runtime adoption while the older Nessie Desktop was running.
+After Desktop was closed normally, the helper's automatic retry adopted 1.1.0
+without editing custody state or protected files. Settings showed installed
+version 1.1.0; `/usr/local/bin/nessie-computer --version` returned
+`nessie-computer 1.1.0`, and `--help` succeeded. The protected runtime manifest
+matched the source above. The older Desktop was then reopened.
+
+Existing team connection refusals predated the upgrade; this verification does
+not claim a successful team connection or an automatic catalogue update.
+
+## Distribution identity
 
 The distribution identity is the existing `Developer ID Application:
 UnlikeOtherAI s.r.o. (23B7GTLBN7)`. Its certificate is on the Mac Desktop and its
