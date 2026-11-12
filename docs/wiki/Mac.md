@@ -14,6 +14,10 @@ After helper approval, open a new Terminal and run `nessie-computer --version` a
 
 To check the download, compare `shasum -a 256 Nessie-Computer-macOS-Apple-Silicon.dmg` with the checksum published beside that exact asset. `xcrun stapler validate Nessie-Computer-macOS-Apple-Silicon.dmg` checks its attached notarisation ticket.
 
-For upgrades, let active work finish and quit Nessie Computer before replacing the app. Keep its existing application-support data. Removing the app does not revoke team connections: [Disconnect or uninstall](Disconnect-or-uninstall.md).
+For upgrades, let active work finish and quit Nessie Computer before replacing the app.
+Also quit older Nessie Desktop copies while the protected runtime upgrades; they
+can keep it waiting. The helper retries automatically. Check **Settings → Software
+updates → Installed version** and `nessie-computer --version` before reopening
+Desktop: the app bundle alone does not prove the runtime has upgraded. Keep its existing application-support data. Removing the app does not revoke team connections: [Disconnect or uninstall](Disconnect-or-uninstall.md).
 
 [Installation](Install-Nessie-Computer.md) · [Settings and updates](Settings-and-updates.md)
