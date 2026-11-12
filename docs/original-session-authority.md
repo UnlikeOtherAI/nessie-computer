@@ -162,16 +162,23 @@ replies cannot carry provider methods or grant a human operation. Codex result
 and error responses await this promise. Request withdrawal also awaits its
 reply and records `delivery_unknown` when acknowledgement fails.
 
-Every `AgentProcess` exposes `confirmHostExecutionStopped(snapshot?, effect?)`.
-`exited` resolves `{ code, clearance: 'stopped' | 'unknown' }`; an exit code is
-never clearance. A positive `stopTree` result is required even without personal
-credentials. Unknown clearance retains the identity, prevents completed close
-and replacement, and can be reconciled by another clearance attempt. Startup
-failure throws `AgentProcessStopUnproved` with the identity when known, or the
-spawned PID when identification failed. The PID is debt evidence, never a
-replacement birth identity. Missing proof capability refuses before spawn.
-Host recovery and supersession obey the same rule. POSIX group/table sweeps
-still report unknown; they do not become kernel containment proof.
+Ordinary managed Codex, Claude and terminal sessions use identity-checked
+operational cleanup (`killTree`), including recovery and supersession. Their
+process exit is a lifecycle event, never proof that escaped descendants are
+absent. They do not request or release protected credential custody.
+
+Codex can acknowledge `turn/start` before the turn becomes active. An interrupt
+requested in that interval waits for `turn/started`; the start response's reserved
+id alone cannot admit it. The pending intent keeps its original authority.
+
+Protected byte transports separately expose
+`confirmHostExecutionStopped(snapshot?, effect?)` and an exit clearance of
+`stopped` or `unknown`. Only a positive `stopTree` result clears that custody;
+POSIX group/table sweeps still report unknown. Missing proof capability refuses
+protected launch before spawn. `AgentProcessStopUnproved` retains the identity
+when known, or the spawned PID when identification failed; a PID alone never
+becomes a replacement birth identity. Ordinary drivers cannot access this
+clearance API or use an operational kill as protected proof.
 
 The Windows process exchange keeps the deadline check and its kill branch in
 one PowerShell `if`/`else` statement. A statement separator before `else` caused

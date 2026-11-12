@@ -134,9 +134,17 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
                 operation: operation, stateDirectory: controller.stateDirectory
             )
             let runner = try controller.requireRunner()
-            let data = try await PersonalChatgptProcess().run(
-                process: runner.process(for: invocation), invocation: invocation
-            )
+            let run = {
+                try await PersonalChatgptProcess().run(
+                    process: runner.process(for: invocation), invocation: invocation
+                )
+            }
+            let data: Data
+            if operation["operation"] as? String == "start" {
+                data = try await connections.withPersonalSignIn(run)
+            } else {
+                data = try await run()
+            }
             return try JSONSerialization.jsonObject(with: data)
         case "executor_remove": return try await remove(controller)
         case "executor_apply_remedy":

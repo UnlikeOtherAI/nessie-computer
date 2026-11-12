@@ -78,14 +78,14 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
     effect?.assertLive()
     await outcomes.send(argv, effect, child.write)
     settled = false
-    void child.exited.then(async ({ code, clearance }) => {
-      if (clearance === 'stopped' && process === child) process = undefined
+    void child.exited.then(async ({ code }) => {
+      if (process === child) process = undefined
       await writer.flush()
       if (!ending) context.update({
-        status: clearance === 'unknown' ? 'interrupted' : code === 0 ? 'closed' : 'failed',
-        reason: clearance === 'unknown' ? 'provider_stop_unproved' : code === 0 ? undefined : 'terminal_process_ended',
+        status: code === 0 ? 'closed' : 'failed',
+        reason: code === 0 ? undefined : 'terminal_process_ended',
         ...(code === null ? {} : { exitCode: code }),
-        ...(clearance === 'stopped' ? { agentIdentity: undefined } : {}), turnStartedAt: undefined,
+        agentIdentity: undefined, turnStartedAt: undefined,
       })
     }).catch(() => context.log('Terminal exit publication failed.')).finally(() => { settled = true })
     return child
@@ -100,9 +100,8 @@ export const createTerminalDriver = (context: AgentDriverContext): AgentDriver =
         const descendants = await context.control.descendants(identity)
         await effect?.consume()
         effect?.assertLive()
-        const stopped = current ? await current.confirmHostExecutionStopped(descendants, effect)
-          : await context.control.stopTree?.(identity, descendants, effect) === 'stopped'
-        if (!stopped) throw new AgentProcessStopUnproved(identity)
+        await context.control.killTree(identity, descendants, effect)
+        if (current?.alive()) throw new AgentProcessStopUnproved(identity)
         await current?.exited
         process = undefined
         stopDebt = undefined

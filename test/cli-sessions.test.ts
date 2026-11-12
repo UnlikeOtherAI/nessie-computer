@@ -61,7 +61,8 @@ const run = async (home: string, args: string[]) => {
   let err = ''
   const context: CliContext = { out: (text) => { out += text }, err: (text) => { err += text },
     stdin: Readable.from([]), interactive: false, ask: async () => '', platform: process.platform, home,
-    now: () => new Date(), sleep: async () => undefined }
+    now: () => new Date(), sleep: async () => undefined,
+    run: async () => ({ code: null, stdout: '', stderr: '' }) }
   const exit = await runUserCli(args, {
     context, namesApi: fakeTeamNames({ names: { [SALES]: { teamName: 'Sales', organizationName: 'Acme' } } }).api,
   })
@@ -73,7 +74,9 @@ test('sessions lists what agents are doing in every team, and stops one by a sho
     const home = await mkdtemp(join(tmpdir(), 'nessie-cli-sessions-'))
     try {
       const stateDir = await team(home)
-      assert.match((await run(home, ['sessions'])).out, /^No agent is working on this computer right now\.\n$/u)
+      const empty = await run(home, ['sessions'])
+      assert.equal(empty.exit, 0, empty.err)
+      assert.match(empty.out, /^No agent is working on this computer right now\.\n$/u)
       await writeSessionsFile(stateDir, working)
 
       const listed = await run(home, ['sessions', '--json'])

@@ -7,8 +7,8 @@ Saved connections belong to that computer and selected team.
 ## Claude Code and Codex on this computer
 
 **On this computer** sits above ChatGPT plans. It lists Claude Code and Codex
-with the account each is signed in to, and a **Make available** switch per
-team. The wire contract, accounts, sessions and verification are in
+with the account each is signed in to, and one switch per team that offers
+it to that team's agents. The wire contract, accounts, sessions and verification are in
 [Claude Code and Codex as engines](local-cli-engines.md).
 
 ## ChatGPT plans
@@ -19,8 +19,68 @@ the provider's own sign-in. Each plan has a stable profile ID, independent
 sign-in, sign-out and background-work consent. **Manage** opens that plan;
 **Save name** changes only its local display label. Adding a plan does not
 resume another account or inherit another profile's provider registration.
-Native credential custody and per-plan funding rules still apply: a plan funds
-the owner's own agents.
+New profiles use the public Codex personal-agent OAuth client, the same
+`/oauth/authorize` and `/oauth/token` contract used by OpenClaw, with fresh
+PKCE and a loopback callback at `http://localhost:1455/auth/callback`. The
+computer opens the browser and owns token exchange, refresh and the selected
+ChatGPT account header. It calls `chatgpt.com/backend-api/codex` directly.
+There is no Codex installation prerequisite and no import of another app’s
+grant. Existing SIWC registrations retain their own exact local mapping.
+
+The server may be hosted, self-hosted or local. It schedules work and receives
+inference over the existing authenticated host WebSocket, never provider
+credentials. Native credential custody and per-plan funding rules still apply:
+a plan funds the owner’s own agents. The Mac inventory proves Nessie Computer’s
+managed processes and installation; unrelated Node programs or a separate
+Nessie Desktop UI do not fail that inventory. Other owner-run applications
+remain inside the ordinary OS-account trust boundary.
+
+A signed-in plan and the programs agents start share the computer: a plan
+refuses no terminal, coding tool or local app, and none of them refuses a
+sign-in ([security boundaries](../SECURITY.md)).
+
+A turn on a plan costs one model request and nothing else on the wire. The
+plan's host asks Nessie to confirm its owner and team every five seconds and
+stops when the answer changes; each credential lease reuses that answer while
+it is under ten seconds old (`chatgpt-shared-authority.ts`) instead of asking
+again, which used to put six HTTPS round trips around every turn. The
+provider's model list is read once a minute per plan (`chatgpt-backend.ts`),
+not three times a turn; a failed request drops the saved list. Requests carry
+one prompt cache key per agent, so the instructions and tools an agent sends
+every turn are read from the provider's cache. `//#test:chatgpt-connection`
+pins these counts (`test/chatgpt-turn-overhead.test.ts`).
+
+Every model a plan lists is offered with the context window the provider
+states for it; which one an agent uses is chosen in Nessie.
+
+The dialog shows blocked sign-in and failed checks as red alerts. A failed
+check keeps the name you typed; **Check again** refreshes its status. A successful status read does not itself grant provider access.
+Server deployment restrictions, owner authority, local runtime protection and
+OpenAI sign-in failures have separate messages; none falls back to team credits.
+Local scope resolution failures also return these public reasons instead of
+escaping the CLI before its first status frame.
+
+On macOS, sign-in briefly holds new team starts and the app's own status
+reads, and lets idle team connections shut down normally before native
+credential admission: the inventory refuses when a Nessie runtime starts or
+ends while it is being taken. Teams resume after the credential handoff. A team
+with a running command is left alone, and its command does not keep sign-in
+out: the native inventory on macOS and Linux counts Nessie Computer's own
+runtimes and no longer the programs they started for agents
+(`managed_macos_inventory.rs`, `managed_inventory.rs`). On Linux a plain Node
+program is no longer counted as a runtime either. Update adoption and personal
+sign-in have independent holds, so one cannot release the other.
+
+A plan's host that fails connects again after 3 seconds, then 6, 12, 24 and
+48, then once a minute, and starts over once it has run for a minute
+(`chatgpt-host-retry.ts`). Each connection spends one of the host challenges
+Nessie allows a whole network in ten minutes; retrying every three seconds
+spent them all and took the models of every computer on that network offline.
+
+An expired first login completes the existing credential, receipt and native
+absence proofs before clearing its removed signing key from public metadata.
+Retry then creates a new key and a fresh browser grant for the same named
+profile. No callback code or expired URL is reused.
 
 ## Local and network model servers
 
@@ -68,6 +128,11 @@ build `native/Cargo.toml`; the repository runner puts an unmarked Node beside
 the Debug ACL helper. This verifies file protection without claiming installed
 credential authority. The local headless journey is
 `node tray-windows/test/renderer-harness.mjs --only=ai`, against the real console page.
+Run `pnpm exec turbo run test:chatgpt-connection
+--root-turbo-json=scripts/turbo.public.json --concurrency=2` for the OAuth
+loopback, registration and public-failure contract (no installed native authority).
+The focused `--only=chatgpt` journey covers named starts, all public refusal
+messages, failed checks and recovery in seven locales at both native window sizes.
 
 Revision c9f4016 passed build, lint, typecheck and all 42 focused tests on Maxis,
 with no skips. Shared AI/ChatGPT journeys passed in seven locales at 390/1280 px
@@ -79,3 +144,13 @@ address was unreachable in that check.
 
 Signed installed OAuth acceptance and the live subscription-funded agent task
 are still pending. Browser fixtures and source compilation do not prove them.
+
+Named ChatGPT profiles publish their display name in signed model reports, so
+Nessie can distinguish accounts on the same computer. The connection's model is
+chosen in Nessie under Connected accounts → AI plans or the computer's details;
+the available choices come from the signed-in account. OAuth credentials and
+OpenAI requests remain on Nessie Computer.
+
+Shutdown coverage uses `//#test:updates` for late inference connections,
+`//#test:mcp` for local app transport cleanup, and `//#test:chatgpt-connection`
+for expired-login cleanup and retry. Mac native recovery and app tests run on macOS.

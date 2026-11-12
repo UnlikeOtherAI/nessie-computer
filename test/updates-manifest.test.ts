@@ -10,7 +10,7 @@ const release = () => ({
   format: 1, channel: 'stable', sequence: 12, version: '1.0.2', sourceCommit: 'a'.repeat(40),
   publishedAt: '2026-11-05T10:00:00Z', expiresAt: '2026-11-12T10:00:00Z', minimumUpdaterProtocol: 1,
   targets: { 'windows-x64-msi': [{ name: 'Nessie-Executor-Windows.msi', size: 120,
-    url: 'https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.2/Nessie-Executor-Windows.msi',
+    url: 'https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.2/Nessie-Executor-Windows.msi',
     sha256: 'b'.repeat(64) }] },
 })
 const envelope = (value: unknown): string => {
@@ -53,7 +53,7 @@ test('rollback, equivocation, expiry, preview and unsupported updater protocols 
 
 test('signed moving URLs, foreign repositories, path tricks and duplicate assets are refused', () => {
   const asset = release().targets['windows-x64-msi'][0]!
-  for (const url of [asset.url.replace('executor-v1.0.2', 'latest'), asset.url.replace('nessie-executor', 'another-repo'),
+  for (const url of [asset.url.replace('executor-v1.0.2', 'latest'), asset.url.replace('nessie-computer', 'another-repo'),
     `${asset.url}?download=1`, asset.url.replace('/Nessie-', '/../../Nessie-')]) {
     rejects(envelope({ ...release(), targets: { 'windows-x64-msi': [{ ...asset, url }] } }), 'update.invalid_asset')
   }
@@ -66,4 +66,12 @@ test('version ordering is independent of repository commit counts and never uses
   assert.equal(compareUpdateVersions('1.0.12', '1.0.12'), 0)
   assert.equal(compareUpdateVersions('1.0.2', '1.1.0'), -1)
   assert.throws(() => compareUpdateVersions('1.0', '1.0.0'))
+})
+
+// A rename must not invalidate an authenticated release already held by a computer.
+test('signed catalogues retain the exact former repository alias', () => {
+  const value = release()
+  value.targets['windows-x64-msi'][0]!.url = value.targets['windows-x64-msi'][0]!.url
+    .replace('nessie-computer', 'nessie-executor')
+  assert.equal(verifyUpdateManifest(envelope(value), publicKey, options).manifest.version, '1.0.2')
 })

@@ -6,27 +6,27 @@ installed there. Everything they can use is decided on the computer, by you.
 
 ## Start here
 
-1. [Install Nessie Computer](Install-Nessie-Computer)
-2. [Add a team](Add-a-team)
-3. [What agents can use](What-agents-can-use)
+1. [Install Nessie Computer](Install-Nessie-Computer.md)
+2. [Add a team](Add-a-team.md)
+3. [What agents can use](What-agents-can-use.md)
 
 ## Guides
 
 | I want to… | Read |
 |---|---|
-| Stop agents for a while | [Pause and resume](Pause-and-resume) |
-| Use one computer for several teams | [Several teams on one computer](Several-teams-on-one-computer) |
-| Choose which programs agents may start | [Programs](Programs) |
-| Answer an agent that asks to run something | [Programs → Requests](Programs#when-an-agent-asks-to-run-a-program) |
-| Keep my team's documents in a folder | [Documents](Documents) |
-| Use my ChatGPT plan or a local model | [AI: ChatGPT plans and model servers](AI) |
-| Change start-up, restart and update settings | [Settings and updates](Settings-and-updates) |
-| Stop using it | [Disconnect or uninstall](Disconnect-or-uninstall) |
-| Fix something | [Troubleshooting](Troubleshooting) |
-| Know what is sent to Nessie | [What leaves your computer](What-leaves-your-computer) |
-| Use the command line or run it on a server | [Command line](Command-line) · [Command reference](Command-reference) |
+| Stop agents for a while | [Pause and resume](Pause-and-resume.md) |
+| Use one computer for several teams | [Several teams on one computer](Several-teams-on-one-computer.md) |
+| Choose which programs agents may start | [Programs](Programs.md) |
+| Answer an agent that asks to run something | [Programs → Requests](Programs.md#when-an-agent-asks-to-run-a-program) |
+| Keep my team's documents in a folder | [Documents](Documents.md) |
+| Use my ChatGPT plan or a local model | [AI: ChatGPT plans and model servers](AI.md) |
+| Change start-up, restart and update settings | [Settings and updates](Settings-and-updates.md) |
+| Stop using it | [Disconnect or uninstall](Disconnect-or-uninstall.md) |
+| Fix something | [Troubleshooting](Troubleshooting.md) |
+| Know what is sent to Nessie | [What leaves your computer](What-leaves-your-computer.md) |
+| Use the command line or run it on a server | [Command line](Command-line.md) · [Command reference](Command-reference.md) |
 
-Also: [Glossary](Glossary) · [FAQ](FAQ)
+Also: [Glossary](Glossary.md) · [FAQ](FAQ.md)
 
 ## How it fits together
 
@@ -35,3 +35,5 @@ Also: [Glossary](Glossary) · [FAQ](FAQ)
 - **Nessie Computer** runs on the computer. There you choose *what* agents may
   use: folders, programs, websites and local apps. Nessie can't change these.
 - The computer connects out to Nessie. Nothing on the internet can connect in.
+
+See [error reporting](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/error-reporting.md) for SDK coverage, configuration and verification limits.

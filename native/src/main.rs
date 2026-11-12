@@ -39,6 +39,8 @@ mod unix_account_state;
 mod managed_installed;
 #[cfg(target_os = "macos")]
 mod managed_macos_closure;
+#[cfg(target_os = "macos")]
+mod managed_macos_host_retirement;
 #[cfg(target_os = "linux")]
 mod managed_inventory;
 #[cfg(target_os = "macos")]

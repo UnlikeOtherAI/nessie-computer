@@ -45,25 +45,42 @@ for them.
 
 1. Choose **Add a ChatGPT plan**.
 2. Keep the suggested name (*ChatGPT plan 1*) or type your own, such as
-   *Work plan*.
+   *ChatGPT OR Main* or *Work plan*.
 3. Choose **Sign in with ChatGPT**. Your browser opens ChatGPT's own sign-in.
    Sign in with the account that has the plan.
 4. Back in Nessie Computer the plan shows **Ready**.
 
+On a Mac, idle team connections briefly reconnect while sign-in starts.
+Running commands keep going and do not block sign-in.
+If Safari cannot connect to localhost, return here and start sign-in again:
+that browser attempt has expired. Your connection name is kept.
+
 Add as many plans as you have. Each one has its own name and sign-in.
+
+If the browser does not open, read the red message in the dialog. **Check again**
+retries the check and keeps the name you typed. A connection problem, an account
+that needs reconnecting and a computer that cannot protect the sign-in require
+different steps; the message says which one blocked the attempt. For an update
+problem, open **Settings → Software updates**, finish the update, then check again.
+
+The sign-in uses the public personal-agent OAuth flow, as OpenClaw does.
+Nessie Computer keeps its own sign-in on this computer; it does not import a
+Codex or OpenClaw account. Hosted Nessie can schedule the agent’s work too: it
+receives replies through the computer’s connection and never receives the
+OpenAI credentials. Codex does not need to be installed for this connection.
 
 On Windows the Nessie Computer background service keeps a plan's sign-in. The
 first plan for a team therefore adds a **ChatGPT plan connection** for that
 team: Windows asks you to allow it, then this computer shows one more code to
 enter in Nessie under **Computers → Add a computer**.
 
-### Before you sign in
+### Plans and everything else, together
 
-While a ChatGPT plan is signed in, agents can't open terminals or coding tools
-under your account on this computer. That keeps the plan's sign-in out of
-their reach. Sign out to get them back. Nessie Computer asks you to tick a box
-confirming this before you sign in, and asks you to stop any terminals or
-coding tools agents are running first.
+A signed-in plan takes nothing else away. Agents keep their terminals, Claude
+Code and Codex sessions and local apps on this computer, and a plan signs in
+while they are running. A program an agent starts runs as you, so it can read
+the plan's sign-in on this computer, as it can already read Codex's and Claude
+Code's own. What agents may start is still yours to decide under **Access**.
 
 ### Background work
 
@@ -114,3 +131,8 @@ nessie-computer ai plans add "Work plan" --team "Sales · Acme"   # opens ChatGP
 nessie-computer ai servers add "Studio" http://192.168.1.90:8080/v1 --where network --team "Sales · Acme"
 nessie-computer ai servers list --team "Sales · Acme"
 ```
+
+Choose the model in Nessie from **Your settings** → **Connected accounts** →
+**AI plans**, or open the computer's details. Each named account reports the
+models it can use; choose one there for your private agents using that connection.
+Wait for any task using it to finish before switching.

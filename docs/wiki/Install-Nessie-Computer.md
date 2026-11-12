@@ -3,11 +3,15 @@
 Install it on the computer the agents should use. Every computer needs its own
 copy; installing it in one place doesn't give agents any other computer.
 
-Downloads are on the [Releases page](https://github.com/UnlikeOtherAI/nessie-executor/releases).
-Each release lists its files with checksums in `PACKAGE-SHA256SUMS`.
+Downloads are on the [Releases page](https://github.com/UnlikeOtherAI/nessie-computer/releases).
+Compare the download with its adjacent `.sha256` file or the release’s
+`PACKAGE-SHA256SUMS`, when provided. Use the checksum from the same release.
 
-If you use **Nessie Desktop** on a Mac or PC, Nessie Computer is already
-included. Skip to [Add a team](Add-a-team).
+If Nessie Computer is already installed, open it and check its version in
+**Settings → Help** before downloading another copy. Nessie Desktop editions
+differ; do not assume that the chat app includes this standalone app.
+
+[Mac installation and verification](Mac.md) · [Windows installation and verification](Windows.md)
 
 ## Mac
 
@@ -31,7 +35,7 @@ notarised by Apple.
 
 ## Windows
 
-Needs Windows 10 or 11, 64-bit.
+Needs Windows 10 22H2 or later, x64.
 
 1. Download the `.msi` file and open it.
 2. Follow the installer. It adds **Nessie Computer** to the Start menu.
@@ -48,14 +52,16 @@ The installer is signed by **UnlikeOtherAI s.r.o.**
 
 Needs an x86-64 computer with systemd. There are packages for Debian and
 Ubuntu (`.deb`) and Fedora (`.rpm`). On Linux you use the
-[command line](Command-line); a small settings window for updates is included.
+[command line](Command-line.md); a small settings window for updates is included.
+
+[Debian / Ubuntu (.deb)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.deb) · [Fedora (.rpm)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.rpm)
 
 ```sh
 # Debian, Ubuntu
-sudo apt install ./nessie-executor_<version>_amd64.deb
+sudo apt install ./Nessie-Computer-Linux-x64.deb
 
 # Fedora
-sudo dnf install ./nessie-executor_<version>_x86_64.rpm
+sudo dnf install ./Nessie-Computer-Linux-x64.rpm
 ```
 
 Each package has a detached signature (`.asc`). The Linux publisher
@@ -63,4 +69,8 @@ fingerprint is `C2CDA17E5C87A0F3A22D0A511EEA727FD300D4B9`.
 
 ## Next
 
-[Add a team](Add-a-team).
+[Add a team](Add-a-team.md).
+
+## Languages
+
+[ar](ar/Install-Nessie-Computer.md) · [bg](bg/Install-Nessie-Computer.md) · [bs](bs/Install-Nessie-Computer.md) · [ca](ca/Install-Nessie-Computer.md) · [cs](cs/Install-Nessie-Computer.md) · [da](da/Install-Nessie-Computer.md) · [de](de/Install-Nessie-Computer.md) · [el](el/Install-Nessie-Computer.md) · [en-gb](en-gb/Install-Nessie-Computer.md) · [en-us](en-us/Install-Nessie-Computer.md) · [es](es/Install-Nessie-Computer.md) · [et](et/Install-Nessie-Computer.md) · [fi](fi/Install-Nessie-Computer.md) · [fr](fr/Install-Nessie-Computer.md) · [ga](ga/Install-Nessie-Computer.md) · [hi](hi/Install-Nessie-Computer.md) · [hr](hr/Install-Nessie-Computer.md) · [hu](hu/Install-Nessie-Computer.md) · [id](id/Install-Nessie-Computer.md) · [is](is/Install-Nessie-Computer.md) · [it](it/Install-Nessie-Computer.md) · [ja](ja/Install-Nessie-Computer.md) · [ko](ko/Install-Nessie-Computer.md) · [lt](lt/Install-Nessie-Computer.md) · [lv](lv/Install-Nessie-Computer.md) · [mk](mk/Install-Nessie-Computer.md) · [mt](mt/Install-Nessie-Computer.md) · [nl](nl/Install-Nessie-Computer.md) · [no](no/Install-Nessie-Computer.md) · [pl](pl/Install-Nessie-Computer.md) · [pt](pt/Install-Nessie-Computer.md) · [ro](ro/Install-Nessie-Computer.md) · [ru](ru/Install-Nessie-Computer.md) · [sk](sk/Install-Nessie-Computer.md) · [sl](sl/Install-Nessie-Computer.md) · [sq](sq/Install-Nessie-Computer.md) · [sr](sr/Install-Nessie-Computer.md) · [sv](sv/Install-Nessie-Computer.md) · [tr](tr/Install-Nessie-Computer.md) · [uk](uk/Install-Nessie-Computer.md) · [zh](zh/Install-Nessie-Computer.md)

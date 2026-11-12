@@ -14,9 +14,9 @@ Nessie then shows the computer as disconnected for that team. If the computer
 is offline and can't tell Nessie, Nessie Computer says so; remove the computer
 on its page in Nessie as well.
 
-To use the team again, [connect it](Add-a-team) with a new code.
+To use the team again, [connect it](Add-a-team.md) with a new code.
 
-To stop for a while instead, use [Pause](Pause-and-resume).
+To stop for a while instead, use [Pause](Pause-and-resume.md).
 
 ## Remove the computer in Nessie
 

@@ -3,7 +3,7 @@ import { lstat, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
-  PERSONAL_INFERENCE_GUARD_VERSION, PersonalInferenceAuthoritySchema, PersonalInferencePrincipalSchema,
+  PERSONAL_INFERENCE_GUARD_VERSION, PersonalInferencePrincipalSchema,
   ExecutorInferenceSourceSchema, canonicalExecutorJson, sameExecutorInferenceSource, samePersonalInferenceCustodian,
   type ExecutorInferenceSource, type PersonalInferenceAuthority, type PersonalInferencePrincipal,
 } from '@nessie/executor-protocol'
@@ -19,6 +19,13 @@ import {
   assertOwnerOnlyStatePath, ensureOwnerOnlyStateDirectory, type StateSecurityDeps,
 } from './state-security.js'
 
+/**
+ * A Nessie Computer process that may touch plan credentials. Versions through
+ * 1.0.40 also wrote a `host_execution` entry for every terminal, coding tool
+ * and local app an agent started, to keep them apart from a signed-in plan.
+ * Both now run side by side: nothing writes that kind, and a saved one is
+ * dropped the next time a plan signs in.
+ */
 export type PersonalHostRegistration = {
   id: string; pid: number; startedAt: string; bootId?: string; label: string; guardVersion: number
   kind: 'runtime' | 'host_execution' | 'credential_runtime'; authority: PersonalInferenceAuthority | null
@@ -33,19 +40,7 @@ export type PersonalInferenceGuardState = {
   registrations: PersonalHostRegistration[]
 }
 
-export type PersonalHostExecutionLease = {
-  id: string
-  /** Persist birth evidence before the process handle can be lost. */
-  bindExecution: (identity: CodingProcessIdentity, descendants?: CodingProcessIdentity[]) => Promise<void>
-  /** Only after the admitted process tree is proven stopped, not on transport abort. */
-  release: () => Promise<void>
-  /**
-   * When a stop could not be proved: the admission stays (custody), but
-   * whatever process holds it open is ended, so a retried start never
-   * accumulates them. Absent where nothing does.
-   */
-  abandon?: () => Promise<void>
-}
+export type PersonalRuntimeRegistration = { id: string; release: () => Promise<void> }
 
 export type PersonalInferenceGuardOptions = {
   directory?: string
@@ -164,12 +159,6 @@ export class PersonalInferenceGuard {
     await this.mutate(async () => undefined)
   }
 
-  /** Read on every operation; no stale in-process allow survives sign-in or sign-out. */
-  async assertExecutionAuthority(_authority: unknown): Promise<void> {
-    const { protection } = await this.read()
-    if (protection) protectionError('personal_inference_host_isolation_required')
-  }
-
   private async credentialProcessGone(item: PersonalHostRegistration): Promise<boolean> {
     if (item.bootId) {
       const boot = await (this.options.kernelBootId ?? currentKernelBootId)()
@@ -185,13 +174,13 @@ export class PersonalInferenceGuard {
   }
 
   /** Invoke before any credential read on restart; claims survive process failure. */
-  registerCredentialRuntime(): Promise<PersonalHostExecutionLease> {
-    return this.register('credential_runtime', 'personal-credential-runtime', null)
+  registerCredentialRuntime(): Promise<PersonalRuntimeRegistration> {
+    return this.register('credential_runtime', 'personal-credential-runtime')
   }
 
   private async register(
-    kind: PersonalHostRegistration['kind'], label: string, authority: unknown,
-  ): Promise<PersonalHostExecutionLease> {
+    kind: 'runtime' | 'credential_runtime', label: string,
+  ): Promise<PersonalRuntimeRegistration> {
     const identity = await (this.options.processIdentity ?? ownProcessIdentity)()
     if (!identity || !Number.isSafeInteger(identity.pid) || identity.pid < 1 || !/^[0-9]+$/u.test(identity.startedAt)
       || identity.bootId !== undefined && !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u.test(identity.bootId)) {
@@ -199,21 +188,16 @@ export class PersonalInferenceGuard {
     }
     const id = randomUUID()
     await this.mutate(async (state) => {
-      if (kind === 'host_execution' && state.protection) {
-        protectionError('personal_inference_host_isolation_required')
-      }
-      // A restart ended every process an earlier boot registered. Host and
-      // runtime registrations from another boot go; credential runtimes keep
+      // A restart ended every process an earlier boot registered. Runtime
+      // registrations from another boot go; credential runtimes keep
       // their own reconciliation. On dictator 405 had piled up toward the
       // 4096 this guard loads, and the native creator fenced on them.
       if (identity.bootId) {
         state.registrations = state.registrations.filter((item) => item.kind === 'credential_runtime'
           || item.bootId === undefined || item.bootId === identity.bootId)
       }
-      const parsed = PersonalInferenceAuthoritySchema.safeParse(authority)
       state.registrations.push({ id, ...identity, label: label.slice(0, 200), kind,
-        guardVersion: PERSONAL_INFERENCE_GUARD_VERSION,
-        authority: parsed.success ? parsed.data : null })
+        guardVersion: PERSONAL_INFERENCE_GUARD_VERSION, authority: null })
     })
     return { id, release: async () => {
       await this.mutate(async (state) => {
@@ -223,25 +207,10 @@ export class PersonalInferenceGuard {
         }
         state.registrations = state.registrations.filter((registered) => registered.id !== id)
       })
-    }, bindExecution: async (identity, descendants = []) => {
-      if (!validExecutionIdentity(identity) || descendants.length > 4096
-        || !descendants.every(validExecutionIdentity)) {
-        return protectionError('personal_inference_runtime_unverified')
-      }
-      await this.mutate(async (state) => {
-        const registration = state.registrations.find((item) => item.id === id)
-        if (!registration || registration.kind !== 'host_execution') {
-          return protectionError('personal_inference_admission_fenced')
-        }
-        registration.execution = { identity, descendants }
-      })
     } }
   }
 
-  registerRuntime(label: string): Promise<PersonalHostExecutionLease> { return this.register('runtime', label, null) }
-  admitHostExecution(label: string, authority: unknown): Promise<PersonalHostExecutionLease> {
-    return this.register('host_execution', label, authority)
-  }
+  registerRuntime(label: string): Promise<PersonalRuntimeRegistration> { return this.register('runtime', label) }
 
   /** All credential writes occur INSIDE the same admission lock, after compatibility proof. */
   async activate(input: PersonalInferenceProtection, saveCredentials: () => Promise<void>): Promise<void> {
@@ -272,12 +241,13 @@ export class PersonalInferenceGuard {
         ...(state.protection?.profiles ?? []).filter((profile) => profile.profileId !== input.profileId), input,
       ]
       if (profiles.length > 256) protectionError('personal_inference_guard_invalid')
-      if (state.registrations.some((item) => item.guardVersion !== PERSONAL_INFERENCE_GUARD_VERSION
-        || item.kind === 'host_execution')) {
+      // What an older version saved for programs agents started no longer keeps a plan out.
+      state.registrations = state.registrations.filter((item) => item.kind !== 'host_execution')
+      if (state.registrations.some((item) => item.guardVersion !== PERSONAL_INFERENCE_GUARD_VERSION)) {
         protectionError('personal_inference_incompatible_sessions')
       }
-      // Publish the fence BEFORE writing any token. Failed/ambiguous credential writes
-      // keep protection in place; they never restore unrestricted host execution.
+      // Publish the plan BEFORE writing any token, so a failed or ambiguous
+      // credential write is still accounted for.
       state.protection = { profiles }
       if (!state.registrations.some((item) => item.kind === 'credential_runtime'
         && item.pid === identity.pid && item.startedAt === identity.startedAt)) {
@@ -311,7 +281,7 @@ export class PersonalInferenceGuard {
     })
   }
 
-  /** Revocation/token deletion must finish before unrestricted host authority returns. */
+  /** Revocation and token deletion finish before the plan stops being accounted for. */
   async deactivate(profileId: string, clearCredentials: () => Promise<void>): Promise<void> {
     await this.mutate(async (state) => {
       await clearCredentials()
@@ -319,7 +289,7 @@ export class PersonalInferenceGuard {
       if (profiles.length === 0) {
         // Token deletion/AbortController cannot erase retained JS strings. A
         // separate noncredential controller must observe every owning process
-        // generation gone before restoring arbitrary host execution.
+        // generation gone before the plan is forgotten.
         // Native mutations can also hold old token bytes. Their durable child
         // claims must reconcile positively even after credential files vanish.
         await new PersonalNativeWriters(this.directory, this.options.security,

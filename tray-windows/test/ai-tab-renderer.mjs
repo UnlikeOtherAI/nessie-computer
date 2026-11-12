@@ -45,14 +45,13 @@ export const verifyAiTab = async (browser, ui, output) => {
           await page.waitForFunction((value) => document.getElementById('chatgpt-name').value === value, await page.evaluate((i) => window.nc.t('ai.planName', { n: i }), n))
           if (english) {
             assert.equal(await page.locator('#chatgpt-title').textContent(), 'Add a ChatGPT plan')
-            assert.equal(await page.locator('#chatgpt-restriction-copy').textContent(),
-              'While a ChatGPT plan is signed in, agents can’t open terminals or coding tools under your account. Sign out to get them back.')
             assert.equal(await page.locator('#chatgpt-start').textContent(), 'Sign in with ChatGPT')
           }
           assert.doesNotMatch(await page.locator('#chatgpt-dialog').innerText(), RETIRED_WORDS)
-          assert.equal(await page.locator('#chatgpt-start').isDisabled(), true)
+          // A plan keeps nothing else off the computer, so there is nothing to tick before signing in.
+          assert.equal(await page.locator('#chatgpt-dialog input[type=checkbox]').count(), 0)
           if (n === 2) await page.locator('#chatgpt-name').fill('Company plan')
-          await page.locator('#chatgpt-restriction').check()
+          await page.waitForFunction(() => !document.getElementById('chatgpt-start').disabled)
           if (n === 1 && size === 'desktop') await shot('add-plan')
           await page.locator('#chatgpt-start').click()
           await page.locator('#chatgpt-background').waitFor()

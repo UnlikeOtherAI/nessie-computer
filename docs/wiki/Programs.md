@@ -78,7 +78,7 @@ allow `git *` and block `git push *`.
 ## Things to keep in mind
 
 - Programs run as you, so they can open any file you can. See
-  [What agents can use](What-agents-can-use#the-one-thing-to-know).
+  [What agents can use](What-agents-can-use.md#the-one-thing-to-know).
 - A program you allow can start other programs. Allowing a shell (such as
   `bash` or `powershell`) is the same as choosing **Any program**.
 - Each team has its own programs list. Allowing `npm` for one team doesn't allow
@@ -95,4 +95,4 @@ nessie-computer requests list
 nessie-computer requests always <request-id>
 ```
 
-See [Command reference → access programs](Command-reference#access-programs).
+See [Command reference → access programs](Command-reference.md#access-programs).

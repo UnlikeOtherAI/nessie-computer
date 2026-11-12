@@ -65,7 +65,8 @@ the tab and the team dropdown already name what is shown.
   `.field-error` inserted after the control); without a target, in the open
   dialog's `.dialog-error`, else the current tab's `.tab-error`. Never locks the
   page. `nc.reportError(error, target)` and `nc.clearError(target)` do the two
-  halves.
+  halves. A render-owned status carries `data-state-status`; unrelated actions
+  and dialog opening never clear or overwrite that status.
 - `nc.footer.note(text)` — the footer's one line. `nc.footer.problem(group,
   { message, retry } | null)` — an unresolved save problem that outranks later
   notes until the same `group` clears it; `nc.footer.forget(prefix)` drops a
@@ -163,8 +164,12 @@ the tab and the team dropdown already name what is shown.
   code belongs to such a server. **Get code** asks the host first: a refused
   address leaves a waiting code as it was, and that code is cancelled only once
   the host accepts an address for another server. The claim in Nessie closes
-  the dialog, selects the team and opens its Access tab.
-  `nc.pairing.restore()` reopens an attempt left waiting and answers whether it did.
+  the dialog, selects the team and opens its Access tab. **Cancel** always
+  closes the dialog: the runtime ends the attempt on the computer even when
+  Nessie refuses or cannot be reached, and any other failure is said in the
+  window. `nc.pairing.restore()` reopens a code still waiting and answers
+  whether it did; a code that ran out while the window was closed has ended
+  and opens nothing.
 - `nc.updates.onStatus(fn)` / `nc.updates.status()` — the update broker's
   latest status.
 
@@ -210,7 +215,8 @@ against the real `index.html`, for both hosts, seven locales, light and dark,
 at 640×680 and the 440×500 minimum window, assertions only (the shell journey
 also opens "?" tips with `checkHelp`). `--only=shell,access,…` narrows it;
 `--updates-only` and the other update flags are documented in
-`docs/automatic-updates.md`; `--before=<rev>` captures the console at an older
+`docs/automatic-updates.md`; `--no-screenshots` runs assertions without capturing images;
+`--before=<rev>` captures the console at an older
 revision for comparison; `--output=<dir>` moves the pictures. They land in the
 clone's ignored `.artifacts/executor-console/{before,after}`. `pnpm lint` in
 this package lints these scripts with the repository's ESLint config.

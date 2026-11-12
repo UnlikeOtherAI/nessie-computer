@@ -21,10 +21,11 @@ The native coordinator, constrained OS installers and local update policy follow
 `test:updates-native` through the public Turbo graph for their focused gates.
 Stable catalogues require Windows, macOS, DEB and RPM together, including Linux detached signatures; preview may contain a complete subset. Catalog publication archives immutable signed bytes before advancing an existing mutable channel; see the same guide.
 The shared local Settings/update popup and Linux settings entry have local headless renderer journeys documented there; keep them out of CI. CLI launch checks never hold ordinary commands open.
-The macOS signed DMG carries the app and protected runtime; Linux package-publisher rotations also select the Linux native trust check.
+The macOS signed DMG carries the app and protected runtime; completed-daemon shutdown recovery and ended-controller recovery use the public `test:runtime-recovery` gate and the Mac native tests in the helper guide. Linux package-publisher rotations also select the Linux native trust check.
 Package lifecycle setup, legacy-factory retirement and protected removal intent are machine-only boundaries described in the same guide; preserve their journals and custody inode.
 Linux candidate builds verify detached package signatures before recording provenance; unsigned Windows candidates omit the trusted updater service.
 Linux archive staging keeps builder ownership for rootless containers; nFPM supplies installed root ownership.
+Linux signing configuration, replicated recovery material and the mandatory pre-build signing proof follow [the publisher guide](packaging/linux/keys/README.md).
 macOS uses the existing Developer ID Application identity, notarized DMG and approved app-bundled helper; follow [that trust contract](docs/macos-update-helper.md).
 
 Public contribution CI has no production signing credentials. Build candidates
@@ -104,9 +105,13 @@ Windows runtime admission uses its own fixed local pipe; keep pairing-control AC
 
 The shared AI tab, named ChatGPT profiles and local/LAN inference connections follow
 [local AI connections](docs/local-ai-connections.md); use the public Turbo
-`test:ai-connections` gate and the local `tray-windows/test/renderer-harness.mjs --only=ai` journey.
+`test:ai-connections` gate and the local `tray-windows/test/renderer-harness.mjs --only=ai` journey; `--only=chatgpt` covers
+named sign-in attempts, public refusal messages and check recovery.
 Claude Code and Codex offered as engines (the AI tab's On this computer, `ai local`, `local_cli` hosts) follow
 [Claude Code and Codex as engines](docs/local-cli-engines.md); its focused gate is `test:cli-engines`.
+
+A signed-in ChatGPT plan and agent-run programs share one computer, each inference source has its own pool of turns, and a turn costs one model request; follow
+[parallel sources and streaming](docs/plans/2026-11-11-parallel-sources-and-streaming.md) and the console's [what is a list](docs/nessie-computer-team-tabs.md#what-is-a-list) rule.
 
 Team names come from a display-only label in each team's folder, refreshed in one signed batch per server; follow
 [team names](docs/team-names.md).
@@ -114,6 +119,10 @@ Team names come from a display-only label in each team's folder, refreshed in on
 Sessions, concurrent commands, per-command recovery and the opt-in poll follow
 [sessions and concurrency](docs/sessions-and-concurrency.md); its focused gate is `test:sessions`.
 
-Standard SDK reporting, release configuration and native limitations follow [error reporting](docs/error-reporting.md).
+Standard crash/error SDKs, release configuration and verification limits follow [error reporting](docs/error-reporting.md).
+
+iMessage on a Mac — the read-only `chat.db` reader, the delivery cursor, `imessage.send` through AppleScript argv and the macOS-only operation — follows [iMessage](docs/imessage.md); Windows and Linux never offer or report it.
+
+The public repository is `UnlikeOtherAI/nessie-computer`; CLI and documented command coverage use the public Turbo `test:cli` gate. Repository-rename update compatibility follows [automatic updates](docs/automatic-updates.md#repository-rename).
 The focused `test:session-local-pairing` Turbo gate covers shared local bridge
 enrollment fixtures under [original session authority](docs/original-session-authority.md).

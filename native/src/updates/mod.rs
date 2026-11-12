@@ -34,6 +34,8 @@ mod macos_snapshot;
 mod macos_service;
 #[cfg(target_os = "macos")]
 mod macos_recovery;
+#[cfg(target_os = "macos")]
+mod macos_shutdown;
 
 use crate::protocol::NativeError;
 use nessie_executor_updater::protocol::Request;

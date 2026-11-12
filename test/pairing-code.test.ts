@@ -28,6 +28,7 @@ const fixture = () => {
   let loseStart = false
   let failRetirement = false
   let losePoll = false
+  let refuseCancel = false
   let pairingLocked = false
   let mintGate: Promise<void> | null = null
   let workspaceHasArtifacts = false
@@ -92,6 +93,7 @@ const fixture = () => {
         return starts.get(requestId)!
       }
       if (action === 'poll' && losePoll) { losePoll = false; throw new Error('poll response lost') }
+      if (action === 'cancel' && refuseCancel) throw new Error('This pairing is no longer available.')
       return { status: stage, pairingId, fingerprint, expiresAt: '2099-01-01T00:00:00.000Z',
         ...(stage === 'waiting' ? {} : { claim }) }
     },
@@ -106,6 +108,8 @@ const fixture = () => {
     reject: () => { stage = 'rejected' },
     failRetirement: () => { failRetirement = true },
     losePoll: () => { losePoll = true },
+    // Nessie deletes a code some time after it runs out and then refuses to cancel it.
+    forgetCode: () => { refuseCancel = true },
     holdMint: () => {
       let release!: () => void
       mintGate = new Promise<void>((done) => { release = done })
@@ -251,6 +255,36 @@ test('pairing cancellation recovers a lost mint response and expired attempts ca
   await f.client.cancelPairingCode(input.stateDir)
   f.wait()
   assert.equal((await f.client.startPairingCode(input)).status, 'waiting')
+})
+
+test('an attempt Nessie calls expired ends on the computer and is never reopened', async () => {
+  const f = fixture()
+  await f.client.startPairingCode(input)
+  f.expire()
+  const expired = await f.client.pairingCodeStatus(input.stateDir)
+  assert.deepEqual([expired.status, expired.code], ['expired', '01234567'])
+  assert.equal(f.pending(), null)
+  const polls = f.events.filter((event) => event === 'poll').length
+  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).status, 'idle')
+  assert.equal(f.events.filter((event) => event === 'poll').length, polls, 'an ended attempt asks Nessie nothing')
+  assert.equal(f.events.includes('cancel'), false)
+})
+
+test('cancel ends the attempt on the computer even when Nessie refuses or cannot be reached', async () => {
+  const f = fixture()
+  await f.client.startPairingCode(input)
+  f.forgetCode()
+  assert.equal((await f.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
+  assert.ok(f.events.includes('cancel'), 'Nessie is still asked first')
+  assert.equal(f.pending(), null)
+  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).status, 'idle')
+  const offline = fixture()
+  offline.loseResponse()
+  await assert.rejects(offline.client.startPairingCode(input), /response lost/)
+  offline.loseResponse()
+  assert.equal((await offline.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
+  assert.equal(offline.pending(), null)
+  assert.equal(offline.events.includes('cancel'), false)
 })
 
 test('starting pairing again replaces a server-confirmed expired attempt without cancelling it', async () => {

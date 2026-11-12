@@ -97,7 +97,7 @@ export const executeExecutorMcpCommand = async (
         || authority.principal.ownerUserId !== payload.data.owner.actorUserId))) {
       return { code: 'EXECUTOR_PERSONAL_AUTHORITY_INVALID', success: false }
     }
-    return sessions.listTools(parsed.data.server, parsed.data.cursor, signal, authority)
+    return sessions.listTools(parsed.data.server, parsed.data.cursor, signal)
   }
   const parsed = ExecutorMcpCallArgumentsSchema.safeParse(args)
   if (!parsed.success) return invalidArguments(operationKey, parsed.error.issues)

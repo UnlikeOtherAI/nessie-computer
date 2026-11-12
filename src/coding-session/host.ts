@@ -3,7 +3,6 @@ import { SessionEffectRefused, type SessionEffectAuthority } from './session-eff
 import { requestEffectAuthority } from './session-effect-authority.js'
 import { dirname } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 import { stat, unlink } from 'node:fs/promises'
 
 import { buildAgentEnvironment } from './agent-env.js'
@@ -204,7 +203,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   // afresh — given the first message again (`deliver`), which the lost one took with it.
   if (state.agentIdentity) {
     log('stopping the previous host\'s agent')
-    if (await control.stopTree?.(state.agentIdentity) !== 'stopped') throw new AgentStartError('provider_stop_unproved')
+    await control.killTree(state.agentIdentity)
     update({ agentIdentity: undefined })
   }
   if (state.agentSessionId !== undefined && state.agentSessionStarted !== true) update({ agentSessionId: undefined })
@@ -215,7 +214,6 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
   /** An interrupt still waiting for its turn to end, and which turn that is. */
   let pendingInterrupt: { at: number; turn: number; reason?: string } | undefined
   const prepare = async (): Promise<AgentDriver> => {
-    await assertPersonalHostExecution(meta.personalAuthority)
     if (driver) return driver
     if (!await lock.stillOurs()) throw new AgentStartError('host_superseded')
     const terminal = meta.agent === 'terminal'
@@ -344,9 +342,7 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
       superseded = true
       const identity = state.agentIdentity
       if (driver) await driver.endIdle()
-      else if (identity && await control.stopTree?.(identity) !== 'stopped') {
-        throw new AgentStartError('provider_stop_unproved')
-      }
+      else if (identity) await control.killTree(identity)
       process.exit(0)
     })().catch((error: unknown) => log(`heartbeat failed: ${String(error)}`))
   }, HOST_HEARTBEAT_MS)

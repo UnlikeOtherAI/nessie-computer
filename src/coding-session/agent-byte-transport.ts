@@ -1,7 +1,7 @@
 import type { ChildProcess } from 'node:child_process'
 import { Transform, Writable, type Readable } from 'node:stream'
 import type { T3EffectGrantReference } from '@nessie/executor-protocol/t3-session'
-import type { AgentProcess } from './agent-process.js'
+import type { OwnedAgentProcess } from './agent-process.js'
 import { effectTransport } from './effect-transport.js'
 import { SessionEffectAuthority, SessionEffectRefused } from './session-effect-authority.js'
 import { isT3EffectScope, sameT3EffectTarget } from './session-effect-scope.js'
@@ -12,7 +12,7 @@ export class AgentSerializationAuthorityRequired extends Error {
   constructor() { super('Original operation must bind the protocol frame before SDK serialization is queued') }
 }
 
-export type AgentByteProcess = Pick<AgentProcess, 'identity' | 'exited' | 'alive' | 'confirmHostExecutionStopped'> & {
+export type AgentByteProcess = Pick<OwnedAgentProcess, 'identity' | 'exited' | 'alive' | 'confirmHostExecutionStopped'> & {
   /** Generic SDK stdin cannot associate later queued bytes with their admitted original operation. */
   stdin: Writable
   stdout: Readable
@@ -26,7 +26,7 @@ export type AgentByteProcess = Pick<AgentProcess, 'identity' | 'exited' | 'alive
   endInput: () => Promise<void>
 }
 
-type OwnedAgent = AgentProcess & { child: ChildProcess; rawExit: AgentByteProcess['rawExit']; closed: Promise<void> }
+type OwnedAgent = OwnedAgentProcess & { child: ChildProcess; rawExit: AgentByteProcess['rawExit']; closed: Promise<void> }
 
 /** Called by startAgentByteProcess after the packaged creator and signed launch handshake. No spawn fallback. */
 export const createAgentByteTransport = (owned: OwnedAgent, original: T3EffectGrantReference): AgentByteProcess => {

@@ -56,7 +56,7 @@ final class ExecutorPairingController: ObservableObject {
     }
 
     private func perform(_ invocation: ExecutorCLIInvocation) {
-        guard !busy else { return }
+        guard !ComputerRuntimeGate.held, !busy else { return }
         guard let runner else {
             failure = PackagedRuntime.missingRefusal
             return

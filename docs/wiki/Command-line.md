@@ -128,7 +128,7 @@ nessie-computer requests list --json | jq length
 The apps use a few lower-level commands (`describe`, `configure
 --configuration-input-stdin`, `serve`, …) that take a team's state folder
 (`--state-dir`) and JSON. They are listed under
-[Command reference → Plumbing](Command-reference#plumbing). Prefer the commands
+[Command reference → Plumbing](Command-reference.md#plumbing). Prefer the commands
 above in your own scripts; they stay stable as the app changes.
 
-See the full [Command reference](Command-reference).
+See the full [Command reference](Command-reference.md).

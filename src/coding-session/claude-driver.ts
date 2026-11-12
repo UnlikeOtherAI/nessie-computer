@@ -54,7 +54,7 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
   let stopDebt: AgentProcessStopUnproved | undefined
   const replyFailed = (): void => {
     context.update({ status: 'interrupted', reason: 'provider_reply_unknown' })
-    void stop().catch(() => context.log('Provider stop clearance remains unknown.'))
+    void stop().catch(() => context.log('Provider cleanup failed; retaining the process identity.'))
   }
 
   const beginTurn = (): void => {
@@ -168,9 +168,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       })
     agent = spawned
     context.update({ agentIdentity: spawned.identity })
-    agentExit = spawned.exited.then(async ({ code, clearance }) => {
-      if (clearance === 'stopped' && agent === spawned) agent = undefined
-      const reason = clearance === 'unknown' ? 'provider_stop_unproved' : agentFailureReason(spawned.stderrTail())
+    agentExit = spawned.exited.then(async ({ code }) => {
+      if (agent === spawned) agent = undefined
+      const reason = agentFailureReason(spawned.stderrTail())
       rejectReady(new AgentStartError(reason))
       // Nothing is left to answer what this process asked.
       for (const id of asked.values()) await context.requests.withdraw(id, 'expired', 'provider_exited')
@@ -179,9 +179,9 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
       if (ending || context.state().status === 'closed') return
       context.log(`claude exited with code ${code}`)
       const busy = current.busy()
-      context.update({ ...(clearance === 'stopped' ? { agentIdentity: undefined } : {}),
+      context.update({ agentIdentity: undefined,
         backgroundTasks: undefined })
-      if (clearance === 'unknown' || busy || context.state().status === 'working' || context.state().status === 'starting') {
+      if (busy || context.state().status === 'working' || context.state().status === 'starting') {
         context.emit({ kind: 'system', subtype: 'agent_exited', reason })
         context.update({ status: 'interrupted', reason, turnStartedAt: undefined })
       }
@@ -222,23 +222,21 @@ export const createClaudeDriver = (context: AgentDriverContext): AgentDriver => 
           if (effect) await current.write(claudeControlLine('end_session'), effect)
           await current.endInput(effect)
           await Promise.race([current.exited, delay(CLOSE_GRACE_MS)])
-        } catch { context.log('Graceful provider shutdown was not acknowledged; checking tree clearance.') }
+        } catch { context.log('Graceful provider shutdown was not acknowledged; stopping the recorded tree.') }
       }
       await effect?.consume()
       effect?.assertLive()
-      const stopped = current
-        ? await current.confirmHostExecutionStopped(snapshot, effect)
-        : await context.control.stopTree?.(identity, snapshot, effect) === 'stopped'
-      if (!stopped) throw new AgentProcessStopUnproved(identity)
+      await context.control.killTree(identity, snapshot, effect)
+      if (current?.alive()) throw new AgentProcessStopUnproved(identity)
       // The observer must finish before a new process or stop reason owns this state.
       await onExit
       stopDebt = undefined
-      if (stopped) agent = undefined
+      agent = undefined
       // An interrupt the ended process never answered belongs to it, not to the next turn.
       interruptRequested = false
       interruptReason = undefined
       // Its background tasks went with it.
-      context.update({ ...(stopped ? { agentIdentity: undefined } : {}), backgroundTasks: undefined })
+      context.update({ agentIdentity: undefined, backgroundTasks: undefined })
     } finally { ending = false }
   }
 

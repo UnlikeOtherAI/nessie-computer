@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import {
-  CHATGPT_CALLBACK_PATH, ChatgptOAuthProvider, issuedChatgptClient, randomOAuthValue, sameOAuthValue,
+  CHATGPT_CALLBACK_PATH, CHATGPT_PERSONAL_CLIENT_ID, ChatgptAuthError, ChatgptOAuthProvider,
+  issuedChatgptClient, randomOAuthValue, sameOAuthValue,
   type ChatgptTokens,
 } from './chatgpt-oauth-provider.js'
 
@@ -46,6 +47,8 @@ export const startChatgptLoopbackLogin = async (
   const lifetime = input.lifetimeMs ?? 300_000
   if (!Number.isSafeInteger(lifetime) || lifetime < 1 || lifetime > 600_000) throw new Error('oauth_attempt_invalid')
   input.signal?.throwIfAborted()
+  const clientId = input.clientId ?? CHATGPT_PERSONAL_CLIENT_ID
+  const personal = clientId === CHATGPT_PERSONAL_CLIENT_ID
   const state = randomOAuthValue()
   const nonce = randomOAuthValue()
   const verifier = randomOAuthValue()
@@ -114,7 +117,6 @@ export const startChatgptLoopbackLogin = async (
       return
     }
     const returnedClient = single(url.searchParams, 'client_id', 200)
-    const clientId = input.clientId ?? returnedClient
     const code = single(url.searchParams, 'code', 4_096)
     if (!code || !clientId || !issuedChatgptClient(clientId)
       || url.searchParams.has('client_id') && returnedClient !== clientId) {
@@ -139,17 +141,17 @@ export const startChatgptLoopbackLogin = async (
   await new Promise<void>((resolve, reject) => {
     const failed = (error: Error): void => { reject(error) }
     server.once('error', failed)
-    server.listen(0, '127.0.0.1', () => { server.removeListener('error', failed); resolve() })
-  })
+    server.listen(personal ? 1455 : 0, '127.0.0.1', () => { server.removeListener('error', failed); resolve() })
+  }).catch(() => { throw new ChatgptAuthError('oauth_listener_unavailable') })
   server.on('error', () => finish({ status: 'failed', code: 'oauth_listener_unavailable' }))
   const address = server.address()
   if (!address || typeof address === 'string') { await close(); throw new Error('oauth_listener_unavailable') }
-  callbackUri = `http://127.0.0.1:${address.port}${CHATGPT_CALLBACK_PATH}`
+  callbackUri = `http://${personal ? 'localhost' : '127.0.0.1'}:${address.port}${CHATGPT_CALLBACK_PATH}`
   timer = setTimeout(() => finish({ status: 'expired', code: 'oauth_expired' }), lifetime)
   input.signal?.addEventListener('abort', cancelled, { once: true })
   if (input.signal?.aborted) cancelled()
   try {
-    const authorizationUrl = await provider.authorizationUrl({ clientId: input.clientId ?? null, hostId: input.hostId,
+    const authorizationUrl = await provider.authorizationUrl({ clientId, hostId: input.hostId,
       redirectUri: callbackUri, state, nonce, verifier,
       ...(input.idTokenHint ? { idTokenHint: input.idTokenHint } : {}) })
     controller.signal.throwIfAborted()

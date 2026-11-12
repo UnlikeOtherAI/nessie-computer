@@ -4,13 +4,17 @@ import type {
   ExecutorDaemonCommandPollResponse,
   ExecutorCommandReceipt,
   ExecutorDaemonCommandAttachmentResponse,
+  ExecutorDaemonIMessageRequest,
+  ExecutorDaemonIMessageSentRequest,
   ExecutorDaemonTeamsRequest,
   ExecutorSessionViewExchange,
   ExecutorSessionViewRequest,
   ExecutorSoftwareStatus,
   ExecutorSoftwareUpdateRequest,
 } from '@nessie/executor-protocol'
-import { EXECUTOR_DAEMON_TEAMS_PATH } from '@nessie/executor-protocol'
+import {
+  EXECUTOR_DAEMON_IMESSAGE_PATH, EXECUTOR_DAEMON_IMESSAGE_SENT_PATH, EXECUTOR_DAEMON_TEAMS_PATH,
+} from '@nessie/executor-protocol'
 import type { BrowserCookieImportOffer } from './browser-cookie-import-bridge.js'
 import type { T3LaneExchange, T3LaneExchangeResult } from '@nessie/executor-protocol/t3-session'
 import type { T3EffectAuthorityCheck, T3EffectAuthorityChecked } from '@nessie/executor-protocol/t3-session'
@@ -77,7 +81,8 @@ export type ExecutorApiClient = {
       software?: ExecutorSoftwareStatus; monitorVersion?: 1 },
   ) => Promise<{
     connectionEpoch: string; status: string; codingSessionClose?: unknown; existingSessionsAllowed?: boolean;
-    softwareUpdateRequest?: ExecutorSoftwareUpdateRequest; monitorRequest?: unknown
+    softwareUpdateRequest?: ExecutorSoftwareUpdateRequest; monitorRequest?: unknown; imessage?: unknown
+    imessageOutbox?: unknown
   }>
   pollCommand: (
     baseUrl: string,
@@ -135,6 +140,10 @@ export type ExecutorApiClient = {
   ) => Promise<{ reviewStatus: string; revision: number }>
   /** The names of this computer's teams on one server, each entry signed by its team (`team-names.ts`). */
   teams: (baseUrl: string, input: ExecutorDaemonTeamsRequest) => Promise<unknown>
+  /** Received iMessages for Nessie (`imessage/imessage-delivery.ts`). */
+  deliverIMessages: (baseUrl: string, input: ExecutorDaemonIMessageRequest) => Promise<unknown>
+  /** What became of the Clients replies the Mac was handed. */
+  reportIMessagesSent: (baseUrl: string, input: ExecutorDaemonIMessageSentRequest) => Promise<unknown>
   submitEnrollment: (
     baseUrl: string,
     input: unknown,
@@ -319,6 +328,8 @@ export const createExecutorApi = (options: {
     submitDescriptor: (baseUrl, input) => post(baseUrl, '/api/executor-daemon/descriptor', input),
     submitEnrollment: (baseUrl, input) => post(baseUrl, '/api/executor-enrollments/submit', input),
     teams: (baseUrl, input) => post(baseUrl, EXECUTOR_DAEMON_TEAMS_PATH, input),
+    deliverIMessages: (baseUrl, input) => post(baseUrl, EXECUTOR_DAEMON_IMESSAGE_PATH, input),
+    reportIMessagesSent: (baseUrl, input) => post(baseUrl, EXECUTOR_DAEMON_IMESSAGE_SENT_PATH, input),
     uploadBrowserCookieImport: (baseUrl, input) =>
       post(baseUrl, '/api/executor-daemon/browser-cookie-imports/upload', input),
   }

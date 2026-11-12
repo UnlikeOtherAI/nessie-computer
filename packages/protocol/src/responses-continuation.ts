@@ -12,7 +12,7 @@ export const ResponsesReplayItemSchema = z.discriminatedUnion('type', [
     status,
   }).strict(),
   z.object({ type: z.literal('function_call'), id: identifier, call_id: identifier,
-    name: identifier, namespace: identifier, arguments: z.string().max(16 * 1024), status,
+    name: identifier, namespace: identifier.optional(), arguments: z.string().max(16 * 1024), status,
   }).strict(),
   z.object({ type: z.literal('message'), id: identifier, role: z.literal('assistant'),
     phase: z.enum(['commentary', 'final_answer']).nullable().optional(),

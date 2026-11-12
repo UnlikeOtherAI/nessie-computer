@@ -16,6 +16,8 @@ export type ExecutorDaemonSignatureDomain =
   | 'claim'
   | 'cancel'
   | 'heartbeat'
+  | 'imessage'
+  | 'imessage_sent'
   | 'local_inference.host'
   | 'local_inference.cli_host'
   | 'chatgpt.challenge'

@@ -12,7 +12,7 @@ fn manifest() -> Value {
         "expiresAt":"2026-11-07T00:00:00.000Z", "minimumUpdaterProtocol":1,
         "targets": { "windows-x64-msi": [{ "name":"executor.msi", "size":128,
             "sha256":"b".repeat(64),
-            "url":"https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.1/executor.msi" }] }
+            "url":"https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.1/executor.msi" }] }
     })
 }
 fn signed(value: &Value) -> (String, String) {
@@ -70,7 +70,7 @@ fn signatures_expiry_and_immutable_asset_selection_are_independent_requirements(
         "update.invalid_signature"
     );
     for url in [
-        "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/latest/executor.msi",
+        "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/latest/executor.msi",
         "https://evil.test/executor.msi",
     ] {
         let mut value = manifest();
@@ -81,4 +81,14 @@ fn signatures_expiry_and_immutable_asset_selection_are_independent_requirements(
             "update.invalid_asset"
         );
     }
+}
+
+#[test]
+fn signed_catalogues_keep_the_former_repository_alias() {
+    let mut value = manifest();
+    value["targets"]["windows-x64-msi"][0]["url"] = json!(
+        "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.1/executor.msi"
+    );
+    let (envelope, key) = signed(&value);
+    assert!(verify_manifest(&envelope, &key, now(), Channel::Stable, None).is_ok());
 }

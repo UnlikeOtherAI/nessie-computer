@@ -87,7 +87,7 @@ fn fixture() -> (
         expires_at: "2026-11-07T00:00:00.000Z".into(), minimum_updater_protocol: 1,
         targets: BTreeMap::from([(Target::WindowsX64Msi, vec![Asset { name: "executor.msi".into(), size: 4,
             sha256: format!("{:x}", Sha256::digest(b"good")),
-            url: "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.1/executor.msi".into() }])]) };
+            url: "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.1/executor.msi".into() }])]) };
     let payload = serde_json::to_vec(&manifest).unwrap();
     let envelope = serde_json::json!({"payload":STANDARD.encode(&payload),
         "signature":STANDARD.encode(key.sign(&payload).to_bytes())})
@@ -263,7 +263,7 @@ fn a_new_signed_release_can_recover_every_phase_and_retains_its_predecessor() {
         manifest.sequence = 2;
         manifest.source_commit = "c".repeat(40);
         manifest.targets.get_mut(&Target::WindowsX64Msi).unwrap()[0].url =
-        "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.2/executor.msi".into();
+        "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.2/executor.msi".into();
         let signer = SigningKey::from_bytes(&[42; 32]);
         let payload = serde_json::to_vec(&manifest).unwrap();
         let envelope = serde_json::json!({"payload":STANDARD.encode(&payload),

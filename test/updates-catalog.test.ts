@@ -12,7 +12,7 @@ test('the release authoring interface signs valid immutable metadata and rejects
   const manifest = { format: 1, channel: 'stable', sequence: 1, version: '1.0.0', sourceCommit: 'a'.repeat(40),
     publishedAt: '2026-11-05T00:00:00Z', expiresAt: '2026-11-12T00:00:00Z', minimumUpdaterProtocol: 1,
     targets: { 'windows-x64-msi': [{ name: 'NessieExecutor_1.0.0_x64.msi', size: 100, sha256: 'b'.repeat(64),
-      url: 'https://github.com/UnlikeOtherAI/nessie-executor/releases/download/executor-v1.0.0/NessieExecutor_1.0.0_x64.msi',
+      url: 'https://github.com/UnlikeOtherAI/nessie-computer/releases/download/executor-v1.0.0/NessieExecutor_1.0.0_x64.msi',
     }] } }
   const envelope = signCatalog(manifest, privatePem, publicPem, now)
   assert.equal(verifyUpdateManifest(envelope, publicPem, { now, channel: 'stable', highestSequence: 0 })

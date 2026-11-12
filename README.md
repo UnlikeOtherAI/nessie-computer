@@ -9,25 +9,25 @@ It runs on Mac, Windows and Linux. On a Mac it lives in the menu bar; on
 Windows, in the notification area beside the clock; on Linux, as a service you
 control from the command line.
 
-**Full guides:** [Nessie Computer wiki](https://github.com/UnlikeOtherAI/nessie-executor/wiki)
+**Full guides:** [Nessie Computer guides](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Home.md)
 
 ## Get started
 
 1. **Install it** on the computer the agents should use. Download the latest
-   package from [Releases](https://github.com/UnlikeOtherAI/nessie-executor/releases):
+   package from [Releases](https://github.com/UnlikeOtherAI/nessie-computer/releases):
 
    | Computer | Download | Needs |
    |---|---|---|
-   | Mac | the `.dmg` file | Apple silicon (M1 or newer), macOS 15 or later |
-   | Windows | the `.msi` file | Windows 10 or 11, 64-bit |
-   | Linux | `.deb` (Debian, Ubuntu) or `.rpm` (Fedora) | x86-64 |
+   | Mac | [Download for Apple silicon](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg) | Apple silicon (M1 or newer), macOS 15 or later |
+   | Windows | [Download for Windows x64](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Windows-x64.msi) | Windows 10 or 11, 64-bit |
+   | Linux | [Debian / Ubuntu (.deb)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.deb) · [Fedora (.rpm)](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-Linux-x64.rpm) | x86-64 |
 
-   Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Install-Nessie-Computer)
+   Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Install-Nessie-Computer.md)
 
 2. **Add a team.** Open Nessie Computer. It
    shows an 8-digit pairing code. In Nessie, open **Computers**, choose
    **Add a computer** and enter the code. Nessie shows this computer's name;
-   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Add-a-team)
+   choose **Connect**. [Step by step](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Add-a-team.md)
 
 3. **Check what the team can use.** Pick the team in the **Team** list at the top
    and open **Access**.
@@ -44,25 +44,33 @@ control from the command line.
 | **Websites** | None | Add the sites the agents' browser may open |
 
 Programs run under your account, so a program you allow can open any file you
-can. Allow programs you trust. [How access works](https://github.com/UnlikeOtherAI/nessie-executor/wiki/What-agents-can-use)
+can. Allow programs you trust. [How access works](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/What-agents-can-use.md)
 
 ## Everyday tasks
 
 - **Pause.** Choose **Pause** in the menu bar or notification-area menu. Agents
   start nothing new until you choose **Resume**, even after a restart.
-  [Pausing](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Pause-and-resume)
+  [Pausing](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Pause-and-resume.md)
 - **Several teams.** Add each one. In the window, pick a team from the
   **Team** list, then change its access, documents and AI.
-  [Several teams](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Several-teams-on-one-computer)
+  [Several teams](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Several-teams-on-one-computer.md)
 - **Keep your documents on the computer.** Open **Documents**, turn on
   **Keep a copy of {team}'s documents on this computer** and pick a folder.
   Every document you can read in that team syncs both ways.
-  [Documents](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Documents)
+  [Documents](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Documents.md)
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
-  in with ChatGPT. Add as many plans as you have, personal or company.
-  [AI](https://github.com/UnlikeOtherAI/nessie-executor/wiki/AI)
+  in with ChatGPT. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
+  to OpenAI itself, including when connected to hosted Nessie. A blocked
+  sign-in shows a red message with the next step. Choose the connection’s model
+  in Nessie under **Connected accounts** → **AI plans**. On a Mac, idle team
+  connections briefly reconnect for sign-in. If the browser attempt expires,
+  start sign-in again from **AI**; your name is kept.
+  [AI](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/AI.md)
+- **Update on a Mac.** Nessie Computer replaces its runtime after its work ends.
+  Stale records from an ended runtime do not require restarting macOS.
+  [Settings and updates](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Settings-and-updates.md)
 - **Disconnect a team.** Pick it in the **Team** list, open **Settings**, choose **Disconnect…**.
-  [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Disconnect-or-uninstall)
+  [Disconnect or uninstall](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Disconnect-or-uninstall.md)
 
 ## Command line
 
@@ -80,14 +88,14 @@ nessie-computer requests list               # programs waiting for your answer
 nessie-computer help access                 # help for any command
 ```
 
-Add `--json` to any command for scripts. [Command line guide](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Command-line)
-· [Command reference](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Command-reference)
+Add `--json` to any command for scripts. [Command line guide](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Command-line.md)
+· [Command reference](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Command-reference.md)
 
 ## Help
 
-- [Troubleshooting](https://github.com/UnlikeOtherAI/nessie-executor/wiki/Troubleshooting)
-- [What leaves your computer](https://github.com/UnlikeOtherAI/nessie-executor/wiki/What-leaves-your-computer)
-- [Report a problem](https://github.com/UnlikeOtherAI/nessie-executor/issues)
+- [Troubleshooting](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Troubleshooting.md)
+- [What leaves your computer](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/What-leaves-your-computer.md)
+- [Report a problem](https://github.com/UnlikeOtherAI/nessie-computer/issues)
 - [Security model](SECURITY.md) · [Build from source](CONTRIBUTING.md)
 
 ## Licence
@@ -97,4 +105,4 @@ for permitted purposes, including internal commercial use; competing commercial
 offerings are restricted. Each version becomes available under Apache 2.0 two
 years after its release. Bundled third-party components keep their own licences.
 
-Error reporting uses the standard Sentry SDKs. See [configuration and coverage](docs/error-reporting.md).
+Error and crash reporting uses the standard Sentry SDKs; see [configuration and verification](docs/error-reporting.md).

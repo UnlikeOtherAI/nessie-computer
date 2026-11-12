@@ -32,6 +32,7 @@ import { verifyGuestRuntimeBundle } from './guest-runtime-bundle.js'
 import { detectExecutorHost, type ExecutorHost } from './host-platform.js'
 import { discoverLocalApps } from './local-app-discovery.js'
 import { composeLocalMcpServers, managedMcpOperations } from './local-mcp-apps.js'
+import { withHostIMessageOperation } from './imessage/imessage-operation.js'
 import { localMcpPolicyOf, MCP_OPERATION_KEYS, pairedLocalMcpPolicy } from './mcp-policy.js'
 import { executorLocalMcpServerNames, type ExecutorLocalMcpServer } from './mcp-servers.js'
 import { verifyNativeHelperPath } from './native-helper.js'
@@ -205,14 +206,14 @@ const configuredOperationKeys = (
   if (requestedMcpOperations.length > 0 && mcpServerCount === 0) {
     throw new Error('Name at least one local MCP server before enabling mcp.tools and mcp.call.')
   }
-  const operationKeys = [
+  const operationKeys = withHostIMessageOperation([
     ...COW_WORKSPACE_OPERATION_KEYS.filter((operationKey) => requested.has(operationKey)),
     ...(requested.has(COMMAND_OPERATION_KEY) ? [COMMAND_OPERATION_KEY] : []),
     ...BROWSER_OPERATION_KEYS.filter((operationKey) => requested.has(operationKey)),
     ...CODING_OPERATION_KEYS.filter((operationKey) => requested.has(operationKey)),
     ...(requested.has(PROMOTION_OPERATION_KEY) ? [PROMOTION_OPERATION_KEY] : []),
     ...MCP_OPERATION_KEYS.filter((operationKey) => requested.has(operationKey)),
-  ]
+  ], host.platform.os)
   // The same refusal the descriptor build makes, raised here so a person
   // proposing a policy hears it now instead of at the next connect.
   assertHostSupportsOperations(host, operationKeys, profilesForOperationKeys(operationKeys))

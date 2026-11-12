@@ -12,6 +12,15 @@ extension ExecutorController {
         return runner
     }
 
+    /// How the console names a paired team whose `describe` is refused: by its
+    /// folder, until a reading gives its executor id. The folder never changes,
+    /// and this app never opens the pairing file to learn the id. Without it a
+    /// refused team vanished from the window, which then offered to pair again.
+    var unreadableIdentifier: String? {
+        guard case .unavailable = model.pairing, ExecutorPaths.hasPairingFile(stateDirectory) else { return nil }
+        return "unreadable-" + (stateDirectory as NSString).lastPathComponent
+    }
+
     var runtimeMissing: Bool {
         if case .failure = runtime { return true }
         return false

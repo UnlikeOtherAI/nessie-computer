@@ -23,6 +23,7 @@ import { createDaemonLiveApply } from './daemon-live-apply.js'
 import { createDaemonLiveState } from './daemon-live-state.js'
 import { watchLocalFiles } from './daemon-local-watch.js'
 import { createDaemonOwnerPause } from './daemon-owner-pause.js'
+import { createDaemonIMessage } from './imessage/imessage-daemon.js'
 import { createDaemonToolbox } from './daemon-tools.js'
 import { stopKelpieDescribes } from './kelpie-detect.js'
 import { startExecutorLocalInferenceSupervisor } from './local-inference-supervisor.js'
@@ -86,7 +87,9 @@ export const serveExecutor = async (
     await pause.load()
     const programRequests = openProgramRequestStore(stateDir)
     await programRequests.sweep()
-    const claimed = await claimExecutor(stateDir, await enableLocalSessionBridge(stateDir, state, options.runtime))
+    const imessage = createDaemonIMessage(stateDir, pause.paused)
+    const claimed = await claimExecutor(stateDir,
+      await imessage.prepareState(await enableLocalSessionBridge(stateDir, state, options.runtime)))
     const localInference = await startExecutorLocalInferenceSupervisor(stateDir, claimed)
     const live = createDaemonLiveState(localInference.state)
     const liveApply = createDaemonLiveApply(stateDir, live)
@@ -145,6 +148,7 @@ export const serveExecutor = async (
     let commandsReady = false
     const commands = createDaemonCommands({
       stateDir, live, browserSessions, commandSessions, codingSessions, tools, paused: pause.paused, programGate,
+      imessage: imessage.bridge,
       onChange: () => { if (commandsReady && !shuttingDown) cadence.wake(['commands']) },
       onRunEnded: (runId) => localInference.supervisor.stopRuns([runId]),
     })
@@ -200,7 +204,7 @@ export const serveExecutor = async (
           } }, monitor.current(), (request) => {
             // The first upload carries the already sampled minute, without waiting for a new one.
             if (monitor.request(request)) cadence.wake(['heartbeat'])
-          }, pause.report(live.current.connectionEpoch),
+          }, pause.report(live.current.connectionEpoch), imessage.heartbeat(),
         )
         void bridge.close(close).catch(() => undefined)
         await liveApply.retry().catch(() => undefined)
@@ -261,6 +265,7 @@ export const serveExecutor = async (
       commandsHot: () => !commands.dispatcher.idle(),
     })
     wakeRetained = () => { if (!shuttingDown) cadence.wake(['session_views']) }
+    imessage.connect(live, () => { if (!shuttingDown) cadence.wake(['heartbeat']) })
     const doorbell = new ExecutorDaemonDoorbell({
       state: () => live.current,
       onReady: (pollSeconds, connectionEpoch) => {
@@ -300,6 +305,8 @@ export const serveExecutor = async (
     const applyPause = createNonOverlappingExecutorTask(async () => {
       if (!await pause.load()) return
       await settleLocalInference()
+      // Resumed, the messages that arrived meanwhile go to Nessie now.
+      imessage.bridge?.kick()
       // Nessie hears it on the next heartbeat, which goes now.
       cadence.wake(['heartbeat'])
     })
@@ -331,6 +338,7 @@ export const serveExecutor = async (
       await waitForExecutorDaemonShutdown(options.parentLiveness, updateReady)
     } finally {
       shuttingDown = true
+      imessage.bridge?.stop()
       tools().localMcp.stop()
       saved.stop()
       doorbell.stop()

@@ -382,7 +382,7 @@ test('the build signs inside-out, and never with --deep', () => {
   assert.ok(codesignVerifyArguments('/a').includes('--deep'))
   // Nested binaries first, sorted deepest-first, with the main executable left
   // to the bundle signature.
-  assert.ok(signerScript.includes('nestedMachOFiles'))
+  assert.ok(signerScript.includes('nestedSigningTargets'))
   assert.ok(signerScript.includes('right.split(\'/\').length - left.split(\'/\').length'))
   // The manifest is rewritten after the Node is signed and before the bundle is
   // sealed: a signature changes the bytes runtime-integrity.ts verifies, and a

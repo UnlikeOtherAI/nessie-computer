@@ -5,6 +5,8 @@ export type ChatgptInferenceSource = Extract<ExecutorInferenceSource, { kind: 'c
 /** A process-local credential lease. Never serialize it or pass it to the server. */
 export type ChatgptAccessLease = {
   accessToken: string
+  /** Process-local ChatGPT workspace selection, never serialized to Nessie. */
+  accountId?: string
   /** Includes caller cancellation and local disconnect/revocation fencing. */
   signal: AbortSignal
   /** Releases transport/lifecycle ownership only; never confirms provider usage. */

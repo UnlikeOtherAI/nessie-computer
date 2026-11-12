@@ -21,6 +21,31 @@ enum ComputerUpdateService {
 
     static var factoryReady: Bool { FileManager.default.fileExists(atPath: factory.path) }
 
+    /// The installed runtime's own version, read from its manifest, whether or
+    /// not the helper answers.
+    static var installedVersion: String? {
+        PackagedRuntime(root: factory.deletingLastPathComponent()).executorVersion()
+    }
+
+    /// Replacing the app unloads the helper, whose program lives inside it, so
+    /// a newer app installed by hand registers it again at launch. When the
+    /// installed runtime is older than this app's and a restart is due, that
+    /// registration is the held restart (`ExecutorConnections.holdTeams`), made
+    /// before any team starts, instead of `prepare`.
+    @MainActor static var bringsNewerRuntimeAtLaunch: Bool {
+        guard supported, factoryReady, let version = applicationVersion,
+              let restarts = restartRecord else { return false }
+        return ComputerUpdateRecovery.adoptsApplicationRuntime(
+            installedVersion: installedVersion, phase: nil, applicationVersion: version
+        ) && ComputerUpdateRecovery.restartDue(restarts, now: Date())
+    }
+
+    /// Teams wait while the helper installs this app's newer runtime.
+    @MainActor static var holdingTeams: Bool {
+        get { ComputerRuntimeGate.holds.update }
+        set { ComputerRuntimeGate.holds.update = newValue }
+    }
+
     static var enabled: Bool { supported && SMAppService.daemon(plistName: plist).status == .enabled }
 
     /// The helper's registration, `nil` where this app manages none.

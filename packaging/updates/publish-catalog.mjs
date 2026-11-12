@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { releaseVersion } from '../cli/release-plan.mjs'
 import { publishCatalog } from './catalog-history.mjs'
 
-const repository = 'UnlikeOtherAI/nessie-executor'
+const repository = 'UnlikeOtherAI/nessie-computer'
 const execute = promisify(execFile)
 
 export const githubCatalogPublisher = async (directory) => {

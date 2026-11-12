@@ -1,25 +1,26 @@
-**[Home](Home)**
+**[Home](Home.md)**
 
 **Get started**
-- [Install](Install-Nessie-Computer)
-- [Add a team](Add-a-team)
-- [What agents can use](What-agents-can-use)
+- [Install](Install-Nessie-Computer.md)
+- [Add a team](Add-a-team.md)
+- [What agents can use](What-agents-can-use.md)
 
 **Use it**
-- [Programs](Programs)
-- [Pause and resume](Pause-and-resume)
-- [Several teams](Several-teams-on-one-computer)
-- [Documents](Documents)
-- [AI](AI)
-- [Settings and updates](Settings-and-updates)
-- [Disconnect or uninstall](Disconnect-or-uninstall)
+- [Programs](Programs.md)
+- [Pause and resume](Pause-and-resume.md)
+- [Several teams](Several-teams-on-one-computer.md)
+- [Documents](Documents.md)
+- [iMessage](iMessage.md)
+- [AI](AI.md)
+- [Settings and updates](Settings-and-updates.md)
+- [Disconnect or uninstall](Disconnect-or-uninstall.md)
 
 **Command line**
-- [Command line guide](Command-line)
-- [Command reference](Command-reference)
+- [Command line guide](Command-line.md)
+- [Command reference](Command-reference.md)
 
 **Help**
-- [Troubleshooting](Troubleshooting)
-- [What leaves your computer](What-leaves-your-computer)
-- [Glossary](Glossary)
-- [FAQ](FAQ)
+- [Troubleshooting](Troubleshooting.md)
+- [What leaves your computer](What-leaves-your-computer.md)
+- [Glossary](Glossary.md)
+- [FAQ](FAQ.md)

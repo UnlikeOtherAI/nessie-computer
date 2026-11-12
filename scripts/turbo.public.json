@@ -33,9 +33,9 @@
         "DATABASE_URL"
       ]
     },
-    "test:executor-private-assignments": {
+    "//#test:executor-private-assignments": {
       "dependsOn": [
-        "build"
+        "//#build"
       ],
       "cache": false
     },
@@ -353,6 +353,12 @@
       ],
       "cache": false
     },
+    "//#test:chatgpt-connection": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
     "//#test:cli-engines": {
       "dependsOn": [
         "^build"
@@ -368,6 +374,24 @@
         "DATABASE_URL",
         "TZ"
       ]
+    },
+    "//#test:runtime-recovery": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:mcp": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
+    "//#test:cli": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
     }
   }
 }

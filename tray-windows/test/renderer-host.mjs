@@ -9,12 +9,14 @@ export const OLD_POLICY = { mode: 'all', allowlist: [], denylist: ['rm *'] }
  * `paired` is how many teams start connected (true = 1). `legacy` describes
  * them as an older runtime would, without `localApps` or `mcpPolicy`.
  */
-export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false, unreadable = false } = {}) => {
-await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, NEW_POLICY, OLD_POLICY }) => {
+export const installRendererHost = async (context, host, { paired = 0, legacy = false, unnamed = false, unreadable = false, pairStatus = 'idle' } = {}) => {
+await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, pairStatus, NEW_POLICY, OLD_POLICY }) => {
   // A team that has never had a name: its row carries no `names` (docs/team-names.md).
   window.unnamed = unnamed
   window.calls = []
-  window.pairStatus = 'idle'
+  window.pairStatus = pairStatus
+  // An attempt the app last showed long ago: its code ran out a month before this launch.
+  if (pairStatus === 'expired') window.expiresAt = new Date(Date.now() - 30 * 86400000).toISOString()
   window.paired = []
   window.teams = {} // executorId → { folders, policy, existingSessions, allowedOrigins, browserConfigured, mcpPolicy?, localApps? }
   window.requests = []
@@ -254,9 +256,13 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, NEW_PO
       if (!live) {
         window.pairServer = args.apiBaseUrl
         window.pairStatus = 'waiting'
+        window.expiresAt = undefined
       }
     }
-    if (command === 'executor_pairing_cancel') window.pairStatus = 'cancelled'
+    if (command === 'executor_pairing_cancel') {
+      if (window.cancelFailure) throw new Error(window.cancelFailure)
+      window.pairStatus = 'cancelled'
+    }
     if (command.startsWith('executor_pairing_')) {
       const executorId = id ?? `team-${window.paired.length - 1}`
       const index = Number(executorId.split('-')[1])
@@ -317,7 +323,7 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, NEW_PO
     window.paired.push(row('unreadable-6F1C2D0A', { daemonStatus: 'running' }))
     window.failDescribe = '{"code":"EXECUTOR_MANAGED_RELEASE_REJECTED","status":"rejected"}'
   }
-}, { host, paired, legacy, unnamed, unreadable, NEW_POLICY, OLD_POLICY })
+}, { host, paired, legacy, unnamed, unreadable, pairStatus, NEW_POLICY, OLD_POLICY })
 }
 
 /** Every file `index.html` loads, shell and team tabs alike, in load order. */

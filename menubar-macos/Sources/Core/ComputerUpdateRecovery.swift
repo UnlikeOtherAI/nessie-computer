@@ -106,8 +106,26 @@ public enum ComputerUpdateRecovery {
                                                   applicationVersion: restarts.version) else {
             return false
         }
+        return restartDue(restarts, now: now)
+    }
+
+    /// The first automatic restart for a version is due at once; each further
+    /// one after `restartDelay`.
+    public static func restartDue(_ restarts: ComputerUpdateRestartRecord, now: Date) -> Bool {
         guard restarts.made > 0, let last = restarts.last else { return true }
         return now.timeIntervalSince(last) >= restartDelay(after: restarts.made)
+    }
+
+    /// Whether a helper restart can bring this app's newer runtime. The helper
+    /// installs it only while no team process runs, so the teams stop for that
+    /// moment. `installedVersion` is read from the installed runtime itself, so
+    /// this holds even while the helper does not answer; `phase` is what it last
+    /// said, if anything, and a started replacement is never interrupted.
+    public static func adoptsApplicationRuntime(
+        installedVersion: String?, phase: String?, applicationVersion: String
+    ) -> Bool {
+        guard let installedVersion, !["installing", "restarting"].contains(phase ?? "") else { return false }
+        return isNewer(applicationVersion, than: installedVersion)
     }
 
     private static func needsRestart(

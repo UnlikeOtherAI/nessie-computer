@@ -34,7 +34,7 @@ told it's paused instead of trying to use it.
 | **Pause** | on this computer | Agents start nothing new here. The computer stays connected. | **Resume** on this computer |
 | **Turn off for now** | in Nessie, on the computer's page | Nessie sends no work to the computer | **Turn on** in Nessie |
 | **Quit** | on this computer | Closes Nessie Computer. On a Mac this stops all work here; on Windows, teams run by the background service keep running. | Open Nessie Computer |
-| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Add-a-team) again |
+| **Disconnect** | either | Ends the team's connection for good | [Connect the team](Add-a-team.md) again |
 
 ## On the command line
 

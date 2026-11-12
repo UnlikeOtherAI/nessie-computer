@@ -36,13 +36,15 @@ test('the host relays a fixed typed Ollama request and signs independent daemon 
 
   assert.deepEqual(outcome, { attemptId: ATTEMPT_ID, kind: 'completed' })
   assert.equal(calls.heartbeats.length, 1)
-  assert.equal(calls.frames.length, 1)
+  // The first words travel at once; the end of the stream is its own final frame.
+  assert.equal(calls.frames.length, 2)
   assert.equal(Buffer.from(calls.frames[0]?.frame.data ?? '', 'base64url').toString('utf8'),
     JSON.stringify({ type: 'output_text.delta', text: 'hello' }))
+  assert.equal(calls.frames[0]?.frame.final, false)
   assert.equal(calls.results[0]?.receipt.result.content, 'hello')
   assert.equal(calls.results[0]?.receipt.result.usage.outputTokens, 2)
   assert.equal(typeof calls.results[0]?.receipt.result.generationMs, 'number')
-  assert.equal(calls.frames[0]?.frame.final, true, 'The stream ends on a final frame.')
+  assert.equal(calls.frames[1]?.frame.final, true, 'The stream ends on a final frame.')
   assert.equal(calls.accepts.length, 1, 'The host accepts once and never asks for control again.')
   assert.equal(calls.heartbeats[0]?.heartbeat.paused, false)
 })

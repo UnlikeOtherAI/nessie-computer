@@ -121,7 +121,7 @@ export const receiptJournal = () => {
 
 export type ApiCalls = {
   frames: Array<{ frame: Parameters<LocalInferenceHostTransport['frame']>[0] }>
-  heartbeats: Array<{ heartbeat: { inventory: unknown[]; paused: boolean } }>
+  heartbeats: Array<{ heartbeat: { inventory: unknown[]; paused: boolean; displayLabel?: string } }>
   results: Array<{ receipt: { result: LocalInferenceResult } }>
   accepts: Array<{ attemptId: string; dispatchFence: number }>
 }

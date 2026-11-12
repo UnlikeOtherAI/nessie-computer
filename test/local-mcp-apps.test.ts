@@ -172,7 +172,8 @@ test('configure applies the local apps policy and websites, and No programs with
       })
     assert.equal(configured.descriptor.revision, 2)
     assert.deepEqual(configured.descriptor.mcpServers, ['kelpie'])
-    assert.deepEqual(configured.descriptor.operationKeys, ['file.read', 'mcp.tools', 'mcp.call'])
+    // A Mac's descriptor also offers imessage.send (src/imessage/imessage-operation.ts).
+    assert.deepEqual(configured.descriptor.operationKeys, ['file.read', 'mcp.tools', 'mcp.call', 'imessage.send'])
     assert.deepEqual(configured.allowedOrigins, ['https://a.example.test', 'https://b.example.test'])
     assert.equal(configured.browserSandbox, undefined)
     assert.deepEqual(configured.mcpPolicy, { mode: 'installed', disabled: ['chatterbox'] })
@@ -180,7 +181,7 @@ test('configure applies the local apps policy and websites, and No programs with
 
     const none = await configureExecutorLocalPolicy(stateDir, configured, ['file.read'],
       undefined, host, undefined, undefined, undefined, {}, undefined, { discover: async () => [] })
-    assert.deepEqual(none.descriptor.operationKeys, ['file.read'], 'no app, no MCP operations')
+    assert.deepEqual(none.descriptor.operationKeys, ['file.read', 'imessage.send'], 'no app, no MCP operations')
     assert.equal(none.descriptor.mcpServers, undefined)
     assert.deepEqual(none.allowedOrigins, configured.allowedOrigins, 'absent keeps the websites')
 

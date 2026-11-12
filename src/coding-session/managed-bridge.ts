@@ -9,7 +9,6 @@ import { listManagedSessions } from './managed-session-list.js'
 import { claimManagedStart, recordManagedStartOutcome, reconcileManagedStart } from './managed-session-start.js'
 import { managedSessionEvidence, preparedManagedSessionAuthority, originalManagedEffectScope,
   readSessionPairingSource, requireManagedSessionEvidence } from './session-authority.js'
-import { assertPersonalHostExecution } from '../personal-host-execution.js'
 
 import {
   argumentsFor,
@@ -445,9 +444,6 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
         if (meta.sessionPairingSource?.kind === 'bound' && !authority
           && !['session_close_all', 'session_list_all', 'session_inventory'].includes(tool)) {
           throw new CodingBridgeError('coding_session_authority_unavailable', 'Original session authority is unavailable.')
-        }
-        if (['session_start', 'session_send', 'session_review'].includes(tool)) {
-          await assertPersonalHostExecution(meta.personalAuthority)
         }
         const commandId = commandIdOf(meta)
         if (!reviewed && tool !== 'session_start' && !ALLOWED_UNREVIEWED.has(tool)) requireReviewedConfig()

@@ -40,7 +40,7 @@ impl Network {
             Channel::Preview => "update-catalog-preview",
         };
         let url = format!(
-            "https://github.com/UnlikeOtherAI/nessie-executor/releases/download/{tag}/catalog.json"
+            "https://github.com/UnlikeOtherAI/nessie-computer/releases/download/{tag}/catalog.json"
         );
         let mut response = self
             .catalog_agent

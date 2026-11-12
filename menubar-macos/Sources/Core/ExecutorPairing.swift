@@ -47,9 +47,7 @@ public struct ExecutorPairing: Decodable, Equatable, Sendable {
     }
 
     /// A claim in Nessie completes the pairing, so the only open step is the code.
+    /// An expired attempt is over: the runtime ends it on the check that reads it.
     public var isPending: Bool { status == .waiting }
-    /// An expired attempt still owns pending machine material until the runtime
-    /// cancels it. Keep its cancel control reachable before offering a new code.
-    public var isAttemptOpen: Bool { isPending || status == .expired }
     public var isPaired: Bool { status == .paired || status == .alreadyPaired }
 }

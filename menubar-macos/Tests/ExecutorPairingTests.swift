@@ -63,12 +63,10 @@ final class ExecutorPairingTests: XCTestCase {
         ]))
     }
 
-    func testExpiredAttemptKeepsCancellationReachableUntilRuntimeClearsIt() throws {
-        let expired = try decode(["status": "expired"])
-        XCTAssertFalse(expired.isPending)
-        XCTAssertTrue(expired.isAttemptOpen)
-        XCTAssertFalse(try decode(["status": "cancelled"]).isAttemptOpen)
-        XCTAssertFalse(try decode(["status": "idle"]).isAttemptOpen)
+    func testOnlyAWaitingCodeKeepsTheAttemptOpen() throws {
+        XCTAssertFalse(try decode(["status": "expired"]).isPending)
+        XCTAssertFalse(try decode(["status": "cancelled"]).isPending)
+        XCTAssertFalse(try decode(["status": "idle"]).isPending)
     }
 
     func testCleanupRefusalShowsTheRemedyWithoutRenderingRuntimeMessages() {

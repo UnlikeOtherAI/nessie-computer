@@ -13,6 +13,7 @@ import {
   ExecutorCommandRunArgumentsSchema,
   ExecutorCodingLaunchArgumentsSchema,
   ExecutorCodingObserveArgumentsSchema,
+  ExecutorIMessageSendArgumentsSchema,
   ImplementedExecutorOperationKeySchema,
   ExecutorWorkspacePromoteArgumentsSchema,
   RunIdSchema,
@@ -29,6 +30,7 @@ import type { ExecutorConnectedBrowserSessionManager } from './connected-browser
 import type { ExecutorCodingSessionManager } from './coding-session-manager.js'
 import type { CodingSessionsDaemon } from './coding-sessions-daemon.js'
 import type { ExecutorCommandSessionManager } from './command-session-manager.js'
+import type { IMessageBridge } from './imessage/imessage-bridge.js'
 import {
   executorAttachmentUploadTimeoutMs,
   type ExecutorAttachmentUpload,
@@ -159,6 +161,8 @@ export const executeExecutorCommand = async (
     codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
     /** The owner paused this team on this computer (`owner-pause.ts`). */
     ownerPaused?: () => boolean
+    /** iMessage on a Mac (`imessage/imessage-bridge.ts`). */
+    imessage?: Pick<IMessageBridge, 'send'>
     /** Asks the owner about a launch refused only as not allowed; absent, it is refused as before. */
     programRequests?: ProgramAdmission
     signal?: AbortSignal
@@ -384,6 +388,14 @@ export const executeExecutorCommand = async (
       commandId: command.commandId,
       payload: command.payload,
     }, attachments && ((images) => attachments.write(command.commandId, images)), dependencies.signal)
+  }
+  if (command.operationKey === 'imessage.send') {
+    const args = ExecutorIMessageSendArgumentsSchema.safeParse(command.payload.args)
+    if (!args.success) return { code: 'IMESSAGE_SEND_FAILED', message: args.error.issues[0]?.message, success: false }
+    if (!dependencies.imessage) return { code: 'IMESSAGE_OFF', message: 'iMessage is only on a Mac.', success: false }
+    const outcome = await dependencies.imessage.send(args.data)
+    return outcome.ok ? { ...outcome.result, success: true }
+      : { code: outcome.code, message: outcome.message, success: false }
   }
   // Other declared-only operations remain unavailable.
   return { code: 'EXECUTOR_BACKEND_UNAVAILABLE', success: false }

@@ -39,7 +39,7 @@ const openNativeBrowser = async (url: string): Promise<void> => {
 export const chatgptBrowserAuthorizationUrl = (value: string): string => {
   if (value.length > 128 * 1024) return refuse()
   const url = new URL(value)
-  if (url.origin !== CHATGPT_ISSUER || url.pathname !== '/api/accounts/authorize'
+  if (url.origin !== CHATGPT_ISSUER || !['/api/accounts/authorize', '/oauth/authorize'].includes(url.pathname)
     || url.username || url.password || url.hash || url.searchParams.get('response_type') !== 'code') refuse()
   return url.toString()
 }

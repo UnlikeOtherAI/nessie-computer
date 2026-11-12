@@ -23,8 +23,10 @@ export const verifyAccessTab = async (browser, ui, output) => {
     assert.deepEqual(await page.locator('#tab-access .hint:visible').evaluateAll((nodes) => nodes.map((node) => node.id)),
       ['access-mode-consequence', 'access-websites-empty'])
 
-    // Folders: a new team starts with one; the name agents use beside the path; the last folder's Remove waits (the runtime keeps one).
-    assert.match(await page.locator('#access-folder-list').textContent(), /Nessie.*Agents call it nessie/)
+    // Folders: a new team starts with one, shown as its name and its path; the last folder's Remove waits (the runtime keeps one).
+    assert.match(await page.locator('#access-folder-list .list-name').textContent(), /^Nessie.*[\\/]Users[\\/]person[\\/]Nessie$/)
+    // With nothing changed, the switches say what is allowed and no Apply bar shows.
+    assert.equal(await page.locator('.access-apply').isVisible(), false)
     assert.equal(await page.locator('#access-folder-list .list-row').count(), 1)
     assert.equal(await page.getByRole('button', { name: /Stop sharing/ }).isDisabled(), true)
     // The section's "?" says what folders are for and why the last Remove waits.

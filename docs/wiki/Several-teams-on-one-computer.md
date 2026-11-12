@@ -6,7 +6,7 @@ about another.
 
 ## Connect another team
 
-Open the **Team** list and choose **＋ Add another team**; see [Add a team](Add-a-team).
+Open the **Team** list and choose **＋ Add another team**; see [Add a team](Add-a-team.md).
 In Nessie, switch to the other team before you choose **Add a computer**,
 because a computer is always added to the team you are in.
 
@@ -35,7 +35,7 @@ teams have the same name on different Nessie servers, the server is added:
 ## Pausing one team
 
 Pick the team, open **Settings** and choose **Pause**, or use **Pause → team**
-in the menu. See [Pause and resume](Pause-and-resume).
+in the menu. See [Pause and resume](Pause-and-resume.md).
 
 ## On the command line
 

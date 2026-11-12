@@ -1,4 +1,4 @@
-name: Build Executor CLI
+name: Build Nessie Computer CLI
 
 on:
   workflow_dispatch:
@@ -64,13 +64,6 @@ jobs:
           go-version: "1.24"
           cache-dependency-path: guest/go.sum
       - run: pnpm install --frozen-lockfile
-      - name: Build and check executor
-        run: |
-          pnpm exec turbo run lint typecheck build --root-turbo-json=scripts/turbo.public.json --concurrency=2
-          cargo test --manifest-path native/Cargo.toml
-          rustup target add x86_64-unknown-linux-musl
-          cargo build --release --target x86_64-unknown-linux-musl --manifest-path native/Cargo.toml
-          node --test packaging/cli/*.test.mjs
       - name: Prepare repository signing key
         env:
           RELEASE_SIGNING: ${{ inputs.release_signing }}
@@ -99,6 +92,16 @@ jobs:
           echo "NESSIE_RPM_SIGNING_KEY_FILE=$RUNNER_TEMP/executor-rpm-key.asc" >> "$GITHUB_ENV"
           gpg --batch --armor --export "$fingerprint" > "$RUNNER_TEMP/executor-public-key.asc"
           rpmkeys --import "$RUNNER_TEMP/executor-public-key.asc"
+      - name: Verify production signing before compiling
+        if: inputs.release_signing
+        run: node packaging/linux/verify-signing.mjs
+      - name: Build and check executor
+        run: |
+          pnpm exec turbo run lint typecheck build --root-turbo-json=scripts/turbo.public.json --concurrency=2
+          cargo test --manifest-path native/Cargo.toml
+          rustup target add x86_64-unknown-linux-musl
+          cargo build --release --target x86_64-unknown-linux-musl --manifest-path native/Cargo.toml
+          node --test packaging/cli/*.test.mjs
       - name: Build packages and signed repositories
         env:
           NESSIE_EXECUTOR_NATIVE_HELPER_PATH: native/target/x86_64-unknown-linux-musl/release/nessie-executor-native
@@ -113,7 +116,8 @@ jobs:
       - name: Smoke-test installed DEB
         run: |
           apt-get install -y ./dist/executor-cli/*.deb
-          test "$(nessie-executor --version)" = "nessie-executor $NESSIE_EXECUTOR_VERSION"
+          test "$(nessie-computer --version)" = "nessie-computer $NESSIE_EXECUTOR_VERSION"
+          test "$(nessie-executor --version)" = "nessie-computer $NESSIE_EXECUTOR_VERSION"
           nessie-executor teams --json --state-root "$RUNNER_TEMP/empty-state"
           systemd-analyze verify /usr/lib/systemd/user/nessie-executor@.service
       - name: Attest production candidate
@@ -151,8 +155,8 @@ jobs:
           - { image: 'ubuntu:22.04', format: deb }
           - { image: 'ubuntu:24.04', format: deb }
           - { image: 'debian:12', format: deb }
-          - { image: 'rockylinux:9', format: rpm }
-          - { image: 'almalinux:9', format: rpm }
+          # EL9 lacks webkit2gtk4.1, required by the local Settings window.
+          # Keep this matrix aligned with the supported downloads in README.md.
           - { image: 'fedora:latest', format: rpm }
     steps:
       - uses: actions/checkout@v4

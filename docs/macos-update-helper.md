@@ -1,6 +1,30 @@
 # macOS updates with the existing Developer ID identity
 
-Status: implementation in progress. No installed upgrade is claimed.
+Status: the signed manual upgrade from 1.0.40 to 1.1.0 was verified on
+12 November 2026 on dictator. Automatic catalogue-driven replacement remains a
+separate verification requirement.
+
+## Verified 1.1.0 installation
+
+The downloaded Apple silicon DMG was Developer ID signed, notarized, stapled and
+accepted by Gatekeeper. Its source is
+`0eedf3601fc3e24f2ac12518394f5e4994c031c4`, size is 42,399,979 bytes, and SHA-256 is
+`b4c60e12c1cc5db1b8212373ea2289e431323cb9933e24f5e9ad22b01e7d121a`.
+The versioned asset and `Nessie-Computer-macOS-Apple-Silicon.dmg` downloaded from
+the draft release had identical bytes.
+
+The app was installed at the existing `/Applications/Nessie Executor.app` path.
+The helper held runtime adoption while the older Nessie Desktop was running.
+After Desktop was closed normally, the helper's automatic retry adopted 1.1.0
+without editing custody state or protected files. Settings showed installed
+version 1.1.0; `/usr/local/bin/nessie-computer --version` returned
+`nessie-computer 1.1.0`, and `--help` succeeded. The protected runtime manifest
+matched the source above. The older Desktop was then reopened.
+
+Existing team connection refusals predated the upgrade; this verification does
+not claim a successful team connection or an automatic catalogue update.
+
+## Distribution identity
 
 The distribution identity is the existing `Developer ID Application:
 UnlikeOtherAI s.r.o. (23B7GTLBN7)`. Its certificate is on the Mac Desktop and its
@@ -33,10 +57,59 @@ The copied app is read by an unprivileged process inside a private directory,
 then frozen and verified. A verified snapshot is reused for retries rather than
 copying the same app on each restart.
 
+A newer app installed over an older one restarts the helper by itself while
+the installed runtime is older than its own. The helper installs the app's
+runtime only while no team process runs, and tries for about a minute after it
+starts, so the app stops its teams for that restart, and restarts the helper
+only once every team process has gone, including one the previous copy of the
+app started, which can outlive it for a minute or two. The helper answers status
+only once that attempt is over, and launchd can take minutes to start a helper
+that was just registered again, so the teams start again once the installed
+runtime is the app's version, the helper answers ninety seconds or more after
+its registration took, or ten minutes pass. macOS can refuse a registration
+made right after removing the old one, so the hold registers again on the usual
+schedule meanwhile. Every `describe` and status question is a runtime process
+too, so during the hold the teams' five-second reads pause and the helper is
+asked at most every fifteen seconds.
+The app reads the installed version from the runtime's manifest, so this holds
+even while the helper does not answer. Replacing the app unloads the helper,
+whose program lives inside it, so a newer app installed by hand makes this held
+restart at launch, before any team starts, instead of a plain registration. A
+helper waiting for the owner's approval cannot run, so the teams start then
+too. Relaunching soon after a try follows the same retry schedule.
+
 The registered job then executes the protected native broker image. Existing
 accepted workers, durable retry state and the socket contract remain unchanged.
 A later app launch must resume the protected installed factory; it must not
 replace that factory from an older bundled runtime or reset removal intent.
+
+The helper installs both `nessie-computer` and the existing `nessie-executor`
+command in `/usr/local/bin` when that directory is Root-controlled. Each
+launcher is checked separately: an unrelated file or package-manager-owned
+prefix is preserved. Approving the helper is required before these commands
+can use the protected runtime.
+
+## Completed daemon shutdown
+
+Application-runtime adoption can meet an older daemon whose shutdown finished
+but left an idle transport open. Under the machine launch barrier, the helper
+verifies its native creation journal, immutable release, publisher and exact
+kernel process generations. It requests normal SIGTERM through the native
+supervisor only after that daemon released its runtime registration, no
+credential protection remains, and every bound host execution an older version
+recorded is proved ended (versions after 1.0.40 record none).
+A runtime or credential registration, unknown process, unresolved execution or
+invalid metadata leaves the daemon untouched. There is no signal escalation.
+Once a completed daemon receives that request, adoption keeps its durable
+drain instead of returning to the healthy old factory after one minute. The
+old native supervisor may still be settling its process inventory; new teams
+must not restart the old factory meanwhile.
+The request grants no clearance: adoption still independently waits for all
+required processes to exit and preserves journals and admission history.
+
+The runtime supervisor also fences late inference connections at shutdown and
+waits for pending creations to close. MCP cleanup closes the transport even
+after the client has dropped its transport reference.
 
 ## Replacement
 
@@ -179,7 +252,27 @@ ended, nothing of any account left in the child's group, and no unresolved
 host admission of its own. A `host_execution` registration resolves once the
 process it bound, the descendants recorded with it and a group it leads are
 all gone (`execution_ended`, matching `ps`'s whole-second start time). An
-unbound registration may have started a process nobody recorded, so it stays.
+unbound registration may have started a process nobody recorded, so its history
+stays. It no longer requires restarting macOS to replace the runtime.
+
+Replacement clearance checks that the native supervisor, runtime generation and
+runtime process group have ended, and still waits for every live product process.
+It does not claim that an escaped owner program has stopped. Personal activation
+uses a fresh signed native inventory under the retained launch barriers. After
+1.0.40 the programs agents start are no longer recorded in the plan's guard and
+no longer keep a plan from signing in, so the runtime neither reads nor needs
+the inventory's `retiredHostControllers`; a record an older runtime left is
+dropped at the next sign-in. The native helper still reports them, and removing
+that native code is a follow-up of its own. This is the same owner-account
+boundary as unrelated programs the owner runs, not an OS sandbox or a claim that
+every escaped process ended.
+
+The focused public gate is `pnpm exec turbo run build lint typecheck
+test:runtime-recovery test:updates-native --root-turbo-json=scripts/turbo.public.json
+--concurrency=2`; native proof cases run through `cargo test --locked
+--manifest-path native/Cargo.toml --jobs 2` on macOS. No rendered UI changes
+are required by this recovery correction.
+
 Clearance still waits for every product process, including any a crashed
 runtime left outside its group. On dictator, after 1.0.25 was installed, the
 1.0.24 runtime kept starting daemons that died. Each died with a Kelpie MCP
@@ -342,3 +435,24 @@ re-registration was refused); that the 0.9.0 worker verifies the new
 release, refuses the 1.0.13 downgrade and exits; and the full path from a signed
 newer app to a working team. Any extra product process, such as a team daemon
 started by hand from the app bundle, holds clearance until it exits.
+
+## Framework signing
+
+The Developer ID signer seals embedded frameworks as bundles after their nested
+Mach-O files and before the app. Sentry is a versioned framework with resources;
+signing only its executable invalidates its resource seal and prevents the final
+strict verification. Framework bundles receive no app or Node entitlements. The
+release producer still requires strict verification, notarization and Gatekeeper
+assessment before an app can be installed.
+
+Startup pairing-status and team-name reads obey the same runtime hold as
+`describe`. Existing pairing files appear as waiting teams before their first
+reading, so opening the window during a hold does not start another pairing.
+After the hold, pairing status, names and team descriptions refresh normally.
+These reads are runtime processes too; launching them during the helper’s
+brief installation window can keep the older factory busy for the whole try.
+
+The native process-lifetime fixtures release children with explicit pipe messages,
+not EOF: concurrent fork-based tests can inherit another test's writer and retain
+EOF indefinitely. This is test synchronization only; it does not alter runtime
+inventory, admission retirement or installed credential eligibility.

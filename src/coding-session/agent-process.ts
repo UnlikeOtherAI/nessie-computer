@@ -11,14 +11,11 @@ import { codingProcessIsAlive, type CodingProcessControl } from './process-contr
 import type { Projector } from './projection.js'
 import { rotateLogIfLarge, type CodingSessionPaths } from './session-files.js'
 import type { CodingEventBody, CodingProcessIdentity, CodingSessionState } from './types.js'
-import { admitPersonalHostExecution } from '../personal-host-execution.js'
 import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
-import type { PersonalInferenceGuard } from '../personal-inference-guard.js'
 import type { SessionRequestBook } from './session-request-book.js'
 import type { SessionSecretServer } from './session-secret-server.js'
 import { createAgentByteTransport, type AgentByteProcess } from './agent-byte-transport.js'
 import { createCodingProcessControl, packagedJobHelper } from './process-control.js'
-import { assertWindowsMachineHostAllowed } from '../windows-machine-host.js'
 import { isT3EffectScope } from './session-effect-scope.js'
 
 /**
@@ -45,7 +42,6 @@ export type AgentDriverContext = {
   state: () => CodingSessionState
   log: (message: string) => void
   personalAuthority?: PersonalInferenceAuthority
-  personalGuard?: PersonalInferenceGuard
   /** What the agent waits on its owner for; the driver opens requests here and answers its provider. */
   requests: SessionRequestBook
   /** The `request_secret` MCP server the agent is given. */
@@ -78,16 +74,21 @@ export class AgentProcessStopUnproved extends AgentStartError {
 export type AgentProcessExit = { code: number | null; clearance: 'stopped' | 'unknown' }
 
 export type AgentProcess = {
-  confirmHostExecutionStopped: (
-    snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority,
-  ) => Promise<boolean>
   identity: CodingProcessIdentity
   write: (text: string, effect?: SessionEffectAuthority) => Promise<void>
   writeProtocol: (text: string) => Promise<void>
   endInput: (effect?: SessionEffectAuthority) => Promise<void>
-  exited: Promise<AgentProcessExit>
+  exited: Promise<{ code: number | null }>
   alive: () => boolean
   stderrTail: () => string[]
+}
+
+/** Protected byte transports retain positive containment proof separately from ordinary session lifecycle. */
+export type OwnedAgentProcess = Omit<AgentProcess, 'exited'> & {
+  confirmHostExecutionStopped: (
+    snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority,
+  ) => Promise<boolean>
+  exited: Promise<AgentProcessExit>
 }
 
 const STDERR_LOG_BYTES = 1024 * 1024
@@ -113,7 +114,7 @@ export const agentFailureReason = (lines: readonly string[]): string => {
 }
 
 export type AgentProcessContext = Pick<AgentDriverContext,
-  'control' | 'env' | 'folder' | 'paths' | 'log' | 'personalAuthority' | 'personalGuard'>
+  'control' | 'env' | 'folder' | 'paths' | 'log'>
 
 export const startAgentProcess = async (
   context: AgentProcessContext,
@@ -122,9 +123,9 @@ export const startAgentProcess = async (
   effect?: SessionEffectAuthority,
 ): Promise<AgentProcess> => {
   if (effect && isT3EffectScope(effect.scope)) throw new AgentStartError('t3_provider_requires_byte_transport')
-  const { child: _child, rawExit: _rawExit, closed: _closed, ...agent } =
+  const { child: _child, rawExit: _rawExit, closed: _closed, confirmHostExecutionStopped: _proof, exited, ...agent } =
     await startOwnedAgentProcess(context, argv, onLine, effect)
-  return agent
+  return { ...agent, exited: exited.then(({ code }) => ({ code })) }
 }
 
 /** Original SDK byte hooks use only the protected creator, never a raw spawn port. */
@@ -137,7 +138,6 @@ export const startAgentByteProcess = async (
     || !isT3EffectScope(scope)) throw new AgentStartError('protected_provider_transport_unavailable')
   const helper = packagedJobHelper()
   if (!helper) throw new AgentStartError('protected_provider_transport_unavailable')
-  await assertWindowsMachineHostAllowed()
   const control = createCodingProcessControl('win32', { jobHelper: helper, packaged: true })
   const owned = await startOwnedAgentProcess({ ...context, control }, argv, undefined, effect)
   try {
@@ -154,27 +154,21 @@ export const startAgentByteProcess = async (
 const startOwnedAgentProcess = async (
   context: AgentProcessContext, argv: readonly string[], onLine: ((line: string) => void) | undefined,
   effect?: SessionEffectAuthority,
-): Promise<AgentProcess & {
+): Promise<OwnedAgentProcess & {
   child: ChildProcess; rawExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
   closed: Promise<void> }> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
-  if (!context.control.stopTree) throw new AgentProcessStopUnproved()
-  const protectionLease = await admitPersonalHostExecution('coding/terminal', context.personalAuthority, context.personalGuard)
-  let child: ChildProcess
-  try {
-    await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
-    await effect?.consume()
-    effect?.assertLive()
-    child = context.control.spawnAgent(argv[0]!, argv.slice(1), { cwd: context.folder, env: context.env,
-      ...(effect ? { sessionEffect: effect } : {}) })
-  }
-  catch (error) { await protectionLease?.release(); throw error }
+  if (!onLine && !context.control.stopTree) throw new AgentProcessStopUnproved()
+  await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
+  await effect?.consume()
+  effect?.assertLive()
+  const child: ChildProcess = context.control.spawnAgent(argv[0]!, argv.slice(1), {
+    cwd: context.folder, env: context.env, ...(effect ? { sessionEffect: effect } : {}) })
   const spawned = await new Promise<boolean>((settle) => {
     child.once('spawn', () => settle(true))
     child.once('error', () => settle(false))
   })
   if (!spawned || child.pid === undefined) {
-    if (child.pid === undefined) await protectionLease?.release()
     if (child.pid !== undefined) throw new AgentProcessStopUnproved(undefined, child.pid)
     throw new AgentStartError('agent_missing')
   }
@@ -217,8 +211,6 @@ const startOwnedAgentProcess = async (
   }
   child.stdin?.on('error', () => undefined)
   if (child.stdout && onLine) createInterface({ input: child.stdout }).on('line', onLine)
-  let bindingError: unknown
-  try { await protectionLease?.bindExecution({ pid: child.pid }) } catch (error) { bindingError = error }
   // Through the agent guard this is the agent's own identity, which the guard reports; otherwise the child's.
   let identity: CodingProcessIdentity | undefined
   try { identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid)) }
@@ -241,21 +233,19 @@ const startOwnedAgentProcess = async (
     await authority?.consume()
     authority?.assertLive()
     clearing ??= (async () => {
-      // Every child requires positive proof, even without a personal credential lease.
+      // Only protected byte transports request custody clearance.
       if (await context.control.stopTree!(identity, snapshot, authority) !== 'stopped') return false
-      await protectionLease?.release()
       released = true
       return true
     })().finally(() => { clearing = undefined })
     return clearing
   }
   try {
-    if (bindingError) throw bindingError
-    await protectionLease?.bindExecution(identity)
     await effectTransport(child)?.ready
   }
   catch (error) {
-    if (!await confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(identity)
+    if (onLine) await context.control.killTree(identity)
+    else if (!await confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(identity)
     throw error
   }
   // Through the agent guard the process this host started is the guard, not the
@@ -270,7 +260,7 @@ const startOwnedAgentProcess = async (
     if (context.control.identifySpawned && codingProcessIsAlive(identity.pid)) {
       await context.control.killTree(identity).catch(() => undefined)
     }
-    const stopped = await confirmHostExecutionStopped().catch(() => false)
+    const stopped = !onLine && await confirmHostExecutionStopped().catch(() => false)
     return { ...result, clearance: stopped ? 'stopped' : 'unknown' }
   })
   const input = createAgentProcessInput(child)

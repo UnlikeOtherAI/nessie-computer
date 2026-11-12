@@ -126,9 +126,8 @@ service cannot be reached). Starting/stopping/connecting are never amber.
   remains when Nessie requires it, as a single deep-linked button.
 - **AI** (per team): ChatGPT plans (any number; "Add a ChatGPT plan" → name
   prefilled "ChatGPT plan N", editable → "Sign in with ChatGPT"), Model servers.
-  The custody restriction is explained in one plain sentence beside its
-  checkbox: "While a ChatGPT plan is signed in, agents can't open terminals or
-  coding tools under your account. Sign out to get them back."
+  A signed-in plan takes nothing else away (ruling, 11 Nov): terminals, coding
+  tools and local apps run beside it, and there is nothing to tick.
 - **Settings** (computer-wide): Open Nessie Computer when I log in; Restart a
   team if it stops (default on); Software updates; Notifications; Help (open
   logs folder, version, CLI pointer). The server address lives in Connect a
@@ -151,7 +150,10 @@ an organisation that runs its own Nessie.
 2. Shows the 8-digit code (Copy), the countdown, and "In Nessie, open Computers
    and choose **Add a computer**." plus **Open Nessie to finish**, which opens
    `<console>/admin/computers?create=1&code=<code>` for the paired server (§5.4).
-   An expired code stays visible, greyed, with **Get a new code**.
+   An expired code stays visible, greyed, with **Get a new code**. Cancel
+   always closes the dialog and ends the attempt on the computer, even when
+   Nessie no longer knows the code. A code Nessie reports expired ends there
+   too, so it never reopens the dialog at the next launch.
 3. On success the dialog closes and Overview shows a success card: "Connected to
    {team}. Agents in this team can now use: {folders}; {programs}; {local apps}."
    with **Change access** and **Done**. If the owner didn't expect it:
@@ -470,8 +472,7 @@ Nessie's setting, not the computer's.
   use a provider OAuth only if Anthropic permits third-party use of Claude
   plans; otherwise "Add another Claude account" runs Claude Code's own sign-in
   in a separate profile (its own config directory), keeping the T3 model.
-- The ChatGPT-plan terminal restriction applies only to Nessie-held plan
-  grants, never to CLI-backed engines.
+- There is no ChatGPT-plan terminal restriction any more (ruling, 11 Nov).
 - Bridge: `executor_local_ai { executorId }` → `[{ engine: 'claude-code'|'codex',
   installed, signedIn, account?, available }]`;
   `executor_set_local_ai { executorId, engine, available }`.

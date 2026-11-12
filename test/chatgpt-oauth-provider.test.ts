@@ -2,7 +2,8 @@ import assert from 'node:assert/strict'
 import { generateKeyPairSync } from 'node:crypto'
 import { test } from 'node:test'
 import { SignJWT } from 'jose'
-import { CHATGPT_ISSUER, CHATGPT_RESOURCE, ChatgptOAuthProvider, hasChatgptPlanPermission } from '../src/chatgpt-oauth-provider.js'
+import { chatgptBrowserAuthorizationUrl } from '../src/chatgpt-browser.js'
+import { CHATGPT_ISSUER, CHATGPT_RESOURCE, CHATGPT_PERSONAL_CLIENT_ID, ChatgptOAuthProvider, hasChatgptPlanPermission } from '../src/chatgpt-oauth-provider.js'
 
 const pair = generateKeyPairSync('rsa', { modulusLength: 2048 })
 const clientId = 'oaiapp_fixture_nessie'
@@ -30,20 +31,23 @@ const fixture = (tokens: Record<string, unknown>) => {
   return { provider: new ChatgptOAuthProvider(fetcher, () => now), requests }
 }
 
-test('Nessie dynamic registration and returning authorization retain exact issued registration and loopback path', async () => {
+test('personal OAuth matches the public agent client while existing registrations retain their own mapping', async () => {
   const { provider } = fixture({})
   const request = { clientId: null, hostId: 'urn:uuid:00000000-0000-4000-8000-000000000001',
     redirectUri: 'http://127.0.0.1:1455/auth/callback', state: 'state', nonce, verifier: 'verifier' }
   const first = new URL(await provider.authorizationUrl(request))
-  assert.equal(first.searchParams.get('client_id'), 'dynamic_agent_client')
-  assert.equal(first.searchParams.get('agent_name_hint'), 'Nessie')
+  assert.equal(first.origin + first.pathname, 'https://auth.openai.com/oauth/authorize')
+  assert.equal(first.searchParams.get('client_id'), CHATGPT_PERSONAL_CLIENT_ID)
+  assert.equal(first.searchParams.get('originator'), 'nessie-computer')
+  assert.equal(first.searchParams.get('scope'), 'openid profile email offline_access')
+  assert.equal(chatgptBrowserAuthorizationUrl(first.toString()), first.toString())
   assert.equal(first.searchParams.get('code_challenge_method'), 'S256')
-  assert.equal(first.searchParams.get('resource'), CHATGPT_RESOURCE)
+  assert.equal(first.searchParams.has('resource'), false)
   const returning = new URL(await provider.authorizationUrl({ ...request, clientId, idTokenHint: 'fixture-id-hint' }))
   assert.equal(returning.searchParams.get('client_id'), clientId)
   assert.equal(returning.searchParams.has('agent_name_hint'), false)
   assert.equal(returning.searchParams.get('ext_agent_host_id'), request.hostId)
-  for (const redirectUri of ['http://localhost:1455/auth/callback', 'http://127.0.0.1:1455/callback',
+  for (const redirectUri of ['http://attacker.example:1455/auth/callback', 'http://127.0.0.1:1455/callback',
     'https://127.0.0.1:1455/auth/callback', 'http://127.0.0.1:1455/auth/callback?extra=1']) {
     await assert.rejects(provider.authorizationUrl({ ...request, redirectUri }), /callback_invalid/u)
   }
@@ -62,6 +66,27 @@ test('ID token requires signature, issuer, audience, nonce and selected workspac
   const altered = token.split('.')
   altered[1] = Buffer.from(JSON.stringify({ nonce, sub: 'attacker' })).toString('base64url')
   await assert.rejects(provider.verifyIdentity(altered.join('.'), clientId, nonce), /identity_invalid/u)
+})
+
+test('a personal-agent grant exchanges locally with the public client and pins its ChatGPT account', async () => {
+  const idToken = await identity({ 'https://api.openai.com/auth': { chatgpt_account_id: 'account-main' } },
+    CHATGPT_ISSUER, CHATGPT_PERSONAL_CLIENT_ID)
+  const { provider, requests } = fixture({ id_token: idToken, access_token: 'personal-access',
+    refresh_token: 'personal-refresh', expires_in: 3600, token_type: 'Bearer', scope: 'openid profile email offline_access' })
+  const tokens = await provider.exchange({ clientId: CHATGPT_PERSONAL_CLIENT_ID, code: 'code', verifier: 'verifier',
+    nonce: 'local-state-bound-attempt', redirectUri: 'http://localhost:1455/auth/callback' })
+  assert.equal(tokens.accountId, 'account-main')
+  assert.equal(hasChatgptPlanPermission(tokens), true)
+  const request = requests.find(entry => entry.url === `${CHATGPT_ISSUER}/oauth/token`)!
+  assert.ok(request)
+  const body = request.init.body as URLSearchParams
+  assert.equal(body.get('client_id'), CHATGPT_PERSONAL_CLIENT_ID)
+  assert.equal(body.has('resource'), false)
+  assert.equal(body.get('redirect_uri'), 'http://localhost:1455/auth/callback')
+  const refresh = fixture({ access_token: 'renewed-access', token_type: 'Bearer', expires_in: 3600 })
+  const renewed = await refresh.provider.refresh(CHATGPT_PERSONAL_CLIENT_ID, tokens, new AbortController().signal)
+  assert.equal(renewed.accountId, 'account-main')
+  assert.equal(renewed.refreshToken, 'personal-refresh')
 })
 
 test('identity-only sign-in remains distinct from plan-use; code exchange never uses dynamic client id', async () => {

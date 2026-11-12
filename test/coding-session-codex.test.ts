@@ -133,7 +133,7 @@ test('a process that exits without ending its turn, or is killed, says which', (
 
 const SESSION = '0f0e0d0c-0b0a-4908-8706-050403020100'
 
-test('a message sent while one turn ends and the next is starting waits its turn, all on one app-server', { timeout: 60_000 }, async () => {
+test('managed Codex queues turns, resumes after idle and waits for turn/started before interrupting', { timeout: 60_000 }, async () => {
   const dir = await mkdtemp(join(tmpdir(), 'nessie-codex-driver-'))
   try {
     const paths = codingSessionPaths(dir, SESSION)
@@ -147,8 +147,8 @@ test('a message sent while one turn ends and the next is starting waits its turn
       control: createCodingProcessControl(process.platform, {
         jobHelper: process.platform === 'win32' ? codingJobHelper() : undefined,
       }),
-      env: { ...process.env, NESSIE_SCRIPTED_RECORD_DIR: dir },
-      folder: dir, paths, projector,
+      env: { ...process.env, NESSIE_SCRIPTED_RECORD_DIR: dir, NESSIE_SCRIPTED_TURN_START_DELAY_MS: '150' },
+      folder: dir, roots: [dir], paths, projector,
       // Slow, so the gap between one turn's exit and the next turn's spawn is wide.
       stillOwner: () => new Promise((settle) => { setTimeout(() => settle(true), 300) }),
       emit: () => undefined,
@@ -168,6 +168,7 @@ test('a message sent while one turn ends and the next is starting waits its turn
       log: () => undefined,
       requests: new SessionRequestBook(() => undefined),
     }
+    context.control.stopTree = async () => { throw new Error('ordinary sessions cannot release protected custody') }
     driver = createCodexDriver(context)
     await driver.send('#sleep=800 first', 'u-1')
     await driver.send('second', 'u-2')
@@ -178,7 +179,20 @@ test('a message sent while one turn ends and the next is starting waits its turn
     assert.equal(lines.filter((entry) => entry.event === 'start').length, 1, 'one app-server serves every turn')
     assert.deepEqual(lines.filter((entry) => entry.event === 'message').map((entry) => (entry as { text?: string }).text),
       ['#sleep=800 first', 'second', 'third'])
+    await driver.endIdle()
+    assert.equal(driver.running(), false)
+    await driver.send('after idle', 'u-4')
+    await waitUntil(async () => state.turn === 4 && state.status === 'waiting_for_input' ? true : undefined,
+      40_000, 'resumed turn')
+    await driver.send('#sleep=1000 interrupt this turn', 'u-5')
+    await driver.interrupt('person')
+    await waitUntil(async () => state.status === 'interrupted' ? true : undefined, 10_000, 'early interrupt')
+    await driver.send('after interrupt', 'u-6')
+    await waitUntil(async () => state.turn === 6 && state.status === 'waiting_for_input' ? true : undefined,
+      10_000, 'recovery after interrupt')
     await driver.close('person')
+    assert.equal(state.status, 'closed')
+    assert.equal(state.agentIdentity, undefined)
   } finally {
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }

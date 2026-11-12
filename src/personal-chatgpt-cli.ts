@@ -17,6 +17,7 @@ import type { ChatgptProfileRecord } from './chatgpt-profile-records.js'
 import { profileBackgroundConsent, setChatgptBackgroundConsent } from './chatgpt-background-consent.js'
 import { resolveChatgptLocalOperation } from './chatgpt-local-operation.js'
 import { windowsServiceReference } from './chatgpt-windows-service-authority.js'
+import { publicChatgptFailure } from './chatgpt-public-failure.js'
 
 type Operation = ReturnType<typeof PersonalChatgptConsoleOperationSchema.parse>
 const usage = (): never => {
@@ -24,15 +25,6 @@ const usage = (): never => {
 }
 const unsupported = (): PersonalChatgptProfileStatus['reason'] => process.platform === 'win32'
   ? 'service_barrier_unavailable' : 'native_context_unsupported'
-const publicFailure = (error: unknown): NonNullable<PersonalChatgptProfileStatus['reason']> => {
-  if (!(error instanceof PersonalInferenceProtectionError)) return 'connection_unavailable'
-  if (['personal_inference_incompatible_sessions', 'personal_inference_host_isolation_required'].includes(error.code)) {
-    return 'host_sessions_active'
-  }
-  if (error.code === 'chatgpt_owner_authority_unavailable') return 'owner_authority_unavailable'
-  if (error.code === 'chatgpt_registration_scope_ambiguous') return 'account_replacement_requires_consent'
-  return 'runtime_inventory_unknown'
-}
 const readOperation = async (stateDirectory: string, local: boolean): Promise<Operation> => {
   const chunks: Buffer[] = []
   let size = 0
@@ -49,12 +41,8 @@ const readOperation = async (stateDirectory: string, local: boolean): Promise<Op
 
 const preflight = async (stateDirectory: string, intent: PersonalChatgptConnectIntent): Promise<void> => {
   await matchingChatgptPairing(stateDirectory, intent)
-  await withManagedRuntimeInventory(async () => {
-    const status = await PersonalInferenceGuard.open().status()
-    if (status.registrations.some(item => item.kind === 'host_execution')) {
-      throw new PersonalInferenceProtectionError('personal_inference_incompatible_sessions')
-    }
-  })
+  // Sign-in opens a browser; a runtime that cannot be verified is said so first.
+  await withManagedRuntimeInventory(async () => undefined)
 }
 const reconcile = async (store: ChatgptProfileStore, profile: ChatgptProfileRecord): Promise<ChatgptProfileRecord> => {
   // An update restart keeps its original operation and consent. Status may
@@ -72,7 +60,7 @@ const reconcile = async (store: ChatgptProfileStore, profile: ChatgptProfileReco
           if (!prior || prior.revision !== profile.revision) throw new Error('profile_changed')
           return { ...prior, revision: prior.revision + 1,
             phase: prior.registration.clientId ? 'reconnecting' : 'disconnecting',
-            reason: 'connection_unavailable', planEnabled: false,
+            reason: prior.reason ?? 'connection_unavailable', planEnabled: false,
             operationId: prior.registration.clientId ? null : randomUUID() }
         })
       } finally { await lease.release() }
@@ -87,7 +75,6 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
   const service = args[2] === '--service-executor'
   if (service ? process.platform !== 'win32' : args[2] !== '--state-dir' || !isAbsolute(args[3]!)) usage()
   const stateDirectory = service ? windowsServiceReference(args[3]!) : resolve(args[3]!)
-  const operation = await readOperation(stateDirectory, args[0] === 'personal-chatgpt-local')
   const store = new ChatgptProfileStore()
   let profiles: PersonalChatgptProfileStatus[] = []
   let reason: PersonalChatgptProfileStatus['reason'] = null
@@ -100,6 +87,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
       restriction: 'unisolated_terminal_coding_and_custom_stdio_blocked' }))}\n`)
   }
   try {
+    const operation = await readOperation(stateDirectory, args[0] === 'personal-chatgpt-local')
     if (operation.operation === 'cancel') {
       const profile = await store.operation(operation.operationId)
       if (profile && profile.phase !== 'disconnected') {
@@ -124,8 +112,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
       }
     } else {
       await matchingChatgptPairing(stateDirectory, operation.intent)
-      if (operation.operation === 'start' && operation.acknowledgeHostRestriction === true
-        && ['linux', 'darwin', 'win32'].includes(process.platform)) {
+      if (operation.operation === 'start' && ['linux', 'darwin', 'win32'].includes(process.platform)) {
         await preflight(stateDirectory, operation.intent)
         await PersonalInferenceGuard.open().initialize()
         // One console/start handoff across pairings. Reload selected scope
@@ -198,8 +185,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         }
         catch { /* A live actor already owns this profile and observes the disconnect fence. */ }
       } else {
-        if (operation.acknowledgeHostRestriction !== true) reason = 'host_restriction_acknowledgement_required'
-        else if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
+        if (!['linux', 'darwin', 'win32'].includes(process.platform)) reason = unsupported()
         else {
           const active = operation.newProfileId ? scoped.find(item => item.profileId === operation.newProfileId)
             : operation.intent.profileId ? scoped[0]
@@ -260,7 +246,7 @@ export const runPersonalChatgptCli = async (args: string[]): Promise<boolean> =>
         }
       }
     }
-  } catch (error) { reason = publicFailure(error) }
+  } catch (error) { reason = publicChatgptFailure(error) }
   finally { await starting?.release() }
   profiles = await Promise.all(profiles.map(async status => {
     const current = await store.read(status.profileId)

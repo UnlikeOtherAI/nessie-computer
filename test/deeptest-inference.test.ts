@@ -268,6 +268,8 @@ test('coding engines expose only typed application proposals and fixed ephemeral
     assert.ok(args.includes(engine === 'claude' ? '--tools' : 'features.shell_tool=false'))
     assert.equal(args.includes('--dangerously-bypass-approvals-and-sandbox'), false)
     assert.equal(args.includes('--fallback-model'), false)
+    assert.equal(args.some(value => value.startsWith('sqlite_home=')), false,
+      'an ephemeral turn must reuse the native session index instead of backfilling a new one')
   }
   assert.throws(() => parseDeepTestInferenceGrant({ ...grant, apiKey: 'secret' }))
   assert.equal(parseCommand(['deeptest-inference', '--inference-grant-file', '/state/deeptest-inference-grant.json']).kind, 'deeptest-inference')

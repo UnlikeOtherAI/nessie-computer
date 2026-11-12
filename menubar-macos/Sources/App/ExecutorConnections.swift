@@ -193,9 +193,10 @@ final class ExecutorConnections: ObservableObject {
     /// the menu, notifications and the window follow a rename. A read that
     /// fails leaves every saved name as it was, and says why in this app's log.
     func refreshTeamNames() {
+        guard !ComputerRuntimeGate.held else { return }
         guard let runner = controllers.lazy.compactMap(\.runner).first else { return }
         let invocation = ExecutorCLI.teamNames(stateDirectories: controllers.map(\.stateDirectory))
-        let settled = controllers.filter { $0.pairing.state?.isAttemptOpen != true }
+        let settled = controllers.filter { $0.pairing.state?.isPending != true }
         namesWork.async {
             Self.logTeamNames(Result { try runner.run(invocation) })
             Task { @MainActor in settled.forEach { $0.pairing.restore() } }
@@ -232,6 +233,51 @@ final class ExecutorConnections: ObservableObject {
     }
 
     func refresh() { controllers.forEach { $0.refresh() } }
+
+    /// The helper installs this app's newer runtime only while no team process
+    /// runs, during the minute after launchd starts it, and answers status only
+    /// once that attempt is over. launchd can take minutes to start a helper
+    /// that was just registered again. The teams stop, the helper restarts, and
+    /// they start again on whatever runtime is installed once that runtime is
+    /// this app's version, the helper answers ninety seconds or more after its
+    /// registration took, or ten minutes pass. A
+    /// helper waiting for the owner's approval cannot run, so they start then too.
+    func holdTeams(until version: String, restartingHelper restart: () async -> Void) async {
+        ComputerUpdateService.holdingTeams = true
+        for controller in controllers { _ = await controller.stopDaemonWithoutBlocking() }
+        // A team process the previous copy of this app started can outlive it
+        // for a minute or two; the helper's minute starts once it has gone.
+        let settling = Date().addingTimeInterval(240)
+        while Date() < settling, controllers.contains(where: \.daemonLeaseHeld) {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+        }
+        await restart()
+        let deadline = Date().addingTimeInterval(600)
+        var registeredAt: Date?
+        var askedAt = Date.distantPast
+        while Date() < deadline, ComputerUpdateService.installedVersion != version {
+            // macOS can refuse a registration made right after removing the
+            // old one; it is made again on the usual schedule, as the update
+            // loop would, which this hold keeps from running meanwhile.
+            ComputerUpdateService.prepare()
+            let registration = ComputerUpdateService.registration
+            if registration == .requiresApproval { break }
+            registeredAt = registration == .enabled ? registeredAt ?? Date() : nil
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            // An answer counts only once the registered helper has had its
+            // minute. Each question is a runtime process too, so it is rare.
+            guard let registeredAt, Date() >= registeredAt.addingTimeInterval(90),
+                  Date() >= askedAt.addingTimeInterval(15) else { continue }
+            askedAt = Date()
+            if (try? await ExecutorUpdateControl.run(["operation": "status"])) != nil { break }
+        }
+        ComputerUpdateService.holdingTeams = false
+        controllers.forEach {
+            $0.pairing.restore()
+            $0.refresh(startWhenPaired: true)
+        }
+        refreshTeamNames()
+    }
 
     func shutdown() {
         discoveryTimer?.invalidate()

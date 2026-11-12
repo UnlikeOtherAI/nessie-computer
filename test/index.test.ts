@@ -283,7 +283,8 @@ test('local policy configuration proposes only implemented COW operations', { sk
     )
     assert.deepEqual(configured.descriptor, {
       ...state.descriptor,
-      operationKeys: ['file.read', 'file.write'],
+      // A Mac's descriptor also offers imessage.send (src/imessage/imessage-operation.ts).
+      operationKeys: ['file.read', 'file.write', 'imessage.send'],
       profiles: ['workspace_sandbox'],
       revision: 4,
       workspaceFolders: ['replacement'],
