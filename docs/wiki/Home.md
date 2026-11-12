@@ -36,4 +36,4 @@ Also: [Glossary](Glossary.md) · [FAQ](FAQ.md)
   use: folders, programs, websites and local apps. Nessie can't change these.
 - The computer connects out to Nessie. Nothing on the internet can connect in.
 
-See [error reporting](https://github.com/UnlikeOtherAI/nessie-executor/blob/main/docs/error-reporting.md) for SDK coverage, configuration and verification limits.
+See [error reporting](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/error-reporting.md) for SDK coverage, configuration and verification limits.

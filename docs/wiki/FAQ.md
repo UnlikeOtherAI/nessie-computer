@@ -51,6 +51,6 @@ It's the same software, now called Nessie Computer. The `nessie-executor`
 command still works.
 
 **Is it open source?**
-It is fair source under [FSL-1.1-ALv2](https://github.com/UnlikeOtherAI/nessie-executor/blob/main/LICENSE):
+It is fair source under [FSL-1.1-ALv2](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/LICENSE):
 you can read, change and share it for permitted purposes; each version becomes
 Apache 2.0 two years after release.

@@ -93,7 +93,7 @@ nessie-computer status --json
 
 ## Still stuck
 
-[Open an issue](https://github.com/UnlikeOtherAI/nessie-executor/issues) with
+[Open an issue](https://github.com/UnlikeOtherAI/nessie-computer/issues) with
 what you did, what the window said (including **Details**), your system and
 your Nessie Computer version (**Settings → Help**). Don't paste pairing codes,
 keys or private files.
