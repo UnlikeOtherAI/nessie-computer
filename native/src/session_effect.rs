@@ -5,7 +5,7 @@ use crate::protocol::NativeError;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::io::{BufRead, BufReader, Read, Write};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, SyncSender};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[path = "session_effect_scope.rs"]
@@ -25,6 +25,7 @@ const LIMIT: u64 = 512 * 1024;
 
 pub struct Channel {
     incoming: Receiver<Result<Value, ()>>,
+    read_next: SyncSender<()>,
     writer: Box<dyn Write + Send>,
     sequence: u64,
     original: Option<Value>,
@@ -63,9 +64,13 @@ fn terminal_reply(data: &str) -> bool {
 impl Channel {
     pub fn new(reader: impl Read + Send + 'static, writer: impl Write + Send + 'static) -> Self {
         let (send, incoming) = mpsc::sync_channel(8);
+        let (read_next, requested) = mpsc::sync_channel(1);
         std::thread::spawn(move || {
             let mut reader = BufReader::new(reader);
-            loop {
+            // The inherited Windows pipe is synchronous. A speculative read
+            // through a duplicated handle can block a reply on the same file
+            // object. Read only when the protocol owner is waiting for input.
+            while requested.recv().is_ok() {
                 let mut line = String::new();
                 let read = (&mut reader).take(LIMIT + 1).read_line(&mut line);
                 let valid = read.is_ok()
@@ -85,6 +90,7 @@ impl Channel {
         });
         Self {
             incoming,
+            read_next,
             writer: Box::new(writer),
             sequence: 0,
             original: None,
@@ -92,6 +98,7 @@ impl Channel {
         }
     }
     fn read(&self, timed: bool) -> Result<Value, NativeError> {
+        self.read_next.send(()).map_err(|_| refused())?;
         let value = if timed {
             self.incoming
                 .recv_timeout(Duration::from_secs(10))

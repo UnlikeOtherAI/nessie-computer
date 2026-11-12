@@ -288,3 +288,10 @@ callback drains. Positive tree clearance is still required; a delayed callback
 cannot replace the recorded limit/close reason or interrupt a newer process.
 Private state replacement reuses the bounded atomic rename primitive, retaining
 the secured temporary inode while a Windows reader briefly holds the old file.
+
+The Windows native effect receiver reads its inherited duplex pipe on demand.
+It must not leave a speculative synchronous read pending while sending the
+consume challenge: duplicated handles share the underlying pipe's I/O ordering.
+The authority handshake still consumes the signed owning route before launch
+and before every input. The real native launch/revocation database tests cover
+this transport, alongside the in-memory protocol tests.

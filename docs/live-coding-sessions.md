@@ -7,6 +7,10 @@ answer a question, or supply a secret. The wire contract is
 `executor-session-view.ts` and `executor-daemon-socket.ts`; this page says how
 the executor implements it.
 
+Native session titles are capped at the inventory's 120-character limit after
+path and credential projection. A rewritten title must not invalidate a complete
+inventory page and hide other managed sessions on the same computer.
+
 ## The doorbell
 
 The daemon holds one WebSocket to `/api/executor-daemon/socket`
