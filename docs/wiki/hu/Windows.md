@@ -7,3 +7,10 @@
 Windows 10 22H2 vagy újabb, x64 szükséges. Nyissa meg az MSI-fájlt, engedélyezze a telepítést, majd indítsa el a Nessie Computert a Start menüből. Az ikon az értesítési terület rejtett ikonjai között lehet.
 
 Az alkalmazásban látható kóddal adja hozzá a számítógépet a kívánt Nessie-csapathoz. Az ügynökök munkája előtt ellenőrizze a jogosultságokat.
+
+Jóváhagyás előtt ellenőrizd, hogy a kiadó **UnlikeOtherAI s.r.o.**. Telepítés után nyiss új PowerShell-ablakot, és ellenőrizd a telepített parancsot:
+
+```powershell
+nessie-computer --version
+nessie-computer --help
+```

@@ -7,3 +7,10 @@
 Potreban je Windows 10 22H2 ili noviji, x64. Otvorite MSI, odobrite instalaciju i otvorite Nessie Computer iz menija Start. Ikona može biti među skrivenim ikonama područja obavijesti.
 
 Kod iz aplikacije koristite da dodate računar željenom timu u Nessie. Provjerite dozvole prije nego što agenti počnu raditi.
+
+Prije odobrenja provjerite da je izdavač **UnlikeOtherAI s.r.o.**. Nakon instalacije otvorite novi prozor PowerShella i provjerite instaliranu naredbu:
+
+```powershell
+nessie-computer --version
+nessie-computer --help
+```

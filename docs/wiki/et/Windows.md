@@ -7,3 +7,10 @@
 Vajab Windows 10 22H2 või uuemat, x64. Avage MSI, kinnitage paigaldus ja avage Nessie Computer menüüst Start. Ikoon võib olla teavitusala peidetud ikoonide seas.
 
 Lisage arvuti rakenduses kuvatud koodi abil soovitud Nessie meeskonda. Kontrollige õigusi enne agentide töö alustamist.
+
+Enne kinnitamist kontrolli, et avaldaja on **UnlikeOtherAI s.r.o.**. Pärast paigaldamist ava uus PowerShelli aken ja kontrolli paigaldatud käsku:
+
+```powershell
+nessie-computer --version
+nessie-computer --help
+```
