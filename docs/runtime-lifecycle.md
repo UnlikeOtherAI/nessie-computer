@@ -175,4 +175,3 @@ the one answer, or `{"status":"unreachable","reason":"notRunning|notAdmitted|not
 The pipe's DACL and the service's account rules still decide every request.
 A new folder for a service team is granted to the service account first with the
 app's own elevated `--grant-workspace` mode, as the app does.
-

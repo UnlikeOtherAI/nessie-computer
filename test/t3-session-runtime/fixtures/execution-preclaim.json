@@ -1,0 +1,99 @@
+{
+  "preparation": {
+    "version": 1,
+    "action": "claim-original-provider-turn-start",
+    "binding": {
+      "executorId": "executor",
+      "environmentId": "environment",
+      "threadId": "thread:雪:one",
+      "providerInstanceId": "original-instance",
+      "connectionEpoch": "1",
+      "runtimeGeneration": "runtime",
+      "correlationId": "correlation",
+      "commandId": "parent:actual:launch",
+      "requestSha256": "sha256:1f58b9145b24d108d7ac38887338b3ea3229833b9c1e418250343f907bfd1047",
+      "relayHmac": "hmac-sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "actorReference": "sha256:50c9c4aeb40b5b206b6d98f516f8b8c0efd29ce2e56a76b345fb9240c225a1b7",
+      "initiationReference": "sha256:96c57e5dfeebfefd24fa3818000e83b3dc89bf99dc1cf1e2c172467c82578639",
+      "sourceEvidenceDigest": "sha256:eef93e1d14482804277fca0172464032d1a4fdbcc338524059fa1e861454ad4d",
+      "sourceRootKey": "root",
+      "sourceGeneration": "generation",
+      "driver": "codex",
+      "continuationHomeKey": "continuation",
+      "historyHomeKey": "history",
+      "credentialBindingId": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "acceptedGraphNonce": "1111111111111111111111111111111111111111111111111111111111111111",
+    "claimId": "e34a43596120d647e4bb18817d9978798e255b349f8d6b323fcd57aa24055037",
+    "evidence": {
+      "resourceId": "2222222222222222222222222222222222222222222222222222222222222222",
+      "resourceGeneration": "sha256:5de95319f17467ed6dc58e4e0b16c1193a13b35d60dc48bcf06bf6b7beebbe6c",
+      "sourceDatabaseIdentity": "source-file-id",
+      "destinationDatabaseIdentity": "destination-file-id",
+      "settingsIdentity": "settings-file-id",
+      "settingsDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "custody": {
+        "service": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "controller": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "supervisor": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "runtime": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "jobName": "Global\\NessieCustody-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "releaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "serviceImageDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    },
+    "bound": {
+      "observation": {
+        "version": 1,
+        "observedAtMs": 1000000,
+        "effectId": "effect:雪:one",
+        "commandId": "release:original:one",
+        "threadId": "thread:雪:one",
+        "effectType": "provider-turn.start",
+        "attemptCount": 2,
+        "availableAt": "2000-01-01T00:00:00.000Z",
+        "rowDigest": "sha256:6ba9af5c6c1f495c17cc63183ed94d5d2ef62a9fb52819fbb96635a16b326b14",
+        "payloadDigest": "sha256:4ca73cc9759fbcd17ea6a3943a6cf69657bb3bbc4b945db9a5d41c37fed62d81",
+        "commandType": "prepared-run.release",
+        "acceptedAt": "1999-12-31T23:59:30.000Z",
+        "resultSequence": 7,
+        "receiptDigest": "sha256:f9189413c855cce825de0856dbbd3a075e04b2d8ac58ae2755063f13a5a0efd1"
+      },
+      "original": {
+        "parentCommandId": "parent:actual:launch",
+        "parentCommandType": "thread.create",
+        "initialCommandId": "opaque:message:command",
+        "releaseCommandId": "release:original:one",
+        "threadId": "thread:雪:one",
+        "messageId": "message:雪:one",
+        "runId": "run:雪:one",
+        "providerInstanceId": "original-instance",
+        "parentReceiptDigest": "sha256:f61a5ab0948e29b70891f120db4fa9a5d030ef22d4ddf48ac3ed71b74b5c4f02",
+        "initialReceiptDigest": "sha256:01fa30c01fbd789501a31e502816418867cc99dfbeb54cda2e26a02a9d09661f",
+        "initialRunEventDigest": "sha256:f775780060cd856d4993a7eebe7bca77eead6d9f32586659a83af2a321d9355a",
+        "releaseReceiptDigest": "sha256:f9189413c855cce825de0856dbbd3a075e04b2d8ac58ae2755063f13a5a0efd1",
+        "releaseRunEventDigest": "sha256:4c2ab7a62f67a433dab165de133c2931bb06b73b13e3a2744f98d23078df29fb"
+      }
+    },
+    "nonce": "e34a43596120d647e4bb18817d9978798e255b349f8d6b323fcd57aa24055037",
+    "issuedAtMs": 1000000,
+    "expiresAtMs": 1005000
+  },
+  "expectedClaimId": "e34a43596120d647e4bb18817d9978798e255b349f8d6b323fcd57aa24055037"
+}

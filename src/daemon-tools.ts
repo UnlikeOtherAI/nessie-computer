@@ -1,4 +1,5 @@
 import { canonicalExecutorJson } from '@nessie/executor-protocol'
+import { createSessionAuthorityClient } from './session-authority-client.js'
 
 import { withBridgeOnRuntime, type ExecutorRuntime } from './coding-sessions-policy.js'
 import { createCodingSessionsDaemon, withDaemonSupervisor, type CodingSessionsDaemon } from './coding-sessions-daemon.js'
@@ -52,6 +53,9 @@ const buildDaemonTools = (
   const mcpSessions = createExecutorMcpSessionManager(servers, state.descriptor.limits,
     onStartFailures ? { onStartFailures } : {})
   const codingBridge = createCodingSessionsDaemon({
+    pairingSource: () => state.sessionPairingSource,
+    validateSessionAuthority: createSessionAuthorityClient(() => state),
+    connectionEpoch: () => state.connectionEpoch,
     executorId: state.executorId,
     commandRules,
     facts: state.descriptor.codingSessions,
@@ -95,7 +99,7 @@ export const createDaemonToolbox = (input: {
   const build = (): DaemonTools => {
     const built = ++generation
     void saveStatus?.([])
-    return buildDaemonTools(input.live.current, input.commandRules, input.ownerRequestsGate, input.runtime,
+    return buildDaemonTools(input.live.view, input.commandRules, input.ownerRequestsGate, input.runtime,
       saveStatus && ((apps) => { if (built === generation) void saveStatus(apps) }))
   }
   let key = daemonToolsKey(input.live.current)

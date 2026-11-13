@@ -21,13 +21,41 @@ const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
 fn reconcile(state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
+    let now=nessie_windows_common::execution::now_ms()?;
+    for record in state.execution_processes.values_mut(){
+        let gone=match &record.child{Some(child)=>absent(child)?,None=>record.admission.expires_at_ms<=now};
+        if gone&&job_members(&record.job_name)?.is_empty(){record.cleared=true;}
+    }
+    let expired=state.execution_processes.iter().filter_map(|(id,record)|{
+        (record.cleared&&absent(&record.creator).unwrap_or(false)&&absent(&record.graph).unwrap_or(false))
+            .then_some(id.clone())
+    }).collect::<Vec<_>>();
+    for id in expired{state.execution_processes.remove(&id);crate::execution_process_io::release(&id)?;}
+    for record in state.execution_creations.values_mut(){
+        if let Some(job)=&record.job_name{
+            let gone=match &record.child {Some(child)=>absent(child)?,None=>record.expires_at_ms<=now};
+            if gone&&job_members(job)?.is_empty(){
+                if record.role.is_none() {
+                    if let Some(child) = &record.child { crate::execution_resource::release_cleared_graph(child)?; }
+                }
+                record.cleared=true;record.cleared_at_ms.get_or_insert(now);
+            }
+        }
+    }
+    // Keep observable clearance for late readers; nonce claims live separately
+    // and are never pruned, so removal cannot permit replay.
+    state.execution_creations.retain(|_,v|v.cleared_at_ms.is_none_or(|t|now.saturating_sub(t)<60_000));
     let mut gone = Vec::new();
     for (key, record) in &state.runtimes {
         if record.supervisor.boot_id != boot
+            || (record.kind==RuntimeKind::T3SessionGraph && absent(&record.child)?
+                && job_members(&record.job_name)?.is_empty()
+                && !state.execution_creations.values().any(|v|v.graph.as_ref()==Some(&record.child)&&!v.cleared))
             || (job_members(&record.job_name)?.is_empty()
                 && absent(&record.child)?
                 && absent(&record.supervisor)?)
         {
+            if record.kind == RuntimeKind::T3SessionGraph { crate::execution_resource::release_cleared_graph(&record.child)?; }
             gone.push(key.clone());
         }
     }
@@ -146,20 +174,57 @@ pub fn handle(
         return Err(REJECTED.into());
     }
     let caller = Process::open(pid)?;
+    let creator=matches!(&operation,Operation::ExecutionCreator{..}|Operation::ExecutionProcess{..});
     if !caller.alive()
         || Some(caller.sid.as_str()) != sid
         || caller.image.file_name().and_then(|value| value.to_str())
-            != Some("nessie-executor-native.exe")
+            != Some(if creator && caller.session==0{"nessie-computer-updater.exe"}else{"nessie-executor-native.exe"})
     {
         return Err(REJECTED.into());
     }
     caller.signed(PIN)?;
-    let release = nessie_windows_common::release::load_at(&caller.image, PIN)?;
+    let release = if creator {
+        if caller.sid!="S-1-5-18"{return Err(REJECTED.into());}
+        if caller.session==0 { let _pins=nessie_windows_common::update_runtime::pin_image(&caller.image,PIN)?; }
+        let program=nessie_windows_common::update_admission::known_folder(
+            &windows_sys::Win32::UI::Shell::FOLDERID_ProgramFiles)?;
+        let mut release=nessie_windows_common::release::load_at(
+            &program.join("Nessie Executor/nessie-executor-native.exe"),PIN)?;
+        release.verify_launch_consumers(PIN)?;release
+    }else{nessie_windows_common::release::load_at(&caller.image, PIN)?};
     let store = Store::new(root);
     let mut state = store.read()?;
     reconcile(&mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
+        Operation::ExecutionProcess{request}=>{
+            if !matches!(&*request,nessie_windows_common::execution_process::Request::Clear{..}
+                |nessie_windows_common::execution_process::Request::End{..}){
+                machine.admit_daemon(&release.digest)?;
+            }
+            crate::execution_process::handle(root,&caller,&release,&mut state,*request)?
+        }
+        Operation::ExecutionCreator {request}=>{
+            if !matches!(&request,nessie_windows_common::execution_creator::Request::Clear{..}
+                |nessie_windows_common::execution_creator::Request::ClearSessionHost{..}){
+                machine.admit_daemon(&release.digest)?;
+            }
+            crate::execution_creator::handle(root,&caller,&release,&mut state,request)?
+        }
+        Operation::ExecutionResource { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution_context::require_companion_role(&caller, &release, &state,
+                nessie_windows_common::execution_creator::CompanionRole::Resource)?;
+            crate::execution_resource::handle(root,&caller,&release,&state,*request)?
+        }
+        Operation::ExecutionSecretObservation { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution_secret_attempt::observe(root,&caller,&release,&state,*request)?
+        }
+        Operation::Execution { request } => {
+            machine.admit_daemon(&release.digest)?;
+            crate::execution::handle(root, &caller, &release, &state, request)?
+        }
         Operation::Status => {
             process::interactive(&caller)?;
             serde_json::json!({"status":"verified","protocolVersion":1,"guardVersion":VERSION,
@@ -197,7 +262,7 @@ pub fn handle(
             kind,
         } => {
             machine.admit(&release.digest)?;
-            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential) {
+            if matches!(kind, RuntimeKind::ServiceDaemon | RuntimeKind::UserDaemon | RuntimeKind::Credential | RuntimeKind::T3SessionGraph) {
                 machine.admit_daemon(&release.digest)?;
             }
             let machine = matches!(
@@ -233,14 +298,20 @@ pub fn handle(
                 return Err(REJECTED.into());
             }
             let child = Process::open(child_pid)?;
+            let execution_graph=kind==RuntimeKind::T3SessionGraph;
+            if execution_graph {
+                if caller.sid!="S-1-5-18"||caller.session!=0||!state.fences.is_empty()
+                    ||!owner_registered(root,&child.sid){return Err(REJECTED.into());}
+                nessie_windows_common::process::interactive(&child)?;
+                nessie_windows_common::execution_isolation::verify(&child)?;
+            }
             let parent = process::snapshot()?
                 .into_iter()
                 .find(|entry| entry.pid == child_pid)
                 .ok_or(REJECTED)?
                 .parent;
             if parent != pid
-                || child.sid != caller.sid
-                || child.session != caller.session
+                || (!execution_graph&&(child.sid != caller.sid||child.session != caller.session))
                 || child.image != release.runtime.node_executable
                 || job_members(&job_name)? != vec![child_pid]
             {
@@ -263,8 +334,8 @@ pub fn handle(
                 guard_version: VERSION,
                 supervisor: caller.generation.clone(),
                 child: child.generation,
-                owner_sid: caller.sid.clone(),
-                session_id: caller.session,
+                owner_sid: child.sid,
+                session_id: child.session,
                 release_digest,
                 job_name,
                 kind,

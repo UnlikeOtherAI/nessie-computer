@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { generateKeyPairSync, randomUUID, verify } from 'node:crypto'
 import { createServer } from 'node:http'
-import test from 'node:test'
+import test, { after } from 'node:test'
+import { getGlobalDispatcher } from 'undici'
 
 import {
   canonicalExecutorPayload, ExecutorCodingSessionSummarySchema, ExecutorSessionConversationSchema,
@@ -11,6 +12,8 @@ import { z } from 'zod'
 import { createSessionViewRelay } from '../src/session-view-relay.js'
 import { codingSessionsFacts } from '../src/coding-sessions-policy.js'
 import { normalizeCodingSessionsConfig } from '../src/coding-session/config.js'
+
+after(async () => { await getGlobalDispatcher().close() })
 
 test('terminal relay signs HTTP exchanges, uploads only demanded screens and drops stale demand on failure', async () => {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519')

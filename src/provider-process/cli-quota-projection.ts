@@ -109,4 +109,3 @@ export const claudeSubscription = (
     status: windows.length ? 'ready' : !email && !account.apiKeySource && !account.tokenSource ? 'signed_out'
       : usage.rate_limits_available === false ? 'unsupported' : 'unavailable' }
 }
-

@@ -90,6 +90,9 @@ fn trusted(sid: &str) -> bool {
             .is_ok_and(|trusted| trusted == sid)
 }
 fn secure(handle: HANDLE) -> Result<(), String> {
+    secure_for(handle, trusted, false)
+}
+fn secure_for(handle: HANDLE, allowed: impl Fn(&str) -> bool, private: bool) -> Result<(), String> {
     let mut owner = std::ptr::null_mut();
     let mut acl: *mut ACL = std::ptr::null_mut();
     let mut descriptor = std::ptr::null_mut();
@@ -110,7 +113,7 @@ fn secure(handle: HANDLE) -> Result<(), String> {
         return Err(REJECTED.into());
     }
     let result = (|| {
-        if !crate::sid_to_string(owner).as_deref().is_some_and(trusted) || acl.is_null() {
+        if !crate::sid_to_string(owner).as_deref().is_some_and(&allowed) || acl.is_null() {
             return Err(REJECTED.into());
         }
         let writes = 0x4000_0000_u32
@@ -140,10 +143,10 @@ fn secure(handle: HANDLE) -> Result<(), String> {
             if u32::from(ace.Header.AceFlags) & INHERIT_ONLY_ACE != 0 {
                 continue;
             }
-            if ace.Mask & writes != 0 {
+            if ace.Mask & (if private { u32::MAX } else { writes }) != 0 {
                 let sid = crate::sid_to_string((&ace.SidStart as *const u32).cast_mut().cast())
                     .ok_or(REJECTED)?;
-                if !trusted(&sid) {
+                if !allowed(&sid) {
                     return Err(REJECTED.into());
                 }
             }
@@ -191,6 +194,29 @@ fn pin(path: &Path, directory: bool, protected: bool) -> Result<File, String> {
 /// checks used for installed releases. Public read access grants no writes.
 pub fn pin_protected(path: &Path, directory: bool) -> Result<File, String> {
     pin(path, directory, true)
+}
+/// Hold the exact configured provider image against replacement/write while its
+/// separately admitted process is prepared and created. This confers no trust
+/// in the image or its configured path; those belong to execution admission.
+pub fn pin_execution_image(path: &Path) -> Result<File, String> {
+    pin(path, false, false)
+}
+/// Execution keys/journals are private to the actual service SID and SYSTEM.
+/// Keep the release namespace policy above unchanged, including inherit-only ACE handling.
+pub fn pin_service_private(path: &Path, directory: bool) -> Result<File, String> {
+    let service = crate::service_channel::service_account_sid()?;
+    let mut options = OpenOptions::new();
+    if directory { options.access_mode(FILE_READ_ATTRIBUTES | READ_CONTROL).share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE); }
+    else { options.read(true).share_mode(FILE_SHARE_READ); }
+    let file = options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path).map_err(|_| REJECTED)?;
+    let metadata = file.metadata().map_err(|_| REJECTED)?;
+    let mut facts: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    if metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 || metadata.is_dir() != directory
+        || unsafe { GetFileInformationByHandle(file.as_raw_handle() as HANDLE, &mut facts) } == 0
+        || (!directory && facts.nNumberOfLinks != 1) { return Err(REJECTED.into()); }
+    secure_for(file.as_raw_handle() as HANDLE, |sid| sid == service || sid == "S-1-5-18", true)?;
+    Ok(file)
 }
 pub(crate) fn pin_launcher(path: &Path, pin_eku: Option<&str>) -> Result<File, String> {
     let file = pin(path, false, true)?;

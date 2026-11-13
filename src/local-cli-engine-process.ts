@@ -66,6 +66,8 @@ export type CliTurnOptions = {
   partialMessages?: boolean
 }
 
+// Keep Codex's own SQLite home: a fresh one synchronously indexes its entire existing
+// session store before the first turn. --ephemeral still prevents this turn's persistence.
 export const cliEngineArguments = (engine: CliProgram, folder: string, options: CliTurnOptions): string[] =>
   engine === 'claude'
     ? ['-p', '--output-format', 'stream-json', '--verbose', '--tools', '', '--strict-mcp-config',
@@ -80,7 +82,6 @@ export const cliEngineArguments = (engine: CliProgram, folder: string, options: 
         'skill_search', 'memories', 'sleep_tool', 'tool_suggest', 'goals'].flatMap((flag) => ['-c', `features.${flag}=false`]),
       '-c', 'features.skip_host_skill_discovery=true', '-c', 'analytics.enabled=false',
       '-c', 'history.persistence="none"', '-c', `log_dir=${JSON.stringify(join(folder, 'logs'))}`,
-      '-c', `sqlite_home=${JSON.stringify(join(folder, 'state'))}`,
       '-c', 'otel.log_user_prompt=false', '-c', 'otel.exporter="none"', '-c', 'otel.trace_exporter="none"',
       '-c', 'otel.metrics_exporter="none"', ...(options.model ? ['-m', options.model] : []),
       ...(options.effort ? ['-c', `model_reasoning_effort="${options.effort}"`] : []), '-']

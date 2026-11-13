@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "id": "pure-pull-request-definitions",
+      "file": "apps/server/src/sourceControl/threadPullRequests.ts",
+      "beforeSha256": "5178678360a09404f552a7fc31e2edee6020797645a87811235acdae1f557d26",
+      "afterSha256": "b8a71c3322eaf41ccb9a4a4ba2c5069fb875abff2d03e67466b055fab8d00b6b",
+      "from": "import { sourceControlDefinitions } from \"./sourceControlDefinitions.ts\";",
+      "to": "import { builtInSourceControlDefinitions as sourceControlDefinitions } from \"@t3tools/source-control-definitions/registry\";"
+    }
+  ]
+}

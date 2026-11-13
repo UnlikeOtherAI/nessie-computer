@@ -320,13 +320,17 @@ pub fn session_owner(session: u32) -> Result<String, String> {
 }
 
 pub fn interactive_profile() -> Result<PathBuf, String> {
+    profile_directory(&Process::open(std::process::id())?)
+}
+
+/// The held process's actual token profile, never HOME or a caller path.
+pub fn profile_directory(process: &Process) -> Result<PathBuf, String> {
     use windows_sys::Win32::Foundation::HANDLE;
     #[link(name = "userenv")]
     extern "system" {
         fn GetUserProfileDirectoryW(token: HANDLE, path: *mut u16, size: *mut u32) -> i32;
     }
-    let process = Process::open(std::process::id())?;
-    interactive(&process)?;
+    interactive(process)?;
     let mut token = std::ptr::null_mut();
     if unsafe { OpenProcessToken(process.handle.0, TOKEN_QUERY, &mut token) } == 0 {
         return Err(REJECTED.into());

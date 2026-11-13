@@ -29,11 +29,15 @@ import { ownerRequestsLeaseWriter } from './coding-session/owner-requests-lease.
 import { codingSessionPaths } from './coding-session/session-files.js'
 import { readSessionMeta } from './coding-session/session-requests.js'
 import { readSessionScreen } from './coding-session/session-view.js'
+import { requireManagedSessionEvidence } from './coding-session/session-authority.js'
+import { callSessionSurface } from './session-surface-call.js'
 import {
   CODING_SESSION_COMMAND_META,
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_CONNECTION_META,
 } from './coding-session/meta-keys.js'
 import {
   codingSessionsPolicyOf,
@@ -110,6 +114,8 @@ const DEFINITIVE_FAILURES = new Set(['EXECUTOR_NOT_FOUND', 'EXECUTOR_DAEMON_PROO
 const PENDING_CLOSE_MAXIMUM = 64
 
 export type CodingSessionsDaemon = {
+  validateSessionAuthority: (scope: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority,
+    phase: 'execute' | 'publish') => Promise<import('@nessie/executor-protocol').ExecutorCodingSessionAuthority>
   isIdle: () => Promise<boolean>
   action?: (action: ExecutorSessionAction) => Promise<ExecutorSessionActionReceipt>
   conversation?: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionConversation | null>
@@ -117,7 +123,8 @@ export type CodingSessionsDaemon = {
   screen: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionScreen | null>
   /** The reserved `_meta` for one call, command rules included: defined only for the built-in bridge. */
   callMeta: (
-    server: string, input: { commandId: string; owner?: ExecutorMcpCallOwner },
+    server: string, input: { commandId: string; owner?: ExecutorMcpCallOwner;
+      codingSessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority },
   ) => Record<string, unknown> | undefined
   /** Every session on this machine, as the daemon's authority ends. */
   closeAll: (reason: string) => Promise<void>
@@ -160,6 +167,9 @@ const answerOf = (result: Record<string, unknown>): Record<string, unknown> | un
 }
 
 export const createCodingSessionsDaemon = (input: {
+  validateSessionAuthority?: CodingSessionsDaemon['validateSessionAuthority']
+  pairingSource?: () => import('@nessie/executor-protocol').ExecutorSessionPairingSource | undefined
+  connectionEpoch?: () => string | undefined
   executorId: string
   /**
    * The rules a call runs under, read as the call is stamped: a saved change
@@ -237,13 +247,29 @@ export const createCodingSessionsDaemon = (input: {
     }).slice(0, EXECUTOR_CODING_SESSION_REPORT_MAXIMUM)
   }
 
+  const viewerScope = async (request: ExecutorSessionViewRequest, phase: 'execute' | 'publish') => {
+    if (input.pairingSource?.()?.kind === 'unbound_local') return undefined
+    const scope = request.codingSessionAuthority
+    if (!scope || !input.validateSessionAuthority || scope.operation !== 'session_view'
+      || scope.ownerKey !== request.ownerKey || scope.admissions[0]?.sessionId !== request.sessionId) {
+      throw new Error('Original viewer authority is unavailable')
+    }
+    return input.validateSessionAuthority(scope, phase)
+  }
+
   return {
     // Only work this daemon started can be cut short by a restart; a Codex or
     // Claude conversation found already open belongs to its own client.
     isIdle: async () => !bridge || (await sessionReport('session_list_all'))?.every((session) =>
       session.origin === 'external' || ['closed', 'failed', 'interrupted'].includes(session.status)) === true,
     action: async (action) => {
-      const answer = await daemonCall('session_user_action', action)
+      if (!bridge) return { id: action.id, state: 'outcome_unknown', code: 'delivery_unknown' }
+      const { codingSessionAuthority, ...args } = action
+      const answer = answerOf(await callSessionSurface({ sessions: input.sessions, server: bridge.name,
+        tool: 'session_user_action', arguments: args, commandId: action.id, ownerKey: action.ownerKey,
+        authority: codingSessionAuthority, source: () => input.pairingSource?.(),
+        epoch: () => input.connectionEpoch?.(),
+        validate: input.validateSessionAuthority }))
       const parsed = ExecutorSessionActionReceiptSchema.safeParse(answer?.receipt)
       return parsed.success ? parsed.data : { id: action.id, state: 'outcome_unknown', code: 'delivery_unknown' }
     },
@@ -253,11 +279,24 @@ export const createCodingSessionsDaemon = (input: {
       return parsed.success ? parsed.data : undefined
     },
     conversation: async (request) => {
-      const answer = await daemonCall('session_conversation', request)
+      const scope = await viewerScope(request, 'execute')
+      if (!bridge) return null
+      const result = await callSessionSurface({ sessions: input.sessions, server: bridge.name,
+        tool: 'session_conversation', arguments: { sessionId: request.sessionId, ownerKey: request.ownerKey },
+        commandId: scope?.commandId ?? `daemon-${randomUUID()}`, ownerKey: request.ownerKey, authority: scope,
+        source: () => input.pairingSource?.(), epoch: () => input.connectionEpoch?.(),
+        validate: input.validateSessionAuthority })
+      await viewerScope(request, 'publish')
+      const answer = answerOf(result)
       const parsed = ExecutorSessionConversationSchema.safeParse(answer?.conversation)
       return parsed.success ? parsed.data : null
     },
+    validateSessionAuthority: async (scope, phase) => {
+      if (!input.validateSessionAuthority) throw new Error('Original session authority check is unavailable')
+      return input.validateSessionAuthority(scope, phase)
+    },
     screen: async (request) => {
+      const scope = await viewerScope(request, 'execute')
       if (request.ownerKey === EXISTING_CODING_SESSION_OWNER_KEY) {
         const answer = await daemonCall('existing_session_screen', request)
         const parsed = ExecutorSessionScreenSchema.safeParse(answer?.screen)
@@ -270,7 +309,9 @@ export const createCodingSessionsDaemon = (input: {
       const paths = codingSessionPaths(loaded.stateDir, request.sessionId)
       const meta = await readSessionMeta(paths)
       if (!meta || meta.ownerKey !== request.ownerKey) return null
+      if (scope) requireManagedSessionEvidence(scope, meta)
       const parsed = ExecutorSessionScreenSchema.safeParse(await readSessionScreen(paths, meta))
+      await viewerScope(request, 'publish')
       return parsed.success ? parsed.data : null
     },
     callMeta: (server, call) => {
@@ -280,6 +321,9 @@ export const createCodingSessionsDaemon = (input: {
       return {
         [CODING_SESSION_COMMAND_META]: call.commandId,
         [CODING_SESSION_COMMAND_RULES_META]: input.commandRules(),
+        ...(input.pairingSource?.() ? { [CODING_SESSION_PAIRING_SOURCE_META]: input.pairingSource() } : {}),
+        ...(input.connectionEpoch?.() ? { [CODING_SESSION_CONNECTION_META]: input.connectionEpoch() } : {}),
+        ...(call.codingSessionAuthority ? { [CODING_SESSION_AUTHORITY_META]: call.codingSessionAuthority } : {}),
         ...(ownerKey ? { [CODING_SESSION_OWNER_META]: ownerKey } : {}),
       }
     },

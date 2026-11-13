@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[features]
+# Opt-in real installed probe. This adds no production admission bypass.
+retained-issuer-installed-qualification = []
+
+[[test]]
+name = "retained_issuer_installed"
+path = "tests/retained_issuer_installed.rs"
+required-features = ["retained-issuer-installed-qualification"]
+
 # What Windows names this executable in Task Manager and its properties; the
 # icon beside it is embedded by build.rs.
 [package.metadata.tauri-winres]
@@ -15,6 +24,9 @@ name = "nessie-executor-native"
 path = "src/main.rs"
 
 [dependencies]
+base64 = "0.22.1"
+hmac = "0.12.1"
+ed25519-dalek = { version = "3.0.0", features = ["pem"] }
 libc = "0.2.182"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"

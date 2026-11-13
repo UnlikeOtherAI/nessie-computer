@@ -195,7 +195,11 @@ test('a policy saved while the team runs is enforced on the same connection, wit
     await configureExecutorLocalPolicy(stateDir, saved,
       saved.descriptor.operationKeys.filter((operationKey) => operationKey !== 'sandbox.stop'))
 
-    await eventually('Nessie has the new revision', () => nessie.revision === before + 1)
+    try {
+      await eventually('Nessie has the new revision', () => nessie.revision === before + 1)
+    } catch (error) {
+      assert.fail(`${String(error)} Descriptor history: ${JSON.stringify(nessie.descriptors)}`)
+    }
     assert.equal(nessie.claims, 1, 'the daemon kept its connection')
     assert.deepEqual(nessie.descriptors.at(-1), { connectionEpoch: '1', revision: before + 1 })
     assert.deepEqual(await nessie.run('sandbox.stop', {}), { code: 'EXECUTOR_LOCAL_POLICY_DENIED', success: false })

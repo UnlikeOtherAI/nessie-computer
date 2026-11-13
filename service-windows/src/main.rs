@@ -36,6 +36,40 @@ use nessie_windows_common::runtime as manifest;
 use setup_report::Refusal;
 #[cfg(windows)]
 mod custody;
+#[cfg(windows)]
+mod execution;
+#[cfg(windows)]
+mod execution_admission;
+#[cfg(windows)]
+mod execution_context;
+#[cfg(windows)]
+mod execution_key;
+#[cfg(windows)]
+mod execution_observation;
+#[cfg(windows)]
+mod execution_preparation;
+#[cfg(windows)]
+mod execution_launch_homes;
+#[cfg(windows)]
+mod execution_resource;
+#[cfg(windows)]
+mod execution_creator;
+#[cfg(windows)]
+mod execution_process;
+#[cfg(windows)]
+mod execution_process_io;
+#[cfg(windows)]
+mod execution_input;
+#[cfg(windows)]
+mod execution_secret_attempt;
+#[cfg(windows)]
+mod execution_frames;
+#[cfg(windows)]
+mod execution_effect;
+#[cfg(windows)]
+mod execution_session_host;
+#[cfg(windows)]
+mod execution_creator_owner;
 mod custody_store;
 mod paths;
 #[cfg(windows)]

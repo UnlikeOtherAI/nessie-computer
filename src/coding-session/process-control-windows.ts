@@ -1,3 +1,4 @@
+import { attachEffectTransport } from './effect-transport.js'
 import { spawn } from 'node:child_process'
 import { join } from 'node:path'
 import type { CodingProcessControl } from './process-control.js'
@@ -37,7 +38,7 @@ const DOT_LINE = /(?:^|\n)\.\r?\n/u
  * tool budget of its own once it is under way.
  */
 export const powershellExchange = (
-  script: string, reply: (printed: string) => string[], cued = false,
+  script: string, reply: (printed: string) => string[] | Promise<string[]>, cued = false,
 ): PowerShellExchange => {
   const child = spawn(powershellPath(), [...POWERSHELL_ARGS, script], { stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true })
   let timer: NodeJS.Timeout | undefined
@@ -63,9 +64,10 @@ export const powershellExchange = (
     if (!end && printed.length <= 8 * 1024 * 1024) return
     answered = true
     budget()
-    const lines = end ? reply(printed.slice(0, end.index)) : []
     if (end) after = printed.slice(end.index + end[0].length)
-    child.stdin.end(lines.map((line) => `${line}\n`).join(''))
+    void Promise.resolve(end ? reply(printed.slice(0, end.index)) : []).then(lines => {
+      child.stdin.end(lines.map((line) => `${line}\n`).join(''))
+    }).catch(() => child.stdin.end())
   })
   const done = new Promise<boolean>((settle) => {
     const finish = (): void => {
@@ -111,10 +113,12 @@ const WINDOWS_TABLE = [
 export const WINDOWS_KILL = [
   WINDOWS_TABLE,
   "; '.'; [Console]::Out.Flush()",
-  '; while ($null -ne ($line = [Console]::In.ReadLine())) { $target, $started = $line.Split(" ")',
+  '; $refused = $false; while ($null -ne ($line = [Console]::In.ReadLine())) { $target, $started, $until = $line.Split(" ")',
   '; try { $p = Get-Process -Id ([int]$target) -ErrorAction Stop; try { $null = $p.Handle } catch {}',
-  '; if ($p.StartTime.ToFileTimeUtc() -eq [long]$started) { $p.Kill() } } catch {} }',
-  "; '.'",
+  '; if ($p.StartTime.ToFileTimeUtc() -eq [long]$started) {',
+  '; if ($until -and [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() -ge [long]$until) { $refused = $true }',
+  'else { $p.Kill() } } } catch {} }',
+  "; if ($refused) { '!' } else { '.' }",
 ].join(' ')
 
 /**
@@ -165,10 +169,19 @@ export const windowsControl = (
     const root = isStill(before, identity) ? [`${identity.pid} ${identity.startedAt}`] : []
     return [...root, ...[...members].map(([pid, started]) => `${pid} ${started}`)]
   }
-  const killTree: CodingProcessControl['killTree'] = async (identity, snapshot = []) => {
-    const exchange = powershellExchange(WINDOWS_KILL, (printed) =>
-      targets(parseWindowsTable(printed), identity, snapshot))
-    if (!await exchange.done) {
+  const killTree: CodingProcessControl['killTree'] = async (identity, snapshot = [], effect) => {
+    let authorityError: unknown
+    const exchange = powershellExchange(WINDOWS_KILL, async (printed) => {
+      try {
+        await effect?.consume()
+        effect?.assertLive()
+        return targets(parseWindowsTable(printed), identity, snapshot).map(line =>
+          effect ? `${line} ${Date.parse(effect.scope.expiresAt)}` : line)
+      } catch (error) { authorityError = error; return [] }
+    })
+    const done = await exchange.done
+    if (authorityError) throw authorityError
+    if (!done) {
       throw new Error('Windows process termination exchange did not complete.')
     }
   }
@@ -177,15 +190,15 @@ export const windowsControl = (
     : undefined
   return {
     ...(containedLaunch ? { containment: 'windows_job' as const, containedLaunch } : {}),
-    stopTree: async (identity, snapshot = []) => {
+    stopTree: async (identity, snapshot = [], effect) => {
       const result = await run(powershellPath(), [...POWERSHELL_ARGS, WINDOWS_TABLE])
       if (result.failed || !result.stdout.trim() || !recorded(identity)) return 'unknown'
       const before = parseWindowsTable(result.stdout)
       const rootPresent = isStill(before, identity)
       if (!rootPresent && identity.containment !== 'windows_job') return 'unknown'
       const members = membersOf(identity, snapshot, treeOf(identity, before, false))
-      try { await killTree(identity, [...members].map(([pid, startedAt]) => ({ pid, startedAt }))) }
-      catch { return 'unknown' }
+      try { await killTree(identity, [...members].map(([pid, startedAt]) => ({ pid, startedAt })), effect) }
+      catch (error) { if (effect) throw error; return 'unknown' }
       const after = await run(powershellPath(), [...POWERSHELL_ARGS, WINDOWS_TABLE])
       if (after.failed || !after.stdout.trim()) return 'unknown'
       const checked = parseWindowsTable(after.stdout)
@@ -201,9 +214,15 @@ export const windowsControl = (
     // Through the helper the program is resolved and started by `CreateProcessW`
     // inside the job; the host still holds the same three pipes.
     spawnAgent: (command, args, options) => {
-      const launch = containedLaunch?.(command, args) ?? { command, args }
-      return spawn(launch.command, launch.args,
-        { cwd: options.cwd, env: options.env, stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, shell: false })
+      const bound = jobHelper && options.sessionEffect
+      const child = spawn(
+      jobHelper ?? command,
+      jobHelper ? [bound ? 'job-run-authorized' : 'job-run', '--', command, ...args] : args,
+      { cwd: options.cwd, env: options.env, stdio: bound ? ['pipe', 'pipe', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
+        windowsHide: true, shell: false },
+      )
+      if (bound) attachEffectTransport(child, 3, options.sessionEffect, { command, args, cwd: options.cwd })
+      return child
     },
     identify: async (pid) => {
       const started = await startTimeOfLive(pid, startedAt)

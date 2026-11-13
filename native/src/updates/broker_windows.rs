@@ -98,9 +98,15 @@ fn service_main(_arguments: Vec<OsString>) {
         .and_then(|()| nessie_windows_common::peer_inspection::allow_verification()
             .map_err(|_| "update.peer_inspection_unavailable"))
         .and_then(|()| {
+            // Source consent uses its own typed listener and never widens update control.
+            let issuer_stopped = stopped.clone();
+            std::thread::spawn(move || { let _ = crate::t3_source::issuer_service::serve(issuer_stopped); });
+            let creator_stopped = stopped.clone();
+            std::thread::spawn(move || { let _ = crate::execution_creator_listener::serve(creator_stopped); });
             let _ = handle.set_service_status(status(ServiceState::Running));
-            serve(stopped).map_err(|_| ERROR)
+            serve(stopped.clone()).map_err(|_| ERROR)
         });
+    stopped.store(true, Ordering::Release);
     let mut final_status = status(ServiceState::Stopped);
     if outcome.is_err() {
         final_status.exit_code = ServiceExitCode::Win32(1);

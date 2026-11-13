@@ -198,7 +198,8 @@ test('a configuration that differs from its reviewed digest starts no host', { t
     // Nothing an unreviewed file names is read or reported; stopping things still works.
     assert.equal((await harness.call('session_list', {})).code, 'coding_session_config_changed')
     assert.equal((await harness.call('session_status', { sessionId: '0f0e0d0c-0b0a-4908-8706-050403020100' })).code, 'coding_session_config_changed')
-    assert.deepEqual((await harness.call('session_close_all', { reason: 'test' }, { daemon: true, owner: '' })).body, { closing: 0 })
+    assert.deepEqual((await harness.call('session_close_all', { reason: 'lease_ended' },
+      { daemon: true, owner: '' })).body, { closing: 0 })
   } finally {
     await harness.cleanup()
   }

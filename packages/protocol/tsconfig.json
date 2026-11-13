@@ -7,9 +7,13 @@
     "rootDir": "src",
     "types": [
       "node"
+    ],
+    "lib": [
+      "ES2023"
     ]
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "src/t3-session/*.json"
   ]
 }

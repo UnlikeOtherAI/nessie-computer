@@ -1,5 +1,9 @@
 # Automatic executor updates
 
+Packaged CLI preparation supplies `import.meta.url` from the actual CommonJS
+bundle filename before hashing. This preserves module-path resolution in the
+packaged coding-session host; `prepare-runtime.test.ts` exercises that entry.
+
 Status: **preview published; stable acceptance incomplete**. Immutable release
 [1.0.12](https://github.com/UnlikeOtherAI/nessie-computer/releases/tag/executor-v1.0.12)
 contains signed Windows x64 MSI, Apple-silicon DMG and Linux x64 DEB/RPM packages
@@ -65,7 +69,18 @@ machine restart. None of these candidates establishes stable A-to-B acceptance.
 macOS signing uses the existing GUI session and Developer ID identity; no
 additional Installer certificate or account setup is required.
 
-The Windows MSI producer requires Node 22 and supplies the selected numeric
+## Runtime requirements
+
+Executor packages require Node 24. Preparation executes the selected binary,
+opens SQLite and verifies transaction state plus a denied operation through
+`DatabaseSync.setAuthorizer`. Hashes before/after the probe and after copying
+bind the staged bytes to that tested binary and its version. The host-shaped
+package fixture executes the copied runtime. Unsupported input refuses before replacing an
+existing staging directory. A JavaScript compilation target supplies no proof
+of these APIs. The installed Maxis Node 22.23.4 runtime lacks `setAuthorizer`
+and requires an executor update before the new source reader can qualify.
+
+The Windows MSI producer requires Node 24 and supplies the selected numeric
 release version to the packaged CLI as well as to the installer and native
 helper. A development-labelled bundle is not a release candidate.
 Unsigned Windows source candidates omit the SYSTEM updater service and its
@@ -446,6 +461,15 @@ MCP teardown on proof the uncontained test process could not provide.
 
 The ACL transport and runtime admission are now separate. State-test prerequisite
 checks use the sibling helper, so unmarked source runs retain real DACL coverage.
+Source coding/terminal launches use the fixed Debug helper's real Job Object
+as well. They can therefore prove tree cleanup without setting the installed
+runtime flag. Installed launches still require their own sibling helper and
+never select the source Debug path.
+
+The source test runner lets Node drain native handles on exit. Forced test-process
+exit can abort Windows libuv while an async handle is closing. Contract consumer
+probes use a separate compiler process per resolution mode, each capped at 5 GiB,
+with Node ambient types and full library checking.
 State-store and guest-runtime fixtures set actual Windows DACLs in that context;
 POSIX chmod is never treated as Windows privacy.
 Guest artifact tests still require installed package resources. A missing or symlinked

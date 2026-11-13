@@ -1,3 +1,4 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { constants } from 'node:fs'
 import { lstat, mkdtemp, open, realpath, rename, rmdir, unlink, type FileHandle } from 'node:fs/promises'
@@ -191,6 +192,7 @@ export const readSecretFromFolder = async (input: {
  */
 export const writeSecretToFolder = async (input: {
   folder: string; destination: string; value: string; envName?: string
+  effect?: SessionEffectAuthority
   security?: StateSecurityDeps
   seams?: { afterRead?: () => Promise<void>; beforeRename?: () => Promise<void> }
 }): Promise<{ destination: string }> => {
@@ -221,8 +223,11 @@ export const writeSecretToFolder = async (input: {
       await secureOwnerOnlyStateFile(temporary, input.security)
       await assertOwnerOnlyStatePath(temporary, 'file', input.security)
       if (!sameFile(await lstat(temporary), created)) refuse()
+      await input.effect?.consume()
+      input.effect?.assertLive()
       await staging.verify()
       await folderUnchanged(root, folder)
+      input.effect?.assertLive()
       await handle.writeFile(content, 'utf8')
       await handle.sync()
     } finally {
@@ -233,6 +238,8 @@ export const writeSecretToFolder = async (input: {
     await staging.verify()
     const staged = await lstat(temporary)
     if (staged.isSymbolicLink() || !sameFile(staged, created)) refuse()
+    await input.effect?.consume()
+    input.effect?.assertLive()
     await rename(temporary, target)
   } catch {
     try {

@@ -14,6 +14,7 @@ import { createCodingBridge as createManagedBridge, type CodingBridge } from './
 import { readSessionConversation } from './session-view.js'
 import { sessionUserAction } from '../session-user-action.js'
 import { openFirst } from './session-report.js'
+import { prepareManagedBridgeCall } from './session-authority.js'
 
 export type { CodingBridge, CodingBridgeCallMeta } from './managed-bridge.js'
 
@@ -25,9 +26,23 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
   let inventory: { id: string; observedAt: string; complete: boolean; sessions: Record<string, unknown>[] } | undefined
   process.stdin.once('end', () => { void existing.close() })
   return { rewriter: managed.rewriter, call: async (tool, value, meta) => {
+    // Inventory/withdrawal are system operations. They never establish content or input authority.
+    const system = ['session_inventory', 'session_list_all', 'session_close_all', 'existing_session_refresh'].includes(tool)
+    const authority = system && meta.daemonControl ? null
+      : await prepareManagedBridgeCall(dirname(loaded.configPath), loaded.stateDir, tool, value, meta)
+    if (authority) {
+      const kind = value && typeof value === 'object' ? (value as Record<string, unknown>).kind : undefined
+      // Bound native/external continuity has no producer. Never probe it, even for existence.
+      if (tool === 'session_queue' || tool === 'session_push' || tool === 'session_steer'
+        || tool === 'existing_session_screen' || tool === 'session_user_action' && (kind === 'queue' || kind === 'push')) {
+        throw new CodingBridgeError('coding_session_authority_unavailable', 'Original session authority is unavailable.')
+      }
+      if (tool !== 'session_user_action' && tool !== 'session_conversation') return managed.call(tool, value, meta)
+    }
     if (tool === 'session_user_action' && meta.daemonControl) {
-      const receipt = await sessionUserAction(value, dirname(loaded.configPath), managed,
-        (...args) => existing.send(...args))
+      const receipt = await sessionUserAction(value, dirname(loaded.configPath), managed, async (...args) => {
+        return existing.send(...args)
+      }, meta)
       return { receipt }
     }
     if (tool === 'session_inventory') {

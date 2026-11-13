@@ -9,12 +9,13 @@ available, including its two-year Apache 2.0 conversion.
 Work in an isolated worktree and branch. Keep changes focused, commit and push
 them, and use a pull request. Merge only after the required checks pass.
 
-Use Node 22, pnpm 10.22.0 and `pnpm verify`. Public workspace gates run through
+Use Node 24, pnpm 10.22.0 and `pnpm verify`. Packaging probes SQLite authorization on the selected runtime; see [runtime requirements](docs/automatic-updates.md#runtime-requirements). Public workspace gates run through
 Turbo using `scripts/turbo.public.json`; package tests must retain their build
-prerequisites. Windows source tests use the Debug native helper beside an
+prerequisites. Shared T3 source build/typecheck ordering follows [the package contract](docs/session-engine-package.md). Windows source tests use the Debug native helper beside an
 unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
 claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
+Session tool schemas, retained metadata projections/navigation, shared input-dependent receipt policy and admission boundaries follow [MCP adapters](docs/session-mcp-adapters.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
@@ -63,6 +64,40 @@ Computer telemetry, provider quotas, native history and human input follow
 All T3 quota readers, local account sources and bounds follow the [provider quota catalogue](docs/provider-quotas.md).
 The daemon doorbell, live session requests, owner answers and `request_secret` follow
 [live coding sessions](docs/live-coding-sessions.md); its focused gate is `test:live-sessions`.
+Pinned T3 session-engine build inputs and the unfinished runtime boundary follow
+[session engine](docs/session-engine.md); `test:session-engine-source` checks source preparation without building native apps.
+The generated `/engine` and browser `/client` exports, exact source selection, authored-input registration, shared contract declarations and `prepare:engine`/`test:t3-session-declarations` Turbo gates follow [the package contract](docs/session-engine-package.md).
+Completed source generations retain previous outputs and recover bounded Windows rename locks under [package publication](docs/session-engine-package.md#completed-generation-publication); failed generations are preserved.
+Bounded source-producer and derived-adapter privacy gates follow [selected runtime construction](docs/session-runtime.md#selected-original-construction-and-codex-host).
+The finite browser detail host, original transport factories and account/cache retirement follow [client connection](docs/t3-session-client-connection.md#finite-browser-detail-host).
+Retained catalog reads, original operation contracts and their unbound transport/authority prerequisites follow [catalog composition](docs/retained-t3-catalog.md); its render-free gate is `test:t3-session-catalog`.
+The callback-scoped captured read graph and signed ordered publication producer follow [retained publication](docs/retained-t3-publication.md); passive graph readiness does not authorize execution.
+Original session control, required schedule binding and the render-free `test:t3-session-control-source` / `test:t3-session-control` gates follow [control adapters](docs/t3-session-control.md).
+Runtime composition, opaque ProviderHost references, scoped operation slots and the combined qualification gate follow [session runtime](docs/session-runtime.md); its Windows fixtures use the source ACL runner and an external `T3_RUNTIME_FIXTURE_ROOT`, and native/provider producers remain required.
+The fixed `t3-session-runtime` entry and existing-daemon inspection channel follow [protected inspection](docs/session-runtime.md#protected-inspection-entry); source inspection never authorizes command/provider input.
+Original encoder capture, finite native phase relays and the unbound selected-secret preparation boundary follow [runtime serialization](docs/session-runtime.md#original-encoder-and-finite-native-composition); generic provider stdin remains denied.
+The pinned Claude SDK and shared original query runner follow [Claude capture](docs/claude-sdk-capture.md) and [runner composition](docs/claude-original-runner.md); full host activation remains unbound.
+Selected original Claude construction and required host owners follow [the Claude host contract](docs/claude-selected-host.md).
+The protected launch layer requires the same reservation's [original command recorder](docs/session-runtime.md#original-launch-command-capture); observing creation grants no effect or process authority.
+Accepted initial runs and preparation-release predecessors use that same recorder under [preparation lineage](docs/session-runtime.md#accepted-preparation-predecessor); recognition never authorizes an outbox claim.
+The original executor's [persisted effect command context](docs/session-runtime.md#persisted-effect-command-context) preserves outbox identity; it never replaces admission before claim.
+The protected worker requires a separate [current preclaim owner](docs/session-runtime.md#admission-before-the-original-outbox-claim); scoped row candidates and conditional SQL deadlines are not grants.
+Finite native/backend admission for the exact original lease/attempt UPDATE follows [SQL preclaims](docs/t3-execution-preclaims.md); startup/recovery and provider effects require their own authority.
+The original lifecycle's five startup/shutdown mutation actions require a separate [current owner](docs/t3-lifecycle-authority.md); refusal still drains providers and never becomes positive clearance.
+The Windows tray's bounded inherited-pipe handoff, existing-daemon registry, whole-source capture/publication and drained retirement follow [retained runtime handoff](docs/retained-runtime-handoff.md); no local listener or native execution is added.
+The bounded original T3 daemon lane and finite effect-grant verification follow [the lane contract](docs/t3-session-lane.md).
+Managed-start target evidence, purpose-bound bridge scopes and legacy/native refusal follow [original session authority](docs/original-session-authority.md).
+Explicit T3 root configuration, the Windows held SQLite reader and its unrun native/installed gates follow [physical sources](docs/t3-physical-source.md).
+Execution-only held settings, opaque provider homes and the protected graph/service duplication contract follow [execution resources](docs/t3-execution-resources.md); retained read consent grants no execution authority.
+Execution SQL uses the native [destination owner](docs/t3-execution-resources.md#native-execution-destination-ownership); writer/file pins grant no pending-row claim or recovery authority.
+Its independent [pending-effect reader](docs/t3-execution-resources.md#independent-pending-effect-observation) returns unsigned full-row facts; accepted receipts contain no original parent-command edge.
+Unsigned global recovery plans, exact conditional consumption and the independent
+held reader follow [process-loss plans](docs/t3-process-loss-plans.md).
+A match supplies no lifecycle permission.
+The same resource's [original command capture](docs/t3-execution-resources.md#protected-original-command-capture) retains live callback edges and verifies SQL acceptance; its bound observations grant no claim authority.
+The fixed `t3-execution secret-observe` companion records terminal environment-slot attempts; secret reads remain unavailable under [prelaunch secret reads](docs/prelaunch-secret-read.md).
+Interactive resource confinement, original terminal output and the `test:t3-session-interactive` gate follow [the resource boundary](docs/t3-interactive-resources.md); native/gateway bindings remain required.
+Prospective source issuer enrollment, protected local review, online receipt consumption and the unqualified Windows tray/service gates follow [source consent](docs/t3-source-consent.md).
 
 Linux updater images use root-owned immutable libexec paths with the standard SELinux executable label; retain journals and legacy protected images during recovery. See [Fedora service execution](docs/automatic-updates.md#fedora-service-execution).
 
@@ -89,6 +124,8 @@ Standard crash/error SDKs, release configuration and verification limits follow 
 iMessage on a Mac — the read-only `chat.db` reader, the delivery cursor, `imessage.send` through AppleScript argv and the macOS-only operation — follows [iMessage](docs/imessage.md); Windows and Linux never offer or report it.
 
 The public repository is `UnlikeOtherAI/nessie-computer`; CLI and documented command coverage use the public Turbo `test:cli` gate. Repository-rename update compatibility follows [automatic updates](docs/automatic-updates.md#repository-rename).
+The focused `test:session-local-pairing` Turbo gate covers shared local bridge
+enrollment fixtures under [original session authority](docs/original-session-authority.md).
 
 Published immutable version releases queue the protected-main signed catalogue;
 release-note display and ask-first defaults follow [GitHub publication](docs/automatic-updates.md#github-publication-and-release-notes).

@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
-import { EXECUTOR_CODING_SESSION_REPORT_MAXIMUM } from '@nessie/executor-protocol'
+import { EXECUTOR_CODING_SESSION_REPORT_MAXIMUM, ExecutorSessionInventoryPageSchema } from '@nessie/executor-protocol'
 
 import { openFirst } from '../src/coding-session/session-report.js'
 import { ExistingCodex } from '../src/existing-session/codex.js'
 import { ExistingSessions } from '../src/existing-session/manager.js'
+import { createExistingProjection } from '../src/existing-session/projection.js'
 import { existingSessionsEnabled } from '../src/existing-session/settings.js'
 import { existingSessionId, type ExistingSession } from '../src/existing-session/types.js'
 
@@ -171,7 +172,6 @@ test('Claude delivery receipts survive restart and never turn a transport write 
 test('a definitive native queue rejection is failed, while secret projection preserves opaque IDs', async () => {
   const { deliverOnce } = await import('../src/existing-session/delivery.js')
   const { CodexOperationRejected } = await import('../src/provider-process/codex-rpc.js')
-  const { createExistingProjection } = await import('../src/existing-session/projection.js')
   const directory = await mkdtemp(join(tmpdir(), 'nessie-rejected-'))
   try {
     const result = await deliverOnce({ stateDir: directory, sessionId: randomUUID(), commandId: randomUUID(),
@@ -211,6 +211,21 @@ test('background inventory requires live private-machine authority and stops at 
     await writeFile(join(directory, 'existing-session-authority.json'), JSON.stringify({ expiresAt: Date.now() - 1 }))
     assert.deepEqual(await manager.inventory(), [])
   } finally { await manager.close(); await rm(directory, { recursive: true, force: true }) }
+})
+
+test('path projection keeps long native titles inside a complete inventory page', () => {
+  const rewrite = (value: string) => value.replace('/tmp/a', '<outside-workspace>')
+  const project = createExistingProjection({ rewrite, rewritePaths: rewrite, rewriteBranch: rewrite })
+  const sessionId = randomUUID()
+  const sessions = project([{ sessionId, ownerKey: `sha256:${'a'.repeat(64)}`,
+    title: `${'x'.repeat(112)} /tmp/a`, agent: 'codex', root: 'work',
+    status: 'waiting_for_input', updatedAt: new Date().toISOString() }])
+  const page = ExecutorSessionInventoryPageSchema.parse({ sessions,
+    inventory: { id: randomUUID(), observedAt: new Date().toISOString(), complete: true }, nextCursor: null })
+  assert.equal(page.sessions[0]?.sessionId, sessionId)
+  assert.equal(page.sessions[0]?.title.length, 120)
+  assert.ok(page.sessions[0]?.title.endsWith('…'))
+  assert.equal(project({ text: 'x'.repeat(500) }).text.length, 500, 'conversation text keeps its own limit')
 })
 
 test('a Codex thread waiting on its own client reads as pending and unanswerable, refreshed without history',

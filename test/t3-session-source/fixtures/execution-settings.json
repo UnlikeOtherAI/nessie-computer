@@ -1,0 +1,19 @@
+{
+  "providerInstances": {
+    "claude-original": {
+      "driver": "claudeAgent",
+      "enabled": true,
+      "config": { "enabled": true, "homePath": "C:\\fixture\\claude-explicit" }
+    },
+    "codex-original": {
+      "driver": "codex",
+      "enabled": true,
+      "config": {
+        "enabled": true,
+        "setupMode": "existing",
+        "homePath": "C:\\fixture\\codex-shared",
+        "shadowHomePath": "C:\\fixture\\codex-shadow"
+      }
+    }
+  }
+}

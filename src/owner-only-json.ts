@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
-import { open, rename, unlink } from 'node:fs/promises'
+import { open, unlink } from 'node:fs/promises'
+import { renameWithRetry } from './file-rename.js'
 
 import { secureOwnerOnlyStateFile, type StateSecurityDeps } from './state-security.js'
 
@@ -17,7 +18,7 @@ export const replaceOwnerOnlyText = async (
       await handle.close()
     }
     await secureOwnerOnlyStateFile(temporaryPath, security)
-    await rename(temporaryPath, path)
+    await renameWithRetry(temporaryPath, path)
   } finally {
     await unlink(temporaryPath).catch(() => undefined)
   }

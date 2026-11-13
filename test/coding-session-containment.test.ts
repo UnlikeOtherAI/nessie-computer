@@ -449,7 +449,8 @@ test('Windows: a standby stopped after it killed the agent leaves its cold kill 
 }, async () => {
   // The standby as a slow kill under load leaves it: the table read, the first line sent back — the agent
   // itself — killed, and the PowerShell gone before the rest.
-  const firstOnly = WINDOWS_KILL.replace('while ($null', 'if ($null').replace(/; '\.'$/u, '; exit 0')
+  const firstOnly = WINDOWS_KILL.replace('while ($null', 'if ($null')
+    .replace(/; if \(\$refused\) \{ '!' \} else \{ '\.' \}$/u, '; exit 0')
   assert.ok(firstOnly.includes('if ($null') && firstOnly.endsWith('exit 0'), 'the stand-in is the real kill, cut short')
   const killOnCue = `if ($null -eq [Console]::In.ReadLine()) { exit }; ${firstOnly}`
   const control = createCodingProcessControl('win32', { killOnCue })

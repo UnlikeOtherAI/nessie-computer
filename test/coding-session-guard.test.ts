@@ -16,7 +16,8 @@ import {
 } from '../src/coding-session/agent-guard.js'
 import { agentFailureReason, startAgentProcess } from '../src/coding-session/agent-process.js'
 import { CODING_SESSION_UNIT_ENV, runsInOwnUserUnit } from '../src/coding-session/host-unit.js'
-import { createCodingProcessControl, type CodingProcessControl } from '../src/coding-session/process-control.js'
+import { codingJobHelper, createCodingProcessControl, packagedJobHelper,
+  type CodingProcessControl } from '../src/coding-session/process-control.js'
 import { codingSessionPaths } from '../src/coding-session/session-files.js'
 import { alive, createCodingHarness, waitUntil } from './coding-session-harness.js'
 
@@ -58,6 +59,16 @@ const exitOf = (child: ChildProcess): Promise<Exit> => new Promise((settle) => {
 })
 
 const guardLaunch = { argv: [process.execPath, '--import', 'tsx', EXECUTOR_ENTRY, AGENT_GUARD_COMMAND], cwd: EXECUTOR_DIR, env: process.env }
+
+test('Windows source hosts use the fixed Debug Job helper without claiming installed mode', {
+  skip: process.platform !== 'win32',
+}, () => {
+  assert.equal(packagedJobHelper({}), undefined)
+  assert.ok(codingJobHelper({}), 'the source runner requires the built Debug helper')
+  const control = createHostProcessControl(EXECUTOR_ENTRY, { environment: {} })
+  assert.equal(control.containment, 'windows_job')
+  assert.equal(control.identifySpawned, undefined, 'the real Job owns the launched tree')
+})
 
 test('a host starts its agent through the guard only where nothing else would end it', () => {
   const guarded = (control: CodingProcessControl): boolean => control.identifySpawned !== undefined

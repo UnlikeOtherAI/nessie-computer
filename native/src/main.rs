@@ -1,27 +1,42 @@
-mod command;
-mod updates;
 mod chatgpt_browser;
+mod command;
+mod t3_source;
+#[cfg(windows)]
+mod t3_execution;
+#[cfg(windows)]
+mod execution_creator_listener;
+#[cfg(windows)]
+mod execution_creator_stream;
+#[cfg(windows)]
+mod execution_creator_bridge;
+#[cfg(windows)]
+mod execution_spawn;
+#[cfg(windows)]
+mod execution_command;
+#[cfg(windows)]
+mod execution_provider;
+#[cfg(windows)]
+mod execution_spawn_security;
+#[cfg(windows)]
+mod execution_session_host;
+#[cfg(windows)]
+mod execution_session_process;
+#[cfg(windows)]
+mod protected_pipe;
+#[cfg(windows)]
+mod owner_approval_windows;
+#[cfg(windows)]
+mod execution_approval;
 mod job_run;
 mod kernel_context;
 #[cfg(target_os = "macos")]
-mod macos_provenance;
-#[cfg(target_os = "macos")]
 mod macos_processes;
 #[cfg(target_os = "macos")]
-mod managed_macos_installed;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod unix_kernel;
+mod macos_provenance;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod unix_account_state;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_release;
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_runtime_context;
 #[cfg(target_os = "linux")]
-mod managed_runtime;
-#[cfg(target_os = "macos")]
-#[path = "managed_macos_runtime.rs"]
-mod managed_runtime;
+mod managed_installed;
 #[cfg(target_os = "macos")]
 mod managed_macos_closure;
 #[cfg(target_os = "macos")]
@@ -33,17 +48,30 @@ mod managed_inventory;
 mod managed_inventory;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod managed_machine_barrier;
+#[cfg(target_os = "macos")]
+mod managed_macos_installed;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-mod managed_transition;
+mod managed_release;
 #[cfg(target_os = "linux")]
-mod managed_installed;
+mod managed_runtime;
+#[cfg(target_os = "macos")]
+#[path = "managed_macos_runtime.rs"]
+mod managed_runtime;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod managed_runtime_context;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 mod managed_socket;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod managed_transition;
 #[cfg(windows)]
 mod managed_windows;
 mod personal_state;
 mod personal_state_context;
+mod session_effect;
 mod terminal_run;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix_kernel;
+mod updates;
 // The workspace commands act on inherited directory descriptors with `openat`
 // and friends, which have no Windows equivalent: the Windows helper exists for
 // the state-security commands and `job-run`, and the parser above still knows
@@ -164,15 +192,40 @@ fn managed_barrier(nonce: &str) -> Result<(), NativeError> {
 
 fn run(command: &Command) -> Result<(), NativeError> {
     match command {
+        Command::T3ExecutionSessionHost(nonce) => {
+            #[cfg(windows)]
+            { execution_session_host::run(nonce) }
+            #[cfg(not(windows))]
+            { let _=nonce; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
+        Command::T3ExecutionStart(executor) => {
+            #[cfg(windows)]
+            { execution_creator_bridge::start(executor) }
+            #[cfg(not(windows))]
+            { let _ = executor; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
+        Command::T3Execution(mode) => {
+            #[cfg(windows)]
+            { t3_execution::run(mode) }
+            #[cfg(not(windows))]
+            { let _ = mode; Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM")) }
+        }
+        Command::T3SourceRead => t3_source::run(),
+        Command::T3ExecutionResource => t3_source::run_execution(),
+        Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
+        Command::T3RetainedVerify => t3_source::verify_retained_import(),
         Command::BuildInfo => {
-            println!("{}", serde_json::json!({
-                "version": env!("NESSIE_EXECUTOR_VERSION"),
-                "sourceCommit": env!("NESSIE_EXECUTOR_SOURCE_COMMIT"),
-                "managedLaunchProtocol": 1,
-                "personalInferenceGuardVersion": 2,
-            }));
+            println!(
+                "{}",
+                serde_json::json!({
+                    "version": env!("NESSIE_EXECUTOR_VERSION"),
+                    "sourceCommit": env!("NESSIE_EXECUTOR_SOURCE_COMMIT"),
+                    "managedLaunchProtocol": 1,
+                    "personalInferenceGuardVersion": 2,
+                })
+            );
             Ok(())
-        },
+        }
         Command::UpdateControl => updates::control(),
         Command::UpdateService => updates::service(),
         Command::UpdateRegisteredService => updates::registered_service(),
@@ -235,6 +288,10 @@ fn run(command: &Command) -> Result<(), NativeError> {
                 let _ = epoch;
                 Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM"))
             }
+        }
+        Command::JobRunAuthorized(argv) => std::process::exit(job_run::run_authorized(argv)?),
+        Command::TerminalRunAuthorized(argv) => {
+            std::process::exit(terminal_run::run_authorized(argv)?)
         }
         Command::JobRun(argv) => std::process::exit(job_run::run(argv)?),
         Command::TerminalRun(argv) => std::process::exit(terminal_run::run(argv)?),
@@ -341,9 +398,19 @@ fn run(command: &Command) -> Result<(), NativeError> {
 /// unparsable argv keeps answering in the promotion shape, as it always has.
 fn reject(command: Option<&Command>, error: &NativeError) {
     match command {
-        Some(Command::BuildInfo | Command::UpdateControl | Command::UpdateService
+        Some(Command::T3Execution(_) | Command::T3ExecutionStart(_) | Command::T3ExecutionSessionHost(_)) => {
+            eprintln!("{}", serde_json::json!({"error":error.code}));
+        }
+        Some(
+            Command::BuildInfo
+            | Command::UpdateControl
+            | Command::UpdateService
             | Command::UpdateRegisteredService
-            | Command::UpdateInstall | Command::UpdateUninstall | Command::UpdateWorker | Command::UpdateApplicationReopen) => {
+            | Command::UpdateInstall
+            | Command::UpdateUninstall
+            | Command::UpdateWorker
+            | Command::UpdateApplicationReopen,
+        ) => {
             println!("{}", serde_json::json!({"error":error.code}));
         }
         Some(Command::KernelProcessContext(_)) => {
@@ -353,6 +420,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             );
         }
         Some(Command::ManagedRuntime(_))
+        | Some(Command::JobRunAuthorized(_))
+        | Some(Command::TerminalRunAuthorized(_))
         | Some(Command::JobRun(_))
         | Some(Command::TerminalRun(_)) => {
             let encoded = serde_json::to_string(&JobRunResponse {
@@ -368,7 +437,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             run_id: String::new(),
             status: PreflightStatus::Rejected,
         }),
-        Some(Command::PersonalChatgptBrowser)
+        Some(Command::T3SourceRead | Command::T3ExecutionResource | Command::T3RetainedApprove(_) | Command::T3RetainedVerify)
+        | Some(Command::PersonalChatgptBrowser)
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)
         | Some(Command::ManagedInventoryBarrier(_))
@@ -409,7 +479,7 @@ fn main() {
     };
     if let Err((command, error)) = outcome {
         reject(command.as_ref(), &error);
-        let refused = matches!(command, Some(Command::JobRun(_)));
+        let refused = matches!(command, Some(Command::JobRun(_) | Command::JobRunAuthorized(_)));
         std::process::exit(if refused {
             JOB_RUN_REFUSED_EXIT_CODE
         } else {

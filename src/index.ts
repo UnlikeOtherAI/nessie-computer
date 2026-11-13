@@ -43,6 +43,10 @@ export const executorCliEntry = (
  * loading the whole daemon took most of a session's start.
  */
 const runCommand = async (args: string[]): Promise<void> => {
+  if (args[0] === 't3-session-runtime') {
+    await (await import('./t3-session/runtime/protected-entry.js')).runProtectedT3SessionRuntime(args.slice(1))
+    return
+  }
   if (await (await import('./builtin-mcp-cli.js')).runBuiltinMcpCli(args)) return
   await (await import('./cli.js')).run(args)
 }

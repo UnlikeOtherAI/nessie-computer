@@ -1,8 +1,10 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { link, readdir, stat, unlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import {
+  ensurePrivateDir,
   codingCommandsDir,
   codingSessionsDir,
   createJsonExclusive,
@@ -34,10 +36,12 @@ export type CommandRecord = {
 }
 
 /** `undefined` when this is the first time; otherwise the outcome recorded the first time. */
-export const claimCommand = async (stateDir: string, record: CommandRecord): Promise<CommandRecord | undefined> => {
+export const claimCommand = async (
+  stateDir: string, record: CommandRecord, effect?: SessionEffectAuthority,
+): Promise<CommandRecord | undefined> => {
   if (!COMMAND_ID_PATTERN.test(record.commandId)) throw new Error('A command id is 1 to 128 letters, digits, - or _.')
   const path = join(codingCommandsDir(stateDir), `${record.commandId}.json`)
-  if (await createJsonExclusive(path, record)) return undefined
+  if (await createJsonExclusive(path, record, effect)) return undefined
   return await readJson<CommandRecord>(path) ?? record
 }
 
@@ -53,18 +57,28 @@ export const pruneCommandRecords = async (stateDir: string, maxAgeMs = 7 * 24 * 
   }
 }
 
-export const writeRequest = async (paths: CodingSessionPaths, request: CodingSessionRequest): Promise<boolean> => {
+export const writeRequest = async (
+  paths: CodingSessionPaths, request: CodingSessionRequest, effect?: SessionEffectAuthority,
+): Promise<boolean> => {
+  if (effect && 'kind' in effect.scope) throw new Error('T3 effects require the original admitted request lane.')
   if (!COMMAND_ID_PATTERN.test(request.id)) throw new Error('A request id is 1 to 128 letters, digits, - or _.')
-  const temporary = join(paths.dir, `.request-${randomUUID()}.tmp`)
-  await writeFile(temporary, `${JSON.stringify(request)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
+  const intents = join(paths.dir, 'request-intents')
+  if (effect) await ensurePrivateDir(intents)
+  const temporary = effect ? join(intents, `${request.id}.json`) : join(paths.dir, `.request-${randomUUID()}.tmp`)
+  await effect?.consume()
+  effect?.assertLive()
+  const retained = effect ? { ...request, sessionAuthority: effect.scope } : request
+  await writeFile(temporary, `${JSON.stringify(retained)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
   try {
+    await effect?.consume()
+    effect?.assertLive()
     await link(temporary, join(paths.inbox, `${request.id}.json`))
     return true
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false
     throw error
   } finally {
-    await unlink(temporary).catch(() => undefined)
+    if (!effect) await unlink(temporary).catch(() => undefined)
   }
 }
 

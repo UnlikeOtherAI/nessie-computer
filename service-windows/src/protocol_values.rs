@@ -105,4 +105,3 @@ pub(crate) fn workspace_operation_keys(requested: Vec<String>) -> Result<Vec<Str
         .map(|key| (*key).to_owned())
         .collect())
 }
-

@@ -1,0 +1,64 @@
+{
+  "rows": [
+    {
+      "effect_id": "effect:雪:one",
+      "command_id": "release:original:one",
+      "thread_id": "thread:雪:one",
+      "effect_type": "provider-turn.start",
+      "payload_json": "{ \"type\":\"provider-turn.start\", \"runId\":\"run:雪:one\" }",
+      "status": "pending",
+      "attempt_count": 2,
+      "available_at": "2000-01-01T00:00:00.000Z",
+      "lease_owner": null,
+      "lease_expires_at": "2000-01-01T00:00:01.000Z",
+      "created_at": "1999-12-31T23:59:00.000Z",
+      "updated_at": "1999-12-31T23:59:30.000Z",
+      "completed_at": null,
+      "last_error": "PRIVATE_ROW_CANARY_雪\nquoted:\"value\"\\path"
+    },
+    {
+      "effect_id": "z-effect:雪:two",
+      "command_id": "other-command",
+      "thread_id": "other-thread",
+      "effect_type": "terminal.cleanup",
+      "payload_json": "{\"type\":\"terminal.cleanup\",\"opaque\":\"PRIVATE_PROCESS_LOSS_CANARY\"}",
+      "status": "running",
+      "attempt_count": 7,
+      "available_at": "2000-01-01T00:00:00.000Z",
+      "lease_owner": null,
+      "lease_expires_at": "2000-01-01T00:00:01.000Z",
+      "created_at": "1999-12-31T23:59:00.000Z",
+      "updated_at": "1999-12-31T23:59:30.000Z",
+      "completed_at": null,
+      "last_error": "PRIVATE_ROW_CANARY_雪\nquoted:\"value\"\\path"
+    }
+  ],
+  "rowDigests": [
+    "sha256:6ba9af5c6c1f495c17cc63183ed94d5d2ef62a9fb52819fbb96635a16b326b14",
+    "sha256:74952cc8c0f9c5e8eb2f97e8f3d613bf22e946511451a9448de60752dea658cd"
+  ],
+  "planDigest": "sha256:187b978878cd5c90c7513890159d2c3c5dae33d587d0b48a1c17e8d86e959e83",
+  "processBoundTypes": [
+    "provider-turn.start",
+    "provider-turn.interrupt",
+    "provider-turn.steer",
+    "provider-turn.restart",
+    "runtime-request.respond"
+  ],
+  "replaySafeTypes": [
+    "provider-runtime.continue",
+    "provider-session.detach",
+    "provider-thread.rollback",
+    "checkpoint.capture",
+    "scheduled-tasks.cleanup",
+    "terminal.cleanup",
+    "preview.cleanup",
+    "attachment.cleanup",
+    "thread-title.generate",
+    "delegated-tasks.stop"
+  ],
+  "expected": {
+    "cancelled": 1,
+    "requeued": 1
+  }
+}

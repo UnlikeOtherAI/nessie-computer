@@ -8,6 +8,7 @@ dist/
 **/.build/
 **/gen/
 *.tsbuildinfo
+/packaging/session-engine/.npmrc
 /menubar-macos/*.xcodeproj/
 /menubar-macos/build/
 

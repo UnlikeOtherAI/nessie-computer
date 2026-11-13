@@ -29,6 +29,17 @@
     <section id="tab-documents" role="tabpanel" aria-labelledby="tab-button-documents" hidden></section>
     <section id="tab-ai" role="tabpanel" aria-labelledby="tab-button-ai" hidden></section>
     <section id="tab-settings" role="tabpanel" aria-labelledby="tab-button-settings" hidden>
+      <section id="retained-import" hidden aria-labelledby="retained-title">
+        <h2 id="retained-title"></h2>
+        <p id="retained-baseline" class="hint"></p>
+        <label id="retained-root-label" for="retained-root"></label>
+        <select id="retained-root"></select>
+        <div class="actions"><button id="retained-offer" type="button"></button><button id="retained-refresh" type="button"></button></div>
+        <div id="retained-requests"></div>
+        <p id="retained-status" role="status"></p>
+        <button id="retained-revoke" type="button" hidden></button>
+        <p id="retained-error" role="alert" hidden></p>
+      </section>
       <p class="tab-error" role="alert" hidden></p>
       <section id="settings-team" class="settings-team list" aria-labelledby="settings-team-title" hidden>
         <div class="row">
@@ -142,5 +153,6 @@
   <script src="chatgpt.js"></script>
   <script src="ai-connection.js"></script>
   <script src="inference-endpoints.js"></script>
+  <script src="retained-import.js"></script>
 </body>
 </html>

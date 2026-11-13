@@ -92,6 +92,10 @@ cannot verify a signature on a guest executable. Host terminal sessions
 
 ### Existing teams
 
+Claim responses without a valid pairing reference clear that optional field.
+They never introduce an `undefined` value that would prevent canonical state
+comparison and stop the daemon applying later policy changes.
+
 A team paired before these defaults keeps its saved rules. One with no saved
 rules reads as `mode: 'all'` with nothing trusted, which is what it always
 meant. `trusted` absent means none.

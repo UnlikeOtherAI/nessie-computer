@@ -1,0 +1,149 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "id": "extract-session-control",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "create": [
+        {
+          "text": "import * as Effect from \"effect/Effect\";\nimport { OrchestrationV2DispatchCommandError, OrchestrationV2ThreadLaunchError } from \"@t3tools/contracts\";\nimport * as ThreadManagementService from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadMessageIntake from \"./ThreadMessageIntake.ts\";\nimport { projectThreadProjectionForWire } from \"./WireProjection.ts\";\nimport { userFacingDispatchErrorMessage } from \"./UserFacingErrors.ts\";\nimport type { OrchestrationV2Command, OrchestrationV2ThreadLaunchInput, OrchestrationV2ThreadLaunchResult, OrchestrationV2DispatchCommandResult } from \"@t3tools/contracts\";\nimport type { ThreadManagementProvenance } from \"./ThreadManagementService.session-api.ts\";\nimport * as ThreadLaunch from \"./ThreadLaunchService.ts\";\nimport * as LaunchSelection from \"./ThreadLaunchSelection.ts\";\n"
+        },
+        {
+          "text": "type Services<T> = T extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;\n"
+        },
+        {
+          "text": "export const dispatchCommand = (command: OrchestrationV2Command, provenance: ThreadManagementProvenance): Effect.Effect<OrchestrationV2DispatchCommandResult, OrchestrationV2DispatchCommandError, Services<ReturnType<typeof ThreadMessageIntake.dispatchCommand>> | ThreadLaunch.ThreadLaunchService> => Effect.gen(function* () {\n  const threadLaunch = yield* ThreadLaunch.ThreadLaunchService;\n  return yield* "
+        },
+        {
+          "sourceFile": "apps/server/src/ws.ts",
+          "start": 66322,
+          "end": 66810,
+          "sha256": "7b0c4d9b27d3667c750b6250caff4b0f2367184db7c753c9b65c91291121b09e",
+          "sourceStage": "current",
+          "sourceSha256": "10984a5143af77b8e988818a263abad9ce2953196e758d35df0a006f90e5f581"
+        },
+        {
+          "text": ").pipe(Effect.map((result) => ({ sequence: result.sequence })),\n"
+        },
+        {
+          "sourceFile": "apps/server/src/ws.ts",
+          "start": 67136,
+          "end": 67657,
+          "sha256": "f55f332a98534a5795fffe6af7a0e112befcef3a8eaf6639ccc5759e7dd33245",
+          "sourceStage": "current",
+          "sourceSha256": "10984a5143af77b8e988818a263abad9ce2953196e758d35df0a006f90e5f581"
+        },
+        {
+          "text": ");\n});\n\n"
+        },
+        {
+          "text": "export const launchThread = (input: OrchestrationV2ThreadLaunchInput, provenance: ThreadManagementProvenance): Effect.Effect<OrchestrationV2ThreadLaunchResult, OrchestrationV2ThreadLaunchError, Services<ReturnType<typeof ThreadMessageIntake.launchThread>>> =>\n"
+        },
+        {
+          "sourceFile": "apps/server/src/ws.ts",
+          "start": 73694,
+          "end": 75359,
+          "sha256": "247618e37d8b6e7adb8aba1faf75f14e0792f0bc10fe3912a14b16d49cbff024",
+          "sourceStage": "current",
+          "sourceSha256": "10984a5143af77b8e988818a263abad9ce2953196e758d35df0a006f90e5f581"
+        },
+        {
+          "text": "}).pipe(\n"
+        },
+        {
+          "sourceFile": "apps/server/src/ws.ts",
+          "start": 76290,
+          "end": 77873,
+          "sha256": "54b65536001bd6fe4b26bfd52d5688ce0fd5f2d8d3b5811261f935f9a5860301",
+          "sourceStage": "current",
+          "sourceSha256": "10984a5143af77b8e988818a263abad9ce2953196e758d35df0a006f90e5f581"
+        },
+        {
+          "text": "Effect.catchTag(\"FileBoundaryError\", (cause) => new OrchestrationV2ThreadLaunchError({\n  commandId: input.commandId, projectId: input.projectId, message: \"Failed to access launch files\", cause,\n})),\n);\n"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "5c105fdf45088f28ecd57c8fa281ecc64f5949a4c5e6d18928867cffce9c6463"
+    },
+    {
+      "id": "control-dispatch-provenance",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "from": "createdBy: \"user\",\n                          creationSource:\n                            \"creationSource\" in command ? command.creationSource : \"web\",",
+      "to": "...provenance,",
+      "beforeSha256": "5c105fdf45088f28ecd57c8fa281ecc64f5949a4c5e6d18928867cffce9c6463",
+      "afterSha256": "c75db6fc16b3f7e03eedcfdee660b99f63abcf2a56b4a0d21734d5c16ac12a31"
+    },
+    {
+      "id": "control-launch-provenance",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "from": "createdBy: \"user\",\n                    creationSource: input.creationSource ?? \"web\",",
+      "to": "...provenance,",
+      "beforeSha256": "c75db6fc16b3f7e03eedcfdee660b99f63abcf2a56b4a0d21734d5c16ac12a31",
+      "afterSha256": "b10cdc97b326d4c16b6076908fabb13eb0774db5050708fbfe9e3bd1e49363a8"
+    },
+    {
+      "id": "control-executor-startup-boundary",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "from": "                    ServerRuntimeStartupError: (cause) =>\n                      new OrchestrationV2ThreadLaunchError({\n                        commandId: input.commandId,\n                        projectId: input.projectId,\n                        message: \"Failed to launch thread\",\n                        cause,\n                      }),\n",
+      "to": "",
+      "beforeSha256": "b10cdc97b326d4c16b6076908fabb13eb0774db5050708fbfe9e3bd1e49363a8",
+      "afterSha256": "9d75bc0b43144b6e0a2e05236f80c3488e680558f1a0297f769377803938f907"
+    },
+    {
+      "id": "control-share-launch-input",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "from": "ThreadMessageIntake.launchThread({\n                    commandId: input.commandId,\n                    ...(input.threadId === undefined ? {} : { threadId: input.threadId }),\n                    ...(input.reuseExistingThread === undefined\n                      ? {}\n                      : { reuseExistingThread: input.reuseExistingThread }),\n                    projectId: input.projectId,\n                    title: input.title,\n                    ...(input.generateTitle === undefined\n                      ? {}\n                      : { generateTitle: input.generateTitle }),\n                    modelSelection: input.modelSelection,\n                    runtimeMode: input.runtimeMode,\n                    interactionMode: input.interactionMode,\n                    workspaceStrategy: input.workspaceStrategy,\n                    ...(input.initialMessage === undefined\n                      ? {}\n                      : {\n                          initialMessage: {\n                            ...(input.initialMessage.messageId === undefined\n                              ? {}\n                              : { messageId: input.initialMessage.messageId }),\n                            text: input.initialMessage.text,\n                            attachments: input.initialMessage.attachments,\n                            ...(input.initialMessage.context === undefined\n                              ? {}\n                              : { context: input.initialMessage.context }),\n                          },\n                        }),\n                    ...provenance,\n})",
+      "to": "ThreadMessageIntake.launchThread(toAdmittedLaunchInput(input, provenance))",
+      "beforeSha256": "9d75bc0b43144b6e0a2e05236f80c3488e680558f1a0297f769377803938f907",
+      "afterSha256": "9692a53b611cd6953ebe6008273f6343b588d261c159cc723efcbbc0ed2ca488"
+    },
+    {
+      "id": "control-original-prelaunch-mapping",
+      "file": "apps/server/src/orchestration-v2/SessionControl.ts",
+      "from": "export const launchThread = (input: OrchestrationV2ThreadLaunchInput,",
+      "to": "export const toAdmittedLaunchInput = (input: OrchestrationV2ThreadLaunchInput,\n  provenance: ThreadManagementProvenance): ThreadLaunch.ThreadLaunchInput => ({\n                    commandId: input.commandId,\n                    ...(input.threadId === undefined ? {} : { threadId: input.threadId }),\n                    ...(input.reuseExistingThread === undefined\n                      ? {}\n                      : { reuseExistingThread: input.reuseExistingThread }),\n                    projectId: input.projectId,\n                    title: input.title,\n                    ...(input.generateTitle === undefined\n                      ? {}\n                      : { generateTitle: input.generateTitle }),\n                    modelSelection: input.modelSelection,\n                    runtimeMode: input.runtimeMode,\n                    interactionMode: input.interactionMode,\n                    workspaceStrategy: input.workspaceStrategy,\n                    ...(input.initialMessage === undefined\n                      ? {}\n                      : {\n                          initialMessage: {\n                            ...(input.initialMessage.messageId === undefined\n                              ? {}\n                              : { messageId: input.initialMessage.messageId }),\n                            text: input.initialMessage.text,\n                            attachments: input.initialMessage.attachments,\n                            ...(input.initialMessage.context === undefined\n                              ? {}\n                              : { context: input.initialMessage.context }),\n                          },\n                        }),\n                    ...provenance,\n});\n\nexport const toLaunchTargetInput = (input: OrchestrationV2ThreadLaunchInput): ThreadLaunch.ThreadLaunchSelectionInput =>\n  ThreadLaunch.selectThreadLaunchTargetInput(input);\n\n/** Only original read/ID selection; the caller must still obtain command authority. */\nexport const prepareLaunchTarget = (input: OrchestrationV2ThreadLaunchInput) => Effect.gen(function* () {\n    const launches = yield* LaunchSelection.ThreadLaunchSelection;\n    return yield* launches.prepareTarget(toLaunchTargetInput(input));\n  });\n\nexport const launchThread = (input: OrchestrationV2ThreadLaunchInput,",
+      "beforeSha256": "9692a53b611cd6953ebe6008273f6343b588d261c159cc723efcbbc0ed2ca488",
+      "afterSha256": "8afb10052cc53c8b6007a9ee113ea5106250c1ed98c4717646197f850f6f3ced"
+    },
+    {
+      "id": "extract-schedule-control-port",
+      "file": "apps/server/src/scheduledTasks/ScheduledTaskService.session-port.ts",
+      "create": [
+        {
+          "text": "import { type ProjectId, ScheduledTaskError, ThreadId, ScheduledTaskWebhookDeliveryId, type ScheduledTaskDeleteInput, type ScheduledTaskDeleteResult, type ScheduledTaskGetWebhookDeliveryInput, type ScheduledTaskGetWebhookDeliveryResult, type ScheduledTaskListWebhookDeliveriesInput, type ScheduledTaskListWebhookDeliveriesResult, type ScheduledTaskRotateWebhookTokenInput, type ScheduledTaskListResult, type ScheduledTaskMutationResult, type ScheduledTaskRunNowInput, type ScheduledTaskRunNowResult, type ScheduledTaskSetEnabledInput, type ScheduledTaskUpsertInput } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Stream from \"effect/Stream\";\nimport { type WebhookRequest } from \"./webhookTemplate.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+          "start": 4796,
+          "end": 5810,
+          "sha256": "9557330e29afdeec36ca653cef2739171430c58cde4cc9b765fffccc5efa12e1"
+        },
+        {
+          "sourceFile": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+          "start": 8860,
+          "end": 11085,
+          "sha256": "e1cfe9a2f227f1eb1707d7652ddd1be8b841b80885bda89b0689173f0efefe66"
+        }
+      ],
+      "beforeSha256": null,
+      "afterSha256": "0dfc2965c7f7422734eba9e01b3c77b56fca4caa9d5fd5f1e337e52d0f8c885c"
+    },
+    {
+      "id": "share-schedule-control-types",
+      "file": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+      "from": "export interface WebhookTriggerRequest extends WebhookRequest {\n  readonly hookId: string;\n  readonly token: string;\n  readonly body: Uint8Array;\n  readonly relayDeliveryId?: string;\n  readonly receivedAt?: string;\n}\n\nexport type WebhookDeliveryOutcome =\n  | \"accepted\"\n  | \"duplicate\"\n  | \"coalesced\"\n  | \"prompt_too_long\"\n  | \"queue_full\"\n  | \"rate_limited\"\n  | \"disabled\"\n  | \"rejected_signature\"\n  | \"expired\"\n  | \"filtered\"\n  | \"not_found\"\n  | \"blocked_by_policy\"\n  | \"error\";\n\nexport type WebhookTriggerResult =\n  | {\n      readonly _tag: \"accepted\";\n      readonly deliveryId: ScheduledTaskWebhookDeliveryId;\n      readonly outcome: \"accepted\" | \"duplicate\" | \"coalesced\" | \"prompt_too_long\" | \"filtered\";\n    }\n  | { readonly _tag: \"not_found\" }\n  | { readonly _tag: \"rejected_signature\" }\n  | { readonly _tag: \"disabled\" }\n  | { readonly _tag: \"blocked_by_policy\" }\n  | {\n      readonly _tag: \"rate_limited\";\n      readonly outcome: \"rate_limited\" | \"queue_full\";\n    }\n  | { readonly _tag: \"expired\" };\n\n",
+      "to": "import type { WebhookTriggerRequest, WebhookTriggerResult, WebhookDeliveryOutcome } from \"./ScheduledTaskService.session-port.ts\";\nexport type { WebhookTriggerRequest, WebhookTriggerResult, WebhookDeliveryOutcome } from \"./ScheduledTaskService.session-port.ts\";\n\n",
+      "beforeSha256": "c5f3e5c96628958a4dd758114a2fbf3fbb7001e36b0993f64645244fdfa64304",
+      "afterSha256": "eb1e5db01d2b4fffc66319637f4ddd04a5efa04d6fe7a7db3899ee472c3db59c"
+    },
+    {
+      "id": "share-schedule-control-tag",
+      "file": "apps/server/src/scheduledTasks/ScheduledTaskService.ts",
+      "from": "export class ScheduledTaskService extends Context.Service<\n  ScheduledTaskService,\n  {\n    readonly list: () => Effect.Effect<ScheduledTaskListResult, ScheduledTaskError>;\n    readonly subscribeList: () => Stream.Stream<ScheduledTaskListResult, ScheduledTaskError>;\n    readonly upsert: (\n      input: ScheduledTaskUpsertInput,\n    ) => Effect.Effect<ScheduledTaskMutationResult, ScheduledTaskError>;\n    readonly setEnabled: (\n      input: ScheduledTaskSetEnabledInput,\n    ) => Effect.Effect<ScheduledTaskMutationResult, ScheduledTaskError>;\n    readonly delete: (\n      input: ScheduledTaskDeleteInput,\n    ) => Effect.Effect<ScheduledTaskDeleteResult, ScheduledTaskError>;\n    /** Deletes only tasks that still target this thread, including their webhook deliveries. */\n    readonly deleteForThread: (threadId: ThreadId) => Effect.Effect<void, ScheduledTaskError>;\n    /** Points tasks bound to these threads at the project the threads moved to. */\n    readonly moveThreadTasks: (input: {\n      readonly threadIds: ReadonlyArray<ThreadId>;\n      readonly projectId: ProjectId;\n    }) => Effect.Effect<void, ScheduledTaskError>;\n    /** The dispatched thread, or null if dispatch failed; leaves the task's binding unchanged. */\n    readonly runNow: (\n      input: ScheduledTaskRunNowInput,\n    ) => Effect.Effect<\n      ScheduledTaskRunNowResult & { readonly threadId: ThreadId | null },\n      ScheduledTaskError\n    >;\n    readonly rotateWebhookToken: (\n      input: ScheduledTaskRotateWebhookTokenInput,\n    ) => Effect.Effect<ScheduledTaskMutationResult, ScheduledTaskError>;\n    readonly listWebhookDeliveries: (\n      input: ScheduledTaskListWebhookDeliveriesInput,\n    ) => Effect.Effect<ScheduledTaskListWebhookDeliveriesResult, ScheduledTaskError>;\n    readonly getWebhookDelivery: (\n      input: ScheduledTaskGetWebhookDeliveryInput,\n    ) => Effect.Effect<ScheduledTaskGetWebhookDeliveryResult, ScheduledTaskError>;\n    /** Verifies, logs and dispatches; returns after logging while the run continues in the background. */\n    readonly triggerWebhook: (\n      request: WebhookTriggerRequest,\n    ) => Effect.Effect<WebhookTriggerResult, ScheduledTaskError>;\n  }\n>()(\"t3/scheduledTasks/ScheduledTaskService\") {}\n\n",
+      "to": "import { ScheduledTaskService } from \"./ScheduledTaskService.session-port.ts\";\nexport { ScheduledTaskService };\n\n",
+      "beforeSha256": "eb1e5db01d2b4fffc66319637f4ddd04a5efa04d6fe7a7db3899ee472c3db59c",
+      "afterSha256": "e65cc7005fed022c718a0d4ad478e6637e2d071a8861e8abd418af43aaece3d5"
+    }
+  ]
+}

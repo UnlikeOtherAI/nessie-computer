@@ -1,8 +1,10 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { randomUUID } from 'node:crypto'
 import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { ensureOwnerOnlyStateDirectory } from '../state-security.js'
+import { renameWithRetry } from '../file-rename.js'
 import { CODING_SESSION_ID_PATTERN } from './types.js'
 
 /**
@@ -92,24 +94,6 @@ const FILE_RETRY_MS = 2_000
 
 const delay = (ms: number): Promise<void> => new Promise((settle) => { setTimeout(settle, ms) })
 
-/**
- * A rename that rides out Windows: a file an indexer, scanner or editor holds
- * open without FILE_SHARE_DELETE fails with EPERM, EACCES or EBUSY for a
- * moment, so those are retried for up to two seconds.
- */
-export const renameWithRetry = async (from: string, to: string): Promise<void> => {
-  const deadline = Date.now() + FILE_RETRY_MS
-  for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
-    try {
-      await rename(from, to)
-      return
-    } catch (error) {
-      if (!WINDOWS_BUSY_CODES.has((error as NodeJS.ErrnoException).code ?? '') || Date.now() >= deadline) throw error
-      await delay(wait)
-    }
-  }
-}
-
 /** Replaces `path` atomically, through a temporary file and `renameWithRetry`. */
 export const writeJsonAtomic = async (path: string, value: unknown): Promise<void> => {
   const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
@@ -128,23 +112,29 @@ export const writeJsonAtomic = async (path: string, value: unknown): Promise<voi
 }
 
 /** Creates `path` only if it does not exist; `false` means somebody already did. */
-export const createJsonExclusive = async (path: string, value: unknown): Promise<boolean> => {
+export const createJsonExclusive = async (
+  path: string, value: unknown, effect?: SessionEffectAuthority,
+): Promise<boolean> => {
   let handle
   const deadline = Date.now() + FILE_RETRY_MS
   for (let wait = 25; ; wait = Math.min(wait * 2, 250)) {
     try {
+      await effect?.consume()
+      effect?.assertLive()
       handle = await open(path, 'wx', 0o600)
       break
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code ?? ''
       if (code === 'EEXIST') return false
-      // A deleted Windows claim can remain delete-pending until its last handle
-      // closes. Retry CREATE_NEW itself; never overwrite or remove another claim.
+      // Windows may retain a deleted claim until its last handle closes.
+      // Retry exclusive creation under fresh authority without replacing it.
       if (process.platform !== 'win32' || !WINDOWS_BUSY_CODES.has(code) || Date.now() >= deadline) throw error
       await delay(wait)
     }
   }
   try {
+    await effect?.consume()
+    effect?.assertLive()
     await handle.writeFile(`${JSON.stringify(value)}\n`, 'utf8')
   } finally {
     await handle.close()

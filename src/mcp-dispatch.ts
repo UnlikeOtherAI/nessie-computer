@@ -8,6 +8,9 @@ import {
 import type { CodingSessionsDaemon } from './coding-sessions-daemon.js'
 import type { ExecutorMcpImageSink } from './mcp-images.js'
 import type { ExecutorMcpSessionManager } from './mcp-session-manager.js'
+import { validateScopedCodingResult } from './coding-session/session-result-authority.js'
+import type { ExecutorMcpCallGuard } from './mcp-result-publication.js'
+import { CODING_SESSION_PAIRING_SOURCE_META } from './coding-session/meta-keys.js'
 
 // A refusal is part of a terminal result, which the control plane caps; the
 // model needs the first few faults, not every one a hostile payload can make.
@@ -71,7 +74,7 @@ export const executeExecutorMcpCommand = async (
   args: unknown,
   sessions: ExecutorMcpSessionManager | undefined,
   bridge?: {
-    codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'>
+    codingBridge?: Pick<CodingSessionsDaemon, 'callMeta'> & Partial<Pick<CodingSessionsDaemon, 'validateSessionAuthority'>>
     commandId: string
     /**
      * The whole delivered payload, checked strictly: its server-stamped
@@ -111,10 +114,35 @@ export const executeExecutorMcpCommand = async (
   // the server, and validating it here would guarantee drift the first time
   // that server ships a new field. Who the call is for travels beside it, in
   // reserved `_meta`, and only to the executor's own coding-sessions bridge.
-  const meta = bridge?.codingBridge?.callMeta(parsed.data.server, {
+  let scope = payload?.data.codingSessionAuthority
+  const metaFor = () => bridge?.codingBridge?.callMeta(parsed.data.server, {
     commandId: bridge.commandId,
+    ...(scope ? { codingSessionAuthority: scope } : {}),
     ...(owner ? { owner } : {}),
   })
+  const meta = metaFor()
+  const source = meta?.[CODING_SESSION_PAIRING_SOURCE_META] as { kind?: unknown } | undefined
+  let guard: ExecutorMcpCallGuard | undefined
+  if (meta && source?.kind !== 'unbound_local' || scope) {
+    const validate = bridge?.codingBridge?.validateSessionAuthority
+    if (!scope || !validate || scope.commandId !== bridge?.commandId || scope.operation !== parsed.data.tool) {
+      return { code: 'EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', success: false }
+    }
+    try { scope = await validate(scope, 'execute') }
+    catch { return { code: 'EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', success: false } }
+    guard = {
+      prepareMeta: async () => {
+        scope = await validate(scope!, 'execute')
+        const current = metaFor()
+        if (!current) throw new Error('Original session bridge is unavailable')
+        return personalAuthority ? { ...current, 'nessie/personal-authority': personalAuthority } : current
+      },
+      validateResult: async result => {
+        scope = await validate(scope!, 'publish')
+        return validateScopedCodingResult(result, scope)
+      },
+    }
+  }
   const callMeta = personalAuthority ? { ...meta, 'nessie/personal-authority': personalAuthority } : meta
-  return sessions.callTool(parsed.data.server, parsed.data.tool, parsed.data.arguments, callMeta, images, signal)
+  return sessions.callTool(parsed.data.server, parsed.data.tool, parsed.data.arguments, callMeta, images, signal, guard)
 }

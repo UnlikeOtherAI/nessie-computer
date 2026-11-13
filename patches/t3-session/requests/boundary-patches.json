@@ -1,0 +1,390 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "id": "request-privacy-structural-projections",
+      "file": "packages/shared/src/t3McpToolPresentation.ts",
+      "beforeSha256": "3215e846e75e9d095a858cc5b1dc70bbd097e82531ba8445f0ec387d0ed21eee",
+      "afterSha256": "378e84e03da9fac1b0c308c8499761c243f1ace65c0cc7624f450e62568d360e",
+      "from": "  return definition === null ? null : { displayName: definition.displayName, logo: \"t3-code\" };\n}\n",
+      "to": "  return definition === null ? null : { displayName: definition.displayName, logo: \"t3-code\" };\n}\n\n// Inserted into the pinned registry by the hash-bound compatibility patch.\nconst SECRET_REQUEST_TOOL_IDS: ReadonlySet<string> = new Set(\n  [...T3_MCP_SERVER_ALIASES].flatMap((server) => [\n    `${server}.request_secret`, `mcp__${server}__request_secret`,\n  ]),\n);\nconst PRIVATE_REQUEST_VALUE = \"[REDACTED]\";\nconst REQUEST_PRIVACY_UNAVAILABLE = { privacy: \"request_projection_unavailable\" };\nconst REQUEST_PRIVACY_LIMIT = Symbol(\"request privacy limit\");\nconst PRIVATE_REQUEST_FIELDS = new Set([\n  \"value\", \"secret\", \"input\", \"arguments\", \"output\", \"result\", \"error\", \"content\",\n  \"structuredContent\", \"contentItems\", \"message\", \"text\", \"preview\", \"updatedInput\",\n  \"answer\", \"answers\", \"initialValue\", \"initialAnswer\", \"default\", \"defaultValue\",\n]);\nconst REQUEST_ID_FIELDS = [\"id\", \"callId\", \"call_id\", \"tool_use_id\"] as const;\nconst REQUEST_STRING_METADATA = new Set([\n  \"type\", \"toolName\", \"name\", \"server\", \"tool\", \"namespace\", \"status\", \"threadId\",\n  \"turnId\", \"requestId\", \"runId\", \"providerSessionId\", \"providerThreadId\", \"providerTurnId\",\n  \"driver\", \"nativeId\", \"strength\", \"method\", \"jsonrpc\", \"direction\", \"stage\",\n]);\nconst REQUEST_BOOLEAN_METADATA = new Set([\"success\", \"is_error\", \"isError\", \"isSecret\"]);\nconst REQUEST_ORDINAL_METADATA = new Set([\"ordinal\", \"fieldOrdinal\", \"answerOrdinal\"]);\n\nfunction requestPrivacyRecord(value: unknown): Record<string, unknown> | undefined {\n  return value !== null && typeof value === \"object\" && !Array.isArray(value)\n    ? value as Record<string, unknown> : undefined;\n}\n\nfunction requestPrivacyStringBytes(value: string, limit: number): number {\n  if (value.length > limit) throw REQUEST_PRIVACY_LIMIT;\n  let bytes = 0;\n  for (let index = 0; index < value.length; index++) {\n    const code = value.charCodeAt(index);\n    if (code < 0x80) bytes++;\n    else if (code < 0x800) bytes += 2;\n    else if (code >= 0xd800 && code <= 0xdbff && index + 1 < value.length &&\n      value.charCodeAt(index + 1) >= 0xdc00 && value.charCodeAt(index + 1) <= 0xdfff) {\n      bytes += 4; index++;\n    } else bytes += 3;\n    if (bytes > limit) throw REQUEST_PRIVACY_LIMIT;\n  }\n  return bytes;\n}\n\n/** Capture data descriptors once; never invoke accessors or allocate an unbounded entries array. */\nfunction captureRequestPrivacyValue(\n  input: unknown, observe: (record: Record<string, unknown>) => void = () => {},\n): unknown {\n  let members = 32768;\n  let bytes = 1024 * 1024;\n  const ancestors = new WeakSet<object>();\n  const chargeString = (value: string) => { bytes -= requestPrivacyStringBytes(value, bytes); };\n  const visit = (value: unknown, depth: number): unknown => {\n    if (--members < 0 || depth > 64) throw REQUEST_PRIVACY_LIMIT;\n    if (typeof value === \"string\") { chargeString(value); return value; }\n    if (value === null || value === undefined || typeof value === \"boolean\") return value;\n    if (typeof value === \"number\" && Number.isFinite(value)) return value;\n    if (typeof value !== \"object\" || ancestors.has(value)) throw REQUEST_PRIVACY_LIMIT;\n    ancestors.add(value);\n    if (Array.isArray(value)) {\n      const length: unknown = Object.getOwnPropertyDescriptor(value, \"length\")?.value;\n      if (typeof length !== \"number\" || length > members) throw REQUEST_PRIVACY_LIMIT;\n      const result: unknown[] = [];\n      for (let index = 0; index < length; index++) {\n        const descriptor = Object.getOwnPropertyDescriptor(value, index);\n        if (descriptor !== undefined && !(\"value\" in descriptor)) throw REQUEST_PRIVACY_LIMIT;\n        result.push(visit(descriptor?.value, depth + 1));\n      }\n      ancestors.delete(value);\n      return result;\n    }\n    const prototype: unknown = Object.getPrototypeOf(value);\n    if (prototype !== Object.prototype && prototype !== null) throw REQUEST_PRIVACY_LIMIT;\n    const result: Record<string, unknown> = {};\n    for (const key in value) {\n      if (!Object.hasOwn(value, key)) continue;\n      // Charge the member before inspecting it, even if its value is a primitive.\n      if (members <= 0) throw REQUEST_PRIVACY_LIMIT;\n      chargeString(key);\n      const descriptor = Object.getOwnPropertyDescriptor(value, key);\n      if (descriptor === undefined || !(\"value\" in descriptor)) throw REQUEST_PRIVACY_LIMIT;\n      Object.defineProperty(result, key, {\n        value: visit(descriptor.value, depth + 1), enumerable: true, configurable: true,\n      });\n    }\n    ancestors.delete(value);\n    observe(result);\n    return result;\n  };\n  return visit(input, 0);\n}\n\nexport function isSecretRequestTool(toolName: unknown): boolean {\n  return typeof toolName === \"string\" && SECRET_REQUEST_TOOL_IDS.has(toolName);\n}\n\n/** Never turn a masked question into an ordinary persisted answer. T13 owns the real port. */\nexport function assertPublicUserInputQuestions(questions: unknown): void {\n  if (Array.isArray(questions) && questions.some((question) =>\n    requestPrivacyRecord(question)?.isSecret === true)) {\n    throw new Error(\"canonical_secret_question_port_required\");\n  }\n}\n\nfunction projectCapturedSecretRequestInput(input: unknown): unknown {\n  const fields = requestPrivacyRecord(input);\n  if (fields === undefined) return PRIVATE_REQUEST_VALUE;\n  return Object.fromEntries(Object.entries(fields).map(([key, value]) => {\n    const text = [\"label\", \"reason\", \"placeholder\", \"clientRequestId\"].includes(key) && typeof value === \"string\";\n    const delivery = key === \"delivery\" && (value === \"file\" || value === \"secretRef\");\n    const timeout = key === \"timeoutMs\" && typeof value === \"number\" && Number.isFinite(value) && value >= 0;\n    return [key, text || delivery || timeout ? value : PRIVATE_REQUEST_VALUE];\n  }));\n}\n\n/** Projection only: the authorized operation receives the untouched original input. */\nexport function projectSecretRequestInput(toolName: unknown, input: unknown): unknown {\n  if (!isSecretRequestTool(toolName)) return input;\n  try { return projectCapturedSecretRequestInput(captureRequestPrivacyValue(input)); }\n  catch { return PRIVATE_REQUEST_VALUE; }\n}\n\nexport function projectSecretRequestOutput(toolName: unknown, output: unknown): unknown {\n  return output === undefined || !isSecretRequestTool(toolName) ? output : PRIVATE_REQUEST_VALUE;\n}\n\nexport function projectSecretRequestItem<T extends {\n  readonly toolName?: string | null; readonly input?: unknown; readonly output?: unknown;\n}>(item: T): T {\n  return !isSecretRequestTool(item.toolName) ? item : {\n    ...item, title: \"Request a secret\", input: projectSecretRequestInput(item.toolName, item.input),\n    ...(item.output === undefined ? {} : { output: PRIVATE_REQUEST_VALUE }),\n  };\n}\n\nfunction requestPrivacyTool(record: Record<string, unknown>): string | undefined {\n  const qualified = [record.toolName, record.name];\n  if (typeof record.tool === \"string\") {\n    if (typeof record.server === \"string\") qualified.push(`${record.server}.${record.tool}`);\n    if (typeof record.namespace === \"string\") qualified.push(`${record.namespace}.${record.tool}`);\n  }\n  return qualified.find((name): name is string => typeof name === \"string\" && isSecretRequestTool(name));\n}\n\nfunction requestPrivacyMetadata(key: string, value: unknown): unknown {\n  if (REQUEST_ID_FIELDS.some((field) => field === key)) {\n    return typeof value === \"string\" || (typeof value === \"number\" && Number.isFinite(value))\n      ? value : PRIVATE_REQUEST_VALUE;\n  }\n  if (REQUEST_STRING_METADATA.has(key)) return typeof value === \"string\" ? value : PRIVATE_REQUEST_VALUE;\n  if (REQUEST_BOOLEAN_METADATA.has(key)) return typeof value === \"boolean\" ? value : PRIVATE_REQUEST_VALUE;\n  if (REQUEST_ORDINAL_METADATA.has(key)) {\n    return typeof value === \"number\" && Number.isSafeInteger(value) && value >= 0 ? value : PRIVATE_REQUEST_VALUE;\n  }\n  if (key === \"nativeItemRef\") {\n    const record = requestPrivacyRecord(value);\n    if (record === undefined || Object.keys(record).some((field) =>\n      ![\"driver\", \"nativeId\", \"strength\"].includes(field) || typeof record[field] !== \"string\")) {\n      return PRIVATE_REQUEST_VALUE;\n    }\n    return Object.fromEntries(Object.entries(record).map(([field, nested]) => [field, requestPrivacyMetadata(field, nested)]));\n  }\n  return PRIVATE_REQUEST_VALUE;\n}\n\n/** Logger-local correlation retains bounded opaque IDs, never values or fingerprints. */\nexport function createRequestPrivacyProjector(): (value: unknown) => unknown {\n  const privateCalls = new Set<string>();\n  const privateQuestions = new Set<string>();\n  let retainedBytes = 0;\n  let exhausted = false;\n  const idKey = (id: unknown): string | undefined => {\n    if (typeof id !== \"string\" && !(typeof id === \"number\" && Number.isFinite(id))) return undefined;\n    const key = `${typeof id}:${id}`;\n    requestPrivacyStringBytes(key, 1024);\n    return key;\n  };\n  const remember = (set: Set<string>, id: unknown) => {\n    const key = idKey(id);\n    if (key === undefined || set.has(key)) return;\n    const size = requestPrivacyStringBytes(key, 1024);\n    if (privateCalls.size + privateQuestions.size >= 8192 || retainedBytes + size > 256 * 1024) {\n      throw REQUEST_PRIVACY_LIMIT;\n    }\n    set.add(key); retainedBytes += size;\n  };\n  const remembered = (set: Set<string>, id: unknown) => {\n    const key = idKey(id);\n    return key !== undefined && set.has(key);\n  };\n  const rpcSecret = (record: Record<string, unknown>, params: Record<string, unknown> | undefined) =>\n    (record.method === \"tools/call\" || record.method === \"item/tool/call\") && params !== undefined && (\n      requestPrivacyTool(params) !== undefined ||\n      (typeof record.server === \"string\" && T3_MCP_SERVER_ALIASES.has(record.server) && params.name === \"request_secret\")\n    );\n  const observe = (record: Record<string, unknown>) => {\n    const params = requestPrivacyRecord(record.params);\n    if (requestPrivacyTool(record) !== undefined || rpcSecret(record, params)) {\n      for (const field of REQUEST_ID_FIELDS) {\n        remember(privateCalls, record[field]);\n        if (params !== undefined) remember(privateCalls, params[field]);\n      }\n    }\n    if (record.isSecret === true) remember(privateQuestions, record.id);\n  };\n  const project = (value: unknown): unknown => {\n    if (Array.isArray(value)) return value.map(project);\n    const record = requestPrivacyRecord(value);\n    if (record === undefined) return value;\n    const params = requestPrivacyRecord(record.params);\n    const tool = requestPrivacyTool(record);\n    const rpc = rpcSecret(record, params);\n    const correlated = REQUEST_ID_FIELDS.some((field) => remembered(privateCalls, record[field]) ||\n      (params !== undefined && remembered(privateCalls, params[field])));\n    const sensitive = tool !== undefined || rpc || correlated;\n    return Object.fromEntries(Object.entries(record).map(([key, nested]) => {\n      if (sensitive && key === \"params\" && params !== undefined) {\n        return [key, Object.fromEntries(Object.entries(params).map(([field, argument]) => [field,\n          rpc && field === \"arguments\" ? projectCapturedSecretRequestInput(argument)\n            : requestPrivacyMetadata(field, argument),\n        ]))];\n      }\n      if (tool !== undefined && (key === \"input\" || key === \"arguments\")) {\n        return [key, projectCapturedSecretRequestInput(nested)];\n      }\n      if (sensitive) return [key, requestPrivacyMetadata(key, nested)];\n      if (record.isSecret === true && PRIVATE_REQUEST_FIELDS.has(key)) return [key, PRIVATE_REQUEST_VALUE];\n      if (key === \"answers\" && requestPrivacyRecord(nested) !== undefined) {\n        return [key, Object.fromEntries(Object.entries(nested as Record<string, unknown>).map(([id, answer]) => [\n          id, remembered(privateQuestions, id) ? PRIVATE_REQUEST_VALUE : project(answer),\n        ]))];\n      }\n      return [key, project(nested)];\n    }));\n  };\n  return (value) => {\n    if (exhausted) return { ...REQUEST_PRIVACY_UNAVAILABLE };\n    try { return project(captureRequestPrivacyValue(value, observe)); }\n    catch { exhausted = true; return { ...REQUEST_PRIVACY_UNAVAILABLE }; }\n  };\n}\n"
+    },
+    {
+      "id": "request-secret-exact-wire-value",
+      "file": "packages/contracts/src/secretRequest.ts",
+      "beforeSha256": "13117ebc9a34854bbf146aff24c748898ac2fec952525a769084e95c9b6392f9",
+      "afterSha256": "ffbf0f3c397ded67d97259735b4ca862b40b9a55451b4e150f77c3357a9e6b16",
+      "from": "Schema.Struct({ type: Schema.Literal(\"save\"), secret: TrimmedNonEmptyString })",
+      "to": "Schema.Struct({ type: Schema.Literal(\"save\"), secret: Schema.String.check(\n      Schema.makeFilter((value: string) => value.length > 0, { expected: \"a non-empty string\" }),\n    ) })"
+    },
+    {
+      "id": "request-secret-remove-unused-trim-import",
+      "file": "packages/contracts/src/secretRequest.ts",
+      "beforeSha256": "ffbf0f3c397ded67d97259735b4ca862b40b9a55451b4e150f77c3357a9e6b16",
+      "afterSha256": "8cc1a8a1b485dbdce28aa2e29a87bac63c1679e5f062634a03fc9660f273488b",
+      "from": "import { ThreadId, TrimmedNonEmptyString, TurnItemId }",
+      "to": "import { ThreadId, TurnItemId }"
+    },
+    {
+      "id": "request-secret-exact-client-value",
+      "file": "packages/client-runtime/src/secretRequest.ts",
+      "beforeSha256": "795884d84e57355ca838da10bb7217f0b75ed0d8bdd6a9035e44afc875aedda4",
+      "afterSha256": "122ffc23a5f431633e4326d55776ad2e581698d2d812aba0a2f613a1d4b7b6f1",
+      "from": "const secret = answer.secret.trim();",
+      "to": "const secret = answer.secret;"
+    },
+    {
+      "id": "claude-request-privacy-import",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "f50e23616be6d0faffd05e12a3a8e425c33ab1b9ad2c9183406c0c91d06a2381",
+      "afterSha256": "aa94c428a3dabd4fac3da544a6a3a93082413ef9f99b84eee0d66f6b69ff9afd",
+      "from": "import { makeClaudePromptQueue, makeClaudeQueryControls, makeClaudeQueryMessages,",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestInput, projectSecretRequestOutput, projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { makeClaudePromptQueue, makeClaudeQueryControls, makeClaudeQueryMessages,"
+    },
+    {
+      "id": "claude-private-protocol-projector",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "aa94c428a3dabd4fac3da544a6a3a93082413ef9f99b84eee0d66f6b69ff9afd",
+      "afterSha256": "ae80081fbb5e25e93a3588a9fc513af390f68d85d9eb891e6e23039d0b34294d",
+      "from": "function makeClaudeAgentSdkProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): ClaudeAgentSdkProtocolLogger | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  return (event) => {",
+      "to": "function makeClaudeAgentSdkProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): ClaudeAgentSdkProtocolLogger | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  const projectRequestPrivacy = createRequestPrivacyProjector();\n\n  return (event) => {"
+    },
+    {
+      "id": "claude-private-protocol-before-bounds",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "ae80081fbb5e25e93a3588a9fc513af390f68d85d9eb891e6e23039d0b34294d",
+      "afterSha256": "5129952c66d5dc1a841ab93195f527b390a67aacedb3bd9a2815d50ae5fc221a",
+      "from": "event: boundProviderEventForLogging(event),",
+      "to": "event: boundProviderEventForLogging(projectRequestPrivacy(event)),"
+    },
+    {
+      "id": "codex-request-privacy-import",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "2484ed93b7f035b82ce82158ba3faf043e8b39e9d9d9d4022f61d2f54762988c",
+      "afterSha256": "22415413848d94b457b9c0caf3a63c1745b80b9a00e1862916b9ed3a63a7c6e9",
+      "from": "import { pipe } from \"effect/Function\";",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { pipe } from \"effect/Function\";"
+    },
+    {
+      "id": "codex-private-protocol-projector",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "22415413848d94b457b9c0caf3a63c1745b80b9a00e1862916b9ed3a63a7c6e9",
+      "afterSha256": "4e8fae1421d185119afd72a4857491a638d81664f31613d14caf85d78b9784b5",
+      "from": "export function makeCodexAppServerProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): CodexClient.CodexAppServerClientOptions[\"logger\"] | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  return (event) => {",
+      "to": "export function makeCodexAppServerProtocolLogger(input: {\n  readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;\n  readonly threadId: ThreadId;\n  readonly providerSessionId: OrchestrationV2ProviderSession[\"id\"];\n}): CodexClient.CodexAppServerClientOptions[\"logger\"] | undefined {\n  const { nativeEventLogger } = input;\n  if (nativeEventLogger === undefined) {\n    return undefined;\n  }\n\n  const projectRequestPrivacy = createRequestPrivacyProjector();\n\n  return (event) => {"
+    },
+    {
+      "id": "codex-private-protocol-before-bounds",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "4e8fae1421d185119afd72a4857491a638d81664f31613d14caf85d78b9784b5",
+      "afterSha256": "bd47b921f151737b917243f8d9fc95bde27470227a454d5b165d7b1def61aa04",
+      "from": "event: redactCodexProtocolValue(boundProviderEventForLogging(event)),",
+      "to": "event: redactCodexProtocolValue(boundProviderEventForLogging(projectRequestPrivacy(event))),"
+    },
+    {
+      "id": "claude-private-tool-title-input",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "5129952c66d5dc1a841ab93195f527b390a67aacedb3bd9a2815d50ae5fc221a",
+      "afterSha256": "beccf21a404b966277bdad54c8a6ccf698825d976644ff9897dcbde2d50a390a",
+      "from": "const nativeToolInput = claudeNativeToolInputValue(input.toolInput);",
+      "to": "const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );"
+    },
+    {
+      "id": "claude-private-tool-output",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "beccf21a404b966277bdad54c8a6ccf698825d976644ff9897dcbde2d50a390a",
+      "afterSha256": "9419cb2d18ec5166a104f85be69729cb082779f5f2320af055c778bf7d8fccda",
+      "from": "const outputValue = claudeNativeToolOutputValue(input.output);",
+      "to": "const outputValue = projectSecretRequestOutput(\n            input.toolName, claudeNativeToolOutputValue(input.output),\n          );"
+    },
+    {
+      "id": "claude-private-tool-input",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "9419cb2d18ec5166a104f85be69729cb082779f5f2320af055c778bf7d8fccda",
+      "afterSha256": "100a1d1c9ba7549b507b3c8cdae5e4f948d9238a7d99205b7132508c2329eab0",
+      "from": "input: claudeNativeToolInputValue(input.toolInput),",
+      "to": "input: nativeToolInput,"
+    },
+    {
+      "id": "claude-private-tool-factory-final",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "100a1d1c9ba7549b507b3c8cdae5e4f948d9238a7d99205b7132508c2329eab0",
+      "afterSha256": "5be31feb332f11b809476b2b996c69b8995e208b6d6ed1479c9e662dd443b405",
+      "from": "          return { node, turnItem };\n        };\n\n        const emitToolCallArtifacts",
+      "to": "          return { node, turnItem: turnItem.type === \"dynamic_tool\"\n            ? projectSecretRequestItem(turnItem) : turnItem };\n        };\n\n        const emitToolCallArtifacts"
+    },
+    {
+      "id": "claude-masked-question-before-tool-event",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "5be31feb332f11b809476b2b996c69b8995e208b6d6ed1479c9e662dd443b405",
+      "afterSha256": "83adbda97c6bcc4fe627872a59e0c79587729c6abdf809ab9c10356668bf643b",
+      "from": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );",
+      "to": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );\n          if (input.toolName === \"AskUserQuestion\") {\n            assertPublicUserInputQuestions(inputRecordValue(input.toolInput, \"questions\"));\n          }"
+    },
+    {
+      "id": "claude-private-tool-summary",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "83adbda97c6bcc4fe627872a59e0c79587729c6abdf809ab9c10356668bf643b",
+      "afterSha256": "a65b5f2ab7f905d84119330379f5a5222d29cfe838d873fafb28a16f3551fb82",
+      "from": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {",
+      "to": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {\n  if (isSecretRequestTool(toolName)) return \"Request a secret\";"
+    },
+    {
+      "id": "claude-private-approval-prompt",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "a65b5f2ab7f905d84119330379f5a5222d29cfe838d873fafb28a16f3551fb82",
+      "afterSha256": "9e5ec8c6d02fcdf72ae5ae86a7df5bd58ded0fb6871ed88cedde2bc8ee06f6a2",
+      "from": "          const prompt =\n            (typeof command",
+      "to": "          const prompt = isSecretRequestTool(toolName) ? \"Request a secret\" :\n            (typeof command"
+    },
+    {
+      "id": "claude-private-approval-reason",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "9e5ec8c6d02fcdf72ae5ae86a7df5bd58ded0fb6871ed88cedde2bc8ee06f6a2",
+      "afterSha256": "4c5ed484d261a8312b89757ab2591c7c4d222a65e5d95f3618959f28d9263d33",
+      "from": "              prompt,\n              callbackOptions,\n            }),",
+      "to": "              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n                ...(callbackOptions.matchedAskRule === undefined ? {}\n                  : { matchedAskRule: callbackOptions.matchedAskRule }),\n                ...(callbackOptions.suppressAlwaysAllowRule === undefined ? {}\n                  : { suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule }),\n              } : callbackOptions,\n            }),"
+    },
+    {
+      "id": "claude-private-preview-refusal",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "4c5ed484d261a8312b89757ab2591c7c4d222a65e5d95f3618959f28d9263d33",
+      "afterSha256": "f0a7e973b4cd4e1852d372a2a10eda1376c7487a95b268ec35c1de303d382e83",
+      "from": "              !toolCall.toolName.startsWith(\"mcp__\") ||",
+      "to": "              isSecretRequestTool(toolCall.toolName) ||\n              !toolCall.toolName.startsWith(\"mcp__\") ||"
+    },
+    {
+      "id": "codex-private-preview-refusal",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "bd47b921f151737b917243f8d9fc95bde27470227a454d5b165d7b1def61aa04",
+      "afterSha256": "5232f9e3e285d0c1fbd5e561e5f266494ed7115086a3995bcb313c23878ba929",
+      "from": "  if (item.type !== \"mcpToolCall\") return undefined;",
+      "to": "  if (item.type !== \"mcpToolCall\" || isSecretRequestTool(`${item.server}.${item.tool}`)) return undefined;"
+    },
+    {
+      "id": "claude-masked-question-admission",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "f0a7e973b4cd4e1852d372a2a10eda1376c7487a95b268ec35c1de303d382e83",
+      "afterSha256": "8434fe85e19f014fac6e754630042fd1ed630447171f34f8ceec345b8f824351",
+      "from": "  if (!Array.isArray(questions)) return [];\n  return questions.flatMap",
+      "to": "  if (!Array.isArray(questions)) return [];\n  assertPublicUserInputQuestions(questions);\n  return questions.flatMap"
+    },
+    {
+      "id": "codex-private-tool-factory",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "5232f9e3e285d0c1fbd5e561e5f266494ed7115086a3995bcb313c23878ba929",
+      "afterSha256": "2a82ce9076c5b8cafedce2cd6870fbc59a64caac6cdec73c6b6d958337e83800",
+      "from": "  return output === undefined ? projection : { ...projection, output };",
+      "to": "  return projectSecretRequestItem(output === undefined ? projection : { ...projection, output });"
+    },
+    {
+      "id": "codex-masked-question-admission",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "2a82ce9076c5b8cafedce2cd6870fbc59a64caac6cdec73c6b6d958337e83800",
+      "afterSha256": "ede7b2368fa9cca79d40d2e49a9d3ecc85878da07f4fb3484f800e3eaad6cf4b",
+      "from": "          const questions = input.questions.map((question, index) => ({",
+      "to": "          assertPublicUserInputQuestions(input.questions);\n          const questions = input.questions.map((question, index) => ({"
+    },
+    {
+      "id": "codex-masked-async-question-admission",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "ede7b2368fa9cca79d40d2e49a9d3ecc85878da07f4fb3484f800e3eaad6cf4b",
+      "afterSha256": "2361e5a0925dd28a572ff751c7c043a3019fc88a5bfaf9c58ef070d23ed6f9a2",
+      "from": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {",
+      "to": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {\n              assertPublicUserInputQuestions(payload.item.questions);"
+    },
+    {
+      "id": "claude-private-tool-before-publication",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts",
+      "beforeSha256": "8434fe85e19f014fac6e754630042fd1ed630447171f34f8ceec345b8f824351",
+      "afterSha256": "2146f4553d5fbde5da58a0c93bae3fc388df78511b0997b620e6f6a0aaafff7b",
+      "from": "          return Queue.offer(events, event).pipe(Effect.asVoid);",
+      "to": "          return Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
+    },
+    {
+      "id": "codex-private-tool-before-publication",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.ts",
+      "beforeSha256": "2361e5a0925dd28a572ff751c7c043a3019fc88a5bfaf9c58ef070d23ed6f9a2",
+      "afterSha256": "4d11cb6815aab0b0b2baeb634a4a28c53a341de0eb6d041b48ca83045a3fc357",
+      "from": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event).pipe(Effect.asVoid);",
+      "to": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
+    },
+    {
+      "id": "question-requiredness-contract",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "b52f7f71f8fdcbd713c4ebd61be7fbffe9901e47f1c2a34a83431b85f8cbcc0b",
+      "afterSha256": "5750b005fee2f659d317312640b79f538d4159aefa1d8897dfdf4e342c43b231",
+      "from": "  readonly initialAnswer?: string | undefined;",
+      "to": "  readonly initialAnswer?: string | undefined;\n  readonly required?: boolean | undefined;"
+    },
+    {
+      "id": "question-custom-exact-string",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "5750b005fee2f659d317312640b79f538d4159aefa1d8897dfdf4e342c43b231",
+      "afterSha256": "9556eefd2274cedb9a2b29cb25def377d3ccc1aa5b7e79107a52862ff283fd57",
+      "from": "  const trimmed = value.trim();\n  return trimmed.length > 0 ? trimmed : null;",
+      "to": "  return value.length > 0 ? value : null;"
+    },
+    {
+      "id": "question-optional-explicit-empty",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "9556eefd2274cedb9a2b29cb25def377d3ccc1aa5b7e79107a52862ff283fd57",
+      "afterSha256": "dd0e99c63999f75155d3ad05e347e39937a3c6241240eafefa3a1b927788b717",
+      "from": "      : question.initialAnswer !== undefined",
+      "to": "      : question.initialAnswer !== undefined || question.required === false"
+    },
+    {
+      "id": "question-own-drafts-and-duplicate-ids",
+      "file": "packages/client-runtime/src/state/pendingUserInput.ts",
+      "beforeSha256": "dd0e99c63999f75155d3ad05e347e39937a3c6241240eafefa3a1b927788b717",
+      "afterSha256": "8b0a3d3cc3bc6304646e98f9f648593df92a8fd25752f556a04950ec5f8c9574",
+      "from": "  for (const question of questions) {\n    const answer = resolvePendingUserInputAnswer(question, draftAnswers[question.id]);\n    if (answer === null) {\n      return null;\n    }",
+      "to": "  const seen = new Set<string>();\n  for (const question of questions) {\n    if (seen.has(question.id)) return null;\n    seen.add(question.id);\n    const answer = resolvePendingUserInputAnswer(question,\n      Object.hasOwn(draftAnswers, question.id) ? draftAnswers[question.id] : undefined);\n    if (answer === null) {\n      if (question.required === false) continue;\n      return null;\n    }"
+    },
+    {
+      "id": "codex-request-privacy-import-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "1865ebbaeaa154a25ec235668f7de1d501cb8f876c35395ffd600c048bcd1d25",
+      "afterSha256": "b9eeab1171eb0d24918b348c0057f05be6dc6ac7a714fb5871c537b94ae11474",
+      "from": "import { pipe } from \"effect/Function\";",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { pipe } from \"effect/Function\";"
+    },
+    {
+      "id": "codex-private-preview-refusal-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "b9eeab1171eb0d24918b348c0057f05be6dc6ac7a714fb5871c537b94ae11474",
+      "afterSha256": "bef36ac94bbb8bc925eb45916b853328c6f052d9976c26ff8ffd9c47f4fafa2b",
+      "from": "  if (item.type !== \"mcpToolCall\") return undefined;",
+      "to": "  if (item.type !== \"mcpToolCall\" || isSecretRequestTool(`${item.server}.${item.tool}`)) return undefined;"
+    },
+    {
+      "id": "codex-private-tool-factory-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "bef36ac94bbb8bc925eb45916b853328c6f052d9976c26ff8ffd9c47f4fafa2b",
+      "afterSha256": "9490dcea3aefdaf2f812b62e484831398542f933c9df8a21af6c788d576bc87b",
+      "from": "  return output === undefined ? projection : { ...projection, output };",
+      "to": "  return projectSecretRequestItem(output === undefined ? projection : { ...projection, output });"
+    },
+    {
+      "id": "codex-masked-question-admission-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "9490dcea3aefdaf2f812b62e484831398542f933c9df8a21af6c788d576bc87b",
+      "afterSha256": "44e92bf92d1b40f44e6a65d7e6cb788902027cd37c6a6ed3e9a5d41b70053695",
+      "from": "          const questions = input.questions.map((question, index) => ({",
+      "to": "          assertPublicUserInputQuestions(input.questions);\n          const questions = input.questions.map((question, index) => ({"
+    },
+    {
+      "id": "codex-masked-async-question-admission-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "44e92bf92d1b40f44e6a65d7e6cb788902027cd37c6a6ed3e9a5d41b70053695",
+      "afterSha256": "da7e846b482a3975327359c6a4d348113ab6a6a1e5baf28582807fd96ece6061",
+      "from": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {",
+      "to": "            if (payload.item.delivery === \"async\" && payload.item.questions?.length) {\n              assertPublicUserInputQuestions(payload.item.questions);"
+    },
+    {
+      "id": "codex-private-tool-before-publication-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/CodexAdapterV2.session-live.ts",
+      "beforeSha256": "da7e846b482a3975327359c6a4d348113ab6a6a1e5baf28582807fd96ece6061",
+      "afterSha256": "64e6980423b08a060679b8cafddf1ef695dd9408979c789a1d6b1a5ee84bd9ce",
+      "from": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event).pipe(Effect.asVoid);",
+      "to": "        const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>\n          Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
+    },
+    {
+      "id": "claude-request-privacy-import-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "914350aab8fd2dcb8860789e65b27af0be6ed940e03ce0a3e990a1a736864914",
+      "afterSha256": "c5cfc85c2205fc368aa21349e5322fd3e5fd97ce2d435a542c593637f8a2e44a",
+      "from": "import { ClaudeCodeRootRefusalError } from \"./ClaudeAdapterV2.session-query.ts\";",
+      "to": "import {\n  assertPublicUserInputQuestions, createRequestPrivacyProjector, isSecretRequestTool,\n  projectSecretRequestInput, projectSecretRequestOutput, projectSecretRequestItem,\n} from \"@t3tools/shared/t3McpToolPresentation\";\nimport { ClaudeCodeRootRefusalError } from \"./ClaudeAdapterV2.session-query.ts\";"
+    },
+    {
+      "id": "claude-private-tool-title-input-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "c5cfc85c2205fc368aa21349e5322fd3e5fd97ce2d435a542c593637f8a2e44a",
+      "afterSha256": "22689652ed18203f34f4c29a6479b9cb1f94a532dd389d95397bb0db271b560e",
+      "from": "const nativeToolInput = claudeNativeToolInputValue(input.toolInput);",
+      "to": "const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );"
+    },
+    {
+      "id": "claude-private-tool-output-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "22689652ed18203f34f4c29a6479b9cb1f94a532dd389d95397bb0db271b560e",
+      "afterSha256": "b260a3991f7505404b072902e2838658bfaa0b04d4bf9b8dd76ac68bcdc84c61",
+      "from": "const outputValue = claudeNativeToolOutputValue(input.output);",
+      "to": "const outputValue = projectSecretRequestOutput(\n            input.toolName, claudeNativeToolOutputValue(input.output),\n          );"
+    },
+    {
+      "id": "claude-private-tool-input-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "b260a3991f7505404b072902e2838658bfaa0b04d4bf9b8dd76ac68bcdc84c61",
+      "afterSha256": "14e6b6f57e1ccec89f8679d88e91f4cead0e4e50211c9d0edd2a33fefd9d3873",
+      "from": "input: claudeNativeToolInputValue(input.toolInput),",
+      "to": "input: nativeToolInput,"
+    },
+    {
+      "id": "claude-private-tool-factory-final-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "14e6b6f57e1ccec89f8679d88e91f4cead0e4e50211c9d0edd2a33fefd9d3873",
+      "afterSha256": "4b9f7fda6f61ea116f8972a43a33269c17c87d53d6acaaed11d9c18b0d21484c",
+      "from": "          return { node, turnItem };\n        };\n\n        const emitToolCallArtifacts",
+      "to": "          return { node, turnItem: turnItem.type === \"dynamic_tool\"\n            ? projectSecretRequestItem(turnItem) : turnItem };\n        };\n\n        const emitToolCallArtifacts"
+    },
+    {
+      "id": "claude-masked-question-before-tool-event-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "4b9f7fda6f61ea116f8972a43a33269c17c87d53d6acaaed11d9c18b0d21484c",
+      "afterSha256": "e9e90acc2fe31752a6e6d956c844864887c2f00cf54fcf59f9e64b151903e6d7",
+      "from": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );",
+      "to": "          const nativeToolInput = projectSecretRequestInput(\n            input.toolName, claudeNativeToolInputValue(input.toolInput),\n          );\n          if (input.toolName === \"AskUserQuestion\") {\n            assertPublicUserInputQuestions(inputRecordValue(input.toolInput, \"questions\"));\n          }"
+    },
+    {
+      "id": "claude-private-tool-summary-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "e9e90acc2fe31752a6e6d956c844864887c2f00cf54fcf59f9e64b151903e6d7",
+      "afterSha256": "41870ef045cb58a2613eaee97fac7a0f52995fbdd0f23c041a5b90cd56684276",
+      "from": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {",
+      "to": "function summarizeClaudeToolRequest(toolName: string, input: ClaudeNativeToolInput): string {\n  if (isSecretRequestTool(toolName)) return \"Request a secret\";"
+    },
+    {
+      "id": "claude-private-approval-prompt-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "41870ef045cb58a2613eaee97fac7a0f52995fbdd0f23c041a5b90cd56684276",
+      "afterSha256": "b0bec07aeee11f97898bbaf614f9d93b90c640ec2840ee60250dcd6f43e9ea03",
+      "from": "          const prompt =\n            (typeof command",
+      "to": "          const prompt = isSecretRequestTool(toolName) ? \"Request a secret\" :\n            (typeof command"
+    },
+    {
+      "id": "claude-private-approval-reason-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "b0bec07aeee11f97898bbaf614f9d93b90c640ec2840ee60250dcd6f43e9ea03",
+      "afterSha256": "001cf2c81aaf59a70aceffc0f9ee52432642c843ca98a05bc989738ac77faa94",
+      "from": "              prompt,\n              callbackOptions,\n            }),",
+      "to": "              prompt,\n              callbackOptions: isSecretRequestTool(toolName) ? {\n                ...(callbackOptions.matchedAskRule === undefined ? {}\n                  : { matchedAskRule: callbackOptions.matchedAskRule }),\n                ...(callbackOptions.suppressAlwaysAllowRule === undefined ? {}\n                  : { suppressAlwaysAllowRule: callbackOptions.suppressAlwaysAllowRule }),\n              } : callbackOptions,\n            }),"
+    },
+    {
+      "id": "claude-private-preview-refusal-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "001cf2c81aaf59a70aceffc0f9ee52432642c843ca98a05bc989738ac77faa94",
+      "afterSha256": "7d90f7aef3b9aa2d62d096efb0477b3aa226307aabf8d9106bc71aaf71fee59b",
+      "from": "              !toolCall.toolName.startsWith(\"mcp__\") ||",
+      "to": "              isSecretRequestTool(toolCall.toolName) ||\n              !toolCall.toolName.startsWith(\"mcp__\") ||"
+    },
+    {
+      "id": "claude-masked-question-admission-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "7d90f7aef3b9aa2d62d096efb0477b3aa226307aabf8d9106bc71aaf71fee59b",
+      "afterSha256": "45fe239c5ec3bb256960188e15aa32834e67176648d59a1667d0731dc60804d5",
+      "from": "  if (!Array.isArray(questions)) return [];\n  return questions.flatMap",
+      "to": "  if (!Array.isArray(questions)) return [];\n  assertPublicUserInputQuestions(questions);\n  return questions.flatMap"
+    },
+    {
+      "id": "claude-private-tool-before-publication-selected",
+      "file": "apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.session-live.ts",
+      "beforeSha256": "45fe239c5ec3bb256960188e15aa32834e67176648d59a1667d0731dc60804d5",
+      "afterSha256": "ed553c8e6b052210e5baafb2fd40bdde31b513d883f2b557fd1b1c5f68eecc45",
+      "from": "          return Queue.offer(events, event).pipe(Effect.asVoid);",
+      "to": "          return Queue.offer(events, event.type === \"turn_item.updated\" && event.turnItem.type === \"dynamic_tool\"\n              ? { ...event, turnItem: projectSecretRequestItem(event.turnItem) } : event).pipe(Effect.asVoid);"
+    }
+  ]
+}

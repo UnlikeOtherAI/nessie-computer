@@ -178,6 +178,10 @@ The host refuses, with an error frame and an error receipt:
   inventory and every turn for a minute; a turn that fails looks again at once.
   Each look starts the CLI two or three times, and a turn used to look before
   and after itself.
+- Codex reuses its native SQLite runtime state. A fresh database would index
+  its existing session history before every response. Inference still uses
+  `--ephemeral`, disabled history and disposable logs; it creates no retained
+  Codex conversation and copies no credentials.
 - Plain words when the computer is offline, paused (**Paused on the
   computer**), turned off (**Turned off on {computer}**) or signed out.
 

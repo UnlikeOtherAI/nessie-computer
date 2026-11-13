@@ -1,6 +1,8 @@
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { lstatSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
 
 import { packagedNativeHelperPath } from '../state-security.js'
 import type { CodingProcessIdentity } from './types.js'
@@ -44,7 +46,7 @@ export type CodingProcessControl = {
   /** Birth containment, recorded with the child rather than inferred after it exits. */
   containment?: 'windows_job' | 'posix_group'
   /** Positive stop evidence. Absence after an uncontained root exited cannot prove its descendants stopped. */
-  stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[]) => Promise<'stopped' | 'unknown'>
+  stopTree?: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority) => Promise<'stopped' | 'unknown'>
   /**
    * How to start a program inside its own Job Object, for a caller that
    * spawns it itself (a local app over stdio): Windows with the job helper
@@ -54,7 +56,9 @@ export type CodingProcessControl = {
   containedLaunch?: (command: string, args: readonly string[]) => { command: string; args: string[] }
   /** Set when this host cannot contain an agent; starting one fails with this reason. */
   refusal?: string
-  spawnAgent: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }) => ChildProcess
+  spawnAgent: (command: string, args: string[], options: {
+    cwd: string; env: NodeJS.ProcessEnv; sessionEffect?: SessionEffectAuthority
+  }) => ChildProcess
   identify: (pid: number) => Promise<CodingProcessIdentity | undefined>
   /**
    * The identity to record for what `spawnAgent` started, when that process
@@ -70,7 +74,8 @@ export type CodingProcessControl = {
    */
   descendants: (identity: CodingProcessIdentity) => Promise<CodingProcessIdentity[]>
   /** Kills the process and its tree while it is still the one recorded, and each snapshot member still its own. */
-  killTree: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[]) => Promise<void>
+  killTree: (identity: CodingProcessIdentity, snapshot?: readonly CodingProcessIdentity[],
+    effect?: SessionEffectAuthority) => Promise<void>
   /**
    * Kills a process this one started and has not reaped, and its tree, with
    * its start time read in the same table as its descendants rather than by
@@ -110,6 +115,18 @@ const TERM_GRACE_MS = 2_000
 export const packagedJobHelper = (environment: NodeJS.ProcessEnv = process.env): string | undefined => {
   if (environment.NESSIE_EXECUTOR_PACKAGED_CLI !== '1') return undefined
   const path = packagedNativeHelperPath()
+  try {
+    const entry = lstatSync(path)
+    return entry.isFile() && !entry.isSymbolicLink() ? path : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Source launches use the fixed Debug helper without claiming installed custody. */
+export const codingJobHelper = (environment: NodeJS.ProcessEnv = process.env): string | undefined => {
+  if (environment.NESSIE_EXECUTOR_PACKAGED_CLI === '1') return packagedJobHelper(environment)
+  const path = fileURLToPath(new URL('../../native/target/debug/nessie-executor-native.exe', import.meta.url))
   try {
     const entry = lstatSync(path)
     return entry.isFile() && !entry.isSymbolicLink() ? path : undefined
@@ -219,6 +236,7 @@ const posixControl = (
   /** The kill, from a table read before anything is signalled. */
   const killFrom = async (
     before: ProcessTable, identity: CodingProcessIdentity, snapshot: readonly CodingProcessIdentity[],
+    effect?: SessionEffectAuthority,
   ): Promise<'stopped' | 'unknown'> => {
     const rootWasOurs = isStill(before, identity)
     const members = membersOf(identity, snapshot, treeOf(identity, before, true))
@@ -233,12 +251,14 @@ const posixControl = (
       for (const pid of pending) send(pid, name)
       return rootIsOurs || pending.length > 0
     }
+    await effect?.consume()
+    effect?.assertLive()
     if (!signal(before, 'SIGTERM')) return 'unknown'
     const gone = (current: ProcessTable): boolean => (
       !isStill(current, identity) && stillThere(members, current).length === 0
     )
     const after = await afterGrace(before, gone)
-    if (after) signal(after, 'SIGKILL')
+    if (after) { await effect?.consume(); effect?.assertLive(); signal(after, 'SIGKILL') }
     else log(`no process table after the grace: SIGKILL skipped for pid ${identity.pid}'s group and tree (${members.size + 1} processes)`)
     if (!after) return 'unknown'
     // Signal delivery is not termination. Require a fresh table after it.
@@ -251,9 +271,9 @@ const posixControl = (
   }
   return {
     containment: 'posix_group',
-    stopTree: async (identity, snapshot = []) => {
+    stopTree: async (identity, snapshot = [], effect) => {
       const before = await table()
-      return before ? killFrom(before, identity, snapshot) : 'unknown'
+      return before ? killFrom(before, identity, snapshot, effect) : 'unknown'
     },
     // Its own process group, so the group can be killed without the host.
     spawnAgent: (command, args, options) => spawn(command, args, {
@@ -264,9 +284,9 @@ const posixControl = (
       return started === undefined ? undefined : { pid, startedAt: started }
     },
     descendants: async (identity) => treeOf(identity, await table() ?? new Map(), true),
-    killTree: async (identity, snapshot = []) => {
+    killTree: async (identity, snapshot = [], effect) => {
       const before = await table()
-      if (before) await killFrom(before, identity, snapshot)
+      if (before) await killFrom(before, identity, snapshot, effect)
     },
     killChildTree: async (child) => {
       const before = await table()

@@ -805,6 +805,7 @@ export const ExecutorDaemonChallengeResponseSchema = z.object({
 export type ExecutorDaemonChallengeResponse = z.infer<typeof ExecutorDaemonChallengeResponseSchema>
 
 export const ExecutorDaemonConnectionResponseSchema = z.object({
+  sessionPairingSource: ExecutorSessionPairingSourceSchema.optional(),
   connectionEpoch: z.string().regex(/^\d+$/),
   status: ExecutorStatusSchema,
 }).strict()
@@ -1469,3 +1470,4 @@ export const PreparedExecutorAccessChangeResponseSchema = z.object({
 export type PreparedExecutorAccessChangeResponse = z.infer<
   typeof PreparedExecutorAccessChangeResponseSchema
 >
+import { ExecutorSessionPairingSourceSchema } from './executor-session-authority.js'

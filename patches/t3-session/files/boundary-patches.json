@@ -1,0 +1,476 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "file": "apps/server/src/assets/FileCodecs.session.ts",
+      "beforeSha256": null,
+      "afterSha256": "70319e66e23f873e6812512baf738f1f88a0ced95afb49b377c98ec4c02c8765",
+      "create": [
+        {
+          "text": "import * as Base64Url from \"effect/encoding/Base64Url\";\nimport * as Result from \"effect/Result\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/auth/utils.ts",
+          "start": 2593,
+          "end": 2787,
+          "sha256": "628d9f67e109f96d3e1682a1c9a860107e01389d74b8b5f2c2cd69c610e7092e"
+        },
+        {
+          "sourceFile": "apps/server/src/auth/utils.ts",
+          "start": 2788,
+          "end": 2910,
+          "sha256": "c0d1b8e6ac337c5cc4da1d99125782c999182f707c3c103f1aac2d51f46b686f"
+        }
+      ]
+    },
+    {
+      "file": "apps/server/src/assets/FilePorts.session.ts",
+      "beforeSha256": null,
+      "afterSha256": "136d3a4ab149f340b819f183e78b009e36555883524ee8bf44c2ca3376a43836",
+      "create": [
+        {
+          "text": "import type { AssetResource, AttachmentCreateUploadUrlInput, AttachmentCreateUploadUrlResult,\n  AssetCreateUrlResult, ChatAttachment, ToolActivityNativeAppReference } from \"@t3tools/contracts\";\nimport * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\nimport * as Schema from \"effect/Schema\";\n\nexport class FileBoundaryError extends Schema.TaggedError<FileBoundaryError>()(\"FileBoundaryError\", {\n  code: Schema.Literals([\"unbound\", \"denied\", \"expired\", \"revoked\", \"changed\"]),\n}) {}\n\n/** No default implementation or T3 credential store. Runtime custody owns the key. */\nexport class AssetSigner extends Context.Service<AssetSigner, {\n  readonly sign: (payload: string) => Effect.Effect<string, FileBoundaryError>;\n  readonly verify: (payload: string, signature: string) => Effect.Effect<boolean, FileBoundaryError>;\n}>()(\"t3/assets/AssetSigner\") {}\n\n/** Must reject executor state, provider credential homes and unadmitted physical resources. */\nexport class FilePathPolicy extends Context.Service<FilePathPolicy, {\n  readonly isInternal: (path: string) => Effect.Effect<boolean, FileBoundaryError>;\n}>()(\"nessie/t3/FilePathPolicy\") {}\n\nexport const makeIsServerInternalPath = Effect.map(FilePathPolicy, policy => policy.isInternal);\n\n/** Original service identity; no native app resolver or process launcher is imported. */\nexport class NativeAppIconResolver extends Context.Service<NativeAppIconResolver, {\n  readonly resolve: (app: ToolActivityNativeAppReference) => Effect.Effect<string | null>;\n}>()(\"t3/assets/NativeAppIconResolver\") {}\n\n/** REQUIRED, UNBOUND. The signed runtime resource owner supplies this service after\n * original-human and physical-root admission. These callbacks are consumers of that\n * proof, never proof producers; no production layer may be made from caller input.\n * Rechecks bind selected team, original source/thread, actor, epoch, generation and\n * expiry. Pending ids belong to the uploader and admitted destination; a filename\n * prefix is never ownership. URL bindings must survive receipt replay/reconnect.\n */\nexport class FileAccess extends Context.Service<FileAccess, {\n  readonly recheck: () => Effect.Effect<void, FileBoundaryError>;\n  readonly upload: (input: AttachmentCreateUploadUrlInput) => Effect.Effect<void, FileBoundaryError>;\n  readonly bindUpload: (input: AttachmentCreateUploadUrlInput, result: AttachmentCreateUploadUrlResult)\n    => Effect.Effect<void, FileBoundaryError>;\n  readonly pending: (attachmentId: string, operation: \"upload\" | \"delete\") => Effect.Effect<void, FileBoundaryError>;\n  readonly uploadDigest: (attachmentId: string) => Effect.Effect<string | undefined, FileBoundaryError>;\n  readonly uploaded: (attachmentId: string, sizeBytes: number, sha256: string) => Effect.Effect<void, FileBoundaryError>;\n  readonly claim: (threadId: string, attachments: ReadonlyArray<ChatAttachment>) => Effect.Effect<void, FileBoundaryError>;\n  readonly bindClaim: (threadId: string, before: ReadonlyArray<ChatAttachment>, after: ReadonlyArray<ChatAttachment>)\n    => Effect.Effect<void, FileBoundaryError>;\n  readonly asset: (resource: AssetResource) => Effect.Effect<void, FileBoundaryError>;\n  readonly bindAsset: (resource: AssetResource, result: AssetCreateUrlResult) => Effect.Effect<void, FileBoundaryError>;\n  /** Returns the original expiry from the immutable, actor/source-bound URL receipt. */\n  readonly assetToken: (token: string, relativePath: string) => Effect.Effect<number, FileBoundaryError>;\n  readonly path: (path: string, operation: \"read\" | \"write\") => Effect.Effect<void, FileBoundaryError>;\n}>()(\"nessie/t3/FileAccess\") {}\n"
+        }
+      ]
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": null,
+      "afterSha256": "eb2bf6f231255555dbbe172b9260b94e2be91a43757a8fffabf6a910b39112e6",
+      "create": [
+        {
+          "text": "import * as Mime from \"effect/http/Mime\";\nimport * as Effect from \"effect/Effect\";\nimport * as Stream from \"effect/Stream\";\nimport * as FileSystem from \"effect/FileSystem\";\nimport * as Option from \"effect/Option\";\nimport { pipe } from \"effect/Function\";\nimport { HttpServerResponse } from \"effect/http\";\nimport { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from \"@t3tools/shared/mcpApp\";\nimport { readMcpAppHtml } from \"./AssetAccess.ts\";\nimport { statMediaFile, streamMediaFile, type OpenMediaFile } from \"./MediaFile.ts\";\nimport { FileAccess, FileBoundaryError } from \"./FilePorts.session.ts\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/http.ts",
+          "start": 2358,
+          "end": 10052,
+          "sha256": "686f03a22607266c1cd04190479df9de5a53d2b160741ff99e1792d9b5a28ce2"
+        }
+      ]
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": "eb2bf6f231255555dbbe172b9260b94e2be91a43757a8fffabf6a910b39112e6",
+      "afterSha256": "9c6891e27987f0ed6f09c8038df8f51bbf4e80a759e9da36d1a41faefbb35c9d",
+      "from": "function assetByteRange(",
+      "to": "export function assetByteRange("
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": "9c6891e27987f0ed6f09c8038df8f51bbf4e80a759e9da36d1a41faefbb35c9d",
+      "afterSha256": "df3090c330a564626f505ee0c5e17c8fd53b01308c7f1027f47a515b9cb4faca",
+      "from": "  const headers = assetResponseHeaders(asset.path, asset);",
+      "to": "  const access = yield* FileAccess;\n  yield* access.recheck();\n  yield* access.path(asset.path, \"read\");\n  if (!asset.file) return yield* new FileBoundaryError({ code: \"denied\" });\n  const headers: Record<string, string> = { ...assetResponseHeaders(asset.path, asset), \"Cache-Control\": \"private, no-store\" };"
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": "df3090c330a564626f505ee0c5e17c8fd53b01308c7f1027f47a515b9cb4faca",
+      "afterSha256": "6559ef6b0b7f665c30930b06d84eddaa4262b1bb8a8f220492458b83a9e0edba",
+      "from": "streamMediaFile(mediaFile, offset, size)",
+      "to": "streamMediaFile(mediaFile, offset, size, access.recheck)"
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": "6559ef6b0b7f665c30930b06d84eddaa4262b1bb8a8f220492458b83a9e0edba",
+      "afterSha256": "2f47e7a8763acc0f62dc9e41364ea59fdb1fd9895ca6b4ad5ad117c50616a479",
+      "from": "HttpServerResponse.uint8Array(body, { headers })",
+      "to": "HttpServerResponse.stream(Stream.fromIterable((function* () {\n          for (let offset = 0; offset < body.length; offset += 64 * 1024) {\n            yield body.subarray(offset, offset + 64 * 1024);\n          }\n        })()).pipe(Stream.mapEffect(chunk => access.recheck().pipe(Effect.as(chunk)))), { headers })"
+    },
+    {
+      "file": "apps/server/src/assets/FileHttp.session.ts",
+      "beforeSha256": "2f47e7a8763acc0f62dc9e41364ea59fdb1fd9895ca6b4ad5ad117c50616a479",
+      "afterSha256": "a7e564b49f735010346c03471c16fda5a78d76019eeb600e4cc79f341ddf2ae9",
+      "from": "  return yield* HttpServerResponse.file(asset.path, { status, offset, bytesToRead, headers });",
+      "to": "  return yield* new FileBoundaryError({ code: \"denied\" });"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "87f5949f9ef971ba7981733cbf70e887e3c70f3ad99f5d253fa6693a7f7917de",
+      "afterSha256": "ca117c4d908b542d9112cc263e73081a79c9f39b81e83d2c2718181d3ed96dcb",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "ca117c4d908b542d9112cc263e73081a79c9f39b81e83d2c2718181d3ed96dcb",
+      "afterSha256": "615affc5e90a98d58246f7232233906cd3186c0e0c3ec082e472cebcf53f31b4",
+      "from": "from \"../auth/utils.ts\";",
+      "to": "from \"./FileCodecs.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "615affc5e90a98d58246f7232233906cd3186c0e0c3ec082e472cebcf53f31b4",
+      "afterSha256": "347fb9825ade34d4d2e0d2d28940aa1112e3582b699dc0ce72223eea9b405199",
+      "from": "import * as AssetSigner from \"./AssetSigner.ts\";",
+      "to": "import * as AssetSigner from \"./FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "1df0288c82b424cf49c07da16cea713a717e299024e7c7bcd02445cb090c4eb5",
+      "afterSha256": "d89a74f03eb5d1a6224c5ef2e801ea0a3bbd5f83086158d5e16b0ce2dce88cfe",
+      "from": "import * as ServerConfig from \"../config.ts\";",
+      "to": "import * as ServerConfig from \"../config.session-port.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "d89a74f03eb5d1a6224c5ef2e801ea0a3bbd5f83086158d5e16b0ce2dce88cfe",
+      "afterSha256": "956e9b3a47fa27126f8435617e1bb1681ef9a248bafb5869cba80b01a7c726ef",
+      "from": "from \"../auth/utils.ts\";",
+      "to": "from \"./FileCodecs.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "956e9b3a47fa27126f8435617e1bb1681ef9a248bafb5869cba80b01a7c726ef",
+      "afterSha256": "1076d41e29053dd322141c7eb3d3cc462ae665ad1f5f52f201342687f7a8764f",
+      "from": "import * as AssetSigner from \"./AssetSigner.ts\";",
+      "to": "import * as AssetSigner from \"./FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "1076d41e29053dd322141c7eb3d3cc462ae665ad1f5f52f201342687f7a8764f",
+      "afterSha256": "680f5e13a0744a33ea79e45572baeb0e041221c4c1f45c7ec0ebf038c1420ceb",
+      "from": "from \"../auth/serverInternalPaths.ts\";",
+      "to": "from \"./FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "680f5e13a0744a33ea79e45572baeb0e041221c4c1f45c7ec0ebf038c1420ceb",
+      "afterSha256": "92d9ab1cbff81246343f98b89af500f312a206d4c6ec62edfb4de59a95a20846",
+      "from": "import * as Orchestrator from \"../orchestration-v2/Orchestrator.ts\";",
+      "to": "import * as Orchestrator from \"../orchestration-v2/Orchestrator.session-api.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "92d9ab1cbff81246343f98b89af500f312a206d4c6ec62edfb4de59a95a20846",
+      "afterSha256": "b013ba2b4b5991b131d54146c54229acd9b317f3fcc2477cdde23ea1a7d1ea94",
+      "from": "import * as NativeAppIconResolver from \"./NativeAppIconResolver.ts\";",
+      "to": "import * as NativeAppIconResolver from \"./FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "b013ba2b4b5991b131d54146c54229acd9b317f3fcc2477cdde23ea1a7d1ea94",
+      "afterSha256": "8f0366942bcf1df2f76ae170e20c45b09dd5bb50e444ba97b810cbb18e4005ac",
+      "from": "import { sourceControlDefinitions } from \"../sourceControl/sourceControlDefinitions.ts\";",
+      "to": "import { builtInSourceControlDefinitions as sourceControlDefinitions } from \"@t3tools/source-control-definitions/registry\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "8f0366942bcf1df2f76ae170e20c45b09dd5bb50e444ba97b810cbb18e4005ac",
+      "afterSha256": "7de03310bd41bb93c3a1d63e013f203f37b8360b95b8f3a33ef72d8f9e1207f5",
+      "from": "const [encodedPayload, signature] = token.split(\".\");\n  if (!encodedPayload || !signature) return null;",
+      "to": "const [encodedPayload, signature, extra] = token.split(\".\");\n  if (!encodedPayload || !signature || extra) return null;"
+    },
+    {
+      "file": "apps/server/src/provider/DocumentText.files-port.ts",
+      "beforeSha256": null,
+      "afterSha256": "3bdfb2c5b6330e0c3307b44bd41dc6591df61d6aea5715ff614600350cb2daf3",
+      "create": [
+        {
+          "text": "import * as Context from \"effect/Context\";\nimport * as Effect from \"effect/Effect\";\n"
+        },
+        {
+          "sourceFile": "apps/server/src/provider/DocumentText.ts",
+          "start": 1459,
+          "end": 1644,
+          "sha256": "32f8a414c996e518c81eb7a6f6f050718ea6e10e085720efaac6d9a789082106"
+        }
+      ]
+    },
+    {
+      "file": "apps/server/src/provider/DocumentText.ts",
+      "beforeSha256": "e0edbd57af2d883b99fd2629608688710e26102d1354d3dd87d4d1faeb5fab71",
+      "afterSha256": "a80d74bd4fe029690429b29b8f1a43fb960aaec0d35072f81ea5759cfd7ec50a",
+      "from": "export class DocumentText extends Context.Service<\n  DocumentText,\n  {\n    readonly ensure: (path: string) => Effect.Effect<string | undefined>;\n  }\n>()(\"t3/provider/DocumentText\") {}\n\n",
+      "to": "import { DocumentText } from \"./DocumentText.files-port.ts\";\nexport { DocumentText } from \"./DocumentText.files-port.ts\";\n\n"
+    },
+    {
+      "file": "apps/server/src/provider/DocumentText.ts",
+      "beforeSha256": "a80d74bd4fe029690429b29b8f1a43fb960aaec0d35072f81ea5759cfd7ec50a",
+      "afterSha256": "9a6ca4a1c0d481488bc408d2764d154c3f8ee05db19547ffdbd9056a65ad857e",
+      "from": "import * as Context from \"effect/Context\";\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/provider/userInputAttachments.ts",
+      "beforeSha256": "8b206a6e16e406896ad2382b648fdd696eef5a760e07797a14b80435b6768fec",
+      "afterSha256": "438ca89d5e0bfe080bf970673e899a09adadd0d3c7794f544c62f911d76a6528",
+      "from": "from \"./DocumentText.ts\";",
+      "to": "from \"./DocumentText.files-port.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "347fb9825ade34d4d2e0d2d28940aa1112e3582b699dc0ce72223eea9b405199",
+      "afterSha256": "549dc96d62a0fb0cdc4dd2752560ca2d86c57ad5eaac7c093bab8a6c52efb8d8",
+      "from": "from \"../provider/DocumentText.ts\";",
+      "to": "from \"../provider/DocumentText.files-port.ts\";"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "beforeSha256": "408729828d3b639745a6fbc1379f60d87de919fe9b07fa43eb1ba537e51058dd",
+      "afterSha256": "68061d9d63d6aa88b88c9eb46cdd621a4fa6c77b4f5a5734da7c65fb455d99a5",
+      "from": "from \"../provider/DocumentText.ts\";",
+      "to": "from \"../provider/DocumentText.files-port.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "549dc96d62a0fb0cdc4dd2752560ca2d86c57ad5eaac7c093bab8a6c52efb8d8",
+      "afterSha256": "62a71e7f48305f9a3b75feef336e98bfc97a419881988f5fa71b009aa9c5a204",
+      "from": "import * as Effect from \"effect/Effect\";",
+      "to": "import * as Effect from \"effect/Effect\";\nimport { FileAccess } from \"../assets/FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "7de03310bd41bb93c3a1d63e013f203f37b8360b95b8f3a33ef72d8f9e1207f5",
+      "afterSha256": "98b5c1c29c45fb89c9774cfc7a27e9976dd6755948c087d02e459c656c05b274",
+      "from": "import * as Effect from \"effect/Effect\";",
+      "to": "import * as Effect from \"effect/Effect\";\nimport { FileAccess } from \"../assets/FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "beforeSha256": "68061d9d63d6aa88b88c9eb46cdd621a4fa6c77b4f5a5734da7c65fb455d99a5",
+      "afterSha256": "da3d01b6239630528b9edfd20709ddbaaa55f2f567c07676933a5ce91cb09c0b",
+      "from": "import * as Effect from \"effect/Effect\";",
+      "to": "import * as Effect from \"effect/Effect\";\nimport { FileAccess } from \"../assets/FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "62a71e7f48305f9a3b75feef336e98bfc97a419881988f5fa71b009aa9c5a204",
+      "afterSha256": "6005929e50180d2b9e5563b0c2e7e2e4c5780f123b2d04eab03f4f6b29697f67",
+      "from": "  const config = yield* ServerConfig.ServerConfig;\n  const nowMs",
+      "to": "  const access = yield* FileAccess;\n  yield* access.upload(input);\n  yield* access.recheck();\n  const config = yield* ServerConfig.ServerConfig;\n  const nowMs"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "6005929e50180d2b9e5563b0c2e7e2e4c5780f123b2d04eab03f4f6b29697f67",
+      "afterSha256": "83c1dbd412b5a55c5e0eba1f08c211dca6d4524010f6b68d2fb1e50e2b3b999a",
+      "from": "  const previousSweep = lastPendingSweepByDirectory.get(config.attachmentsDir);\n  if (\n    previousSweep === undefined ||\n    nowMs - previousSweep >= PENDING_ATTACHMENT_SWEEP_INTERVAL_MS\n  ) {\n    lastPendingSweepByDirectory.set(config.attachmentsDir, nowMs);\n    const swept = sweepStalePendingAttachments({\n      attachmentsDir: config.attachmentsDir,\n      nowMs,\n    });\n    if (swept.deleted > 0) {\n      yield* Effect.logInfo(\"Removed expired attachment uploads.\", { deleted: swept.deleted });\n    }\n  }\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "83c1dbd412b5a55c5e0eba1f08c211dca6d4524010f6b68d2fb1e50e2b3b999a",
+      "afterSha256": "5e59c3bdf8766b3de0cd8e72953a3786cfe18bb6964462ba329e2200e866f466",
+      "from": "  sweepStalePendingAttachments,\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "5e59c3bdf8766b3de0cd8e72953a3786cfe18bb6964462ba329e2200e866f466",
+      "afterSha256": "ee008780f4507651f62a5d8508314fa9ea4237982d84802899df0eedf10d5c2a",
+      "from": "const PENDING_ATTACHMENT_SWEEP_INTERVAL_MS = 15 * 60_000;\nconst lastPendingSweepByDirectory = new Map<string, number>();\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "ee008780f4507651f62a5d8508314fa9ea4237982d84802899df0eedf10d5c2a",
+      "afterSha256": "50dee7bed6afcb9ba20bb11fa8a445d343a9afb2354badefa2cf6f15e946a2e7",
+      "from": "  return {\n    attachmentId,\n    relativeUrl:",
+      "to": "  const result = {\n    attachmentId,\n    relativeUrl:"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "50dee7bed6afcb9ba20bb11fa8a445d343a9afb2354badefa2cf6f15e946a2e7",
+      "afterSha256": "df0a67419412bd9982a9febcaa62922a29d07b2a1a71336a6d0196ba26d569b0",
+      "from": "    expiresAt,\n  };\n});",
+      "to": "    expiresAt,\n  };\n  yield* access.recheck();\n  yield* access.bindUpload(input, result);\n  return result;\n});"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "df0a67419412bd9982a9febcaa62922a29d07b2a1a71336a6d0196ba26d569b0",
+      "afterSha256": "21afcde144e40f06c2b023d2600ec6ac257ae0f5355f53126c72bfb1b8c6e434",
+      "from": "  if (body instanceof Uint8Array && body.byteLength !== claims.sizeBytes)",
+      "to": "  const access = yield* FileAccess;\n  yield* access.pending(claims.attachmentId, \"upload\");\n  yield* access.recheck();\n  if (claims.expiresAt <= (yield* Clock.currentTimeMillis)) {\n    return { ok: false, status: 410, detail: \"Upload expired.\" } satisfies StoreAttachmentUploadResult;\n  }\n  const expectedDigest = yield* access.uploadDigest(claims.attachmentId);\n  const contentHash = NodeCrypto.createHash(\"sha256\");\n  if (body instanceof Uint8Array && body.byteLength !== claims.sizeBytes)"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "21afcde144e40f06c2b023d2600ec6ac257ae0f5355f53126c72bfb1b8c6e434",
+      "afterSha256": "0bd06b43e145940ead7253d5d7f970341523272e63a8f9fc517196b12ba0bb67",
+      "from": "    yield* fileSystem.makeDirectory(path.dirname(finalPath), { recursive: true });",
+      "to": "    yield* access.path(finalPath, \"write\");\n    yield* access.path(partPath, \"write\");\n    yield* fileSystem.makeDirectory(path.dirname(finalPath), { recursive: true });"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "0bd06b43e145940ead7253d5d7f970341523272e63a8f9fc517196b12ba0bb67",
+      "afterSha256": "803bb0adbbc36eebb82d65e8f21e366e39296f3372ebe37ee7d00e41eab7464b",
+      "from": "        Stream.takeWhile((chunk) => {",
+      "to": "        Stream.mapEffect((chunk) => Effect.gen(function* () {\n          yield* access.recheck();\n          if (claims.expiresAt <= (yield* Clock.currentTimeMillis)) {\n            return yield* Effect.fail(new AssetSigner.FileBoundaryError({ code: \"expired\" }));\n          }\n          contentHash.update(chunk);\n          return chunk;\n        })),\n        Stream.takeWhile((chunk) => {"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "803bb0adbbc36eebb82d65e8f21e366e39296f3372ebe37ee7d00e41eab7464b",
+      "afterSha256": "318b797287d09c4256b4f977744714d20686e0d8d8053c0e1301a61b5f419947",
+      "from": "    // Publishing without replacement keeps an upload and its cached text immutable.",
+      "to": "    const sha256 = contentHash.digest(\"hex\");\n    if (expectedDigest !== undefined && sha256 !== expectedDigest) {\n      return { ok: false, status: 409, detail: \"Upload digest does not match.\" };\n    }\n    yield* access.recheck();\n    yield* access.path(finalPath, \"write\");\n    if (claims.expiresAt <= (yield* Clock.currentTimeMillis)) {\n      return { ok: false, status: 410, detail: \"Upload expired.\" };\n    }\n    // Publishing without replacement keeps an upload and its cached text immutable."
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "318b797287d09c4256b4f977744714d20686e0d8d8053c0e1301a61b5f419947",
+      "afterSha256": "4785fb595b9d62e8c890c43e2f872dbc00c527cf263390e6096c54cbbae8142a",
+      "from": "    const documents = yield* DocumentText.DocumentText;",
+      "to": "    yield* access.recheck();\n    yield* access.uploaded(claims.attachmentId, receivedBytes, sha256);\n    const documents = yield* DocumentText.DocumentText;"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "4785fb595b9d62e8c890c43e2f872dbc00c527cf263390e6096c54cbbae8142a",
+      "afterSha256": "4ae4e849d2f0d430c6afc519c9bca9349540de960f144863633cb187f1e8c3b0",
+      "from": "        return Effect.tryPromise({\n          try: () => NodeFSP.copyFile(partPath, finalPath, NodeFSP.constants.COPYFILE_EXCL),\n          catch: (cause) =>\n            PlatformError.systemError({\n              _tag:\n                cause instanceof Error && \"code\" in cause && cause.code === \"EEXIST\"\n                  ? \"AlreadyExists\"\n                  : \"Unknown\",\n              module: \"FileSystem\",\n              method: \"copyFile\",\n              pathOrDescriptor: finalPath,\n              cause,\n            }),\n        }).pipe(\n          Effect.as(true),\n          Effect.catchIf(\n            (error) => error.reason._tag === \"AlreadyExists\",\n            () => Effect.succeed(false),\n          ),\n        );",
+      "to": "        return Effect.fail(error);"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "4ae4e849d2f0d430c6afc519c9bca9349540de960f144863633cb187f1e8c3b0",
+      "afterSha256": "32632af0b8248775be5e807a2def1720ac5d38ea2adcca5b62b60a863762b443",
+      "from": "import * as NodeFSP from \"node:fs/promises\";\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "32632af0b8248775be5e807a2def1720ac5d38ea2adcca5b62b60a863762b443",
+      "afterSha256": "a33bddd1e6487d3d31a4312580245d6e133fe6b6f2acc1382d50320a40b7b2a8",
+      "from": "import * as PlatformError from \"effect/PlatformError\";\n",
+      "to": ""
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "a33bddd1e6487d3d31a4312580245d6e133fe6b6f2acc1382d50320a40b7b2a8",
+      "afterSha256": "60a0f0648f05df26cec72751e40420ae7b09005063afcc30b3f031736e3eab13",
+      "from": "  if (parseThreadSegmentFromAttachmentId(attachmentId) !== PENDING_ATTACHMENT_THREAD_SEGMENT)",
+      "to": "  const access = yield* FileAccess;\n  yield* access.pending(attachmentId, \"delete\");\n  yield* access.recheck();\n  if (parseThreadSegmentFromAttachmentId(attachmentId) !== PENDING_ATTACHMENT_THREAD_SEGMENT)"
+    },
+    {
+      "file": "apps/server/src/assets/AttachmentUpload.ts",
+      "beforeSha256": "60a0f0648f05df26cec72751e40420ae7b09005063afcc30b3f031736e3eab13",
+      "afterSha256": "217c0c568a95ae3c8e75c58822fdf43d68815c3e858d0ec1ba0a65a24a4d5708",
+      "from": "  const fileSystem = yield* FileSystem.FileSystem;\n  yield* fileSystem.remove(attachmentPath",
+      "to": "  const fileSystem = yield* FileSystem.FileSystem;\n  yield* access.path(attachmentPath, \"write\");\n  yield* fileSystem.remove(attachmentPath"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "beforeSha256": "da3d01b6239630528b9edfd20709ddbaaa55f2f567c07676933a5ce91cb09c0b",
+      "afterSha256": "2c93ec3deef90b27912ae5f25e6ef93fcf56c134450bc354403ed3e1cc675364",
+      "from": "    yield* validateAttachmentLimits(input.attachments);",
+      "to": "    const access = yield* FileAccess;\n    yield* access.recheck();\n    yield* access.claim(input.threadId, input.attachments);\n    yield* validateAttachmentLimits(input.attachments);"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "beforeSha256": "2c93ec3deef90b27912ae5f25e6ef93fcf56c134450bc354403ed3e1cc675364",
+      "afterSha256": "5b7f9cefe9bd786a9a4a089f88de664e964b6a4fd98f2789400a051fc4eb8d1c",
+      "from": "          const info = yield* fileSystem.stat(claim.currentPath)",
+      "to": "          yield* access.recheck();\n          yield* access.path(claim.currentPath, \"read\");\n          yield* access.path(claim.finalPath, \"write\");\n          const info = yield* fileSystem.stat(claim.currentPath)"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/AttachmentClaims.ts",
+      "beforeSha256": "5b7f9cefe9bd786a9a4a089f88de664e964b6a4fd98f2789400a051fc4eb8d1c",
+      "afterSha256": "62e7c6af376ff69abc40ee057292f8973cf2cb4ae524a34b52b7549e7698a8c0",
+      "from": "    ).pipe(Effect.onError(() => releaseClaimedAttachments(claimedPaths)));",
+      "to": "    ).pipe(\n      Effect.tap((attachments) => Effect.gen(function* () {\n        yield* access.recheck();\n        yield* access.bindClaim(input.threadId, input.attachments, attachments);\n      })),\n      Effect.onError(() => releaseClaimedAttachments(claimedPaths)),\n    );"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "98b5c1c29c45fb89c9774cfc7a27e9976dd6755948c087d02e459c656c05b274",
+      "afterSha256": "a19352fe4fce38720ca968e8c1e2a2dd2b889cf45cb7cf997004c55ab5763cfd",
+      "from": "  const fileSystem = yield* FileSystem.FileSystem;\n  const path = yield* Path.Path;\n  const workspacePaths",
+      "to": "  const access = yield* FileAccess;\n  yield* access.recheck();\n  yield* access.asset(input.resource);\n  const fileSystem = yield* FileSystem.FileSystem;\n  const path = yield* Path.Path;\n  const workspacePaths"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "a19352fe4fce38720ca968e8c1e2a2dd2b889cf45cb7cf997004c55ab5763cfd",
+      "afterSha256": "4885e557b75828be5412a4e0f85aa4ff81b5bbe5cf7da3d7faa0eef116fa77d3",
+      "from": "  return {\n    relativeUrl: `${ASSET_ROUTE_PREFIX}",
+      "to": "  const result = {\n    relativeUrl: `${ASSET_ROUTE_PREFIX}"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "4885e557b75828be5412a4e0f85aa4ff81b5bbe5cf7da3d7faa0eef116fa77d3",
+      "afterSha256": "cbb0c8ae7df0b0457a2fe95eca2b2c3b041a0d55808821d07de6e5da0f39fcf7",
+      "from": "    ...(fileRevision !== undefined ? { fileRevision } : {}),\n  };\n});",
+      "to": "    ...(fileRevision !== undefined ? { fileRevision } : {}),\n  };\n  yield* access.recheck();\n  yield* access.bindAsset(input.resource, result);\n  return result;\n});"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "cbb0c8ae7df0b0457a2fe95eca2b2c3b041a0d55808821d07de6e5da0f39fcf7",
+      "afterSha256": "6a88d14f0f963aba6fb33c8788c387869597e6b563173f9488f0683d91e5c795",
+      "from": "  const [encodedPayload, signature, extra] = token.split(\".\");",
+      "to": "  const access = yield* FileAccess;\n  yield* access.recheck();\n  yield* access.assetToken(token, relativePath);\n  const [encodedPayload, signature, extra] = token.split(\".\");"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "6a88d14f0f963aba6fb33c8788c387869597e6b563173f9488f0683d91e5c795",
+      "afterSha256": "76ddfa7ddb8ea44d943bfd82d73f42aedda8fb4dc72c3e94b6fce6670f9c83eb",
+      "from": "readMediaFileHeader, type OpenMediaFile",
+      "to": "readMediaFileHeader, streamMediaFile, type OpenMediaFile"
+    },
+    {
+      "file": "apps/server/src/assets/AssetAccess.ts",
+      "beforeSha256": "76ddfa7ddb8ea44d943bfd82d73f42aedda8fb4dc72c3e94b6fce6670f9c83eb",
+      "afterSha256": "13e323170c008d118be2c99736c6d773732643cf58efaf45f57656ecc09a0669",
+      "from": "  const chunks = yield* Stream.runCollect(fileSystem.stream(filePath, { bytesToRead: limit + 1 }));",
+      "to": "  const canonical = yield* fileSystem.realPath(filePath);\n  const file = yield* openMediaFile(canonical);\n  if (!file) return null;\n  const count = file.info.size < BigInt(limit + 1) ? file.info.size : BigInt(limit + 1);\n  if (count === 0n) return new Uint8Array();\n  const access = yield* FileAccess;\n  const stream = streamMediaFile(file, 0n, count, access.recheck);\n  if (!stream) return null;\n  const chunks = yield* Stream.runCollect(stream);"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/ThreadMessageIntake.ts",
+      "beforeSha256": "6f9f28ca5b2c96843c7158fb3fd6d4452d1c4beea448f4f416fd83b5924ecb30",
+      "afterSha256": "c5d46b1c2d227339f35e42d7d2a59b8b0001b13f6d4b75ff5ad122084f289bd5",
+      "from": "import * as Effect from \"effect/Effect\";",
+      "to": "import * as Effect from \"effect/Effect\";\nimport { FileAccess } from \"../assets/FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/orchestration-v2/ThreadMessageIntake.ts",
+      "beforeSha256": "c5d46b1c2d227339f35e42d7d2a59b8b0001b13f6d4b75ff5ad122084f289bd5",
+      "afterSha256": "fc37810b914defa48c5e61ee9cb02a5413e7400b5366c5e8ffaf1178c5ebadc6",
+      "from": "  yield* AttachmentClaims.validateAttachmentLimits(input.initialMessage?.attachments ?? []);",
+      "to": "  const initialAttachments = input.initialMessage?.attachments ?? [];\n  if (initialAttachments.length > 0) {\n    if (!input.threadId) return yield* new AttachmentClaims.AttachmentClaimError({\n      message: \"Attachment launch requires an admitted original thread id.\",\n    });\n    const access = yield* FileAccess;\n    yield* access.recheck();\n    yield* access.claim(input.threadId, initialAttachments);\n  }\n  yield* AttachmentClaims.validateAttachmentLimits(initialAttachments);"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "aaa02088f64ea00f72a9ccacf24f85e1b81e486a1eb6e1d3241f4967fe57de3c",
+      "afterSha256": "0714578c649257f8bf328073398b16abf9eb69ff48723d609774b130c365330f",
+      "from": "export const streamMediaFile = (file: OpenMediaFile, offset: bigint, bytesToRead: bigint) => {",
+      "to": "export const streamMediaFile = (file: OpenMediaFile, offset: bigint, bytesToRead: bigint,\n  recheck: () => Effect.Effect<void, FileBoundaryError>) => {"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "0714578c649257f8bf328073398b16abf9eb69ff48723d609774b130c365330f",
+      "afterSha256": "8c18c8ccc691721594638e0594c3639fc81641ece156ed23e030fc280f1120d5",
+      "from": "import * as Schema from \"effect/Schema\";",
+      "to": "import * as Schema from \"effect/Schema\";\nimport * as Stream from \"effect/Stream\";\nimport { FileAccess, FileBoundaryError } from \"./FilePorts.session.ts\";"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "8c18c8ccc691721594638e0594c3639fc81641ece156ed23e030fc280f1120d5",
+      "afterSha256": "03ce21a82aae6c0071f08d26b44e1588bd84720368b85795dceb340b5f33eb0a",
+      "from": "  return yield* Effect.acquireRelease(",
+      "to": "  const access = yield* FileAccess;\n  yield* access.recheck();\n  yield* access.path(filePath, \"read\");\n  return yield* Effect.acquireRelease("
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "03ce21a82aae6c0071f08d26b44e1588bd84720368b85795dceb340b5f33eb0a",
+      "afterSha256": "8b9c58079503d3cbfaf706df5078e275d9c5f85a60e98555c7c7890fe32c3fff",
+      "from": "      }),\n  });\n};",
+      "to": "      }),\n  }).pipe(Stream.mapEffect((chunk) => Effect.gen(function* () {\n    yield* recheck();\n    const now = yield* Effect.tryPromise({ try: () => file.handle.stat({ bigint: true }),\n      catch: () => new FileBoundaryError({ code: \"changed\" }) });\n    if (now.size !== file.info.size || now.mtimeNs !== file.info.mtimeNs || now.ctimeNs !== file.info.ctimeNs) {\n      return yield* new FileBoundaryError({ code: \"changed\" });\n    }\n    return chunk;\n  })));\n};"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "8b9c58079503d3cbfaf706df5078e275d9c5f85a60e98555c7c7890fe32c3fff",
+      "afterSha256": "1aa61c1aac45511959fda8e22288dc4d931cd208290de280ec8b46dd947974c9",
+      "from": "class MediaFileOpenError extends",
+      "to": "export class MediaFileOpenError extends"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "1aa61c1aac45511959fda8e22288dc4d931cd208290de280ec8b46dd947974c9",
+      "afterSha256": "0dcb98cac56b741e6f607249de4594151fc5ecb1f0ba8f4f479e73fe914fd2a9",
+      "from": "class MediaFileReadError extends",
+      "to": "export class MediaFileReadError extends"
+    },
+    {
+      "file": "apps/server/src/assets/MediaFile.ts",
+      "beforeSha256": "0dcb98cac56b741e6f607249de4594151fc5ecb1f0ba8f4f479e73fe914fd2a9",
+      "afterSha256": "20200b813a333472334a82ea46bd7bbffb630bdc9f1ef91f1ebff58e5dc188b1",
+      "from": "class MediaFileStatError extends",
+      "to": "export class MediaFileStatError extends"
+    }
+  ]
+}

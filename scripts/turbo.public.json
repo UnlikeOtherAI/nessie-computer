@@ -1,6 +1,264 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "//#test:t3-session-control-source": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_SESSION_CONTROL_REFERENCE"
+      ]
+    },
+    "//#test:t3-session-control": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-runtime": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false,
+      "env": [
+        "T3_RUNTIME_FIXTURE_ROOT"
+      ]
+    },
+    "//#test:t3-session-lifecycle": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false,
+      "env": [
+        "T3_RUNTIME_FIXTURE_ROOT",
+        "DATABASE_URL"
+      ]
+    },
+    "//#test:executor-private-assignments": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-files": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    "//#test:t3-session-workspace-source": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_WORKSPACE_SOURCE_REPOSITORY"
+      ]
+    },
+    "//#test:t3-session-workspace": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-physical-source": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-physical-source-installed": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false,
+      "env": [
+        "NESSIE_EXECUTOR_PACKAGED_CLI"
+      ]
+    },
+    "//#test:t3-session-broker": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "test:t3-session-source": {
+      "dependsOn": [],
+      "cache": false
+    },
+    "test:t3-session-declarations": {
+      "dependsOn": [
+        "prepare:engine"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-interactive": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-import-source": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_SESSION_IMPORT_REFERENCE"
+      ]
+    },
+    "//#test:t3-session-import": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-catalog": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-native-codex": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-request-prepare": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_REQUEST_PRIVACY_SOURCE_REPOSITORY",
+        "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"
+      ]
+    },
+    "//#test:t3-session-request-source": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_REQUEST_PRIVACY_SOURCE_REPOSITORY",
+        "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"
+      ]
+    },
+    "//#test:t3-session-request-fixtures": {
+      "dependsOn": [
+        "//#test:t3-session-request-prepare"
+      ],
+      "cache": false,
+      "env": [
+        "T3_REQUEST_PRIVACY_SOURCE_REPOSITORY",
+        "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"
+      ]
+    },
+    "//#test:t3-session-requests": {
+      "dependsOn": [
+        "//#test:t3-session-request-prepare"
+      ],
+      "cache": false,
+      "env": [
+        "T3_REQUEST_PRIVACY_SOURCE_REPOSITORY",
+        "T3_REQUEST_PRIVACY_SOURCE_ARCHIVE"
+      ]
+    },
+    "//#test:t3-session-engine-plugins": {
+      "dependsOn": [],
+      "cache": false
+    },
+    "test:t3-session-contracts": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    },
+    "//#test:t3-session-client-connection": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_CLIENT_CONNECTION_SOURCE_REPOSITORY",
+        "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE"
+      ]
+    },
+    "//#test:t3-session-client-http-auth": {
+      "dependsOn": [],
+      "cache": false,
+      "env": [
+        "T3_CLIENT_CONNECTION_SOURCE_REPOSITORY",
+        "T3_CLIENT_CONNECTION_SOURCE_ARCHIVE",
+        "T3_CLIENT_CONNECTION_DEPENDENCY_DIRECTORY"
+      ]
+    },
+    "@nessie/t3-session-source#build": {
+      "dependsOn": [
+        "^build",
+        "prepare:engine"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../LICENSE",
+        "../../pnpm-lock.yaml",
+        "../../packaging/session-engine/**",
+        "../../patches/t3-session/**",
+        "../../src/t3-session/requests/**",
+        "!../../packaging/session-engine/node_modules/**",
+        "!../../packaging/session-engine/.artifacts/**"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "prepare:engine": {
+      "dependsOn": [],
+      "cache": false
+    },
+    "@nessie/t3-session-source#typecheck": {
+      "dependsOn": [
+        "build",
+        "^build",
+        "^typecheck",
+        "prepare:engine"
+      ],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "../../pnpm-lock.yaml",
+        "../../packaging/session-engine/**",
+        "../../patches/t3-session/**",
+        "../../src/t3-session/requests/**",
+        "!../../packaging/session-engine/node_modules/**",
+        "!../../packaging/session-engine/.artifacts/**"
+      ]
+    },
+    "test:t3-session-engine": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    },
+    "test:t3-session-claude-sdk": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    },
+    "test:t3-session-client": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    },
+    "test:t3-session-engine-browser": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false,
+      "env": [
+        "T3_SESSION_BROWSER_EXECUTABLE"
+      ]
+    },
+    "@nessie/t3-session-source#test": {
+      "dependsOn": [
+        "build"
+      ],
+      "cache": false
+    },
     "build": {
       "dependsOn": [
         "^build"
@@ -43,10 +301,15 @@
       ],
       "cache": false
     },
+    "//#test:session-local-pairing": { "dependsOn": ["//#build"], "cache": false },
     "//#test:public-portability": {
       "dependsOn": [
         "^build"
       ],
+      "cache": false
+    },
+    "//#test:session-engine-source": {
+      "dependsOn": [],
       "cache": false
     },
     "//#test:updates": {

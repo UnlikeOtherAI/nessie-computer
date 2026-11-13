@@ -1,0 +1,119 @@
+{
+  "format": 1,
+  "sourceCommit": "25bf84ab07f53f141c20239c63e383823a9d5ea0",
+  "patches": [
+    {
+      "file": "packages/client-runtime/src/authorization/service.ts",
+      "beforeSha256": "3a90b39889a8b6af94bcecfe0bef69217adbc80ede95f87f3b34970fb1f253ba",
+      "afterSha256": "12749b306d7e1564925d136dc8bdb653526dc88e621e9cf5b99e85eea3111021",
+      "from": "  /**\n   * A saved LAN address can belong to another machine on a different network.\n   */\n  const verifyDirectEndpoint = Effect.fn(\"clientRuntime.connection.remote.verifyDirectEndpoint\")(\n    function* (input: {\n      readonly expectedEnvironmentId: EnvironmentId;\n      readonly httpBaseUrl: string;\n      readonly connectionMethod: ClientConnectionMethod;\n    }) {\n      const descriptor = yield* fetchDescriptor(input.httpBaseUrl, input.connectionMethod).pipe(\n        Effect.provideService(HttpClient.HttpClient, httpClient),\n      );\n      if (descriptor.environmentId !== input.expectedEnvironmentId) {\n        return yield* environmentMismatchError({\n          expected: input.expectedEnvironmentId,\n          actual: descriptor.environmentId,\n        });\n      }\n      return descriptor;\n    },\n  );\n\n  const authorizeBearer = Effect.fn(\"clientRuntime.connection.remote.authorizeBearer\")(\n    function* (input: {\n      readonly expectedEnvironmentId: Parameters<\n        RemoteEnvironmentAuthorization[\"Service\"][\"authorizeBearer\"]\n      >[0][\"expectedEnvironmentId\"];\n      readonly httpBaseUrl: string;\n      readonly wsBaseUrl: string;\n      readonly bearerToken: string;\n      readonly connectionMethod: ClientConnectionMethod;\n    }) {\n      const descriptor = yield* verifyDirectEndpoint(input);\n      const socketUrl = yield* resolveRemoteWebSocketConnectionUrl({\n        wsBaseUrl: input.wsBaseUrl,\n        httpBaseUrl: input.httpBaseUrl,\n        bearerToken: input.bearerToken,\n        clientMetadata: presentation.metadata,\n        connectionMethod: input.connectionMethod,\n      }).pipe(\n        Effect.mapError(mapRemoteEnvironmentError),\n        Effect.provideService(HttpClient.HttpClient, httpClient),\n      );\n      return {\n        environmentId: descriptor.environmentId,\n        label: descriptor.label,\n        httpBaseUrl: input.httpBaseUrl,\n        socketUrl,\n        descriptor,\n        httpAuthorization: {\n          _tag: \"Bearer\" as const,\n          token: input.bearerToken,\n        },\n      };\n    },\n  );\n\n",
+      "to": "  const { verifyDirectEndpoint, authorizeBearer } = yield* makeBearerAuthorization;\n\n",
+      "semantics": "Reuse the original direct bearer implementation from both full relay and finite browser hosts."
+    },
+    {
+      "file": "packages/client-runtime/src/authorization/service.ts",
+      "beforeSha256": "12749b306d7e1564925d136dc8bdb653526dc88e621e9cf5b99e85eea3111021",
+      "afterSha256": "0e40f84c26b787975c3e725e2b68b487611c55d80e9ecebfd0887dd809d073bf",
+      "from": "export const make = Effect.gen",
+      "to": "/** Original bearer authorization without acquiring Clerk or relay services. */\nexport const makeBearerAuthorization = Effect.gen(function* () {\n  const presentation = yield* ClientCapabilities.ClientPresentation;\n  const httpClient = yield* HttpClient.HttpClient;\n  /**\n   * A saved LAN address can belong to another machine on a different network.\n   */\n  const verifyDirectEndpoint = Effect.fn(\"clientRuntime.connection.remote.verifyDirectEndpoint\")(\n    function* (input: {\n      readonly expectedEnvironmentId: EnvironmentId;\n      readonly httpBaseUrl: string;\n      readonly connectionMethod: ClientConnectionMethod;\n    }) {\n      const descriptor = yield* fetchDescriptor(input.httpBaseUrl, input.connectionMethod).pipe(\n        Effect.provideService(HttpClient.HttpClient, httpClient),\n      );\n      if (descriptor.environmentId !== input.expectedEnvironmentId) {\n        return yield* environmentMismatchError({\n          expected: input.expectedEnvironmentId,\n          actual: descriptor.environmentId,\n        });\n      }\n      return descriptor;\n    },\n  );\n\n  const authorizeBearer = Effect.fn(\"clientRuntime.connection.remote.authorizeBearer\")(\n    function* (input: {\n      readonly expectedEnvironmentId: Parameters<\n        RemoteEnvironmentAuthorization[\"Service\"][\"authorizeBearer\"]\n      >[0][\"expectedEnvironmentId\"];\n      readonly httpBaseUrl: string;\n      readonly wsBaseUrl: string;\n      readonly bearerToken: string;\n      readonly connectionMethod: ClientConnectionMethod;\n    }) {\n      const descriptor = yield* verifyDirectEndpoint(input);\n      const socketUrl = yield* resolveRemoteWebSocketConnectionUrl({\n        wsBaseUrl: input.wsBaseUrl,\n        httpBaseUrl: input.httpBaseUrl,\n        bearerToken: input.bearerToken,\n        clientMetadata: presentation.metadata,\n        connectionMethod: input.connectionMethod,\n      }).pipe(\n        Effect.mapError(mapRemoteEnvironmentError),\n        Effect.provideService(HttpClient.HttpClient, httpClient),\n      );\n      return {\n        environmentId: descriptor.environmentId,\n        label: descriptor.label,\n        httpBaseUrl: input.httpBaseUrl,\n        socketUrl,\n        descriptor,\n        httpAuthorization: {\n          _tag: \"Bearer\" as const,\n          token: input.bearerToken,\n        },\n      };\n    },\n  );\n\n  return { verifyDirectEndpoint, authorizeBearer };\n});\n\n/** A finite bearer host has no DPoP renewal capability; refusal never grants a fallback token. */\nexport const layerBearer = Layer.effect(RemoteEnvironmentAuthorization, Effect.gen(function* () {\n  const { authorizeBearer } = yield* makeBearerAuthorization;\n  const unavailable = () => Effect.fail(new ConnectionBlockedError({\n    reason: \"unsupported\", detail: \"This connection requires a new canonical admission.\",\n  }));\n  return RemoteEnvironmentAuthorization.of({ authorizeBearer,\n    authorizeDpop: unavailable, authorizeDpopHttp: unavailable, renewDpopBeforeExpiry: unavailable });\n}));\n\nexport const make = Effect.gen",
+      "semantics": "Expose the original bearer factory independently of cloud identity and relay token ownership."
+    },
+    {
+      "file": "packages/client-runtime/src/connection/resolver.ts",
+      "beforeSha256": "e2bb3f6c184a3e784ba64abe0a1d03f3517b2c28c27363b785222b50cf5ec2a8",
+      "afterSha256": "393fc89bbb8fa922ba954ee8338e635563cabe6da85a0eedca09582e862d83b8",
+      "from": "export const make = Effect.gen(function* () {\n  const primary = yield* makePrimaryBroker();\n  const bearer = yield* makeBearerBroker();\n  const relay = yield* makeRelayBroker();\n  const ssh = yield* makeSshBroker();",
+      "to": "const makeWithBrokers = (brokers: {\n  readonly primary: Effect.Success<ReturnType<typeof makePrimaryBroker>>;\n  readonly bearer: Effect.Success<ReturnType<typeof makeBearerBroker>>;\n  readonly relay: Effect.Success<ReturnType<typeof makeRelayBroker>>;\n  readonly ssh: Effect.Success<ReturnType<typeof makeSshBroker>>;\n}) => Effect.gen(function* () {\n  const { primary, bearer, relay, ssh } = brokers;",
+      "semantics": "Share original descriptor/protocol preparation between full and restricted bearer factories without widening required host services."
+    },
+    {
+      "file": "packages/client-runtime/src/connection/resolver.ts",
+      "beforeSha256": "393fc89bbb8fa922ba954ee8338e635563cabe6da85a0eedca09582e862d83b8",
+      "afterSha256": "df9965b7462c07d2a87c6e3e59fcf480110ab11bfd04a38b62513cb6ede4a43f",
+      "from": "export const layer = Layer.effect(ConnectionResolver, make);",
+      "to": "export const make = Effect.gen(function* () {\n  return yield* makeWithBrokers({ primary: yield* makePrimaryBroker(), bearer: yield* makeBearerBroker(),\n    relay: yield* makeRelayBroker(), ssh: yield* makeSshBroker() });\n});\nexport const makeBearer = Effect.gen(function* () {\n  const unavailable = (_target: unknown) => Effect.fail(new ConnectionBlockedError({\n    reason: \"unsupported\", detail: \"This host accepts only its admitted bearer connection.\",\n  }));\n  return yield* makeWithBrokers({ primary: unavailable, bearer: yield* makeBearerBroker(),\n    relay: unavailable, ssh: unavailable });\n});\nexport const layer = Layer.effect(ConnectionResolver, make);\nexport const layerBearer = Layer.effect(ConnectionResolver, makeBearer);",
+      "semantics": "Retain the full-host factory and expose a bearer factory with only actual required services."
+    },
+    {
+      "id": "host-protocol-send-types",
+      "file": "packages/client-runtime/src/rpc/session.ts",
+      "from": "send: (clientId, request, transferables) =>\n            request._tag !== \"Request\" && Deferred.isDoneUnsafe(disconnected)\n              ? Effect.void\n              : protocol.send(clientId, request, transferables),",
+      "to": "send: (...args: Parameters<typeof protocol.send>) =>\n            args[1]._tag !== \"Request\" && Deferred.isDoneUnsafe(disconnected)\n              ? Effect.void\n              : protocol.send(...args),",
+      "semantics": "Keep the exact original protocol signature while preserving disconnected teardown behavior.",
+      "beforeSha256": "c71fc43eb268e757194ff06b82ae36dcdda8a176581da7a6566877e55650483c",
+      "afterSha256": "15c0b59ce2a4c1975ca64bddc229f7e445dff3df237ac9d3892fce6ad1b55321"
+    },
+    {
+      "id": "host-http-client-named-type",
+      "file": "packages/client-runtime/src/rpc/http.ts",
+      "from": "export const makeEnvironmentHttpApiClient = (httpBaseUrl: string) =>",
+      "to": "type EnvironmentHttpGroups = (typeof EnvironmentHttpApi.groups)[keyof typeof EnvironmentHttpApi.groups];\ntype EnvironmentHttpGroup<Group extends keyof typeof EnvironmentHttpApi.groups> =\n  HttpApiGroup.WithIdentifier<EnvironmentHttpGroups, Group>;\nexport const makeEnvironmentHttpApiClient = (httpBaseUrl: string):\n  Effect.Effect<HttpApiClient.ForApi<typeof EnvironmentHttpApi>, never,\n    HttpClient.HttpClient | HttpApiGroup.MiddlewareClient<EnvironmentHttpGroups>> =>",
+      "semantics": "Name the original Effect HTTP API client type for portable strict declarations.",
+      "beforeSha256": "8bd7c9d782d3447d0b9ff838d7f3ee9b80d870c7fe1e90ff4567526191e987c8",
+      "afterSha256": "8296fe79db88e31ec531e8ed93d4436dea1d1a264301ef58ba540b33b0c41401"
+    },
+    {
+      "id": "host-http-group-named-type",
+      "file": "packages/client-runtime/src/rpc/http.ts",
+      "from": "  group: Group,\n) =>\n  Effect.flatMap(HttpClient.HttpClient, (httpClient) =>",
+      "to": "  group: Group,\n): Effect.Effect<HttpApiClient.Client.Group<EnvironmentHttpGroup<Group>,\n  HttpClientError.HttpClientError, never>, never,\n  HttpClient.HttpClient | HttpApiGroup.MiddlewareClient<EnvironmentHttpGroup<Group>>> =>\n  Effect.flatMap(HttpClient.HttpClient, (httpClient) =>",
+      "semantics": "Preserve the selected original group and its codecs without expanding a replacement DTO.",
+      "beforeSha256": "8296fe79db88e31ec531e8ed93d4436dea1d1a264301ef58ba540b33b0c41401",
+      "afterSha256": "0d338257102245ee1197751d504db5416cee96bdb4bcb17797acc6efd19ffe3f"
+    },
+    {
+      "id": "host-http-group-type-import",
+      "file": "packages/client-runtime/src/rpc/http.ts",
+      "from": "import * as HttpApiClient from \"effect/http-api/HttpApiClient\";",
+      "to": "import * as HttpApiClient from \"effect/http-api/HttpApiClient\";\nimport type * as HttpApiGroup from \"effect/http-api/HttpApiGroup\";",
+      "semantics": "Use Effect original group and middleware types for strict declaration annotation.",
+      "beforeSha256": "0d338257102245ee1197751d504db5416cee96bdb4bcb17797acc6efd19ffe3f",
+      "afterSha256": "6456fd30bbdd83702615c95e1c09d9a955012912fe8388c5a708ff94006cc791"
+    },
+    {
+      "id": "host-rpc-client-named-type",
+      "file": "packages/client-runtime/src/rpc/protocol.ts",
+      "from": "export const makeWsRpcProtocolClient = RpcClient.make(WsRpcGroup);",
+      "to": "import type * as RpcGroup from \"effect/rpc/RpcGroup\";\nexport const makeWsRpcProtocolClient:\n  ReturnType<typeof RpcClient.make<RpcGroup.Rpcs<typeof WsRpcGroup>>> = RpcClient.make(WsRpcGroup);",
+      "semantics": "Keep the exact original RPC group factory type in strict declarations.",
+      "beforeSha256": "8ad7ff83e20ae6e0d98367da9fdb100b35e7be75cb082957f47009e305c5a4c2",
+      "afterSha256": "01ef1a673bf317fb97ad2175738c4b543eaf81fdb910e181221ec46e5278953f"
+    },
+    {
+      "id": "host-http-request-named-types",
+      "file": "packages/client-runtime/src/state/environmentHttpAuth.ts",
+      "from": "const executeEnvironmentRequest = Effect.fnUntraced(function* <\n  Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1],\n  A,\n  E,\n  R,\n>(input: {\n  readonly prepared: PreparedConnection;\n  readonly signer: Option.Option<ManagedRelay.ManagedRelayDpopSigner[\"Service\"]>;\n  readonly remoteAuthorization?: Option.Option<\n    RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization[\"Service\"]\n  >;\n  readonly method: HttpMethod.HttpMethod;\n  /**\n   * The URL to sign, from the group's contract URL builder. It encodes path\n   * params exactly like the request client, so the DPoP proof matches the\n   * URL actually sent.\n   */\n  readonly url: (urls: ReturnType<typeof makeEnvironmentHttpApiUrlBuilder>[Group]) => string;\n  readonly timeoutMs: number;\n  /** Extra fetch options, such as refusing redirects for credentialed audio uploads. */\n  readonly requestInit?: RequestInit;\n  readonly group: Group;\n  readonly request: (input: {\n    readonly client: Effect.Success<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>>;\n    readonly headers: EnvironmentHttpAuthHeaders;\n  }) => Effect.Effect<A, E, R>;\n  /** Some endpoints report rejected credentials in a successful response. */\n  readonly isUnauthorizedResponse?: (response: NoInfer<A>) => boolean;\n})",
+      "to": "type EnvironmentRequestInput<Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R> = {\n  readonly prepared: PreparedConnection;\n  readonly signer: Option.Option<ManagedRelay.ManagedRelayDpopSigner[\"Service\"]>;\n  readonly remoteAuthorization?: Option.Option<\n    RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization[\"Service\"]\n  >;\n  readonly method: HttpMethod.HttpMethod;\n  /**\n   * The URL to sign, from the group's contract URL builder. It encodes path\n   * params exactly like the request client, so the DPoP proof matches the\n   * URL actually sent.\n   */\n  readonly url: (urls: ReturnType<typeof makeEnvironmentHttpApiUrlBuilder>[Group]) => string;\n  readonly timeoutMs: number;\n  /** Extra fetch options, such as refusing redirects for credentialed audio uploads. */\n  readonly requestInit?: RequestInit;\n  readonly group: Group;\n  readonly request: (input: {\n    readonly client: Effect.Success<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>>;\n    readonly headers: EnvironmentHttpAuthHeaders;\n  }) => Effect.Effect<A, E, R>;\n  /** Some endpoints report rejected credentials in a successful response. */\n  readonly isUnauthorizedResponse?: (response: NoInfer<A>) => boolean;\n};\n\nconst executeEnvironmentRequest: <Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R>(input: EnvironmentRequestInput<Group, A, E, R>) =>\n  Effect.Effect<A, RemoteEnvironmentRequestError,\n    Effect.Services<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>> | R> =\n  Effect.fnUntraced(function* <Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R>(input: EnvironmentRequestInput<Group, A, E, R>)",
+      "semantics": "Name the unchanged original request input and generic Effect signature for declaration emit.",
+      "beforeSha256": "e7628eea59f045391ae34096b0c6c1c443f403b72a37cab6a525d2c9c582e655",
+      "afterSha256": "c3cb35dfecdff5bc26a53c424a1458cab2d5fe9aae9abefd3ac47aadf2b5905f"
+    },
+    {
+      "id": "host-http-authenticated-return-type",
+      "file": "packages/client-runtime/src/state/environmentHttpAuth.ts",
+      "from": "  input: Parameters<typeof executeEnvironmentRequest<Group, A, E, R>>[0],\n) =>",
+      "to": "  input: Parameters<typeof executeEnvironmentRequest<Group, A, E, R>>[0],\n): ReturnType<typeof executeEnvironmentRequest<Group, A, E, R>> =>",
+      "semantics": "Preserve the original authenticated HTTP request return type by reference.",
+      "beforeSha256": "c3cb35dfecdff5bc26a53c424a1458cab2d5fe9aae9abefd3ac47aadf2b5905f",
+      "afterSha256": "67f445ba0dab84ecf6ee212e38546d9e1f0a82b4cff303bebe8f47380aae35d3"
+    },
+    {
+      "id": "host-http-connected-return-type",
+      "file": "packages/client-runtime/src/state/environmentHttpAuth.ts",
+      "from": "  >,\n) {\n  const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;",
+      "to": "  >,\n): Effect.fn.Return<A, RemoteEnvironmentRequestError,\n  EnvironmentSupervisor.EnvironmentSupervisor\n    | Effect.Services<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>> | R> {\n  const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;",
+      "semantics": "Keep the supervised HTTP operation services explicit without widening its authority.",
+      "beforeSha256": "67f445ba0dab84ecf6ee212e38546d9e1f0a82b4cff303bebe8f47380aae35d3",
+      "afterSha256": "25142b95f4d4395fbbea872a61049f5d04cf4735243d01741b5cdc8ee5dd2661"
+    },
+    {
+      "id": "host-http-connected-function-type",
+      "file": "packages/client-runtime/src/state/environmentHttpAuth.ts",
+      "from": "export const executeConnectedEnvironmentHttpRequest = Effect.fn(",
+      "to": "export const executeConnectedEnvironmentHttpRequest: <\n  Group extends Parameters<typeof makeEnvironmentHttpApiGroupClient>[1], A, E, R\n>(input: Omit<EnvironmentRequestInput<Group, A, E, R>,\n  \"prepared\" | \"signer\" | \"remoteAuthorization\">) =>\n  Effect.Effect<A, RemoteEnvironmentRequestError, EnvironmentSupervisor.EnvironmentSupervisor\n    | Effect.Services<ReturnType<typeof makeEnvironmentHttpApiGroupClient<Group>>> | R> = Effect.fn(",
+      "semantics": "Retain the original generic supervised request signature in emitted declarations.",
+      "beforeSha256": "25142b95f4d4395fbbea872a61049f5d04cf4735243d01741b5cdc8ee5dd2661",
+      "afterSha256": "d29825b2d6c9b8b97b5ae640012a3bf0288398d6c6c549a50d45de25436bc102"
+    }
+  ]
+}

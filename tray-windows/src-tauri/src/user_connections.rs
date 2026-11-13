@@ -2,7 +2,7 @@
 //! Existing Windows service connections still use their authenticated control pipe.
 use std::{
     collections::BTreeMap, fs, path::{Path, PathBuf}, process::{Child, ChildStdin, Stdio},
-    sync::{Mutex, OnceLock}, time::{Duration, Instant},
+    sync::{Arc, Mutex, OnceLock}, time::{Duration, Instant}, io::Write,
 };
 use nessie_windows_common::{
     failure::{classify, retriable, Failure, StderrTail, ALREADY_RUNNING}, lease::unowned_daemon_is_stopping,
@@ -14,7 +14,8 @@ use crate::{pipe_client::ServiceResponse, state::{Connection, ExecutorStatus}, u
 /// A daemon this app started. Its liveness pipe is taken only when the person
 /// stops it, so a daemon that has exited with the pipe still held stopped on
 /// its own, and the last line it wrote to standard error says why.
-struct Daemon { child: Child, liveness: Option<ChildStdin>, started_at: Instant, stderr: StderrTail }
+struct Daemon { child: Child, liveness: Option<ChildStdin>, started_at: Instant,
+    retained: Arc<crate::retained_parent::Replies>, retained_writable: bool, stderr: StderrTail }
 #[derive(Default)]
 struct Connections {
     daemons: BTreeMap<String, Daemon>,
@@ -187,12 +188,13 @@ impl Connections {
         let path = state_dir.display().to_string();
         // serve claims its own connection. Never block the tray's controller
         // on a preliminary network request while the user is signing in.
-        let mut child = user_runtime::command()?.args(["serve", "--parent-liveness-stdin", "--state-dir", &path])
-            .stdin(Stdio::piped()).stderr(Stdio::piped()).spawn()
-            .map_err(|_| "Could not start this team's connection.")?;
+        let mut child = user_runtime::command()?.args(["serve", "--parent-liveness-stdin", "--parent-retained-stdio", "--state-dir", &path])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().map_err(|_| "Could not start the executor daemon.")?;
         let liveness = child.stdin.take();
+        let retained_writable = liveness.as_ref().is_some_and(crate::retained_parent::prepare_input);
+        let retained = crate::retained_parent::Replies::read(child.stdout.take().ok_or("Could not read the executor.")?);
         let stderr = child.stderr.take().map(StderrTail::watch).unwrap_or_default();
-        self.daemons.insert(id.into(), Daemon { child, liveness, started_at: Instant::now(), stderr });
+        self.daemons.insert(id.into(), Daemon { child, liveness, started_at: Instant::now(), retained, retained_writable, stderr });
         self.failures.remove(id);
         self.elsewhere.remove(id);
         self.restart_at.remove(id);
@@ -403,6 +405,68 @@ pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
 /// The state folders of the teams this account holds, for the one call that names them all.
 pub fn state_dirs() -> Vec<PathBuf> {
     ids().unwrap_or_default().iter().filter_map(|id| directory(id).ok()).collect()
+}
+
+/// Only this tray's actual managed child receives a native approval snapshot.
+/// Running elsewhere/service-owned daemons are refused, never replaced or adopted.
+pub(crate) fn retained_ready(executor: &str) -> Result<(), String> {
+    let mut connections = CONNECTIONS.get_or_init(||Mutex::new(Connections::default())).lock()
+        .map_err(|_|"retained_import_handoff_unavailable")?;
+    let daemon = connections.daemons.get_mut(executor).ok_or("retained_import_owned_daemon_required")?;
+    if daemon.liveness.is_none() || !daemon.retained_writable || !daemon.retained.available()
+        || daemon.child.try_wait().map_err(|_|"retained_import_handoff_unavailable")?.is_some() {
+        return Err("retained_import_owned_daemon_required".into());
+    }
+    Ok(())
+}
+
+pub(crate) fn retained_begin(executor: &str, snapshot: &serde_json::Value) -> Result<serde_json::Value, String> {
+    let (id, frame) = crate::retained_parent::begin_frame(snapshot)?;
+    if snapshot["challenge"]["executorId"] != executor {return Err("retained_import_executor_mismatch".into());}
+    let replies = {
+        let mut connections = CONNECTIONS.get_or_init(||Mutex::new(Connections::default())).lock()
+            .map_err(|_|"retained_import_handoff_unavailable")?;
+        let daemon = connections.daemons.get_mut(executor).ok_or("retained_import_owned_daemon_required")?;
+        if !daemon.retained_writable || daemon.child.try_wait().map_err(|_|"retained_import_handoff_unavailable")?.is_some() {
+            return Err("retained_import_owned_daemon_required".into());
+        }
+        let pipe = daemon.liveness.as_mut().ok_or("retained_import_handoff_unavailable")?;
+        daemon.retained.reserve(&id)?;
+        if pipe.write_all(&frame).is_err() {
+            // A partial frame has an uncertain outcome; EOF retires this channel.
+            // Do not send another frame into its suffix or release native consent.
+            daemon.liveness.take();
+            return Err("retained_import_handoff_outcome_unknown".into());
+        }
+        daemon.retained.clone()
+    };
+    replies.received(&id)
+}
+
+pub(crate) fn retained_cancel(executor: &str, id: &str) -> Result<(), String> {
+    let replies = {
+    let mut connections = CONNECTIONS.get_or_init(||Mutex::new(Connections::default())).lock()
+        .map_err(|_|"retained_import_handoff_unavailable")?;
+    let daemon = connections.daemons.get_mut(executor).ok_or("retained_import_owned_daemon_required")?;
+    if !daemon.retained_writable {return Err("retained_import_handoff_unavailable".into());}
+    let pipe = daemon.liveness.as_mut().ok_or("retained_import_handoff_unavailable")?;
+    if daemon.retained.cancel(id)? {
+        let mut frame = serde_json::to_vec(&serde_json::json!({"version":1,"operation":"retained-import.cancel","challengeId":id}))
+            .map_err(|_|"retained_import_handoff_unavailable")?;
+        frame.push(b'\n');
+        if pipe.write_all(&frame).is_err() {
+            daemon.liveness.take();
+            return Err("retained_import_handoff_outcome_unknown".into());
+        }
+    }
+    daemon.retained.clone()
+    };
+    replies.closed(id)?;
+    Ok(())
+}
+
+pub(crate) fn retained_status(executor: &str, id: &str) -> Option<String> {
+    CONNECTIONS.get()?.lock().ok()?.daemons.get(executor)?.retained.status(id)
 }
 
 pub fn start_paired() {

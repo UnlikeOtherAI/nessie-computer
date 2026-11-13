@@ -1,0 +1,88 @@
+{
+  "name": "@nessie/t3-session-source",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "FSL-1.1-ALv2",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "exports": {
+    "./engine": {
+      "types": "./dist/engine-types/index.d.ts",
+      "default": "./dist/engine.js"
+    },
+    "./engine/provenance": "./dist/engine.provenance.json",
+    "./contracts": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/contracts.js"
+    },
+    "./provenance": "./dist/provenance.json",
+    "./build": "./dist/build/input.mjs",
+    "./contracts/settings": {
+      "types": "./dist/types/settings.d.ts",
+      "default": "./dist/settings.js"
+    },
+    "./contracts/relay": {
+      "types": "./dist/types/relay.d.ts",
+      "default": "./dist/relay.js"
+    },
+    "./routes": "./dist/routes.json",
+    "./command-inventory": "./dist/command-inventory.json",
+    "./client": {
+      "types": "./dist/engine-types/client.d.ts",
+      "default": "./dist/client.js"
+    },
+    "./claude-sdk": {
+      "types": "./dist/claude-sdk/runtime.d.ts",
+      "default": "./dist/claude-sdk/runtime.js"
+    }
+  },
+  "scripts": {
+    "prepare:engine": "node prepare.mjs && pnpm --dir ../../packaging/session-engine install --frozen-lockfile --ignore-workspace --ignore-scripts --ignore-pnpmfile --child-concurrency=1 --network-concurrency=1",
+    "build": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs",
+    "typecheck": "pnpm run prepare:engine && node --max-old-space-size=5120 build.mjs --check",
+    "lint": "node --check build.mjs && node --check publish.mjs && node --check input.mjs && node --check cache.mjs && node --check routes.mjs && node --check inventory.mjs && node --check prepare.mjs",
+    "test": "node --test --test-concurrency=1 test/*.test.mjs test/engine/*.test.mjs test/client/*.test.mjs test/claude-sdk/*.test.mjs",
+    "test:t3-session-engine": "node --test --test-concurrency=1 test/engine/*.test.mjs",
+    "test:t3-session-engine-browser": "node test/engine/browser.mjs",
+    "test:t3-session-source": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test:t3-session-declarations": "node --max-old-space-size=512 test/declarations/reproduce.mjs",
+    "test:t3-session-client": "node --max-old-space-size=512 --test --test-concurrency=1 test/client/*.test.mjs",
+    "test:t3-session-claude-sdk": "node --max-old-space-size=512 --test --test-concurrency=1 test/claude-sdk/*.test.mjs"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.1.2",
+    "@effect/platform-node-shared": "4.1.2",
+    "effect": "4.1.2",
+    "diff": "8.0.3",
+    "yaml": "2.9.0",
+    "mdast-util-directive": "3.1.0",
+    "micromark-extension-directive": "4.0.0",
+    "micromark-util-character": "2.1.1",
+    "property-information": "7.2.0",
+    "rehype-raw": "7.0.0",
+    "rehype-sanitize": "6.0.0",
+    "remark-breaks": "4.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0",
+    "remark-parse": "11.0.0",
+    "remark-rehype": "11.1.2",
+    "unified": "11.0.5",
+    "@types/mdast": "4.0.4",
+    "micromark-util-types": "2.0.2",
+    "@noble/hashes": "1.8.0",
+    "@anthropic-ai/claude-agent-sdk": "0.3.316",
+    "@anthropic-ai/sdk": "0.93.0",
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "typescript": "5.9.3",
+    "@types/node": "24.12.4"
+  },
+  "files": [
+    "dist"
+  ]
+}

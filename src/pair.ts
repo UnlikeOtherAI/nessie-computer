@@ -6,6 +6,7 @@ import {
   type KeyObject,
   sign,
 } from 'node:crypto'
+import { parseT3Homes } from './t3-session/source/configuration.js'
 
 import {
   canonicalExecutorJson,
@@ -293,6 +294,7 @@ export const configureExecutorLocalPolicy = async (
   await bridge.persist(operationKeys)
   const next: ExecutorLocalState = {
     ...state,
+    ...(settings.t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(settings.t3SourceHomes) }),
     ...(settings.allowedOrigins === undefined ? {} : websitesFor(state, settings.allowedOrigins)),
     commandPolicy: localRules,
     ...(settings.mcpPolicy || state.mcpPolicy ? { mcpPolicy } : {}),

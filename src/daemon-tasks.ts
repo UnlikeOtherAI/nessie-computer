@@ -27,6 +27,8 @@ export const waitForExecutorDaemonShutdown = async (
   for (const signal of SHUTDOWN_SIGNALS) process.once(signal, stop)
   void updateReady?.then(stop)
   if (parentLiveness) {
+    // The retained handoff can consume EOF before these listeners are installed.
+    if (parentLiveness.destroyed || parentLiveness.readableEnded) { stop(); return }
     parentLiveness.once('close', stop)
     parentLiveness.once('end', stop)
     parentLiveness.once('error', stop)

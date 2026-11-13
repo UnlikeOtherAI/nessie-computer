@@ -48,6 +48,8 @@ mod state;
 mod sync_status;
 mod team_names;
 mod update_controls;
+mod retained_import;
+mod retained_parent;
 mod user_connections;
 mod user_owner;
 mod user_runtime;
@@ -296,6 +298,9 @@ fn main() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            retained_import::executor_retained_status,
+            retained_import::executor_retained_action,
+            retained_import::executor_retained_snapshot,
             update_controls::executor_update_control,
             console_commands::executor_console_describe,
             console_commands::executor_configure,

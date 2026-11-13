@@ -1,4 +1,5 @@
 import type { Readable } from 'node:stream'
+import { parseT3Homes, type ConfiguredT3Home } from './t3-session/source/configuration.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from './command-policy.js'
 
 import { compileExecutorEgressPolicy } from './egress-policy.js'
@@ -44,6 +45,7 @@ export type ExecutorConfigurationInput = ExecutorConfigurationSettings & {
  * policy finds this computer's servers; the real discovery when omitted.
  */
 export type ExecutorConfigurationSettings = {
+  t3SourceHomes?: readonly ConfiguredT3Home[]
   mcpPolicy?: LocalMcpPolicy
   /** HTTPS origins the guest browser may open; `[]` is no websites. */
   allowedOrigins?: string[]
@@ -129,6 +131,7 @@ export const parseConfigurationInput = (text: string): ExecutorConfigurationInpu
     return malformed()
   }
   return {
+    ...(input.t3SourceHomes === undefined ? {} : { t3SourceHomes: parseT3Homes(input.t3SourceHomes) }),
     ...(input.commandPolicy === undefined ? {} : { commandPolicy: parseLocalCommandPolicy(input.commandPolicy) }),
     ...(input.existingCodingSessionsEnabled === undefined ? {}
       : { existingCodingSessionsEnabled: input.existingCodingSessionsEnabled as boolean }),

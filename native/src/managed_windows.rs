@@ -211,6 +211,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                 job_name: name,
                 release_digest: release.digest.clone(),
                 kind: match (own.session, arguments.first().map(String::as_str)) {
+                    (_, Some("t3-session-runtime")) => RuntimeKind::T3SessionGraph,
                     (0, Some("personal-chatgpt-service")) => RuntimeKind::MachineAttestation,
                     (0, Some("serve")) => RuntimeKind::ServiceDaemon,
                     (

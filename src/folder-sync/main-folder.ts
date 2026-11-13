@@ -36,4 +36,3 @@ export const suggestedMainFolder = async (stateDir: string, home = homedir()): P
   chosen.sort((a, b) => a.since.localeCompare(b.since))
   return chosen[0]?.root ?? defaultFolderSyncRoot(home)
 }
-

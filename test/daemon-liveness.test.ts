@@ -18,6 +18,16 @@ test('a desktop parent-liveness pipe stops the daemon when its parent closes', a
   assert.equal(parentLiveness.readableEnded, true)
 })
 
+test('parent EOF consumed during retained handoff startup still stops the daemon', async () => {
+  const parent = new PassThrough()
+  const ended = once(parent, 'end')
+  parent.resume()
+  parent.end()
+  await ended
+  await waitForExecutorDaemonShutdown(parent)
+  assert.equal(parent.destroyed, true)
+});
+
 // The Windows installer asks a daemon it did not start (a scheduled task's, a
 // terminal's) to stop with Ctrl+Break before it replaces the files.
 test('Ctrl+Break stops the daemon as gracefully as a signal and leaves no listener behind', async () => {

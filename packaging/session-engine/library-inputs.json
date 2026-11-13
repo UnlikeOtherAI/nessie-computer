@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "entryPoint": "packaging/session-engine/core/Engine.ts",
+  "contractsCommit": "4dbabb20e42ce9b6c8381f64d3e80d43bde912aa",
+  "contractsInputSha256": "bff917e9ce29b6023c3c756ee395672b17545d7d5825a5321a264790f6a37c5e",
+  "authoredInputs": [
+    "packaging/session-engine/core/Control.ts",
+    "packaging/session-engine/core/Engine.ts",
+    "packaging/session-engine/core/EngineGraph.ts",
+    "packaging/session-engine/core/EngineLayers.ts",
+    "packaging/session-engine/core/ProviderHostLayers.ts",
+    "packaging/session-engine/core/FileLayers.ts",
+    "packaging/session-engine/core/ReadLayers.ts",
+    "packaging/session-engine/core/Client.ts",
+    "packaging/session-engine/core/ResourceLayers.ts",
+    "packaging/session-engine/core/RuntimeLayers.ts",
+    "packaging/session-engine/core/SessionLifecycle.ts",
+    "packaging/session-engine/core/SessionLifecycleAuthority.ts",
+    "packaging/session-engine/core/Serialization.ts",
+    "packaging/session-engine/core/StateDirectoryLock.ts",
+    "packaging/session-engine/core/StateLayers.ts",
+    "src/t3-session/requests/validate.ts",
+    "patches/t3-session/workspace/Engine.ts",
+    "patches/t3-session/client-connection/browser-thread-host.ts",
+    "patches/t3-session/client-connection/browser-host-layers.ts",
+    "patches/t3-session/client-connection/browser-cache.ts",
+    "patches/t3-session/client-connection/browser-data.ts"
+  ],
+  "privacyCommit": "da542bbc58a33ec96e7c555b6fd8779e78f92d81",
+  "privacyManifestSha256": "1db80f24caab892d5f5b7d9a342e24fcaf606866ea4e45de0a09c801a723b827",
+  "clientEntryPoint": "packaging/session-engine/core/Client.ts",
+  "clientAuthoredInputs": [
+    "packaging/session-engine/core/Client.ts",
+    "patches/t3-session/client-connection/browser-thread-host.ts",
+    "patches/t3-session/client-connection/browser-host-layers.ts",
+    "patches/t3-session/client-connection/browser-cache.ts",
+    "patches/t3-session/client-connection/browser-data.ts"
+  ]
+}

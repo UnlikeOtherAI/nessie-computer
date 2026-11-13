@@ -1,4 +1,8 @@
+import { effectTransport } from './effect-transport.js'
+import { createAgentProcessInput } from './agent-process-input.js'
+import type { SessionEffectAuthority } from './session-effect-authority.js'
 import { createWriteStream } from 'node:fs'
+import { basename } from 'node:path'
 import type { ChildProcess } from 'node:child_process'
 import { createInterface } from 'node:readline'
 
@@ -10,6 +14,9 @@ import type { CodingEventBody, CodingProcessIdentity, CodingSessionState } from 
 import type { PersonalInferenceAuthority } from '@nessie/executor-protocol'
 import type { SessionRequestBook } from './session-request-book.js'
 import type { SessionSecretServer } from './session-secret-server.js'
+import { createAgentByteTransport, type AgentByteProcess } from './agent-byte-transport.js'
+import { createCodingProcessControl, packagedJobHelper } from './process-control.js'
+import { isT3EffectScope } from './session-effect-scope.js'
 
 /**
  * What both agent drivers share: the context a host gives them, and one
@@ -43,11 +50,11 @@ export type AgentDriverContext = {
 
 export type AgentDriver = {
   /** The first message starts (or resumes) the agent; later ones follow up. */
-  send: (text: string, uuid: string) => Promise<void>
+  send: (text: string, uuid: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Stops the running turn; `reason` becomes the interrupted status's reason. */
-  interrupt: (reason?: string) => Promise<void>
+  interrupt: (reason?: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Ends the agent and every process under it; the session is closed, `reason` its closed status's reason. */
-  close: (reason?: string) => Promise<void>
+  close: (reason?: string, effect?: SessionEffectAuthority) => Promise<void>
   /** Ends the agent process only; the session stays resumable. */
   endIdle: () => Promise<void>
   running: () => boolean
@@ -59,13 +66,29 @@ export class AgentStartError extends Error {
   constructor(readonly reason: string) { super(reason) }
 }
 
+/** The caller must retain this identity as stop debt; process exit alone cannot clear it. */
+export class AgentProcessStopUnproved extends AgentStartError {
+  constructor(readonly identity?: CodingProcessIdentity, readonly spawnedPid?: number) { super('provider_stop_unproved') }
+}
+
+export type AgentProcessExit = { code: number | null; clearance: 'stopped' | 'unknown' }
+
 export type AgentProcess = {
   identity: CodingProcessIdentity
-  write: (text: string) => void
-  endInput: () => void
+  write: (text: string, effect?: SessionEffectAuthority) => Promise<void>
+  writeProtocol: (text: string) => Promise<void>
+  endInput: (effect?: SessionEffectAuthority) => Promise<void>
   exited: Promise<{ code: number | null }>
   alive: () => boolean
   stderrTail: () => string[]
+}
+
+/** Protected byte transports retain positive containment proof separately from ordinary session lifecycle. */
+export type OwnedAgentProcess = Omit<AgentProcess, 'exited'> & {
+  confirmHostExecutionStopped: (
+    snapshot?: readonly CodingProcessIdentity[], effect?: SessionEffectAuthority,
+  ) => Promise<boolean>
+  exited: Promise<AgentProcessExit>
 }
 
 const STDERR_LOG_BYTES = 1024 * 1024
@@ -90,28 +113,78 @@ export const agentFailureReason = (lines: readonly string[]): string => {
   return 'agent_exited'
 }
 
+export type AgentProcessContext = Pick<AgentDriverContext,
+  'control' | 'env' | 'folder' | 'paths' | 'log'>
+
 export const startAgentProcess = async (
-  context: Pick<AgentDriverContext, 'control' | 'env' | 'folder' | 'paths' | 'log'>,
+  context: AgentProcessContext,
   argv: readonly string[],
   onLine: (line: string) => void,
+  effect?: SessionEffectAuthority,
 ): Promise<AgentProcess> => {
+  if (effect && isT3EffectScope(effect.scope)) throw new AgentStartError('t3_provider_requires_byte_transport')
+  const { child: _child, rawExit: _rawExit, closed: _closed, confirmHostExecutionStopped: _proof, exited, ...agent } =
+    await startOwnedAgentProcess(context, argv, onLine, effect)
+  return { ...agent, exited: exited.then(({ code }) => ({ code })) }
+}
+
+/** Original SDK byte hooks use only the protected creator, never a raw spawn port. */
+export const startAgentByteProcess = async (
+  context: Omit<AgentProcessContext, 'control'>, argv: readonly string[], effect: SessionEffectAuthority,
+): Promise<AgentByteProcess> => {
+  const scope = effect.scope
+  if (process.platform !== 'win32' || process.env.NESSIE_EXECUTOR_PACKAGED_CLI !== '1'
+    || basename(process.execPath).toLowerCase() !== 'nessie-executor-runtime.exe'
+    || !isT3EffectScope(scope)) throw new AgentStartError('protected_provider_transport_unavailable')
+  const helper = packagedJobHelper()
+  if (!helper) throw new AgentStartError('protected_provider_transport_unavailable')
+  const control = createCodingProcessControl('win32', { jobHelper: helper, packaged: true })
+  const owned = await startOwnedAgentProcess({ ...context, control }, argv, undefined, effect)
+  try {
+    if (!effectTransport(owned.child)) throw new AgentStartError('protected_provider_transport_unavailable')
+    return createAgentByteTransport(owned, scope)
+  } catch (error) {
+    if (!await owned.confirmHostExecutionStopped().catch(() => false)) {
+      throw new AgentProcessStopUnproved(owned.identity)
+    }
+    throw error
+  }
+}
+
+const startOwnedAgentProcess = async (
+  context: AgentProcessContext, argv: readonly string[], onLine: ((line: string) => void) | undefined,
+  effect?: SessionEffectAuthority,
+): Promise<OwnedAgentProcess & {
+  child: ChildProcess; rawExit: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+  closed: Promise<void> }> => {
   if (context.control.refusal) throw new AgentStartError(context.control.refusal)
+  if (!onLine && !context.control.stopTree) throw new AgentProcessStopUnproved()
   await rotateLogIfLarge(context.paths.agentStderr, STDERR_LOG_BYTES)
-  const child: ChildProcess = context.control.spawnAgent(argv[0]!, argv.slice(1),
-    { cwd: context.folder, env: context.env })
+  await effect?.consume()
+  effect?.assertLive()
+  const child: ChildProcess = context.control.spawnAgent(argv[0]!, argv.slice(1), {
+    cwd: context.folder, env: context.env, ...(effect ? { sessionEffect: effect } : {}) })
   const spawned = await new Promise<boolean>((settle) => {
     child.once('spawn', () => settle(true))
     child.once('error', () => settle(false))
   })
-  if (!spawned || child.pid === undefined) throw new AgentStartError('agent_missing')
+  if (!spawned || child.pid === undefined) {
+    if (child.pid !== undefined) throw new AgentProcessStopUnproved(undefined, child.pid)
+    throw new AgentStartError('agent_missing')
+  }
   let done = false
+  const rawExit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => {
+    child.once('exit', (code, signal) => resolve({ code, signal }))
+  })
+  const closed = new Promise<void>(resolve => child.once('close', () => resolve()))
   // `close` means stdout has been read to the end, so the turn's last line is
   // parsed first. A descendant still holding the pipe would delay it forever,
   // so a second after `exit` is enough.
   const ended = new Promise<{ code: number | null }>((settle) => {
     child.once('exit', (code) => {
       done = true
-      setTimeout(() => settle({ code }), 1_000).unref()
+      if (onLine) setTimeout(() => settle({ code }), 1_000).unref()
+      else settle({ code }) // Byte streams drain independently, without a truncating timer.
     })
     child.once('close', (code) => {
       done = true
@@ -119,34 +192,62 @@ export const startAgentProcess = async (
     })
   })
   const tail: string[] = []
-  const log = createWriteStream(context.paths.agentStderr, { flags: 'a', mode: 0o600 })
-  let logged = 0
-  log.on('error', () => undefined)
-  child.stderr?.on('data', (chunk: Buffer) => {
-    if (logged < STDERR_LOG_BYTES) {
-      logged += chunk.byteLength
-      log.write(chunk)
-    }
-    for (const line of chunk.toString('utf8').split(/\r?\n/u)) {
-      if (!line.trim()) continue
-      tail.push(line.slice(0, 500))
-      if (tail.length > STDERR_TAIL_LINES) tail.shift()
-    }
-  })
-  void ended.then(() => log.end())
+  if (onLine) {
+    const log = createWriteStream(context.paths.agentStderr, { flags: 'a', mode: 0o600 })
+    let logged = 0
+    log.on('error', () => undefined)
+    child.stderr?.on('data', (chunk: Buffer) => {
+      if (logged < STDERR_LOG_BYTES) {
+        logged += chunk.byteLength
+        log.write(chunk)
+      }
+      for (const line of chunk.toString('utf8').split(/\r?\n/u)) {
+        if (!line.trim()) continue
+        tail.push(line.slice(0, 500))
+        if (tail.length > STDERR_TAIL_LINES) tail.shift()
+      }
+    })
+    void ended.then(() => log.end())
+  }
   child.stdin?.on('error', () => undefined)
-  if (child.stdout) createInterface({ input: child.stdout }).on('line', onLine)
+  if (child.stdout && onLine) createInterface({ input: child.stdout }).on('line', onLine)
   // Through the agent guard this is the agent's own identity, which the guard reports; otherwise the child's.
-  const identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid))
+  let identity: CodingProcessIdentity | undefined
+  try { identity = await (context.control.identifySpawned?.(child) ?? context.control.identify(child.pid)) }
+  catch { /* An identification failure cannot discharge this child's stop debt. */ }
   if (!identity) {
     // With no start time, no later kill could tell this process from whatever
     // inherits its pid, so it does not keep running. The handle is still ours.
-    const exitedOnItsOwn = done || !codingProcessIsAlive(child.pid)
+    await context.control.killChildTree(child).catch(() => false)
     if (!done) child.kill('SIGKILL')
-    await ended
-    throw new AgentStartError(exitedOnItsOwn ? agentFailureReason(tail) : 'containment_failed')
+    // Unknown descendants keep their registration; never call release here.
+    throw new AgentProcessStopUnproved(undefined, child.pid)
   }
   if (context.control.containment) identity.containment = context.control.containment
+  let released = false
+  let clearing: Promise<boolean> | undefined
+  const confirmHostExecutionStopped = async (
+    snapshot: readonly CodingProcessIdentity[] = [], authority?: SessionEffectAuthority,
+  ): Promise<boolean> => {
+    if (released) return true
+    await authority?.consume()
+    authority?.assertLive()
+    clearing ??= (async () => {
+      // Only protected byte transports request custody clearance.
+      if (await context.control.stopTree!(identity, snapshot, authority) !== 'stopped') return false
+      released = true
+      return true
+    })().finally(() => { clearing = undefined })
+    return clearing
+  }
+  try {
+    await effectTransport(child)?.ready
+  }
+  catch (error) {
+    if (onLine) await context.control.killTree(identity)
+    else if (!await confirmHostExecutionStopped().catch(() => false)) throw new AgentProcessStopUnproved(identity)
+    throw error
+  }
   // Through the agent guard the process this host started is the guard, not the
   // agent. A guard that ends while this host lives — killed, or out of memory —
   // leaves an agent nobody watches (on POSIX it runs on in a group of its own,
@@ -155,21 +256,23 @@ export const startAgentProcess = async (
   // tree is killed, identity-checked, before this host hears that it exited;
   // an agent that has really gone is not there to kill, and no pid alive under
   // its number means no table read at all.
-  const exited = ended.then(async (result) => {
+  const exited: Promise<AgentProcessExit> = ended.then(async (result) => {
     if (context.control.identifySpawned && codingProcessIsAlive(identity.pid)) {
       await context.control.killTree(identity).catch(() => undefined)
     }
-    return result
+    const stopped = !onLine && await confirmHostExecutionStopped().catch(() => false)
+    return { ...result, clearance: stopped ? 'stopped' : 'unknown' }
   })
+  const input = createAgentProcessInput(child)
   return {
+    child, rawExit, closed,
+    confirmHostExecutionStopped,
     identity,
-    write: (text) => {
-      if (!done && child.stdin?.writable) child.stdin.write(text)
-    },
-    endInput: () => {
+    ...input,
+    endInput: (authority) => input.endInput(() => {
       if (context.control.endInput) context.control.endInput(child)
       else child.stdin?.end()
-    },
+    }, authority),
     exited,
     alive: () => !done,
     stderrTail: () => [...tail],

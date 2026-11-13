@@ -218,8 +218,14 @@ if (argv.includes('app-server')) {
       record({ agent: 'codex', event: 'message', text: prompt })
       const current = { id: randomUUID(), interrupted: false, wake: undefined }
       reply(id, { turn: { id: current.id, status: 'inProgress', items: [] } })
-      void runTurn(current, prompt)
+      const startDelay = Number(process.env.NESSIE_SCRIPTED_TURN_START_DELAY_MS ?? 0)
+      if (startDelay > 0) setTimeout(() => void runTurn(current, prompt), startDelay)
+      else void runTurn(current, prompt)
     } else if (method === 'turn/interrupt') {
+      if (!turn || turn.id !== params.turnId) {
+        send({ id, error: { code: -32600, message: 'no active turn to interrupt' } })
+        return
+      }
       if (turn && turn.id === params.turnId) {
         turn.interrupted = true
         turn.wake?.()

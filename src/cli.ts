@@ -187,6 +187,7 @@ export const run = async (args: string[]): Promise<void> => {
   if (await runServiceRestartCli(args)) return
   if (await runLocalInferenceCli(args)) return
   if (await runPairingCodeCli(args)) return
+  if (await (await import('./t3-session/source/management-cli.js')).runRetainedManagementCli(args)) return
   if (await runLocalSettingsCli(args)) return
   if (await runTeamNamesCli(args)) return
   let command: ParsedCommand
@@ -393,5 +394,6 @@ export const run = async (args: string[]): Promise<void> => {
   stampDaemonLog()
   await serveExecutor(command.stateDir, state, {
     ...(command.parentLivenessFromStandardInput ? { parentLiveness: process.stdin } : {}),
+    ...(command.retainedParentStdio ? { retainedParentOutput: process.stdout } : {}),
   })
 }

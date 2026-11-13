@@ -12,14 +12,22 @@
     "./*": {
       "types": "./src/*.ts",
       "default": "./dist/*.js"
-    }
+    },
+    "./t3-session": {
+      "types": "./dist/t3-session/index.d.ts",
+      "default": "./dist/t3-session/index.js"
+    },
+    "./t3-session/ledger": "./dist/t3-session/ledger.json"
   },
   "scripts": {
-    "build": "node ../../scripts/compile.mjs -p tsconfig.build.json",
+    "build": "node src/t3-session/generate.mjs && node ../../scripts/compile.mjs -p tsconfig.build.json",
     "typecheck": "node ../../scripts/compile.mjs --noEmit -p tsconfig.json",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "test:t3-session-contracts": "node --test --test-concurrency=1 --import tsx ../../test/t3-session-contracts/*.test.ts"
   },
   "dependencies": {
-    "zod": "^3.25.76"
+    "zod": "^3.25.76",
+    "@nessie/t3-session-source": "workspace:*",
+    "effect": "4.1.2"
   }
 }

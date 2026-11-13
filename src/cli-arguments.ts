@@ -70,7 +70,7 @@ export type ParsedCommand =
     requireDevelopmentLocalApi: boolean
     stateRoot: string
   }
-  | { kind: 'serve'; parentLivenessFromStandardInput?: true; stateDir: string }
+  | { kind: 'serve'; parentLivenessFromStandardInput?: true; retainedParentStdio?: true; stateDir: string }
   | { kind: 'publish-deeptest-source-grant'; stateDir: string }
   | { kind: 'publish-deeptest-execution-grant'; stateDir: string }
   | { kind: 'revoke-deeptest-execution-grant'; stateDir: string }
@@ -365,9 +365,11 @@ export const parseCommand = (args: string[]): ParsedCommand => {
   }
   if (command === 'sync') return parseSyncArguments(args, usage)
   if (command === 'serve') {
+    if (args.includes('--parent-retained-stdio') && !args.includes('--parent-liveness-stdin')) return usage()
     return {
       kind: 'serve',
       ...(args.includes('--parent-liveness-stdin') ? { parentLivenessFromStandardInput: true } : {}),
+      ...(args.includes('--parent-retained-stdio') ? { retainedParentStdio: true } : {}),
       stateDir: option(args, '--state-dir'),
     }
   }

@@ -27,7 +27,7 @@ if (process.platform === 'win32') {
 }
 
 const result = spawnSync(node, [
-  '--test', '--test-concurrency=2', ...options, '--test-force-exit', '--import', 'tsx', ...files,
+  '--test', '--test-concurrency=2', ...options, '--import', 'tsx', ...files,
 ], { cwd: root, env, stdio: 'inherit' })
 if (result.error) throw result.error
 process.exitCode = result.status ?? 1

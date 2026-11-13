@@ -1,0 +1,83 @@
+{
+  "preparation": {
+    "version": 1,
+    "action": "legacy-shell-reconcile",
+    "binding": {
+      "executorId": "executor",
+      "environmentId": "environment",
+      "threadId": "thread:雪:one",
+      "providerInstanceId": "original-instance",
+      "connectionEpoch": "1",
+      "runtimeGeneration": "runtime",
+      "correlationId": "correlation",
+      "commandId": "parent:actual:launch",
+      "requestSha256": "sha256:1f58b9145b24d108d7ac38887338b3ea3229833b9c1e418250343f907bfd1047",
+      "relayHmac": "hmac-sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "actorReference": "sha256:50c9c4aeb40b5b206b6d98f516f8b8c0efd29ce2e56a76b345fb9240c225a1b7",
+      "initiationReference": "sha256:96c57e5dfeebfefd24fa3818000e83b3dc89bf99dc1cf1e2c172467c82578639",
+      "sourceEvidenceDigest": "sha256:eef93e1d14482804277fca0172464032d1a4fdbcc338524059fa1e861454ad4d",
+      "sourceRootKey": "root",
+      "sourceGeneration": "generation",
+      "driver": "codex",
+      "continuationHomeKey": "continuation",
+      "historyHomeKey": "history",
+      "credentialBindingId": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    "acceptedGraphNonce": "1111111111111111111111111111111111111111111111111111111111111111",
+    "slotId": "49942b3ec5fd4703388ffe5aa636bca4d5d32bc9dfed39873d15bbec7c9592a1",
+    "evidence": {
+      "resourceId": "2222222222222222222222222222222222222222222222222222222222222222",
+      "resourceGeneration": "sha256:5de95319f17467ed6dc58e4e0b16c1193a13b35d60dc48bcf06bf6b7beebbe6c",
+      "sourceDatabaseIdentity": "source-file-id",
+      "destinationDatabaseIdentity": "destination-file-id",
+      "settingsIdentity": "settings-file-id",
+      "settingsDigest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "custody": {
+        "service": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "controller": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "supervisor": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "runtime": {
+          "pid": 100,
+          "startedAt": "original-start",
+          "bootId": "original-boot"
+        },
+        "jobName": "Global\\NessieCustody-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "releaseDigest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "serviceImageDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+      }
+    },
+    "observation": {
+      "version": 1,
+      "observedAtMs": 1000000,
+      "planDigest": "sha256:a7316b3ffb2667fea9ee7dda3182a380a38b3284a544b16ad1459233466d35ba",
+      "targets": [
+        {
+          "action": "repair",
+          "threadId": "native:repair",
+          "projectId": "native:project"
+        },
+        {
+          "action": "import",
+          "threadId": "native:import:雪:'",
+          "projectId": "native:project"
+        }
+      ]
+    },
+    "nonce": "49942b3ec5fd4703388ffe5aa636bca4d5d32bc9dfed39873d15bbec7c9592a1",
+    "issuedAtMs": 1000000,
+    "expiresAtMs": 1005000
+  },
+  "expectedSlotId": "49942b3ec5fd4703388ffe5aa636bca4d5d32bc9dfed39873d15bbec7c9592a1"
+}

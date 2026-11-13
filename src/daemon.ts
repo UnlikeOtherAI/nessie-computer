@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 
 import {
   canonicalExecutorJson,
+  executorSessionCommandArgumentProjection,
   ExecutorBrowserActArgumentsSchema,
   ExecutorBrowserObserveArgumentsSchema,
   ExecutorBrowserOpenArgumentsSchema,
@@ -189,7 +190,7 @@ export const executeExecutorCommand = async (
   if (!state.descriptor.operationKeys.includes(command.operationKey)) {
     return { code: 'EXECUTOR_LOCAL_POLICY_DENIED', success: false }
   }
-  if (digest(command.payload) !== command.argumentDigest) {
+  if (digest(executorSessionCommandArgumentProjection(command.payload)) !== command.argumentDigest) {
     return { code: 'EXECUTOR_COMMAND_DIGEST_INVALID', success: false }
   }
   try { pairedPersonalAuthority(command.payload.personalAuthority, state.apiBaseUrl) }

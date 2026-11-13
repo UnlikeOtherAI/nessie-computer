@@ -6,6 +6,12 @@ The executor uses its own protocol, lifecycle, custody and authorization code.
 Additional provider quota contracts follow [T3 Code commit 25bf84ab](https://github.com/pingdotgg/t3code/tree/25bf84ab07f53f141c20239c63e383823a9d5ea0),
 as catalogued in [provider quota sources](docs/provider-quotas.md).
 
+Pinned session-engine source preparation also references T3 Code revision
+`25bf84ab07f53f141c20239c63e383823a9d5ea0`; see `docs/session-engine.md`.
+Its offline source capsule and derived lower-state library candidates retain
+the original MIT LICENSE, with notices for bundled runtime dependencies. This
+work does not yet ship or start the T3 session runtime in an installed executor.
+
 MIT License
 
 Copyright (c) 2026 T3 Tools Inc.

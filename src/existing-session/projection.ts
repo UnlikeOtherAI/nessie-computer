@@ -10,7 +10,9 @@ export const createExistingProjection = (rewriter: PathRewriter) => {
   const secrets = Object.entries(process.env).filter(([name]) => SECRET_NAME.test(name)).map(([, value]) => value)
   projector.redactSecrets(secrets)
   const project = (value: unknown, key = ''): unknown => {
-    if (typeof value === 'string') return IDENTIFIERS.has(key) ? value : projector.text(value, 16_000)
+    // Rewriting a short path can lengthen a native title beyond the inventory's
+    // wire limit. Cap after projection so one title cannot reject the whole page.
+    if (typeof value === 'string') return IDENTIFIERS.has(key) ? value : projector.text(value, key === 'title' ? 120 : 16_000)
     if (Array.isArray(value)) return value.map((item) => project(item))
     if (!value || typeof value !== 'object') return value
     return Object.fromEntries(Object.entries(value).map(([name, item]) => [name, project(item, name)]))

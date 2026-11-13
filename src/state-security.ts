@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process'
 import { lstat, mkdir } from 'node:fs/promises'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, toNamespacedPath } from 'node:path'
 
 /**
  * Owner-only private state, proved the way the host proves it.
@@ -60,7 +60,11 @@ export const spawnStateSecurityHelper: StateSecurityHelper = async (command, pat
   const entry = await lstat(helperPath).catch(() => undefined)
   if (!entry?.isFile() || entry.isSymbolicLink()) throw helperUnavailable()
   const answer = await new Promise<string>((settle, fail) => {
-    const child = spawn(helperPath, [command, path], { stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true })
+    // Node supports long paths automatically; Win32's named ACL functions need
+    // the extended spelling too. Keep the same object and the same ACL policy.
+    const child = spawn(helperPath, [command, toNamespacedPath(path)], {
+      stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true,
+    })
     let output = ''
     const timeout = setTimeout(() => {
       child.kill()

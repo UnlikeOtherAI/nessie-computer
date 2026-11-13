@@ -33,8 +33,10 @@ test('macOS and Windows compiled children cannot bypass native managed creation'
     const separator = platform === 'win32' ? '\\' : '/'
     const packaged = { execPath: `${directory}${separator}${node}`, execArgv: [],
       entry: `${directory}${separator}nessie-executor.cjs`, packaged: true }
-    assert.deepEqual(executorChildCommand(packaged, ['personal-chatgpt-credential'], platform),
-      [`${directory}${separator}${helper}`, 'managed-runtime', '--', 'personal-chatgpt-credential'])
+    for (const command of ['personal-chatgpt-credential', 'terminal-session-process']) {
+      assert.deepEqual(executorChildCommand(packaged, [command], platform),
+        [`${directory}${separator}${helper}`, 'managed-runtime', '--', command])
+    }
     assert.throws(() => executorChildCommand({ ...packaged, execArgv: ['--import', 'unknown'] }, [], platform))
   }
 })

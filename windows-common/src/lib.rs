@@ -15,6 +15,38 @@ mod sid;
 
 pub mod control_channel;
 pub mod custody;
+pub mod execution;
+mod execution_codec;
+pub mod execution_shutdown;
+pub mod execution_shutdown_admission;
+pub mod execution_creator;
+pub mod execution_process;
+pub mod execution_frame;
+pub mod execution_secret_plan;
+pub mod execution_secret_read;
+#[cfg(windows)]
+pub mod execution_tool;
+pub mod execution_effect;
+pub mod execution_frame_bytes;
+pub mod execution_json;
+pub mod execution_resource;
+pub mod execution_destination;
+pub mod execution_pending_effect;
+pub(crate) mod execution_outbox_row;
+pub mod execution_process_loss;
+pub mod execution_legacy_shell;
+pub mod execution_legacy_shell_admission;
+pub mod execution_recovery_inputs;
+pub mod execution_command_lineage;
+pub mod execution_preclaim;
+#[cfg(windows)]
+pub mod readonly_sqlite;
+#[cfg(windows)]
+pub mod readonly_sqlite_files;
+#[cfg(windows)]
+pub mod execution_resource_handles;
+#[cfg(windows)]
+pub mod execution_isolation;
 pub mod custody_store;
 pub mod failure;
 #[cfg(windows)]
