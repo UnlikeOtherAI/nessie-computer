@@ -183,8 +183,11 @@ the original project enrichment port. Higher layers retain their real settings,
 provider and cleanup requirements; the package supplies no fallback owners.
 
 The declared `prepare:engine` Turbo prerequisite prepares the verified source
-cache and performs only the isolated producer's frozen, script/workspace/
-pnpmfile-disabled install. The ordinary `build` task emits one split graph;
+cache and hash-checked source archive before the isolated producer's frozen,
+script/workspace/pnpmfile-disabled install. It runs even when Turbo restores
+`dist` from a cached build, so extraction checks always have the original
+archive. A missing archive is reconstructed from the pinned Git objects;
+an existing archive with the wrong hash is refused. The ordinary `build` task emits one split graph;
 Effect and Node platform packages stay external and pinned at 4.1.2. Markdown
 runtime dependencies remain bundled from the frozen patched producer. Their
 declared public packages also satisfy portable upstream declaration imports.
