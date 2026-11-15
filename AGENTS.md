@@ -130,3 +130,5 @@ enrollment fixtures under [original session authority](docs/original-session-aut
 
 Published immutable version releases queue the protected-main signed catalogue;
 release-note display and ask-first defaults follow [GitHub publication](docs/automatic-updates.md#github-publication-and-release-notes).
+
+Delayed managed-session acknowledgements remain separate from effect and publication leases; see [result acknowledgements](docs/local-programs.md#delayed-session-acknowledgements) and the public Turbo `test:executor-private-assignments` gate.

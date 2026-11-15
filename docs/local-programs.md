@@ -215,3 +215,15 @@ the macOS requirement was checked by hand against installed apps (it accepts
 the Developer ID-signed Nessie Executor app and rejects T3 Code's Developer ID
 and a copied-out binary). A real Windows Authenticode check against an
 UnlikeOtherAI-signed file is not part of the unit tests.
+
+### Delayed session acknowledgements
+
+The bridge retains an immutable acknowledgement of the exact selection admitted
+for a call, separately from its short execution lease. A slow host start can
+return that acknowledgement after the execution lease expires. This does not
+extend permission to execute, read, or publish: the daemon and server still
+require fresh matching publication authority. Missing preparation, changed owner,
+connection or selection, and expired publication authority continue to withhold
+the result. A delayed failure carries the same acknowledgement and its private
+details are removed at the publication boundary. Previously withheld output is
+not adopted or released by this change.
