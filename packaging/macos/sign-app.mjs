@@ -35,7 +35,7 @@ const nestedSigningTargets = async (appPath, mainExecutable) => {
   return binaries.sort((left, right) => right.split('/').length - left.split('/').length)
 }
 
-export const signMacApp = async (appPath, { identity, teamId }, runtime) => {
+export const signMacApp = async (appPath, { identity, teamId }, runtime, { bundleEntitlements } = {}) => {
   const appEntitlements = join(packagingDirectory, APP_ENTITLEMENTS_FILE)
   const runtimeEntitlements = join(packagingDirectory, RUNTIME_ENTITLEMENTS_FILE)
   const mainExecutable = join(appPath, 'Contents/MacOS', await plistValue(appPath, 'CFBundleExecutable'))
@@ -60,7 +60,8 @@ export const signMacApp = async (appPath, { identity, teamId }, runtime) => {
     { mode: 0o644 },
   )
 
-  await run('codesign', codesignArguments({ entitlements: appEntitlements, identity, path: appPath }))
+  // Host capabilities belong only to the enclosing app, never to its helpers.
+  await run('codesign', codesignArguments({ entitlements: bundleEntitlements ?? appEntitlements, identity, path: appPath }))
   await run('codesign', codesignVerifyArguments(appPath))
   const { stderr } = await run('codesign', ['-dvv', appPath])
   assertDeveloperIdSignature(stderr, teamId)
