@@ -248,24 +248,11 @@ fn run(command: &Command) -> Result<(), NativeError> {
         Command::ManagedCustodyInstall => install_managed_custody(),
         Command::ManagedRuntime(argv) => std::process::exit(run_managed(argv)?),
         Command::ManagedInventoryBarrier(nonce) => managed_barrier(nonce),
-        Command::ManagedHostBarrier(nonce) => {
-            #[cfg(windows)]
-            {
-                managed_windows::host_barrier(nonce)
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = nonce;
-                Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM"))
-            }
-        }
-        Command::ManagedHostCheck
-        | Command::ManagedProtectionStatus
+        Command::ManagedProtectionStatus
         | Command::ManagedProtectionCleanup => {
             #[cfg(windows)]
             {
                 match command {
-                    Command::ManagedHostCheck => managed_windows::host_check(),
                     Command::ManagedProtectionStatus => managed_windows::status(),
                     _ => managed_windows::cleanup(),
                 }
@@ -442,8 +429,6 @@ fn reject(command: Option<&Command>, error: &NativeError) {
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)
         | Some(Command::ManagedInventoryBarrier(_))
-        | Some(Command::ManagedHostBarrier(_))
-        | Some(Command::ManagedHostCheck)
         | Some(Command::ManagedProtectionStatus)
         | Some(Command::ManagedProtectionCleanup)
         | Some(Command::ManagedProtectionRevoke(_))

@@ -139,46 +139,27 @@ discovered set is a new revision: `localAppsRevision` and `refreshLocalApps`
 ### Starting and stopping a local app
 
 The daemon starts a local app when a command or the two-minute local-app
-report first needs it (`src/mcp-session-manager.ts`). On a packaged runtime each
-start is admitted first (`admitPersonalHostExecution`); on Windows that
-admission is a `managed-host-barrier` helper process holding the service's host
-lease. The admission ends on every path out of the session — a start that
-times out, exits or throws, a crash, an idle close, a stop
-(`endLocalAppAdmission`, `src/mcp-host-execution.ts`):
+report first needs it (`src/mcp-session-manager.ts`). The team's Access rules
+decide whether it may start. Signing in to a ChatGPT plan does not take that
+permission away.
 
-- It is released once nothing it admitted can still run: no process was
-  started, or the process tree is proved stopped. On packaged Windows a local
-  app starts inside the job helper's Job Object (`job-run`, as coding agents
-  do), so its whole tree ends with the helper and the stop can be proved. The
-  program is resolved first through `PATH` and `PATHEXT`, because the helper's
-  `CreateProcessW` appends only `.exe`; a program on no `PATH` entry is
-  `not_installed` and nothing is admitted. The coding-sessions bridge is not
-  contained: its detached hosts outlive it.
-- When a stop cannot be proved (no Job Object, or a process that exited before
-  its start time was read), the admission stays — custody does not change —
-  but its barrier process is ended. Before this a Kelpie whose device was
-  away failed its handshake every two minutes and left a barrier process
-  behind each time.
+On packaged Windows a local app starts inside the job helper's Job Object
+(`job-run`, as coding agents do), so its whole tree ends with the helper.
+The program is resolved first through `PATH` and `PATHEXT`; a missing program
+is reported as `not_installed`. The coding-sessions bridge keeps its existing
+managed lifetime because its session hosts can outlive the bridge.
 
-The service releases a host lease (`HostRelease`, and again on every later
-service call through `reconcile`, `service-windows/src/custody.rs`) once the
-daemon's Job Object holds nothing but the daemon, live barrier processes and
-registered runtimes that started before the lease. Those last ones are the
-coding-sessions bridge: it runs inside the daemon's job for the daemon's whole
-life, and until 9 November it alone kept every lease from being released. Minis
-had 260 leases after seven hours. The custody store refuses to load past 4096
-leases or 1 MiB, which would have stopped every launch on the computer within
-about three days. A registered runtime that started after the lease began could
-be the lease's own work, so it still holds it.
+Windows no longer creates a service-wide host-execution lease for each job or
+terminal. Those leases belonged to the retired program/ChatGPT exclusion
+policy. They checked the whole daemon job when a command ended, so a persistent
+Codex app-server could retain thousands of unrelated completed commands and
+delay pairing, Documents and AI checks behind reconciliation.
 
-Each call also checks that a lease's barrier process has ended. A PID that the
-service account cannot open belongs to a different process that reused it,
-because every process custody records first grants the service query access
-(`absent`, `windows-common/src/custody_observation.rs`). Before 9 November that
-denial failed the whole call, so one unrelated process that happened to get a
-dead barrier's PID (a `node_repl`, an `sshd`) refused every Nessie Computer
-launch until it exited. The Documents tab and the AI tab's Claude Code, Codex
-and model-server checks all start this way, so all of them failed together.
+On the next verified service request, ended legacy controllers are identified
+by their kernel process generation and archived before their leases leave the
+active journal. Live controllers, credential fences, runtime creation records
+and Job Object containment remain enforced. The archive and crash recovery
+contract are in [Windows admission recovery](windows-admission-recovery.md).
 
 A local app that keeps failing to start is retried later and later
 (`src/mcp-start-backoff.ts`): the first two failures in a row are retried at

@@ -51,6 +51,10 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
 - **Pause.** Choose **Pause** in the menu bar or notification-area menu. Agents
   start nothing new until you choose **Resume**, even after a restart.
   [Pausing](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Pause-and-resume.md)
+- **Windows command timeouts.** Update Nessie Computer if adding a team or
+  loading a tab times out. Completed-command records from older versions recover
+  automatically; team connections and permissions are kept.
+  [Troubleshooting](docs/wiki/Troubleshooting.md#windows-says-the-command-line-tool-did-not-answer-in-time)
 - **Several teams.** Add each one. In the window, pick a team from the
   **Team** list, then change its access, documents and AI.
   [Several teams](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Several-teams-on-one-computer.md)

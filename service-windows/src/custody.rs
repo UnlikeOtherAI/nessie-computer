@@ -1,5 +1,5 @@
 //! Service-wide managed creation and public persistent admission, independently observed.
-use crate::custody_store::{Host, State, Store};
+use crate::custody_store::{State, Store};
 use nessie_windows_common::{
     custody_observation::{absent, job_members},
     custody::RuntimeKind,
@@ -19,7 +19,7 @@ use windows_sys::Win32::{
 static ADMISSION: Mutex<()> = Mutex::new(());
 const PIN: Option<&str> = option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU");
 const JOB_OBJECT_QUERY: u32 = 0x0004;
-fn reconcile(state: &mut State) -> Result<(), String> {
+fn reconcile(store: &Store, state: &mut State) -> Result<(), String> {
     let boot = process::boot_id()?;
     let now=nessie_windows_common::execution::now_ms()?;
     for record in state.execution_processes.values_mut(){
@@ -62,19 +62,14 @@ fn reconcile(state: &mut State) -> Result<(), String> {
     for key in gone {
         state.runtimes.remove(&key);
     }
-    let mut gone = Vec::new();
+    // Program/plan exclusion was retired. An ended controller's historical
+    // lease is not a claim that its daemon's unrelated children have ended.
+    // Archive the original evidence before removing it from active admission.
+    let mut retired = Vec::new();
     for (key, host) in &state.hosts {
-        if host.controller.boot_id != boot
-            || (absent(&host.controller)?
-                && (job_members(&host.job_name)?.is_empty() && absent(&host.runtime_child)?
-                    || host_members_cleared(state, host, None)?))
-        {
-            gone.push(key.clone());
-        }
+        if absent(&host.controller)? { retired.push(key.clone()); }
     }
-    for key in gone {
-        state.hosts.remove(&key);
-    }
+    store.retire_hosts(state, &retired)?;
     let mut gone = Vec::new();
     for (nonce, hold) in &state.holds {
         if absent(hold)? {
@@ -85,66 +80,6 @@ fn reconcile(state: &mut State) -> Result<(), String> {
         state.holds.remove(&nonce);
     }
     Ok(())
-}
-fn host_members_cleared(state: &State, host: &Host, observer: Option<u32>) -> Result<bool, String> {
-    let mut allowed = vec![host.runtime_child.pid];
-    if let Some(pid) = observer {
-        allowed.push(pid);
-    }
-    for current in state
-        .hosts
-        .values()
-        .filter(|current| current.runtime_child == host.runtime_child)
-    {
-        if !absent(&current.controller)? {
-            allowed.push(current.controller.pid);
-        }
-    }
-    // A runtime child this service can no longer open has ended (see `absent`).
-    let Ok(root) = Process::open(host.runtime_child.pid) else {
-        return Ok(false);
-    };
-    if root.generation != host.runtime_child || !root.alive() {
-        return Ok(false);
-    }
-    // Other active native lease holders contain no provider material. Their
-    // arbitrary children remain extra kernel job members and prevent release.
-    let members = job_members(&host.job_name)?;
-    if !members.contains(&host.runtime_child.pid) {
-        return Ok(false);
-    }
-    for pid in members {
-        if !allowed.contains(&pid) && !registered_before(state, host, pid) {
-            return Ok(false);
-        }
-    }
-    Ok(true)
-}
-/// A job member whose creation this service proved before the lease began:
-/// the supervisor or child of a registered runtime, still that kernel
-/// generation, started before the lease's controller. Nothing the lease ran
-/// can be that process. Without this, a daemon's long-lived coding-session
-/// bridge kept every lease on that daemon from ever being released.
-fn registered_before(state: &State, host: &Host, pid: u32) -> bool {
-    let Ok(lease_began) = host.controller.started_at.parse::<u64>() else {
-        return false;
-    };
-    let Ok(observed) = Process::open(pid) else {
-        return false;
-    };
-    observed.alive()
-        && state
-            .runtimes
-            .values()
-            .flat_map(|record| [&record.supervisor, &record.child])
-            .any(|generation| {
-                *generation == observed.generation
-                    && generation.boot_id == host.controller.boot_id
-                    && generation
-                        .started_at
-                        .parse::<u64>()
-                        .is_ok_and(|started| started < lease_began)
-            })
 }
 fn owner_registered(root: &Path, sid: &str) -> bool {
     crate::paths::paired_executors(root).into_iter().any(|id| {
@@ -194,7 +129,7 @@ pub fn handle(
     }else{nessie_windows_common::release::load_at(&caller.image, PIN)?};
     let store = Store::new(root);
     let mut state = store.read()?;
-    reconcile(&mut state)?;
+    reconcile(&store, &mut state)?;
     let require_revoked = matches!(&operation, Operation::Clear { .. });
     let response = match operation {
         Operation::ExecutionProcess{request}=>{
@@ -230,30 +165,6 @@ pub fn handle(
             serde_json::json!({"status":"verified","protocolVersion":1,"guardVersion":VERSION,
                 "epochs":state.fences.iter().filter(|(_,fence)|fence.owner_sid==caller.sid).map(|(epoch,fence)|
                     serde_json::json!({"epoch":epoch,"revoked":fence.revoked})).collect::<Vec<_>>()})
-        }
-        Operation::HostCheck => {
-            if !state.fences.is_empty() {
-                return Err(REJECTED.into());
-            }
-            let parent = process::snapshot()?
-                .into_iter()
-                .find(|entry| entry.pid == pid)
-                .ok_or(REJECTED)?
-                .parent;
-            let root = state
-                .runtimes
-                .values()
-                .find(|record| {
-                    record.child.pid == parent
-                        && record.owner_sid == caller.sid
-                        && record.release_digest == release.digest
-                })
-                .ok_or(REJECTED)?;
-            let observed = Process::open(parent)?;
-            if observed.generation != root.child || !observed.alive() {
-                return Err(REJECTED.into());
-            }
-            serde_json::json!({"status":"verified","protocolVersion":1,"guardVersion":VERSION,"allowed":true})
         }
         Operation::Register {
             child_pid,
@@ -391,46 +302,6 @@ pub fn handle(
             live::credential_clearance(&state, &caller, &release.digest)?;
             state.fences.remove(&epoch);
             serde_json::json!({"cleared":true,"epoch":epoch})
-        }
-        Operation::HostAcquire { nonce } => {
-            machine.admit_daemon(&release.digest)?;
-            if !state.fences.is_empty() || state.hosts.contains_key(&nonce) {
-                return Err(REJECTED.into());
-            }
-            let parent = process::snapshot()?
-                .into_iter()
-                .find(|entry| entry.pid == pid)
-                .ok_or(REJECTED)?
-                .parent;
-            let runtime = state
-                .runtimes
-                .values()
-                .find(|record| record.child.pid == parent && record.owner_sid == caller.sid
-                    && record.release_digest==release.digest)
-                .ok_or(REJECTED)?;
-            let current=Process::open(parent)?;
-            if current.generation!=runtime.child || !current.alive() {return Err(REJECTED.into());}
-            state.hosts.insert(
-                nonce.clone(),
-                Host {
-                    owner_sid: caller.sid.clone(),
-                    controller: caller.generation.clone(),
-                    runtime_child: runtime.child.clone(),
-                    job_name: runtime.job_name.clone(),
-                },
-            );
-            serde_json::json!({"acquired":true,"nonce":nonce})
-        }
-        Operation::HostRelease { nonce } => {
-            let host = state.hosts.get(&nonce).ok_or(REJECTED)?;
-            if host.controller != caller.generation || host.owner_sid != caller.sid {
-                return Err(REJECTED.into());
-            }
-            if !host_members_cleared(&state, host, Some(caller.generation.pid))? {
-                return Err(REJECTED.into());
-            }
-            state.hosts.remove(&nonce);
-            serde_json::json!({"released":true,"nonce":nonce})
         }
     };
     if !caller.alive() {

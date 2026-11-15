@@ -4,16 +4,6 @@ use crate::protocol::NativeError;
 use nessie_windows_common::{custody::Operation, process::Process, service_channel};
 use std::io::{Read, Write};
 
-pub fn host_check() -> Result<(), NativeError> {
-    crate::personal_state_context::require_release()?;
-    let _release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
-    let reply = service_channel::call(&Operation::HostCheck, PIN).map_err(|_| refused())?;
-    if reply["allowed"] != true || reply["guardVersion"] != 2 || reply["protocolVersion"] != 1 {
-        return Err(refused());
-    }
-    println!("{reply}");
-    Ok(())
-}
 pub fn status() -> Result<(), NativeError> {
     crate::personal_state_context::require_release()?;
     let _release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
@@ -94,41 +84,6 @@ pub fn inventory(nonce: &str) -> Result<(), NativeError> {
     }
     let reply = service_channel::call(
         &Operation::Release {
-            nonce: nonce.into(),
-        },
-        PIN,
-    )
-    .map_err(|_| refused())?;
-    if reply["released"] != true {
-        return Err(refused());
-    }
-    Ok(())
-}
-
-pub fn host_barrier(nonce: &str) -> Result<(), NativeError> {
-    crate::personal_state_context::require_release()?;
-    let _release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
-    let reply = service_channel::call(
-        &Operation::HostAcquire {
-            nonce: nonce.into(),
-        },
-        PIN,
-    )
-    .map_err(|_| refused())?;
-    if reply["acquired"] != true {
-        return Err(refused());
-    }
-    println!(
-        "{}",
-        serde_json::json!({"status":"verified","protocolVersion":1,"nonce":nonce})
-    );
-    std::io::stdout().flush().map_err(|_| refused())?;
-    let mut release = [0_u8; 8];
-    if std::io::stdin().read_exact(&mut release).is_err() || &release != b"release\n" {
-        return Err(refused());
-    }
-    let reply = service_channel::call(
-        &Operation::HostRelease {
             nonce: nonce.into(),
         },
         PIN,

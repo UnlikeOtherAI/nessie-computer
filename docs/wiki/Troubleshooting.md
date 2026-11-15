@@ -76,9 +76,16 @@ The team was connected again from somewhere else, or the computer's files were
 restored. [Disconnect](Disconnect-or-uninstall.md) the team and
 [connect it](Add-a-team.md) again.
 
+### Windows says the command-line tool did not answer in time
+An older Windows version could accumulate completed-command records while a
+coding session stayed open. This could also delay adding a team and loading
+Documents or AI. Install the current Nessie Computer update. It recovers those
+old records automatically and keeps your team connections and permissions.
+Do not delete the computer's state folder to clear the error.
+
 ### ChatGPT says terminals and coding tools are stopped
-That is expected while a ChatGPT plan is signed in. See
-[AI](AI.md#before-you-sign-in).
+Update Nessie Computer. Plans and programs now work side by side; see
+[AI](AI.md#plans-and-everything-else-together).
 
 ### Documents shows something to check
 See [Documents → When something needs you](Documents.md#when-something-needs-you).

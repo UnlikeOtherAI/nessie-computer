@@ -16,6 +16,7 @@ unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
 claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
 Session tool schemas, retained metadata projections/navigation, shared input-dependent receipt policy and admission boundaries follow [MCP adapters](docs/session-mcp-adapters.md).
+Retired Windows host admissions, evidence-preserving recovery and native regression checks follow [Windows admission recovery](docs/windows-admission-recovery.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
