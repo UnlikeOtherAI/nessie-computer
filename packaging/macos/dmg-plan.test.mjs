@@ -388,7 +388,7 @@ test('the build signs inside-out, and never with --deep', () => {
   // sealed: a signature changes the bytes runtime-integrity.ts verifies, and a
   // resource edited after sealing breaks the seal.
   const manifestRewrite = signerScript.indexOf('runtime.manifestPath')
-  const bundleSeal = signerScript.indexOf('codesignArguments({ entitlements: appEntitlements')
+  const bundleSeal = signerScript.indexOf('codesignArguments({ entitlements: bundleEntitlements ?? appEntitlements')
   assert.ok(manifestRewrite > 0 && bundleSeal > manifestRewrite)
 })
 
@@ -438,4 +438,11 @@ test('the architecture is the build host’s, because the Node is', () => {
   }
   // process.arch, not a flag: prepare-runtime copies the running Node binary.
   assert.ok(buildScript.includes('dmgFileName(version, process.arch, mode.kind)'))
+})
+
+test('host entitlements apply only to the outer bundle', () => {
+  const children = signerScript.slice(signerScript.indexOf('for (const path of await nestedSigningTargets'), signerScript.indexOf('if (runtime.manifest.nativeHelper'))
+  assert.equal(children.includes('bundleEntitlements'), false)
+  assert.ok(children.includes('runtime.nodePath ? runtimeEntitlements : appEntitlements'))
+  assert.ok(signerScript.includes('entitlements: bundleEntitlements ?? appEntitlements, identity, path: appPath'))
 })

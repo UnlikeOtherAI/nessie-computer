@@ -456,3 +456,13 @@ The native process-lifetime fixtures release children with explicit pipe message
 not EOF: concurrent fork-based tests can inherit another test's writer and retain
 EOF indefinitely. This is test synchronization only; it does not alter runtime
 inventory, admission retirement or installed credential eligibility.
+
+## Signing an enclosing host app
+
+The shared `signMacApp` accepts an optional fourth argument,
+`{ bundleEntitlements: absolutePlistPath }`, for a host with its own capabilities.
+It applies those entitlements only to the enclosing app after signing its
+nested binaries and finalizing the runtime manifest. The Node runtime retains
+its runtime entitlements, and other helper executables retain the executor
+entitlements. Omitting the option preserves the standalone executor policy.
+The host owns its provisioning profile and entitlement validation.
