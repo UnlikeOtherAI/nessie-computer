@@ -6,6 +6,8 @@
 
 Feu servir el codi de l’aplicació per afegir l’ordinador a l’equip desitjat a Nessie. Reviseu els permisos abans que treballin els agents.
 
+Si torneu a afegir el mateix equip, es conserven la connexió i els permisos existents. La cancel·lació es completa automàticament quan es restableix la connexió. Al Windows, Claude Code i Codex instal·lats mitjançant npm es detecten automàticament.
+
 ## Linux
 
 Baixeu el paquet de Linux adequat de la pàgina de versions i executeu l'ordre des de la carpeta on l'heu desat.

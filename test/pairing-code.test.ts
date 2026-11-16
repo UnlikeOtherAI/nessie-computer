@@ -95,7 +95,11 @@ const fixture = () => {
         return starts.get(requestId)!
       }
       if (action === 'poll' && losePoll) { losePoll = false; throw new Error('poll response lost') }
-      if (action === 'cancel' && refuseCancel) throw new Error('This pairing is no longer available.')
+      if (action === 'cancel') {
+        if (refuseCancel) throw new Error('Transport failed before cancellation delivery')
+        stage = 'rejected'
+        return { status: stage, pairingId: request.pairingId, fingerprint, expiresAt: '2099-01-01T00:00:00.000Z' }
+      }
       return { status: stage, pairingId, fingerprint, expiresAt: '2099-01-01T00:00:00.000Z',
         ...(stage === 'waiting' ? {} : { claim }) }
     },
@@ -112,6 +116,7 @@ const fixture = () => {
     losePoll: () => { losePoll = true },
     // Nessie deletes a code some time after it runs out and then refuses to cancel it.
     forgetCode: () => { refuseCancel = true },
+    reconnect: () => { refuseCancel = false },
     holdMint: () => {
       let release!: () => void
       mintGate = new Promise<void>((done) => { release = done })
@@ -249,7 +254,7 @@ test('pairing cancellation recovers a lost mint response and expired attempts ca
   await assert.rejects(f.client.startPairingCode(input), /response lost/)
   await f.client.cancelPairingCode(input.stateDir)
   assert.equal(f.pending(), null)
-  assert.equal(f.events.filter((event) => event === 'start').length, 2)
+  assert.equal(f.events.filter((event) => event === 'start').length, 1, 'cancellation never mints again')
   assert.ok(f.events.includes('cancel'))
   await f.client.startPairingCode(input)
   f.expire()
@@ -272,21 +277,34 @@ test('an attempt Nessie calls expired ends on the computer and is never reopened
   assert.equal(f.events.includes('cancel'), false)
 })
 
-test('cancel ends the attempt on the computer even when Nessie refuses or cannot be reached', async () => {
+test('cancel retains its protected key after a lost response and ordinary status reconciles without activation', async () => {
   const f = fixture()
   await f.client.startPairingCode(input)
+  f.claim()
+  const key = f.pending()?.machinePrivateKey
   f.forgetCode()
-  assert.equal((await f.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
-  assert.ok(f.events.includes('cancel'), 'Nessie is still asked first')
+  assert.deepEqual(await f.client.cancelPairingCode(input.stateDir), { status: 'cancelled', cancellationPending: true })
+  assert.equal(f.pending()?.machinePrivateKey, key)
+  assert.equal(f.pending()?.cancelRequested, true)
+  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).cancellationPending, true)
+  assert.equal(f.state(), null, 'a confirmed server claim cannot activate after cancellation intent')
+  f.reconnect()
+  assert.deepEqual(await f.client.pairingCodeStatus(input.stateDir), { status: 'cancelled' })
   assert.equal(f.pending(), null)
-  assert.equal((await f.client.pairingCodeStatus(input.stateDir)).status, 'idle')
-  const offline = fixture()
-  offline.loseResponse()
-  await assert.rejects(offline.client.startPairingCode(input), /response lost/)
-  offline.loseResponse()
-  assert.equal((await offline.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
-  assert.equal(offline.pending(), null)
-  assert.equal(offline.events.includes('cancel'), false)
+  assert.equal(f.state(), null)
+  assert.equal(f.events.filter((event) => event === 'start').length, 1)
+  assert.equal((await f.client.startPairingCode(input)).status, 'waiting')
+})
+
+test('cancel can retire an attempt whose mint response never arrived, without another mint', async () => {
+  const f = fixture()
+  f.loseResponse()
+  await assert.rejects(f.client.startPairingCode(input), /response lost/u)
+  const requestId = f.pending()?.request.requestId
+  assert.equal((await f.client.cancelPairingCode(input.stateDir)).status, 'cancelled')
+  assert.equal(f.pending(), null)
+  assert.equal(f.events.filter((event) => event === 'start').length, 1)
+  assert.equal(f.requests.at(-1)?.pairingId, requestId)
 })
 
 test('starting pairing again replaces a server-confirmed expired attempt without cancelling it', async () => {

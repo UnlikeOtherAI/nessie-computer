@@ -31,6 +31,9 @@ export const ExecutorPairingPollRequestSchema = z.object({
 export const ExecutorPairingDecisionRequestSchema = ExecutorPairingPollRequestSchema.extend({
   executorId: z.string().uuid(), claimDigest: Digest,
 }).strict()
+export const ExecutorPairingReuseRequestSchema = ExecutorPairingDecisionRequestSchema.extend({
+  retainedExecutorId: z.string().uuid(), retainedSignature: Signature,
+}).strict()
 export const ExecutorPairingConnectionRequestSchema = z.object({
   executorId: z.string().uuid(), timestamp: z.string().datetime(), signature: Signature,
 }).strict()
@@ -42,9 +45,11 @@ export const ExecutorPairingClaimSchema = z.object({
   team: NamedReference.nullable(), scope: ExecutorScopeSchema, claimDigest: Digest,
 }).strict()
 export const ExecutorPairingPollResponseSchema = z.object({
-  status: z.enum(['waiting', 'confirmed', 'rejected', 'expired']),
+  status: z.enum(['waiting', 'confirmed', 'rejected', 'expired', 'reused']),
   pairingId: z.string().uuid(), fingerprint: Digest, expiresAt: z.string().datetime(),
   claim: ExecutorPairingClaimSchema.optional(),
+  // Display/recovery only; this never binds the attempt key to the retained executor.
+  reusedConnection: ExecutorPairingClaimSchema.optional(),
 }).strict()
 export const ExecutorPairingPreviewRequestSchema = z.object({ code: ExecutorPairingCodeSchema }).strict()
 export const ExecutorPairingPreviewSchema = z.object({
@@ -66,6 +71,7 @@ export const ExecutorPairingOptionsSchema = z.object({
 export type ExecutorPairingStartRequest = z.infer<typeof ExecutorPairingStartRequestSchema>
 export type ExecutorPairingStartResponse = z.infer<typeof ExecutorPairingStartResponseSchema>
 export type ExecutorPairingPollRequest = z.infer<typeof ExecutorPairingPollRequestSchema>
+export type ExecutorPairingReuseRequest = z.infer<typeof ExecutorPairingReuseRequestSchema>
 export type ExecutorPairingDecisionRequest = z.infer<typeof ExecutorPairingDecisionRequestSchema>
 export type ExecutorPairingConnectionRequest = z.infer<typeof ExecutorPairingConnectionRequestSchema>
 export type ExecutorPairingSignOffResponse = z.infer<typeof ExecutorPairingSignOffResponseSchema>

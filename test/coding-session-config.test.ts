@@ -150,7 +150,7 @@ test('flags that carry power the review would not show are refused in args and c
     refuses({ codex: { command: ['/usr/bin/node', 'codex.js'], args } }, /may not pass -/u)
   }
   refuses({ codex: { command: ['/usr/bin/node', 'codex.js'], args: ['resume'] } }, /may not name the resume subcommand/u)
-  refuses({ claude: { command: ['C:/Users/o/AppData/Roaming/npm/claude.cmd'] } }, /script shim; name the program itself \(claude\.exe\)/u)
+  refuses({ claude: { command: ['C:/Users/o/AppData/Roaming/npm/claude.bat'] } }, /script shim/u)
   refuses({ codex: { command: ['C:/npm/codex.PS1'] } }, /script shim/u)
   // What the reviewed fields already say, or what carries no power, still passes.
   const fine = normalizeCodingSessionsConfig(minimal({ agents: {

@@ -6,6 +6,8 @@
 
 Utilisez le code affiché dans l’application pour ajouter cet ordinateur à l’équipe souhaitée dans Nessie. Vérifiez les autorisations avant de laisser travailler les agents.
 
+Ajouter à nouveau la même équipe conserve sa connexion et ses autorisations existantes. L’annulation se termine automatiquement au rétablissement de la connexion. Sous Windows, Claude Code et Codex installés via npm sont détectés automatiquement.
+
 ## Linux
 
 Téléchargez le paquet Linux adapté depuis la page des versions, puis exécutez la commande dans le dossier où vous l’avez enregistré.

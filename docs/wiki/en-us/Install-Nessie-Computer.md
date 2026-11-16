@@ -6,6 +6,8 @@
 
 Use the code shown in the app to add this computer to the intended team in Nessie. Review access before letting agents work.
 
+Adding the same team again keeps its existing connection and permissions. Cancellation finishes automatically after the connection returns. On Windows, Claude Code and Codex installed through npm are detected automatically.
+
 ## Linux
 
 Download the matching Linux package from the releases page, then run the command from the folder where you saved it.

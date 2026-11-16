@@ -6,6 +6,8 @@
 
 Gunakan kode di aplikasi untuk menambahkan komputer ke tim yang diinginkan di Nessie. Tinjau izin akses sebelum agen bekerja.
 
+Menambahkan tim yang sama lagi akan mempertahankan koneksi dan izin yang sudah ada. Pembatalan selesai secara otomatis setelah koneksi pulih. Di Windows, Claude Code dan Codex yang diinstal melalui npm terdeteksi secara otomatis.
+
 ## Linux
 
 Unduh paket Linux yang sesuai dari halaman rilis, lalu jalankan perintah dari folder tempat Anda menyimpannya.

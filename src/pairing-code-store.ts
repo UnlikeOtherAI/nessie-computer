@@ -18,6 +18,8 @@ export type PendingPairingCode = {
   machinePrivateKey: string
   request: ExecutorPairingStartRequest
   response?: ExecutorPairingStartResponse
+  /** Durable cancellation intent: never activate this attempt, even after a lost claim response. */
+  cancelRequested?: true
   workspaceFolders: ExecutorWorkspaceFolder[]
 }
 
@@ -31,6 +33,7 @@ export const loadPairingCode = async (directory: string): Promise<PendingPairing
     const parsed = JSON.parse(await readFile(path, 'utf8')) as Partial<PendingPairingCode>
     if (typeof parsed.apiBaseUrl !== 'string' || typeof parsed.machinePrivateKey !== 'string'
       || !Array.isArray(parsed.workspaceFolders)) throw new Error('Pairing could not be restored.')
+    if (parsed.cancelRequested !== undefined && parsed.cancelRequested !== true) throw new Error('Pairing could not be restored.')
     assertExecutorWorkspaceFolders(parsed.workspaceFolders)
     return {
       apiBaseUrl: parsed.apiBaseUrl,
@@ -38,6 +41,7 @@ export const loadPairingCode = async (directory: string): Promise<PendingPairing
       request: ExecutorPairingStartRequestSchema.parse(parsed.request),
       ...(parsed.response ? { response: ExecutorPairingStartResponseSchema.parse(parsed.response) } : {}),
       workspaceFolders: parsed.workspaceFolders,
+      ...(parsed.cancelRequested ? { cancelRequested: true } : {}),
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null

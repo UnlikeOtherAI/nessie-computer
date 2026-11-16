@@ -267,6 +267,7 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, pairSt
       const executorId = id ?? `team-${window.paired.length - 1}`
       const index = Number(executorId.split('-')[1])
       return { ...pairingView(id ? 'paired' : window.pairStatus, executorId),
+        ...(window.cancellationPending ? { cancellationPending: true } : {}),
         organizationName: 'UnlikeOtherAI', teamName: teamNames[index] ?? `Team ${index}` }
     }
     if (command === 'executor_configure') {

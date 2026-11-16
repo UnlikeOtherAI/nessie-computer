@@ -5,7 +5,7 @@ import type { CommandRunner } from './agent-env.js'
 import { CLAUDE_PROMPT_TOOL_ARGUMENTS, claudeArguments } from './claude-adapter.js'
 import { codexAppServerArguments } from './codex-adapter.js'
 import type { CodingAgentConfig } from './config.js'
-import { resolveProgramPath } from './program-path.js'
+import { resolveProgramLaunch } from './program-launch.js'
 import { readJson, writeJsonAtomic } from './session-files.js'
 import type { CodingAgentName } from './types.js'
 
@@ -215,9 +215,9 @@ const stamp = async (path: string): Promise<string | undefined> => {
 const programFingerprint = async (
   agent: CodingAgentName, command: readonly string[], env: NodeJS.ProcessEnv,
 ): Promise<string | undefined> => {
-  const [program, ...prefix] = command
-  // The host passes it resolved already; a bare name is found as `program-path.ts` finds one.
-  const located = program === undefined ? undefined : await resolveProgramPath(program, env)
+  // The host passes the same resolved launch to every probe and provider start.
+  const resolved = await resolveProgramLaunch(command, env)
+  const [located, ...prefix] = resolved ?? []
   const programStamp = located === undefined ? undefined : await stamp(located)
   if (programStamp === undefined) return undefined
   const rest = await Promise.all(prefix.map(async (part) => (isAbsolute(part) ? await stamp(part) ?? part : part)))

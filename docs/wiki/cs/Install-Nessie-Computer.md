@@ -6,6 +6,8 @@
 
 Pomocí kódu z aplikace přidejte počítač do požadovaného týmu v Nessie. Než agenti začnou pracovat, zkontrolujte oprávnění.
 
+Při opětovném přidání stejného týmu se zachová jeho stávající připojení a oprávnění. Zrušení se dokončí automaticky po obnovení spojení. Ve Windows se Claude Code a Codex nainstalované přes npm rozpoznají automaticky.
+
 ## Linux
 
 Stáhněte odpovídající balíček pro Linux ze stránky vydání a spusťte příkaz ze složky, kam jste jej uložili.

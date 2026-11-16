@@ -82,6 +82,22 @@ export const verifyConsoleShell = async (browser, ui) => {
     assert.equal(await page.locator('#error').isHidden(), true)
     await page.locator('#pairing-stop').click()
     await dialogClosed(page)
+    // A lost cancellation stays closed while ordinary background checks reconcile it.
+    await page.locator('#no-team-connect').click()
+    await codeShowing(page)
+    await page.evaluate(() => { window.cancellationPending = true })
+    await page.locator('#pairing-stop').click()
+    await dialogClosed(page)
+    const cancelChecks = await callCount(page, 'executor_pairing_status')
+    await page.waitForFunction(before => window.calls.filter(call =>
+      call.command === 'executor_pairing_status').length > before, cancelChecks)
+    assert.equal(await page.getByRole('dialog').isVisible(), false)
+    assert.equal(await page.locator('#error').isHidden(), true)
+    await page.evaluate(() => { window.cancellationPending = false })
+    const retryChecks = await callCount(page, 'executor_pairing_status')
+    await page.waitForFunction(before => window.calls.filter(call =>
+      call.command === 'executor_pairing_status').length > before, retryChecks)
+    assert.equal(await page.getByRole('dialog').isVisible(), false)
     // A request Nessie refuses says why, with Try again; it never opens the server address.
     await page.evaluate(() => { window.pairingFailure = 'Nessie couldn’t finish this step. Check your connection and try again.' })
     await page.locator('#no-team-connect').click()

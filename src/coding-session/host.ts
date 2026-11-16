@@ -19,7 +19,7 @@ import {
 import { ensureCodingSessionHost, executorRuntimeDigest, resolveExecutorEntry } from './host-spawn.js'
 import { stopOwnUserUnit } from './host-unit.js'
 import type { CodingProcessControl } from './process-control.js'
-import { resolveProgramPath } from './program-path.js'
+import { resolveProgramLaunch } from './program-launch.js'
 import { createProjector, SECRET_NAME, type Projector } from './projection.js'
 import { gitStartSnapshot } from './review.js'
 import { findCodingRoot, resolveCodingFolder, resolveCodingRoots } from './roots.js'
@@ -234,9 +234,9 @@ const serveSession = async (context: HostContext, lock: HeldHostLock): Promise<S
     if (meta.agent === 'codex') context.projector.redact(await codexAccountRedactions(env))
     // Once, from the absolute PATH entries only: every probe, the help cache and every agent start run this
     // path, never a program of the same name in the session's folder (`program-path.ts`).
-    const program = await resolveProgramPath(configured.command[0]!, env)
-    if (program === undefined) throw new AgentStartError('agent_missing')
-    const agent = { ...configured, command: [program, ...configured.command.slice(1)] }
+    const command = await resolveProgramLaunch(configured.command, env)
+    if (command === undefined) throw new AgentStartError('agent_missing')
+    const agent = { ...configured, command }
     const check = terminal ? { ok: true as const } : await runCodingSelfCheck({
       agent: meta.agent, config: agent, cwd: folder, env, helpCacheFile: codingAgentHelpCache(loaded.stateDir),
       ...(loaded.config.maxBudgetUsd === undefined ? {} : { maxBudgetUsd: loaded.config.maxBudgetUsd }),

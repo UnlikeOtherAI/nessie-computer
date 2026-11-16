@@ -6,6 +6,8 @@
 
 Pomocou kódu z aplikácie pridajte počítač do požadovaného tímu v Nessie. Pred prácou agentov skontrolujte oprávnenia.
 
+Pri opätovnom pridaní rovnakého tímu sa zachová jeho existujúce pripojenie a oprávnenia. Zrušenie sa dokončí automaticky po obnovení spojenia. Vo Windowse sa Claude Code a Codex nainštalované cez npm rozpoznajú automaticky.
+
 ## Linux
 
 Stiahnite zodpovedajúci balíček pre Linux zo stránky vydaní a spustite príkaz z priečinka, do ktorého ste ho uložili.

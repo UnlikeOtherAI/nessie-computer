@@ -6,6 +6,8 @@
 
 Notaðu kóðann úr forritinu til að bæta tölvunni við rétt teymi í Nessie. Farðu yfir aðgangsheimildir áður en fulltrúarnir vinna.
 
+Ef sama teymi er bætt við aftur haldast núverandi tenging þess og heimildir. Afturköllun lýkur sjálfkrafa þegar tengingin kemst aftur á. Í Windows greinast Claude Code og Codex sem sett eru upp með npm sjálfkrafa.
+
 ## Linux
 
 Sæktu viðeigandi Linux-pakka af útgáfusíðunni og keyrðu skipunina í möppunni þar sem þú vistaðir hann.

@@ -150,8 +150,8 @@ const agentConfig = (name: CodingAgentName, value: unknown): CodingAgentConfig =
     : name === 'terminal' ? ['command', 'args'] : ['command', 'args', 'model'], where)
   const command = stringList(value.command, `${where}.command`, 8, 4_096)
   if (command.length === 0) refuse(`${where}.command names the program to run.`)
-  // Without a shell nothing can run a script shim, and an npm shim only forwards to the real program.
-  if (/\.(?:cmd|bat|ps1)$/iu.test(command[0]!)) {
+  // Fixed npm .cmd forwarders resolve to an executable at launch; arbitrary shell scripts do not.
+  if (/\.(?:bat|ps1)$/iu.test(command[0]!)) {
     refuse(`${where}.command names a script shim; name the program itself (${name === 'claude' ? 'claude.exe' : 'node and codex.js'}).`)
   }
   const args = stringList(value.args, `${where}.args`, 32, 1_024)

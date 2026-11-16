@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
+    "//#test:process-lease-recovery": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-session-control-source": {
       "dependsOn": [],
       "cache": false,
@@ -8,12 +9,7 @@
         "T3_SESSION_CONTROL_REFERENCE"
       ]
     },
-    "//#test:t3-session-control": {
-      "dependsOn": [
-        "//#build"
-      ],
-      "cache": false
-    },
+    "//#test:t3-session-control": { "dependsOn": ["//#build"], "cache": false },
     "//#test:t3-session-runtime": {
       "dependsOn": [
         "//#build"
@@ -274,12 +270,7 @@
       ]
     },
     "lint": {},
-    "test": {
-      "dependsOn": [
-        "^build"
-      ],
-      "cache": false
-    },
+    "test": { "dependsOn": ["^build"], "cache": false },
     "//#build": {
       "dependsOn": [
         "^build"
@@ -301,7 +292,12 @@
       ],
       "cache": false
     },
-    "//#test:session-local-pairing": { "dependsOn": ["//#build"], "cache": false },
+    "//#test:session-local-pairing": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
     "//#test:public-portability": {
       "dependsOn": [
         "^build"
@@ -342,7 +338,12 @@
       ],
       "cache": false
     },
-    "//#test:executor-pairing": { "dependsOn": ["^build"], "cache": false },
+    "//#test:executor-pairing": {
+      "dependsOn": [
+        "^build"
+      ],
+      "cache": false
+    },
     "//#test:windows-source": {
       "dependsOn": [
         "^build"
@@ -392,6 +393,12 @@
     "//#test:cli": {
       "dependsOn": [
         "^build"
+      ],
+      "cache": false
+    },
+    "//#test:windows-npm-launch": {
+      "dependsOn": [
+        "//#build"
       ],
       "cache": false
     }

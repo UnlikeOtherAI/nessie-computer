@@ -20,6 +20,11 @@ address to type.
 The new team appears in the **Team** list. If 5 minutes pass, choose **Get a
 new code**.
 
+Adding the same team again selects its existing connection and keeps its
+permissions. The browser follows that computer automatically. If you cancel
+while offline, the dialog closes and cancellation finishes automatically after
+the connection returns. No extra sign-in or confirmation is added.
+
 ## On the command line
 
 ```sh

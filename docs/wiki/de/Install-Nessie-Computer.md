@@ -6,6 +6,8 @@
 
 Fügen Sie den Computer mit dem Code aus der App dem gewünschten Team in Nessie hinzu. Prüfen Sie die Zugriffsrechte, bevor Agenten arbeiten.
 
+Wenn Sie dasselbe Team erneut hinzufügen, bleiben die bestehende Verbindung und ihre Berechtigungen erhalten. Der Abbruch wird automatisch abgeschlossen, sobald die Verbindung wiederhergestellt ist. Unter Windows werden über npm installierte Versionen von Claude Code und Codex automatisch erkannt.
+
 ## Linux
 
 Laden Sie das passende Linux-Paket von der Release-Seite herunter und führen Sie den Befehl in dem Ordner aus, in dem Sie es gespeichert haben.

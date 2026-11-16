@@ -64,7 +64,7 @@ export type ExecutorApiClient = {
   exchangeSessionViews: (baseUrl: string, input: ExecutorSessionViewExchange) =>
     Promise<{ requests: ExecutorSessionViewRequest[] }>
   pairing: (
-    baseUrl: string, action: 'start' | 'poll' | 'confirm' | 'cancel' | 'connection' | 'sign-off', input: unknown,
+    baseUrl: string, action: 'start' | 'poll' | 'confirm' | 'cancel' | 'connection' | 'sign-off' | 'reuse', input: unknown,
   ) => Promise<unknown>
   personalChatgpt: (
     baseUrl: string, action: 'challenge' | 'delegate' | 'disconnect', input: unknown,

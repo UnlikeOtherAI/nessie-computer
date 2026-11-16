@@ -10,6 +10,7 @@
   let step = null
   let busy = false
   let poll = null
+  let cancellationPending = false
   // Each attempt has a number; an answer for an attempt that was cancelled is ignored.
   let attemptId = 0
   const actions = ['pairing-open-nessie', 'pairing-stop', 'pairing-renew', 'copy-code', 'pairing-server-use']
@@ -30,6 +31,7 @@
     const changed = nextStep !== step
     step = nextStep
     view = next
+    if (next.status === 'cancelled') cancellationPending = next.cancellationPending === true
     const showing = open(next)
     byId('connect-progress').hidden = !showing
     byId('pairing-getting').hidden = showing || next.status !== 'getting'
@@ -209,7 +211,8 @@
   setInterval(tick, 1000)
   setInterval(() => {
     // Checks continue after the code runs out here: a claim made just before expiry still completes.
-    if (busy || poll || !byId('connect-dialog').open || view?.status !== 'waiting') return
+    const cancelled = cancellationPending
+    if (busy || poll || !cancelled && (!byId('connect-dialog').open || view?.status !== 'waiting')) return
     const mine = attemptId
     poll = invoke('executor_pairing_status')
       .then((next) => (mine === attemptId && !busy ? finish(next) : undefined))

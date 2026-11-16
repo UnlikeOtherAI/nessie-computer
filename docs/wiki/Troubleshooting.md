@@ -128,3 +128,11 @@ stay as they were. Different teams can have the same name and remain separate.
 If an older app already shows duplicate connections, keep the one you use while
 checking their running work before disconnecting extras. Adding another connection
 does not repair a failed task or transfer its history.
+
+### Claude or Codex installed with npm on Windows
+
+Nessie Computer finds the normal npm installation automatically, including
+Claude's native executable and Codex's Node launcher. Keep using the program's
+existing sign-in. You do not need to edit command paths or add a second login.
+Each new session uses the current Windows user environment, so a newly installed
+program is discovered without another setup step.

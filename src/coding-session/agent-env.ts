@@ -3,7 +3,7 @@ import { access } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import type { CodingSessionsConfig } from './config.js'
-import { resolveProgramPath } from './program-path.js'
+import { resolveProgramLaunch } from './program-launch.js'
 
 /**
  * The environment a coding agent runs in.
@@ -81,9 +81,9 @@ const runResolved: CommandRunner = (file, args, options = {}) => new Promise((se
  * session's repository (`program-path.ts`) — and one found nowhere is missing.
  */
 export const runCommand: CommandRunner = async (file, args, options = {}) => {
-  const program = await resolveProgramPath(file, options.env ?? process.env)
-  if (program === undefined) return { code: null, missing: true, stdout: '' }
-  return runResolved(program, args, options)
+  const command = await resolveProgramLaunch([file, ...args], options.env ?? process.env)
+  if (command === undefined) return { code: null, missing: true, stdout: '' }
+  return runResolved(command[0]!, command.slice(1), options)
 }
 
 /** An environment whose names compare the way the OS compares them. */

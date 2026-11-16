@@ -1,4 +1,5 @@
-import { lstat, readdir, readFile } from 'node:fs/promises'
+import { executorProcessLeaseState } from './process-lease.js'
+import { lstat, readdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 import { CliRefusal, CliUsageError, listed, type CliContext } from './cli-output.js'
@@ -148,21 +149,9 @@ export const findPendingConnections = async (home: string): Promise<string[]> =>
   return pending
 }
 
-/**
- * Whether a daemon runs this team now: the lease file names a live process.
- * Read only; the lease itself belongs to the daemon (`process-lease.ts`), which
- * reads `EPERM` the same way, as a process that exists.
- */
-export const daemonRunning = async (stateDir: string): Promise<boolean> => {
-  const text = await readFile(join(stateDir, 'daemon.pid'), 'utf8').catch(() => '')
-  if (!/^[1-9][0-9]{0,9}$/u.test(text.trim())) return false
-  try {
-    process.kill(Number(text.trim()), 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
-  }
-}
+/** Only a matching live generation proves Working; unreadable or legacy identity does not. */
+export const daemonRunning = async (stateDir: string): Promise<boolean> =>
+  await executorProcessLeaseState(stateDir, 'daemon.pid').catch(() => 'unknown') === 'live'
 
 /** A team's names as the labels use them, and the server they came from. */
 export type ReadNames = TeamNames & { apiBaseUrl?: string }

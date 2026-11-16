@@ -6,6 +6,8 @@
 
 Lisää tietokone haluamaasi Nessie-tiimiin sovelluksen näyttämällä koodilla. Tarkista käyttöoikeudet ennen agenttien työskentelyä.
 
+Saman tiimin lisääminen uudelleen säilyttää sen nykyisen yhteyden ja käyttöoikeudet. Peruutus valmistuu automaattisesti, kun yhteys palautuu. Windowsissa npm:n kautta asennetut Claude Code ja Codex tunnistetaan automaattisesti.
+
 ## Linux
 
 Lataa sopiva Linux-paketti julkaisusivulta ja suorita komento kansiossa, johon tallensit sen.

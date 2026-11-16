@@ -149,3 +149,63 @@ host, and checks expiry, revocation, substitution and immutable request bytes.
 On Windows the gate uses the fixed Debug helper for real owner-only ACL checks.
 Those source checks do not replace a new signed installed CTO response and
 same-session follow-up.
+
+## Windows npm program discovery
+
+Coding-session startup, CLI probes and help-cache identity share one launch
+resolver. It searches only absolute PATH entries in PATHEXT order, considering
+native executables and npm command forwarders. The fixed npm forwarding format
+is read as data: a native target runs directly; a JavaScript target runs through
+the adjacent Node executable or Node from the same absolute PATH search. The
+session folder never supplies either executable. Arguments remain a literal
+vector, including spaces, quotes and shell metacharacters. No command interpreter,
+new sign-in, permission screen or configuration step is added.
+
+Custom batch/PowerShell programs and modified forwarding scripts are refused.
+Existing command admission, immutable request authority and native Job Object
+containment still apply to the resolved executable. Resolution does not grant
+provider access or change the provider's own login.
+
+Run the public Turbo task `test:windows-npm-launch`. On Maxis, its real Windows
+session fixture covers an npm-only installation, a hostile same-name executable
+in the session folder, first output, same-session follow-up, literal arguments,
+close and descendant termination. Native-forwarder probes and malformed shims
+are covered too. These source checks do not establish installed CTO/provider
+acceptance; that remains a separate signed-candidate journey.
+
+## Lifecycle ownership and interrupted pairing
+
+The daemon, pairing-operation and root-wide pairing-activation locks share the
+existing atomic generation-lock implementation with personal admission. A fully
+written, secured draft is linked into place atomically. Recovery serializes on
+the observed ownership token and rechecks file identity; releasing an old owner
+cannot erase a replacement. Status uses the same generation decision as acquisition.
+PID reuse, a different recorded kernel boot and positive process absence recover
+without signalling the process currently using that PID. Unknown identity stays
+unknown. An interrupted publication leaves no empty canonical claim.
+
+Legacy PID-only lifecycle records contain no birth. On Windows a bounded,
+read-only kernel/WMI check can additionally prove that the PID now belongs to a
+different OS principal than the owner-only state. It checks the process birth
+before and after reading ownership, and against an observed birth when available.
+It neither guesses from executable names nor signals the process. A same-account
+or unreadable legacy owner remains unknown. This migration check applies only to
+the three lifecycle files; it does not authorize or alter personal custody.
+
+Cancellation persists its intent and original key before transport. The closed
+dialog's normal background checks and startup restore retry until the server
+acknowledges that attempt. Confirmed claims cannot activate while cancellation
+is pending. The server's rejected tombstone also fences a late mint.
+
+Duplicate activation compares fresh signed server/org/team identities. A signed
+410 inactive outcome skips revoked history without deleting it. Reuse proves both
+local keys to the server, retires only the redundant claim and returns a durable
+retained-connection outcome to both surfaces. A lost response recovers by polling;
+the native client checks the retained local connection before clearing its key.
+Accepted source authority, retained keys, grants and withheld outputs do not change.
+
+The public Turbo tasks test:process-lease-recovery and test:executor-pairing cover
+competing reclaimers, crash boundaries, unknown legacy owners, different-principal
+recovery, duplicate reuse and durable cancellation after restart. The local console
+renderer checks closed-dialog retries on both host renderers. These gates do not
+replace signed installed qualification against the matching server protocol.
