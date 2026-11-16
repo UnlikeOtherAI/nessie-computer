@@ -67,7 +67,7 @@ export const writeRequest = async (
   const temporary = effect ? join(intents, `${request.id}.json`) : join(paths.dir, `.request-${randomUUID()}.tmp`)
   await effect?.consume()
   effect?.assertLive()
-  const retained = effect ? { ...request, sessionAuthority: effect.scope } : request
+  const retained = effect ? { ...request, sessionAuthority: effect.queuedCarrier } : request
   await writeFile(temporary, `${JSON.stringify(retained)}\n`, { encoding: 'utf8', mode: 0o600, flag: 'wx' })
   try {
     await effect?.consume()

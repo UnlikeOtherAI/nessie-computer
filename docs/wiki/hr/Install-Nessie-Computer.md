@@ -6,6 +6,8 @@
 
 Kod iz aplikacije upotrijebite za dodavanje računala željenom timu u Nessie. Provjerite dopuštenja prije nego što agenti počnu raditi.
 
+Ponovnim dodavanjem istog tima zadržavaju se njegova postojeća veza i dopuštenja. Otkazivanje se automatski dovršava kada se veza ponovno uspostavi. U sustavu Windows automatski se prepoznaju Claude Code i Codex instalirani putem npm-a.
+
 ## Linux
 
 Preuzmite odgovarajući paket za Linux sa stranice izdanja i pokrenite naredbu iz mape u koju ste ga spremili.

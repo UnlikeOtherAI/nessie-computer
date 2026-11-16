@@ -4,7 +4,7 @@ import { parse, resolve } from 'node:path'
 
 import { executorApi } from './api-client.js'
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
-import { pairingSignature } from './pairing-code.js'
+import { pairingSignature } from './pairing-proof.js'
 import { loadExecutorState } from './state-store.js'
 import { acquireChatgptPairingRetirement } from './chatgpt-pairing-retirement.js'
 

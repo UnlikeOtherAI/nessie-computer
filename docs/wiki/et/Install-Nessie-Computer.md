@@ -6,6 +6,8 @@
 
 Lisage arvuti rakenduses kuvatud koodi abil soovitud Nessie meeskonda. Kontrollige õigusi enne agentide töö alustamist.
 
+Sama meeskonna uuesti lisamisel säilivad selle olemasolev ühendus ja õigused. Tühistamine viiakse automaatselt lõpule, kui ühendus taastub. Windowsis tuvastatakse npm-i kaudu installitud Claude Code ja Codex automaatselt.
+
 ## Linux
 
 Laadi väljalasete lehelt alla sobiv Linuxi pakett ja käivita käsk kaustas, kuhu selle salvestasid.

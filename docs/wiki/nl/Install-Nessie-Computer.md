@@ -6,6 +6,8 @@
 
 Voeg de computer met de code uit de app toe aan het gewenste team in Nessie. Controleer de toegangsrechten voordat agenten aan het werk gaan.
 
+Als je hetzelfde team opnieuw toevoegt, blijven de bestaande verbinding en machtigingen behouden. Het annuleren wordt automatisch voltooid zodra de verbinding is hersteld. Op Windows worden Claude Code en Codex die via npm zijn geïnstalleerd automatisch herkend.
+
 ## Linux
 
 Download het passende Linux-pakket van de releasepagina en voer het commando uit in de map waarin je het hebt opgeslagen.

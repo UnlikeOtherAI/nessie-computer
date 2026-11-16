@@ -7,7 +7,7 @@ import {
 
 import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
-import { pairingSignature } from './pairing-code.js'
+import { pairingSignature } from './pairing-proof.js'
 import type { ExecutorLocalState } from './state-store.js'
 import { saveTeamLabel, teamDisplayNames, type TeamDisplayNames, type TeamLabel } from './team-label.js'
 

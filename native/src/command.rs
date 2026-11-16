@@ -21,6 +21,7 @@ pub enum Command {
     T3RetainedApprove(String),
     T3RetainedVerify,
     BuildInfo,
+    StateSecurityStdio,
     UpdateControl,
     UpdateService,
     UpdateRegisteredService,
@@ -38,8 +39,6 @@ pub enum Command {
     ManagedRuntime(Vec<String>),
     ManagedCustodyInstall,
     ManagedInventoryBarrier(String),
-    ManagedHostBarrier(String),
-    ManagedHostCheck,
     ManagedProtectionStatus,
     ManagedProtectionCleanup,
     ManagedProtectionRevoke(String),
@@ -133,6 +132,7 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
             && nonce.bytes().all(|b|b.is_ascii_digit() || (b'a'..=b'f').contains(&b)) => Ok(Command::T3RetainedApprove(nonce.clone())),
         [command] if command == "t3-retained-verify" => Ok(Command::T3RetainedVerify),
         [command] if command == "build-info" => Ok(Command::BuildInfo),
+        [command] if command == "state-security-stdio" => Ok(Command::StateSecurityStdio),
         [command] if command == "update-control" => Ok(Command::UpdateControl),
         [command] if command == "update-service" => Ok(Command::UpdateService),
         [command] if command == "update-registered-service" => Ok(Command::UpdateRegisteredService),
@@ -141,7 +141,6 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
         [command] if command == "update-worker" => Ok(Command::UpdateWorker),
         [command] if command == "update-application-reopen" => Ok(Command::UpdateApplicationReopen),
         [command] if command == "personal-chatgpt-browser" => Ok(Command::PersonalChatgptBrowser),
-        [command] if command == "managed-host-check" => Ok(Command::ManagedHostCheck),
         [command] if command == "managed-protection-status" => Ok(Command::ManagedProtectionStatus),
         [command] if command == "managed-protection-cleanup" => {
             Ok(Command::ManagedProtectionCleanup)
@@ -160,13 +159,6 @@ pub fn parse_command(arguments: &[String]) -> Result<Command, NativeError> {
                 && nonce.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
         {
             Ok(Command::ManagedInventoryBarrier(nonce.clone()))
-        }
-        [command, nonce]
-            if command == "managed-host-barrier"
-                && nonce.len() == 64
-                && nonce.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
-        {
-            Ok(Command::ManagedHostBarrier(nonce.clone()))
         }
         [command, epoch]
             if (command == "managed-protection-revoke"

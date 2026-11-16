@@ -19,8 +19,6 @@ fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
     use portable_pty::{native_pty_system, CommandBuilder, PtySize};
     use std::io::{self, Read, Write};
     let failed = |_| NativeError::new("EXECUTOR_TERMINAL_FAILED");
-    #[cfg(not(debug_assertions))]
-    let lease = crate::managed_windows::acquire_host()?;
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 36,
@@ -81,7 +79,5 @@ fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
         .map_err(|_| NativeError::new("EXECUTOR_TERMINAL_FAILED"))?;
     drop(pair.master);
     let _ = output.join();
-    #[cfg(not(debug_assertions))]
-    crate::managed_windows::release_host(&lease)?;
     Ok(status.exit_code() as i32)
 }

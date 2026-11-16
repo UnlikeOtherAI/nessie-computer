@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { mkdtemp, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 import { ExecutorCodingSessionAuthoritySchema, type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { managedSessionEvidence, requireManagedSessionEvidence } from '../src/coding-session/session-authority.js'
@@ -84,4 +87,73 @@ test('unselected results, sidecars and unscoped errors are withheld before publi
     assert.equal(JSON.stringify(published).includes('forbidden'), false)
     assert.equal(JSON.stringify(published).includes('private failure'), false)
   }
+})
+
+test('a delayed start acknowledges its admitted selection without extending any execution or publication lease', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-result-ack-'))
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const { acceptSessionPairingSource, prepareManagedBridgeCall, preparedManagedSessionAuthority } =
+    await import('../src/coding-session/session-authority.js')
+  const { callCodingBridgeTool } = await import('../src/coding-session/bridge-server.js')
+  const keys = await import('../src/coding-session/meta-keys.js')
+  let now = Date.now()
+  t.mock.method(Date, 'now', () => now)
+  const authority: ExecutorCodingSessionAuthority = { ...scope(), operation: 'session_start', purpose: 'control',
+    issuedAt: new Date(now).toISOString(), expiresAt: new Date(now + 5_000).toISOString() }
+  const source = { kind: 'bound' as const, executorId: authority.executorId,
+    originalOwnerGeneration: authority.originalOwnerGeneration, machinePublicKeyDigest: 'c'.repeat(64),
+    acceptedPairing: { kind: 'code' as const, id: randomUUID() } }
+  await acceptSessionPairingSource(directory, source)
+  const sessionId = randomUUID()
+  const result = { sessionId, startPhase: 'request_and_host_created', startEvidence: managedSessionEvidence({
+    executorId: authority.executorId, originalOwnerGeneration: authority.originalOwnerGeneration,
+    startCommandId: authority.commandId }, sessionId, authority.ownerKey) }
+  const request = { name: 'session_start', arguments: {}, _meta: {
+    [keys.CODING_SESSION_COMMAND_META]: authority.commandId,
+    [keys.CODING_SESSION_OWNER_META]: authority.ownerKey,
+    [keys.CODING_SESSION_AUTHORITY_META]: authority,
+    [keys.CODING_SESSION_PAIRING_SOURCE_META]: source,
+    [keys.CODING_SESSION_CONNECTION_META]: authority.connectionEpoch,
+  } }
+  const identity = (text: string) => text
+  const bridge = { rewriter: { rewrite: identity, rewritePaths: identity, rewriteBranch: identity },
+    call: async (tool: string, args: unknown, meta: import('../src/coding-session/bridge.js').CodingBridgeCallMeta) => {
+      await prepareManagedBridgeCall(directory, directory, tool, args, meta)
+      now += 12_000
+      assert.throws(() => preparedManagedSessionAuthority(meta), 'expired execution authority stays unusable')
+      return result
+    } }
+  const raw = await callCodingBridgeTool(bridge, request)
+  assert.notEqual('isError' in raw && raw.isError, true)
+  const body = JSON.parse(raw.content[0]!.text)
+  assert.deepEqual(body.resultScope, executorCodingSessionResultScope(authority))
+  assert.equal(body.sessionId, sessionId)
+  assert.equal('expiresAt' in body.resultScope, false, 'the acknowledgement is not a renewable lease')
+  const publish = (grant: ExecutorCodingSessionAuthority) => publishExecutorMcpResult(raw, {
+    server: 'coding-sessions', tool: 'session_start', maxResultBytes: 65_536, log: () => {},
+    validate: async answer => validateScopedCodingResult(answer, grant),
+  })
+  assert.equal((await publish(authority)).code, 'EXECUTOR_CODING_SESSION_RESULT_WITHHELD')
+  const renewed = { ...authority, issuedAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + 5_000).toISOString() }
+  assert.deepEqual(validateScopedCodingResult(raw, renewed), raw)
+  for (const patch of [{ originalOwnerGeneration: randomUUID() }, { ownerKey: 'sha256:' + 'b'.repeat(64) },
+    { commandId: randomUUID() }, { connectionEpoch: '2' }, { authorizationRevision: 2 }]) {
+    assert.equal((await publish({ ...renewed, ...patch })).code, 'EXECUTOR_CODING_SESSION_RESULT_WITHHELD')
+  }
+  now = Date.parse(authority.issuedAt)
+  const { CodingBridgeError } = await import('../src/coding-session/bridge-tools.js')
+  const failed = await callCodingBridgeTool({ ...bridge, call: async (...args) => {
+    await bridge.call(...args)
+    throw new CodingBridgeError('coding_session_unavailable', 'private delayed failure')
+  } }, request)
+  assert.equal(failed.isError, true)
+  const refusal = validateScopedCodingResult(failed, renewed)
+  assert.equal(JSON.stringify(refusal).includes('private delayed failure'), false)
+  assert.match(JSON.stringify(refusal), /coding_session_call_refused/)
+  const unprepared = await callCodingBridgeTool({ ...bridge, call: async () => result }, request)
+  assert.equal((await publishExecutorMcpResult(unprepared, { server: 'coding-sessions', tool: 'session_start',
+    maxResultBytes: 65_536, log: () => {},
+    validate: async answer => validateScopedCodingResult(answer, renewed) })).code,
+  'EXECUTOR_CODING_SESSION_RESULT_WITHHELD', 'wire fields alone cannot produce an acknowledgement')
 })

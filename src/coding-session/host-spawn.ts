@@ -19,9 +19,10 @@ import { CODING_SESSION_PROTOCOL_VERSION } from './types.js'
  * bridge's exec arguments and environment (so a development loader and the
  * packaged-CLI marker both survive), with its output in the session's bounded
  * `host.log`, in a systemd user unit of its own on Linux and detached
- * everywhere else. It outlives the bridge: the daemon's idle close, the
- * reporter's probe and a daemon restart all kill the bridge, and none of them
- * may take a coding turn with it.
+ * everywhere else. POSIX hosts can outlive the bridge. Windows managed hosts
+ * remain in its native job, so the daemon keeps the verified bridge through
+ * idle. Stopping that bridge or restarting the Windows daemon ends its hosts;
+ * their retained history does not authorize restarting or replaying a turn.
  */
 
 const ENTRY_NAMES = ['index.js', 'index.ts', 'nessie-executor.cjs']

@@ -53,7 +53,6 @@ pub enum Operation {
     ExecutionSecretObservation { request: Box<crate::execution_secret_read::Observe> },
     Execution { request: crate::execution::Request },
     Status,
-    HostCheck,
     Register {
         child_pid: u32,
         job_name: String,
@@ -75,12 +74,6 @@ pub enum Operation {
     Release {
         nonce: String,
     },
-    HostAcquire {
-        nonce: String,
-    },
-    HostRelease {
-        nonce: String,
-    },
 }
 
 pub fn valid_nonce(value: &str) -> bool {
@@ -93,7 +86,7 @@ pub fn validate(operation: &Operation) -> Result<(), String> {
         Operation::ExecutionResource { request } => return request.validate(),
         Operation::ExecutionSecretObservation { request } => return request.validate(),
         Operation::Execution { request } => return request.validate(),
-        Operation::Status | Operation::HostCheck => true,
+        Operation::Status => true,
         Operation::Register {
             child_pid,
             job_name,
@@ -108,9 +101,7 @@ pub fn validate(operation: &Operation) -> Result<(), String> {
                     .is_some_and(valid_nonce)
         }
         Operation::Inventory { nonce }
-        | Operation::Release { nonce }
-        | Operation::HostAcquire { nonce }
-        | Operation::HostRelease { nonce } => valid_nonce(nonce),
+        | Operation::Release { nonce } => valid_nonce(nonce),
         Operation::Revoke { epoch } | Operation::Clear { epoch } | Operation::Recover { epoch } => {
             valid_nonce(epoch)
         }

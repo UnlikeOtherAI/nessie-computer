@@ -14,3 +14,5 @@ Abans d’acceptar, comprova que l’editor sigui **UnlikeOtherAI s.r.o.**. Desp
 nessie-computer --version
 nessie-computer --help
 ```
+
+Abans d'actualitzar, espereu que acabi la feina en curs. L'instal·lador de Nessie Computer elimina els bloquejos de connexions antigues només quan Windows confirma que el procés original ha acabat. Es conserven la configuració i l'historial dels equips.

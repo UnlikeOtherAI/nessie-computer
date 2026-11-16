@@ -14,3 +14,5 @@ Jóváhagyás előtt ellenőrizd, hogy a kiadó **UnlikeOtherAI s.r.o.**. Telep�
 nessie-computer --version
 nessie-computer --help
 ```
+
+Frissítés előtt várja meg a folyamatban lévő munka befejezését. A Nessie Computer telepítője csak akkor távolítja el a régi kapcsolati zárolásokat, ha a Windows megerősíti, hogy az eredeti folyamat véget ért. A csapatok beállításai és előzményei megmaradnak.

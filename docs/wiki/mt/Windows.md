@@ -14,3 +14,5 @@ Qabel tapprova, ivverifika li l-pubblikatur huwa **UnlikeOtherAI s.r.o.**. Wara 
 nessie-computer --version
 nessie-computer --help
 ```
+
+Qabel taġġorna, stenna sakemm jintemm ix-xogħol li jkun għaddej. L-installatur ta’ Nessie Computer ineħħi s-serraturi qodma tal-konnessjonijiet biss meta Windows jikkonferma li l-proċess oriġinali jkun intemm. Is-settings u l-istorja tat-timijiet jinżammu.

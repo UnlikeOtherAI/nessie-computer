@@ -14,3 +14,5 @@ Enne kinnitamist kontrolli, et avaldaja on **UnlikeOtherAI s.r.o.**. Pärast pai
 nessie-computer --version
 nessie-computer --help
 ```
+
+Enne värskendamist oodake käimasoleva töö lõppemist. Nessie Computeri installer eemaldab vanad ühenduselukud ainult siis, kui Windows kinnitab algse protsessi lõppemist. Meeskondade seaded ja ajalugu säilivad.

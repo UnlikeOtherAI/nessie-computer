@@ -174,7 +174,8 @@ test('a concurrent state mutation cannot race a later grant revocation', { skip:
     await saveExecutorState(stateDir, state)
     const grantPath = deepTestSourceGrantPath(stateDir)
     const before = await readFile(grantPath, 'utf8')
-    await writeFile(join(stateDir, 'executor-state-mutation.lock'), 'another process\n')
+    // Held by something this process cannot identify: unreadable is never proof that the holder has gone.
+    await writeFile(join(stateDir, 'executor-state-mutation.lock'), 'another process\n', { mode: 0o600 })
 
     await assert.rejects(saveExecutorState(stateDir, stateFor(workspaceRoot, 2)), /already being updated/u)
     assert.equal(await readFile(grantPath, 'utf8'), before)

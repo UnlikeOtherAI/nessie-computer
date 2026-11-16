@@ -2,7 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
-import { createCodingBridge, type CodingBridgeCallMeta } from './bridge.js'
+import { createCodingBridge, type CodingBridgeCallMeta, type CodingBridge } from './bridge.js'
 import { codingBridgeTools, CodingBridgeError } from './bridge-tools.js'
 import { loadCodingSessionsConfig } from './config.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from '../command-policy.js'
@@ -16,8 +16,8 @@ import {
 } from './meta-keys.js'
 import type { PathRewriter } from './path-rewrite.js'
 import { PersonalInferenceAuthoritySchema, ExecutorCodingSessionAuthoritySchema,
-  ExecutorSessionPairingSourceSchema, executorCodingSessionResultScope } from '@nessie/executor-protocol'
-import { preparedManagedSessionAuthority } from './session-authority.js'
+  ExecutorSessionPairingSourceSchema } from '@nessie/executor-protocol'
+import { preparedManagedSessionResultScope } from './session-authority.js'
 
 /**
  * `nessie-executor serve-coding-session-mcp --config <abs path>`: the
@@ -89,6 +89,30 @@ export const rewriteCodingAnswer = (value: unknown, rewriter: PathRewriter, key?
   return value
 }
 
+/** The same result boundary is used by the stdio transport; execution and publication have separate leases. */
+export const callCodingBridgeTool = async (
+  bridge: CodingBridge, request: { name: string; arguments?: unknown; _meta?: unknown },
+) => {
+  const meta = codingBridgeCallMeta(request._meta)
+  try {
+    const result = await bridge.call(request.name, request.arguments, meta)
+    const scope = preparedManagedSessionResultScope(meta)
+    return { content: [{ type: 'text' as const, text: JSON.stringify(rewriteCodingAnswer({ ...result,
+      ...(scope ? { resultScope: scope } : {}) }, bridge.rewriter)) }] }
+  } catch (error) {
+    const known = error instanceof CodingBridgeError
+    // No raw failure detail enters the daemon log or its result journal.
+    if (!known) process.stderr.write('[coding-sessions] unexpected bridge failure\n')
+    const scope = preparedManagedSessionResultScope(meta)
+    const answer = {
+      code: known ? error.code : 'coding_session_unavailable',
+      message: known ? error.message : 'The coding-sessions bridge could not complete that call.',
+      ...(scope ? { resultScope: scope } : {}),
+    }
+    return { isError: true, content: [{ type: 'text' as const, text: JSON.stringify(rewriteCodingAnswer(answer, bridge.rewriter)) }] }
+  }
+}
+
 export const serveCodingSessionMcp = async (configPath: string): Promise<void> => {
   const loaded = await loadCodingSessionsConfig(configPath)
   const bridge = await createCodingBridge(loaded)
@@ -96,25 +120,7 @@ export const serveCodingSessionMcp = async (configPath: string): Promise<void> =
   const server = new Server({ name: 'nessie-coding-sessions', version: '1.0.0' }, { capabilities: { tools: {} } })
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }))
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const meta = codingBridgeCallMeta(request.params._meta)
-    try {
-      const result = await bridge.call(request.params.name, request.params.arguments, meta)
-      const scope = preparedManagedSessionAuthority(meta)
-      return { content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer({ ...result,
-        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}) }, bridge.rewriter)) }] }
-    } catch (error) {
-      const known = error instanceof CodingBridgeError
-      // No raw failure detail enters the daemon log or its result journal.
-      if (!known) process.stderr.write('[coding-sessions] unexpected bridge failure\n')
-      let scope: ReturnType<typeof preparedManagedSessionAuthority>
-      try { scope = preparedManagedSessionAuthority(meta) } catch { /* Expired authority cannot publish a result. */ }
-      const answer = {
-        code: known ? error.code : 'coding_session_unavailable',
-        message: known ? error.message : 'The coding-sessions bridge could not complete that call.',
-        ...(scope ? { resultScope: executorCodingSessionResultScope(scope) } : {}),
-      }
-      return { isError: true, content: [{ type: 'text', text: JSON.stringify(rewriteCodingAnswer(answer, bridge.rewriter)) }] }
-    }
+    return callCodingBridgeTool(bridge, request.params)
   })
   await server.connect(new StdioServerTransport())
 }

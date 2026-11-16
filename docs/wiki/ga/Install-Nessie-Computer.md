@@ -6,6 +6,8 @@
 
 Úsáid an cód san aip chun an ríomhaire a chur leis an bhfoireann atá uait in Nessie. Seiceáil na ceadanna sula dtosaíonn na gníomhairí ag obair.
 
+Má chuireann tú an fhoireann chéanna leis arís, coinnítear a nasc agus a ceadanna reatha. Críochnaítear an cealú go huathoibríoch nuair a fhilleann an nasc. Ar Windows, aimsítear Claude Code agus Codex atá suiteáilte trí npm go huathoibríoch.
+
 ## Linux
 
 Íoslódáil an pacáiste cuí Linux ón leathanach eisiúintí agus rith an t-ordú ón bhfillteán inar shábháil tú é.

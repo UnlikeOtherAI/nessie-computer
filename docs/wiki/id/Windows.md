@@ -14,3 +14,5 @@ Sebelum menyetujui, pastikan penerbitnya adalah **UnlikeOtherAI s.r.o.**. Setela
 nessie-computer --version
 nessie-computer --help
 ```
+
+Sebelum memperbarui, tunggu hingga pekerjaan yang sedang berjalan selesai. Penginstal Nessie Computer hanya menghapus kunci koneksi lama ketika Windows memastikan bahwa proses aslinya telah berakhir. Pengaturan dan riwayat tim tetap tersimpan.

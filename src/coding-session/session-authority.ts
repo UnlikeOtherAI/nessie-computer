@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { join } from 'node:path'
 import {
   ExecutorCodingSessionAuthoritySchema, ExecutorManagedSessionEvidenceSchema, ExecutorSessionPairingSourceSchema,
-  executorManagedSessionEvidenceInput, type ExecutorCodingSessionAuthority,
+  executorManagedSessionEvidenceInput, executorCodingSessionResultScope, type ExecutorCodingSessionAuthority,
   type ExecutorManagedSessionEvidence, type ExecutorSessionPairingSource,
 } from '@nessie/executor-protocol'
 import { CodingBridgeError } from './bridge-tools.js'
@@ -80,6 +80,14 @@ export const requireManagedSessionEvidence = (
 const originalEffects = new WeakMap<CodingBridgeCallMeta, ExecutorCodingSessionAuthority>()
 export const originalManagedEffectScope = (meta: CodingBridgeCallMeta) => originalEffects.get(meta)
 
+const preparedResults = new WeakMap<CodingBridgeCallMeta, ReturnType<typeof executorCodingSessionResultScope>>()
+/** Acknowledges only the original admitted selection. It grants no effects or publication authority.
+ * The daemon and server must still consume fresh publication authority before releasing any output. */
+export const preparedManagedSessionResultScope = (meta: CodingBridgeCallMeta) => {
+  const scope = preparedResults.get(meta)
+  return scope ? structuredClone(scope) : undefined
+}
+
 const prepared = new WeakMap<CodingBridgeCallMeta, ExecutorCodingSessionAuthority>()
 export const preparedManagedSessionAuthority = (meta: CodingBridgeCallMeta) => {
   const scope = prepared.get(meta)
@@ -127,6 +135,7 @@ export const prepareManagedBridgeCall = async (
     requireManagedSessionEvidence(authority, session)
   }
   prepared.set(meta, authority)
+  preparedResults.set(meta, structuredClone(executorCodingSessionResultScope(authority)))
   originalEffects.set(meta, authority)
   return authority
 }

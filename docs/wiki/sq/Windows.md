@@ -14,3 +14,5 @@ Para miratimit, verifikoni që botuesi është **UnlikeOtherAI s.r.o.**. Pas ins
 nessie-computer --version
 nessie-computer --help
 ```
+
+Para përditësimit, prisni të përfundojë puna në vazhdim. Instaluesi i Nessie Computer heq kyçjet e vjetra të lidhjeve vetëm kur Windows konfirmon se procesi fillestar ka përfunduar. Cilësimet dhe historiku i ekipeve ruhen.

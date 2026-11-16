@@ -10,6 +10,7 @@
   let step = null
   let busy = false
   let poll = null
+  let cancellationPending = false
   // Each attempt has a number; an answer for an attempt that was cancelled is ignored.
   let attemptId = 0
   const actions = ['pairing-open-nessie', 'pairing-stop', 'pairing-renew', 'copy-code', 'pairing-server-use']
@@ -30,6 +31,7 @@
     const changed = nextStep !== step
     step = nextStep
     view = next
+    if (next.status === 'cancelled') cancellationPending = next.cancellationPending === true
     const showing = open(next)
     byId('connect-progress').hidden = !showing
     byId('pairing-getting').hidden = showing || next.status !== 'getting'
@@ -65,13 +67,14 @@
    */
   const finish = async (next) => {
     render(next)
-    if (next.status !== 'paired') return
+    if (next.status === 'cancelled') { byId('connect-dialog').close(); await nc.team.refresh(); return }
+    if (!['paired', 'alreadyPaired'].includes(next.status)) return
     byId('connect-dialog').close()
     await nc.team.refresh()
     if (next.executorId) {
       nc.team.select(next.executorId)
       nc.view.show('access')
-      nc.footer.note(t('pairing.connected', { team: nc.team.label(next.executorId) }))
+      nc.footer.note(t(next.status === 'alreadyPaired' ? 'pairing.alreadyConnected' : 'pairing.connected', { team: nc.team.label(next.executorId) }))
     }
   }
 
@@ -193,7 +196,7 @@
     run(byId('pairing-renew'), t('pairing.getting'), async () => {
       // A pairing Nessie already accepted is finished, not replaced.
       const current = await invoke('executor_pairing_status')
-      if (current.status === 'paired') return current
+      if (['paired', 'alreadyPaired'].includes(current.status)) return current
       await invoke('executor_pairing_cancel')
       return invoke('executor_pairing_start', { apiBaseUrl: address })
     })
@@ -208,7 +211,8 @@
   setInterval(tick, 1000)
   setInterval(() => {
     // Checks continue after the code runs out here: a claim made just before expiry still completes.
-    if (busy || poll || !byId('connect-dialog').open || view?.status !== 'waiting') return
+    const cancelled = cancellationPending
+    if (busy || poll || !cancelled && (!byId('connect-dialog').open || view?.status !== 'waiting')) return
     const mine = attemptId
     poll = invoke('executor_pairing_status')
       .then((next) => (mine === attemptId && !busy ? finish(next) : undefined))

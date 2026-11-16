@@ -43,7 +43,7 @@ import {
 
 import { executorApi, ExecutorApiError, type ExecutorApiClient } from '../api-client.js'
 import { signExecutorDaemonPayload } from '../daemon-signature.js'
-import { pairingSignature } from '../pairing-code.js'
+import { pairingSignature } from '../pairing-proof.js'
 import { fsPath } from './local-fs.js'
 
 /**

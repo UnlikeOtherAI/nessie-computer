@@ -52,6 +52,12 @@ pub mod failure;
 #[cfg(windows)]
 pub mod custody_observation;
 pub mod lease;
+#[cfg(windows)]
+mod lease_windows;
+#[cfg(windows)]
+mod lease_upgrade;
+#[cfg(windows)]
+mod interactive_profiles;
 pub mod owner_controls;
 pub mod owner_sessions;
 pub mod team_label;

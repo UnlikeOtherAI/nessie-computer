@@ -84,6 +84,7 @@ mod promotion;
 mod promotion_fs;
 mod protocol;
 mod state_security;
+mod state_security_stdio;
 
 use command::{parse_command, Command};
 use protocol::{
@@ -214,6 +215,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
         Command::T3ExecutionResource => t3_source::run_execution(),
         Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
         Command::T3RetainedVerify => t3_source::verify_retained_import(),
+        Command::StateSecurityStdio => state_security_stdio::run(),
         Command::BuildInfo => {
             println!(
                 "{}",
@@ -248,24 +250,11 @@ fn run(command: &Command) -> Result<(), NativeError> {
         Command::ManagedCustodyInstall => install_managed_custody(),
         Command::ManagedRuntime(argv) => std::process::exit(run_managed(argv)?),
         Command::ManagedInventoryBarrier(nonce) => managed_barrier(nonce),
-        Command::ManagedHostBarrier(nonce) => {
-            #[cfg(windows)]
-            {
-                managed_windows::host_barrier(nonce)
-            }
-            #[cfg(not(windows))]
-            {
-                let _ = nonce;
-                Err(NativeError::new("EXECUTOR_NATIVE_UNSUPPORTED_PLATFORM"))
-            }
-        }
-        Command::ManagedHostCheck
-        | Command::ManagedProtectionStatus
+        Command::ManagedProtectionStatus
         | Command::ManagedProtectionCleanup => {
             #[cfg(windows)]
             {
                 match command {
-                    Command::ManagedHostCheck => managed_windows::host_check(),
                     Command::ManagedProtectionStatus => managed_windows::status(),
                     _ => managed_windows::cleanup(),
                 }
@@ -402,7 +391,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             eprintln!("{}", serde_json::json!({"error":error.code}));
         }
         Some(
-            Command::BuildInfo
+            Command::StateSecurityStdio
+            | Command::BuildInfo
             | Command::UpdateControl
             | Command::UpdateService
             | Command::UpdateRegisteredService
@@ -442,8 +432,6 @@ fn reject(command: Option<&Command>, error: &NativeError) {
         | Some(Command::ManagedCustodyInstall)
         | Some(Command::VerifyServiceContext)
         | Some(Command::ManagedInventoryBarrier(_))
-        | Some(Command::ManagedHostBarrier(_))
-        | Some(Command::ManagedHostCheck)
         | Some(Command::ManagedProtectionStatus)
         | Some(Command::ManagedProtectionCleanup)
         | Some(Command::ManagedProtectionRevoke(_))

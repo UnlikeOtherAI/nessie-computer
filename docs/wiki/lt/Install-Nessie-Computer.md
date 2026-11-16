@@ -6,6 +6,8 @@
 
 Programoje rodomu kodu pridėkite kompiuterį prie norimos Nessie komandos. Prieš agentams pradedant darbą patikrinkite prieigos leidimus.
 
+Dar kartą pridėjus tą pačią komandą, išsaugomas esamas jos ryšys ir leidimai. Atšaukimas automatiškai užbaigiamas, kai ryšys atkuriamas. Sistemoje Windows per npm įdiegti Claude Code ir Codex aptinkami automatiškai.
+
 ## Linux
 
 Iš leidimų puslapio atsisiųskite tinkamą „Linux“ paketą ir paleiskite komandą aplanke, kuriame jį išsaugojote.

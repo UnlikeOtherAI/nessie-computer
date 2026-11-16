@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { StateSecurityTransport } from './state-security-transport.js'
 import { lstat, mkdir } from 'node:fs/promises'
 import { dirname, join, resolve, toNamespacedPath } from 'node:path'
 
@@ -20,7 +21,19 @@ const MODE_MASK_GROUP_OR_OTHER = 0o077
 
 const HELPER_EXECUTABLE = 'nessie-executor-native.exe'
 
-const HELPER_TIMEOUT_MS = 10_000
+type SecurityScope = { helper?: StateSecurityTransport; ended: boolean }
+const securityChecks = new AsyncLocalStorage<SecurityScope>()
+/** Reuse a process only inside one finite check, and observe its exit before returning. */
+export const withStateSecurityChecks = async <T>(action: () => Promise<T>): Promise<T> => {
+  const current = securityChecks.getStore()
+  if (current?.ended) throw new Error('The native state-security check scope has ended.')
+  if (process.platform !== 'win32' || current) return action()
+  const scope: SecurityScope = { ended: false }
+  return securityChecks.run(scope, async () => {
+    try { return await action() }
+    finally { scope.ended = true; await scope.helper?.stop() }
+  })
+}
 
 export type StateSecurityPlatform = NodeJS.Platform
 
@@ -59,28 +72,13 @@ export const spawnStateSecurityHelper: StateSecurityHelper = async (command, pat
   const helperPath = packagedNativeHelperPath()
   const entry = await lstat(helperPath).catch(() => undefined)
   if (!entry?.isFile() || entry.isSymbolicLink()) throw helperUnavailable()
-  const answer = await new Promise<string>((settle, fail) => {
-    // Node supports long paths automatically; Win32's named ACL functions need
-    // the extended spelling too. Keep the same object and the same ACL policy.
-    const child = spawn(helperPath, [command, toNamespacedPath(path)], {
-      stdio: ['ignore', 'pipe', 'ignore'], windowsHide: true,
-    })
-    let output = ''
-    const timeout = setTimeout(() => {
-      child.kill()
-      fail(new Error(`State security timed out verifying ${path}.`))
-    }, HELPER_TIMEOUT_MS)
-    child.once('error', () => {
-      clearTimeout(timeout)
-      fail(helperUnavailable())
-    })
-    child.stdout?.on('data', (chunk: Buffer) => { output += chunk.toString('utf8') })
-    child.once('close', () => {
-      clearTimeout(timeout)
-      settle(output)
-    })
+  await withStateSecurityChecks(async () => {
+    const scope = securityChecks.getStore()
+    if (!scope || scope.ended) throw helperUnavailable()
+    scope.helper ??= new StateSecurityTransport(helperPath)
+    const answer = await scope.helper.request(command, toNamespacedPath(path))
+    assertStateSecurityHelperResponse(answer, path)
   })
-  assertStateSecurityHelperResponse(answer, path)
 }
 
 /** Native path absence has the same typed filesystem contract as Node lstat. */

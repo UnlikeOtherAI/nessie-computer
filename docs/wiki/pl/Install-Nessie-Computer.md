@@ -6,6 +6,8 @@
 
 Użyj kodu z aplikacji, aby dodać komputer do właściwego zespołu w Nessie. Sprawdź uprawnienia, zanim agenci rozpoczną pracę.
 
+Ponowne dodanie tego samego zespołu zachowuje jego istniejące połączenie i uprawnienia. Anulowanie kończy się automatycznie po przywróceniu połączenia. W systemie Windows Claude Code i Codex zainstalowane przez npm są wykrywane automatycznie.
+
 ## Linux
 
 Pobierz odpowiedni pakiet dla Linuksa ze strony wydań, a następnie uruchom polecenie w folderze, w którym go zapisano.

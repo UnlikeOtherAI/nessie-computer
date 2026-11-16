@@ -106,6 +106,14 @@ pub fn close(folder: &Path, grace: Duration) -> Result<Closing, String> {
     close_found(running_from(folder)?, grace, true)
 }
 
+/// The deferred installer completion is SYSTEM for manual and automatic installs.
+/// Profiles come from active Windows login tokens; no request nominates an owner.
+pub fn recover_user_leases() {
+    for (profile, owner) in crate::interactive_profiles::active() {
+        crate::lease_upgrade::retire(&profile, &owner);
+    }
+}
+
 /// `announce` sets the install event; a test leaves it alone, or it would
 /// close the Windows app of whoever runs the test.
 fn close_found(found: Vec<(Process, String)>, grace: Duration, announce: bool) -> Result<Closing, String> {

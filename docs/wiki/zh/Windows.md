@@ -14,3 +14,5 @@
 nessie-computer --version
 nessie-computer --help
 ```
+
+更新前，请等待正在进行的工作完成。只有在 Windows 确认原进程已结束后，Nessie Computer 安装程序才会移除旧的连接锁。团队设置和历史记录会保留。

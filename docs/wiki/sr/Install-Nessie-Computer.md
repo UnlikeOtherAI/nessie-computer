@@ -6,6 +6,8 @@
 
 Кодом из апликације додајте рачунар жељеном тиму у Nessie. Проверите дозволе пре него што агенти почну да раде.
 
+Ponovno dodavanje istog tima zadržava njegovu postojeću vezu i dozvole. Otkazivanje se automatski dovršava kada se veza ponovo uspostavi. Na Windowsu se Claude Code i Codex instalirani preko npm-a automatski prepoznaju.
+
 ## Linux
 
 Preuzmite odgovarajući Linux paket sa stranice izdanja i pokrenite komandu iz fascikle u koju ste ga sačuvali.

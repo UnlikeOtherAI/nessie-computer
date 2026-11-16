@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto'
-import { homedir } from 'node:os'
-import { resolve } from 'node:path'
+import { lstat, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { homedir, tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import test from 'node:test'
 
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
@@ -92,4 +93,20 @@ test('personal start fence remains held through sign-off and actual pairing remo
   })
   await unpair('/state/team')
   assert.deepEqual(events, ['personal-lock', 'sign-off', 'remove', 'personal-release', 'daemon-release'])
+})
+
+test('disconnecting removes the folder that holds its own running-team lease, and succeeds', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'nessie-unpair-'))
+  const directory = join(root, 'team')
+  await mkdir(directory, { mode: 0o700 })
+  try {
+    // The real lease and the real removal: the lease file lives in the folder being removed.
+    const unpair = createUnpair({
+      loadExecutorState: async () => state,
+      acquireChatgptPairingRetirement: async () => ({ release: async () => undefined }),
+      signOff: async () => undefined,
+    })
+    assert.deepEqual(await unpair(directory), { status: 'removed', signedOff: true })
+    await assert.rejects(lstat(directory), { code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
 })

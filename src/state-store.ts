@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto'
 import { parseT3Homes, type ConfiguredT3Home } from './t3-session/source/configuration.js'
-import { open, readFile, readdir, unlink } from 'node:fs/promises'
+import { readFile, readdir, unlink } from 'node:fs/promises'
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 
 import {
@@ -28,6 +28,7 @@ import {
 } from './mcp-servers.js'
 import { assertOwnerOnlyStatePath, ensureOwnerOnlyStateDirectory } from './state-security.js'
 import { replaceOwnerOnlyJson } from './owner-only-json.js'
+import { withStateMutationLock } from './state-mutation-lock.js'
 import {
   assertExecutorWorkspaceFolders,
   deriveExecutorWorkspaceFolderName,
@@ -39,7 +40,6 @@ const PAIRING_FILE = 'executor-pairing.json'
 const RUNTIME_DIRECTORY = 'runtime'
 export const DEEPTEST_SOURCE_GRANT_FILE = 'deeptest-source-grant.json'
 export const DEEPTEST_EXECUTION_GRANT_FILE = 'deeptest-execution-grant.json'
-const STATE_MUTATION_LOCK_FILE = 'executor-state-mutation.lock'
 
 export type ExecutorBrowserSandboxConfig = {
   allowedOrigins: string[]
@@ -368,28 +368,6 @@ const removeOwnerOnlyFile = async (path: string): Promise<void> => {
     await unlink(path)
   } catch (error) {
     if (!missing(error)) throw error
-  }
-}
-
-export const withStateMutationLock = async <T>(stateDir: string, mutate: () => Promise<T>): Promise<T> => {
-  const lockPath = resolve(stateDir, STATE_MUTATION_LOCK_FILE)
-  let handle: Awaited<ReturnType<typeof open>>
-  try {
-    handle = await open(lockPath, 'wx', 0o600)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      throw new Error('This team’s settings are already being updated. Try again when that update finishes.')
-    }
-    throw error
-  }
-  try {
-    await handle.writeFile(`${String(process.pid)}\n`, 'utf8')
-    await handle.sync()
-    await assertOwnerOnly(lockPath, 'file')
-    return await mutate()
-  } finally {
-    await handle.close().catch(() => undefined)
-    await unlink(lockPath).catch(() => undefined)
   }
 }
 
@@ -851,3 +829,5 @@ export const ensureExecutorRuntimeDirectory = async (stateDir: string): Promise<
   await assertSecureDirectory(stateDir)
   return ensureOwnerOnlyStateDirectory(resolve(stateDir, RUNTIME_DIRECTORY))
 }
+
+export { withStateMutationLock }

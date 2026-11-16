@@ -30,6 +30,8 @@ pub struct State {
     pub version: u32,
     pub runtimes: BTreeMap<String, Record>,
     pub fences: BTreeMap<String, Fence>,
+    /// Legacy program/plan exclusions. Only ended controllers are archived.
+    #[serde(default)]
     pub hosts: BTreeMap<String, Host>,
     #[serde(default)]
     pub holds: BTreeMap<String, Generation>,
@@ -38,6 +40,9 @@ pub struct State {
     #[serde(default)]
     pub execution_processes: BTreeMap<String, crate::execution_process::Record>,
 }
+#[path = "custody_retirement.rs"]
+mod retirement;
+
 pub struct Store {
     path: PathBuf,
 }

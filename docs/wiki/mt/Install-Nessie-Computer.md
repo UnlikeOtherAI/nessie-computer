@@ -6,6 +6,8 @@
 
 Uża l-kodiċi fl-app biex iżżid il-kompjuter mat-tim mixtieq f’Nessie. Iċċekkja l-permessi qabel ma l-aġenti jibdew jaħdmu.
 
+Jekk iżżid l-istess tim mill-ġdid, il-konnessjoni u l-permessi eżistenti tiegħu jinżammu. Il-kanċellazzjoni titlesta awtomatikament meta terġa’ tiġi stabbilita l-konnessjoni. Fuq Windows, Claude Code u Codex installati permezz ta’ npm jinstabu awtomatikament.
+
 ## Linux
 
 Niżżel il-pakkett Linux xieraq mill-paġna tar-rilaxxi, imbagħad ħaddem il-kmand mill-fowlder fejn issejvjajtu.

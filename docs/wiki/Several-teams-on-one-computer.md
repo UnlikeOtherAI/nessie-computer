@@ -10,6 +10,10 @@ Open the **Team** list and choose **＋ Add another team**; see [Add a team](Add
 In Nessie, switch to the other team before you choose **Add a computer**,
 because a computer is always added to the team you are in.
 
+Adding a team that is already connected reuses that connection. Its keys and
+permissions stay the same; the app does not create another entry for the same
+team on the same server. Different teams keep separate settings.
+
 ## The Team list
 
 **Access**, **Documents**, **AI** and **Settings** show one team at a time. Pick it from the

@@ -49,42 +49,6 @@ fn nonce() -> Result<String, NativeError> {
     }
     Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
-#[cfg_attr(debug_assertions, allow(dead_code))]
-pub fn acquire_host() -> Result<String, NativeError> {
-    crate::personal_state_context::require_release()?;
-    let _release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
-    let nonce = nonce()?;
-    let reply = service_channel::call(
-        &Operation::HostAcquire {
-            nonce: nonce.clone(),
-        },
-        PIN,
-    )
-    .map_err(|_| refused())?;
-    if reply["acquired"] != true {
-        return Err(refused());
-    }
-    Ok(nonce)
-}
-#[cfg_attr(debug_assertions, allow(dead_code))]
-pub fn release_host(nonce: &str) -> Result<(), NativeError> {
-    // Job termination is asynchronous. Retry the service's positive complete
-    // job observation; failed or inaccessible clearance leaves the durable lease.
-    for _ in 0..100 {
-        if service_channel::call(
-            &Operation::HostRelease {
-                nonce: nonce.into(),
-            },
-            PIN,
-        )
-        .is_ok_and(|reply| reply["released"] == true)
-        {
-            return Ok(());
-        }
-        std::thread::sleep(Duration::from_millis(20));
-    }
-    Err(refused())
-}
 fn job(name: &str, owner: &str) -> Result<Owned, NativeError> {
     let service = service_channel::service_account_sid().map_err(|_| refused())?;
     job_with_service(name, owner, &service)
@@ -265,7 +229,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
 }
 #[path = "managed_windows_controls.rs"]
 mod controls;
-pub use controls::{cleanup, host_barrier, host_check, inventory, protection, status};
+pub use controls::{cleanup, inventory, protection, status};
 
 #[cfg(test)]
 mod tests {
@@ -350,7 +314,6 @@ mod tests {
     fn unsigned_managed_entry_cannot_launch_even_a_harmless_command() {
         assert!(run(&["--version".into()]).is_err());
         assert!(inventory(&"a".repeat(64)).is_err());
-        assert!(host_barrier(&"a".repeat(64)).is_err());
         assert_ne!(nonce().unwrap(), nonce().unwrap());
     }
 }

@@ -6,6 +6,8 @@
 
 Izmantojiet lietotnē redzamo kodu, lai pievienotu datoru vēlamajai Nessie komandai. Pārbaudiet piekļuves atļaujas, pirms aģenti sāk darbu.
 
+Atkārtoti pievienojot to pašu komandu, tiek saglabāts tās esošais savienojums un atļaujas. Atcelšana tiek automātiski pabeigta, kad savienojums ir atjaunots. Sistēmā Windows ar npm instalētie Claude Code un Codex tiek automātiski noteikti.
+
 ## Linux
 
 Lejupielādējiet atbilstošo Linux pakotni no laidienu lapas un izpildiet komandu mapē, kurā to saglabājāt.

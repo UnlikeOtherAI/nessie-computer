@@ -14,3 +14,5 @@ Przed zatwierdzeniem sprawdź, czy wydawcą jest **UnlikeOtherAI s.r.o.**. Po in
 nessie-computer --version
 nessie-computer --help
 ```
+
+Przed aktualizacją poczekaj na zakończenie bieżącej pracy. Instalator Nessie Computer usuwa stare blokady połączeń tylko wtedy, gdy Windows potwierdzi zakończenie pierwotnego procesu. Ustawienia i historia zespołów zostają zachowane.

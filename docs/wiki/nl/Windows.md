@@ -14,3 +14,5 @@ Controleer vóór goedkeuring of de uitgever **UnlikeOtherAI s.r.o.** is. Open n
 nessie-computer --version
 nessie-computer --help
 ```
+
+Laat lopend werk afronden voordat je bijwerkt. Het installatieprogramma van Nessie Computer verwijdert oude verbindingsvergrendelingen alleen wanneer Windows bevestigt dat het oorspronkelijke proces is beëindigd. Teaminstellingen en geschiedenis blijven behouden.

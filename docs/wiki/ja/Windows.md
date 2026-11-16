@@ -14,3 +14,5 @@ Windows 10 22H2 以降の x64 版が必要です。MSI を開いてインスト�
 nessie-computer --version
 nessie-computer --help
 ```
+
+更新する前に、実行中の作業が完了するまで待ってください。Nessie Computer のインストーラーは、元のプロセスが終了したことを Windows が確認した場合にのみ、古い接続ロックを削除します。チームの設定と履歴は保持されます。

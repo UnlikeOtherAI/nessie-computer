@@ -14,3 +14,5 @@ Prieš patvirtindami patikrinkite, ar leidėjas yra **UnlikeOtherAI s.r.o.**. Į
 nessie-computer --version
 nessie-computer --help
 ```
+
+Prieš atnaujindami palaukite, kol bus baigtas vykdomas darbas. „Nessie Computer“ diegimo programa pašalina senus ryšių užraktus tik tada, kai „Windows“ patvirtina, kad pradinis procesas baigėsi. Komandų nustatymai ir istorija išsaugomi.

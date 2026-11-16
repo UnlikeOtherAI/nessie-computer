@@ -14,3 +14,5 @@ Pirms apstiprināšanas pārbaudiet, vai izdevējs ir **UnlikeOtherAI s.r.o.**. 
 nessie-computer --version
 nessie-computer --help
 ```
+
+Pirms atjaunināšanas sagaidiet, līdz pašreizējais darbs ir pabeigts. Nessie Computer instalētājs noņem vecos savienojumu bloķējumus tikai tad, kad Windows apstiprina, ka sākotnējais process ir beidzies. Komandu iestatījumi un vēsture tiek saglabāti.

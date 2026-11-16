@@ -6,6 +6,8 @@
 
 Bruk koden fra appen til å legge datamaskinen til ønsket team i Nessie. Gå gjennom tilgangstillatelsene før agentene arbeider.
 
+Hvis du legger til det samme teamet igjen, beholdes den eksisterende tilkoblingen og tillatelsene. Avbrytelsen fullføres automatisk når tilkoblingen er gjenopprettet. På Windows oppdages Claude Code og Codex installert via npm automatisk.
+
 ## Linux
 
 Last ned riktig Linux-pakke fra utgivelsessiden og kjør kommandoen fra mappen der du lagret den.

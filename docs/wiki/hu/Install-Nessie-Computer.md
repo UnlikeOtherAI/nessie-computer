@@ -6,6 +6,8 @@
 
 Az alkalmazásban látható kóddal adja hozzá a számítógépet a kívánt Nessie-csapathoz. Az ügynökök munkája előtt ellenőrizze a jogosultságokat.
 
+Ugyanannak a csapatnak az újbóli hozzáadása megőrzi a meglévő kapcsolatát és jogosultságait. A megszakítás automatikusan befejeződik, amikor a kapcsolat helyreáll. Windows rendszeren az npm-en keresztül telepített Claude Code és Codex felismerése automatikus.
+
 ## Linux
 
 Töltse le a megfelelő Linux-csomagot a kiadások oldaláról, majd futtassa a parancsot abból a mappából, ahová mentette.

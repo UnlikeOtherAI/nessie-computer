@@ -48,12 +48,7 @@ pub fn run_authorized(argv: &[String]) -> Result<i32, NativeError> {
     run_mode(argv, true)
 }
 fn run_mode(argv: &[String], authorized: bool) -> Result<i32, NativeError> {
-    #[cfg(all(windows, not(debug_assertions)))]
-    let lease = crate::managed_windows::acquire_host()?;
-    let result = imp::run(argv, authorized);
-    #[cfg(all(windows, not(debug_assertions)))]
-    crate::managed_windows::release_host(&lease)?;
-    result
+    imp::run(argv, authorized)
 }
 
 #[cfg(not(windows))]

@@ -14,3 +14,5 @@ Pred potrditvijo preverite, ali je izdajatelj **UnlikeOtherAI s.r.o.**. Po names
 nessie-computer --version
 nessie-computer --help
 ```
+
+Pred posodobitvijo počakajte, da se trenutno delo konča. Namestitveni program Nessie Computer odstrani stare zaklepe povezav samo, ko Windows potrdi, da se je prvotni proces končal. Nastavitve in zgodovina ekip se ohranijo.

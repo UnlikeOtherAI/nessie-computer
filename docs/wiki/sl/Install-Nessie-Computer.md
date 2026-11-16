@@ -6,6 +6,8 @@
 
 S kodo iz aplikacije dodajte računalnik želeni ekipi v Nessie. Preden agenti začnejo delati, preverite dovoljenja.
 
+Če znova dodate isto ekipo, se ohranijo njena obstoječa povezava in dovoljenja. Preklic se samodejno dokonča, ko se povezava obnovi. V sistemu Windows se Claude Code in Codex, nameščena prek npm, samodejno zaznata.
+
 ## Linux
 
 Prenesite ustrezen paket za Linux s strani izdaj in zaženite ukaz iz mape, v katero ste ga shranili.

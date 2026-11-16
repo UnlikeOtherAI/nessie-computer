@@ -14,3 +14,5 @@ Kontrollera före godkännande att utgivaren är **UnlikeOtherAI s.r.o.**. Öppn
 nessie-computer --version
 nessie-computer --help
 ```
+
+Vänta tills pågående arbete är klart innan du uppdaterar. Installationsprogrammet för Nessie Computer tar bara bort gamla anslutningslås när Windows bekräftar att den ursprungliga processen har avslutats. Teaminställningar och historik bevaras.

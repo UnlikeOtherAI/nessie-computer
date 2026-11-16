@@ -78,6 +78,13 @@ or a refusal this app does not recognise, such as a network not up yet at
 login), from 5 seconds doubling to 5 minutes. A fenced connection, a rejected
 key or a stale revision is never retried: it waits for the owner's remedy.
 
+The app's lifecycle preflight reads the daemon's versioned process generation,
+including its kernel birth and boot identity. A dead daemon or a reused PID
+does not block a later start. Unknown identity and unreadable records remain
+busy; the CLI still owns atomic acquisition and final disconnection. Legacy
+PID-only records cannot prove a birth and remain conservative while that PID
+exists. Recovery adds no sign-in or confirmation screen.
+
 While it is installed the app owns every team on this Mac, one owner per team.
 Every 5 seconds it looks in its state folders again (`ExecutorConnections.adoptNewTeams`)
 and starts any finished team it does not run yet, such as one `nessie-computer

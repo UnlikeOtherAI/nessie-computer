@@ -14,3 +14,5 @@ Before approving, verify that the publisher is **UnlikeOtherAI s.r.o.**. After i
 nessie-computer --version
 nessie-computer --help
 ```
+
+Before updating, let active work finish. The Nessie Computer installer removes old connection locks only when Windows confirms that their original process has ended. Team settings and history are preserved.

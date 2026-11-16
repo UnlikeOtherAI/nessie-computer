@@ -6,6 +6,8 @@
 
 Use o código da aplicação para adicionar o computador à equipa pretendida no Nessie. Reveja as permissões antes de os agentes trabalharem.
 
+Adicionar novamente a mesma equipa mantém a ligação e as permissões existentes. O cancelamento é concluído automaticamente quando a ligação é restabelecida. No Windows, o Claude Code e o Codex instalados através do npm são detetados automaticamente.
+
 ## Linux
 
 Descarregue o pacote Linux adequado da página de versões e execute o comando a partir da pasta onde o guardou.

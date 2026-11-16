@@ -51,7 +51,7 @@ export const HELP_ENTRIES: HelpEntry[] = [
     command: 'add', summary: 'Add this computer to a team: show a code and wait until it\'s entered in Nessie.',
     usage: ['nessie-computer add [--server <https://address>] [--no-wait] [--json]'],
     notes: [
-      'Enter the code in Nessie under Computers → Add a computer. It lasts 5 minutes.',
+      'Enter the code in Nessie under Computers → Add a computer. It lasts 10 minutes.',
       '--server  Only for an organisation with its own Nessie (default https://api.nessie.works).',
       '--no-wait  Print the code and return; status shows when it\'s done.',
       'Where the Nessie Computer app is installed (Windows, and Macs with the app), the app runs the new team.',

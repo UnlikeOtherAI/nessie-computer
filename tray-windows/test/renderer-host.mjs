@@ -267,6 +267,7 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, pairSt
       const executorId = id ?? `team-${window.paired.length - 1}`
       const index = Number(executorId.split('-')[1])
       return { ...pairingView(id ? 'paired' : window.pairStatus, executorId),
+        ...(window.cancellationPending ? { cancellationPending: true } : {}),
         organizationName: 'UnlikeOtherAI', teamName: teamNames[index] ?? `Team ${index}` }
     }
     if (command === 'executor_configure') {
@@ -332,5 +333,5 @@ export const consoleFiles = {
     'needs-words.js', 'needs.js', 'pairing-words.js', 'pairing.js', 'updates-words.js', 'update-notes.js', 'updates.js', 'settings-words.js', 'settings.js'],
   teamTabs: ['autosave.js', 'team-drafts.js', 'access-words.js', 'access.js', 'access-sections.js', 'access-programs.js',
     'documents-reasons-words.js', 'documents-words.js', 'documents.js', 'ai-local-words.js', 'ai-local.js', 'ai-words.js', 'ai.js', 'chatgpt-words.js', 'chatgpt.js',
-    'ai-connection.js', 'inference-endpoints.js'],
+    'ai-connection.js', 'inference-endpoints.js', 'retained-import.js', 'retained-import-words.json'],
 }

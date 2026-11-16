@@ -14,3 +14,5 @@ Onaylamadan önce yayıncının **UnlikeOtherAI s.r.o.** olduğunu doğrulayın.
 nessie-computer --version
 nessie-computer --help
 ```
+
+Güncellemeden önce devam eden işlerin bitmesini bekleyin. Nessie Computer yükleyicisi eski bağlantı kilitlerini yalnızca Windows asıl işlemin sona erdiğini doğruladığında kaldırır. Takım ayarları ve geçmişi korunur.

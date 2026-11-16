@@ -59,6 +59,12 @@ token stays in its owner-only store, is never sent to Nessie, and what an agent
 may start is still decided by the team's Access rules and the owner's answers
 to program requests. Nothing records the programs agents start in the plan's
 guard any more; a record an older version left is dropped at the next sign-in.
+Windows job and terminal launchers no longer acquire the retired host-execution
+lease either. The service archives a legacy lease only after independently
+proving its controller generation has ended; it retains live controllers and
+all credential fences. Archival does not claim that the daemon or its other
+programs stopped. Job Object containment and managed runtime verification stay
+in force ([Windows recovery](docs/windows-admission-recovery.md)).
 The native inventory taken before a plan starts counts Nessie Computer's own
 runtimes on macOS and Linux, not the programs they started, and on Linux no
 longer a plain Node program. Live Nessie runtimes of another version still

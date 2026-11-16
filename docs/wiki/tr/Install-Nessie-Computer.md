@@ -6,6 +6,8 @@
 
 Uygulamadaki kodu kullanarak bilgisayarı Nessie’de istediğiniz takıma ekleyin. Ajanlar çalışmadan önce erişim izinlerini gözden geçirin.
 
+Aynı ekibi tekrar eklemek mevcut bağlantısını ve izinlerini korur. Bağlantı yeniden kurulduğunda iptal işlemi otomatik olarak tamamlanır. Windows'ta npm üzerinden yüklenen Claude Code ve Codex otomatik olarak algılanır.
+
 ## Linux
 
 Sürümler sayfasından uygun Linux paketini indirin, ardından komutu paketi kaydettiğiniz klasörden çalıştırın.

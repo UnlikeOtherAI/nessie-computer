@@ -14,3 +14,5 @@ Sula gceadaíonn tú an tsuiteáil, deimhnigh gurb é **UnlikeOtherAI s.r.o.** a
 nessie-computer --version
 nessie-computer --help
 ```
+
+Sula ndéanann tú nuashonrú, fan go mbeidh an obair reatha críochnaithe. Ní bhaineann suiteálaí Nessie Computer seanghlasanna na nasc ach amháin nuair a dheimhníonn Windows go bhfuil deireadh leis an bpróiseas bunaidh. Coinnítear socruithe agus stair na bhfoirne.

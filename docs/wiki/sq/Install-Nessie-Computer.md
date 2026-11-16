@@ -6,6 +6,8 @@
 
 Përdorni kodin nga aplikacioni për ta shtuar kompjuterin në ekipin e dëshiruar në Nessie. Kontrolloni lejet para se agjentët të punojnë.
 
+Shtimi sërish i të njëjtit ekip ruan lidhjen dhe lejet ekzistuese. Anulimi përfundon automatikisht kur lidhja rikthehet. Në Windows, Claude Code dhe Codex të instaluar përmes npm zbulohen automatikisht.
+
 ## Linux
 
 Shkarkoni paketën e duhur për Linux nga faqja e versioneve dhe ekzekutoni komandën nga dosja ku e ruajtët.

@@ -14,3 +14,5 @@ Windows 10 22H2 이상, x64가 필요합니다. MSI를 열고 설치를 승인�
 nessie-computer --version
 nessie-computer --help
 ```
+
+업데이트하기 전에 진행 중인 작업이 끝날 때까지 기다리세요. Nessie Computer 설치 프로그램은 Windows가 원래 프로세스의 종료를 확인한 경우에만 오래된 연결 잠금을 제거합니다. 팀 설정과 기록은 유지됩니다.

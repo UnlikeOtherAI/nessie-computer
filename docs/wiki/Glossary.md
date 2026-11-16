@@ -8,7 +8,7 @@ The same words are used in the app, in Nessie and on the command line.
 | **Nessie** | The service where your team, agents and projects live (nessie.works, or your organisation's own server). |
 | **Team** | A Nessie team connected to this computer. Shown as *team · organisation*, e.g. *Sales · Acme*. |
 | **Add another team** | Link a team to this computer with a pairing code, from the last item of the **Team** list. In Nessie the same step is **Add a computer**. |
-| **Pairing code** | The 8-digit code the computer shows when you add a team. Works once, for 5 minutes. |
+| **Pairing code** | The 8-digit code the computer shows when you add a team. Works once, for 10 minutes. |
 | **Disconnect** | End a team's connection to this computer. |
 | **Pause / Resume** | Stop agents starting anything new on this computer, until you resume. |
 | **Turned off** | Nessie's own pause, set on the computer's page in Nessie. |

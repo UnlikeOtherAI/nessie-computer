@@ -16,6 +16,7 @@ unmarked Node for real ACL, Job Object and ConPTY checks; ACL transport never
 claims installed-runtime authority. Native and installed verification run on their actual OS.
 Compiler success does not prove an installed trust boundary.
 Session tool schemas, retained metadata projections/navigation, shared input-dependent receipt policy and admission boundaries follow [MCP adapters](docs/session-mcp-adapters.md).
+Retired Windows host admissions, finite ACL checks, request-carrier handoff, duplicate-team activation, Windows npm launch resolution, evidence-preserving recovery, installer-only retirement of proven stale legacy locks and focused regression checks follow [Windows admission recovery](docs/windows-admission-recovery.md).
 The native coordinator, constrained OS installers and local update policy follow
 [automatic updates](docs/automatic-updates.md); use `test:updates` and
 `test:updates-native` through the public Turbo graph for their focused gates.
@@ -129,3 +130,5 @@ enrollment fixtures under [original session authority](docs/original-session-aut
 
 Published immutable version releases queue the protected-main signed catalogue;
 release-note display and ask-first defaults follow [GitHub publication](docs/automatic-updates.md#github-publication-and-release-notes).
+
+Delayed managed-session acknowledgements remain separate from effect and publication leases; see [result acknowledgements](docs/local-programs.md#delayed-session-acknowledgements) and the public Turbo `test:executor-private-assignments` gate.
