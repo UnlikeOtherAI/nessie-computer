@@ -665,6 +665,21 @@ The source regression covers absent state in 0775 homes, existing unsafe state,
 owner mismatch and dangling state/home symlinks. Signed installed recovery
 remains pending.
 
+## Processes that hold a Unix swap
+
+Unix clearance (`unix_clearance::ready_with`) waits only for processes running
+Nessie Computer's installed files, plus any Node such a process started. On
+Linux those live under `/usr/lib/nessie-executor`,
+`/usr/libexec/nessie-executor-updater` and `/var/lib/nessie-executor`; the Mac
+list is in [the helper guide](macos-update-helper.md). A process name such as
+`nessie*` only nominates a candidate (`unix_process::products`), so Nessie
+Desktop, other Nessie products and development builds run from elsewhere
+never hold a swap. Until 16 November any `nessie*` name did, and Nessie
+Desktop held a Mac's 1.1.13 swap for about 50 minutes. On Linux a running
+Desktop would have held it with no allow list at all. Windows clearance
+(`windows_clearance.rs`) is separate and unchanged: it still matches names and
+lets signed `nessie.exe` and `nessie-desktop.exe` stay.
+
 ## Repository rename
 
 Source and new releases live in `UnlikeOtherAI/nessie-computer`. GitHub redirects

@@ -375,15 +375,35 @@ Recovery now works from both ends without weakening a fence:
   (15 minutes, doubling, at most four hours), recorded under
   `computer-update-helper-restarts`. **Try again** and **Restart updates** only
   hurry these.
-- **Old entrypoints still hold the swap.** The app's runtime is installed only
-  once clearance passes. Nessie Desktop (`nessie-desktop`; the allow list named
-  a `Nessie` executable that never existed) may stay only when its sealed floor
-  keys pass `require_independent_app`; otherwise clearance waits for it to quit
-  instead of failing, so recovery keeps trying. A desktop build without the
-  `NessieExecutor*` keys (0.1.1 has none), or a runtime someone started by hand
-  outside custody, keeps the swap waiting; the helper tries again every three
-  seconds while admissions are held, and the app's restarts give it further
-  chances when they are not.
+- **Only installed product files hold the swap.** The app's runtime is
+  installed only once clearance passes. Clearance waits for a process when its
+  executable is one of Nessie Computer's installed files, under
+  `/Library/Application Support/Nessie Executor` (releases, root runtime,
+  updater worker), `/Applications/Nessie Executor.app`, the `Nessie Executor.app`
+  login item inside `Nessie.app` or `Nessie Desktop.app`,
+  `/Applications/NessieExecutorMenuBar.app` or a Homebrew
+  `Cellar/nessie-executor`, or when it is a Node that such a process started.
+  The kernel's process name only picks candidates (`nessie*`, `node`,
+  `nodejs`, `firecracker`, `jailer`); the path decides, compared without case
+  as the Mac's volume is. A team daemon started by hand from the app bundle, or
+  a Homebrew runtime outside custody, still keeps the swap waiting; the helper
+  tries again every three seconds while admissions are held, and the app's
+  restarts give it further chances when they are not.
+
+  Before this, any process named `nessie*` held the swap. On 16 November the
+  signed 1.1.13 app was installed on dictator and its runtime waited about 50
+  minutes: Nessie Desktop (`/Applications/Nessie.app/Contents/MacOS/nessie-desktop`),
+  which people keep open, a `nessie-dictation-app` development build run from
+  a repository and the iOS simulator's NessieDictation app all held it. Only
+  after Desktop was closed did the app's automatic helper restart adopt 1.1.13.
+  None of them runs an installed Nessie Computer file, so none holds it now.
+  Desktop's allow list, which let it stay only when its sealed floor passed
+  `require_independent_app`, is gone with the rule that needed it; Desktop's
+  login item copy of the menu app is still checked like the standalone app.
+  The stability check compares only these processes between its two readings,
+  so unrelated helpers starting and ending no longer reset it. A `nessie*`
+  candidate whose image path the kernel cannot report still refuses clearance,
+  as before: it cannot be shown to be outside the product.
 - **Creation journals end with their command.** Clearance needs no creation
   journal from this boot in `~/.nessie/personal-inference/managed-runtimes`.
   The macOS creator kept a command's journal, and exited refused, whenever the
