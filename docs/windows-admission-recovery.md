@@ -88,7 +88,14 @@ key could activate another local connection to a team already present elsewhere.
 Activation now holds one account-wide lock and checks existing connections
 through signed connection reads before publishing local state. The exact server,
 organisation ID and team ID decide a match; names, offline status and display
-caches never do. Failure to read an existing connection does not permit a new one.
+caches never do. A read nobody answered (a network failure, a server error, a
+rate limit) does not permit a new connection; the next status check asks again.
+
+A connection that can no longer be the team being added never holds a new one
+back. That covers a connection Nessie refuses outright on its own signed read —
+revoked, unknown to that server, or in a team that no longer exists — and a
+folder whose settings cannot be read, which can neither run a team nor prove one.
+One dead connection on a computer used to stop every later pairing there.
 
 When a match exists, the runtime cancels only the redundant attempt through the
 normal signed pairing endpoint. It returns `alreadyPaired` with the existing
@@ -198,7 +205,8 @@ acknowledges that attempt. Confirmed claims cannot activate while cancellation
 is pending. The server's rejected tombstone also fences a late mint.
 
 Duplicate activation compares fresh signed server/org/team identities. A signed
-410 inactive outcome skips revoked history without deleting it. Reuse proves both
+refusal (410 inactive, or any other answer that is not a timeout or rate limit)
+skips that history without deleting it. Reuse proves both
 local keys to the server, retires only the redundant claim and returns a durable
 retained-connection outcome to both surfaces. A lost response recovers by polling;
 the native client checks the retained local connection before clearing its key.
