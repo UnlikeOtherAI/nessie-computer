@@ -191,6 +191,11 @@ PID reuse, a different recorded kernel boot and positive process absence recover
 without signalling the process currently using that PID. Unknown identity stays
 unknown. An interrupted publication leaves no empty canonical claim.
 
+Disconnecting a team removes its folder while the disconnect still holds that
+folder's daemon lock. Releasing a lifecycle lock whose claim file is already
+gone therefore succeeds; a claim that somebody else replaced is still refused.
+Without this, a completed disconnect ended with `owner_process_admission_fenced`.
+
 Legacy PID-only lifecycle records contain no birth. On Windows a bounded,
 read-only kernel/WMI check can additionally prove that the PID now belongs to a
 different OS principal than the owner-only state. It checks the process birth
