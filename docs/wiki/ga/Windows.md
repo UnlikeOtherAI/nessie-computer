@@ -14,3 +14,5 @@ Sula gceadaíonn tú an tsuiteáil, deimhnigh gurb é **UnlikeOtherAI s.r.o.** a
 nessie-computer --version
 nessie-computer --help
 ```
+
+Sula ndéanann tú nuashonrú, lig don obair atá ar siúl críochnú agus fág Nessie Computer ar oscailt. Atosaíonn an suiteálaí an aip agus ní bhaineann sé seanghlasanna nasc go dtí go ndeimhníonn Windows go bhfuil deireadh leis an bpróiseas bunaidh. Coinnítear socruithe agus stair na bhfoirne.

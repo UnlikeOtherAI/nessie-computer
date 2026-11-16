@@ -14,3 +14,5 @@ Tarkista ennen hyväksymistä, että julkaisija on **UnlikeOtherAI s.r.o.**. Ava
 nessie-computer --version
 nessie-computer --help
 ```
+
+Odota ennen päivitystä käynnissä olevien töiden valmistumista ja jätä Nessie Computer auki. Asennusohjelma käynnistää sovelluksen uudelleen ja poistaa vanhat yhteyslukot vain, kun Windows vahvistaa alkuperäisen prosessin päättyneen. Tiimien asetukset ja historia säilyvät.

@@ -14,3 +14,5 @@ Notaðu kóðann úr forritinu til að bæta tölvunni við rétt teymi í Nessi
 nessie-computer --version
 nessie-computer --help
 ```
+
+Láttu vinnu sem er í gangi klárast fyrir uppfærslu og hafðu Nessie Computer opið. Uppsetningarforritið endurræsir forritið og fjarlægir gamla tengilása aðeins þegar Windows staðfestir að upprunalega ferlinu sé lokið. Stillingar og ferill teyma varðveitast.

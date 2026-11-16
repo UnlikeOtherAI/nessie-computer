@@ -25,6 +25,6 @@ Get-FileHash .\Nessie-Computer-Windows-x64.msi -Algorithm SHA256
 
 The signature must be `Valid`, with the publisher above and a timestamp. Compare the hash with the checksum published beside that exact asset. If verification fails, download again from the release page and report a continuing failure; do not disable Windows security checks.
 
-For upgrades, let active work finish and close the app before running the newer MSI. The installer preserves team state. Disconnect teams before uninstalling if you want to revoke their access: [Disconnect or uninstall](Disconnect-or-uninstall.md).
+For upgrades, let active work finish and leave the app open while running the newer MSI. The installer closes and reopens the app, preserves team state and retires old process locks only after verifying that their original owner has gone. Disconnect teams before uninstalling if you want to revoke their access: [Disconnect or uninstall](Disconnect-or-uninstall.md).
 
 [Installation](Install-Nessie-Computer.md) · [Settings and updates](Settings-and-updates.md)

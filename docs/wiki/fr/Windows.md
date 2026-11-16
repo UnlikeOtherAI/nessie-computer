@@ -14,3 +14,5 @@ Avant de confirmer, vérifiez que l’éditeur est **UnlikeOtherAI s.r.o.**. Apr
 nessie-computer --version
 nessie-computer --help
 ```
+
+Avant la mise à jour, laissez le travail en cours se terminer et gardez Nessie Computer ouvert. Le programme d'installation redémarre l'application et ne supprime les anciens verrous de connexion que lorsque Windows confirme que le processus d'origine est terminé. Les paramètres et l'historique des équipes sont conservés.

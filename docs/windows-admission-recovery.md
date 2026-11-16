@@ -231,3 +231,28 @@ the Windows app disagreed about the old duplicate's reused PID. A read-only
 source observer now distinguishes that preserved stale record from the current
 live connection. That observation does not replace a signed installed recovery
 check; the original duplicate and its history remain available for that check.
+### Legacy locks during Windows upgrades
+
+A normal Windows account cannot inspect every SYSTEM process token. A legacy
+PID-only file can therefore remain unknown after Windows reuses that PID.
+Unknown identity still blocks ordinary acquisition; access denied is never
+treated as proof that a process has ended.
+
+The existing SYSTEM installer handover resolves that historical case. Before
+closing the old app, it captures each held app process's actual profile and SID.
+After the old install's processes drain, it examines only daemon.pid,
+pairing-operation.pid and the root pairing-activation.pid in that profile's
+normal state layout. It retires a legacy file only when its held file owner
+matches that app account and the process is positively absent or belongs to a
+different principal. Unknown, same-owner, malformed and versioned records stay.
+
+The file handle denies writes and deletion throughout inspection. Retirement
+marks that exact handle for deletion, so a competing reclaimer cannot substitute
+a newly acquired lock between comparison and removal. Reparse points are
+refused. This adds no control endpoint, prompt or privilege to the running app.
+Pairing keys, grants, session history, command receipts and custody are untouched.
+An account whose app was not running during handover is not inspected.
+
+Maxis tests cover competing replacement, held writers, reparse points, foreign
+file owners, unknown/same-owner processes, modern/malformed records and real
+process exit. Signed installed upgrade qualification remains separate.

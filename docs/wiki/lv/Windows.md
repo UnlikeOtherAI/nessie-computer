@@ -14,3 +14,5 @@ Pirms apstiprināšanas pārbaudiet, vai izdevējs ir **UnlikeOtherAI s.r.o.**. 
 nessie-computer --version
 nessie-computer --help
 ```
+
+Pirms atjaunināšanas sagaidiet pašreizējo darbu pabeigšanu un atstājiet Nessie Computer atvērtu. Instalētājs pārstartē lietotni un noņem vecos savienojumu bloķējumus tikai tad, kad Windows apstiprina sākotnējā procesa beigas. Komandu iestatījumi un vēsture tiek saglabāti.

@@ -14,3 +14,5 @@ Antes de aprovar, confirme que o editor é **UnlikeOtherAI s.r.o.**. Após a ins
 nessie-computer --version
 nessie-computer --help
 ```
+
+Antes de atualizar, deixe terminar o trabalho em curso e mantenha o Nessie Computer aberto. O instalador reinicia a aplicação e remove bloqueios de ligações antigas apenas quando o Windows confirma que o processo original terminou. As definições e o histórico das equipas são preservados.

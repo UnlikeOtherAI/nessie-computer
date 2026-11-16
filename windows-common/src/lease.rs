@@ -16,7 +16,7 @@ pub enum DaemonLease {
     Suspect,
 }
 
-fn uuid(value: &str) -> bool {
+pub(super) fn uuid(value: &str) -> bool {
     value.len() == 36
         && value.bytes().enumerate().all(|(index, byte)| {
             if [8, 13, 18, 23].contains(&index) {
@@ -27,7 +27,7 @@ fn uuid(value: &str) -> bool {
         })
 }
 
-fn parse(value: &str) -> DaemonLease {
+pub(super) fn parse(value: &str) -> DaemonLease {
     let value = value.trim();
     if !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()) {
         return match value.parse::<u32>() {

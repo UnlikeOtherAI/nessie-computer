@@ -14,3 +14,5 @@ Enne kinnitamist kontrolli, et avaldaja on **UnlikeOtherAI s.r.o.**. Pärast pai
 nessie-computer --version
 nessie-computer --help
 ```
+
+Enne uuendamist oodake pooleliolevate tööde lõppu ja jätke Nessie Computer avatuks. Paigaldaja taaskäivitab rakenduse ja eemaldab vanad ühenduslukud ainult siis, kui Windows kinnitab, et algne protsess on lõppenud. Meeskondade seaded ja ajalugu säilivad.

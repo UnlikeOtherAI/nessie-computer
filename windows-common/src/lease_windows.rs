@@ -15,7 +15,7 @@ use windows_sys::Win32::{
     },
 };
 
-pub(super) fn file_owner(file: &File) -> Option<String> {
+pub(super) fn file_owner_sid(file: &File) -> Option<String> {
     let mut owner = std::ptr::null_mut();
     let mut descriptor = std::ptr::null_mut();
     let result = unsafe {
@@ -35,6 +35,11 @@ pub(super) fn file_owner(file: &File) -> Option<String> {
     }
     let sid = crate::sid_to_string(owner);
     unsafe { LocalFree(descriptor) };
+    sid
+}
+
+pub(super) fn file_owner(file: &File) -> Option<String> {
+    let sid = file_owner_sid(file);
     // A group owner (for example Administrators) is not one lifecycle principal.
     // Retirement needs the same owner-account proof the CLI uses.
     sid.filter(|owner| process_sid(unsafe { GetCurrentProcess() }).as_ref() == Some(owner))

@@ -14,3 +14,5 @@ Folosiți codul din aplicație pentru a adăuga computerul la echipa dorită în
 nessie-computer --version
 nessie-computer --help
 ```
+
+Înainte de actualizare, așteptați încheierea lucrului în curs și lăsați Nessie Computer deschis. Programul de instalare repornește aplicația și elimină blocările vechilor conexiuni numai când Windows confirmă că procesul inițial s-a încheiat. Setările și istoricul echipelor sunt păstrate.

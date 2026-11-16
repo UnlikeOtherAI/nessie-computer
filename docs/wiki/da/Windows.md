@@ -14,3 +14,5 @@ Kontrollér før godkendelse, at udgiveren er **UnlikeOtherAI s.r.o.**. Åbn et 
 nessie-computer --version
 nessie-computer --help
 ```
+
+Vent, til igangværende arbejde er færdigt, og lad Nessie Computer være åbent under opdateringen. Installationsprogrammet genstarter appen og fjerner kun gamle forbindelseslåse, når Windows bekræfter, at den oprindelige proces er afsluttet. Teamindstillinger og historik bevares.

@@ -14,3 +14,5 @@ Prima di confermare, verifica che l’editore sia **UnlikeOtherAI s.r.o.**. Dopo
 nessie-computer --version
 nessie-computer --help
 ```
+
+Prima di aggiornare, attendi che il lavoro in corso termini e lascia Nessie Computer aperto. Il programma di installazione riavvia l'app e rimuove i vecchi blocchi delle connessioni solo quando Windows conferma che il processo originale è terminato. Le impostazioni e la cronologia dei team vengono conservate.

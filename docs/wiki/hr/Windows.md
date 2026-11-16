@@ -14,3 +14,5 @@ Prije odobrenja provjerite je li izdavač **UnlikeOtherAI s.r.o.**. Nakon instal
 nessie-computer --version
 nessie-computer --help
 ```
+
+Prije ažuriranja pričekajte da aktivni rad završi i ostavite Nessie Computer otvoren. Instalacijski program ponovno pokreće aplikaciju i uklanja stara zaključavanja veza samo kada Windows potvrdi da je izvorni proces završio. Postavke i povijest timova ostaju sačuvane.
