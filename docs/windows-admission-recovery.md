@@ -256,3 +256,10 @@ An account whose app was not running during handover is not inspected.
 Maxis tests cover competing replacement, held writers, reparse points, foreign
 file owners, unknown/same-owner processes, modern/malformed records and real
 process exit. Signed installed upgrade qualification remains separate.
+
+The installer pins every directory from the volume root through the observed
+profile and selected connection before opening a legacy lock. Directory handles
+deny writes and replacement, and reparse points are rejected. This keeps an
+otherwise valid file-owner check from following a path swapped after inspection.
+Two additional Windows regressions prove directory replacement is blocked while
+held and a directory link is refused before any claim is opened.

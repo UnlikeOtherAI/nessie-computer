@@ -14,16 +14,36 @@ use windows_sys::Win32::{
     Foundation::{GENERIC_READ, HANDLE},
     Storage::FileSystem::{
         FileDispositionInfo, SetFileInformationByHandle, DELETE, FILE_ATTRIBUTE_REPARSE_POINT,
-        FILE_DISPOSITION_INFO, FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ,
+        FILE_DISPOSITION_INFO, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+        FILE_LIST_DIRECTORY, FILE_READ_ATTRIBUTES, FILE_SHARE_READ,
     },
 };
 
-fn real_directory(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|value| {
-        value.is_dir() && value.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0
-    })
+fn pin_directory(path: &Path) -> std::io::Result<File> {
+    let file = OpenOptions::new()
+        .access_mode(FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES)
+        .share_mode(FILE_SHARE_READ)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)?;
+    let meta = file.metadata()?;
+    if !meta.is_dir() || meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Err(std::io::ErrorKind::PermissionDenied.into());
+    }
+    Ok(file)
 }
 
+fn pin_profile(profile: &Path) -> std::io::Result<Vec<File>> {
+    if !profile.is_absolute() {
+        return Err(std::io::ErrorKind::PermissionDenied.into());
+    }
+    profile
+        .ancestors()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .map(pin_directory)
+        .collect()
+}
 /// The profile and SID came from a held, unelevated app process before handover.
 /// Call only after that install's old processes have drained. No other files,
 /// credentials, permissions, sessions or commands are read or changed.
@@ -33,15 +53,16 @@ pub(super) fn retire(profile: &Path, owner: &str) {
     {
         return;
     }
-    if !real_directory(profile) {
+    let Ok(mut directories) = pin_profile(profile) else {
         return;
-    }
+    };
     let mut root = profile.to_path_buf();
     for segment in [".local", "state", "nessie-executor"] {
         root.push(segment);
-        if !real_directory(&root) {
+        let Ok(directory) = pin_directory(&root) else {
             return;
-        }
+        };
+        directories.push(directory);
     }
     let _ = retire_file(
         &root.join("pairing-activation.pid"),
@@ -53,9 +74,12 @@ pub(super) fn retire(profile: &Path, owner: &str) {
     };
     for entry in entries.take(4096).filter_map(Result::ok) {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if !lease::uuid(&name) || !real_directory(&entry.path()) {
+        if !lease::uuid(&name) {
             continue;
         }
+        let Ok(_connection) = pin_directory(&entry.path()) else {
+            continue;
+        };
         for name in ["daemon.pid", "pairing-operation.pid"] {
             let _ = retire_file(
                 &entry.path().join(name),

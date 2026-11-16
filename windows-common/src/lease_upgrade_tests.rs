@@ -138,3 +138,31 @@ fn real_windows_process_exit_recovers_without_signalling_any_process() {
     assert!(retire_file(&path, &owner, crate::lease_windows::observe));
     assert!(!path.exists());
 }
+
+#[test]
+fn held_directory_chain_prevents_retargeting_before_lease_open() {
+    let directory = tempfile::tempdir().unwrap();
+    let profile = directory.path().join("profile");
+    fs::create_dir(&profile).unwrap();
+    let path = profile.join("daemon.pid");
+    fs::write(&path, "42").unwrap();
+    let owner = crate::lease_windows::file_owner_sid(&File::open(&path).unwrap()).unwrap();
+    let pins = pin_profile(&profile).unwrap();
+    let moved = directory.path().join("moved");
+    assert!(fs::rename(&profile, &moved).is_err());
+    assert!(retire_file(&path, &owner, |_| ProcessFact::Absent));
+    assert!(!path.exists());
+    drop(pins);
+    fs::rename(&profile, &moved).unwrap();
+}
+
+#[test]
+fn directory_reparse_points_are_refused_before_any_claim_is_opened() {
+    let directory = tempfile::tempdir().unwrap();
+    let target = directory.path().join("target");
+    fs::create_dir(&target).unwrap();
+    let link = directory.path().join("link");
+    std::os::windows::fs::symlink_dir(&target, &link).unwrap();
+    assert!(pin_profile(&link).is_err());
+    assert!(pin_profile(Path::new("relative")).is_err());
+}
