@@ -5,11 +5,6 @@ use nessie_executor_updater::catalog::UpdateResult;
 use std::{ffi::CStr, fs::{self, OpenOptions}, os::unix::fs::{MetadataExt, OpenOptionsExt}, path::{Path, PathBuf}};
 
 const ERROR: &str = "update.custody_unverified";
-#[cfg(target_os = "macos")]
-const DESKTOP_EXECUTABLES: [&str; 2] = [
-    "/Applications/Nessie.app/Contents/MacOS/nessie-desktop",
-    "/Applications/Nessie Desktop.app/Contents/MacOS/nessie-desktop",
-];
 pub(crate) fn activity(arguments: &[String]) -> Option<String> {
     arguments.first().filter(|argument| matches!(argument.as_str(),
         "serve" | "serve-direct-local-inference" | "personal-chatgpt-credential")).cloned()
@@ -103,16 +98,8 @@ fn allowed(process: &Process, menu_apps: bool) -> UpdateResult<bool> {
     }
     #[cfg(target_os = "macos")]
     if super::macos_applications::allowed(process, menu_apps)? { return Ok(true); }
-    // Nessie Desktop stays only when its sealed floor says it launches the
-    // installed runtime and never its own. Any other build (an older one, a
-    // development-signed one) must exit first; that is a wait, not a failure,
-    // so recovery keeps trying instead of giving up. The bundle's executable
-    // is `nessie-desktop`; the earlier `Nessie` path never matched.
-    #[cfg(target_os = "macos")]
-    if DESKTOP_EXECUTABLES.iter().any(|path| process.executable == Path::new(path)) {
-        let app = process.executable.parent().and_then(Path::parent).and_then(Path::parent).ok_or(ERROR)?;
-        return Ok(crate::macos_provenance::require_independent_app(app).is_ok());
-    }
+    // Nessie Desktop's own executable is not an installed product file, so it
+    // never reaches this check. Its login item copy of the menu app does.
     // All runtimes, credential actors, native parents and sandbox processes
     // must leave naturally. The menu app also exits before its package changes.
     Ok(false)
@@ -139,15 +126,12 @@ pub(super) fn ready_with(menu_apps: bool, agent: Option<&Process>) -> UpdateResu
             return Ok(false);
         }
     }
+    // Only processes running installed product files hold the swap; on
+    // 16 November Nessie Desktop and two unrelated dictation apps, all named
+    // nessie*, held dictator's 1.1.13 swap for about 50 minutes.
     let mut initial = unix_process::products()?;
     initial.sort_by_key(|process| process.pid);
     for process in &initial {
-        let generic_node = matches!(process.executable.file_name().and_then(|name| name.to_str()), Some("node" | "nodejs"));
-        let product_path = process.executable.components().any(|component| component.as_os_str().to_string_lossy()
-            .to_ascii_lowercase().contains("nessie"));
-        let product_parent = initial.iter().any(|parent| parent.pid == process.parent && parent.executable.file_name()
-            .is_some_and(|name| name.to_string_lossy().to_ascii_lowercase().starts_with("nessie")));
-        if generic_node && !product_path && !product_parent { continue; }
         if agent != Some(process) && !allowed(process, menu_apps)? { return Ok(false); }
         if !unix_process::same_generation(process)? { return Ok(false); }
     }

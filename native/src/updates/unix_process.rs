@@ -1,7 +1,8 @@
 //! Updater inventory uses kernel process generations across local accounts.
+//! `products` lists the processes running Nessie Computer's installed files.
 use nessie_executor_updater::catalog::UpdateResult;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 const ERROR: &str = "update.custody_unverified";
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -70,7 +71,7 @@ pub(super) fn products() -> UpdateResult<Vec<Process>> {
             if let Some(value) = information(pid)? { found.push(value); }
         }
     }
-    Ok(found)
+    Ok(holders(found))
 }
 
 #[cfg(target_os = "macos")]
@@ -94,7 +95,44 @@ pub(super) fn products() -> UpdateResult<Vec<Process>> {
             if let Some(value) = information(pid)? { found.push(value); }
         }
     }
-    Ok(found)
+    Ok(holders(found))
+}
+
+/// Directories holding Nessie Computer's own installed executables: the
+/// protected releases, root runtime and updater worker, the app bundles a swap
+/// replaces and the older Homebrew and menu bar installs.
+#[cfg(target_os = "macos")]
+const INSTALLED: [&str; 7] = [
+    "/Library/Application Support/Nessie Executor",
+    super::macos_bundle::APPLICATIONS[0],
+    super::macos_bundle::APPLICATIONS[1],
+    super::macos_bundle::APPLICATIONS[2],
+    "/Applications/NessieExecutorMenuBar.app",
+    "/opt/homebrew/Cellar/nessie-executor",
+    "/usr/local/Cellar/nessie-executor",
+];
+#[cfg(target_os = "linux")]
+const INSTALLED: [&str; 3] = ["/usr/lib/nessie-executor", "/usr/libexec/nessie-executor-updater", "/var/lib/nessie-executor"];
+
+fn installed(executable: &Path) -> bool {
+    INSTALLED.iter().any(|root| {
+        let mut parts = executable.components();
+        // The Mac's system volume does not distinguish case; Linux does.
+        Path::new(root).components().all(|expected| parts.next().is_some_and(|part| if cfg!(target_os = "macos") {
+            part.as_os_str().eq_ignore_ascii_case(expected.as_os_str())
+        } else { part == expected }))
+    })
+}
+
+/// A name only nominates a candidate. A process holds the swap when it runs an
+/// installed executable, or is a Node that such a process started. Nessie
+/// Desktop, dictation apps and development builds elsewhere share the name,
+/// not the files, so they never hold it.
+fn holders(candidates: Vec<Process>) -> Vec<Process> {
+    let held = |process: &Process| installed(&process.executable) || matches!(process.executable.file_name()
+        .and_then(|name| name.to_str()), Some("node" | "nodejs"))
+        && candidates.iter().any(|parent| parent.pid == process.parent && installed(&parent.executable));
+    candidates.iter().filter(|process| held(process)).cloned().collect()
 }
 
 pub(super) fn same_generation(value: &Process) -> UpdateResult<bool> {
@@ -111,5 +149,64 @@ mod tests {
         let mut stale = own;
         stale.started_at = "0".into();
         assert!(!same_generation(&stale).unwrap());
+    }
+
+    fn process(pid: i32, parent: i32, executable: &str) -> Process {
+        Process { pid, parent, uid: 501, started_at: "1".into(), executable: executable.into() }
+    }
+    fn held(candidates: Vec<Process>) -> Vec<i32> {
+        holders(candidates).into_iter().map(|process| process.pid).collect()
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn unrelated_nessie_named_programs_never_hold_the_swap() {
+        // On 16 November these kept dictator's 1.1.13 swap waiting for about
+        // 50 minutes: Nessie Desktop, a dictation dev build and a simulator app.
+        assert!(held(vec![
+            process(10, 1, "/Applications/Nessie.app/Contents/MacOS/nessie-desktop"),
+            process(11, 1, "/Applications/Nessie Desktop.app/Contents/MacOS/nessie-desktop"),
+            process(12, 1, "/Users/dictator/Projects/nessie-dictation/target/debug/nessie-dictation-app"),
+            process(13, 1, "/Users/dictator/Library/Developer/CoreSimulator/Devices/A/data/Containers/Bundle/Application/B/NessieDictation.app/NessieDictation"),
+            process(14, 1, "/Users/dictator/Projects/nessie-computer/native/target/debug/nessie-executor-native"),
+            // Desktop's own helpers and the Node they start are not ours either.
+            process(15, 10, "/Applications/Nessie.app/Contents/Resources/executor-runtime/node"),
+            process(16, 10, "/opt/homebrew/bin/node"),
+        ]).is_empty());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn processes_running_installed_executables_still_hold_the_swap() {
+        let release = "/Library/Application Support/Nessie Executor/releases/3629";
+        assert_eq!(held(vec![
+            process(20, 1, &format!("{release}/nessie-executor-native")),
+            process(21, 20, &format!("{release}/nessie-executor-runtime")),
+            process(22, 1, "/Library/Application Support/Nessie Executor/updates/bin/7d04/nessie-computer-updater"),
+            process(23, 1, "/Applications/Nessie Executor.app/Contents/MacOS/Nessie Executor"),
+            // A daemon started by hand from the app bundle, outside custody.
+            process(24, 1, "/Applications/Nessie Executor.app/Contents/Resources/executor-runtime/nessie-executor-runtime"),
+            process(25, 1, "/Applications/Nessie.app/Contents/Library/LoginItems/Nessie Executor.app/Contents/MacOS/Nessie Executor"),
+            process(26, 1, "/opt/homebrew/Cellar/nessie-executor/1.0.3/libexec/runtime/nessie-executor-runtime"),
+            // Any Node a product process starts waits too, wherever it lives.
+            process(27, 21, "/opt/homebrew/bin/node"),
+            // The kernel may report the case-insensitive volume's other spelling.
+            process(28, 1, "/library/application support/nessie executor/releases/3629/nessie-executor-native"),
+        ]), vec![20, 21, 22, 23, 24, 25, 26, 27, 28]);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_holds_only_the_installed_release_and_updater() {
+        assert_eq!(held(vec![
+            process(30, 1, "/usr/lib/nessie-executor/releases/3629/nessie-executor-native"),
+            process(31, 30, "/usr/lib/nessie-executor/releases/3629/resources/firecracker/firecracker"),
+            process(32, 1, "/usr/libexec/nessie-executor-updater/7d04/nessie-computer-updater"),
+            process(33, 30, "/usr/bin/node"),
+            process(34, 1, "/opt/Nessie/nessie-desktop"),
+            process(35, 1, "/home/umac/Projects/nessie-computer/native/target/debug/nessie-executor-native"),
+            process(36, 34, "/usr/bin/node"),
+            process(37, 1, "/usr/local/bin/firecracker"),
+        ]), vec![30, 31, 32, 33]);
     }
 }
