@@ -1,7 +1,7 @@
 # Add a team
 
 Adding a team lets that team's agents use this computer. It takes one code:
-the computer shows it, you type it into Nessie within 5 minutes. There is no
+the computer shows it, you type it into Nessie within 10 minutes. There is no
 address to type.
 
 ## In the app
@@ -17,7 +17,7 @@ address to type.
 5. Nessie shows this computer's name and system. If it's this computer,
    choose **Connect**.
 
-The new team appears in the **Team** list. If 5 minutes pass, choose **Get a
+The new team appears in the **Team** list. If 10 minutes pass, choose **Get a
 new code**.
 
 Adding the same team again selects its existing connection and keeps its
@@ -29,7 +29,7 @@ the connection returns. No extra sign-in or confirmation is added.
 
 ```sh
 $ nessie-computer add
-Code: 4821 9037   (5 minutes)
+Code: 4821 9037   (10 minutes)
 In Nessie, open Computers, choose Add a computer and enter the code.
 Waiting for Nessie…
 Connected to Sales · Acme.

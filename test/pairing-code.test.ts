@@ -5,7 +5,8 @@ import test from 'node:test'
 import { canonicalExecutorPayload, EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
   ExecutorScopeSchema, type ExecutorPairingClaim } from '@nessie/executor-protocol'
 
-import { createPairingCodeClient } from '../src/pairing-code.js'
+import { ExecutorApiError } from '../src/api-client.js'
+import { createPairingCodeClient, pairingFailure } from '../src/pairing-code.js'
 import type { PendingPairingCode } from '../src/pairing-code-store.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 import type { TeamLabel } from '../src/team-label.js'
@@ -450,4 +451,11 @@ test('pairing clears a server-rejected attempt and retires a lost mint response 
   assert.equal(f.pending(), null)
   f.wait()
   assert.equal((await f.client.startPairingCode(input)).status, 'waiting')
+})
+
+test('a rate limit is a wait, never a connection problem', () => {
+  assert.match(pairingFailure(new ExecutorApiError('Too many attempts', { status: 429 })).message,
+    /too many pairing attempts.*Wait a few minutes/)
+  assert.match(pairingFailure(new ExecutorApiError('Unavailable', { status: 503 })).message, /Check your connection/)
+  assert.match(pairingFailure(new TypeError('fetch failed')).message, /Check your connection/)
 })

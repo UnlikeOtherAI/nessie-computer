@@ -44,7 +44,7 @@ hour old, so a team keeps its name while Nessie can't be reached.
 
 ### `add`
 Add a team: get a code from Nessie and wait until it's entered
-under **Computers → Add a computer**, within 5 minutes. `connect` is the same
+under **Computers → Add a computer**, within 10 minutes. `connect` is the same
 command under its older name.
 
 ```sh

@@ -32,9 +32,13 @@ underneath shows the technical message, which helps if you contact support.
   keep it visible. Or open Nessie Computer from the Start menu.
 
 ### The code doesn't work in Nessie
-Codes work once and last 5 minutes. On the computer choose **Get a new code**.
+Codes work once and last 10 minutes. On the computer choose **Get a new code**.
 Check you're in the right team in Nessie, and on the right Nessie server if your
 organisation runs its own.
+
+### Nessie says there were too many pairing attempts
+Nessie gives one network twenty codes in ten minutes; every computer behind the
+same router counts together. Wait a few minutes, then choose **Get a new code**.
 
 ### A team shows "Team name not available yet"
 Nessie hasn't named that team on this computer yet. Nessie Computer asks for

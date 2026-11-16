@@ -14,7 +14,7 @@ import {
 } from '@nessie/executor-protocol'
 
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
-import { executorApi, type ExecutorApiClient } from './api-client.js'
+import { executorApi, ExecutorApiError, type ExecutorApiClient } from './api-client.js'
 import { buildSignedDescriptor } from './descriptor.js'
 import { configureExecutorWorkspaceFolders } from './pair.js'
 import { clearPairingCode, loadPairingCode, savePairingCode, type PendingPairingCode } from './pairing-code-store.js'
@@ -38,10 +38,18 @@ export type PairingCodeView = {
   apiBaseUrl?: string
 }
 
+/**
+ * What a person is told when a pairing request fails. Nessie limits how many
+ * codes one network may ask for; that is a wait, not a connection problem.
+ */
+export const pairingFailure = (error: unknown): Error => new Error(
+  error instanceof ExecutorApiError && error.status === 429
+    ? 'Nessie has had too many pairing attempts from this network. Wait a few minutes, then try again.'
+    : 'Nessie could not complete pairing. Check your connection and try again.',
+)
+
 export const postPairing: ExecutorApiClient['pairing'] = async (origin, action, body) => {
-  try { return await executorApi.pairing(origin, action, body) } catch {
-    throw new Error('Nessie could not complete pairing. Check your connection and try again.')
-  }
+  try { return await executorApi.pairing(origin, action, body) } catch (error) { throw pairingFailure(error) }
 }
 
 /** Initial pairing may narrow the default workspace policy, never add host operations. */

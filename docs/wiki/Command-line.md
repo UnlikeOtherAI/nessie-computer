@@ -75,7 +75,7 @@ On the server (as the user the agents should run as):
 
 ```sh
 $ nessie-computer add
-Code: 4821 9037   (5 minutes)
+Code: 4821 9037   (10 minutes)
 In Nessie, open Computers, choose Add a computer and enter the code.
 Waiting for Nessie…
 Connected to Sales · Acme.
