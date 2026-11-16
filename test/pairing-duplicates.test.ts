@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createPublicKey, randomUUID, verify } from 'node:crypto'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
@@ -25,6 +25,7 @@ const fixture = async () => {
   let connectionUnavailable = false
   let unavailableConnection: string | undefined
   let wrongConnection = false
+  const refusals = new Map<string, ExecutorApiError>()
   const cancelled: string[] = []
   const pairing: ExecutorApiClient['pairing'] = async (origin, action, input) => {
     const request = input as Record<string, unknown>
@@ -47,6 +48,8 @@ const fixture = async () => {
     assert.ok(verify(null, Buffer.from(canonicalExecutorPayload(`nessie.executor.pairing.${action}.v1`, payload)),
       key, Buffer.from(signature as string, 'base64url')))
     if (action === 'connection') {
+      const refusal = refusals.get(attempt.claim.executorId)
+      if (refusal) throw refusal
       if (connectionUnavailable || unavailableConnection === attempt.claim.executorId) {
         throw new ExecutorApiError('Temporary outage', { status: 503 })
       }
@@ -106,6 +109,10 @@ const fixture = async () => {
     outage: (value: boolean) => { connectionUnavailable = value },
     unavailable: (id: string) => { unavailableConnection = id },
     wrongConnection: () => { wrongConnection = true },
+    refuse: (id: string, status: number, code: string) => {
+      refusals.set(id, new ExecutorApiError('Refused', { status, code }))
+    },
+    allow: (id: string) => { refusals.delete(id) },
     close: () => rm(root, { recursive: true, force: true }),
   }
 }
@@ -240,5 +247,57 @@ test('lost reuse recovery checks only the retained connection when another team 
     const recovered = await f.finish('pending')
     assert.equal(recovered.status, 'alreadyPaired')
     assert.equal(recovered.executorId, retained.executorId)
+  } finally { await f.close() }
+})
+
+test('a connection Nessie refuses outright never blocks adding a team', async () => {
+  const f = await fixture()
+  try {
+    await f.start('first')
+    const first = await f.finish('first')
+    const retained = await loadExecutorState(f.directory('first'))
+    // Nessie no longer has this connection at all: the same team connects again.
+    f.refuse(first.executorId!, 400, 'ENROLLMENT_USED')
+    await f.start('second')
+    const second = await f.finish('second')
+    assert.equal(second.status, 'paired')
+    // Its team was deleted, so the connection cannot be named: another team still connects.
+    f.refuse(second.executorId!, 403, 'SCOPE_ENTITLEMENT_DENIED')
+    f.team('team-two')
+    await f.start('third')
+    assert.equal((await f.finish('third')).status, 'paired')
+    assert.deepEqual(await loadExecutorState(f.directory('first')), retained)
+    assert.deepEqual(f.cancelled, [])
+  } finally { await f.close() }
+})
+
+test('a connection that cannot be checked yet holds the same team back, then resolves to it', async () => {
+  const f = await fixture()
+  try {
+    await f.start('first')
+    const first = await f.finish('first')
+    f.refuse(first.executorId!, 429, 'EXECUTOR_PAIRING_RATE_LIMITED')
+    await f.start('second')
+    await assert.rejects(f.finish('second'), /Refused/)
+    await assert.rejects(loadExecutorState(f.directory('second')), { code: 'ENOENT' })
+    f.allow(first.executorId!)
+    const second = await f.finish('second')
+    assert.equal(second.status, 'alreadyPaired')
+    assert.equal(second.executorId, first.executorId)
+  } finally { await f.close() }
+})
+
+test('a folder whose settings cannot be read does not block adding a team', async () => {
+  const f = await fixture()
+  try {
+    await mkdir(f.directory('broken'), { mode: 0o700 })
+    await writeFile(join(f.directory('broken'), 'executor-state.json'), '{ not json', { mode: 0o600 })
+    await f.start('first')
+    const first = await f.finish('first')
+    assert.equal(first.status, 'paired')
+    await f.start('second')
+    const second = await f.finish('second')
+    assert.equal(second.status, 'alreadyPaired')
+    assert.equal(second.executorId, first.executorId)
   } finally { await f.close() }
 })

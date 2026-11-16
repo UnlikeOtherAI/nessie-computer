@@ -20,14 +20,25 @@ export type LocalPairingConnection = {
   authorizeReuse: (payload: Record<string, unknown>) => string
 }
 
+/**
+ * Nessie answered this connection's own signed read with a refusal: it is
+ * revoked (410), unknown to that server, or in a team that no longer exists.
+ * None of those is a working connection to the team being added, which Nessie
+ * has just named, so it never holds another team back. A read nobody answered
+ * (a network failure, 5xx, a rate limit or timeout) decides nothing.
+ */
+const refusedOutright = (error: unknown): boolean => error instanceof ExecutorApiError
+  && typeof error.status === 'number' && error.status >= 400 && error.status < 500
+  && error.status !== 408 && error.status !== 429
+
 /** A signed fresh connection read decides team identity; display names never do. */
 const findConnection = async (
   directory: string, apiBaseUrl: string, matches: (claim: ExecutorPairingClaim) => boolean,
   connectionRoot?: string, api: Pick<ExecutorApiClient, 'pairing'> = executorApi, onlyExecutorId?: string,
 ): Promise<LocalPairingConnection | null> => {
-  const teams = await findLocalTeams({ platform: process.platform, home: homedir(), err: () => {
-    throw new Error('An existing computer connection could not be checked. Try again after checking its settings.')
-  } }, false, connectionRoot ? { teams: [], roots: [connectionRoot] } : undefined)
+  // A folder whose settings cannot be read cannot run a team or prove one, so it is not a connection to reuse.
+  const teams = await findLocalTeams({ platform: process.platform, home: homedir(), err: () => undefined },
+    false, connectionRoot ? { teams: [], roots: [connectionRoot] } : undefined)
   for (const team of teams) {
     if (resolve(team.stateDir) === resolve(directory) || onlyExecutorId && team.executorId !== onlyExecutorId
       || new URL(team.state.apiBaseUrl).origin !== new URL(apiBaseUrl).origin) continue
@@ -38,8 +49,7 @@ const findConnection = async (
         ...payload, signature: pairingSignature(team.state.machinePrivateKey, 'connection', payload),
       }))
     } catch (error) {
-      if (error instanceof ExecutorApiError && error.status === 410
-        && error.code === 'EXECUTOR_PAIRING_CONNECTION_INACTIVE') continue
+      if (refusedOutright(error)) continue
       throw error
     }
     if (existing.executorId !== team.executorId) throw new Error('Nessie answered for a different computer connection.')
