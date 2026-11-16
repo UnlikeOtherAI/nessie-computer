@@ -143,6 +143,27 @@ export const verifyConsoleShell = async (browser, ui) => {
     await page.waitForFunction(() => document.getElementById('team-select').value === 'team-1')
     assert.deepEqual(await options(page), [['team-0', 'Platform · UnlikeOtherAI'], ['team-1', 'Research · UnlikeOtherAI'], [ADD, '＋ Add another team']])
 
+    // A duplicate selects the existing team without changing its paused state or adding a row.
+    const existingOptions = await options(page)
+    const pauseCalls = await callCount(page, 'executor_set_paused')
+    await page.evaluate(() => { window.paired[1].paused = true })
+    await addTeam(page)
+    await codeShowing(page)
+    await page.evaluate(() => { window.pairStatus = 'alreadyPaired' })
+    await dialogClosed(page)
+    assert.equal(await page.locator('#team-select').inputValue(), 'team-1')
+    assert.deepEqual(await options(page), existingOptions)
+    assert.equal(await footer(), 'This computer is already connected to Research · UnlikeOtherAI.')
+    assert.equal(await page.evaluate(() => window.paired[1].paused), true)
+    assert.equal(await callCount(page, 'executor_set_paused'), pauseCalls)
+    await page.evaluate(() => { window.paired[1].paused = false })
+    // A cancellation whose response was lost completes when the normal poll sees it rejected.
+    await addTeam(page)
+    await codeShowing(page)
+    await page.evaluate(() => { window.pairStatus = 'cancelled' })
+    await dialogClosed(page)
+    assert.deepEqual(await options(page), existingOptions)
+
     // Settings: the selected team first — its status word, Pause/Resume, Disconnect… — then the computer.
     await showTab(page, 'settings')
     assert.equal(await page.locator('#settings-team-title').textContent(), 'Working')
@@ -164,7 +185,7 @@ export const verifyConsoleShell = async (browser, ui) => {
     // The computer: switches that save when pressed, updates and logs; explanations behind "?", no hint lines, one version line.
     assert.deepEqual(await page.locator('#tab-settings input[type=checkbox]').evaluateAll((inputs) => inputs.map((input) => input.id)),
       ['autostart', 'auto-restart', 'update-automatic'])
-    assert.equal(await page.locator('#tab-settings p.hint, #tab-settings h2:not(#update-title)').count(), 0)
+    assert.equal(await page.locator('#tab-settings p.hint:not(#retained-baseline), #tab-settings h2:not(#update-title, #retained-title)').count(), 0)
     assert.equal(await page.getByLabel('Restart a team if it stops').isChecked(), true)
     assert.equal(await page.getByLabel('Restart a team if it stops').getAttribute('aria-describedby'), await page.locator('#auto-restart-help .help-tip').getAttribute('id'))
     assert.equal(await checkHelp(page, 'auto-restart-help'), 'A team that stops without you pausing it is started again.')

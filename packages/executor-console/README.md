@@ -164,7 +164,10 @@ the tab and the team dropdown already name what is shown.
   code belongs to such a server. **Get code** asks the host first: a refused
   address leaves a waiting code as it was, and that code is cancelled only once
   the host accepts an address for another server. The claim in Nessie closes
-  the dialog, selects the team and opens its Access tab. **Cancel** always
+  the dialog, selects the team and opens its Access tab. An `alreadyPaired` answer
+  selects the existing team and says it is already connected; it never creates
+  another row or resumes a paused connection. A cancelled attempt closes after
+  the next status poll, including recovery from a lost cancellation response. **Cancel** always
   closes the dialog: the runtime ends the attempt on the computer even when
   Nessie refuses or cannot be reached, and any other failure is said in the
   window. `nc.pairing.restore()` reopens a code still waiting and answers

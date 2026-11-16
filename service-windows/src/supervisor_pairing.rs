@@ -61,6 +61,7 @@ impl Supervisor {
     ) -> Result<serde_json::Value, String> {
         let mut arguments = vec![format!("pairing-{action}"), "--json".to_owned(),
             "--state-dir".to_owned(), directory.display().to_string()];
+        arguments.extend(["--connections-root".to_owned(), executors_root(&self.root).display().to_string()]);
         arguments.extend(extra);
         let (status, output) = self.public_json_command(arguments, input)?;
         if status != 0 {

@@ -101,6 +101,7 @@ export const runPairingCodeCli = async (
   args: string[], platform: NodeJS.Platform = process.platform,
 ): Promise<boolean> => {
   const command = args[0] ?? 'pair'
+  const connectionRoot = value(args, '--connections-root')
   if (command === 'unpair') {
     await runUnpair(args, platform)
     return true
@@ -126,7 +127,7 @@ export const runPairingCodeCli = async (
     // before that — the macOS menu bar app, the Windows tray and Nessie
     // Desktop's companion, which may update apart from this runtime — and it
     // answers exactly as a status check does; `--claim-digest` is ignored.
-    if (command === 'pairing-status' || command === 'pairing-confirm') view = await pairingCodeStatus(directory)
+    if (command === 'pairing-status' || command === 'pairing-confirm') view = await pairingCodeStatus(directory, connectionRoot)
     else if (command === 'pairing-cancel') view = await cancelPairingCode(directory)
     else {
       // The same admission as `pair`: a worktree's own API on its own port.
@@ -148,7 +149,7 @@ export const runPairingCodeCli = async (
       const operationKeys = pairingOperationKeys(input.operationKeys)
       const workspaceFolders = await requestedFolders(input)
       view = await startPairingCode({
-        apiBaseUrl: approved.origin, operationKeys, replace: input.replace === true,
+        apiBaseUrl: approved.origin, connectionRoot, operationKeys, replace: input.replace === true,
         stateDir: directory, workspaceFolders,
       })
       if (!json && process.stdin.isTTY) {
@@ -159,13 +160,14 @@ export const runPairingCodeCli = async (
             if ((await terminal.question('Connect it again, replacing that connection? Type yes to continue: '))
               .trim().toLowerCase() !== 'yes') return true
             view = await startPairingCode({
-              apiBaseUrl: approved.origin, operationKeys, replace: true, stateDir: directory, workspaceFolders,
+              apiBaseUrl: approved.origin, connectionRoot, operationKeys, replace: true,
+              stateDir: directory, workspaceFolders,
             })
           }
           show(view)
           while (view.status === 'waiting') {
             await new Promise((finish) => setTimeout(finish, 3_000))
-            view = await pairingCodeStatus(directory)
+            view = await pairingCodeStatus(directory, connectionRoot)
             const seconds = Math.max(0, Math.ceil((Date.parse(view.expiresAt ?? '') - Date.now()) / 1_000))
             process.stdout.write(`\rCode expires in ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}   `)
           }

@@ -112,3 +112,15 @@ nessie-computer status --json
 what you did, what the window said (including **Details**), your system and
 your Nessie Computer version (**Settings → Help**). Don't paste pairing codes,
 keys or private files.
+
+
+### Adding a team that is already connected
+
+In Nessie Computer, open the team menu and choose **Add another team**. If you
+finish the code in a team that already uses this computer, the app returns to
+that team and says it is already connected. Its folders, programs and permissions
+stay as they were. Different teams can have the same name and remain separate.
+
+If an older app already shows duplicate connections, keep the one you use while
+checking their running work before disconnecting extras. Adding another connection
+does not repair a failed task or transfer its history.

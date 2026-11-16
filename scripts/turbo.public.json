@@ -342,6 +342,7 @@
       ],
       "cache": false
     },
+    "//#test:executor-pairing": { "dependsOn": ["^build"], "cache": false },
     "//#test:windows-source": {
       "dependsOn": [
         "^build"

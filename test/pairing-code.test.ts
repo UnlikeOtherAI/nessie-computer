@@ -37,6 +37,8 @@ const fixture = () => {
   const starts = new Map<string, { pairingId: string; code: string; fingerprint: string;
     expiresAt: string; pollIntervalSeconds: number }>()
   const client = createPairingCodeClient({
+    acquirePairingActivation: async () => ({ release: async () => undefined }),
+    findDuplicatePairing: async () => null,
     assertWorkspaceMayChange: async () => {
       if (workspaceHasArtifacts) throw new Error('Resolve local drafts first')
     },

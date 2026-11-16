@@ -49,7 +49,7 @@ export type ExecutorDaemonLease = { release: () => Promise<void> }
  * connection epoch remains the distributed fence.
  */
 export const acquireExecutorProcessLease = async (
-  stateDir: string, name: 'daemon.pid' | 'pairing-operation.pid',
+  stateDir: string, name: 'daemon.pid' | 'pairing-operation.pid' | 'pairing-activation.pid',
 ): Promise<ExecutorDaemonLease> => {
   const path = resolve(stateDir, name)
   for (let attempt = 0; attempt < 2; attempt += 1) {

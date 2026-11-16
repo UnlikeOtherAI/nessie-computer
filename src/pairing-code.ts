@@ -1,10 +1,11 @@
-import { createPrivateKey, generateKeyPairSync, randomUUID, sign } from 'node:crypto'
+import { pairingSignature } from './pairing-proof.js'
+import { acquirePairingActivation, findDuplicatePairing } from './pairing-connections.js'
+import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { hostname } from 'node:os'
 import { pairedLocalCommandPolicy } from './command-policy.js'
 import { pairedLocalMcpPolicy } from './mcp-policy.js'
 
 import {
-  canonicalExecutorPayload,
   EXECUTOR_WORKSPACE_ONLY_OPERATION_KEYS,
   ExecutorPairingPollResponseSchema,
   ExecutorPairingStartResponseSchema,
@@ -36,12 +37,6 @@ export type PairingCodeView = {
   apiBaseUrl?: string
 }
 
-export const pairingSignature = (key: string, action: string, payload: Record<string, unknown>): string => sign(
-  null,
-  Buffer.from(canonicalExecutorPayload(`nessie.executor.pairing.${action}.v1`, payload)),
-  createPrivateKey({ key: Buffer.from(key, 'base64url'), format: 'der', type: 'pkcs8' }),
-).toString('base64url')
-
 export const postPairing: ExecutorApiClient['pairing'] = async (origin, action, body) => {
   try { return await executorApi.pairing(origin, action, body) } catch {
     throw new Error('Nessie could not complete pairing. Check your connection and try again.')
@@ -66,7 +61,7 @@ const sameOperations = (left: readonly string[], right: readonly string[]): bool
 const pairingDependencies = {
   acquireExecutorDaemonLease, clearExecutorState, clearPairingCode, configureExecutorWorkspaceFolders,
   loadExecutorState, loadPairingCode, postPairing, saveExecutorState, savePairingCode,
-  assertWorkspaceMayChange, readTeamLabel, saveTeamLabel,
+  assertWorkspaceMayChange, readTeamLabel, saveTeamLabel, acquirePairingActivation, findDuplicatePairing,
   acquirePairingLease: async (directory: string) => {
     await ensureOwnerOnlyStateDirectory(directory)
     return acquireExecutorProcessLease(directory, 'pairing-operation.pid')
@@ -79,7 +74,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     acquireExecutorDaemonLease, clearExecutorState, clearPairingCode, configureExecutorWorkspaceFolders,
     loadExecutorState, loadPairingCode, postPairing, saveExecutorState, savePairingCode,
     acquirePairingLease,
-    assertWorkspaceMayChange, readTeamLabel, saveTeamLabel,
+    assertWorkspaceMayChange, readTeamLabel, saveTeamLabel, acquirePairingActivation, findDuplicatePairing,
   } = { ...pairingDependencies, ...overrides }
 
   const existingState = async (directory: string): Promise<ExecutorLocalState | null> => (
@@ -145,6 +140,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
 
   const startPairingCode = async (input: {
     apiBaseUrl: string
+    connectionRoot?: string
     operationKeys?: string[]
     replace?: boolean
     stateDir: string
@@ -159,7 +155,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
       // Only the server's poll outcome may retire an attempt: an old local deadline
       // can also belong to a claimed pairing whose answer has not arrived yet. The
       // status call has already ended an attempt Nessie calls expired.
-      const view = await pairingCodeStatus(input.stateDir)
+      const view = await pairingCodeStatus(input.stateDir, input.connectionRoot)
       if (view.status !== 'expired') return view
     }
     const existing = await existingState(input.stateDir)
@@ -204,10 +200,19 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
   }
 
   const complete = async (
-    directory: string, pending: PendingPairingCode, claim: ExecutorPairingClaim,
-  ): Promise<void> => {
+    directory: string, pending: PendingPairingCode, claim: ExecutorPairingClaim, connectionRoot?: string,
+  ): Promise<PairingCodeView | undefined> => {
     const state = await existingState(directory)
     if (state && state.executorId !== claim.executorId) throw new Error('This computer already has another pairing.')
+    if (!state) {
+      const existing = await findDuplicatePairing(directory, pending.apiBaseUrl, claim, connectionRoot)
+      if (existing) {
+        // Only the redundant attempt is cancelled. Existing grants and machine keys stay intact.
+        await cancelInNessie(directory, pending)
+        await clearPairingCode(directory)
+        return { ...labels(existing), status: 'alreadyPaired', apiBaseUrl: pending.apiBaseUrl }
+      }
+    }
     // A new team starts with the built-in programs and every installed local app (contract §4.3, §4.5).
     if (!state) await saveExecutorState(directory, {
       commandPolicy: pairedLocalCommandPolicy(),
@@ -233,7 +238,7 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     }
   }
 
-  const pairingCodeStatus = async (directory: string): Promise<PairingCodeView> => {
+  const pairingCodeStatus = async (directory: string, connectionRoot?: string): Promise<PairingCodeView> => {
     let pending = await loadPairingCode(directory)
     if (!pending) {
       const state = await existingState(directory)
@@ -244,7 +249,13 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     // The person's claim in Nessie is the whole pairing: the poll that first
     // reads `confirmed` saves this machine's connection, and nothing here asks.
     const result = await poll(pending)
-    if (result.status === 'confirmed' && result.claim) await complete(directory, pending, result.claim)
+    if (result.status === 'confirmed' && result.claim) {
+      const activation = await acquirePairingActivation(connectionRoot)
+      try {
+        const existing = await complete(directory, pending, result.claim, connectionRoot)
+        if (existing) return existing
+      } finally { await activation.release() }
+    }
     // Nessie refuses a claim once the code has run out, so an attempt it calls
     // expired can never finish; it ends here, and nothing reopens its code.
     if (result.status === 'rejected' || result.status === 'expired') await clearPairingCode(directory)
@@ -289,7 +300,9 @@ export const createPairingCodeClient = (overrides: Partial<typeof pairingDepende
     startPairingCode: (input: Parameters<typeof startPairingCode>[0]) => (
       locked(input.stateDir, () => startPairingCode(input))
     ),
-    pairingCodeStatus: (directory: string) => locked(directory, () => pairingCodeStatus(directory)),
+    pairingCodeStatus: (directory: string, connectionRoot?: string) => (
+      locked(directory, () => pairingCodeStatus(directory, connectionRoot))
+    ),
     cancelPairingCode: (directory: string) => locked(directory, () => cancelPairingCode(directory)),
   }
 }

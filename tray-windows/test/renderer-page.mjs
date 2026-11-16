@@ -17,7 +17,8 @@ export const serveConsole = (ui) => async (page) => {
   await page.route('http://localhost:5875/**', async (route) => {
     const file = new URL(route.request().url()).pathname.slice(1) || 'index.html'
     assert.ok(files.includes(file), `index.html asked for ${file}, which the console does not list`)
-    const contentType = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css' : 'text/html'
+    const contentType = file.endsWith('.js') ? 'text/javascript' : file.endsWith('.css') ? 'text/css'
+      : file.endsWith('.json') ? 'application/json' : 'text/html'
     await route.fulfill({ body: await readFile(join(ui, file)), contentType })
   })
 }

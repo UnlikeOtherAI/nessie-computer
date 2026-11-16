@@ -7,6 +7,7 @@ window.nc.words.register('pairing', {
     advanced: 'Own Nessie server', serverLabel: 'Server address',
     serverHint: 'Only for an organisation that runs its own Nessie. Use the address your administrator gave you.', useServer: 'Get code',
     connected: 'Connected to {team}.',
+    alreadyConnected: 'This computer is already connected to {team}.',
   },
   'en-US': {
     title: 'Add another team', getting: 'Getting a code…', codeLabel: 'Pairing code', copy: 'Copy', copied: 'Copied', copyLabel: 'Copy pairing code',
@@ -15,6 +16,7 @@ window.nc.words.register('pairing', {
     advanced: 'Own Nessie server', serverLabel: 'Server address',
     serverHint: 'Only for an organization that runs its own Nessie. Use the address your administrator gave you.', useServer: 'Get code',
     connected: 'Connected to {team}.',
+    alreadyConnected: 'This computer is already connected to {team}.',
   },
   cs: {
     title: 'Přidat další tým', getting: 'Získává se kód…', codeLabel: 'Párovací kód', copy: 'Kopírovat', copied: 'Zkopírováno', copyLabel: 'Kopírovat párovací kód',
@@ -23,6 +25,7 @@ window.nc.words.register('pairing', {
     advanced: 'Vlastní server Nessie', serverLabel: 'Adresa serveru',
     serverHint: 'Jen pro organizaci s vlastním serverem Nessie. Použijte adresu od svého správce.', useServer: 'Získat kód',
     connected: 'Připojeno k týmu {team}.',
+    alreadyConnected: 'Počítač je už připojen k týmu {team}.',
   },
   de: {
     title: 'Weiteres Team hinzufügen', getting: 'Code wird geholt…', codeLabel: 'Kopplungscode', copy: 'Kopieren', copied: 'Kopiert', copyLabel: 'Kopplungscode kopieren',
@@ -31,6 +34,7 @@ window.nc.words.register('pairing', {
     advanced: 'Eigener Nessie-Server', serverLabel: 'Serveradresse',
     serverHint: 'Nur für eine Organisation mit eigenem Nessie-Server. Verwenden Sie die Adresse Ihres Administrators.', useServer: 'Code holen',
     connected: 'Mit {team} verbunden.',
+    alreadyConnected: 'Dieser Computer ist bereits mit {team} verbunden.',
   },
   es: {
     title: 'Añadir otro equipo', getting: 'Obteniendo un código…', codeLabel: 'Código de emparejamiento', copy: 'Copiar', copied: 'Copiado', copyLabel: 'Copiar código de emparejamiento',
@@ -39,6 +43,7 @@ window.nc.words.register('pairing', {
     advanced: 'Servidor Nessie propio', serverLabel: 'Dirección del servidor',
     serverHint: 'Solo para una organización con su propio servidor Nessie. Usa la dirección que te dio tu administrador.', useServer: 'Obtener código',
     connected: 'Conectado a {team}.',
+    alreadyConnected: 'Este ordenador ya está conectado a {team}.',
   },
   fr: {
     title: 'Ajouter une autre équipe', getting: 'Obtention d’un code…', codeLabel: 'Code d’appairage', copy: 'Copier', copied: 'Copié', copyLabel: 'Copier le code d’appairage',
@@ -47,6 +52,7 @@ window.nc.words.register('pairing', {
     advanced: 'Serveur Nessie de l’organisation', serverLabel: 'Adresse du serveur',
     serverHint: 'Seulement pour une organisation qui héberge son propre Nessie. Utilisez l’adresse donnée par votre administrateur.', useServer: 'Obtenir un code',
     connected: 'Connecté à {team}.',
+    alreadyConnected: 'Cet ordinateur est déjà connecté à {team}.',
   },
   it: {
     title: 'Aggiungi un altro team', getting: 'Richiesta del codice…', codeLabel: 'Codice di abbinamento', copy: 'Copia', copied: 'Copiato', copyLabel: 'Copia il codice di abbinamento',
@@ -55,5 +61,6 @@ window.nc.words.register('pairing', {
     advanced: 'Server Nessie proprio', serverLabel: 'Indirizzo del server',
     serverHint: 'Solo per un’organizzazione con un proprio server Nessie. Usa l’indirizzo che ti ha dato l’amministratore.', useServer: 'Ottieni codice',
     connected: 'Connesso a {team}.',
+    alreadyConnected: 'Questo computer è già connesso a {team}.',
   },
 })

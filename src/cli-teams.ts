@@ -119,8 +119,9 @@ const childDirectories = async (root: string): Promise<string[]> => {
  */
 export const findLocalTeams = async (
   context: Pick<CliContext, 'platform' | 'home' | 'err'>, cliServices: boolean,
+  locations = teamLocations(context.platform, context.home),
 ): Promise<LocalTeam[]> => {
-  const locations = teamLocations(context.platform, context.home)
+
   const cliRoot = resolve(executorServiceStateRoot(context.home))
   const candidates = [...locations.teams]
   for (const root of locations.roots) candidates.push(...await childDirectories(root))

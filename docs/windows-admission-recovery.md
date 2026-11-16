@@ -79,3 +79,41 @@ replies, helper loss and timeout, and require the finite scope to exit before
 the parent CLI finishes. Source helper probes on Minis took 29, 32 and 830 ms
 for four checks in one child. These are source timings, not signed installed
 acceptance; the real CTO start and same-session follow-up remain required.
+
+
+## One active local connection per team
+
+Code pairing previously inspected only its newly allocated directory, so a new
+key could activate another local connection to a team already present elsewhere.
+Activation now holds one account-wide lock and checks existing connections
+through signed connection reads before publishing local state. The exact server,
+organisation ID and team ID decide a match; names, offline status and display
+caches never do. Failure to read an existing connection does not permit a new one.
+
+When a match exists, the runtime cancels only the redundant attempt through the
+normal signed pairing endpoint. It returns `alreadyPaired` with the existing
+connection ID. Native hosts do not promote another directory, restart a paused
+connection, replace keys or merge permissions. The shared console selects that
+team and says it is already connected. A lost cancellation response is recovered
+by the normal poll, which sees the rejected attempt and closes the dialog without
+publishing a connection.
+
+Windows service pairing supplies its fixed `executors` root with the internal
+`--connections-root` argument; user pairing discovers the same local roots as
+the existing team list. The separate service-owned ChatGPT plan connection is
+still a distinct custody compartment linked to its user-owned team. Existing
+duplicates and their historical commands are not silently deleted or merged.
+
+Run `test:executor-pairing` and the affected CLI discovery checks through the
+public Turbo graph. The duplicate gate uses isolated real state directories and
+signed protocol requests, including simultaneous activation, unchanged grants,
+equal names across different IDs/servers, lost cancellation and lookup refusal.
+Installed Add another team verification remains required before qualification.
+
+Source qualification on Maxis passed all 19 selected Turbo tasks: build, lint,
+typecheck, 27 pairing tests (two existing Windows platform skips) and all 45 CLI
+tests. All 17 focused Windows service pairing tests and 18 rendered shared-console
+journeys passed, including duplicate selection and cancellation recovery. The
+console gate loads the existing retained-import assets and keeps its separate
+Settings heading outside the general-settings heading assertion. Console and
+fixture lint also passed. These source gates do not claim installed acceptance.
