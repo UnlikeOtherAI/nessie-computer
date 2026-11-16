@@ -41,8 +41,8 @@ const MCP_CALL_TIMEOUT_MS = EXECUTOR_MCP_CALL_TIMEOUT_MS
  */
 export const EXECUTOR_MCP_DAEMON_COMMAND_WORST_CASE_MS = MCP_SESSION_START_TIMEOUT_MS + MCP_CALL_TIMEOUT_MS
 // Sessions outlive single commands so a run's burst of tool calls reuses one
-// process, but a bridge that keeps a server alive forever after one call
-// leaks it; a minute of quiet retires the process.
+// process. Ordinary local apps retire after a minute of quiet; the verified
+// coding bridge owns long-lived hosts and stays until normal daemon shutdown.
 const MCP_SESSION_IDLE_TIMEOUT_MS = 60_000
 // A server that keeps failing to start is retried later and later (`mcp-start-backoff.ts`).
 // The control plane caps a terminal command result at 64 KiB
@@ -189,7 +189,7 @@ export const createExecutorMcpSessionManager = (
   }
 
   const armIdleTimer = (server: string, session: ActiveSession): void => {
-    if (session.dead || session.pending > 0) return
+    if (session.dead || session.pending > 0 || session.trustedCodingBridge) return
     clearTimeout(session.idleTimer)
     session.idleTimer = setTimeout(() => {
       void closeSession(server, session).catch(() => undefined)
@@ -200,7 +200,8 @@ export const createExecutorMcpSessionManager = (
     const waiting = backoff.waiting(spec.name)
     if (waiting) return waiting
     const trustedCodingBridge = isTrustedCodingControlBridge(spec)
-    // The coding-sessions bridge's detached hosts outlive it, so no Job Object holds it.
+    // The bridge uses the native managed-runtime boundary. Do not add a second
+    // local-app job; on Windows its existing job owns the long-lived hosts.
     const launch = await localAppLaunch(spec,
       trustedCodingBridge || isBuiltinCodingSessionsServer(spec) ? {} : processControl)
     if (!launch) {

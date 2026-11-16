@@ -148,3 +148,14 @@ installer closes and reopens it and clears old connection locks only when Window
 can prove their original process has gone. Team settings and history are kept.
 No extra sign-in or administrator prompt is added beyond the installer itself.
 Do not delete the state folder or stop the unrelated process.
+
+### A coding session stops while idle on Windows
+
+Update Nessie Computer if a Claude Code or Codex session becomes interrupted
+after a minute without tool calls. The built-in connection now stays open while
+the computer's team connection is running; leaving a conversation idle does not
+close it. No additional sign-in or permission is needed.
+
+An app update or a stopped team connection can still interrupt Windows sessions.
+Their history remains available. Do not replay a previous command whose result
+is unknown.

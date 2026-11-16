@@ -329,3 +329,23 @@ at most two seconds; an existing claim still loses immediately, and persistent
 permission errors still fail. It never removes or overwrites another writer’s
 claim. Focused Windows source checks include concurrent channel drains and
 claim-file deletion with an outstanding handle.
+
+## Idle bridge lifetime
+
+The daemon retains its exact runtime-generated coding bridge until normal
+shutdown. A minute without tool calls is not evidence that the coding session
+has finished. On Windows the bridge's native managed-runtime job also holds
+its long-lived hosts, so retiring that bridge while idle would terminate them.
+
+Ordinary local MCP apps still close after sixty idle seconds. Matching the
+coding server's name and flags is insufficient: only the exact runtime argv and
+working directory qualify. Every effect still needs current per-call authority;
+retaining the process does not extend a lease or permit. Stop, crash and
+cancellation retain their existing shutdown behavior. A Windows daemon restart
+interrupts its sessions and preserves history; it does not replay old input.
+
+The real stdio regression in test/mcp-coding-bridge-idle.test.ts fails on the old
+idle close, then checks a same-process follow-up after idle, explicit shutdown,
+and idle cleanup of an untrusted server with the same name and flags. It runs
+through the public test:mcp Turbo gate. Installed qualification additionally
+waits beyond the production sixty-second interval before the CTO follow-up.
