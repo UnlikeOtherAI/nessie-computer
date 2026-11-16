@@ -52,6 +52,31 @@ test('npm native and Node forwarders resolve to literal launches and probes igno
   } finally { await f.clean() }
 })
 
+test('a one-line forwarder to a full path resolves to that program, and any other script is refused', {
+  skip: !windows,
+}, async () => {
+  const f = await fixture()
+  try {
+    const target = join(f.dir, 'tools dir', 'codex-x86_64-pc-windows-msvc.exe')
+    await mkdir(dirname(target))
+    await copyFile(process.execPath, target)
+    await writeFile(join(f.dir, 'codex.cmd'), `@"${target}" %*\r\n`)
+    assert.deepEqual(await resolveProgramLaunch(['codex', '--version', 'a&b', '%PATH%'], f.env),
+      [target, '--version', 'a&b', '%PATH%'])
+    await writeFile(join(f.dir, 'codex.cmd'), `"${target}" %*`)
+    assert.deepEqual(await resolveProgramLaunch(['codex'], f.env), [target])
+    const script = join(f.dir, 'tools dir', 'run.bat')
+    await writeFile(script, '@echo off\r\n')
+    for (const refused of [`@"${target}" %*\r\necho extra\r\n`, `@"${target}" --flag %*\r\n`,
+      `@"%LOCALAPPDATA%\\codex.exe" %*\r\n`, `@"${f.dir}\\tools dir\\..\\tools dir\\codex.exe" %*\r\n`,
+      '@"tools dir\\codex-x86_64-pc-windows-msvc.exe" %*\r\n', `@"${join(f.dir, 'missing.exe')}" %*\r\n`,
+      `@"${script}" %*\r\n`, `@call "${target}" %*\r\n`]) {
+      await writeFile(join(f.dir, 'codex.cmd'), refused)
+      assert.equal(await resolveProgramLaunch(['codex'], f.env), undefined, refused)
+    }
+  } finally { await f.clean() }
+})
+
 test('an npm-installed terminal reaches first output, follow-up and contained descendant teardown', {
   skip: !windows, timeout: 120_000,
 }, async () => {

@@ -35,7 +35,7 @@ const fixture = async (t: TestContext) => {
     workspaceFolders: [{ name: 'work', path: root }] }
   const directory = join(root, 'connection')
   await saveExecutorState(directory, state)
-  let calls = 0, revoked = false, ahead = 0
+  let calls = 0, revoked = false, ahead = 0, slowChecks = 0
   let change: Partial<ExecutorCodingSessionAuthority> = {}
   let carrier = scope
   t.mock.method(executorApi, 'checkSessionAuthority', async (_origin, request) => {
@@ -44,6 +44,8 @@ const fixture = async (t: TestContext) => {
     const { signature: _signature, ...payload } = request
     carrier = { ...scope, issuedAt: new Date(now + ahead).toISOString(),
       expiresAt: new Date(now + ahead + 30_000).toISOString(), ...change }
+    // This computer's own reads after the answer outlast the permit: the clock moves once the client has it.
+    if (slowChecks > 0) { slowChecks -= 1; setImmediate(() => { now += 5_100 }) }
     return { commandId: scope.commandId, selectionDigest: request.selectionDigest, phase: request.phase,
       requestNonce: request.requestNonce,
       requestDigest: `sha256:${createHash('sha256').update(canonicalExecutorJson(payload)).digest('hex')}`,
@@ -62,6 +64,7 @@ const fixture = async (t: TestContext) => {
   return { directory, state, scope, paths, meta, carrier: () => carrier, calls: () => calls,
     advance: (ms: number) => { now += ms }, revoke: () => { revoked = true },
     serverAhead: (ms: number) => { ahead = ms },
+    slowLocalChecks: (times: number) => { slowChecks = times },
     substitute: (patch: Partial<ExecutorCodingSessionAuthority>) => { change = patch } }
 }
 
@@ -146,6 +149,23 @@ test('a process handed a permit with the route\'s reference asks with the refere
   f.advance(31_000)
   await assert.rejects(late.consume())
   assert.equal(f.calls(), before + 2, 'an expired reference asks nothing')
+})
+
+test('a permit that ran out during this computer\'s own checks is asked for again, three times at most', async t => {
+  const f = await fixture(t)
+  const effect = new SessionEffectAuthority(f.directory, f.scope)
+  await effect.consume()
+  f.advance(4_000)
+  // Installed failure: on a busy Windows computer the state checks after a slow answer outlasted the permit,
+  // the terminal's input was refused and its session ended.
+  f.slowLocalChecks(1)
+  await effect.consume()
+  assert.equal(f.calls(), 3, 'one answer wasted, one used')
+  assert.equal(Date.parse(effect.scope.expiresAt) - Date.now(), 5_000)
+  f.advance(4_000)
+  f.slowLocalChecks(3)
+  await assert.rejects(effect.consume(), 'a computer that never finishes in time is refused, not looped')
+  assert.equal(f.calls(), 6)
 })
 
 test('a server clock a little ahead or behind still permits, and never for longer than five seconds', async t => {

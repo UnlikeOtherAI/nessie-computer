@@ -46,7 +46,9 @@ export class TerminalEffectOutcomes {
     let timer: NodeJS.Timeout | undefined
     const outcome = new Promise<void>((resolve, reject) => {
       this.#pending.set(sequence, { resolve, reject })
-      timer = setTimeout(() => reject(new SessionEffectRefused()), 10_000)
+      // The terminal asks the route for its own permit before it acts, twice at launch. Thirty seconds is
+      // how long the route's reference lasts; ten ended a session whenever those answers were slow.
+      timer = setTimeout(() => reject(new SessionEffectRefused('the terminal did not answer in 30 s')), 30_000)
     })
     void outcome.catch(() => undefined)
     try { await write(terminalEffectFrame(value, effect, sequence), effect); await outcome }

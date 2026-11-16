@@ -90,6 +90,14 @@ own terminal, for example:
     at start (src/coding-session/managed-bridge.ts)
 ```
 
+Every session process says why it refused an effect, in its own log
+(`coding-sessions/sessions/<id>/host.log` under the state folder):
+
+```
+[session-effect] debug: refused: Error: Original session authority changed (answer_slower_than_5s; 5210 ms)
+[session-effect] debug: refused: the route's reference ran out while it answered
+```
+
 Nothing is added to a result, and the mode cannot be on in a released app: the
 Mac app, the Windows app and the Windows managed launcher remove
 `NESSIE_EXECUTOR_ALLOW_LOCAL_API` before they start a runtime, and that same

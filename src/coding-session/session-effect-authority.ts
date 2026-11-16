@@ -1,4 +1,5 @@
 import { withStateSecurityChecks } from '../state-security.js'
+import { debugFailure, executorDebugChild } from '../debug-mode.js'
 import { canonicalExecutorJson, executorCodingSessionResultScope, ExecutorCodingSessionAuthoritySchema,
   type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { loadExecutorState } from '../state-store.js'
@@ -17,7 +18,17 @@ class InheritedT3Selection {
 }
 
 export class SessionEffectRefused extends Error {
-  constructor() { super('Original session effect authority is unavailable; reconcile the retained intent.') }
+  /** `why` is for the owner's own terminal in debug mode. It never enters the message, a result or a log. */
+  constructor(readonly why?: string) {
+    super('Original session effect authority is unavailable; reconcile the retained intent.')
+  }
+}
+
+/** Debug mode names the cause in the process's own stderr; otherwise a refusal says nothing more. */
+const explain = (error: unknown): void => {
+  if (!executorDebugChild()) return
+  const detail = error instanceof SessionEffectRefused ? error.why ?? debugFailure(error) : debugFailure(error)
+  process.stderr.write(`[session-effect] debug: refused: ${detail}\n`)
 }
 
 /** A permit the route issued is used for the effects that follow it while it has at least this long left. */
@@ -102,9 +113,19 @@ export class SessionEffectAuthority {
 
   async consume(signal?: AbortSignal): Promise<void> {
     try {
-      await withStateSecurityChecks(() => this.#consume(signal))
-      this.assertLive()
-    } catch { throw new SessionEffectRefused() }
+      for (let attempt = 0; ; attempt += 1) {
+        await withStateSecurityChecks(() => this.#consume(signal))
+        if (referenceLive(this.#scope)) return
+        // The route answered and this computer's own checks outlasted the permit, as a busy machine's do.
+        // Ask again while the route's reference lasts; never act on the permit that ran out.
+        if (attempt === 2 || isT3EffectScope(this.#scope)) {
+          throw new SessionEffectRefused('the permit ran out during this computer\'s own checks')
+        }
+      }
+    } catch (error) {
+      explain(error)
+      throw new SessionEffectRefused()
+    }
   }
   async #consume(signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
@@ -141,22 +162,25 @@ export class SessionEffectAuthority {
       // with. A permit lasts five seconds and a reference thirty, so a slow answer or a slow effect costs a
       // round trip, never the operation. Nothing here extends either deadline; only the route issues them.
       const reference = this.#queuedCarrier ?? this.#handedReference ?? this.#scope
-      if (!referenceLive(reference)) throw new SessionEffectRefused()
+      if (!referenceLive(reference)) throw new SessionEffectRefused('the route\'s reference ran out before it was asked')
       const renewed = await createSessionAuthorityClient(() => state)(reference, 'execute')
       const current = await loadExecutorState(this.directory)
       if (current.executorId !== state.executorId || current.connectionEpoch !== state.connectionEpoch
         || current.machinePublicKey !== state.machinePublicKey || current.apiBaseUrl !== state.apiBaseUrl
         || current.sessionPairingSource?.kind !== 'bound'
         || current.sessionPairingSource.originalOwnerGeneration !== reference.originalOwnerGeneration) {
-        throw new SessionEffectRefused()
+        throw new SessionEffectRefused('this connection changed while the route answered')
       }
       // A round trip cannot revive the reference that expired while this effect was waiting.
-      if (!referenceLive(reference)) throw new SessionEffectRefused()
+      if (!referenceLive(reference)) throw new SessionEffectRefused('the route\'s reference ran out while it answered')
+      // Whether this permit is still live is `consume`'s question: it asks again when these reads outlasted it.
       this.#scope = renewed.permit
-      this.assertLive()
       this.#queuedCarrier = renewed.carrier
       this.#permitted = true
-    } catch { throw new SessionEffectRefused() }
+    } catch (error) {
+      if (error instanceof SessionEffectRefused) throw error
+      throw new SessionEffectRefused(debugFailure(error))
+    }
   }
 
 }

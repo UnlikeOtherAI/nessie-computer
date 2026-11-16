@@ -189,6 +189,13 @@ below extends one.
 - A server deadline up to two seconds beyond five is accepted as a slow local
   clock. The permit is still cut at five seconds of this computer's own time,
   measured from before the request left.
+- When this computer's own state checks after an answer outlast the permit, as
+  they did on a busy Windows machine, the route is asked again, three times at
+  most. Nothing acts on the permit that ran out.
+- The session host waits 30 seconds, the life of a reference, for its terminal
+  to accept a launch or an input. It waited 10, while the terminal makes one
+  signed round trip per input and two at launch; a slow pair ended the host,
+  and the next request's new host then stopped the running program.
 
 Measured with the debug control plane on the source build, the start of a
 Claude Code terminal session took 0.9 s and 3 round trips with no delay, 8 s at
@@ -215,7 +222,14 @@ session folder never supplies either executable. Arguments remain a literal
 vector, including spaces, quotes and shell metacharacters. No command interpreter,
 new sign-in, permission screen or configuration step is added.
 
-Custom batch/PowerShell programs and modified forwarding scripts are refused.
+A forwarder written by hand is read the same way when it is exactly one line
+naming one program by its full path, `@"C:\tools\codex.exe" %*`: that program
+runs directly. Maxis had Codex installed this way, and both the Codex engine and
+a `codex` terminal session answered `agent_missing` there. A variable, a relative
+path, `..`, a second line, an extra argument, or a target that is not an existing
+`.exe` or `.com` is refused.
+
+Other batch/PowerShell programs and modified forwarding scripts are refused.
 Existing command admission, immutable request authority and native Job Object
 containment still apply to the resolved executable. Resolution does not grant
 provider access or change the provider's own login.
