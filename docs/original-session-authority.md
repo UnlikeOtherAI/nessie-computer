@@ -15,6 +15,9 @@ original custody and original selected admissions under current connection and
 authorization fences. A response renews only validated authority dates; command
 arguments, owner, generation, selection, filter and cursor remain in the digest.
 The client limits consumption to five seconds and rejects changed selections.
+One permit covers the effects inside it; the next is asked for with the route's
+own 30-second reference, which the daemon hands the bridge beside its permit.
+See [session permits on a slow connection](windows-admission-recovery.md#session-permits-on-a-slow-connection).
 
 Viewer demand captures the actual requester's reference and exact admitted
 session. It remains read-only even when a new same-human login can view history
@@ -96,8 +99,8 @@ Neither kind grants control authority or renews its original carrier.
 
 Freshness is bounded, not instantaneous remote revocation: an owning-route
 consumption grants at most five seconds. The receiver checks the deadline and
-round-trip elapsed time immediately before the OS/API call, and reconsumes after
-intervening waits. Scheduling inside a kernel or provider after that call is not
+round-trip elapsed time immediately before the OS/API call, and reconsumes once
+the permit has less than 1.5 seconds left. Scheduling inside a kernel or provider after that call is not
 a second authority boundary. A carrier that expires while waiting is refused;
 only the actual signed route can refresh a still-live carrier.
 

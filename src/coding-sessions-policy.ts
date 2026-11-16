@@ -19,6 +19,7 @@ import {
 } from './coding-session/config.js'
 import { resolveExecutorEntry } from './coding-session/host-spawn.js'
 import { claudeMergeCommands, claudeUnaskedCommands } from './coding-session/merge-commands.js'
+import { EXECUTOR_DEBUG_ENV, executorDebugMode } from './debug-mode.js'
 import { canonicalOrDeclared, codingPathsOverlap, resolveCodingRoots } from './coding-session/roots.js'
 import { assertExecutorLocalMcpServers, type ExecutorLocalMcpServer } from './mcp-servers.js'
 import { replaceOwnerOnlyJson } from './owner-only-json.js'
@@ -168,9 +169,10 @@ export const withBridgeOnRuntime = (
   servers: readonly ExecutorLocalMcpServer[], runtime: ExecutorRuntime = currentRuntime(),
 ): ExecutorLocalMcpServer[] => servers.map((server) => {
   const configPath = codingSessionsServerConfigPath(server)
-  return configPath === undefined
-    ? server
-    : codingSessionsServer(configPath, server.env![CODING_SESSIONS_CONFIG_DIGEST_ENV]!, runtime)
+  if (configPath === undefined) return server
+  const bridge = codingSessionsServer(configPath, server.env![CODING_SESSIONS_CONFIG_DIGEST_ENV]!, runtime)
+  // Never saved: only the bridge a debug daemon is running now is told to explain its failures.
+  return executorDebugMode() ? { ...bridge, env: { ...bridge.env, [EXECUTOR_DEBUG_ENV]: '1' } } : bridge
 })
 
 /**

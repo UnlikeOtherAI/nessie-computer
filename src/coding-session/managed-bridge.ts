@@ -84,6 +84,8 @@ export type CodingBridgeCallMeta = {
   connectionEpoch?: string
   sessionPairingSource?: import('@nessie/executor-protocol').ExecutorSessionPairingSource
   codingSessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority
+  /** The route's own reference for the same operation: what the effect authority asks its permits with. */
+  codingSessionReference?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority
   personalAuthority?: PersonalInferenceAuthority
   ownerKey?: string
   commandId?: string
@@ -438,7 +440,8 @@ export const createCodingBridge = async (loaded: LoadedCodingSessionsConfig): Pr
       try {
         const authority = preparedManagedSessionAuthority(meta)
         const effectScope = originalManagedEffectScope(meta)
-        const effect = effectScope ? new SessionEffectAuthority(dirname(loaded.configPath), effectScope) : undefined
+        const effect = effectScope
+          ? new SessionEffectAuthority(dirname(loaded.configPath), effectScope, meta.codingSessionReference) : undefined
         const system = meta.daemonControl && ['session_close_all', 'session_list_all', 'session_inventory'].includes(tool)
         if (!system) await readSessionPairingSource(dirname(loaded.configPath), meta.sessionPairingSource)
         if (meta.sessionPairingSource?.kind === 'bound' && !authority

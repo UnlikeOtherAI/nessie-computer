@@ -34,9 +34,24 @@ const npmLaunch = async (shim: string, env: NodeJS.ProcessEnv): Promise<string[]
 }
 
 /**
+ * The forwarder people write by hand: one line naming one program by its full path, `@"C:\tools\codex.exe" %*`.
+ * Read as data like npm's: no variable, no relative path, no second command, and nothing but that program runs.
+ */
+const forwardedLaunch = async (shim: string): Promise<string[] | undefined> => {
+  const size = await stat(shim).then((entry) => entry.isFile() ? entry.size : 0, () => 0)
+  if (!size || size > 1024) return undefined
+  const text = (await readFile(shim, 'utf8')).replaceAll('\r\n', '\n')
+  const target = /^@?"([A-Za-z]:\\[^"%\n\0<>|?*]+\.(?:exe|com))" %\*\n?$/iu.exec(text)?.[1]
+  if (!target || target.split('\\').slice(1).some((part) => !part || part === '.' || part === '..'
+    || /[/:]/u.test(part))) return undefined
+  return await file(target) ? [target] : undefined
+}
+
+/**
  * Resolve once for probes and contained launches. Windows npm forwarders become
  * the actual executable and literal argument vector; cwd and shell syntax never
- * participate in discovery. Custom scripts remain unsupported.
+ * participate in discovery. A one-line forwarder to a full path is read the same way; any other script
+ * remains unsupported.
  */
 export const resolveProgramLaunch = async (
   command: readonly string[], env: NodeJS.ProcessEnv, platform: NodeJS.Platform = process.platform,
@@ -47,7 +62,7 @@ export const resolveProgramLaunch = async (
   if (!program) return undefined
   if (platform !== 'win32') return [program, ...command.slice(1)]
   if (/\.cmd$/iu.test(program)) {
-    const launch = await npmLaunch(program, env)
+    const launch = await npmLaunch(program, env) ?? await forwardedLaunch(program)
     return launch ? [...launch, ...command.slice(1)] : undefined
   }
   if (!/\.(?:exe|com)$/iu.test(program)) return undefined

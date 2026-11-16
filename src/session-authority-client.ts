@@ -12,6 +12,13 @@ export type CheckedSessionAuthority = {
   permit: ExecutorCodingSessionAuthority
 }
 
+/**
+ * How far this computer's clock may run behind the server's. The route stamps its deadline five seconds from its
+ * own clock, so with no allowance a computer a few milliseconds slow refused every answer. The allowance never
+ * lengthens a permit: it is still cut at five seconds of this computer's own time, from before the request left.
+ */
+const CLOCK_ALLOWANCE_MS = 2_000
+
 /** A fresh round trip for one exact operation. The response cannot replace its original selection. */
 export const createSessionAuthorityClient = (
   state: () => ExecutorLocalState, api: Pick<ExecutorApiClient, 'checkSessionAuthority'> = executorApi,
@@ -36,18 +43,26 @@ export const createSessionAuthorityClient = (
   }))
   const current = state()
   const requestDigest = `sha256:${createHash('sha256').update(canonicalExecutorJson(payload)).digest('hex')}`
-  if (current.executorId !== before.executorId || current.connectionEpoch !== before.connectionEpoch
-    || answer.commandId !== scope.commandId || answer.selectionDigest !== selectionDigest || answer.phase !== phase
-    || answer.requestNonce !== payload.requestNonce || answer.requestDigest !== requestDigest
-    || current.apiBaseUrl !== before.apiBaseUrl || current.machinePublicKey !== before.machinePublicKey
-    || current.sessionPairingSource?.kind !== 'bound'
-    || current.sessionPairingSource.originalOwnerGeneration !== scope.originalOwnerGeneration
-    || answer.connectionEpoch !== current.connectionEpoch
-    || answer.authorizationRevision !== scope.authorizationRevision
-    || answer.purpose !== scope.purpose || Date.parse(answer.validUntil) <= Date.now()
-    || Date.now() - startedAt >= 5_000 || Date.parse(answer.validUntil) > Date.now() + 5_000
-    || canonicalExecutorJson(executorCodingSessionResultScope(answer.authority))
-      !== canonicalExecutorJson(executorCodingSessionResultScope(scope))) throw new Error('Original session authority changed')
+  const elapsed = Date.now() - startedAt, deadline = Date.parse(answer.validUntil)
+  // Named, so debug mode can say which check failed; the names describe this request, never its content.
+  const failed = Object.entries({
+    connection_changed: current.executorId !== before.executorId || current.connectionEpoch !== before.connectionEpoch
+      || current.apiBaseUrl !== before.apiBaseUrl || current.machinePublicKey !== before.machinePublicKey
+      || current.sessionPairingSource?.kind !== 'bound'
+      || current.sessionPairingSource.originalOwnerGeneration !== scope.originalOwnerGeneration
+      || answer.connectionEpoch !== current.connectionEpoch,
+    answer_for_another_request: answer.commandId !== scope.commandId || answer.selectionDigest !== selectionDigest
+      || answer.phase !== phase || answer.requestNonce !== payload.requestNonce
+      || answer.requestDigest !== requestDigest,
+    authorization_changed: answer.authorizationRevision !== scope.authorizationRevision
+      || answer.purpose !== scope.purpose,
+    deadline_passed: deadline <= Date.now(),
+    answer_slower_than_5s: elapsed >= 5_000,
+    deadline_beyond_clock_allowance: deadline > Date.now() + 5_000 + CLOCK_ALLOWANCE_MS,
+    selection_changed: canonicalExecutorJson(executorCodingSessionResultScope(answer.authority))
+      !== canonicalExecutorJson(executorCodingSessionResultScope(scope)),
+  }).filter(([, bad]) => bad).map(([name]) => name)
+  if (failed.length) throw new Error(`Original session authority changed (${failed.join(', ')}; ${elapsed} ms)`)
   return { carrier: answer.authority,
     permit: { ...answer.authority, expiresAt: new Date(Math.min(Date.parse(answer.authority.expiresAt),
       Date.parse(answer.validUntil), startedAt + 5_000)).toISOString() } }

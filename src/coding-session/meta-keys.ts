@@ -13,5 +13,8 @@ export const CODING_SESSION_COMMAND_META = 'nessie/command'
 export const CODING_SESSION_DAEMON_CONTROL_META = 'nessie/daemon-control'
 export const CODING_SESSION_COMMAND_RULES_META = 'nessie/command-rules'
 export const CODING_SESSION_AUTHORITY_META = 'nessie/session-authority'
+/** The route's own thirty-second reference for the same operation. It grants no effect: the bridge asks the
+ * route with it for its own permit, so a slow answer does not outlive the daemon's five-second one. */
+export const CODING_SESSION_REFERENCE_META = 'nessie/session-reference'
 export const CODING_SESSION_PAIRING_SOURCE_META = 'nessie/session-pairing-source'
 export const CODING_SESSION_CONNECTION_META = 'nessie/session-connection'

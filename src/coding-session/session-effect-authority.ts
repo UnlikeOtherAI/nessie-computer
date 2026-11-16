@@ -1,5 +1,7 @@
 import { withStateSecurityChecks } from '../state-security.js'
-import { ExecutorCodingSessionAuthoritySchema, type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
+import { debugFailure, executorDebugChild } from '../debug-mode.js'
+import { canonicalExecutorJson, executorCodingSessionResultScope, ExecutorCodingSessionAuthoritySchema,
+  type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { loadExecutorState } from '../state-store.js'
 import { createSessionAuthorityClient } from '../session-authority-client.js'
 import { requireManagedSessionEvidence } from './session-authority.js'
@@ -16,23 +18,53 @@ class InheritedT3Selection {
 }
 
 export class SessionEffectRefused extends Error {
-  constructor() { super('Original session effect authority is unavailable; reconcile the retained intent.') }
+  /** `why` is for the owner's own terminal in debug mode. It never enters the message, a result or a log. */
+  constructor(readonly why?: string) {
+    super('Original session effect authority is unavailable; reconcile the retained intent.')
+  }
 }
+
+/** Debug mode names the cause in the process's own stderr; otherwise a refusal says nothing more. */
+const explain = (error: unknown): void => {
+  if (!executorDebugChild()) return
+  const detail = error instanceof SessionEffectRefused ? error.why ?? debugFailure(error) : debugFailure(error)
+  process.stderr.write(`[session-effect] debug: refused: ${detail}\n`)
+}
+
+/** A permit the route issued is used for the effects that follow it while it has at least this long left. */
+const PERMIT_REUSE_MS = 1_500
+
+const referenceLive = (reference: { issuedAt: string; expiresAt: string }): boolean => (
+  Date.parse(reference.expiresAt) > Date.now() && Date.parse(reference.issuedAt) <= Date.now() + 2_000
+)
 
 /** Only the signed owning route can refresh this lease. Never serialize a callback or a local extension. */
 export class SessionEffectAuthority {
   #scope: SessionEffectScope
   #queuedCarrier?: ExecutorCodingSessionAuthority
+  /** The route's reference for this same operation, as the process that handed this over received it. */
+  #handedReference?: ExecutorCodingSessionAuthority
+  /** True once the route itself answered for `#scope`: until then the scope is a reference, never a permit. */
+  #permitted = false
   readonly #issuerOrigin?: string
   constructor(private readonly directory: string,
-    scope: ExecutorCodingSessionAuthority | VerifiedT3EffectGrant | InheritedT3Selection) {
+    scope: ExecutorCodingSessionAuthority | VerifiedT3EffectGrant | InheritedT3Selection, reference?: unknown) {
     if (scope instanceof InheritedT3Selection) {
       this.#scope = scope.scope
       this.#issuerOrigin = scope.issuerOrigin
     }
     else {
       const managed = ExecutorCodingSessionAuthoritySchema.safeParse(scope)
-      if (managed.success) this.#scope = managed.data
+      if (managed.success) {
+        this.#scope = managed.data
+        if (reference !== undefined) {
+          // The same selection or nothing: a reference can only ask the route about the operation it names.
+          const handed = ExecutorCodingSessionAuthoritySchema.safeParse(reference)
+          if (!handed.success || canonicalExecutorJson(executorCodingSessionResultScope(handed.data))
+            !== canonicalExecutorJson(executorCodingSessionResultScope(managed.data))) throw new SessionEffectRefused()
+          this.#handedReference = handed.data
+        }
+      }
       else {
         assertVerifiedT3EffectGrant(scope)
         this.#scope = parseSessionEffectScope(scope.reference)
@@ -44,9 +76,12 @@ export class SessionEffectAuthority {
 
   get issuerOrigin(): string | undefined { return this.#issuerOrigin }
 
-  get reference(): { directory: string; authority: SessionEffectScope; issuerOrigin?: string } {
+  get reference(): { directory: string; authority: SessionEffectScope; issuerOrigin?: string
+    reference?: ExecutorCodingSessionAuthority } {
+    const route = this.#queuedCarrier ?? this.#handedReference
     return { directory: this.directory, authority: this.scope,
-      ...(this.#issuerOrigin ? { issuerOrigin: this.#issuerOrigin } : {}) }
+      ...(this.#issuerOrigin ? { issuerOrigin: this.#issuerOrigin } : {}),
+      ...(route && referenceLive(route) ? { reference: structuredClone(route) } : {}) }
   }
 
   static fromReference(value: unknown): SessionEffectAuthority | undefined {
@@ -58,7 +93,7 @@ export class SessionEffectAuthority {
       if (!('issuerOrigin' in value) || !exactHttpsOrigin(value.issuerOrigin)) throw new SessionEffectRefused()
       return new SessionEffectAuthority(value.directory, new InheritedT3Selection(scope, value.issuerOrigin))
     }
-    return new SessionEffectAuthority(value.directory, scope)
+    return new SessionEffectAuthority(value.directory, scope, 'reference' in value ? value.reference : undefined)
   }
 
   get scope(): SessionEffectScope { return structuredClone(this.#scope) }
@@ -73,23 +108,35 @@ export class SessionEffectAuthority {
   }
 
   assertLive(): void {
-    if (Date.parse(this.#scope.expiresAt) <= Date.now()
-      || Date.parse(this.#scope.issuedAt) > Date.now() + 2_000) throw new SessionEffectRefused()
+    if (!referenceLive(this.#scope)) throw new SessionEffectRefused()
   }
 
   async consume(signal?: AbortSignal): Promise<void> {
     try {
-      await withStateSecurityChecks(() => this.#consume(signal))
-      this.assertLive()
-    } catch { throw new SessionEffectRefused() }
+      for (let attempt = 0; ; attempt += 1) {
+        await withStateSecurityChecks(() => this.#consume(signal))
+        if (referenceLive(this.#scope)) return
+        // The route answered and this computer's own checks outlasted the permit, as a busy machine's do.
+        // Ask again while the route's reference lasts; never act on the permit that ran out.
+        if (attempt === 2 || isT3EffectScope(this.#scope)) {
+          throw new SessionEffectRefused('the permit ran out during this computer\'s own checks')
+        }
+      }
+    } catch (error) {
+      explain(error)
+      throw new SessionEffectRefused()
+    }
   }
   async #consume(signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
-    this.assertLive()
+    if (isT3EffectScope(this.#scope)) this.assertLive()
+    // The route answered for these seconds: every effect inside them is the one it permitted, with no second
+    // round trip. Revocation still stops the next effect within the permit's own five seconds.
+    else if (this.#permitted && Date.parse(this.#scope.expiresAt) - Date.now() >= PERMIT_REUSE_MS) return
     try {
       const state = await loadExecutorState(this.directory)
-      this.assertLive()
       if (isT3EffectScope(this.#scope)) {
+        this.assertLive()
         const original = this.#scope
         if (this.#issuerOrigin !== new URL(state.apiBaseUrl).origin
           || state.executorId !== original.executorId || state.connectionEpoch !== original.connectionEpoch) {
@@ -111,20 +158,29 @@ export class SessionEffectAuthority {
         this.assertLive()
         return
       }
-      const renewed = await createSessionAuthorityClient(() => state)(this.#scope, 'execute')
+      // The route's own reference asks for the next permit: the one it last issued, else the one this began
+      // with. A permit lasts five seconds and a reference thirty, so a slow answer or a slow effect costs a
+      // round trip, never the operation. Nothing here extends either deadline; only the route issues them.
+      const reference = this.#queuedCarrier ?? this.#handedReference ?? this.#scope
+      if (!referenceLive(reference)) throw new SessionEffectRefused('the route\'s reference ran out before it was asked')
+      const renewed = await createSessionAuthorityClient(() => state)(reference, 'execute')
       const current = await loadExecutorState(this.directory)
       if (current.executorId !== state.executorId || current.connectionEpoch !== state.connectionEpoch
         || current.machinePublicKey !== state.machinePublicKey || current.apiBaseUrl !== state.apiBaseUrl
         || current.sessionPairingSource?.kind !== 'bound'
-        || current.sessionPairingSource.originalOwnerGeneration !== this.#scope.originalOwnerGeneration) {
-        throw new SessionEffectRefused()
+        || current.sessionPairingSource.originalOwnerGeneration !== reference.originalOwnerGeneration) {
+        throw new SessionEffectRefused('this connection changed while the route answered')
       }
-      // A round trip cannot revive the lease that expired while this effect was waiting.
-      this.assertLive()
+      // A round trip cannot revive the reference that expired while this effect was waiting.
+      if (!referenceLive(reference)) throw new SessionEffectRefused('the route\'s reference ran out while it answered')
+      // Whether this permit is still live is `consume`'s question: it asks again when these reads outlasted it.
       this.#scope = renewed.permit
-      this.assertLive()
       this.#queuedCarrier = renewed.carrier
-    } catch { throw new SessionEffectRefused() }
+      this.#permitted = true
+    } catch (error) {
+      if (error instanceof SessionEffectRefused) throw error
+      throw new SessionEffectRefused(debugFailure(error))
+    }
   }
 
 }

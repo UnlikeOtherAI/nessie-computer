@@ -36,7 +36,7 @@ import {
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
-  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META, CODING_SESSION_REFERENCE_META,
   CODING_SESSION_CONNECTION_META,
 } from './coding-session/meta-keys.js'
 import {
@@ -115,7 +115,7 @@ const PENDING_CLOSE_MAXIMUM = 64
 
 export type CodingSessionsDaemon = {
   validateSessionAuthority: (scope: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority,
-    phase: 'execute' | 'publish') => Promise<import('@nessie/executor-protocol').ExecutorCodingSessionAuthority>
+    phase: 'execute' | 'publish') => Promise<import('./session-authority-client.js').CheckedSessionAuthority>
   isIdle: () => Promise<boolean>
   action?: (action: ExecutorSessionAction) => Promise<ExecutorSessionActionReceipt>
   conversation?: (request: ExecutorSessionViewRequest) => Promise<ExecutorSessionConversation | null>
@@ -124,7 +124,8 @@ export type CodingSessionsDaemon = {
   /** The reserved `_meta` for one call, command rules included: defined only for the built-in bridge. */
   callMeta: (
     server: string, input: { commandId: string; owner?: ExecutorMcpCallOwner;
-      codingSessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority },
+      codingSessionAuthority?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority
+      codingSessionReference?: import('@nessie/executor-protocol').ExecutorCodingSessionAuthority },
   ) => Record<string, unknown> | undefined
   /** Every session on this machine, as the daemon's authority ends. */
   closeAll: (reason: string) => Promise<void>
@@ -254,7 +255,7 @@ export const createCodingSessionsDaemon = (input: {
       || scope.ownerKey !== request.ownerKey || scope.admissions[0]?.sessionId !== request.sessionId) {
       throw new Error('Original viewer authority is unavailable')
     }
-    return input.validateSessionAuthority(scope, phase)
+    return (await input.validateSessionAuthority(scope, phase)).permit
   }
 
   return {
@@ -324,6 +325,7 @@ export const createCodingSessionsDaemon = (input: {
         ...(input.pairingSource?.() ? { [CODING_SESSION_PAIRING_SOURCE_META]: input.pairingSource() } : {}),
         ...(input.connectionEpoch?.() ? { [CODING_SESSION_CONNECTION_META]: input.connectionEpoch() } : {}),
         ...(call.codingSessionAuthority ? { [CODING_SESSION_AUTHORITY_META]: call.codingSessionAuthority } : {}),
+        ...(call.codingSessionReference ? { [CODING_SESSION_REFERENCE_META]: call.codingSessionReference } : {}),
         ...(ownerKey ? { [CODING_SESSION_OWNER_META]: ownerKey } : {}),
       }
     },
