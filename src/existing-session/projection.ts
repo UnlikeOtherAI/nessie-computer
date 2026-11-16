@@ -2,7 +2,7 @@ import type { PathRewriter } from '../coding-session/path-rewrite.js'
 import { createProjector, SECRET_NAME } from '../coding-session/projection.js'
 
 const IDENTIFIERS = new Set(['sessionId', 'nativeId', 'ownerKey', 'providerMessageId', 'nativeQueueId',
-  'nextCursor', 'nextCursorProvider', 'incarnation', 'id', 'provider', 'agent', 'origin', 'state', 'status'])
+  'nextCursor', 'nextCursorProvider', 'incarnation', 'id', 'root', 'provider', 'agent', 'origin', 'state', 'status'])
 
 /** Native prose uses the same credential/path projection as managed coding output. */
 export const createExistingProjection = (rewriter: PathRewriter) => {

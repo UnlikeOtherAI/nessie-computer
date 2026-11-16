@@ -228,6 +228,38 @@ test('path projection keeps long native titles inside a complete inventory page'
   assert.equal(project({ text: 'x'.repeat(500) }).text.length, 500, 'conversation text keeps its own limit')
 })
 
+test('native folder labels cannot invalidate managed sessions on the same inventory page', async () => {
+  const { existingAuthorityWriter } = await import('../src/existing-session/authority.js')
+  const { rewriteCodingAnswer } = await import('../src/coding-session/bridge-server.js')
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-native-root-'))
+  const folders = ['/work/Nessie', 'C:\\Users\\person\\My Project', '/work/\u017dlu\u0165ou\u010dk\u00fd',
+    '/work/' + 'long-folder'.repeat(12), '/', 'C:\\', '/work/existing']
+  const codex = new ExistingCodex({ path: '/fake/codex', version: 'test' }, { CODEX_HOME: '/profile-a' }, {
+    close: () => undefined,
+    call: async (method) => method === 'thread/list' ? { data: folders.map(cwd => ({
+      ...nativeRow, id: randomUUID(), cwd, status: { type: 'idle' },
+    })) } : { data: [] },
+  })
+  const manager = new ExistingSessions(directory, async () => ({ codex }))
+  const rewrite = (value: string) => value.replaceAll('existing', '<user>')
+  const rewriter = { rewrite, rewritePaths: (value: string) => value, rewriteBranch: rewrite }
+  try {
+    await writeFile(join(directory, 'existing-coding-sessions.json'), JSON.stringify({ enabled: true }))
+    await existingAuthorityWriter(directory)(true)
+    const native = createExistingProjection(rewriter)(await manager.inventory())
+    const managed = { sessionId: randomUUID(), ownerKey: 'sha256:' + 'a'.repeat(64),
+      title: 'CTO verification', agent: 'terminal', root: 'terminal', status: 'working',
+      updatedAt: new Date().toISOString() }
+    const page = ExecutorSessionInventoryPageSchema.parse(rewriteCodingAnswer({
+      sessions: [managed, ...native],
+      inventory: { id: randomUUID(), observedAt: new Date().toISOString(), complete: true }, nextCursor: null,
+    }, rewriter))
+    assert.equal(page.sessions.length, folders.length + 1)
+    assert.equal(page.sessions[0]?.sessionId, managed.sessionId)
+    assert.ok(page.sessions.slice(1).every(row => row.root === 'existing' && row.origin === 'external'))
+    assert.ok(native.every(row => !('cwd' in row)), 'native paths are not configured workspace roots')
+  } finally { await manager.close(); await rm(directory, { recursive: true, force: true }) }
+})
 test('a Codex thread waiting on its own client reads as pending and unanswerable, refreshed without history',
   async () => {
     const directory = await mkdtemp(join(tmpdir(), 'nessie-existing-waiting-'))

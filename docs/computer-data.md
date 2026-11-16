@@ -102,6 +102,12 @@ in Nessie; ordinary computer access does not disclose them.
 
 ## Discovery and observation
 
+Native session summaries use the fixed 'existing' root category. A provider's
+working-directory name is display metadata, not a reviewed workspace-root
+identifier: uppercase, spaces, Unicode and long folder names must never reject
+an inventory page or hide managed sessions beside them. The category survives
+prose redaction unchanged; folder names do not become authority or new grants.
+
 Claude saved project transcripts join the active registry, including retained
 old and empty files. Ambiguous transcript paths refuse detail selection. The
 shared summary facade remains bounded; the separately admitted

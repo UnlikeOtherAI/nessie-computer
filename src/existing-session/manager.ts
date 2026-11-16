@@ -1,4 +1,4 @@
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 
 import { EXISTING_CODING_SESSION_OWNER_KEY } from '@nessie/executor-protocol'
 
@@ -139,7 +139,7 @@ export class ExistingSessions {
     if (!await existingAuthorityIsLive(this.stateDir)) return []
     return (await this.list()).map((row) => ({ sessionId: row.sessionId, ownerKey: EXISTING_CODING_SESSION_OWNER_KEY,
       origin: 'external', title: row.title, status: row.status, agent: row.provider,
-      root: basename(row.cwd) || 'existing', updatedAt: row.updatedAt, ...(row.pending ? { pending: row.pending } : {}) }))
+      root: 'existing', updatedAt: row.updatedAt, ...(row.pending ? { pending: row.pending } : {}) }))
   }
 
   async read(id: string, includeText = false): Promise<Record<string, unknown>> {
