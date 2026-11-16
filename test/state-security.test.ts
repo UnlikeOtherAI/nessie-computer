@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
+import { StateSecurityTransport } from '../src/state-security-transport.js'
 
 import {
   assertOwnerOnlyStatePath,
@@ -222,4 +223,104 @@ test('the helper is resolved from the packaged runtime directory, never from PAT
   const resolved = packagedNativeHelperPath()
   assert.equal(resolved, join(dirname(process.execPath), process.platform === 'win32'
     ? 'nessie-executor-native.exe' : 'nessie-executor-native'))
+})
+
+test('native state-security channel checks changed Windows ACLs on every request', {
+  skip: process.platform !== 'win32' ? 'Windows DACLs require Windows' : false,
+}, async () => {
+  await withDirectory(async directory => {
+    const channel = new StateSecurityTransport(packagedNativeHelperPath())
+    const check = async (command: string, path: string) => {
+      const answer = await channel.request(command, path)
+      assertStateSecurityHelperResponse(answer, path)
+    }
+    try {
+      await check('secure-directory', directory)
+      const file = join(directory, 'state.json')
+      await writeFile(file, '{}')
+      await check('verify-owner-only-file', file)
+      await promisify(execFile)('icacls.exe', [file, '/grant', '*S-1-1-0:R'], { windowsHide: true })
+      await assert.rejects(check('verify-owner-only-file', file), /EXECUTOR_STATE_SECURITY_REJECTED/)
+      assert.equal(channel.closed, false, 'a negative DACL verdict does not kill the original helper')
+      await promisify(execFile)('icacls.exe', [file, '/remove:g', '*S-1-1-0'], { windowsHide: true })
+      await check('verify-owner-only-file', file)
+      await rm(file)
+      await assert.rejects(check('verify-owner-only-file', file),
+        (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT')
+      await writeFile(file, '{}')
+      await Promise.all(Array.from({ length: 12 }, () => check('verify-owner-only-file', file)))
+      assert.equal(channel.closed, false)
+    } finally { channel.close() }
+  })
+})
+
+const fixtureChannel = (body: string) => new StateSecurityTransport(process.execPath, ['--input-type=module', '-e',
+  `import { createInterface } from 'node:readline';
+const lines = createInterface({ input: process.stdin });
+lines.on('line', line => { const request = JSON.parse(line); ${body} });`])
+
+test('state-security transport keeps split replies correlated and drains concurrent callers', async () => {
+  const channel = fixtureChannel(`
+const reply = JSON.stringify({ requestId: request.requestId, code: null, status: 'verified' });
+process.stdout.write(reply.slice(0, 10));
+setTimeout(() => process.stdout.write(reply.slice(10) + '\\n'), 5);`)
+  try {
+    const replies = await Promise.all(Array.from({ length: 8 },
+      () => channel.request('verify-owner-only', '/fixture')))
+    assert.deepEqual(replies.map(reply => (JSON.parse(reply) as { requestId: number }).requestId),
+      [1, 2, 3, 4, 5, 6, 7, 8])
+  } finally { channel.close() }
+})
+
+test('state-security transport refuses wrong replies and child loss without replaying queued checks', async () => {
+  for (const body of [
+    "process.stdout.write(JSON.stringify({ requestId: request.requestId + 1, code: null, status: 'verified' }) + '\\n')",
+    "process.stdout.write('x'.repeat(4096))",
+    "process.stdout.write('invalid\\n')",
+    "process.stdout.write(JSON.stringify({ requestId: request.requestId, code: 'REFUSED', status: 'verified' }) + '\\n')",
+    "process.stdout.write(JSON.stringify({ requestId: request.requestId, code: null, status: 'rejected' }) + '\\n')",
+    'process.exit(7)',
+  ]) {
+    const channel = fixtureChannel(body)
+    try {
+      const results = await Promise.allSettled([
+        channel.request('verify-owner-only', '/first'),
+        channel.request('verify-owner-only-file', '/second'),
+      ])
+      assert.ok(results.every(result => result.status === 'rejected'))
+      assert.equal(channel.closed, true)
+    } finally { channel.close() }
+  }
+})
+test('a stalled security helper fails pending and queued checks within its deadline', async () => {
+  const channel = fixtureChannel('void request')
+  try {
+    const results = await Promise.allSettled([
+      channel.request('verify-owner-only', '/first'),
+      channel.request('verify-owner-only-file', '/second'),
+    ])
+    for (const result of results) {
+      assert.equal(result.status, 'rejected')
+      if (result.status === 'rejected') assert.match(String(result.reason), /timed out/)
+    }
+    assert.equal(channel.closed, true)
+  } finally { channel.close() }
+})
+test('finite native security checks close their child before the parent CLI continues', {
+  skip: process.platform !== 'win32' ? 'Windows DACLs require Windows' : false,
+}, async () => {
+  await withDirectory(async directory => {
+    await ensureOwnerOnlyStateDirectory(directory)
+    const source = new URL('../src/state-security.ts', import.meta.url).href
+    const script = `import { withStateSecurityChecks, spawnStateSecurityHelper } from ${JSON.stringify(source)};
+await withStateSecurityChecks(async () => {
+  for (let i = 0; i < 4; i++) await spawnStateSecurityHelper('verify-owner-only', ${JSON.stringify(directory)});
+});
+process.stdout.write('checks finished');`
+    const result = await promisify(execFile)(process.execPath,
+      ['--import', 'tsx', '--input-type=module', '--eval', script], {
+        cwd: fileURLToPath(new URL('..', import.meta.url)), windowsHide: true, timeout: 5_000,
+      })
+    assert.equal(result.stdout, 'checks finished')
+  })
 })

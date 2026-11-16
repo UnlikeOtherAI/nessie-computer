@@ -83,6 +83,14 @@ Documents or AI. Install the current Nessie Computer update. It recovers those
 old records automatically and keeps your team connections and permissions.
 Do not delete the computer's state folder to clear the error.
 
+
+### A session start fails although Claude Code or Codex is allowed
+Check **Access > Programs** for that team and **Settings** for an available
+Nessie Computer update. Windows also verifies its private settings before
+starting a session; a timeout is not necessarily a missing program permission.
+Keep the original conversation and its error when reporting this. Do not delete
+local state or start another session when the first start's outcome is unknown.
+
 ### ChatGPT says terminals and coding tools are stopped
 Update Nessie Computer. Plans and programs now work side by side; see
 [AI](AI.md#plans-and-everything-else-together).

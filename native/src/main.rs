@@ -84,6 +84,7 @@ mod promotion;
 mod promotion_fs;
 mod protocol;
 mod state_security;
+mod state_security_stdio;
 
 use command::{parse_command, Command};
 use protocol::{
@@ -214,6 +215,7 @@ fn run(command: &Command) -> Result<(), NativeError> {
         Command::T3ExecutionResource => t3_source::run_execution(),
         Command::T3RetainedApprove(nonce) => t3_source::approve_retained_import(&nonce),
         Command::T3RetainedVerify => t3_source::verify_retained_import(),
+        Command::StateSecurityStdio => state_security_stdio::run(),
         Command::BuildInfo => {
             println!(
                 "{}",
@@ -389,7 +391,8 @@ fn reject(command: Option<&Command>, error: &NativeError) {
             eprintln!("{}", serde_json::json!({"error":error.code}));
         }
         Some(
-            Command::BuildInfo
+            Command::StateSecurityStdio
+            | Command::BuildInfo
             | Command::UpdateControl
             | Command::UpdateService
             | Command::UpdateRegisteredService

@@ -47,3 +47,35 @@ Installed qualification must use the signed package, the actual Add another
 team entry point, an existing team's Access/Documents/AI checks, and a real
 agent-to-provider session. Compilation and fixture results alone do not prove
 that installed journey. Record the exact signed revision and observed results.
+
+## Windows state checks during a finite session call
+
+A signed session-authority consumption remains bounded to five seconds. The
+state reader still verifies the directory and the individual file before every
+read, both before and after the owning-route exchange. Windows runs these checks
+over one finite native helper's private stdio pipe instead of starting another process
+for each check. The helper rereads the actual DACL and owner every time. It
+retains no permission verdict, credential or session authority.
+
+The channel accepts only the four existing state-security operations. Frames
+are bounded and replies are correlated to one pending request. Malformed
+replies, process loss and deadlines refuse the check; an interrupted operation
+is never replayed. The check scope closes the helper and observes its exit before returning to a native launch or custody check. It also exits on parent pipe closure.
+Independent checks use independent helpers; no idle process survives between operations.
+
+On the installed Minis 1.1.2 baseline, four separate ACL checks took 6.06 seconds
+in one of three bounded samples, before any network time. Running the two
+checks concurrently still took 5.91 seconds in one sample. These measurements
+explain why merely changing query ordering cannot qualify the session path.
+The replacement transport requires real Windows ACL-change regressions and
+new signed installed CTO verification; source tests alone do not complete it.
+
+
+Focused source qualification on Maxis passed eight native ACL/parser tests and
+19 Turbo tasks: build, lint, typecheck, 84 Windows tests (seven platform skips),
+and all 44 authority tests. The Windows tests broaden a file DACL after a
+successful check, remove and recreate that file, exercise fragmented and invalid
+replies, helper loss and timeout, and require the finite scope to exit before
+the parent CLI finishes. Source helper probes on Minis took 29, 32 and 830 ms
+for four checks in one child. These are source timings, not signed installed
+acceptance; the real CTO start and same-session follow-up remain required.

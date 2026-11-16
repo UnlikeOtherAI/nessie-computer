@@ -1,3 +1,4 @@
+import { withStateSecurityChecks } from '../state-security.js'
 import { ExecutorCodingSessionAuthoritySchema, type ExecutorCodingSessionAuthority } from '@nessie/executor-protocol'
 import { loadExecutorState } from '../state-store.js'
 import { createSessionAuthorityClient } from '../session-authority-client.js'
@@ -67,6 +68,12 @@ export class SessionEffectAuthority {
   }
 
   async consume(signal?: AbortSignal): Promise<void> {
+    try {
+      await withStateSecurityChecks(() => this.#consume(signal))
+      this.assertLive()
+    } catch { throw new SessionEffectRefused() }
+  }
+  async #consume(signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
     this.assertLive()
     try {
