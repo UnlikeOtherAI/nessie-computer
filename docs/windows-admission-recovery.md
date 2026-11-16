@@ -196,6 +196,22 @@ folder's daemon lock. Releasing a lifecycle lock whose claim file is already
 gone therefore succeeds; a claim that somebody else replaced is still refused.
 Without this, a completed disconnect ended with `owner_process_admission_fenced`.
 
+### Settings updates interrupted by an upgrade
+
+A team's settings are saved under `executor-state-mutation.lock`. That lock was
+a bare exclusively-created file holding a process number, and nothing ever
+cleared it: a save cut short by a crash, a restart or the installer left the
+team refusing every later save, and its daemon refusing to start, with "This
+team's settings are already being updated". Upgrading Maxis from 1.1.1 did
+exactly this to one of its three teams.
+
+The settings lock now uses the same generation lock as the lifecycle files. The
+next update takes over a lock whose holder has gone. A lock in the old format is
+also given up once it is ten minutes old, because a save takes moments and its
+process number may since belong to another program. A lock that cannot be read
+still refuses the update. `test/state-mutation-lock.test.ts` covers an
+interrupted update, a running one and a reused process number.
+
 Legacy PID-only lifecycle records contain no birth. On Windows a bounded,
 read-only kernel/WMI check can additionally prove that the PID now belongs to a
 different OS principal than the owner-only state. It checks the process birth
