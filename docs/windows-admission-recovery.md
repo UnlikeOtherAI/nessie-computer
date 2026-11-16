@@ -209,3 +209,25 @@ competing reclaimers, crash boundaries, unknown legacy owners, different-princip
 recovery, duplicate reuse and durable cancellation after restart. The local console
 renderer checks closed-dialog retries on both host renderers. These gates do not
 replace signed installed qualification against the matching server protocol.
+
+## Native lifecycle readers
+
+The Windows app and service read the same versioned generation records as the
+CLI. Their read-only preflight compares the kernel birth and boot identity;
+a reused PID cannot hold a departed daemon's connection indefinitely. Missing
+files permit a start, while unreadable, malformed and uninspectable records
+remain busy. The CLI still owns atomic acquisition and final disconnection.
+
+A legacy PID-only record can be excluded when the held file belongs to the
+calling account and the retained process handle proves a different token SID.
+Group-owned files and unreadable token identity remain unknown. The observer
+requests query rights only and never signals the process, removes a lease or
+changes execution authority. Its real Windows regression keeps the replacement
+process alive through the stale-generation check and verifies normal recovery
+after the fixture process exits.
+
+Installed Minis 1.1.5 exposed this missing native reader: the repaired CLI and
+the Windows app disagreed about the old duplicate's reused PID. A read-only
+source observer now distinguishes that preserved stale record from the current
+live connection. That observation does not replace a signed installed recovery
+check; the original duplicate and its history remain available for that check.
