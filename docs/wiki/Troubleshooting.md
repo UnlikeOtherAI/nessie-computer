@@ -90,6 +90,10 @@ Nessie Computer update. Windows also verifies its private settings before
 starting a session; a timeout is not necessarily a missing program permission.
 Keep the original conversation and its error when reporting this. Do not delete
 local state or start another session when the first start's outcome is unknown.
+If a session is created but stops before any output, its creation alone does not
+mean the program ran. Keep the session ID and error, check for an update under
+**Settings**, and report them from the original conversation. An update preserves
+expired requests; it does not silently rerun their commands.
 
 ### ChatGPT says terminals and coding tools are stopped
 Update Nessie Computer. Plans and programs now work side by side; see

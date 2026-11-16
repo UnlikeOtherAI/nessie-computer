@@ -22,6 +22,7 @@ export class SessionEffectRefused extends Error {
 /** Only the signed owning route can refresh this lease. Never serialize a callback or a local extension. */
 export class SessionEffectAuthority {
   #scope: SessionEffectScope
+  #queuedCarrier?: ExecutorCodingSessionAuthority
   readonly #issuerOrigin?: string
   constructor(private readonly directory: string,
     scope: ExecutorCodingSessionAuthority | VerifiedT3EffectGrant | InheritedT3Selection) {
@@ -61,6 +62,15 @@ export class SessionEffectAuthority {
   }
 
   get scope(): SessionEffectScope { return structuredClone(this.#scope) }
+
+  /** Retains only the route-issued carrier. A receiving host must consume it for its own effect permit. */
+  get queuedCarrier(): ExecutorCodingSessionAuthority {
+    this.assertLive()
+    if (!this.#queuedCarrier || Date.parse(this.#queuedCarrier.expiresAt) <= Date.now()) {
+      throw new SessionEffectRefused()
+    }
+    return structuredClone(this.#queuedCarrier)
+  }
 
   assertLive(): void {
     if (Date.parse(this.#scope.expiresAt) <= Date.now()
@@ -111,8 +121,9 @@ export class SessionEffectAuthority {
       }
       // A round trip cannot revive the lease that expired while this effect was waiting.
       this.assertLive()
-      this.#scope = renewed
+      this.#scope = renewed.permit
       this.assertLive()
+      this.#queuedCarrier = renewed.carrier
     } catch { throw new SessionEffectRefused() }
   }
 

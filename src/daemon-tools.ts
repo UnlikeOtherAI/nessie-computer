@@ -52,9 +52,10 @@ const buildDaemonTools = (
   const servers = withDaemonSupervisor(withBridgeOnRuntime(state.mcpServers ?? [], runtime))
   const mcpSessions = createExecutorMcpSessionManager(servers, state.descriptor.limits,
     onStartFailures ? { onStartFailures } : {})
+  const checkSessionAuthority = createSessionAuthorityClient(() => state)
   const codingBridge = createCodingSessionsDaemon({
     pairingSource: () => state.sessionPairingSource,
-    validateSessionAuthority: createSessionAuthorityClient(() => state),
+    validateSessionAuthority: async (scope, phase) => (await checkSessionAuthority(scope, phase)).permit,
     connectionEpoch: () => state.connectionEpoch,
     executorId: state.executorId,
     commandRules,

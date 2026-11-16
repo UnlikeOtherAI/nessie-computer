@@ -6,10 +6,16 @@ import { executorApi, type ExecutorApiClient } from './api-client.js'
 import { signExecutorDaemonPayload } from './daemon-signature.js'
 import type { ExecutorLocalState } from './state-store.js'
 
+/** The route's selection carrier and this consumption's short effect permit have different lifetimes. */
+export type CheckedSessionAuthority = {
+  carrier: ExecutorCodingSessionAuthority
+  permit: ExecutorCodingSessionAuthority
+}
+
 /** A fresh round trip for one exact operation. The response cannot replace its original selection. */
 export const createSessionAuthorityClient = (
   state: () => ExecutorLocalState, api: Pick<ExecutorApiClient, 'checkSessionAuthority'> = executorApi,
-) => async (scope: ExecutorCodingSessionAuthority, phase: 'execute' | 'publish'): Promise<ExecutorCodingSessionAuthority> => {
+) => async (scope: ExecutorCodingSessionAuthority, phase: 'execute' | 'publish'): Promise<CheckedSessionAuthority> => {
   const before = state()
   if (before.sessionPairingSource?.kind !== 'bound' || before.executorId !== scope.executorId
     || before.connectionEpoch !== scope.connectionEpoch
@@ -42,6 +48,7 @@ export const createSessionAuthorityClient = (
     || Date.now() - startedAt >= 5_000 || Date.parse(answer.validUntil) > Date.now() + 5_000
     || canonicalExecutorJson(executorCodingSessionResultScope(answer.authority))
       !== canonicalExecutorJson(executorCodingSessionResultScope(scope))) throw new Error('Original session authority changed')
-  return { ...answer.authority, expiresAt: new Date(Math.min(Date.parse(answer.authority.expiresAt),
-    Date.parse(answer.validUntil), startedAt + 5_000)).toISOString() }
+  return { carrier: answer.authority,
+    permit: { ...answer.authority, expiresAt: new Date(Math.min(Date.parse(answer.authority.expiresAt),
+      Date.parse(answer.validUntil), startedAt + 5_000)).toISOString() } }
 }

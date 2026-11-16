@@ -117,3 +117,35 @@ journeys passed, including duplicate selection and cancellation recovery. The
 console gate loads the existing retained-import assets and keeps its separate
 Settings heading outside the general-settings heading assertion. Console and
 fixture lint also passed. These source gates do not claim installed acceptance.
+
+## Session request handoff
+
+The installed Minis 1.1.3 candidate created session
+`7398e2bf-ae11-452a-8b9d-dc47e29873ea` through the real CTO conversation, but
+the host stopped before producing a screen. Its queued scope expired at
+09:41:00.956 UTC; the host first wrote state at 09:41:02.903 UTC. The bridge
+had refreshed its own permission while preparing the host, but the queue still
+contained an earlier five-second permission.
+
+The owning route already returns two different deadlines: an exact operation
+reference, bounded to 30 seconds for commands, and an execution permit bounded
+to five seconds. The client now retains both values from that verified response.
+Execution, provider transport and result publication still use the short permit.
+Only the immutable queued request retains the route-issued reference. The host
+must present that unexpired reference to the signed owning route and pass current
+pairing, actor, command and revocation checks before obtaining its own short
+permit. Neither deadline is extended locally. T3 grants are unchanged.
+
+A parent whose permit expired cannot publish another request. A carrier that
+expired cannot be renewed, and a revoked or substituted carrier cannot authorize
+an effect. Existing queue bytes, command identities, accepted results and withheld
+outputs are never rewritten by this repair. Older expired requests remain
+evidence; they do not become instructions to replay.
+
+The `test:executor-private-assignments` Turbo gate includes the real state-file
+and request-queue regression in `test/session-carrier.test.ts`. It advances time
+past the parent's permit, consumes the original route-issued reference in the
+host, and checks expiry, revocation, substitution and immutable request bytes.
+On Windows the gate uses the fixed Debug helper for real owner-only ACL checks.
+Those source checks do not replace a new signed installed CTO response and
+same-session follow-up.
