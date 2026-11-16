@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Pred posodobitvijo počakajte, da se tekoče delo konča, in pustite Nessie Computer odprt. Namestitveni program znova zažene aplikacijo in odstrani stare zaklepe povezav le, ko Windows potrdi, da se je prvotni proces končal. Nastavitve in zgodovina ekip se ohranijo.
+Pred posodobitvijo počakajte, da se trenutno delo konča. Namestitveni program Nessie Computer odstrani stare zaklepe povezav samo, ko Windows potrdi, da se je prvotni proces končal. Nastavitve in zgodovina ekip se ohranijo.

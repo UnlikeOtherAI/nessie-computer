@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Láttu vinnu sem er í gangi klárast fyrir uppfærslu og hafðu Nessie Computer opið. Uppsetningarforritið endurræsir forritið og fjarlægir gamla tengilása aðeins þegar Windows staðfestir að upprunalega ferlinu sé lokið. Stillingar og ferill teyma varðveitast.
+Bíddu þar til vinnu sem er í gangi lýkur áður en þú uppfærir. Uppsetningarforrit Nessie Computer fjarlægir aðeins gamlar tengilæsingar þegar Windows staðfestir að upprunalega ferlinu sé lokið. Stillingar teyma og ferill varðveitast.

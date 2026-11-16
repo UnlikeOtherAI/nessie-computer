@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Frissítés előtt várja meg a folyamatban lévő munkák végét, és hagyja nyitva a Nessie Computert. A telepítő újraindítja az alkalmazást, és csak akkor távolítja el a régi kapcsolati zárolásokat, ha a Windows megerősíti az eredeti folyamat befejeződését. A csapatok beállításai és előzményei megmaradnak.
+Frissítés előtt várja meg a folyamatban lévő munka befejezését. A Nessie Computer telepítője csak akkor távolítja el a régi kapcsolati zárolásokat, ha a Windows megerősíti, hogy az eredeti folyamat véget ért. A csapatok beállításai és előzményei megmaradnak.

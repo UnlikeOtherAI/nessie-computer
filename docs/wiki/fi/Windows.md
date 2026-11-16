@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Odota ennen päivitystä käynnissä olevien töiden valmistumista ja jätä Nessie Computer auki. Asennusohjelma käynnistää sovelluksen uudelleen ja poistaa vanhat yhteyslukot vain, kun Windows vahvistaa alkuperäisen prosessin päättyneen. Tiimien asetukset ja historia säilyvät.
+Odota käynnissä olevan työn valmistumista ennen päivittämistä. Nessie Computerin asennusohjelma poistaa vanhat yhteyslukot vain, kun Windows vahvistaa alkuperäisen prosessin päättyneen. Tiimien asetukset ja historia säilyvät.

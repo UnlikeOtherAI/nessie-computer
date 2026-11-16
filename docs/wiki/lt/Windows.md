@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Prieš atnaujindami palaukite, kol baigsis vykdomi darbai, ir palikite Nessie Computer atidarytą. Diegimo programa paleidžia programą iš naujo ir pašalina senus ryšių užraktus tik tada, kai Windows patvirtina, kad pradinis procesas baigėsi. Komandų nustatymai ir istorija išsaugomi.
+Prieš atnaujindami palaukite, kol bus baigtas vykdomas darbas. „Nessie Computer“ diegimo programa pašalina senus ryšių užraktus tik tada, kai „Windows“ patvirtina, kad pradinis procesas baigėsi. Komandų nustatymai ir istorija išsaugomi.

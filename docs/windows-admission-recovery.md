@@ -238,12 +238,13 @@ PID-only file can therefore remain unknown after Windows reuses that PID.
 Unknown identity still blocks ordinary acquisition; access denied is never
 treated as proof that a process has ended.
 
-The existing SYSTEM installer handover resolves that historical case. Before
-closing the old app, it captures each held app process's actual profile and SID.
-After the old install's processes drain, it examines only daemon.pid,
+The deferred SYSTEM installer completion resolves that historical case. After
+old processes drain, it reads active Windows login tokens through WTS and checks
+each token owner against the corresponding session owner. The profile comes from
+that token, never a request, environment variable or journal. It examines only daemon.pid,
 pairing-operation.pid and the root pairing-activation.pid in that profile's
 normal state layout. It retires a legacy file only when its held file owner
-matches that app account and the process is positively absent or belongs to a
+matches that login account and the process is positively absent or belongs to a
 different principal. Unknown, same-owner, malformed and versioned records stay.
 
 The file handle denies writes and deletion throughout inspection. Retirement
@@ -251,7 +252,10 @@ marks that exact handle for deletion, so a competing reclaimer cannot substitute
 a newly acquired lock between comparison and removal. Reparse points are
 refused. This adds no control endpoint, prompt or privilege to the running app.
 Pairing keys, grants, session history, command receipts and custody are untouched.
-An account whose app was not running during handover is not inspected.
+Only active Windows login profiles are inspected. Completion runs before reading
+the optional service-owned app-reopen journal: a manual MSI cannot write that
+journal from its immediate close action, but still performs privileged recovery.
+The MSI sequence and existing manual-app-reopen behavior are unchanged.
 
 Maxis tests cover competing replacement, held writers, reparse points, foreign
 file owners, unknown/same-owner processes, modern/malformed records and real
@@ -263,3 +267,11 @@ deny writes and replacement, and reparse points are rejected. This keeps an
 otherwise valid file-owner check from following a path swapped after inspection.
 Two additional Windows regressions prove directory replacement is blocked while
 held and a directory link is refused before any claim is opened.
+
+
+The deferred-completion profile reader passed a read-only SYSTEM test on Maxis
+and Minis, each resolving the active login without modifying files. Maxis passed
+131 common, 104 service and 80 tray tests, plus 25 MSI authoring checks.
+The SYSTEM test is opt-in and was run explicitly on both machines; one unrelated
+installed-only common test remains outside this check. Signed MSI qualification
+of the stale lock itself is still required.

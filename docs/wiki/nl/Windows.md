@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Laat lopend werk afronden voordat je bijwerkt en houd Nessie Computer open. Het installatieprogramma herstart de app en verwijdert oude verbindingsvergrendelingen alleen als Windows bevestigt dat het oorspronkelijke proces is beëindigd. Teaminstellingen en geschiedenis blijven behouden.
+Laat lopend werk afronden voordat je bijwerkt. Het installatieprogramma van Nessie Computer verwijdert oude verbindingsvergrendelingen alleen wanneer Windows bevestigt dat het oorspronkelijke proces is beëindigd. Teaminstellingen en geschiedenis blijven behouden.

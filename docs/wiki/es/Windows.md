@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Antes de actualizar, deja que termine el trabajo en curso y mantén Nessie Computer abierto. El instalador reinicia la aplicación y elimina los bloqueos de conexiones antiguas solo cuando Windows confirma que el proceso original ha terminado. Se conservan la configuración y el historial de los equipos.
+Antes de actualizar, deje que termine el trabajo en curso. El instalador de Nessie Computer elimina los bloqueos de conexiones antiguas solo cuando Windows confirma que el proceso original ha terminado. Se conservan la configuración y el historial de los equipos.

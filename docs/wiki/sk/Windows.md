@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Pred aktualizáciou nechajte dokončiť prebiehajúcu prácu a ponechajte Nessie Computer otvorený. Inštalátor aplikáciu reštartuje a odstráni staré zámky pripojení iba vtedy, keď Windows potvrdí, že pôvodný proces skončil. Nastavenia a história tímov zostanú zachované.
+Pred aktualizáciou nechajte dokončiť prebiehajúcu prácu. Inštalátor Nessie Computer odstráni staré zámky pripojení iba vtedy, keď Windows potvrdí, že pôvodný proces skončil. Nastavenia a história tímov zostanú zachované.

@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Przed aktualizacją poczekaj na zakończenie bieżącej pracy i pozostaw Nessie Computer otwarty. Instalator uruchamia aplikację ponownie i usuwa stare blokady połączeń tylko wtedy, gdy Windows potwierdzi zakończenie pierwotnego procesu. Ustawienia i historia zespołów zostają zachowane.
+Przed aktualizacją poczekaj na zakończenie bieżącej pracy. Instalator Nessie Computer usuwa stare blokady połączeń tylko wtedy, gdy Windows potwierdzi zakończenie pierwotnego procesu. Ustawienia i historia zespołów zostają zachowane.

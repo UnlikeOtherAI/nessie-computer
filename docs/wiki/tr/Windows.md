@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Güncellemeden önce devam eden işlerin bitmesini bekleyin ve Nessie Computer'ı açık bırakın. Yükleyici uygulamayı yeniden başlatır ve eski bağlantı kilitlerini yalnızca Windows ilk işlemin sona erdiğini doğruladığında kaldırır. Ekip ayarları ve geçmişi korunur.
+Güncellemeden önce devam eden işlerin bitmesini bekleyin. Nessie Computer yükleyicisi eski bağlantı kilitlerini yalnızca Windows asıl işlemin sona erdiğini doğruladığında kaldırır. Takım ayarları ve geçmişi korunur.

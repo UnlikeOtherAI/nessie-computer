@@ -143,9 +143,9 @@ An old connection may retain a process number that Windows has since given to
 another program. Current versions record the process's generation, so reusing a
 number does not keep a departed connection running.
 
-Let active work finish, then update Nessie Computer while its app is open. The
-installer closes and reopens it and clears old connection locks only when Windows
-can prove their original process has gone. Team settings and history are kept.
+Let active work finish, then update Nessie Computer. The installer clears old
+connection locks only when Windows can prove their original process has gone.
+Team settings and history are kept.
 No extra sign-in or administrator prompt is added beyond the installer itself.
 Do not delete the state folder or stop the unrelated process.
 

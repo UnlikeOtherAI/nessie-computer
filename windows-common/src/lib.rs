@@ -56,6 +56,8 @@ pub mod lease;
 mod lease_windows;
 #[cfg(windows)]
 mod lease_upgrade;
+#[cfg(windows)]
+mod interactive_profiles;
 pub mod owner_controls;
 pub mod owner_sessions;
 pub mod team_label;

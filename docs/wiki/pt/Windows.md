@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Antes de atualizar, deixe terminar o trabalho em curso e mantenha o Nessie Computer aberto. O instalador reinicia a aplicação e remove bloqueios de ligações antigas apenas quando o Windows confirma que o processo original terminou. As definições e o histórico das equipas são preservados.
+Antes de atualizar, aguarde a conclusão do trabalho em curso. O instalador do Nessie Computer remove os bloqueios de ligações antigas apenas quando o Windows confirma que o processo original terminou. As definições e o histórico das equipas são preservados.

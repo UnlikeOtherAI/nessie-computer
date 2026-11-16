@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Vent, til igangværende arbejde er færdigt, og lad Nessie Computer være åbent under opdateringen. Installationsprogrammet genstarter appen og fjerner kun gamle forbindelseslåse, når Windows bekræfter, at den oprindelige proces er afsluttet. Teamindstillinger og historik bevares.
+Vent på, at igangværende arbejde afsluttes, før du opdaterer. Installationsprogrammet til Nessie Computer fjerner kun gamle forbindelseslåse, når Windows bekræfter, at den oprindelige proces er afsluttet. Teamindstillinger og historik bevares.

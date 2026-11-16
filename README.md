@@ -54,7 +54,7 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
 - **Windows command timeouts.** Update Nessie Computer if adding a team or
   loading a tab times out. Completed-command records from older versions recover
   automatically; team connections and permissions are kept. The Windows installer
-  also retires proven stale process locks for the app it closes and reopens.
+  also retires proven stale process locks for active Windows accounts.
   [Troubleshooting](docs/wiki/Troubleshooting.md#windows-says-the-command-line-tool-did-not-answer-in-time)
 - **Coding sessions.** Claude Code and Codex sessions stay available between tool calls.
   A Windows app update or team-connection shutdown can interrupt them; history is kept.

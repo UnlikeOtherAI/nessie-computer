@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Lassen Sie vor dem Update laufende Arbeiten abschließen und Nessie Computer geöffnet. Das Installationsprogramm startet die App neu und entfernt alte Verbindungssperren nur, wenn Windows bestätigt, dass der ursprüngliche Prozess beendet ist. Teameinstellungen und Verlauf bleiben erhalten.
+Lassen Sie vor dem Update laufende Arbeiten abschließen. Das Installationsprogramm von Nessie Computer entfernt alte Verbindungssperren nur, wenn Windows bestätigt, dass der ursprüngliche Prozess beendet ist. Teameinstellungen und Verlauf bleiben erhalten.

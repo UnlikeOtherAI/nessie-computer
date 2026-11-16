@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Before updating, let active work finish and leave Nessie Computer open. The installer restarts the app and removes old connection locks only when Windows confirms that their original process has ended. Team settings and history are preserved.
+Before updating, let active work finish. The Nessie Computer installer removes old connection locks only when Windows confirms that their original process has ended. Team settings and history are preserved.

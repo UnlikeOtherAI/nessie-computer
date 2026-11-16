@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Låt pågående arbete bli klart före uppdateringen och håll Nessie Computer öppet. Installationsprogrammet startar om appen och tar bara bort gamla anslutningslås när Windows bekräftar att den ursprungliga processen har avslutats. Teaminställningar och historik bevaras.
+Vänta tills pågående arbete är klart innan du uppdaterar. Installationsprogrammet för Nessie Computer tar bara bort gamla anslutningslås när Windows bekräftar att den ursprungliga processen har avslutats. Teaminställningar och historik bevaras.

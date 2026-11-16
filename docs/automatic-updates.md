@@ -559,6 +559,13 @@ after the service starts again. A failed install does not reopen them: a
 rollback action would run before the previous release's files are restored. The
 restored service starts again, and the app at the next sign-in.
 
+The deferred completion also retires positively stale PID-only connection locks
+for active Windows login profiles. WTS tokens supply the profile and SID; no
+caller chooses them. This runs before reading the optional app-reopen note, so
+manual upgrades recover old locks even when their immediate action could not
+write that note. Unknown identity still blocks recovery. Keys, grants, history
+and current generation-aware locks are unchanged.
+
 The setup custom actions (`--secure-state-root`, `--secure-updater-root`,
 `--disable-updater-for-removal`) keep only an exit code in the MSI log, so a
 refusal is also written to the Windows Application event log under the source

@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Avant la mise à jour, laissez le travail en cours se terminer et gardez Nessie Computer ouvert. Le programme d'installation redémarre l'application et ne supprime les anciens verrous de connexion que lorsque Windows confirme que le processus d'origine est terminé. Les paramètres et l'historique des équipes sont conservés.
+Avant la mise à jour, laissez le travail en cours se terminer. Le programme d’installation de Nessie Computer supprime les anciens verrous de connexion uniquement lorsque Windows confirme que le processus d’origine est terminé. Les paramètres et l’historique des équipes sont conservés.

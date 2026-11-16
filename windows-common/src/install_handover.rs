@@ -103,17 +103,15 @@ pub fn running_from(folder: &Path) -> Result<Vec<(Process, String)>, String> {
 /// `grace` bounds the whole wait; the apps get a fifth of it to quit on their
 /// own. Refuses only when something still runs after being terminated.
 pub fn close(folder: &Path, grace: Duration) -> Result<Closing, String> {
-    let found = running_from(folder)?;
-    // Capture the actual app owner's profile while its original token is held.
-    // A request, environment variable or on-disk record cannot nominate a path.
-    let profiles: BTreeSet<_> = found.iter().filter(|(_, name)| name == TRAY)
-        .filter_map(|(process, _)| process::profile_directory(process).ok()
-            .map(|profile| (profile, process.sid.clone()))).collect();
-    let closed = close_found(found, grace, true)?;
-    for (profile, owner) in profiles {
+    close_found(running_from(folder)?, grace, true)
+}
+
+/// The deferred installer completion is SYSTEM for manual and automatic installs.
+/// Profiles come from active Windows login tokens; no request nominates an owner.
+pub fn recover_user_leases() {
+    for (profile, owner) in crate::interactive_profiles::active() {
         crate::lease_upgrade::retire(&profile, &owner);
     }
-    Ok(closed)
 }
 
 /// `announce` sets the install event; a test leaves it alone, or it would

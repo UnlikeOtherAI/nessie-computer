@@ -44,8 +44,8 @@ fn pin_profile(profile: &Path) -> std::io::Result<Vec<File>> {
         .map(pin_directory)
         .collect()
 }
-/// The profile and SID came from a held, unelevated app process before handover.
-/// Call only after that install's old processes have drained. No other files,
+/// The profile and SID came from an actual active Windows login token.
+/// Call from SYSTEM completion after the old processes have drained. No other files,
 /// credentials, permissions, sessions or commands are read or changed.
 pub(super) fn retire(profile: &Path, owner: &str) {
     if crate::process::Process::open(std::process::id())

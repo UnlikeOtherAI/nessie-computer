@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Sebelum memperbarui, tunggu pekerjaan yang sedang berjalan selesai dan biarkan Nessie Computer terbuka. Penginstal memulai ulang aplikasi dan menghapus kunci koneksi lama hanya setelah Windows memastikan proses asalnya telah berakhir. Pengaturan dan riwayat tim tetap tersimpan.
+Sebelum memperbarui, tunggu hingga pekerjaan yang sedang berjalan selesai. Penginstal Nessie Computer hanya menghapus kunci koneksi lama ketika Windows memastikan bahwa proses aslinya telah berakhir. Pengaturan dan riwayat tim tetap tersimpan.

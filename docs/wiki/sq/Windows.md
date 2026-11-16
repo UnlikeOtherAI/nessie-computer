@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Para përditësimit, prisni të përfundojë puna në vazhdim dhe mbajeni Nessie Computer të hapur. Instaluesi rinis aplikacionin dhe heq kyçjet e lidhjeve të vjetra vetëm kur Windows konfirmon se procesi fillestar ka përfunduar. Cilësimet dhe historiku i ekipeve ruhen.
+Para përditësimit, prisni të përfundojë puna në vazhdim. Instaluesi i Nessie Computer heq kyçjet e vjetra të lidhjeve vetëm kur Windows konfirmon se procesi fillestar ka përfunduar. Cilësimet dhe historiku i ekipeve ruhen.

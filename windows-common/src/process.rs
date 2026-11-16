@@ -325,24 +325,28 @@ pub fn interactive_profile() -> Result<PathBuf, String> {
 
 /// The held process's actual token profile, never HOME or a caller path.
 pub fn profile_directory(process: &Process) -> Result<PathBuf, String> {
-    use windows_sys::Win32::Foundation::HANDLE;
-    #[link(name = "userenv")]
-    extern "system" {
-        fn GetUserProfileDirectoryW(token: HANDLE, path: *mut u16, size: *mut u32) -> i32;
-    }
     interactive(process)?;
     let mut token = std::ptr::null_mut();
     if unsafe { OpenProcessToken(process.handle.0, TOKEN_QUERY, &mut token) } == 0 {
         return Err(REJECTED.into());
     }
     let token = Owned(token);
+    token_profile(token.0)
+}
+
+/// Caller holds an OS-issued user token; this reads its profile, not a supplied path.
+pub(crate) fn token_profile(token: HANDLE) -> Result<PathBuf, String> {
+    #[link(name = "userenv")]
+    extern "system" {
+        fn GetUserProfileDirectoryW(token: HANDLE, path: *mut u16, size: *mut u32) -> i32;
+    }
     let mut size = 0;
-    unsafe { GetUserProfileDirectoryW(token.0, std::ptr::null_mut(), &mut size) };
+    unsafe { GetUserProfileDirectoryW(token, std::ptr::null_mut(), &mut size) };
     if size == 0 || size > 32_768 {
         return Err(REJECTED.into());
     }
     let mut path = vec![0_u16; size as usize];
-    if unsafe { GetUserProfileDirectoryW(token.0, path.as_mut_ptr(), &mut size) } == 0 {
+    if unsafe { GetUserProfileDirectoryW(token, path.as_mut_ptr(), &mut size) } == 0 {
         return Err(REJECTED.into());
     }
     let end = path.iter().position(|value| *value == 0).ok_or(REJECTED)?;

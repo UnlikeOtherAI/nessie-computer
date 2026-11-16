@@ -15,4 +15,4 @@ nessie-computer --version
 nessie-computer --help
 ```
 
-Prije ažuriranja pričekajte da aktivni rad završi i ostavite Nessie Computer otvoren. Instalacijski program ponovno pokreće aplikaciju i uklanja stara zaključavanja veza samo kada Windows potvrdi da je izvorni proces završio. Postavke i povijest timova ostaju sačuvane.
+Prije ažuriranja pričekajte da se aktivni rad završi. Instalacijski program za Nessie Computer uklanja stare brave veza samo kada Windows potvrdi da je izvorni proces završen. Postavke i povijest timova ostaju sačuvane.

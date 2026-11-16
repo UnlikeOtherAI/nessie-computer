@@ -51,6 +51,7 @@ pub fn close_for_install() -> Result<(), Refusal> {
 #[cfg(windows)]
 pub fn reopen_after_install() -> Result<(), Refusal> {
     use nessie_windows_common::install_handover::{self, OpenApp};
+    install_handover::recover_user_leases();
     let record = crate::paths::service_root()
         .map_err(|_| Refusal::new("install_handover.record_unavailable"))?.join(RECORD);
     let Ok(bytes) = std::fs::read(&record) else { return Ok(()) };
