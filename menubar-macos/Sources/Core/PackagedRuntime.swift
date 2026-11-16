@@ -64,37 +64,3 @@ public struct PackagedRuntime: Equatable, Sendable {
         return .success(runtime)
     }
 }
-
-/// What a prior daemon's lease file says. A lease that cannot be read the way a
-/// daemon writes it is `suspect`, never absent: something holds that path. The
-/// decision is a pure function over the lease so the "a dead daemon must not
-/// block every later start forever" rule is testable — the exact bug
-/// `lease_blocks_start` in the Tauri companion was written to fix.
-public enum DaemonLease: Equatable, Sendable {
-    case absent
-    case held(pid: Int32)
-    case suspect
-}
-
-public enum DaemonLeaseReader {
-    public static let fileName = "daemon.pid"
-
-    public static func read(in stateDirectory: String, fileManager: FileManager = .default) -> DaemonLease {
-        let path = (stateDirectory as NSString).appendingPathComponent(fileName)
-        guard let attributes = try? fileManager.attributesOfItem(atPath: path) else { return .absent }
-        guard (attributes[.type] as? FileAttributeType) == .typeRegular else { return .suspect }
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { return .suspect }
-        guard let pid = Int32(text.trimmingCharacters(in: .whitespacesAndNewlines)), pid > 0 else {
-            return .suspect
-        }
-        return .held(pid: pid)
-    }
-}
-
-public func leaseBlocksStart(_ lease: DaemonLease, daemonIsLive: (Int32) -> Bool) -> Bool {
-    switch lease {
-    case .absent: return false
-    case .suspect: return true
-    case let .held(pid): return daemonIsLive(pid)
-    }
-}

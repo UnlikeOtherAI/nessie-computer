@@ -168,7 +168,7 @@ final class ExecutorController: ObservableObject {
                 scheduleRestart(ran: Date().timeIntervalSince(exited.startedAt))
             }
         }
-        if leaseBlocksStart(lease, daemonIsLive: { kill($0, 0) == 0 }) { return .stopping }
+        if leaseBlocksStart(lease) { return .stopping }
         return .stopped
     }
 
@@ -272,7 +272,7 @@ final class ExecutorController: ObservableObject {
     /// A team process still holds this team's lease: this app's own, or one an
     /// earlier copy of the app started, which can outlive it for a while.
     var daemonLeaseHeld: Bool {
-        leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 })
+        leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory))
     }
 
     private var pairingBlocksStart: Bool {
@@ -307,7 +307,7 @@ final class ExecutorController: ObservableObject {
             return
         }
         guard isDevelopmentBuild || ComputerUpdateService.factoryReady, !ComputerRuntimeGate.held,
-              !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory), daemonIsLive: { kill($0, 0) == 0 }) else {
+              !leaseBlocksStart(DaemonLeaseReader.read(in: stateDirectory)) else {
             // The update factory is not ready yet, the helper is installing this
             // app's runtime, or a prior daemon is still tearing down (an update
             // restart looks like this): try at the next reading.
