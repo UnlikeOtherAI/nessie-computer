@@ -55,7 +55,7 @@ const buildDaemonTools = (
   const checkSessionAuthority = createSessionAuthorityClient(() => state)
   const codingBridge = createCodingSessionsDaemon({
     pairingSource: () => state.sessionPairingSource,
-    validateSessionAuthority: async (scope, phase) => (await checkSessionAuthority(scope, phase)).permit,
+    validateSessionAuthority: checkSessionAuthority,
     connectionEpoch: () => state.connectionEpoch,
     executorId: state.executorId,
     commandRules,

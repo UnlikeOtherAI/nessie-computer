@@ -115,9 +115,11 @@ export const executeExecutorMcpCommand = async (
   // that server ships a new field. Who the call is for travels beside it, in
   // reserved `_meta`, and only to the executor's own coding-sessions bridge.
   let scope = payload?.data.codingSessionAuthority
+  let reference: typeof scope
   const metaFor = () => bridge?.codingBridge?.callMeta(parsed.data.server, {
     commandId: bridge.commandId,
     ...(scope ? { codingSessionAuthority: scope } : {}),
+    ...(reference ? { codingSessionReference: reference } : {}),
     ...(owner ? { owner } : {}),
   })
   const meta = metaFor()
@@ -128,17 +130,23 @@ export const executeExecutorMcpCommand = async (
     if (!scope || !validate || scope.commandId !== bridge?.commandId || scope.operation !== parsed.data.tool) {
       return { code: 'EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', success: false }
     }
-    try { scope = await validate(scope, 'execute') }
-    catch { return { code: 'EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', success: false } }
+    try {
+      const checked = await validate(scope, 'execute')
+      scope = checked.permit; reference = checked.carrier
+    } catch { return { code: 'EXECUTOR_CODING_SESSION_AUTHORITY_UNAVAILABLE', success: false } }
     guard = {
       prepareMeta: async () => {
-        scope = await validate(scope!, 'execute')
+        // The permit just issued still covers handing the call over; a slow route is asked once, not twice.
+        if (Date.parse(scope!.expiresAt) - Date.now() < 2_500) {
+          const checked = await validate(scope!, 'execute')
+          scope = checked.permit; reference = checked.carrier
+        }
         const current = metaFor()
         if (!current) throw new Error('Original session bridge is unavailable')
         return personalAuthority ? { ...current, 'nessie/personal-authority': personalAuthority } : current
       },
       validateResult: async result => {
-        scope = await validate(scope!, 'publish')
+        scope = (await validate(scope!, 'publish')).permit
         return validateScopedCodingResult(result, scope)
       },
     }

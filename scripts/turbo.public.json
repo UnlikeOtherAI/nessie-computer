@@ -29,6 +29,12 @@
         "DATABASE_URL"
       ]
     },
+    "//#test:debug-nessie": {
+      "dependsOn": [
+        "//#build"
+      ],
+      "cache": false
+    },
     "//#test:executor-private-assignments": {
       "dependsOn": [
         "//#build"

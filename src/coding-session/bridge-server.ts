@@ -5,13 +5,14 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprot
 import { createCodingBridge, type CodingBridgeCallMeta, type CodingBridge } from './bridge.js'
 import { codingBridgeTools, CodingBridgeError } from './bridge-tools.js'
 import { loadCodingSessionsConfig } from './config.js'
+import { debugFailure, executorDebugChild } from '../debug-mode.js'
 import { parseLocalCommandPolicy, type LocalCommandPolicy } from '../command-policy.js'
 import {
   CODING_SESSION_COMMAND_META,
   CODING_SESSION_COMMAND_RULES_META,
   CODING_SESSION_DAEMON_CONTROL_META,
   CODING_SESSION_OWNER_META,
-  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META,
+  CODING_SESSION_AUTHORITY_META, CODING_SESSION_PAIRING_SOURCE_META, CODING_SESSION_REFERENCE_META,
   CODING_SESSION_CONNECTION_META,
 } from './meta-keys.js'
 import type { PathRewriter } from './path-rewrite.js'
@@ -46,6 +47,7 @@ export const codingBridgeCallMeta = (meta: unknown): CodingBridgeCallMeta => {
   const commandRules = commandRulesOf(fields[CODING_SESSION_COMMAND_RULES_META])
   const personalAuthority = PersonalInferenceAuthoritySchema.safeParse(fields['nessie/personal-authority'])
   const sessionAuthority = ExecutorCodingSessionAuthoritySchema.safeParse(fields[CODING_SESSION_AUTHORITY_META])
+  const sessionReference = ExecutorCodingSessionAuthoritySchema.safeParse(fields[CODING_SESSION_REFERENCE_META])
   const source = ExecutorSessionPairingSourceSchema.safeParse(fields[CODING_SESSION_PAIRING_SOURCE_META])
   const connection = fields[CODING_SESSION_CONNECTION_META]
   return {
@@ -55,6 +57,7 @@ export const codingBridgeCallMeta = (meta: unknown): CodingBridgeCallMeta => {
     ...(commandRules ? { commandRules } : {}),
     ...(personalAuthority.success ? { personalAuthority: personalAuthority.data } : {}),
     ...(sessionAuthority.success ? { codingSessionAuthority: sessionAuthority.data } : {}),
+    ...(sessionReference.success ? { codingSessionReference: sessionReference.data } : {}),
     ...(source.success ? { sessionPairingSource: source.data } : {}),
     ...(typeof connection === 'string' ? { connectionEpoch: connection } : {}),
   }
@@ -101,8 +104,12 @@ export const callCodingBridgeTool = async (
       ...(scope ? { resultScope: scope } : {}) }, bridge.rewriter)) }] }
   } catch (error) {
     const known = error instanceof CodingBridgeError
-    // No raw failure detail enters the daemon log or its result journal.
+    // No raw failure detail enters the daemon log or its result journal. Debug
+    // mode is the owner's own terminal, where the detail is the point.
     if (!known) process.stderr.write('[coding-sessions] unexpected bridge failure\n')
+    if (executorDebugChild()) {
+      process.stderr.write(`[coding-sessions] debug: ${request.name} failed: ${debugFailure(error)}\n`)
+    }
     const scope = preparedManagedSessionResultScope(meta)
     const answer = {
       code: known ? error.code : 'coding_session_unavailable',

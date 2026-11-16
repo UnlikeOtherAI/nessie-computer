@@ -143,11 +143,58 @@ must present that unexpired reference to the signed owning route and pass curren
 pairing, actor, command and revocation checks before obtaining its own short
 permit. Neither deadline is extended locally. T3 grants are unchanged.
 
-A parent whose permit expired cannot publish another request. A carrier that
-expired cannot be renewed, and a revoked or substituted carrier cannot authorize
-an effect. Existing queue bytes, command identities, accepted results and withheld
+A parent whose permit expired asks the route again with its unexpired reference
+before it publishes another request (see "Session permits on a slow connection"
+below). A carrier that expired cannot be renewed, and a revoked or substituted
+carrier cannot authorize an effect. Existing queue bytes, command identities, accepted results and withheld
 outputs are never rewritten by this repair. Older expired requests remain
 evidence; they do not become instructions to replay.
+
+## Session permits on a slow connection
+
+The CTO agent's `session_start` was refused on all three development computers
+through hosted Nessie on 16 November 2026 while the same installed 1.1.11
+builds started sessions against a loopback server. The
+[debug control plane](debug-control-plane.md) reproduced it with each answer
+delayed by 2.5 seconds: `SessionEffectAuthority.consume` refused at the bridge's
+first effect. Three rules combined:
+
+- Every effect made its own signed round trip, about 15 to 20 for one start.
+- A round trip had to finish inside the previous five-second permit, so any
+  answer slower than the permit's remaining time ended the operation.
+- The daemon handed the session bridge only its five-second permit. The bridge's
+  own first round trip then outlived it.
+
+A fourth fault needed no delay. The route stamps `validUntil` five seconds from
+its own clock and the client refused anything beyond five seconds of its own, so
+a computer whose clock ran behind the server's by more than the network's return
+time refused every answer. Production's clock measured between 6 ms behind and
+66 ms ahead of the Mac's that day, against a return time of about 16 ms.
+
+The client now behaves as follows. Only the route issues a deadline; nothing
+below extends one.
+
+- A permit the route issued covers the effects that follow while it has at
+  least 1.5 seconds left. Revocation still stops the next effect within the
+  permit's own five seconds.
+- The next permit is asked for with the route's own reference (30 seconds for a
+  command, renewed by the route on every answer), not with the previous permit.
+  A slow answer or a slow effect costs a round trip, never the operation. An
+  expired reference asks nothing.
+- The daemon hands the bridge the route's reference beside its permit
+  (`nessie/session-reference`), and a process handed an effect reference
+  receives it too. The reference must name the same selection, grants no effect
+  and is never a permit in the receiving process: that process still makes its
+  own round trip first.
+- A server deadline up to two seconds beyond five is accepted as a slow local
+  clock. The permit is still cut at five seconds of this computer's own time,
+  measured from before the request left.
+
+Measured with the debug control plane on the source build, the start of a
+Claude Code terminal session took 0.9 s and 3 round trips with no delay, 8 s at
+900 ms, 21 s at 2.5 s, 82 s at 4 s, and unaffected with the server's clock
+300 ms ahead or 1.5 s behind. Before the change the start took 21 s at 900 ms
+and was refused at 2.5 s. T3 grants are unchanged.
 
 The `test:executor-private-assignments` Turbo gate includes the real state-file
 and request-queue regression in `test/session-carrier.test.ts`. It advances time

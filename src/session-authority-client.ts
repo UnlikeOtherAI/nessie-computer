@@ -12,6 +12,13 @@ export type CheckedSessionAuthority = {
   permit: ExecutorCodingSessionAuthority
 }
 
+/**
+ * How far this computer's clock may run behind the server's. The route stamps its deadline five seconds from its
+ * own clock, so with no allowance a computer a few milliseconds slow refused every answer. The allowance never
+ * lengthens a permit: it is still cut at five seconds of this computer's own time, from before the request left.
+ */
+const CLOCK_ALLOWANCE_MS = 2_000
+
 /** A fresh round trip for one exact operation. The response cannot replace its original selection. */
 export const createSessionAuthorityClient = (
   state: () => ExecutorLocalState, api: Pick<ExecutorApiClient, 'checkSessionAuthority'> = executorApi,
@@ -45,7 +52,8 @@ export const createSessionAuthorityClient = (
     || answer.connectionEpoch !== current.connectionEpoch
     || answer.authorizationRevision !== scope.authorizationRevision
     || answer.purpose !== scope.purpose || Date.parse(answer.validUntil) <= Date.now()
-    || Date.now() - startedAt >= 5_000 || Date.parse(answer.validUntil) > Date.now() + 5_000
+    || Date.now() - startedAt >= 5_000
+    || Date.parse(answer.validUntil) > Date.now() + 5_000 + CLOCK_ALLOWANCE_MS
     || canonicalExecutorJson(executorCodingSessionResultScope(answer.authority))
       !== canonicalExecutorJson(executorCodingSessionResultScope(scope))) throw new Error('Original session authority changed')
   return { carrier: answer.authority,
