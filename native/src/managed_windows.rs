@@ -21,6 +21,7 @@ use windows_sys::Win32::{
         SECURITY_ATTRIBUTES,
     },
     System::{
+        Console::GetConsoleWindow,
         JobObjects::{
             AssignProcessToJobObject, CreateJobObjectW, JobObjectBasicAccountingInformation,
             JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
@@ -122,6 +123,16 @@ fn active(job: HANDLE) -> Result<u32, NativeError> {
     }
     Ok(info.ActiveProcesses)
 }
+fn runtime_creation_flags() -> u32 {
+    // ConPTY also supplies a console window handle. Inherit that console so
+    // the child's standard handles still refer to the caller's terminal.
+    if unsafe { GetConsoleWindow() }.is_null() {
+        CREATE_SUSPENDED | CREATE_NO_WINDOW
+    } else {
+        CREATE_SUSPENDED
+    }
+}
+
 pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
     crate::personal_state_context::require_release()?;
     let release = nessie_windows_common::release::load(PIN).map_err(|_| refused())?;
@@ -149,7 +160,7 @@ pub fn run(arguments: &[String]) -> Result<i32, NativeError> {
                 "desktop"
             },
         )
-        .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW);
+        .creation_flags(runtime_creation_flags());
     for (key, _) in std::env::vars_os() {
         let name = key.to_string_lossy();
         if name.starts_with("NODE_")
@@ -232,6 +243,10 @@ mod controls;
 pub use controls::{cleanup, inventory, protection, status};
 
 #[cfg(test)]
+#[path = "managed_windows_console_tests.rs"]
+mod console_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     fn assert_job_empty(job: &Owned) {
@@ -263,7 +278,7 @@ mod tests {
                     marker.display().to_string().replace('\'', "''")
                 ),
             ])
-            .creation_flags(CREATE_SUSPENDED | CREATE_NO_WINDOW)
+            .creation_flags(runtime_creation_flags())
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

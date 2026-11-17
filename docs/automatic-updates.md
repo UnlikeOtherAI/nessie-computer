@@ -517,7 +517,9 @@ publication; it does not claim the legacy CLI builder's artifact attestations.
 
 The MSI installs `nessie-computer.cmd` and, under the older name,
 `nessie-executor.cmd` beside its native launcher and registers that protected
-directory in the machine PATH. Both are the same wrapper. New terminals can use
+directory in the machine PATH. Both are the same wrapper. Run
+`nessie-computer --help` in PowerShell to see the command list. Output can also
+be piped or redirected to a file. New terminals can use
 `nessie-computer settings updates --json` and the ordinary CLI commands. The wrapper
 passes arguments to the fixed native managed-runtime entry; it never invokes an
 ambient Node binary, selects an update origin or supplies credentials. Windows
