@@ -99,8 +99,8 @@ Neither kind grants control authority or renews its original carrier.
 
 Freshness is bounded, not instantaneous remote revocation: an owning-route
 consumption grants at most five seconds. The receiver checks the deadline and
-round-trip elapsed time immediately before the OS/API call, and reconsumes once
-the permit has less than 1.5 seconds left. Scheduling inside a kernel or provider after that call is not
+round-trip elapsed time immediately before the OS/API call, and every effect
+consumes afresh, so a revocation refuses the very next one. Scheduling inside a kernel or provider after that call is not
 a second authority boundary. A carrier that expires while waiting is refused;
 only the actual signed route can refresh a still-live carrier.
 

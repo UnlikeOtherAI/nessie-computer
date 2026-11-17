@@ -174,9 +174,10 @@ time refused every answer. Production's clock measured between 6 ms behind and
 The client now behaves as follows. Only the route issues a deadline; nothing
 below extends one.
 
-- A permit the route issued covers the effects that follow while it has at
-  least 1.5 seconds left. Revocation still stops the next effect within the
-  permit's own five seconds.
+- Every effect still makes its own signed round trip, so a revocation stops the
+  very next one. A permit is never used for a second effect, even while it
+  lasts: that cost nothing on a fast connection, and a revoked person could
+  still type into a session for the rest of its five seconds.
 - The next permit is asked for with the route's own reference (30 seconds for a
   command, renewed by the route on every answer), not with the previous permit.
   A slow answer or a slow effect costs a round trip, never the operation. An

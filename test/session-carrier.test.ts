@@ -93,38 +93,34 @@ test('a delayed host consumes the unchanged route carrier, not its parent\'s exp
   assert.deepEqual(await readFile(retainedPath), originalBytes, 'a later permit cannot replace original intent')
 })
 
-test('a permit covers the effects inside it, and a slow answer costs a round trip, never the operation', async t => {
+test('every effect asks the route afresh, and a slow answer costs a round trip, never the operation', async t => {
   const f = await fixture(t)
   const parent = new SessionEffectAuthority(f.directory, f.scope)
   await parent.consume()
   assert.equal(f.calls(), 1, 'the reference this began with grants no effect by itself')
   await parent.consume()
+  assert.equal(f.calls(), 2, 'a live permit is never used again: a revocation must stop the very next effect')
   f.advance(3_000)
   await parent.consume()
-  assert.equal(f.calls(), 1, 'the route already answered for these seconds')
-  f.advance(1_000)
-  await parent.consume()
-  assert.equal(f.calls(), 2, 'a permit about to run out is asked for again')
+  assert.equal(f.calls(), 3)
   assert.equal(Date.parse(parent.scope.expiresAt) - Date.now(), 5_000)
   // Installed failure: on a slow connection the next answer arrived after the previous permit had run out,
   // and every session start was refused. The route's own thirty-second reference asks instead.
   f.advance(6_000)
   assert.throws(() => parent.assertLive(), 'no permit outlives its five seconds')
   await parent.consume()
-  assert.equal(f.calls(), 3)
+  assert.equal(f.calls(), 4)
   assert.equal(Date.parse(parent.scope.expiresAt) - Date.now(), 5_000, 'only the route issues the next permit')
   assert.equal(Date.parse(parent.queuedCarrier.expiresAt) - Date.now(), 30_000)
   const inherited = SessionEffectAuthority.fromReference(parent.reference)!
   await inherited.consume()
-  assert.equal(f.calls(), 4, 'a reference handed to another process is never a permit there')
+  assert.equal(f.calls(), 5, 'a reference handed to another process is never a permit there')
   f.revoke()
-  await parent.consume()
-  f.advance(4_000)
-  await assert.rejects(parent.consume(), 'revoked authority stops at the next request')
-  assert.equal(f.calls(), 5)
+  await assert.rejects(parent.consume(), 'revoked authority stops the very next effect, inside a live permit')
+  assert.equal(f.calls(), 6)
   f.advance(31_000)
   await assert.rejects(parent.consume())
-  assert.equal(f.calls(), 5, 'an expired reference cannot ask the route to revive it')
+  assert.equal(f.calls(), 6, 'an expired reference cannot ask the route to revive it')
 })
 
 test('a process handed a permit with the route\'s reference asks with the reference once the permit is gone', async t => {
