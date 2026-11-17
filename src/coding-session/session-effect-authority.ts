@@ -31,9 +31,6 @@ const explain = (error: unknown): void => {
   process.stderr.write(`[session-effect] debug: refused: ${detail}\n`)
 }
 
-/** A permit the route issued is used for the effects that follow it while it has at least this long left. */
-const PERMIT_REUSE_MS = 1_500
-
 const referenceLive = (reference: { issuedAt: string; expiresAt: string }): boolean => (
   Date.parse(reference.expiresAt) > Date.now() && Date.parse(reference.issuedAt) <= Date.now() + 2_000
 )
@@ -44,8 +41,6 @@ export class SessionEffectAuthority {
   #queuedCarrier?: ExecutorCodingSessionAuthority
   /** The route's reference for this same operation, as the process that handed this over received it. */
   #handedReference?: ExecutorCodingSessionAuthority
-  /** True once the route itself answered for `#scope`: until then the scope is a reference, never a permit. */
-  #permitted = false
   readonly #issuerOrigin?: string
   constructor(private readonly directory: string,
     scope: ExecutorCodingSessionAuthority | VerifiedT3EffectGrant | InheritedT3Selection, reference?: unknown) {
@@ -113,6 +108,11 @@ export class SessionEffectAuthority {
 
   async consume(signal?: AbortSignal): Promise<void> {
     try {
+      // An expired reference asks nothing and reads nothing: a dead operation is refused before any I/O.
+      if (!isT3EffectScope(this.#scope)
+        && !referenceLive(this.#queuedCarrier ?? this.#handedReference ?? this.#scope)) {
+        throw new SessionEffectRefused('the route\'s reference ran out before it was asked')
+      }
       for (let attempt = 0; ; attempt += 1) {
         await withStateSecurityChecks(() => this.#consume(signal))
         if (referenceLive(this.#scope)) return
@@ -129,10 +129,9 @@ export class SessionEffectAuthority {
   }
   async #consume(signal?: AbortSignal): Promise<void> {
     signal?.throwIfAborted()
+    // Every effect asks the route afresh, so a revocation stops the very next one. Only the reference it asks with
+    // outlives a permit; see "Session permits on a slow connection".
     if (isT3EffectScope(this.#scope)) this.assertLive()
-    // The route answered for these seconds: every effect inside them is the one it permitted, with no second
-    // round trip. Revocation still stops the next effect within the permit's own five seconds.
-    else if (this.#permitted && Date.parse(this.#scope.expiresAt) - Date.now() >= PERMIT_REUSE_MS) return
     try {
       const state = await loadExecutorState(this.directory)
       if (isT3EffectScope(this.#scope)) {
@@ -176,7 +175,6 @@ export class SessionEffectAuthority {
       // Whether this permit is still live is `consume`'s question: it asks again when these reads outlasted it.
       this.#scope = renewed.permit
       this.#queuedCarrier = renewed.carrier
-      this.#permitted = true
     } catch (error) {
       if (error instanceof SessionEffectRefused) throw error
       throw new SessionEffectRefused(debugFailure(error))
