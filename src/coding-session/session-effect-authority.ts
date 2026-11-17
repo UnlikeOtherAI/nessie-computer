@@ -127,6 +127,10 @@ export class SessionEffectAuthority {
     // Every effect asks the route afresh, so a revocation stops the very next one. Only the reference it asks with
     // outlives a permit; see "Session permits on a slow connection".
     if (isT3EffectScope(this.#scope)) this.assertLive()
+    // An expired reference asks nothing and reads nothing: a dead operation is refused before any I/O.
+    else if (!referenceLive(this.#queuedCarrier ?? this.#handedReference ?? this.#scope)) {
+      throw new SessionEffectRefused('the route\'s reference ran out before it was asked')
+    }
     try {
       const state = await loadExecutorState(this.directory)
       if (isT3EffectScope(this.#scope)) {
@@ -156,7 +160,6 @@ export class SessionEffectAuthority {
       // with. A permit lasts five seconds and a reference thirty, so a slow answer or a slow effect costs a
       // round trip, never the operation. Nothing here extends either deadline; only the route issues them.
       const reference = this.#queuedCarrier ?? this.#handedReference ?? this.#scope
-      if (!referenceLive(reference)) throw new SessionEffectRefused('the route\'s reference ran out before it was asked')
       const renewed = await createSessionAuthorityClient(() => state)(reference, 'execute')
       const current = await loadExecutorState(this.directory)
       if (current.executorId !== state.executorId || current.connectionEpoch !== state.connectionEpoch
