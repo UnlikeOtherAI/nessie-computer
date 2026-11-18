@@ -62,6 +62,12 @@ impl Control {
                 Ok(authority) => Response::PersonalAttestation { authority },
                 Err(reason) => Response::error(reason),
             },
+            Command::PlanPairingStart { api_base_url, executor_id } => {
+                match supervisor.plan_pairing_start(&api_base_url, &executor_id, client_sid) {
+                    Ok(pairing) => Response::Pairing { pairing },
+                    Err(reason) => Response::error(reason),
+                }
+            }
             Command::PairingStart {
                 api_base_url,
                 workspace_root,

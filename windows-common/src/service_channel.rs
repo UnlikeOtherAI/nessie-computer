@@ -177,7 +177,7 @@ fn verify_named(
             return Err(refused());
         }
         let path = PathBuf::from(OsString::from_wide(&image[..length as usize]));
-        if path.file_name().and_then(|name| name.to_str()) != Some(expected_image) {
+        if !path.file_name().is_some_and(|name| name.eq_ignore_ascii_case(expected_image)) {
             return Err(refused());
         }
         let facts =

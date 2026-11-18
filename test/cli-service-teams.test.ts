@@ -130,13 +130,39 @@ test('a service team is a team; a service connection for a team here is that tea
     } finally { await rm(home, { force: true, recursive: true }) }
   })
 
+test('adding the first Windows plan requests service access and a code without granting a work folder',
+  { skip: WINDOWS_STATE_HELPER_SKIP }, async () => {
+    const home = await mkdtemp(join(tmpdir(), 'nessie-plan-code-'))
+    try {
+      await localTeam(home)
+      const helpers: string[][] = []
+      const run = runner(home, async (_file, args) => {
+        helpers.push([...args])
+        return { code: 0, stdout: '', stderr: '' }
+      })
+      const starts: ServiceRequest[] = []
+      const result = await run(['ai', 'plans', 'add', 'Example', '--team', SALES, '--yes'], async request => {
+        if (request.command === 'status') return { status: 'ok', executors: [] }
+        if (request.command === 'planPairingStart') {
+          starts.push(request)
+          return { status: 'pairing', pairing: { status: 'waiting', code: '12345678', expiresAt: '2026-11-08T10:05:00Z' } }
+        }
+        if (request.command === 'pairingStatus') return { status: 'pairing', pairing: { status: 'expired' } }
+        throw new Error('Unexpected service request')
+      })
+      assert.match(result.err, /code expired/i)
+      assert.deepEqual(starts, [{ command: 'planPairingStart', apiBaseUrl: SERVER, executorId: SALES }])
+      assert.deepEqual(helpers.filter(args => args[0]?.startsWith('--request-')), [['--request-service-access']])
+    } finally { await rm(home, { force: true, recursive: true }) }
+  })
+
 test('pause, access, requests and disconnect on a service team go to the service, as the Windows app sends them', async () => {
   const home = await mkdtemp(join(tmpdir(), 'nessie-cli-service-ops-'))
   try {
     const service = fakeService()
-    const elevated: Array<Record<string, string> | undefined> = []
-    const run = runner(home, async (file, _args, options) => {
-      if (file === 'powershell.exe') elevated.push(options?.env)
+    const elevated: string[][] = []
+    const run = runner(home, async (file, args) => {
+      if (file.endsWith('nessie-executor-tray.exe')) elevated.push([...args])
       return { code: 0, stdout: '', stderr: '' }
     })
     const paused = await run(['pause', '--team', 'Ops', '--json'], service.call)
@@ -155,7 +181,7 @@ test('pause, access, requests and disconnect on a service team go to the service
 
     const added = await run(['access', 'folders', 'add', join(home, 'reports'), '--team', 'Ops'], service.call)
     assert.equal(added.exit, 0, added.err)
-    assert.equal(elevated[0]?.NESSIE_COMPUTER_FOLDER, join(home, 'reports'), 'the service is given the new folder first')
+    assert.deepEqual(elevated[0], ['--request-workspace-access', join(home, 'reports')])
 
     const listed = await run(['requests', '--team', 'Ops', '--json'], service.call)
     assert.deepEqual((listed.json() as Array<{ id: string; team: string }>).map((row) => [row.id, row.team]), [[REQUEST, 'Ops · Acme']])
@@ -183,7 +209,7 @@ test('a service that can\'t be reached is named on the Overview; one that never 
     assert.equal(down.exit, 0, down.err)
     assert.match(down.out, /The Nessie Computer service isn't running\. .* Teams it runs aren't listed\./u)
     const strange = await run(['status'], async () => { throw new ServiceUnreachable('notTrusted') })
-    assert.match(strange.out, /Something other than the Nessie Computer service answered/u)
+    assert.match(strange.out, /Windows could not verify the Nessie Computer service/u)
     const other = await run(['status'], async () => { throw new ServiceUnreachable('notAdmitted') })
     assert.doesNotMatch(other.out, /service/u)
   } finally { await rm(home, { force: true, recursive: true }) }

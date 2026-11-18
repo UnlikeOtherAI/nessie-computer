@@ -71,6 +71,20 @@ impl Supervisor {
             .map_err(|_| "Pairing returned an unreadable answer.".to_owned())
     }
 
+    pub fn plan_pairing_start(
+        &mut self, origin: &str, team: &str, sid: Option<&str>,
+    ) -> Result<serde_json::Value, String> {
+        use sha2::{Digest, Sha256};
+        let owner = sid.filter(|s| nessie_windows_common::is_sid_string(s))
+            .ok_or("Windows could not identify the account connecting this plan.")?;
+        // Pairing requires one ordinary folder. Keep it separate from credentials,
+        // pending state and other owners' or teams' workspaces, including on retry.
+        let key = Sha256::digest(format!("{owner}\n{origin}\n{team}").as_bytes());
+        let folder = self.root.join("plan-workspaces").join(format!("{key:x}")).join("workspace");
+        secure_directory(&self.runtime().native_helper, &folder)?;
+        self.pairing_start(origin, folder.to_str().ok_or("Invalid plan workspace.")?, false, Some(owner))
+    }
+
     pub fn pairing_start(
         &mut self,
         origin: &str,

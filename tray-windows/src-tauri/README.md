@@ -122,8 +122,9 @@ team therefore offers no ChatGPT option, and the AI tab adds what a plan needs:
    background consent) exactly as today.
 2. **Otherwise** "Add a ChatGPT plan" first calls
    `executor_chatgpt_connection_start({ executorId })` with the user row's id.
-   The app asks Windows (one UAC prompt) to let the service read the owner's
-   `Nessie` folder, and asks the service for a pairing code on that team's own
+   The app checks service access and requests Windows approval if the account
+   needs enrollment. The service prepares a separate folder for this connection
+   and returns a pairing code on the team's own
    server. The answer is the pairing view (`code`, `expiresAt`, `status`).
    Show the code with "In Nessie, open Computers and choose **Add a
    computer**", and **Open Nessie to finish** via `executor_open_nessie({})`:

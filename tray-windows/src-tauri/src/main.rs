@@ -260,16 +260,8 @@ fn main() {
             return;
         }
     }
-    if let [switch, path] = arguments.as_slice() {
-        if switch == grant::GRANT_SWITCH {
-            // The elevated half of pairing: grant one directory, record this
-            // account, exit. It shows no window and never becomes the tray.
-            if let Err(reason) = grant::grant_workspace(std::path::Path::new(path)) {
-                eprintln!("{reason}");
-                std::process::exit(1);
-            }
-            return;
-        }
+    if let Some(code) = grant::helper_exit(&arguments) {
+        std::process::exit(code);
     }
     let dsn = std::env::var("NESSIE_COMPUTER_SENTRY_DSN").ok()
         .or_else(|| option_env!("NESSIE_COMPUTER_SENTRY_DSN").map(str::to_owned))

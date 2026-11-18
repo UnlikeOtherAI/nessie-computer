@@ -240,8 +240,7 @@ under your account. `add` and `sign-in` ask you to accept that first; `--yes`
 accepts it without asking.
 
 On Windows the Nessie Computer service keeps ChatGPT plans, as in the app. The
-first `add` for a team connects its ChatGPT plan connection: Windows asks you to
-allow it, then this computer shows one more code to enter in Nessie under
+first `add` for a team connects its ChatGPT plan connection: if your account needs service access, Windows asks for approval. Enter the code in Nessie under
 **Computers → Add a computer**.
 
 ### `ai servers` — model servers

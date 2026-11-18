@@ -116,6 +116,7 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, pairSt
       if (window.planStartFails) throw new Error(window.planStartFails)
       window.planPairStatus = 'waiting'
     }
+    if (command === 'executor_chatgpt_connection_status' && window.planStatusFails) throw new Error('The service is busy. Try again in a moment.')
     if (command === 'executor_chatgpt_connection_cancel') window.planPairStatus = 'cancelled'
     return pairingView(window.planPairStatus ?? 'idle', entry.chatgptConnectionId)
   }

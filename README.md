@@ -67,7 +67,8 @@ can. Allow programs you trust. [How access works](https://github.com/UnlikeOther
   Every document you can read in that team syncs both ways.
   [Documents](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Documents.md)
 - **Use your ChatGPT plan.** Open **AI**, choose **Add a ChatGPT plan** and sign
-  in with ChatGPT. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
+  in with ChatGPT. On Windows, the first plan connects the service to your team
+  with a pairing code. Approve service access if Windows asks. Give each connection a name you recognise. The computer opens OpenAI’s personal-agent OAuth sign-in and sends requests
   to OpenAI itself, including when connected to hosted Nessie. A blocked
   sign-in shows a red message with the next step. Choose the connection’s model
   in Nessie under **Connected accounts** → **AI plans**. On a Mac, idle team

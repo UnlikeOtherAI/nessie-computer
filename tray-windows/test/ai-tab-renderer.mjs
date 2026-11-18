@@ -26,13 +26,32 @@ export const verifyAiTab = async (browser, ui, output) => {
         assert.equal(/Adding the first plan connects it to Platform · UnlikeOtherAI/.test(plansHelp), english && windows)
         // Adding a plan prefills an editable name and needs the restriction understood before Sign in with ChatGPT.
         for (const n of [1, 2]) {
+          const recovery = windows && english && n === 1 && size === 'desktop'
+          if (recovery) await page.evaluate(() => { window.planStartFails = 'Windows approval was cancelled. Try again to reopen the prompt.' })
           await page.locator('#ai-add-chatgpt').click()
+          if (recovery) {
+            const error = page.locator('#ai-connection-dialog [role=alert]')
+            await error.waitFor()
+            assert.match(await error.innerText(), /cancelled/)
+            assert.equal(await page.locator('#ai-connection-starting').isVisible(), false)
+            await page.evaluate(() => { window.planStartFails = null })
+            await page.locator('#ai-connection-renew').click()
+          }
           if (windows && n === 1) {
             await page.waitForFunction(() => document.getElementById('ai-connection-code').textContent === '01234567')
             if (english) assert.equal(await page.locator('#ai-connection-title').textContent(), 'Connect ChatGPT plans for Platform · UnlikeOtherAI')
             assert.deepEqual((await lastCall(page, 'executor_chatgpt_connection_start')).args, { executorId: 'team-0' })
             await assertFits(page, `${host} ${locale} ${size} plan connection dialog`)
             if (size === 'desktop') await shot('connect-plans')
+            if (recovery) {
+              await page.evaluate(() => { window.planStatusFails = true })
+              await page.locator('#ai-connection-dialog [role=alert]').waitFor()
+              await page.evaluate(() => { window.planStatusFails = false })
+              await page.locator('#ai-connection-renew').click()
+              await page.locator('#ai-connection-open-nessie').waitFor()
+              assert.equal((await lastCall(page, 'executor_chatgpt_connection_status')).args.retry, true)
+              assert.equal(await page.evaluate(() => window.calls.filter(c => c.command === 'executor_chatgpt_connection_start').length), 2)
+            }
             await page.locator('#ai-connection-open-nessie').click()
             assert.deepEqual((await lastCall(page, 'executor_open_nessie')).args, {})
             await page.evaluate(() => window.claimPlanInNessie('team-0'))

@@ -71,8 +71,11 @@ OpenAI credentials. Codex does not need to be installed for this connection.
 
 On Windows the Nessie Computer background service keeps a plan's sign-in. The
 first plan for a team therefore adds a **ChatGPT plan connection** for that
-team: Windows asks you to allow it, then this computer shows one more code to
-enter in Nessie under **Computers → Add a computer**.
+team. Windows may ask an administrator to let your account use the service.
+The plan uses its own folder. Enter the code in Nessie under **Computers → Add
+a computer** for the selected team. If approval was cancelled, choose **Try
+again** to reopen the prompt. If the service has stopped, start **Nessie
+Computer** in Windows Services and choose **Try again**.
 
 ### Plans and everything else, together
 
