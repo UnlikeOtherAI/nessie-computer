@@ -29,21 +29,29 @@ window.aiConnection = (() => {
   let settle = null // resolves the connect() promise with the plan connection id, or null
   let timer = null
 
+  let busy = false
+  let retry = null
+  const errorBox = dialog.querySelector('[role=alert]')
+
   const secondsLeft = () => Math.max(0, Math.ceil((Date.parse(view?.expiresAt ?? '') - Date.now()) / 1000) || 0)
   const expired = () => view?.status === 'expired' || (view?.status === 'waiting' && secondsLeft() === 0)
   const render = () => {
-    const starting = view === null
+    const starting = view === null && !retry
     const gone = expired()
     byId('ai-connection-starting').hidden = !starting
-    byId('ai-connection-progress').hidden = starting
+    byId('ai-connection-progress').hidden = !view || !!retry
     byId('ai-connection-code').textContent = view?.code ?? ''
     byId('ai-connection-code').classList.toggle('expired', gone)
     byId('ai-connection-instruction').textContent = gone ? t('pairing.expired') : t('pairing.instruction')
     const seconds = secondsLeft()
     byId('ai-connection-time').textContent = view?.status === 'waiting' && seconds > 0
       ? t('pairing.expiresIn', { time: `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}` }) : ''
-    byId('ai-connection-renew').hidden = !gone
-    byId('ai-connection-open-nessie').hidden = starting || gone
+    byId('ai-connection-renew').hidden = !retry && !gone
+    byId('ai-connection-renew').textContent = t(retry ? 'shell.tryAgain' : 'pairing.newCode')
+    byId('ai-connection-renew').disabled = busy
+    byId('ai-connection-cancel').disabled = busy
+    byId('ai-connection-cancel').textContent = t(retry ? 'shell.close' : 'shell.cancel')
+    byId('ai-connection-open-nessie').hidden = !view || !!retry || gone
   }
 
   const finish = (planConnectionId) => {
@@ -53,24 +61,48 @@ window.aiConnection = (() => {
     settle?.(planConnectionId)
     settle = null
   }
-  /** The claim in Nessie finishes it: the view then links the team to its new connection. */
-  const check = async () => {
-    if (!dialog.open || view?.status !== 'waiting') return
-    const next = await invoke('executor_chatgpt_connection_status', { executorId })
-    if (!dialog.open) return
+  const accept = async (next) => {
+    if (next?.status === 'waiting' && (!/^\d{8}$/.test(next.code) || !Number.isFinite(Date.parse(next.expiresAt)))) {
+      throw new Error(t('ai.failed'))
+    }
     view = next
-    render()
-    if (next.status !== 'paired') return
-    await nc.team.refresh()
-    nc.footer.note(t('ai.connection.paired'))
-    finish(nc.team.planConnectionOf(executorId))
+    if (next.status === 'paired' || next.status === 'alreadyPaired') {
+      await nc.team.refresh()
+      const linked = nc.team.planConnectionOf(executorId)
+      if (!linked) throw new Error(t('ai.connection.unlinked'))
+      nc.footer.note(t('ai.connection.paired'))
+      finish(linked)
+    } else if (next.status !== 'waiting' && next.status !== 'expired') {
+      view = null
+      throw new Error(t('ai.connection.ended'))
+    }
   }
-  const start = async () => {
-    view = null
+
+  // Only an explicit retry may request Windows approval. Polls never prompt.
+  const run = async (action, explicit = false) => {
+    if (busy || !dialog.open) return
+    busy = true
+    retry = null
+    errorBox.hidden = true
     render()
-    view = await invoke('executor_chatgpt_connection_start', { executorId })
-    render()
-    byId('ai-connection-title').focus()
+    try {
+      if (action === 'cancel' || action === 'renew') {
+        if (view?.status === 'waiting' || view?.status === 'expired') await invoke('executor_chatgpt_connection_cancel', { executorId })
+        view = null
+        if (action === 'cancel') { finish(null); return }
+      }
+      const next = action === 'status'
+        ? await invoke('executor_chatgpt_connection_status', { executorId, retry: explicit })
+        : await invoke('executor_chatgpt_connection_start', { executorId })
+      await accept(next)
+    } catch (error) {
+      retry = action === 'cancel' ? 'cancel' : view ? 'status' : 'start'
+      errorBox.textContent = nc.failure.sentence(error).text
+      errorBox.hidden = false
+    } finally {
+      busy = false
+      render()
+    }
   }
 
   /** Connects the service to the team; answers the plan connection's id once Nessie claims it, null when cancelled. */
@@ -85,20 +117,18 @@ window.aiConnection = (() => {
     byId('ai-connection-code').setAttribute('aria-label', t('pairing.codeLabel'))
     dialog.lang = document.documentElement.lang
     nc.dialogs.open('ai-connection-dialog')
-    nc.attempt(start).then(() => {
-      clearInterval(timer)
-      timer = setInterval(() => { render(); nc.attempt(check) }, 1000)
-    })
+    view = null
+    retry = null
+    run('start')
+    clearInterval(timer)
+    timer = setInterval(() => {
+      if (!busy && !retry && view?.status === 'waiting') run('status')
+      else render()
+    }, 1000)
   })
-  const cancel = () => nc.attempt(async () => {
-    if (view?.status === 'waiting' || view?.status === 'expired') await invoke('executor_chatgpt_connection_cancel', { executorId })
-    finish(null)
-  })
+  const cancel = () => { if (retry) finish(null); else run('cancel') }
   byId('ai-connection-cancel').onclick = cancel
-  byId('ai-connection-renew').onclick = () => nc.attempt(async () => {
-    await invoke('executor_chatgpt_connection_cancel', { executorId })
-    await start()
-  })
+  byId('ai-connection-renew').onclick = () => run(retry ?? 'renew', true)
   // The host adds the code to the Computers page while it shows (§5.1).
   byId('ai-connection-open-nessie').onclick = () => nc.attempt(() => invoke('executor_open_nessie', {}))
   dialog.addEventListener('cancel', (event) => { event.preventDefault(); cancel() })

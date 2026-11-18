@@ -9,8 +9,7 @@
 //! a plan's sign-in in custody, never a copy of a user-session key. So when the
 //! AI tab adds the first plan for a team this app runs, it asks for a second,
 //! service-owned connection to the same team's server — one more pairing code
-//! the owner enters in Nessie, and one UAC prompt that lets the service read
-//! the owner's `Nessie` folder. The unelevated caller, never the approving
+//! the owner enters in Nessie, and Windows approval if the account needs service access. The unelevated caller, never the approving
 //! administrator, starts that code. Once it is claimed, the view links the two
 //! (`chatgptConnectionId`) and plans are signed in on the service connection.
 use std::sync::Mutex;
@@ -60,35 +59,15 @@ fn pairing(response: Result<ServiceResponse, String>, asked_of: Option<&str>) ->
     }
 }
 
-fn service_start_request(origin: &str, workspace: &std::path::Path) -> serde_json::Value {
-    serde_json::json!({"command":"pairingStart", "apiBaseUrl":origin,
-        "workspaceRoot":workspace.display().to_string(), "replace":false})
-}
-
-#[cfg(windows)]
-fn prepare_workspace() -> Result<std::path::PathBuf, String> {
-    let workspace = nessie_windows_common::process::interactive_profile()
-        .map_err(|_| "Add the plan from the Windows account that is signed in.".to_owned())?
-        .join("Nessie");
-    std::fs::create_dir_all(&workspace).map_err(|_| "Could not prepare your Nessie folder.")?;
-    let metadata = std::fs::symlink_metadata(&workspace)
-        .map_err(|_| "Could not inspect your Nessie folder.")?;
-    use std::os::windows::fs::MetadataExt;
-    if !metadata.is_dir() || metadata.file_attributes() & 0x400 != 0 {
-        return Err("Choose an ordinary Nessie folder under your Windows profile.".into());
-    }
-    crate::grant::request_workspace_grant(&workspace)?;
-    Ok(workspace)
-}
-#[cfg(not(windows))]
-fn prepare_workspace() -> Result<std::path::PathBuf, String> {
-    Err("ChatGPT plans need the Windows service.".into())
+fn service_start_request(origin: &str, executor_id: &str) -> serde_json::Value {
+    serde_json::json!({"command":"planPairingStart", "apiBaseUrl":origin, "executorId":executor_id})
 }
 
 /// A team this app runs, which is the only kind a plan connection is added for.
 fn user_team<'a>(view: &'a ServiceView, executor_id: &str) -> Result<&'a crate::state::ExecutorStatus, String> {
-    let ServiceView::Reachable { executors } = view else {
-        return Err("The Nessie Computer service can’t be reached, and ChatGPT plans need it.".to_owned());
+    let executors = match view {
+        ServiceView::Reachable { executors } => executors,
+        ServiceView::Unreachable { reason } => return Err(reason.clone()),
     };
     let executor = executors.iter().find(|executor| executor.executor_id == executor_id)
         .ok_or("This team is not connected on this computer.")?;
@@ -151,8 +130,13 @@ pub async fn executor_chatgpt_connection_start(executor_id: String) -> Result<se
     tauri::async_runtime::spawn_blocking(move || {
         check_plan_connection(&commands::view(), &executor_id)?;
         let origin = pairing_origin::approve(&commands::team_server(&executor_id)?, cfg!(debug_assertions))?.origin;
-        let workspace = prepare_workspace()?;
-        pairing(service_control(&service_start_request(&origin, &workspace)), Some(&origin))
+        crate::grant::ensure_service_access()?;
+        let response = service_control(&service_start_request(&origin, &executor_id)).map_err(|reason| {
+            if reason == "The control request is malformed." {
+                "Update Nessie Computer and reopen the tray. The installed service does not support this plan connection.".into()
+            } else { reason }
+        });
+        pairing(response, Some(&origin))
     })
     .await
     .map_err(|_| "The ChatGPT plan connection could not be started.".to_owned())?
@@ -160,9 +144,10 @@ pub async fn executor_chatgpt_connection_start(executor_id: String) -> Result<se
 
 /// The plan connection being added for this team: its pairing view.
 #[tauri::command]
-pub async fn executor_chatgpt_connection_status(executor_id: String) -> Result<serde_json::Value, String> {
+pub async fn executor_chatgpt_connection_status(executor_id: String, retry: Option<bool>) -> Result<serde_json::Value, String> {
     tauri::async_runtime::spawn_blocking(move || {
         user_team(&commands::view(), &executor_id)?;
+        if retry == Some(true) { crate::grant::ensure_service_access()?; }
         pairing(service_control(&serde_json::json!({ "command": "pairingStatus" })), None)
     })
     .await
@@ -185,13 +170,9 @@ mod tests {
     use crate::state::{tests::executor, Connection, ServiceView};
 
     #[test]
-    fn the_service_code_request_names_its_workspace_but_no_owner_or_key() {
-        let request = service_start_request("https://nessie.example", std::path::Path::new(r"C:\Users\actual\Nessie"));
-        assert_eq!(request["command"], "pairingStart");
-        assert_eq!(request["workspaceRoot"], r"C:\Users\actual\Nessie");
-        assert_eq!(request["replace"], false);
-        assert_eq!(request.as_object().unwrap().len(), 4);
-        assert!(request.get("sid").is_none() && request.get("machinePrivateKey").is_none());
+    fn a_plan_request_carries_only_the_origin_and_local_connection_id() {
+        assert_eq!(service_start_request("https://nessie.example", "team-1"),
+            serde_json::json!({"command":"planPairingStart","apiBaseUrl":"https://nessie.example","executorId":"team-1"}));
     }
 
     #[test]

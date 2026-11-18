@@ -113,7 +113,7 @@ Model servers: name, address, where it runs, optional key.
 On Windows plans live on the background service's connection
 (`tray-windows/src-tauri/README.md` → ChatGPT plans). A team this app runs
 says so behind the plans heading's "?"; its first **Add a ChatGPT plan** opens
-`ai-connection.js`: `executor_chatgpt_connection_start` (one Windows prompt),
+`ai-connection.js`: `executor_chatgpt_connection_start` (Windows approval if service access is needed),
 the pairing code with "Enter this code in Nessie under Computers › Add a
 computer." and **Open Nessie to finish** (`executor_open_nessie {}`, the host
 adds the code), `executor_chatgpt_connection_status` polled until `paired`,

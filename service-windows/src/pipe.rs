@@ -143,8 +143,14 @@ fn serve_connection(handle: HANDLE, root: &Path, control: &Control, scope: Scope
                         }
                     }
                     Ok(Command::EnrollControlClient) => {
-                        let owner = enrollment_owner(handle, client.as_ref()).ok();
-                        enroll_control_client(root, control, client, owner.as_deref())
+                        if control.supervisor().is_some() && client.as_ref().is_some_and(|id| id.is_administrator) {
+                            match enrollment_owner(handle, client.as_ref()) {
+                                Ok(owner) => enroll_control_client(root, control, client, Some(&owner)),
+                                Err(reason) => Response::error(reason),
+                            }
+                        } else {
+                            enroll_control_client(root, control, client, None)
+                        }
                     }
                     Ok(command) => control.handle(
                         command,
@@ -177,19 +183,33 @@ fn enrollment_owner(
     handle: HANDLE,
     client: Option<&crate::security::ConnectedClient>,
 ) -> Result<String, String> {
-    use nessie_windows_common::{
-        custody::REJECTED,
-        process::{session_owner, Process},
-    };
+    use nessie_windows_common::process::{session_owner, Process};
+    const CLIENT: &str = "Windows could not verify the approving Nessie Computer app. Repair or update the installation.";
+    const OWNER: &str = "Windows could not verify the signed-in account approved for this connection.";
     use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
     let client = client
         .filter(|client| client.is_administrator)
-        .ok_or(REJECTED)?;
+        .ok_or(CLIENT)?;
     let mut pid = 0;
     if unsafe { GetNamedPipeClientProcessId(handle, &mut pid) } == 0 {
-        return Err(REJECTED.into());
+        return Err(CLIENT.into());
     }
-    let process = Process::open(pid)?;
+    // The virtual service account cannot normally inspect another session's
+    // elevated process or query its WTS login. Use the authenticated administrator
+    // for those two reads only. No client supplies an owner SID or session number.
+    use windows_sys::Win32::{Security::RevertToSelf, System::Pipes::ImpersonateNamedPipeClient};
+    if unsafe { ImpersonateNamedPipeClient(handle) } == 0 {
+        return Err(CLIENT.into());
+    }
+    let observed = Process::open(pid).map_err(|_| CLIENT).and_then(|process| {
+        let owner = session_owner(process.session).map_err(|_| OWNER)?;
+        Ok((process, owner))
+    });
+    if unsafe { RevertToSelf() } == 0 {
+        // Never continue servicing requests or write a marker as the administrator.
+        std::process::abort();
+    }
+    let (process, owner) = observed?;
     if process.sid != client.sid
         || !process.elevated
         || !process.alive()
@@ -198,12 +218,11 @@ fn enrollment_owner(
             .file_name()
             .is_some_and(|name| name.eq_ignore_ascii_case("nessie-executor-tray.exe"))
     {
-        return Err(REJECTED.into());
+        return Err(CLIENT.into());
     }
-    process.signed(option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU"))?;
-    let owner = session_owner(process.session)?;
+    process.signed(option_env!("NESSIE_DESKTOP_WINDOWS_SIGNER_EKU")).map_err(|_| CLIENT)?;
     if !process.alive() {
-        return Err(REJECTED.into());
+        return Err(CLIENT.into());
     }
     Ok(owner)
 }

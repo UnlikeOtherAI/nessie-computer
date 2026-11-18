@@ -20,7 +20,12 @@ pub const SERVICE_NOT_RUNNING: &str =
     "the service is not running — start Nessie Computer in Services";
 
 pub const NOT_ADMITTED: &str =
-    "this Windows account can’t use the Nessie Computer service yet — add this computer to a team to be admitted";
+    "Windows has not approved service access for this account. Try again from the signed-in account.";
+
+pub const NOT_TRUSTED: &str = "Windows could not verify the Nessie Computer service. Repair or update the installation and try again.";
+pub const UNREADABLE: &str = "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.";
+pub const BUSY: &str = "The service is busy. Try again in a moment.";
+pub const UNREACHABLE: &str = "Windows could not reach the Nessie Computer service. Check the service and try again.";
 
 /// The useful answers the service can give, plus an error it already worded.
 /// The tray never sees a path, a key, or a challenge unless it asked for a
@@ -47,9 +52,9 @@ fn unreachable(reason: Unreachable) -> String {
     match reason {
         Unreachable::NotRunning => SERVICE_NOT_RUNNING,
         Unreachable::NotAdmitted => NOT_ADMITTED,
-        Unreachable::NotTrusted => "something other than the signed Nessie Computer service is answering its pipe",
-        Unreachable::Busy => "the service is busy — try again in a moment",
-        Unreachable::Failed => "the service could not be reached",
+        Unreachable::NotTrusted => NOT_TRUSTED,
+        Unreachable::Busy => BUSY,
+        Unreachable::Failed => UNREACHABLE,
     }
     .to_owned()
 }
@@ -119,7 +124,7 @@ pub fn call(request: &serde_json::Value) -> Result<ServiceResponse, String> {
 /// not recognise is a failure, never an empty executor list.
 fn decode(answer: &str) -> Result<ServiceResponse, String> {
     let parsed: serde_json::Value = serde_json::from_str(answer.trim())
-        .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
+        .map_err(|_| UNREADABLE.to_owned())?;
     match parsed.get("status").and_then(serde_json::Value::as_str) {
         Some("inferenceConnections") => parsed.get("connections").cloned().map(ServiceResponse::InferenceConnections)
             .ok_or_else(|| "No inference connections were returned.".to_owned()),
@@ -139,19 +144,19 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             let executors = serde_json::from_value(
                 parsed.get("executors").cloned().unwrap_or(serde_json::Value::Null),
             )
-            .map_err(|_| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
+            .map_err(|_| UNREADABLE.to_owned())?;
             Ok(ServiceResponse::Status(executors))
         }
         Some("pairOk") => {
             let executor_id = parsed
                 .get("executorId")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
+                .ok_or_else(|| UNREADABLE.to_owned())?
                 .to_owned();
             let fingerprint = parsed
                 .get("fingerprint")
                 .and_then(serde_json::Value::as_str)
-                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?
+                .ok_or_else(|| UNREADABLE.to_owned())?
                 .to_owned();
             Ok(ServiceResponse::Pair { executor_id, fingerprint })
         }
@@ -159,20 +164,20 @@ fn decode(answer: &str) -> Result<ServiceResponse, String> {
             let description = parsed
                 .get("description")
                 .cloned()
-                .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned())?;
+                .ok_or_else(|| UNREADABLE.to_owned())?;
             Ok(ServiceResponse::Describe(description))
         }
         Some("removed") => parsed
             .get("signedOff")
             .and_then(serde_json::Value::as_bool)
             .map(|signed_off| ServiceResponse::Removed { signed_off })
-            .ok_or_else(|| "Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
+            .ok_or_else(|| UNREADABLE.to_owned()),
         Some("error") => Err(parsed
             .get("reason")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("the service refused the request")
             .to_owned()),
-        _ => Err("Nessie Computer couldn’t understand its service’s reply. Try again, or restart Nessie Computer.".to_owned()),
+        _ => Err(UNREADABLE.to_owned()),
     }
 }
 

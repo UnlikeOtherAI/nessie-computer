@@ -28,6 +28,17 @@ fn absolute_workspace() -> &'static str {
 }
 
 #[test]
+fn plan_pairing_accepts_no_caller_workspace_or_owner() {
+    let request = serde_json::json!({"command":"planPairingStart", "apiBaseUrl":NESSIE_API_BASE_URL, "executorId":EXECUTOR});
+    assert!(matches!(parse_request(&request.to_string()), Ok(Command::PlanPairingStart { .. })));
+    for field in ["workspaceRoot", "workspaceFolders", "sid", "replace"] {
+        let mut invalid = request.clone();
+        invalid[field] = serde_json::json!("caller supplied");
+        assert!(parse_request(&invalid.to_string()).is_err());
+    }
+}
+
+#[test]
 fn accepts_only_safe_executor_identifiers() {
     assert!(valid_identifier(EXECUTOR));
     for value in ["", "../state", "a/b", "a\\b", "a b", &"a".repeat(129)] {

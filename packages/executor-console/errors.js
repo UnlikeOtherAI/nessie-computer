@@ -31,7 +31,7 @@
   const sentence = (failure) => {
     const text = String(failure?.message ?? failure ?? '').trim()
     const native = NATIVE_REFUSAL.exec(text)
-    if (!native) return { text, code: null }
+    if (!native) return { text: windowsSetupMessages.get(text) ?? text, code: null }
     const code = native[1]
     return { text: t(WAITING_FOR_UPDATE.has(code) ? 'errors.nativeUpdate' : 'errors.nativeRefused'), code }
   }

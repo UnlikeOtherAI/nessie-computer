@@ -52,6 +52,7 @@ pub enum Command {
     },
     EnrollControlClient,
     Pair(PairCommand),
+    PlanPairingStart { api_base_url: String, executor_id: String },
     PairingStart {
         api_base_url: String,
         workspace_root: String,
@@ -148,6 +149,7 @@ enum Request {
         enrollment_id: String,
         workspace_root: String,
     },
+    PlanPairingStart { api_base_url: String, executor_id: String },
     PairingStart {
         api_base_url: String,
         workspace_root: String,
@@ -314,6 +316,10 @@ pub fn parse_request(line: &str) -> Result<Command, String> {
         } => Ok(Command::PersonalAttestation {
             executor_id: identifier(executor_id, "team id")?,
             operation: crate::service_chatgpt::parse_operation(operation)?,
+        }),
+        Request::PlanPairingStart { api_base_url, executor_id } => Ok(Command::PlanPairingStart {
+            api_base_url: approved_api_base_url(&api_base_url)?,
+            executor_id: identifier(executor_id, "team id")?,
         }),
         Request::PairingStart {
             api_base_url,

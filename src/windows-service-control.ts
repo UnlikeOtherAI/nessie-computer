@@ -31,7 +31,7 @@ const UNREACHABLE: Record<ServiceUnreachableReason, string> = {
   notRunning: 'The Nessie Computer service isn\'t running. Start it in Windows Services, or restart the computer.',
   notAdmitted: 'This Windows account can\'t use the Nessie Computer service yet. It can once you add a ChatGPT plan '
     + 'or connect a team through the service.',
-  notTrusted: 'Something other than the Nessie Computer service answered on its control channel, so nothing was sent.',
+  notTrusted: 'Windows could not verify the Nessie Computer service. Repair or update Nessie Computer and try again.',
   busy: 'The Nessie Computer service is busy. Try again in a moment.',
   failed: 'The Nessie Computer service couldn\'t be reached. Try again, or restart the computer.',
 }
@@ -150,7 +150,7 @@ export const serviceRequests = {
   remove: (executorId: string): ServiceRequest => ({ command: 'remove', executorId }),
   /** A connected team's pairing status, or with no id the pairing the service has open. */
   pairingStatus: (executorId?: string): ServiceRequest => ({ command: 'pairingStatus', executorId: executorId ?? null }),
-  pairingStart: (apiBaseUrl: string, workspaceRoot: string): ServiceRequest => (
-    { command: 'pairingStart', apiBaseUrl, workspaceRoot, replace: false }),
+  planPairingStart: (apiBaseUrl: string, executorId: string): ServiceRequest => (
+    { command: 'planPairingStart', apiBaseUrl, executorId }),
   pairingCancel: (): ServiceRequest => ({ command: 'pairingCancel' }),
 } as const
