@@ -98,7 +98,7 @@ window.nc.words.register('errors', {
 // service refusal verbatim so an installation of a different age can explain itself.
 const windowsSetupLanguages = ['en', 'cs', 'de', 'es', 'fr', 'it']
 const windowsSetupColumn = Math.max(0, windowsSetupLanguages.indexOf(document.documentElement.lang.split('-')[0]))
-const windowsSetupMessages = new Map([
+window.nc.windowsSetupMessages = new Map([
   [
     "Add the plan from the Windows account that is signed in.",
     "Přidejte tarif z účtu právě přihlášeného do Windows.",
