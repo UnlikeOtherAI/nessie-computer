@@ -23,6 +23,10 @@ Every problem in the **Needs you** strip comes with one button that fixes it, un
 Nessie Computer is already fixing it by itself. **Details**
 underneath shows the technical message, which helps if you contact support.
 
+If the team's reconnect was waiting for a finished settings save, Nessie Computer
+retries the save's cleanup on its next attempt. On Windows it can also restart
+a team after its previous process exits while Windows still holds its process record.
+
 ## Common problems
 
 ### I can't find the icon

@@ -49,6 +49,21 @@ for (const name of names) {
   })
 }
 
+test('an exited daemon with a retained Windows birth record can restart', async () => {
+  const f = await fixture()
+  const retained = { ...options, processes: {
+    identify: async (pid: number) => ({ pid, startedAt: pid === process.pid ? '100' : '10' }),
+    isAlive: (pid: number) => pid === process.pid,
+  } }
+  try {
+    await seed(f.directory, 'daemon.pid')
+    assert.equal(await executorProcessLeaseState(f.directory, 'daemon.pid', retained), 'dead')
+    const lease = await acquireExecutorProcessLease(f.directory, 'daemon.pid', retained)
+    assert.equal(await executorProcessLeaseState(f.directory, 'daemon.pid', retained), 'live')
+    await lease.release()
+  } finally { await f.clean() }
+})
+
 test('a paused stale reclaimer excludes competitors and release cannot erase a replacement', async () => {
   const f = await fixture()
   let resume!: () => void

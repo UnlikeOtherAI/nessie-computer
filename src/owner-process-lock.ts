@@ -137,8 +137,10 @@ const prepareLock = async (
       if (current === undefined && !processes.isAlive(claim.pid)) return 'dead'
       return await options.legacyOwnerAbsent?.(claim.pid, current?.startedAt) ? 'dead' : 'unknown'
     }
-    return current ? current.startedAt === claim.startedAt ? 'live' : 'dead'
-      : processes.isAlive(claim.pid) ? 'unknown' : 'dead'
+    // Windows can retain the birth time of an exited process while a handle is open.
+    if (current && current.startedAt !== claim.startedAt) return 'dead'
+    if (!processes.isAlive(claim.pid)) return 'dead'
+    return current ? 'live' : 'unknown'
   }
   return { canonicalDirectory, processes, bootReader, observe, generationState }
 }

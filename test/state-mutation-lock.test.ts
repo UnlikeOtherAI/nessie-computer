@@ -7,6 +7,7 @@ import test from 'node:test'
 
 import { ensureOwnerOnlyStateDirectory, secureOwnerOnlyStateFile } from '../src/state-security.js'
 import { withStateMutationLock } from '../src/state-store.js'
+import { verifyInferenceTestState } from './fixtures/local-inference-security.js'
 import { WINDOWS_STATE_HELPER_SKIP } from './windows-prerequisites.js'
 
 const LOCK = 'executor-state-mutation.lock'
@@ -75,3 +76,28 @@ test('an old lock whose process number now belongs to something else is given up
       assert.equal(await withStateMutationLock(f.directory, async () => 'saved'), 'saved')
     } finally { other.kill(); await f.clean() }
   })
+
+test('a running daemon retries a finished settings save’s failed release on the next save', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'nessie-settings-retry-'))
+  let blockRead = false
+  const options = {
+    security: { platform: 'win32' as const, helper: async (...args: Parameters<typeof verifyInferenceTestState>) => {
+      if (blockRead && args[0] === 'verify-owner-only-file' && args[1] === join(directory, LOCK)) {
+        throw new Error('temporary verification failure')
+      }
+      return verifyInferenceTestState(...args)
+    } },
+    processes: { identify: async (pid: number) => ({ pid, startedAt: '100' }), isAlive: () => true },
+    kernelBootId: async () => '11111111-1111-4111-8111-111111111111',
+  }
+  try {
+    await ensureOwnerOnlyStateDirectory(directory, options.security)
+    const save = () => withStateMutationLock(directory, async () => 'saved', options)
+    await withStateMutationLock(directory, async () => { blockRead = true }, options)
+    assert.deepEqual(await readdir(directory), [LOCK])
+    await assert.rejects(save)
+    blockRead = false
+    assert.equal(await save(), 'saved')
+    assert.deepEqual(await readdir(directory), [])
+  } finally { await rm(directory, { recursive: true, force: true }) }
+})
