@@ -32,6 +32,9 @@ test('the Intel CLI archive and formula select Monterey and the Intel runtime', 
   assert.match(formula, /darwin_x64\.tar\.gz/)
   assert.match(formula, /depends_on arch: :x86_64/)
   assert.match(formula, /depends_on macos: :monterey/)
+  const combined = homebrewFormula('1.2.3', 'b'.repeat(64), 'arm64', digest)
+  assert.match(combined, /on_arm do[\s\S]*?darwin_arm64\.tar\.gz[\s\S]*?on_intel do[\s\S]*?darwin_x64\.tar\.gz/)
+  assert.ok(candidateFiles('darwin', '1.2.3', true).includes('nessie-executor_1.2.3_darwin_x64.tar.gz.sha256'))
   assert.throws(() => archiveName('1.2.3', 'armv7'))
 })
 

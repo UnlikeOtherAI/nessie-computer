@@ -27,18 +27,27 @@ export const archiveName = (version, architecture = 'arm64') => {
   return `nessie-executor_${releaseVersion(version)}_darwin_${architecture}.tar.gz`
 }
 
-export const homebrewFormula = (version, sha256, architecture = 'arm64') => {
+export const homebrewFormula = (version, sha256, architecture = 'arm64', intelSha256) => {
   releaseVersion(version)
-  if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('The macOS archive needs its SHA-256 digest.')
+  const source = (arch, digest) => {
+    if (!/^[a-f0-9]{64}$/.test(digest)) throw new Error('The macOS archive needs its SHA-256 digest.')
+    return [
+      `url "${RELEASES}/download/${releaseTag(version)}/${archiveName(version, arch)}"`,
+      `sha256 "${digest}"`,
+      `depends_on arch: :${arch === 'x64' ? 'x86_64' : 'arm64'}`,
+      `depends_on macos: :${arch === 'x64' ? 'monterey' : 'sequoia'}`,
+    ]
+  }
+  const requirements = intelSha256 === undefined ? source(architecture, sha256).join('\n  ') : [
+    'on_arm do', ...source('arm64', sha256).map(line => `  ${line}`), 'end',
+    'on_intel do', ...source('x64', intelSha256).map(line => `  ${line}`), 'end',
+  ].join('\n  ')
   return `class NessieExecutor < Formula
   desc "Let agents in your Nessie team use this computer"
   homepage "https://nessie.works/docs/executor-setup"
-  url "${RELEASES}/download/${releaseTag(version)}/${archiveName(version, architecture)}"
+  ${requirements}
   version "${version}"
-  sha256 "${sha256}"
   license "FSL-1.1-ALv2"
-  depends_on arch: :${architecture === 'x64' ? 'x86_64' : 'arm64'}
-  depends_on macos: :${architecture === 'x64' ? 'monterey' : 'sequoia'}
   depends_on "git"
   depends_on "tmux"
 

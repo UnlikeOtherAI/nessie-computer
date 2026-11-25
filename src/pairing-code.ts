@@ -42,11 +42,15 @@ export type PairingCodeView = {
  * What a person is told when a pairing request fails. Nessie limits how many
  * codes one network may ask for; that is a wait, not a connection problem.
  */
-export const pairingFailure = (error: unknown): Error => new Error(
-  error instanceof ExecutorApiError && error.status === 429
-    ? 'Nessie has had too many pairing attempts from this network. Wait a few minutes, then try again.'
-    : 'Nessie could not complete pairing. Check your connection and try again.',
-)
+export const pairingFailure = (error: unknown): Error => {
+  if (error instanceof ExecutorApiError) {
+    if (error.status === 429) return new Error('Nessie has had too many pairing attempts from this network. Wait a few minutes, then try again.')
+    if (error.status === 400 && error.code === 'VALIDATION_ERROR' && error.message.startsWith('Executor hosts require ')) {
+      return new Error('This Nessie server does not support your operating system. Check the server version before pairing.')
+    }
+  }
+  return new Error('Nessie could not complete pairing. Check your connection and try again.')
+}
 
 export const postPairing: ExecutorApiClient['pairing'] = async (origin, action, body) => {
   try { return await executorApi.pairing(origin, action, body) } catch (error) { throw pairingFailure(error) }
