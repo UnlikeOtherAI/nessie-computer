@@ -93,6 +93,33 @@ for (const boundary of ['before', 'after']) {
 }
 
 
+test('the next model inventory update retries a failed release by the running daemon', async () => {
+  const { directory, clean } = await fixture()
+  const path = join(directory, 'mutation.lock')
+  let interrupted = false
+  const helper: typeof verifyInferenceTestState = async (...args) => {
+    if (interrupted && args[0] === 'verify-owner-only-file' && args[1] === path) {
+      throw new Error('temporary verification failure')
+    }
+    return verifyInferenceTestState(...args)
+  }
+  const options = { processes: inspector(), security: { ...security, helper } }
+  const acquire = () => acquirePhysicalInferenceStateLock(directory, options)
+  try {
+    const first = await acquire()
+    await assert.rejects(acquire(), /admission_busy/u)
+    interrupted = true
+    await assert.rejects(first.release())
+    await assert.rejects(acquire())
+    interrupted = false
+    const next = await acquire()
+    await first.release()
+    await assert.rejects(acquire(), /admission_busy/u)
+    await next.release()
+    await assert.rejects(readFile(path), { code: 'ENOENT' })
+  } finally { await clean() }
+})
+
 test('historical raw PID recovery is physical-only and requires positive kernel absence', async () => {
   const { directory, clean } = await fixture()
   try {

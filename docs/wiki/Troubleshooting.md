@@ -157,6 +157,13 @@ Team settings and history are kept.
 No extra sign-in or administrator prompt is added beyond the installer itself.
 Do not delete the state folder or stop the unrelated process.
 
+### The computer is online but its local model stays offline
+
+If your model server answers on the computer and Nessie still shows the model
+as offline, update Nessie Computer. An interrupted inventory update on Windows
+could prevent later updates from reaching Nessie. The running app now retries
+cleanup and reports the next inventory using the existing team connection.
+
 ### A coding session stops while idle on Windows
 
 Update Nessie Computer if a Claude Code or Codex session becomes interrupted
