@@ -6,7 +6,16 @@ import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { appCask, stableAppTag, wingetManifests } from './app-manifests.mjs'
 import { candidateFiles, verifyCandidate } from './candidate.mjs'
-import { archiveName, homebrewFormula, linuxPackage, releaseVersion } from './release-plan.mjs'
+import { archiveName, assertMontereyDeploymentTarget, homebrewFormula, linuxPackage, releaseVersion } from './release-plan.mjs'
+
+test('both forms of Mach-O minimum version must admit macOS 12.0', () => {
+  const command = (version) => `cmd LC_BUILD_VERSION\n cmdsize 32\n platform 1\n minos ${version}\n sdk 15.4\n`
+  assertMontereyDeploymentTarget(command('12.0'))
+  assertMontereyDeploymentTarget('cmd LC_VERSION_MIN_MACOSX\n cmdsize 16\n version 10.15\n sdk 12.0')
+  for (const text of ['', command('12.1'), command('13.5')]) {
+    assert.throws(() => assertMontereyDeploymentTarget(text), /must target macOS 12.0/)
+  }
+})
 
 test('release input cannot change artifact paths or insert formula code', () => {
   for (const value of ['', '../1.0.0', '1.0', 'v1.0.0', '01.0.0', '1.0.0";system("id")']) {
@@ -14,6 +23,16 @@ test('release input cannot change artifact paths or insert formula code', () => 
   }
   assert.throws(() => homebrewFormula('1.0.0', 'unverified'))
   assert.equal(archiveName('1.2.3'), 'nessie-executor_1.2.3_darwin_arm64.tar.gz')
+})
+
+test('the Intel CLI archive and formula select Monterey and the Intel runtime', () => {
+  const digest = 'a'.repeat(64)
+  assert.equal(archiveName('1.2.3', 'x64'), 'nessie-executor_1.2.3_darwin_x64.tar.gz')
+  const formula = homebrewFormula('1.2.3', digest, 'x64')
+  assert.match(formula, /darwin_x64\.tar\.gz/)
+  assert.match(formula, /depends_on arch: :x86_64/)
+  assert.match(formula, /depends_on macos: :monterey/)
+  assert.throws(() => archiveName('1.2.3', 'armv7'))
 })
 
 test('the Homebrew formula installs nessie-computer beside the older nessie-executor', () => {

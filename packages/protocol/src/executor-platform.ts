@@ -55,8 +55,11 @@ export const EXECUTOR_MINIMUM_OS_MAJOR_VERSIONS: Readonly<
   windows: 19045,
 }
 
+export const minimumExecutorOSVersion = (os: ExecutorOperatingSystem, architecture: ExecutorArchitecture): number =>
+  os === 'macos' && architecture === 'x64' ? 12 : EXECUTOR_MINIMUM_OS_MAJOR_VERSIONS[os]
+
 export const EXECUTOR_OS_VERSION_REQUIREMENTS =
-  'Executor hosts require macOS 15+, Linux kernel 5+, or Windows build 19045+.'
+  'Executor hosts require macOS 12+ on Intel, macOS 15+ on Apple Silicon, Linux kernel 5+, or Windows build 19045+.'
 
 export const ExecutorPlatformSchema = z
   .object({
@@ -66,7 +69,7 @@ export const ExecutorPlatformSchema = z
   })
   .strict()
   .refine(
-    (platform) => platform.osMajorVersion >= EXECUTOR_MINIMUM_OS_MAJOR_VERSIONS[platform.os],
+    (platform) => platform.osMajorVersion >= minimumExecutorOSVersion(platform.os, platform.architecture),
     { message: EXECUTOR_OS_VERSION_REQUIREMENTS, path: ['osMajorVersion'] },
   )
 export type ExecutorPlatform = z.infer<typeof ExecutorPlatformSchema>
@@ -104,7 +107,7 @@ export const EXECUTOR_WORKSPACE_ONLY_PROFILES = ['workspace_sandbox'] as const
  * Every operation a host with no sandbox backend may still advertise: the
  * copy-on-write workspace bundle, plus the two MCP proxy operations.
  *
- * The MCP pair belongs here because it never boots a guest — it speaks to a
+ * The MCP pair belongs here because it never boots a guest â€” it speaks to a
  * server the host owner installed and the policy named. Gating it on a sandbox
  * backend would refuse the whole point of it on exactly the machine that has
  * the software: a Mac with no VM backend and Kelpie installed.

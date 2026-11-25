@@ -28,9 +28,16 @@ test('macOS 15 on Apple Silicon keeps the Virtualization.framework backend', () 
   assert.equal(host.supervisor, 'service')
 })
 
-test('an Intel Mac and a pre-15 macOS are refused exactly as before', () => {
+test('the Intel CLI reports Monterey and offers operations that need no guest', () => {
+  const host = detectExecutorHost(probe({ architecture: 'x64', macosProductVersion: '12.7.6' }))
+  assert.deepEqual(host.platform, { architecture: 'x64', os: 'macos', osMajorVersion: 12 })
+  assert.equal(host.sandboxBackend, 'none')
+  assert.equal(host.supervisor, 'service')
+})
+
+test('macOS below the floor for its architecture is refused', () => {
   assert.throws(
-    () => detectExecutorHost(probe({ architecture: 'x64' })),
+    () => detectExecutorHost(probe({ architecture: 'x64', macosProductVersion: '11.7.10' })),
     /Set no execution capability/,
   )
   assert.throws(
@@ -158,7 +165,7 @@ test('the default probe reads this machine rather than a fixture', () => {
 
 test('macOS states its own version rather than having one derived from Darwin', () => {
   // The host this was written on: Darwin 27, macOS 27. The old arithmetic
-  // (Darwin − 9) called it macOS 18, a release that does not exist.
+  // (Darwin âˆ’ 9) called it macOS 18, a release that does not exist.
   assert.equal(
     detectExecutorHost(probe({ kernelRelease: '27.0.0', macosProductVersion: '27.0' }))
       .platform.osMajorVersion,

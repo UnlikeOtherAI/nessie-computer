@@ -13,20 +13,32 @@ export const releaseVersion = (value = process.env.NESSIE_EXECUTOR_VERSION) => {
 }
 
 export const releaseTag = (version) => `executor-v${releaseVersion(version)}`
-export const archiveName = (version) => `nessie-executor_${releaseVersion(version)}_darwin_arm64.tar.gz`
 
-export const homebrewFormula = (version, sha256) => {
+export const assertMontereyDeploymentTarget = (loadCommands) => {
+  const target = /\bcmd LC_BUILD_VERSION\b[^\n]*\n(?:(?!\s*cmd\s)[^\n]*\n)*?\s*minos (\d+(?:\.\d+){0,2})\s*$/mu.exec(loadCommands)
+    ?? /\bcmd LC_VERSION_MIN_MACOSX\s+cmdsize \d+\s+version (\d+(?:\.\d+){0,2})\s*$/mu.exec(loadCommands)
+  const [major, minor = 0, patch = 0] = (target?.[1] ?? '').split('.').map(Number)
+  if (!major || major > 12 || (major === 12 && (minor > 0 || patch > 0))) {
+    throw new Error(`Intel CLI binaries must target macOS 12.0 or earlier. Found ${target?.[1] ?? 'no deployment target'}.`)
+  }
+}
+export const archiveName = (version, architecture = 'arm64') => {
+  if (!['arm64', 'x64'].includes(architecture)) throw new Error('Unsupported macOS CLI architecture.')
+  return `nessie-executor_${releaseVersion(version)}_darwin_${architecture}.tar.gz`
+}
+
+export const homebrewFormula = (version, sha256, architecture = 'arm64') => {
   releaseVersion(version)
   if (!/^[a-f0-9]{64}$/.test(sha256)) throw new Error('The macOS archive needs its SHA-256 digest.')
   return `class NessieExecutor < Formula
   desc "Let agents in your Nessie team use this computer"
   homepage "https://nessie.works/docs/executor-setup"
-  url "${RELEASES}/download/${releaseTag(version)}/${archiveName(version)}"
+  url "${RELEASES}/download/${releaseTag(version)}/${archiveName(version, architecture)}"
   version "${version}"
   sha256 "${sha256}"
   license "FSL-1.1-ALv2"
-  depends_on arch: :arm64
-  depends_on macos: :sequoia
+  depends_on arch: :${architecture === 'x64' ? 'x86_64' : 'arm64'}
+  depends_on macos: :${architecture === 'x64' ? 'monterey' : 'sequoia'}
   depends_on "git"
   depends_on "tmux"
 

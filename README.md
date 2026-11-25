@@ -24,6 +24,8 @@ control from the command line.
 
    Every computer needs its own copy. [Install guide](https://github.com/UnlikeOtherAI/nessie-computer/blob/main/docs/wiki/Install-Nessie-Computer.md)
 
+   On an Intel Mac running macOS Monterey 12 or later, use the [command line](CONTRIBUTING.md#intel-mac-command-line).
+
 2. **Add a team.** Open Nessie Computer. It
    shows an 8-digit pairing code. In Nessie, open **Computers**, choose
    **Add a computer** and enter the code. Nessie shows this computer's name;

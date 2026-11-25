@@ -15,8 +15,8 @@ differ; do not assume that the chat app includes this standalone app.
 
 ## Mac
 
-Needs a Mac with Apple silicon (M1 or newer) and macOS 15 or later. Intel Macs
-are not supported yet.
+The menu bar app needs Apple silicon (M1 or newer) and macOS 15 or later.
+On an Intel Mac with macOS Monterey 12 or later, use the [command line](../../CONTRIBUTING.md#intel-mac-command-line).
 
 1. Download the `.dmg` file and open it.
 2. Drag **Nessie Computer** to **Applications**.
