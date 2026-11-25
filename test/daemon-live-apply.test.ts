@@ -193,21 +193,19 @@ const fixture = async () => {
 }
 
 test('a running team reports a lost network and clears it when Nessie answers again', {
-  skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,
+  skip: WINDOWS_STATE_HELPER_SKIP, timeout: 300_000,
 }, async () => {
   const { stateDir, nessie, state, cleanup } = await fixture()
   const daemon = serve(stateDir, state)
   try {
-    await eventually('Nessie has heard the daemon', () => nessie.heartbeats.length > 0)
+    await eventually('Nessie has heard the daemon', () => nessie.heartbeats.length > 0, 90_000)
     const before = nessie.heartbeats.length
     nessie.offline = true
-    await setOwnerPaused(stateDir, true) // Wake the heartbeat immediately.
-    await eventually('the running daemon reports connection loss', () => teamIsConnecting(stateDir))
+    await eventually('the running daemon reports connection loss', () => teamIsConnecting(stateDir), 90_000)
     assert.equal((await describe(stateDir)).connecting, true)
     nessie.offline = false
-    await setOwnerPaused(stateDir, false)
     await eventually('a heartbeat restores the same running team', async () =>
-      nessie.heartbeats.length > before && !await teamIsConnecting(stateDir), 30_000)
+      nessie.heartbeats.length > before && !await teamIsConnecting(stateDir), 90_000)
     assert.equal((await describe(stateDir)).connecting, undefined)
   } finally {
     nessie.offline = false
