@@ -43,7 +43,7 @@ import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.
 import { watchSessionChanges } from './session-change-watch.js'
 import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
-import { reportedSoftwareStatus, requestSoftwareUpdate } from './updates/native-client.js'
+import { heartbeatSoftwareReader, requestSoftwareUpdate } from './updates/native-client.js'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
 const CODING_SESSION_SHUTDOWN_BUDGET_MS = 5_000
@@ -189,10 +189,11 @@ export const serveExecutor = async (
         console.error('[nessie-executor] folder sync failed:', error instanceof Error ? error.message : String(error))
       },
     })
+    const readSoftware = heartbeatSoftwareReader()
     const heartbeat = createNonOverlappingExecutorTask(async () => {
       try {
-        const software = await reportedSoftwareStatus()
-        if (software.canInstall && software.draining !== undefined) {
+        const software = await readSoftware()
+        if (software?.canInstall && software.draining !== undefined) {
           drainingForUpdate = software.draining && software.installedVersion !== software.targetVersion
           await settleLocalInference()
         }

@@ -66,7 +66,7 @@
   const load = async (request = { operation: 'status' }) => {
     if (busy) return
     busy = true
-    const readingHelper = request.operation === 'status' && window.executorNative.platform === 'macos'
+    const readingHelper = request.operation === 'status'
     waitingForHelper = readingHelper && !status
     const slow = readingHelper ? setTimeout(() => { waitingForHelper = true; render() }, 1500) : null
     render()

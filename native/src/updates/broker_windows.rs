@@ -204,14 +204,16 @@ fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
                 }
                 next_worker_check = Instant::now() + Duration::from_secs(3);
             }
+            // Keep the pipe available while active inspections finish.
+            if active.load(Ordering::Acquire) >= 16 {
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
             match accept_state(file.as_raw_handle().cast())? {
                 Accept::Connected => break,
                 Accept::Abandoned => continue 'accept,
                 Accept::Listening => std::thread::sleep(Duration::from_millis(50)),
             }
-        }
-        if active.load(Ordering::Acquire) >= 16 {
-            continue;
         }
         active.fetch_add(1, Ordering::AcqRel);
         let count = Arc::clone(&active);
@@ -223,7 +225,7 @@ fn serve(stopped: Arc<AtomicBool>) -> Result<(), String> {
     Ok(())
 }
 
-fn connection(mut file: File) -> Result<(), String> {
+fn connection(file: File) -> Result<(), String> {
     use std::os::windows::io::AsRawHandle;
     let deadline = Instant::now() + Duration::from_secs(5);
     let mut bytes = Vec::new();
@@ -282,12 +284,19 @@ fn connection(mut file: File) -> Result<(), String> {
                 .map_err(str::to_owned)
         });
     let value = response.unwrap_or_else(|code| serde_json::json!({"error":code}));
-    let mut response = serde_json::to_vec(&value).map_err(|_| ERROR)?;
+    send_response(file, &value)
+}
+
+fn send_response(mut file: File, value: &serde_json::Value) -> Result<(), String> {
+    use std::os::windows::io::AsRawHandle;
+    let mut response = serde_json::to_vec(value).map_err(|_| ERROR)?;
     response.push(b'\n');
     file.write_all(&response).map_err(|_| ERROR)?;
     // Wait for the reader to consume the bounded answer before disconnecting;
     // closing a named pipe early discards unread output. A client ACK closes it.
-    while Instant::now() < deadline {
+    let read_receipt_deadline = Instant::now() + Duration::from_secs(5);
+    let mut buffer = [0_u8; 1];
+    while Instant::now() < read_receipt_deadline {
         match nessie_windows_common::pipe_io::read(&file, &mut buffer) {
             Ok(0) => break,
             Ok(_) => break,
@@ -390,6 +399,34 @@ mod pipe_tests {
         assert_eq!(accept_state(server.0).unwrap(), Accept::Connected);
         drop(client);
         assert_eq!(accept_state(server.0).unwrap(), Accept::Abandoned);
+    }
+
+    #[test]
+    fn a_late_status_reply_remains_readable_until_the_client_consumes_it() {
+        use std::io::{Read, Write};
+        let name = wide(&format!(r"\\.\pipe\NessieLateStatus-{}", std::process::id()));
+        let pipe = unsafe { CreateNamedPipeW(name.as_ptr(), PIPE_ACCESS_DUPLEX,
+            PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_NOWAIT | PIPE_REJECT_REMOTE_CLIENTS,
+            1, 4096, 4096, 0, std::ptr::null()) };
+        assert_ne!(pipe, INVALID_HANDLE_VALUE);
+        let server = unsafe { File::from_raw_handle(pipe.cast()) };
+        let client = unsafe { CreateFileW(name.as_ptr(), nessie_windows_common::CONTROL_PIPE_CLIENT_ACCESS,
+            0, std::ptr::null(), OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, std::ptr::null_mut()) };
+        assert_ne!(client, INVALID_HANDLE_VALUE);
+        let mut client = unsafe { File::from_raw_handle(client.cast()) };
+        assert_eq!(accept_state(pipe).unwrap(), Accept::Connected);
+        let worker = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(5100));
+            send_response(server, &serde_json::json!({"phase":"idle"})).unwrap();
+        });
+        // The five seconds allowed to receive the request expired before
+        // verification completed. The client still gets to read the answer.
+        std::thread::sleep(Duration::from_millis(5300));
+        let mut bytes = [0; 128];
+        let length = client.read(&mut bytes).unwrap();
+        assert_eq!(&bytes[..length], b"{\"phase\":\"idle\"}\n");
+        client.write_all(b"1").unwrap();
+        worker.join().unwrap();
     }
 
     #[test]

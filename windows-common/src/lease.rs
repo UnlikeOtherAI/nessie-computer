@@ -4,6 +4,17 @@ use std::{fs, io::Read, path::Path};
 
 const DAEMON_LEASE_FILE: &str = "daemon.pid";
 
+/// Presentation only. Supervisors still own the process state and restart policy.
+pub fn displayed_daemon_status<'a>(actual: &'a str, state_dir: &Path) -> &'a str {
+    if actual == "running" && fs::symlink_metadata(state_dir.join("daemon-connecting"))
+        .is_ok_and(|entry| entry.is_file())
+    {
+        "starting"
+    } else {
+        actual
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum DaemonLease {
     Absent,

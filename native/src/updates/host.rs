@@ -13,13 +13,31 @@ pub(super) mod platform;
 #[path = "host_unix.rs"]
 pub(super) mod platform;
 
+type InstallationStatus = UpdateResult<(nessie_executor_updater::coordinator::Installed, bool)>;
+
+/// Overlapping status callers share the running verification. A later poll,
+/// installation or launch never relies on a cached verification.
+fn shared_installation_status() -> InstallationStatus {
+    use std::sync::{Arc, Mutex, OnceLock, Weak};
+    static READING: Mutex<Weak<OnceLock<InstallationStatus>>> = Mutex::new(Weak::new());
+    let flight = {
+        let mut active = READING.lock().map_err(|_| "update.installed_release_unverified")?;
+        match active.upgrade().filter(|flight| flight.get().is_none()) {
+            Some(flight) => flight,
+            None => {
+                let flight = Arc::new(OnceLock::new());
+                *active = Arc::downgrade(&flight);
+                flight
+            }
+        }
+    };
+    flight.get_or_init(platform::read_installation_status).clone()
+}
+
 pub struct Host;
 impl Installer for Host {
     fn installation_status(&self) -> UpdateResult<(Installed, bool)> {
-        #[cfg(unix)]
-        { platform::installation_status() }
-        #[cfg(windows)]
-        { Ok((self.installed()?, self.target().is_ok())) }
+        shared_installation_status()
     }
     fn set_draining(&self, draining: bool, restart_ready: bool) -> UpdateResult<()> {
         #[cfg(windows)]

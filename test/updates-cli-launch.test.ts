@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { setImmediate } from 'node:timers/promises'
 import test from 'node:test'
+import { heartbeatSoftwareReader } from '../src/updates/native-client.js'
 import { offerUpdateAtLaunch } from '../src/updates/cli.js'
 import type { ExecutorLocalUpdateStatus } from '@nessie/executor-protocol'
 
@@ -35,4 +36,21 @@ test('coordinator failure and an already active update do not change ordinary ou
   offerUpdateAtLaunch(['teams'], { terminal: true, check: async () => ({ ...available, phase: 'downloading' }), write })
   offerUpdateAtLaunch(['teams'], { terminal: true, check: async () => ({ ...available, notify: false }), write })
   await setImmediate()
+})
+
+test('heartbeats can proceed during one slow status read and consume its verified result once', async () => {
+  let reads = 0
+  let finish!: (status: ExecutorLocalUpdateStatus) => void
+  const status = heartbeatSoftwareReader(() => {
+    reads += 1
+    return new Promise<ExecutorLocalUpdateStatus>((resolve) => { finish = resolve })
+  }, 1)
+  assert.equal(await status(), undefined)
+  assert.equal(await status(), undefined)
+  assert.equal(reads, 1)
+  finish(available)
+  assert.equal(await status(), available)
+  assert.equal(await status(), undefined)
+  assert.equal(reads, 2)
+  finish(available)
 })

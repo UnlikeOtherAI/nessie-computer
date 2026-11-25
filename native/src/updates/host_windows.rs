@@ -19,3 +19,7 @@ pub(in crate::updates) use health::{confirm_restarted, observe_daemon};
 pub(in crate::updates) use package::{replace_when_clear, verify_publishers};
 pub(in crate::updates) use runtime::{initialize, installed, target, verify_worker, worker_image};
 pub(in crate::updates) use runtime::uninstall;
+
+pub(super) fn read_installation_status() -> super::InstallationStatus {
+    Ok((installed()?, target().is_ok()))
+}
