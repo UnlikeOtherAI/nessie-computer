@@ -274,6 +274,12 @@ process number may since belong to another program. A lock that cannot be read
 still refuses the update. `test/state-mutation-lock.test.ts` covers an
 interrupted update, a running one and a reused process number.
 
+If releasing a finished settings save fails, the same daemon retries the
+original release before its next save. The release checks the original file and
+token again. After a daemon exits, Windows can still report its creation time
+while another handle is open. A matching creation time and confirmed process
+absence allow the usual generation-checked recovery to start its replacement.
+
 Legacy PID-only lifecycle records contain no birth. On Windows a bounded,
 read-only kernel/WMI check can additionally prove that the PID now belongs to a
 different OS principal than the owner-only state. It checks the process birth
