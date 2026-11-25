@@ -151,8 +151,8 @@ the tab and the team dropdown already name what is shown.
   every tab and only while something waits: program requests with **Allow
   once** / **Always allow {program}** / **Don't allow** inline, a team that is
   not connected with its one remedy (`nc.failure.render`), stuck updates
-  (**Restart updates**) and Documents waiting for a decision (**Open
-  Documents**). Read every 5 s; `nc.needs.refresh()` asks
+  (**Restart updates**) and pending document sync requests (**Details**, **Allow**, **Decline**) and other
+  document issues (**Open Documents**). Read every 5 s; `nc.needs.refresh()` asks
   now; `nc.needs.syncAttention(state)` is the Documents rule.
 - `nc.pairing.open()` — opens Add another team and asks
   `https://api.nessie.works` for a code straight away (the dropdown's last

@@ -22,6 +22,7 @@
   let existing = null // { executorId, command, saved }
   let deletedFor = null
   let request = 0
+  let loading = null
   let painted = ''
   let savedTimer = null
   const busy = new Set()
@@ -245,6 +246,7 @@
     const executorId = nc.team.current()
     if (!executorId || !shown()) return
     const asked = ++request
+    loading = asked
     try {
       const state = await native.syncStatus(executorId)
       if (asked !== request) return
@@ -253,6 +255,8 @@
     } catch (error) {
       if (asked !== request) return
       failed = { executorId, message: nc.failure.sentence(error).text }
+    } finally {
+      if (loading === asked) loading = null
     }
     render()
   }
@@ -365,6 +369,23 @@
     const executorId = nc.team.current()
     return stateOf(executorId)?.manageUrl ? native.syncOpenNessie(executorId) : nc.invoke('executor_open_nessie', { executorId })
   }, byId('documents-open-nessie'))
+  // Use the row's team even when a different team is selected. Re-read after
+  // queued edits so an old banner cannot turn off a now-live folder.
+  nc.documents = {
+    decide: (executorId, reason, decision) => autosave.now(`${executorId}:documents-decision`, async () => {
+      const state = await native.syncStatus(executorId)
+      if (!state.enabled || state.state !== reason) return
+      if (decision === 'allow') {
+        await native.syncOpenNessie(executorId)
+        return
+      }
+      const result = await native.syncConfigure(executorId, {
+        command: 'configure', enabled: false, root: state.root ?? state.defaultRoot, acceptExistingFiles: false,
+      })
+      if (result.outcome !== 'applied') throw new Error(words.maybe(`refusals.${result.reason}`) ?? t('refusals.other'))
+      await load()
+    }),
+  }
   const decideHeld = (decision) => {
     const executorId = nc.team.current()
     const batchId = stateOf(executorId)?.heldDeletes?.batchId
@@ -435,5 +456,5 @@
   nc.view.onChange(refresh)
   nc.team.onChange(refresh)
   document.addEventListener('DOMContentLoaded', refresh)
-  setInterval(() => { if (shown()) void load() }, 5000)
+  setInterval(() => { if (shown() && loading === null) void load() }, 5000)
 })()

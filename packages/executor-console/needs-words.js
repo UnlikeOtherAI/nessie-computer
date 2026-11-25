@@ -3,6 +3,7 @@ window.nc.words.register('needs', {
   'en-GB': {
     request: '{agent} wants to run {program}', requestNoAgent: 'An agent wants to run {program}', inTeam: 'in {team}',
     allowOnce: 'Allow once', allowAlways: 'Always allow {program}', deny: 'Don’t allow',
+    allow: 'Allow', decline: 'Decline',
     documents: 'Documents for {team}: {reason}', openDocuments: 'Open Documents',
     reasons: { needs_attention: 'files to check', root_missing: 'folder missing', disk_full: 'disk full',
       needs_reauthorization: 'allow it in Nessie', waiting_for_confirmation: 'allow it in Nessie', held: 'deleted files wait for you' },
@@ -11,6 +12,7 @@ window.nc.words.register('needs', {
   'en-US': {
     request: '{agent} wants to run {program}', requestNoAgent: 'An agent wants to run {program}', inTeam: 'in {team}',
     allowOnce: 'Allow once', allowAlways: 'Always allow {program}', deny: 'Don’t allow',
+    allow: 'Allow', decline: 'Decline',
     documents: 'Documents for {team}: {reason}', openDocuments: 'Open Documents',
     reasons: { needs_attention: 'files to check', root_missing: 'folder missing', disk_full: 'disk full',
       needs_reauthorization: 'allow it in Nessie', waiting_for_confirmation: 'allow it in Nessie', held: 'deleted files wait for you' },
@@ -19,6 +21,7 @@ window.nc.words.register('needs', {
   cs: {
     request: '{agent} chce spustit {program}', requestNoAgent: 'Agent chce spustit {program}', inTeam: 'v týmu {team}',
     allowOnce: 'Povolit jednou', allowAlways: 'Vždy povolit {program}', deny: 'Nepovolit',
+    allow: 'Povolit', decline: 'Odmítnout',
     documents: 'Dokumenty týmu {team}: {reason}', openDocuments: 'Otevřít Dokumenty',
     reasons: { needs_attention: 'soubory ke kontrole', root_missing: 'složka chybí', disk_full: 'disk je plný',
       needs_reauthorization: 'povolte to v Nessie', waiting_for_confirmation: 'povolte to v Nessie', held: 'smazané soubory čekají na vás' },
@@ -27,6 +30,7 @@ window.nc.words.register('needs', {
   de: {
     request: '{agent} möchte {program} ausführen', requestNoAgent: 'Ein Agent möchte {program} ausführen', inTeam: 'in {team}',
     allowOnce: 'Einmal erlauben', allowAlways: '{program} immer erlauben', deny: 'Nicht erlauben',
+    allow: 'Erlauben', decline: 'Ablehnen',
     documents: 'Dokumente von {team}: {reason}', openDocuments: 'Dokumente öffnen',
     reasons: { needs_attention: 'Dateien zu prüfen', root_missing: 'Ordner fehlt', disk_full: 'Datenträger voll',
       needs_reauthorization: 'in Nessie erlauben', waiting_for_confirmation: 'in Nessie erlauben', held: 'gelöschte Dateien warten auf Sie' },
@@ -35,6 +39,7 @@ window.nc.words.register('needs', {
   es: {
     request: '{agent} quiere ejecutar {program}', requestNoAgent: 'Un agente quiere ejecutar {program}', inTeam: 'en {team}',
     allowOnce: 'Permitir una vez', allowAlways: 'Permitir siempre {program}', deny: 'No permitir',
+    allow: 'Permitir', decline: 'Rechazar',
     documents: 'Documentos de {team}: {reason}', openDocuments: 'Abrir Documentos',
     reasons: { needs_attention: 'archivos por revisar', root_missing: 'falta la carpeta', disk_full: 'disco lleno',
       needs_reauthorization: 'permítelo en Nessie', waiting_for_confirmation: 'permítelo en Nessie', held: 'archivos eliminados esperan tu decisión' },
@@ -43,6 +48,7 @@ window.nc.words.register('needs', {
   fr: {
     request: '{agent} veut lancer {program}', requestNoAgent: 'Un agent veut lancer {program}', inTeam: 'dans {team}',
     allowOnce: 'Autoriser une fois', allowAlways: 'Toujours autoriser {program}', deny: 'Refuser',
+    allow: 'Autoriser', decline: 'Refuser',
     documents: 'Documents de {team} : {reason}', openDocuments: 'Ouvrir Documents',
     reasons: { needs_attention: 'des fichiers à vérifier', root_missing: 'dossier introuvable', disk_full: 'disque plein',
       needs_reauthorization: 'autorisez-le dans Nessie', waiting_for_confirmation: 'autorisez-le dans Nessie', held: 'des fichiers supprimés attendent votre décision' },
@@ -51,6 +57,7 @@ window.nc.words.register('needs', {
   it: {
     request: '{agent} vuole eseguire {program}', requestNoAgent: 'Un agente vuole eseguire {program}', inTeam: 'in {team}',
     allowOnce: 'Consenti una volta', allowAlways: 'Consenti sempre {program}', deny: 'Non consentire',
+    allow: 'Consenti', decline: 'Rifiuta',
     documents: 'Documenti di {team}: {reason}', openDocuments: 'Apri Documenti',
     reasons: { needs_attention: 'file da controllare', root_missing: 'cartella mancante', disk_full: 'disco pieno',
       needs_reauthorization: 'consentilo in Nessie', waiting_for_confirmation: 'consentilo in Nessie', held: 'file eliminati attendono la tua decisione' },

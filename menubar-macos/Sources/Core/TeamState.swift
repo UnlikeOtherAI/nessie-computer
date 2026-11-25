@@ -102,8 +102,8 @@ public struct TeamSnapshot: Equatable, Sendable {
     /// paused team whose daemon is restarting is still paused.
     public var activity: TeamActivity {
         if paused { return .paused }
-        if daemon == .running { return .working }
-        return connecting ? .connecting : .notConnected
+        if connecting { return .connecting }
+        return daemon == .running ? .working : .notConnected
     }
 
     /// The one thing about this team that only its owner can settle, if any.

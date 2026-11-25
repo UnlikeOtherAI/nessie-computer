@@ -24,6 +24,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     await installRendererHost(context, host, { paired: 1 })
     await context.addInitScript((state) => {
       if (state === 'unavailable') window.updateUnavailable = true
+      if (state === 'slow') window.holdUpdateStatus = new Promise((resolve) => { window.releaseStatus = resolve })
       if (state !== 'idle') Object.assign(window.updateStatus, { availableVersion: '1.0.1', automatic: false })
       if (state === 'prompt') Object.assign(window.updateStatus, { phase: 'available', notify: true })
       else if (['downloading', 'waiting', 'installing', 'restarting'].includes(state)) {
@@ -48,6 +49,7 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
       await route.fulfill({ body, contentType: file.endsWith('.js') ? 'text/javascript'
         : file.endsWith('.css') ? 'text/css' : 'text/html' })
     })
+    if (state === 'slow') await page.clock.install()
     await page.goto('http://localhost:5875')
     if (state === 'prompt' && (!before || copyOnly)) {
       // The native notification opens Settings before presenting the alert.
@@ -55,6 +57,27 @@ export const verifySoftwareUpdates = async (browser, ui, files, root) => {
     } else await page.getByRole('tab').last().click() // Settings, in whichever language the page speaks
     if (!before || copyOnly) await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_update_control'))
     return { context, page, errors }
+  }
+  if (!before && !setupOnly && !bootstrapOnly && !copyOnly) {
+    const { context, page, errors } = await open({ host: 'macos', state: 'slow' })
+    await page.locator('#update-status').getByText('Waiting for the update helper to report the installed version…').waitFor()
+    await page.clock.fastForward(38_000)
+    assert.equal(await page.locator('[data-key="updates:restart"]').count(), 0)
+    await page.evaluate(() => {
+      window.updateStatus.code = 'update.check_failed'
+      window.updateStatus.phase = 'failed'
+      window.releaseStatus()
+    })
+    await page.locator('#update-status').getByText(/will check again automatically/).waitFor()
+    await page.evaluate(() => Object.assign(window.updateStatus, { phase: 'idle', code: null, availableVersion: null }))
+    // The next ordinary poll recovers without an update or restart command.
+    await page.clock.fastForward(15_000)
+    await page.locator('#update-status').getByText('You’re up to date.').waitFor()
+    const operations = await page.evaluate(() => window.calls.filter((call) => call.command === 'executor_update_control')
+      .map((call) => call.args.request.operation))
+    assert.ok(operations.every((operation) => operation === 'status'))
+    assert.deepEqual(errors, [])
+    await context.close()
   }
   for (const host of setupOnly ? ['macos'] : ['windows', 'macos']) {
     for (const width of [640, 440]) {

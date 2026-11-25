@@ -11,6 +11,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(Clone)]
 pub struct Installed {
     pub version: String,
     pub source_commit: String,

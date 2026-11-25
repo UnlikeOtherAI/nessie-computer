@@ -13,6 +13,10 @@
 ## Software updates
 
 Settings shows the **Installed version** and whether a newer one is available.
+A team shows **Connecting…** while it starts. On a Mac, it also shows
+**Connecting…** if it loses contact with Nessie. When Nessie answers again,
+the team returns to **Working**. If the update catalogue is
+unreachable, the update helper checks again automatically.
 
 - **Install updates automatically:** when on, updates install by themselves.
   They wait for agents' work to finish first. Your teams, access and sign-ins
@@ -40,7 +44,10 @@ macOS still refuses, Login Items opens: switch Nessie Computer on there.
 If the window or Settings says **Updates are stuck — teams can't start**, the
 helper isn't answering. Nessie Computer restarts it by itself, and again later
 while it stays stuck: after 15 minutes, then less often, at least every four
-hours. **Restart updates** does it at once. Your teams, access and sign-ins stay
+hours. While the Mac is waiting for the helper to report the installed version,
+Settings shows that it is waiting. The app retries a failed status read automatically.
+A team that is already working can keep running during this check.
+**Restart updates** asks the app to restart the helper now. Your teams, access and sign-ins stay
 on the computer. When you install a newer Nessie Computer on a Mac, it restarts
 the helper by itself, so the helper picks up the new version.
 

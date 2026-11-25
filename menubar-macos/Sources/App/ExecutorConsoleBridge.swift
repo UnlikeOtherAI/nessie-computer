@@ -81,11 +81,11 @@ final class ExecutorConsoleBridge: NSObject, WKScriptMessageHandlerWithReply {
             guard let description = controller.model.description else { return nil }
             var row: [String: Any] = [
                 "executorId": description.executorId,
-                "daemonStatus": controller.model.daemon.rawValue,
+                "daemonStatus": controller.connecting ? "starting" : controller.model.daemon.rawValue,
                 "paused": description.isPaused,
                 "pendingProgramRequests": description.pendingProgramRequests ?? 0
             ]
-            if let failure = controller.failure {
+            if let failure = controller.failure, !controller.connecting {
                 var failed: [String: Any] = ["message": failure.message]
                 if let code = failure.code { failed["code"] = code }
                 row["failure"] = failed

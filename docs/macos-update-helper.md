@@ -444,7 +444,14 @@ Recovery now works from both ends without weakening a fence:
   helper's state.
 - **Monotonic for the app too.** Catalogue replacement refuses to put an older
   app over a newer hand-installed one (`update.downgrade_refused`), and the
-  status client now waits nine seconds.
+  Mac status client allows up to 90 seconds for a verified response, with a
+  95-second deadline for the app’s client process. Concurrent window and monitor
+  reads share one probe and count a failure once. Settings identifies a pending
+  read immediately on opening and after 1.5 seconds on later polls. When the
+  Unix broker is busy it leaves new connections queued. Overlapping status
+  checks share only the in-progress release inspection. Each request reads its
+  own journal and preferences. Daemon restart observations run when an update
+  is pending. Installation and launch checks retain their own verification.
 
 Source checks cover these with the live state as fixtures: 22 updater tests on
 macOS (two model the 8 November state and fail without the change), 51 native

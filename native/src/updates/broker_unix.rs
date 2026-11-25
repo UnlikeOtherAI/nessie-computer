@@ -79,9 +79,14 @@ pub(super) fn run() -> Result<(), String> {
         if supervisor.is_finished() {
             return supervisor.join().unwrap_or_else(|_| Err(ERROR.into()));
         }
+        // Leave connections queued until a handler is available. Closing an
+        // accepted socket here made overload look like a dead broker.
+        if active.load(Ordering::Acquire) >= 16 {
+            std::thread::sleep(Duration::from_millis(50));
+            continue;
+        }
         match listener.accept() {
             Ok((stream, _)) => {
-                if active.load(Ordering::Acquire) >= 16 { continue; }
                 active.fetch_add(1, Ordering::AcqRel);
                 let count = Arc::clone(&active);
                 std::thread::spawn(move || { let _ = connection(stream); count.fetch_sub(1, Ordering::AcqRel); });

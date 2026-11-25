@@ -57,11 +57,11 @@ pub(super) fn call_value(request: &serde_json::Value) -> Result<serde_json::Valu
         return Err(REJECTED.into());
     }
     let stream = UnixStream::connect(SOCKET).map_err(|_| REJECTED)?;
-    // Status verifies the installed release on every request, which takes
-    // seconds on a busy Mac. Answer inside the apps' ten-second deadline rather
-    // than reporting a slow but healthy helper as unreachable.
+    // On macOS a verified status read can take tens of seconds under load.
+    // Keep the shorter deadline for commands and the restart handshake.
+    let read_seconds = if cfg!(target_os = "macos") && request["operation"] == "status" { 90 } else { 9 };
     stream
-        .set_read_timeout(Some(Duration::from_secs(9)))
+        .set_read_timeout(Some(Duration::from_secs(read_seconds)))
         .map_err(|_| REJECTED)?;
     stream
         .set_write_timeout(Some(Duration::from_secs(5)))

@@ -1,6 +1,7 @@
 import { existingClaudeChannelConfiguration } from './existing-session/setup.js'
 import { existingSessionsEnabled } from './existing-session/settings.js'
 import { describeExecutorWithLocalApps } from './describe.js'
+import { teamIsConnecting } from './daemon-connection-status.js'
 import { readLocalAppStartStatus } from './local-app-start-status.js'
 import { withLocalAppStartStates } from './local-mcp-apps.js'
 import { describeFolderSync } from './folder-sync/console-state.js'
@@ -28,6 +29,7 @@ export const describeTeam = async (stateDir: string, state: ExecutorLocalState) 
 
 const teamSettings = async (stateDir: string, state: ExecutorLocalState) => ({
   paused: await teamPaused(stateDir),
+  ...(await teamIsConnecting(stateDir) ? { connecting: true } : {}),
   pendingProgramRequests: (await listProgramRequests(stateDir)).length,
   folderSync: await describeFolderSync(stateDir, state.executorId),
   existingCodingSessionsEnabled: await existingSessionsEnabled(stateDir),

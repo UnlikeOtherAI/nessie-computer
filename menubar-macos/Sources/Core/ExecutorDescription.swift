@@ -63,6 +63,8 @@ public struct ExecutorDescription: Equatable, Decodable, Sendable {
     /// The owner paused this team on this computer. Absent from a runtime that
     /// predates Pause, which could not have been paused.
     public let paused: Bool?
+    /// The running daemon is trying to reach Nessie for this team.
+    public let connecting: Bool?
     /// Program requests waiting for the owner's answer; absent from a runtime
     /// that predates them.
     public let pendingProgramRequests: Int?

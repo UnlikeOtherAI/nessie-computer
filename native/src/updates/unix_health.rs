@@ -84,6 +84,8 @@ pub(super) fn capture() -> UpdateResult<()> {
 
 pub(super) fn observe(stream: &UnixStream) -> UpdateResult<()> {
     unix_runtime::privileged()?;
+    // Only confirmation of an accepted replacement consumes this observation.
+    if Store::new(root()?).journal()?.pending.is_none() { return Ok(()); }
     let caller = peer(stream)?;
     if caller.executable.file_name().and_then(|name| name.to_str()) != Some("nessie-executor-native") { return Err(ERROR); }
     let parent = unix_process::information(caller.parent)?.ok_or(ERROR)?;

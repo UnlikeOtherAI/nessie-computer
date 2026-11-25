@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { execFile } from 'node:child_process'
 import { createHash, generateKeyPairSync } from 'node:crypto'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
@@ -7,10 +8,12 @@ import { dirname, join } from 'node:path'
 import { PassThrough } from 'node:stream'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
 
 import { canonicalExecutorJson, type ExecutorCommandEnvelope, type ExecutorOperationKey } from '@nessie/executor-protocol'
 
 import { serveExecutor } from '../src/daemon-server.js'
+import { teamIsConnecting } from '../src/daemon-connection-status.js'
 import { setOwnerPaused } from '../src/owner-pause.js'
 import { configureExecutorLocalPolicy } from '../src/pair.js'
 import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
@@ -48,6 +51,7 @@ type FakeNessie = {
   revision: number
   /** Answer a heartbeat carrying `ownerPaused` the way an older, strict Nessie does. */
   older: boolean
+  offline: boolean
   run: (operationKey: ExecutorOperationKey, args: Record<string, unknown>, revision?: number) =>
     Promise<Record<string, unknown>>
   close: () => Promise<void>
@@ -60,9 +64,10 @@ const startFakeNessie = async (): Promise<FakeNessie> => {
   const queue: ExecutorCommandEnvelope[] = []
   const results = new Map<string, (result: Record<string, unknown>) => void>()
   const nessie = {
-    apiBaseUrl: '', claims: 0, descriptors: [], heartbeats: [], revision: 0, older: false,
+    apiBaseUrl: '', claims: 0, descriptors: [], heartbeats: [], revision: 0, older: false, offline: false,
   } as unknown as FakeNessie
   const server = createServer(async (request, response) => {
+    if (nessie.offline) { request.socket.destroy(); return }
     if (request.url === '/api/executor-daemon/socket') return send(response, { code: 'NOT_FOUND', message: 'none' }, 404)
     const body = await readBody(request)
     switch (request.url) {
@@ -125,9 +130,9 @@ const startFakeNessie = async (): Promise<FakeNessie> => {
   return nessie
 }
 
-const eventually = async (what: string, check: () => boolean, timeoutMs = 10_000): Promise<void> => {
+const eventually = async (what: string, check: () => boolean | Promise<boolean>, timeoutMs = 10_000): Promise<void> => {
   const deadline = Date.now() + timeoutMs
-  while (!check()) {
+  while (!await check()) {
     if (Date.now() > deadline) throw new Error(`Timed out waiting until ${what}.`)
     await new Promise((resolve) => setTimeout(resolve, 50))
   }
@@ -154,14 +159,21 @@ const pairedState = async (stateDir: string, workspace: string, apiBaseUrl: stri
   return state
 }
 
+const runtime = {
+  entry: packagedWindowsRun ? join(dirname(process.execPath), 'nessie-executor.cjs')
+    : fileURLToPath(new URL('../src/index.ts', import.meta.url)),
+  execArgv: packagedWindowsRun ? [] : ['--import', 'tsx'],
+  execPath: process.execPath, packaged: process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1',
+}
+
+const describe = async (stateDir: string) => {
+  const { stdout } = await promisify(execFile)(runtime.execPath, [...runtime.execArgv, runtime.entry, 'describe', '--state-dir', stateDir])
+  return JSON.parse(stdout) as { connecting?: boolean }
+}
+
 const serve = (stateDir: string, state: ExecutorLocalState) => {
   const liveness = new PassThrough()
-  const running = serveExecutor(stateDir, state, { parentLiveness: liveness, runtime: {
-    entry: packagedWindowsRun ? join(dirname(process.execPath), 'nessie-executor.cjs')
-      : fileURLToPath(new URL('../src/index.ts', import.meta.url)),
-    execArgv: packagedWindowsRun ? [] : ['--import', 'tsx'],
-    execPath: process.execPath, packaged: process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1',
-  } })
+  const running = serveExecutor(stateDir, state, { parentLiveness: liveness, runtime })
   return { stop: async () => { liveness.end(); await running } }
 }
 
@@ -179,6 +191,30 @@ const fixture = async () => {
     },
   }
 }
+
+test('a running team reports a lost network and clears it when Nessie answers again', {
+  skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,
+}, async () => {
+  const { stateDir, nessie, state, cleanup } = await fixture()
+  const daemon = serve(stateDir, state)
+  try {
+    await eventually('Nessie has heard the daemon', () => nessie.heartbeats.length > 0)
+    const before = nessie.heartbeats.length
+    nessie.offline = true
+    await setOwnerPaused(stateDir, true) // Wake the heartbeat immediately.
+    await eventually('the running daemon reports connection loss', () => teamIsConnecting(stateDir))
+    assert.equal((await describe(stateDir)).connecting, true)
+    nessie.offline = false
+    await setOwnerPaused(stateDir, false)
+    await eventually('a heartbeat restores the same running team', async () =>
+      nessie.heartbeats.length > before && !await teamIsConnecting(stateDir), 30_000)
+    assert.equal((await describe(stateDir)).connecting, undefined)
+  } finally {
+    nessie.offline = false
+    await daemon.stop()
+    await cleanup()
+  }
+})
 
 test('a policy saved while the team runs is enforced on the same connection, without a restart', {
   skip: WINDOWS_STATE_HELPER_SKIP, timeout: 60_000,

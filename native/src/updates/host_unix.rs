@@ -7,7 +7,28 @@ pub(in crate::updates) use super::super::unix_package::{verify_publishers, repla
 pub(in crate::updates) use super::super::unix_runtime::installed;
 pub(in crate::updates) use super::super::unix_health::confirm_restarted;
 
-pub(in crate::updates) fn installation_status() -> UpdateResult<(nessie_executor_updater::coordinator::Installed, bool)> {
+type InstallationStatus = UpdateResult<(nessie_executor_updater::coordinator::Installed, bool)>;
+
+/// Overlapping status callers share the running verification. A later poll,
+/// installation or launch never relies on a cached verification.
+pub(in crate::updates) fn installation_status() -> InstallationStatus {
+    use std::sync::{Arc, Mutex, OnceLock, Weak};
+    static READING: Mutex<Weak<OnceLock<InstallationStatus>>> = Mutex::new(Weak::new());
+    let flight = {
+        let mut active = READING.lock().map_err(|_| unix_runtime::ERROR)?;
+        match active.upgrade().filter(|flight| flight.get().is_none()) {
+            Some(flight) => flight,
+            None => {
+                let flight = Arc::new(OnceLock::new());
+                *active = Arc::downgrade(&flight);
+                flight
+            }
+        }
+    };
+    flight.get_or_init(read_installation_status).clone()
+}
+
+fn read_installation_status() -> InstallationStatus {
     let release = crate::managed_release::installed().map_err(|_| unix_runtime::ERROR)?;
     let installed = unix_runtime::release_information(&release)?;
     let can_install = super::super::unix_legacy::remaining(&release.digest)

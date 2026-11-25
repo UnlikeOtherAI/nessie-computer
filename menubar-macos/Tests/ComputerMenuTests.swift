@@ -69,6 +69,7 @@ final class ComputerMenuTests: XCTestCase {
         XCTAssertEqual(menu([]).icon, .idle)
         XCTAssertEqual(menu([team("a", "A")]).icon, .working)
         XCTAssertEqual(menu([team("a", "A", daemon: .stopped, connecting: true)]).icon, .idle)
+        XCTAssertEqual(menu([team("a", "A", daemon: .running, connecting: true)]).status, "Connecting…")
         XCTAssertEqual(menu([team("a", "A", daemon: .stopping)]).icon, .idle)
         XCTAssertEqual(menu([team("a", "A", daemon: .stopped)]).icon, .idle, "stopped without a reason")
         XCTAssertNil(menu([team("a", "A", daemon: .stopping)]).needsYou)

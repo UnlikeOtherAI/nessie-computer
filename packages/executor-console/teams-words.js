@@ -1,6 +1,7 @@
 // Team words: status words, Pause/Resume, Disconnect and the footer notes.
 window.nc.words.register('teams', {
   'en-GB': {
+    connecting: 'Connecting…',
     working: 'Working', paused: 'Paused', notConnected: 'Not connected', needsYou: 'Needs you',
     workingElsewhere: 'Working in another app', pause: 'Pause', resume: 'Resume', pausing: 'Pausing…', resuming: 'Resuming…',
     disconnect: 'Disconnect…', disconnectTitle: 'Disconnect {team}?',
@@ -12,6 +13,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — ChatGPT plan connection',
   },
   'en-US': {
+    connecting: 'Connecting…',
     working: 'Working', paused: 'Paused', notConnected: 'Not connected', needsYou: 'Needs you',
     workingElsewhere: 'Working in another app', pause: 'Pause', resume: 'Resume', pausing: 'Pausing…', resuming: 'Resuming…',
     disconnect: 'Disconnect…', disconnectTitle: 'Disconnect {team}?',
@@ -23,6 +25,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — ChatGPT plan connection',
   },
   cs: {
+    connecting: 'Připojování…',
     working: 'Pracuje', paused: 'Pozastaveno', notConnected: 'Nepřipojeno', needsYou: 'Potřebuje vás',
     workingElsewhere: 'Pracuje v jiné aplikaci', pause: 'Pozastavit', resume: 'Obnovit', pausing: 'Pozastavuje se…', resuming: 'Obnovuje se…',
     disconnect: 'Odpojit…', disconnectTitle: 'Odpojit tým {team}?',
@@ -34,6 +37,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — připojení pro plány ChatGPT',
   },
   de: {
+    connecting: 'Verbindung wird hergestellt…',
     working: 'Arbeitet', paused: 'Pausiert', notConnected: 'Nicht verbunden', needsYou: 'Braucht Sie',
     workingElsewhere: 'Arbeitet in einer anderen App', pause: 'Pausieren', resume: 'Fortsetzen', pausing: 'Wird pausiert…', resuming: 'Wird fortgesetzt…',
     disconnect: 'Trennen…', disconnectTitle: '{team} trennen?',
@@ -45,6 +49,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — Verbindung für ChatGPT-Pläne',
   },
   es: {
+    connecting: 'Conectando…',
     working: 'Trabajando', paused: 'En pausa', notConnected: 'Sin conexión', needsYou: 'Te necesita',
     workingElsewhere: 'Trabajando en otra app', pause: 'Pausar', resume: 'Reanudar', pausing: 'Pausando…', resuming: 'Reanudando…',
     disconnect: 'Desconectar…', disconnectTitle: '¿Desconectar {team}?',
@@ -56,6 +61,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — conexión para planes de ChatGPT',
   },
   fr: {
+    connecting: 'Connexion en cours…',
     working: 'Au travail', paused: 'En pause', notConnected: 'Non connectée', needsYou: 'Besoin de vous',
     workingElsewhere: 'Au travail dans une autre app', pause: 'Mettre en pause', resume: 'Reprendre', pausing: 'Mise en pause…', resuming: 'Reprise…',
     disconnect: 'Déconnecter…', disconnectTitle: 'Déconnecter {team} ?',
@@ -67,6 +73,7 @@ window.nc.words.register('teams', {
     planConnection: '{team} — connexion pour les forfaits ChatGPT',
   },
   it: {
+    connecting: 'Connessione in corso…',
     working: 'Al lavoro', paused: 'In pausa', notConnected: 'Non connesso', needsYou: 'Ha bisogno di te',
     workingElsewhere: 'Al lavoro in un’altra app', pause: 'Sospendi', resume: 'Riprendi', pausing: 'Sospensione…', resuming: 'Ripresa…',
     disconnect: 'Disconnetti…', disconnectTitle: 'Disconnettere {team}?',

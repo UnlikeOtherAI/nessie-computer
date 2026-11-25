@@ -19,6 +19,11 @@ It syncs every document you can read in that team. There is nothing to pick.
    which opens the right page in Nessie, then **Allow**. Nothing is copied
    before that.
 
+A pending request also appears above the tabs. **Details** shows that team’s
+Documents settings. **Allow** opens the computer’s Sync page in Nessie, where
+the signed-in owner confirms. **Decline** turns off sync for that team on this
+computer. You can turn it on again in Documents.
+
 The status line then shows **Up to date**, or **Syncing 12 files** while it works.
 
 ## Several teams

@@ -181,7 +181,8 @@ await context.addInitScript(({ host, paired, legacy, unnamed, unreadable, pairSt
       ...window.localAiAccounts.map((account) => row(account.engine, account.profileId, account.name,
         { installed: window.localAiPrograms[account.engine].installed, signedIn: account.signedIn, account: account.signedIn ? 'work@example.com' : undefined }))]
   }
-  const updates = (command, args) => {
+  const updates = async (command, args) => {
+    if (window.holdUpdateStatus && args.request?.operation === 'status') await window.holdUpdateStatus
     if (command === 'executor_update_setup') {
       if (window.updateSetupDenied) throw new Error('update.coordinator_unavailable')
       window.updateStatus = { ...window.updateStatus, phase: 'idle', canInstall: true, code: undefined }
