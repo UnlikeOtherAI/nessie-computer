@@ -13,6 +13,19 @@ export const STATE_MUTATION_LOCK_FILE = 'executor-state-mutation.lock'
  */
 const OLD_LOCK_ABANDONED_AFTER_MS = 10 * 60_000
 
+type FinishedUpdate = { release: () => Promise<void>; attempt?: Promise<void> }
+const finishedUpdates = new Map<string, FinishedUpdate>()
+
+// A failed release can outlive the save and its process stays alive to send heartbeats.
+// Retry only the original handle, which verifies the file and token before unlinking it.
+const releaseFinishedUpdate = (path: string, update: FinishedUpdate): Promise<void> => {
+  const forget = () => { if (finishedUpdates.get(path) === update) finishedUpdates.delete(path) }
+  update.attempt ??= update.release().then(forget, (error: unknown) => {
+    if (error instanceof OwnerProcessLockError && error.code === 'owner_process_admission_fenced') forget()
+  }).finally(() => { delete update.attempt })
+  return update.attempt
+}
+
 /**
  * One settings update at a time for a team.
  *
@@ -27,6 +40,8 @@ export const withStateMutationLock = async <T>(
   stateDir: string, mutate: () => Promise<T>, options: OwnerProcessLockOptions = {},
 ): Promise<T> => {
   const lockPath = resolve(stateDir, STATE_MUTATION_LOCK_FILE)
+  const previous = finishedUpdates.get(lockPath)
+  if (previous) await releaseFinishedUpdate(lockPath, previous)
   let lock: Awaited<ReturnType<typeof acquireOwnerProcessLock>>
   try {
     lock = await acquireOwnerProcessLock(stateDir, STATE_MUTATION_LOCK_FILE, {
@@ -46,7 +61,7 @@ export const withStateMutationLock = async <T>(
   try {
     return await mutate()
   } finally {
-    // The update itself is finished either way; a later one takes over a lock this process could not remove.
-    await lock.release().catch(() => undefined)
+    finishedUpdates.set(lockPath, lock)
+    await releaseFinishedUpdate(lockPath, lock)
   }
 }
