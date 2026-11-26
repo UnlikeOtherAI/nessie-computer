@@ -3,6 +3,7 @@ import {
   type OwnerProcessLockOptions,
 } from './owner-process-lock.js'
 import { PersonalInferenceProtectionError } from './personal-inference-paths.js'
+import { acquireRecoverableMutationLock } from './owner-mutation-lock.js'
 
 export { createOwnerProcessInspector as createAdmissionProcessInspector } from './owner-process-lock.js'
 export type { OwnerProcessIdentity as AdmissionProcessIdentity,
@@ -32,9 +33,12 @@ export const acquireOwnerStateLock = (
 ): Promise<{ release: () => Promise<void> }> => acquire(directory, lockName, options)
 
 /** Only physical legacy mutation metadata may recover after positively proven absence. */
-export const acquirePhysicalInferenceStateLock = (
+export const acquirePhysicalInferenceStateLock = async (
   directory: string, options: PersonalAdmissionLockOptions = {},
-): Promise<{ release: () => Promise<void> }> => acquire(directory, 'mutation.lock', { ...options, legacyPid: true })
+): Promise<{ release: () => Promise<void> }> => {
+  const lease = await protect(() => acquireRecoverableMutationLock(directory, 'mutation.lock', { ...options, legacyPid: true }))
+  return { release: () => protect(lease.release) }
+}
 
 export const acquirePersonalAdmissionLock = (
   directory: string, options: PersonalAdmissionLockOptions = {},
