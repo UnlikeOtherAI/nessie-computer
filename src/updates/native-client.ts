@@ -46,7 +46,7 @@ const nativeUpdate = async (
       child.kill()
       fail(new Error('update.coordinator_unavailable'))
     }
-    const timeout = setTimeout(refuse, 10_000)
+    const timeout = setTimeout(refuse, request.operation === 'status' ? 100_000 : 10_000)
     child.once('error', refuse)
     child.stdin.on('error', refuse)
     child.stdout.on('data', (chunk: Buffer) => {
@@ -91,5 +91,30 @@ export const reportedSoftwareStatus = async (): Promise<ExecutorSoftwareStatus> 
       ...(executorSoftwareRevision() ? { sourceCommit: executorSoftwareRevision() } : {}) }
   } catch {
     return { ...uninstalledSoftwareStatus(), code: 'update.coordinator_unavailable' }
+  }
+}
+
+/** A slow local signature check must not delay reconnecting to the team.
+ * Carry one pending read across heartbeats and consume its result once. */
+export const heartbeatSoftwareReader = (read = reportedSoftwareStatus, waitMs = 250) => {
+  let pending: Promise<ExecutorSoftwareStatus> | undefined
+  let completedAt = 0
+  return async (): Promise<ExecutorSoftwareStatus | undefined> => {
+    if (completedAt && Date.now() - completedAt > 30_000) pending = undefined
+    if (!pending) {
+      completedAt = 0
+      pending = read().then((status) => { completedAt = Date.now(); return status })
+    }
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      const status = await Promise.race([pending, new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => resolve(undefined), waitMs)
+      })])
+      if (status) pending = undefined
+      return status
+    } catch {
+      pending = undefined
+      return undefined
+    } finally { clearTimeout(timer) }
   }
 }

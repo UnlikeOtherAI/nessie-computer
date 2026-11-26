@@ -1,6 +1,7 @@
 # Nessie Computer for Mac
 
-Requires Apple silicon (M1 or newer) and macOS 15 or later. Intel Macs are not supported.
+The menu bar app requires Apple silicon (M1 or newer) and macOS 15 or later.
+For an Intel Mac running Monterey 12 or later, see the [command line instructions](../../CONTRIBUTING.md#intel-mac-command-line).
 
 1. Download `Nessie-Computer-macOS-Apple-Silicon.dmg` from [GitHub Releases](https://github.com/UnlikeOtherAI/nessie-computer/releases/latest/download/Nessie-Computer-macOS-Apple-Silicon.dmg).
 2. Open the disk image and drag **Nessie Computer** to **Applications**. The bundle's filename remains `Nessie Executor.app` for upgrades; Finder displays Nessie Computer.

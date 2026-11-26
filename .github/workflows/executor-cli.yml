@@ -8,7 +8,7 @@ on:
         required: true
         default: "1.0.0"
       macos:
-        description: Include the signed and notarized Apple Silicon package
+        description: Include signed and notarized Intel and Apple silicon CLI packages
         type: boolean
         default: false
       release_signing:
@@ -175,13 +175,22 @@ jobs:
             "${{ matrix.image }}" sh /verify-install.sh "${{ matrix.format }}" "$NESSIE_EXECUTOR_VERSION"
 
   macos:
-    name: macOS signed CLI
+    name: macOS signed CLI (${{ matrix.arch }})
     if: ${{ inputs.macos && github.ref == 'refs/heads/main' }}
     permissions:
       contents: read
       id-token: write
       attestations: write
-    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, runner: macos-15, output: dist/executor-cli }
+          - { arch: x64, runner: macos-15-intel, output: dist/executor-cli/intel }
+    runs-on: ${{ matrix.runner }}
+    env:
+      CLI_OUTPUT: ${{ matrix.output }}
+      CLI_ARCH: ${{ matrix.arch }}
     environment: direct-download-release
     steps:
       - uses: actions/checkout@v4
@@ -192,6 +201,11 @@ jobs:
         with:
           node-version: 24
       - run: pnpm install --frozen-lockfile
+      - name: Build the Intel Node runtime for Monterey
+        if: matrix.arch == 'x64'
+        run: |
+          sh packaging/cli/build-monterey-node.sh "$RUNNER_TEMP/monterey-node"
+          echo "$RUNNER_TEMP/monterey-node/runtime/bin" >> "$GITHUB_PATH"
       - uses: ./.github/actions/setup-apple-signing
         env:
           NESSIE_EXECUTOR_SIGNING_IDENTITY: ${{ vars.MACOS_DEVELOPER_ID_SIGNING_IDENTITY }}
@@ -213,35 +227,58 @@ jobs:
           cargo test --manifest-path native/Cargo.toml
           cargo build --release --manifest-path native/Cargo.toml
           node packaging/cli/build-macos.mjs
-          NESSIE_EXECUTOR_PACKAGED_CLI=1 dist/executor-cli/macos-payload/runtime/nessie-executor-runtime \
-            dist/executor-cli/macos-payload/runtime/nessie-executor.cjs --version
-          node packaging/cli/candidate.mjs darwin
+          NESSIE_EXECUTOR_PACKAGED_CLI=1 "$CLI_OUTPUT/macos-payload/runtime/nessie-executor-runtime" \
+            "$CLI_OUTPUT/macos-payload/runtime/nessie-executor.cjs" --version
       - name: Install and test the signed Homebrew candidate
         run: |
           brew tap-new nessie/cli-verification
           tap="$(brew --repository nessie/cli-verification)"
-          cp dist/executor-cli/Formula/nessie-executor.rb "$tap/Formula/"
+          cp "$CLI_OUTPUT/Formula/nessie-executor.rb" "$tap/Formula/"
           cache="$(brew --cache nessie/cli-verification/nessie-executor)"
           mkdir -p "$(dirname "$cache")"
-          cp "dist/executor-cli/nessie-executor_${NESSIE_EXECUTOR_VERSION}_darwin_arm64.tar.gz" "$cache"
+          cp "$CLI_OUTPUT/nessie-executor_${NESSIE_EXECUTOR_VERSION}_darwin_${CLI_ARCH}.tar.gz" "$cache"
           brew install nessie/cli-verification/nessie-executor
           brew test nessie/cli-verification/nessie-executor
           brew uninstall nessie/cli-verification/nessie-executor
-      - name: Attest production candidate
-        uses: actions/attest@v4
-        with:
-          subject-path: dist/executor-cli/darwin-candidate.json
       - uses: actions/upload-artifact@v4
         with:
           retention-days: 2
-          name: executor-cli-macos-${{ inputs.version }}
-          path: |
-            dist/executor-cli/*darwin_arm64.tar.gz*
-            dist/executor-cli/Formula/
-            dist/executor-cli/darwin-candidate.json
+          name: executor-cli-archive-${{ matrix.arch }}-${{ inputs.version }}
+          path: ${{ matrix.output }}/*darwin_${{ matrix.arch }}.tar.gz*
           if-no-files-found: error
       - name: Remove signing material
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/nessie-developer-id.keychain-db" || true
           rm -f "$RUNNER_TEMP/developer-id.p12" "$APP_STORE_CONNECT_API_KEY_PATH"
+
+  macos-candidate:
+    name: Assemble the signed macOS CLI candidate
+    needs: macos
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: executor-cli-archive-*-${{ inputs.version }}
+          merge-multiple: true
+          path: dist/executor-cli
+      - run: node packaging/cli/candidate.mjs darwin --with-intel
+        env:
+          NESSIE_CLI_SIGNING: release
+      - uses: actions/attest@v4
+        with:
+          subject-path: dist/executor-cli/darwin-candidate.json
+      - uses: actions/upload-artifact@v4
+        with:
+          retention-days: 2
+          name: executor-cli-macos-${{ inputs.version }}
+          path: dist/executor-cli/
+          if-no-files-found: error

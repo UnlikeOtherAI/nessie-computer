@@ -457,5 +457,8 @@ test('a rate limit is a wait, never a connection problem', () => {
   assert.match(pairingFailure(new ExecutorApiError('Too many attempts', { status: 429 })).message,
     /too many pairing attempts.*Wait a few minutes/)
   assert.match(pairingFailure(new ExecutorApiError('Unavailable', { status: 503 })).message, /Check your connection/)
+  const oldServer = new ExecutorApiError('Executor hosts require macOS 15+, Linux kernel 5+, or Windows build 19045+.',
+    { code: 'VALIDATION_ERROR', status: 400 })
+  assert.match(pairingFailure(oldServer).message, /server does not support your operating system/)
   assert.match(pairingFailure(new TypeError('fetch failed')).message, /Check your connection/)
 })

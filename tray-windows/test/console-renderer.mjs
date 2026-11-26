@@ -193,6 +193,8 @@ export const verifyConsoleShell = async (browser, ui) => {
     await page.getByRole('button', { name: 'Pause', exact: true }).waitFor()
     assert.deepEqual((await lastCall(page, 'executor_set_paused')).args, { executorId: 'team-1', paused: false })
     assert.equal(await footer(), 'Working again.')
+    await page.evaluate(() => { window.paired[1].daemonStatus = 'starting' })
+    await page.locator('#settings-team-title').getByText('Connecting…').waitFor()
     // A team another app, the command line or a scheduled task runs is working there, never "Not connected".
     await page.evaluate(() => { window.paired[1].daemonStatus = 'running elsewhere' })
     await page.locator('#settings-team-title').getByText('Working in another app').waitFor()

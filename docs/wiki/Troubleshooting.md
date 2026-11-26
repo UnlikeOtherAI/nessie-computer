@@ -12,7 +12,7 @@ menu. It always says what is going on.
 | Amber | **Needs you: …** | Something waits for you: a program request, a Documents question, or a problem with a fix. Choose the line. |
 | Amber (Mac) | **Needs you: allow Nessie Computer in System Settings to finish updating** | macOS is waiting for you to allow the update helper. Choose the line; Login Items opens. Switch Nessie Computer on. |
 | Amber (Mac) | **Needs you: updates can't start — …** | macOS refused to register the update helper, for the reason shown. Nessie Computer asks again by itself; **Try again** in the window asks at once. |
-| Amber (Mac) | **Updates are stuck — teams can't start** | The update helper isn't answering, so no team can start. Nessie Computer restarts it by itself; **Restart updates** in the window does it at once. If an older Nessie desktop app is open, quit it. |
+| Amber (Mac) | **Updates are stuck — teams can't start** | The update helper has missed two status checks. An already running team can keep working. Nessie Computer restarts it by itself; **Restart updates** in the window does it at once. If an older Nessie desktop app is open, quit it. |
 | Red (Windows) | **Can't reach the Nessie Computer service** | The background service isn't answering. Restart Windows; if the icon stays red, reinstall Nessie Computer. |
 
 A tab that couldn't read its team (Access, Documents, or AI's Claude Code,

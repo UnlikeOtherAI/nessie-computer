@@ -96,7 +96,9 @@ fn exchange(request: &serde_json::Value, eku: Option<&str>) -> Result<serde_json
         return Err(Failure::os("client_mode", error as i32));
     }
     let mut stream = unsafe { File::from_raw_handle(handle.cast()) };
-    let deadline = Instant::now() + Duration::from_secs(5);
+    // Reporting the verified release can involve inspecting large signed files.
+    let timeout = if request == &serde_json::json!({"operation":"status"}) { 90 } else { 5 };
+    let deadline = Instant::now() + Duration::from_secs(timeout);
     let mut sent = 0;
     let mut response = Vec::new();
     loop {

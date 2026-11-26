@@ -84,8 +84,22 @@ export const verifyDocumentsTeams = async (browser, ui, output) => {
     ])
     await shot('research-on')
 
-    // Switched off again, Research stops; Platform stays on and untouched.
-    await page.locator('#documents-switch').click()
+    // A pending request belongs to its row, independently of the selected team.
+    await selectTeam(page, 'team-0')
+    await showTab(page, 'settings')
+    const banner = page.locator('#needs-you-list .need-sync')
+    await banner.getByRole('button', { name: 'Details' }).click()
+    await documentsFor(page, 'Research · UnlikeOtherAI')
+    await selectTeam(page, 'team-0')
+    await showTab(page, 'settings')
+    await banner.getByRole('button', { name: 'Allow', exact: true }).click()
+    await page.waitForFunction(() => window.calls.some((call) => call.command === 'executor_sync_open_nessie'))
+    assert.deepEqual(await callArgs(page, 'executor_sync_open_nessie'), [{ executorId: 'team-1' }])
+    await banner.getByRole('button', { name: 'Decline' }).click()
+    await banner.waitFor({ state: 'hidden' })
+    assert.equal(await page.locator('#team-select').inputValue(), 'team-0')
+    await selectTeam(page, 'team-1')
+    await showTab(page, 'documents')
     await destinationIs(page, `Research · UnlikeOtherAI’s documents will go in ${shown(host, 'UnlikeOtherAI', 'Research')}`)
     assert.deepEqual((await callArgs(page, 'executor_sync_configure')).map((call) => [call.executorId, call.command.enabled]),
       [['team-1', true], ['team-1', false]])

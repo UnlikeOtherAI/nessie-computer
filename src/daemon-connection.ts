@@ -88,7 +88,7 @@ export const heartbeatExecutor = async (
   onExistingSessionAccess?: (allowed: boolean) => void,
   folderSync?: FolderSyncHeartbeatSummary,
   api: Pick<ExecutorApiClient, 'heartbeat'> = executorApi,
-  updates?: { status: ExecutorSoftwareStatus;
+  updates?: { status: ExecutorSoftwareStatus | undefined;
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void },
   monitor?: ExecutorMonitorSnapshot,
   onMonitorRequest?: (request: ExecutorMonitorRequest | null) => void,
@@ -141,7 +141,7 @@ const sendHeartbeat = async (
   onExistingSessionAccess: ((allowed: boolean) => void) | undefined,
   folderSync: FolderSyncHeartbeatSummary | undefined,
   api: Pick<ExecutorApiClient, 'heartbeat'>,
-  updates: { status: ExecutorSoftwareStatus;
+  updates: { status: ExecutorSoftwareStatus | undefined;
     onRequest: (request: ExecutorSoftwareUpdateRequest) => Promise<void> | void } | undefined,
   monitor: ExecutorMonitorSnapshot | undefined,
   onMonitorRequest: ((request: ExecutorMonitorRequest | null) => void) | undefined,
@@ -153,7 +153,7 @@ const sendHeartbeat = async (
   const observedAt = new Date().toISOString()
   // Each optional field joins the signed payload exactly when it is present.
   // Canonical JSON distinguishes an absent key from a present one, so a daemon
-  // that reports nothing still signs — and verifies — the payload it always did.
+  // that reports nothing still signs â€” and verifies â€” the payload it always did.
   const signed = {
     connectionEpoch: state.connectionEpoch,
     executorId: state.executorId,
@@ -161,7 +161,7 @@ const sendHeartbeat = async (
     ...(folderSync === undefined ? {} : { folderSync: FolderSyncHeartbeatSummarySchema.parse(folderSync) }),
     ...(imessage?.report === undefined ? {} : { imessage: ExecutorIMessageReportSchema.parse(imessage.report) }),
     ...(localMcp === undefined ? {} : { localMcp }),
-    ...(updates === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
+    ...(updates?.status === undefined ? {} : { software: ExecutorSoftwareStatusSchema.parse(updates.status) }),
     observedAt,
     ...(monitor === undefined ? {} : { monitor: ExecutorMonitorSnapshotSchema.parse(monitor) }),
     ...(onMonitorRequest ? { monitorVersion: 1 as const } : {}),

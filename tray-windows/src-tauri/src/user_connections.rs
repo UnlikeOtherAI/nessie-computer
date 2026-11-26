@@ -168,7 +168,7 @@ impl Connections {
                 chatgpt_connection_id: None,
                 names: read_team_label(&state_dir),
                 executor_id: id,
-                daemon_status: state.into(),
+                daemon_status: nessie_windows_common::lease::displayed_daemon_status(state, &state_dir).into(),
                 workspace_configured: true,
             })
         }).collect()

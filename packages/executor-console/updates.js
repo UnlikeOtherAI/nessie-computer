@@ -7,6 +7,7 @@
   // macOS's own short reason for refusing the helper's registration.
   const cantStart = () => nc.t('updates.cantStart', { reason: status?.reason ?? '' })
   let status = null
+  let waitingForHelper = false
   let busy = false
   let announced = null
   const active = new Set(['downloading', 'waiting', 'installing', 'restarting'])
@@ -17,7 +18,7 @@
   node('automatic-label').after(automaticHelp)
 
   const render = () => {
-    node('version').textContent = status?.installedVersion || text('unknown')
+    node('version').textContent = status?.installedVersion || (waitingForHelper ? '…' : text('unknown'))
     node('automatic').checked = status?.automatic === true
     node('automatic').disabled = busy || !status?.canInstall
     node('policy').hidden = !status?.canInstall
@@ -40,9 +41,11 @@
     const phase = status?.phase ?? 'checking'
     const known = ['idle', 'checking', 'downloading', 'waiting', 'installing', 'restarting', 'failed', 'unsupported', 'available']
     node('status').textContent = status?.code === 'update.setup_required' ? text('setupHint') : stuck ? text('helperStuck')
+      : status?.code === 'update.check_failed' ? text('catalogRetry')
       : approval ? text('approval') : refused ? cantStart()
       : status?.code === 'update.bootstrap_required' ? text('bootstrap') : text(known.includes(phase) ? phase : 'unavailable', version)
-    if (phase === 'failed' && status?.availableVersion) node('status').textContent += ` ${text('available', status.availableVersion)}`
+    if (waitingForHelper) node('status').textContent = text('connecting')
+    if (!waitingForHelper && phase === 'failed' && status?.availableVersion) node('status').textContent += ` ${text('available', status.availableVersion)}`
     if (!status?.notify || status.automatic || !canUpdate) announced = null
     for (const listener of listeners) listener(status)
   }
@@ -63,6 +66,9 @@
   const load = async (request = { operation: 'status' }) => {
     if (busy) return
     busy = true
+    const readingHelper = request.operation === 'status'
+    waitingForHelper = readingHelper && !status
+    const slow = readingHelper ? setTimeout(() => { waitingForHelper = true; render() }, 1500) : null
     render()
     node('error').hidden = node('prompt-error').hidden = true
     try {
@@ -79,6 +85,8 @@
       }
       // A service failure must not silently change a saved automatic-update choice.
     } finally {
+      clearTimeout(slow)
+      waitingForHelper = false
       busy = false
       render()
       if (!status) node('status').textContent = text('unavailable')
@@ -109,7 +117,8 @@
     onStatus: (listener) => { listeners.add(listener); return () => listeners.delete(listener) },
     status: () => status,
     /** The helper can't be reached or refuses, so no team can start. */
-    stuck: () => status?.code === 'update.helper_unavailable',
+    waiting: () => waitingForHelper && (!status || status.code === 'update.helper_unavailable'),
+    stuck: () => !waitingForHelper && status?.code === 'update.helper_unavailable',
     /** macOS won't run the helper until the owner allows it in Login Items. */
     approval: () => status?.code === 'update.approval_required',
     /** macOS refused to register the helper; the line says why. */

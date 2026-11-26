@@ -49,12 +49,13 @@
     if (team.connection !== 'user') return executorId
     return team.chatgptConnectionId ?? null
   }
-  /** One of `working`, `paused`, `needs_you`, `not_connected`. */
+  /** Owner decisions and Pause take precedence over connection progress. */
   const status = (team) => {
     if (team.paused) return 'paused'
     if (team.pendingProgramRequests > 0) return 'needs_you'
     if (team.failure) return 'not_connected'
-    return ['running', 'starting', 'running elsewhere'].includes(team.daemonStatus) ? 'working' : 'not_connected'
+    if (team.daemonStatus === 'starting') return 'connecting'
+    return ['running', 'running elsewhere'].includes(team.daemonStatus) ? 'working' : 'not_connected'
   }
 
   const notifySelection = () => { for (const listener of selectionListeners) listener(current) }
@@ -157,7 +158,7 @@
     status,
     // A team another app, the command line or a scheduled task runs is working, just not in this app.
     statusWord: (team) => t(status(team) === 'working' && team.daemonStatus === 'running elsewhere' ? 'teams.workingElsewhere'
-      : `teams.${{ working: 'working', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),
+      : `teams.${{ working: 'working', connecting: 'connecting', paused: 'paused', needs_you: 'needsYou', not_connected: 'notConnected' }[status(team)]}`),
     nameUnknown: (executorId) => !namesOf(executorId),
     describe,
     remember,

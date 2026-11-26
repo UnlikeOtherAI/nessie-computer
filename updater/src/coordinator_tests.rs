@@ -174,6 +174,31 @@ fn accepted_update_survives_expiry_waits_for_work_and_requires_a_new_healthy_pro
 }
 
 #[test]
+fn a_new_worker_reads_the_accepted_update_from_disk_after_each_interruption() {
+    let (directory, store, host, key, _manifest, digest, now) = fixture();
+    {
+        let network = Network::default();
+        let worker = Coordinator { store: &store, network: &network, installer: &host, test_key: key.clone() };
+        worker.advance(now).unwrap();
+        assert_eq!(store.journal().unwrap().pending.unwrap().phase, Phase::Waiting);
+    }
+    drop(store);
+    host.busy.set(false);
+    // Each launch gets a new store and network client. The staged, signed
+    // payload suffices offline, even after the catalogue itself expires.
+    for (launch, healthy) in [false, false, true].into_iter().enumerate() {
+        host.healthy.set(healthy);
+        let reopened = Store::new(directory.path().to_owned());
+        let network = Network::default();
+        let worker = Coordinator { store: &reopened, network: &network, installer: &host, test_key: key.clone() };
+        worker.resume(now + 7 * 86_400_000 + launch as u64).unwrap();
+        assert_eq!(host.installs.get(), 1);
+        assert_eq!(reopened.journal().unwrap().pending.is_none(), healthy);
+    }
+    assert!(directory.path().join("completed").join(format!("{digest}.json")).is_file());
+}
+
+#[test]
 fn opting_out_after_staging_restores_a_notification_and_a_manual_request_resumes_the_same_transaction(
 ) {
     let (_directory, store, host, key, _manifest, digest, now) = fixture();

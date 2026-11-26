@@ -25,6 +25,6 @@ const files = [...Object.keys(linux.files), ...Object.keys(mac.files),
   'linux-candidate.json', 'darwin-candidate.json'].map((file) => join(directory, file))
 await run('gh', ['release', 'create', releaseTag(version), '--repo', repo, '--verify-tag', '--latest=false',
   '--title', `Nessie Computer ${version}`, '--notes',
-  'CLI packages for macOS Apple Silicon and Linux x86_64. Installation: https://nessie.works/docs/executor-setup',
+  `CLI packages for ${mac.intel ? 'Intel and Apple silicon Macs' : 'Apple silicon Macs'} and Linux x86_64. Installation: https://nessie.works/docs/executor-setup`,
   ...files], { maxBuffer: 1024 * 1024 })
 process.stdout.write(`Published ${releaseTag(version)}. Apply the generated Homebrew formula through a tap PR, then deploy its signed repository archive.\n`)

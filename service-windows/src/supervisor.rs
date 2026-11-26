@@ -216,7 +216,7 @@ impl Supervisor {
                     names: read_team_label(&state_dir),
                     pending_program_requests: self.pending_program_requests(&executor_id, &state_dir),
                     failure,
-                    daemon_status,
+                    daemon_status: nessie_windows_common::lease::displayed_daemon_status(&daemon_status, &state_dir).into(),
                     executor_id,
                     workspace_configured: true,
                 })

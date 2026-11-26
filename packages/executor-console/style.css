@@ -108,7 +108,7 @@ footer { flex-shrink: 0; border-top: 1px solid var(--line); padding: 12px 24px; 
 .status-word { font-weight: 600; white-space: nowrap; }
 .status-word::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; background: var(--control); vertical-align: 0; }
 .status-word[data-tone=working]::before { background: var(--on); }
-.status-word[data-tone=needs_you]::before { background: var(--wait); }
+.status-word[data-tone=connecting]::before, .status-word[data-tone=needs_you]::before { background: var(--wait); }
 .status-word[data-tone=not_connected]::before { background: var(--error); }
 /* Add another team */
 #code-row, .code-row { display: flex; align-items: center; gap: 14px; margin: 16px 0 6px; }

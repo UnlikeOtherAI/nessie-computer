@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto'
-import { lstat, mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { lstat, mkdtemp, rm } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import test from 'node:test'
@@ -8,6 +8,7 @@ import test from 'node:test'
 import { canonicalExecutorPayload } from '@nessie/executor-protocol'
 
 import { runPairingCodeCli } from '../src/pairing-code-cli.js'
+import { ensureOwnerOnlyStateDirectory } from '../src/state-security.js'
 import { createUnpair, TeamRunningError } from '../src/unpair.js'
 import type { ExecutorLocalState } from '../src/state-store.js'
 
@@ -98,7 +99,7 @@ test('personal start fence remains held through sign-off and actual pairing remo
 test('disconnecting removes the folder that holds its own running-team lease, and succeeds', async () => {
   const root = await mkdtemp(join(tmpdir(), 'nessie-unpair-'))
   const directory = join(root, 'team')
-  await mkdir(directory, { mode: 0o700 })
+  await ensureOwnerOnlyStateDirectory(directory)
   try {
     // The real lease and the real removal: the lease file lives in the folder being removed.
     const unpair = createUnpair({

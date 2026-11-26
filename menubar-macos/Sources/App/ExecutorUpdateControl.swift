@@ -50,6 +50,7 @@ final class ComputerUpdateHealth {
 
 /// Native control only: a blocked or stopped JavaScript runtime must not hide Updates.
 enum ExecutorUpdateControl {
+    @MainActor private static let statusProbe = ComputerStatusProbe()
     private static let unavailable = "update.coordinator_unavailable"
 
     @MainActor
@@ -73,22 +74,27 @@ enum ExecutorUpdateControl {
         let runtime = try PackagedRuntime.locate(in: Bundle.main.resourceURL).get()
         let helper = runtime.managedHelperURL() ?? ComputerUpdateService.factory
         do {
-            let response: [String: Any] = try await withCheckedThrowingContinuation { continuation in
-                DispatchQueue.global(qos: .utility).async {
+            let frame: Data
+            if operation == "status" {
+                frame = try await statusProbe.read {
                     do {
-                        continuation.resume(returning: try exchange(helper: helper, payload: payload))
+                        let reply = try await readFrame(helper: helper, payload: payload, deadline: 95)
+                        ComputerUpdateHealth.shared.record(answered: true)
+                        return reply
                     } catch {
-                        continuation.resume(throwing: ExecutorRefusal(unavailable))
+                        ComputerUpdateHealth.shared.record(answered: false)
+                        throw error
                     }
                 }
+            } else {
+                frame = try await readFrame(helper: helper, payload: payload, deadline: 10)
             }
-            if operation == "status" { ComputerUpdateHealth.shared.record(answered: true) }
+            guard let response = try JSONSerialization.jsonObject(with: frame) as? [String: Any] else {
+                throw ExecutorRefusal(unavailable)
+            }
             return response
         } catch {
-            // Only status counts: a refused Remind or Install is an answer.
             guard operation == "status" else { throw error }
-            // A timeout and a refused status are the same to a person: no team can start.
-            ComputerUpdateHealth.shared.record(answered: false)
             if ComputerUpdateHealth.shared.attention == .needsApproval { return ComputerUpdateService.approvalStatus() }
             if let setup = ComputerUpdateService.unavailableStatus() { return setup }
             if ComputerUpdateHealth.shared.stuck { return ComputerUpdateService.stuckStatus() }
@@ -96,7 +102,19 @@ enum ExecutorUpdateControl {
         }
     }
 
-    private static func exchange(helper: URL, payload: Data) throws -> [String: Any] {
+    private static func readFrame(helper: URL, payload: Data, deadline: TimeInterval) async throws -> Data {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .utility).async {
+                do {
+                    continuation.resume(returning: try exchange(helper: helper, payload: payload, deadline: deadline))
+                } catch {
+                    continuation.resume(throwing: ExecutorRefusal(unavailable))
+                }
+            }
+        }
+    }
+
+    private static func exchange(helper: URL, payload: Data, deadline: TimeInterval) throws -> Data {
         let process = Process()
         process.executableURL = helper
         process.arguments = ["update-control"]
@@ -113,7 +131,7 @@ enum ExecutorUpdateControl {
         let timeout = DispatchWorkItem {
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         }
-        DispatchQueue.global().asyncAfter(deadline: .now() + 10, execute: timeout)
+        DispatchQueue.global().asyncAfter(deadline: .now() + deadline, execute: timeout)
         defer { timeout.cancel() }
         try input.fileHandleForWriting.write(contentsOf: payload)
         try input.fileHandleForWriting.close()
@@ -128,7 +146,7 @@ enum ExecutorUpdateControl {
         guard process.terminationStatus == 0, frame.count <= 16_384, frame.last == 10,
               let response = try JSONSerialization.jsonObject(with: frame) as? [String: Any],
               response["error"] == nil else { throw ExecutorRefusal(unavailable) }
-        return response
+        return frame
     }
 }
 

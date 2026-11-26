@@ -19,6 +19,7 @@ import { FolderSyncEngine } from './folder-sync/engine.js'
 import { startFolderSyncLoop } from './folder-sync/engine-loop.js'
 import { createFolderSyncTransport } from './folder-sync/transport.js'
 import { acquireExecutorDaemonLease } from './daemon-lease.js'
+import { createConnectionStatusWriter } from './daemon-connection-status.js'
 import { createDaemonLiveApply } from './daemon-live-apply.js'
 import { createDaemonLiveState } from './daemon-live-state.js'
 import { watchLocalFiles } from './daemon-local-watch.js'
@@ -42,7 +43,7 @@ import { createOwnerRequestsGate, reportForServer } from './owner-requests-gate.
 import { watchSessionChanges } from './session-change-watch.js'
 import { startComputerMonitor } from './computer-monitor.js'
 import { PersonalInferenceGuard } from './personal-inference-guard.js'
-import { reportedSoftwareStatus, requestSoftwareUpdate } from './updates/native-client.js'
+import { heartbeatSoftwareReader, requestSoftwareUpdate } from './updates/native-client.js'
 
 // A shutdown that opted in to closing coding sessions gets this long to ask the bridge.
 const CODING_SESSION_SHUTDOWN_BUDGET_MS = 5_000
@@ -67,6 +68,7 @@ export const serveExecutor = async (
   options: { parentLiveness?: Readable; retainedParentOutput?: Writable; runtime?: ExecutorRuntime } = {},
 ): Promise<void> => {
   const daemonLease = await acquireExecutorDaemonLease(stateDir)
+  const reportConnecting = createConnectionStatusWriter(stateDir)
   let protectionRuntime: Awaited<ReturnType<PersonalInferenceGuard['registerRuntime']>> | null = null
   let releaseT3Sources: (() => void) | undefined
   let retained: ReturnType<typeof createRetainedDaemonRuntime> | undefined
@@ -79,6 +81,7 @@ export const serveExecutor = async (
     try { await retainedParent?.close() } catch (error) { retainedFailure ??= error }
   }
   try {
+    await reportConnecting(true)
     if (process.env.NESSIE_EXECUTOR_PACKAGED_CLI === '1') {
       protectionRuntime = await PersonalInferenceGuard.open().registerRuntime(`executor:${state.executorId}`)
     }
@@ -90,6 +93,7 @@ export const serveExecutor = async (
     const imessage = createDaemonIMessage(stateDir, pause.paused)
     const claimed = await claimExecutor(stateDir,
       await imessage.prepareState(await enableLocalSessionBridge(stateDir, state, options.runtime)))
+    await reportConnecting(false)
     const localInference = await startExecutorLocalInferenceSupervisor(stateDir, claimed)
     const live = createDaemonLiveState(localInference.state)
     const liveApply = createDaemonLiveApply(stateDir, live)
@@ -185,10 +189,11 @@ export const serveExecutor = async (
         console.error('[nessie-executor] folder sync failed:', error instanceof Error ? error.message : String(error))
       },
     })
+    const readSoftware = heartbeatSoftwareReader()
     const heartbeat = createNonOverlappingExecutorTask(async () => {
       try {
-        const software = await reportedSoftwareStatus()
-        if (software.canInstall && software.draining !== undefined) {
+        const software = await readSoftware()
+        if (software?.canInstall && software.draining !== undefined) {
           drainingForUpdate = software.draining && software.installedVersion !== software.targetVersion
           await settleLocalInference()
         }
@@ -206,9 +211,11 @@ export const serveExecutor = async (
             if (monitor.request(request)) cadence.wake(['heartbeat'])
           }, pause.report(live.current.connectionEpoch), imessage.heartbeat(),
         )
+        await reportConnecting(false)
         void bridge.close(close).catch(() => undefined)
         await liveApply.retry().catch(() => undefined)
       } catch (error) {
+        await reportConnecting(true)
         await executingRuntime.stopCurrent()
         await retainedRuntime.stopCurrent()
         await browserSessions.stopAll()
@@ -220,6 +227,7 @@ export const serveExecutor = async (
           try {
             // The claim submits the saved revision itself, under its new epoch.
             live.set(await claimExecutor(stateDir, live.current))
+            await reportConnecting(false)
             liveApply.submitted()
             live.set(await localInference.supervisor.reconnect(live.current))
             // The doorbell proved the old connection epoch; it rings again under the new one.
@@ -374,6 +382,7 @@ export const serveExecutor = async (
   } finally {
     await closeRetained()
     releaseT3Sources?.()
+    await reportConnecting(false)
     try { await protectionRuntime?.release() } finally { await daemonLease.release() }
     if (retainedFailure) throw retainedFailure
   }

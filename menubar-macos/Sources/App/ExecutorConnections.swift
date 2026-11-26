@@ -91,7 +91,7 @@ final class ExecutorConnections: ObservableObject {
                     executorId: description.executorId,
                     label: labels[description.executorId] ?? Word.teamNameUnavailable.text,
                     daemon: controller.model.daemon,
-                    connecting: controller.busy,
+                    connecting: controller.connecting,
                     paused: description.isPaused,
                     failure: controller.failure,
                     retrying: controller.retrying,

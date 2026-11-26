@@ -23,6 +23,7 @@ final class ExecutorController: ObservableObject {
     let runtime: Result<PackagedRuntime, ExecutorRefusal>
     private let work = DispatchQueue(label: "com.unlikeotherai.nessie.executor.menubar.cli")
     private var daemon: SupervisedDaemon?
+    private var refreshPending = false
     private var refreshTimer: Timer?
     private var startAfterRefresh = false
     /// A daemon that stopped, or a start that failed, is tried again when
@@ -57,6 +58,11 @@ final class ExecutorController: ObservableObject {
     /// A failure is not yet the owner's while a restart is about to retry it.
     var retrying: Bool { restarts.dueAt != nil }
 
+    var connecting: Bool {
+        if model.daemon == .running { return model.description?.connecting == true }
+        return model.daemon == .stopped && (busy || retrying || startAfterRefresh)
+    }
+
     /// The ordinary status command resumes only a profile that intentionally
     /// drained for an update, retaining its original registration and consent.
     func resumePersonalUpdate() {
@@ -89,7 +95,12 @@ final class ExecutorController: ObservableObject {
 
     func refresh(startWhenPaired: Bool = false) {
         if startWhenPaired { startAfterRefresh = true }
-        Task { await reload() }
+        guard !refreshPending else { return }
+        refreshPending = true
+        Task {
+            defer { refreshPending = false }
+            await reload()
+        }
     }
 
     /// One `describe`, applied, and whatever follows from it. Awaited by the
@@ -267,8 +278,11 @@ final class ExecutorController: ObservableObject {
         }
     }
 
-    // MARK: - Supervision
+}
 
+// MARK: - Supervision
+
+extension ExecutorController {
     /// A team process still holds this team's lease: this app's own, or one an
     /// earlier copy of the app started, which can outlive it for a while.
     var daemonLeaseHeld: Bool {

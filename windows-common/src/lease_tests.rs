@@ -151,3 +151,17 @@ fn real_windows_generation_checks_never_signal_the_replacement() {
     }
     assert!(!unowned_daemon_is_stopping(directory.path()));
 }
+
+#[test]
+fn connecting_only_changes_the_display_of_a_running_team() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path();
+    assert_eq!(displayed_daemon_status("running", directory), "running");
+    let marker = directory.join("daemon-connecting");
+    fs::write(&marker, []).unwrap();
+    assert_eq!(displayed_daemon_status("running", directory), "starting");
+    assert_eq!(displayed_daemon_status("stopped", directory), "stopped");
+    assert_eq!(displayed_daemon_status("stopping", directory), "stopping");
+    fs::remove_file(&marker).unwrap();
+    assert_eq!(displayed_daemon_status("running", directory), "running");
+}

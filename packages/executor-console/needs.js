@@ -7,6 +7,9 @@
   const { byId, invoke, t, attempt } = nc
   let requests = []
   const syncStates = new Map()
+  const deciding = new Set()
+  let loadGeneration = 0
+  let reading = null
   let loadedAt = 0
 
   /** Documents attention worth a line here, or null. */
@@ -21,7 +24,9 @@
   // ---- what needs the owner, most urgent first
   const items = () => {
     const list = []
-    // Before anything else: while updates are stuck no team can start at all.
+    if (nc.updates?.waiting() && nc.view.current() !== 'settings') {
+      list.push({ kind: 'connecting', text: t('updates.connecting') })
+    }
     if (nc.updates?.stuck()) list.push({ kind: 'updates', text: t('updates.stuckNeed') })
     if (nc.updates?.approval()) list.push({ kind: 'updates-approval', text: t('updates.approval') })
     if (nc.updates?.refused()) list.push({ kind: 'updates-registration', text: nc.updates.cantStart() })
@@ -31,7 +36,7 @@
       if (team.failure) list.push({ kind: 'failure', team, text: t('needs.notConnected', { team: nc.team.label(team.executorId) }) })
       if (nc.team.isPlanConnection(team.executorId)) continue
       const reason = syncAttention(syncStates.get(team.executorId))
-      if (reason) list.push({ kind: 'sync', team, text: t('needs.documents', { team: nc.team.label(team.executorId), reason: t(`needs.reasons.${reason}`) }) })
+      if (reason) list.push({ kind: 'sync', team, reason, text: t('needs.documents', { team: nc.team.label(team.executorId), reason: t(`needs.reasons.${reason}`) }) })
     }
     return list
   }
@@ -88,8 +93,27 @@
       actions.append(retry)
     }
     if (item.kind === 'sync') {
-      actions.append(button(t('needs.openDocuments'), `sync:${item.team.executorId}`,
-        () => attempt(async () => { await nc.team.select(item.team.executorId); nc.view.show('documents') })))
+      const { executorId } = item.team
+      const approval = ['waiting_for_confirmation', 'needs_reauthorization'].includes(item.reason)
+      actions.append(button(t(approval ? 'shell.details' : 'needs.openDocuments'), `sync:${executorId}`,
+        () => attempt(async () => { await nc.team.select(executorId); nc.view.show('documents') })))
+      if (approval) {
+        for (const decision of ['allow', 'decline']) {
+          const action = button(t(`needs.${decision}`), `sync:${executorId}:${decision}`, () => attempt(async () => {
+            if (deciding.has(executorId)) return
+            deciding.add(executorId)
+            render()
+            try {
+              await nc.documents.decide(executorId, item.reason, decision)
+            } finally {
+              deciding.delete(executorId)
+              await load(true)
+            }
+          }), decision === 'allow' ? 'primary' : '')
+          action.disabled = deciding.has(executorId)
+          actions.append(action)
+        }
+      }
     }
     line.append(actions)
     return line
@@ -101,12 +125,14 @@
   })
 
   // Program requests are asked for only while a team reports one; Documents attention per team.
-  const load = async () => {
+  const read = async () => {
+    const generation = ++loadGeneration
     const teams = nc.team.teams()
     const [next, states] = await Promise.all([
       teams.some((team) => team.pendingProgramRequests > 0) ? invoke('executor_program_requests', {}) : Promise.resolve([]),
       Promise.all(teams.map((team) => invoke('executor_sync_status', { executorId: team.executorId }).then((state) => [team.executorId, state]).catch(() => null))),
     ])
+    if (generation !== loadGeneration) return
     requests = Array.isArray(next) ? next : []
     syncStates.clear()
     for (const entry of states) if (entry) syncStates.set(entry[0], entry[1])
@@ -114,8 +140,18 @@
     render()
   }
 
-  nc.needs = { render, refresh: load, syncAttention }
+  // Polls can take longer than their interval. Only an explicit refresh after
+  // a decision supersedes the current read.
+  const load = (fresh = false) => {
+    if (reading && !fresh) return reading
+    const current = read().finally(() => { if (reading === current) reading = null })
+    reading = current
+    return current
+  }
+
+  nc.needs = { render, refresh: () => load(true), syncAttention }
   // Registered now, not on DOMContentLoaded: a host that answers at once lists the teams before that event.
+  nc.view.onChange(render)
   nc.team.onListChange(() => { render(); load().catch(() => undefined) })
   window.addEventListener('DOMContentLoaded', () => {
     // Updates load after this file; their status changes the strip.

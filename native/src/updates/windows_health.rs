@@ -55,6 +55,10 @@ pub(in crate::updates) fn observe_daemon(
 ) -> UpdateResult<()> {
     use nessie_windows_common::custody::RuntimeKind;
     use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
+    // Only an accepted installation consumes proof of a restarted daemon.
+    if nessie_executor_updater::storage::Store::new(root()?).journal()?.pending.is_none() {
+        return Ok(());
+    }
     let mut pid = 0;
     if unsafe { GetNamedPipeClientProcessId(pipe, &mut pid) } == 0 || pid == 0 {
         return Err(ERROR);

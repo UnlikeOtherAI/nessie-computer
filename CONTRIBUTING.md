@@ -29,6 +29,19 @@ Automatic updates follow [automatic updates](docs/automatic-updates.md).
 Computer telemetry, Claude/Codex account probes, native history and human input
 follow [computer data](docs/computer-data.md).
 
+## Intel Mac command line
+
+On an Intel Mac running macOS Monterey 12 or later, build the workspace from
+source with the commands above. Run `pnpm start add` to get a pairing code.
+In Nessie, open **Computers → Add a computer** in the team that should own it.
+Run `pnpm start status` to check the connection. The team can use shared
+workspace files and configured MCP servers. Operations that need a guest VM
+require a different computer.
+
+Automatic launch at login needs a Developer ID signed CLI installation. The
+Intel CLI package build uses an x64 Node 24 runtime and native helper built for
+macOS 12. The Apple silicon menu bar app has its own installer.
+
 ## Pull requests
 
 Open a focused pull request with the behaviour changed and the checks run.
